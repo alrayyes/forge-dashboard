@@ -5281,16 +5281,25 @@ footer a[aria-current="page"] {
 @media (max-width: 480px) {
   .board-head:has(.rerun-all) .board-head-controls {
     flex: 1 1 100%;
+    flex-wrap: nowrap;
     justify-content: space-between;
     gap: 8px;
+    /* The row is as tall as the button whether or not it shows, so the
+       button needs no negative margin and never lands on the heading. */
+    min-height: 44px;
   }
   .board-head:has(.rerun-all) .board-head-controls .count {
     margin-left: auto;
   }
+  .rerun-all {
+    margin-block: 0;
+    min-width: 0;
+  }
+  /* The label wraps in two lines when the Hidden toggle shares the row. */
   .rerun-all-button {
     padding: 4px 8px;
     font-size: 11px;
-    white-space: nowrap;
+    line-height: 1.2;
   }
 }
 .rerun-all-button {

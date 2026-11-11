@@ -6347,6 +6347,9 @@
         "close",
         () => {
           rerunDialogRound++;
+          for (const [key, answer] of rerunProbes)
+            if ("unknown" in answer) rerunProbes.delete(key);
+          updateRerunAll();
           stopRerunAllScroll?.();
           stopRerunAllScroll = null;
         },
@@ -6373,7 +6376,12 @@
         asked++;
         const line = document.getElementById("rerun-all-checking");
         if (line) line.textContent = `Checking ${asked} of ${total}.`;
-        rerunProbes.set(rerunProbeKey(next), await probeRerunnable(next));
+        const answer = await probeRerunnable(next);
+        // A failed probe is kept only while the dialog is open (the row is
+        // left in, and the forge decides). It is dropped when the dialog
+        // closes, so the next press asks again.
+        if (round === rerunDialogRound || !("unknown" in answer))
+          rerunProbes.set(rerunProbeKey(next), answer);
         if (round !== rerunDialogRound) return;
       }
       renderRerunPlan();

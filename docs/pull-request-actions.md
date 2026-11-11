@@ -1158,7 +1158,7 @@ ends.
 
 With none to rerun the dialog is titled `Nothing to rerun`, lists the reasons
 under `Can't rerun`, and has no confirm button. Once the answers are in, the
-button drops its count and its description and tooltip read "None of the 3
+button drops its count and its hover text and description read "None of the 3
 failing pull requests can be rerun from here." followed by the reasons. With no
 failing pull request listed the button is gone, and focus moves to the `All`
 quick filter if the button had it.

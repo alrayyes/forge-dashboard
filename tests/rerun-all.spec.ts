@@ -42,6 +42,8 @@ async function open(
     forges?: Record<string, unknown>[];
     refuse?: Record<number, string>;
     hidden?: number;
+    // Probe answers that fail with a 500 before the real ones.
+    probeFailures?: number;
   } = {},
 ) {
   const posts: number[] = [];
@@ -73,6 +75,8 @@ async function open(
       new URL(route.request().url()).searchParams.get('number'),
     );
     probed.push(number);
+    if (probed.length <= (opts.probeFailures ?? 0))
+      return route.fulfill({ status: 500, body: 'boom' });
     return route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -419,3 +423,28 @@ for (const [name, path] of [
     }
   }
 }
+
+// A probe that failed is not remembered: the next press asks again, and the
+// button count is right once the dialog is closed.
+test('a failed probe is asked again on the next press', async ({ page }) => {
+  const { probed } = await open(
+    page,
+    '/pull-requests.html',
+    [pr(1)],
+    { 1: { rerunnable: false, reason: 'no failed job to rerun' } },
+    { probeFailures: 1 },
+  );
+  const button = page.locator('#rerun-all-button');
+  await button.click();
+  const dialog = page.getByRole('dialog');
+  await expect(page.locator('#rerun-all-plan')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(button).toHaveText('Rerun failed checks (1)');
+  expect(probed).toEqual([1]);
+  await button.click();
+  await expect(
+    page.getByRole('dialog', { name: 'Nothing to rerun' }),
+  ).toBeVisible();
+  expect(probed).toEqual([1, 1]);
+});
