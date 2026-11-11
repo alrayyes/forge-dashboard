@@ -1,5 +1,9 @@
-import { expect, test } from '@playwright/test';
-import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
+/// <reference types="bun" />
+import { describe, expect, test } from 'bun:test';
+import {
+  createFirstRefreshGate,
+  twoFrames,
+} from '../tests/first-refresh-gate-helper';
 
 // #2195: the gate in front of the main branches list answer. State only, no
 // browser, so it does not need a server.
@@ -12,7 +16,7 @@ const took = async (fn: () => Promise<unknown>) => {
   return Date.now() - t;
 };
 
-test.describe('first-refresh gate (#2195)', () => {
+describe('first-refresh gate (#2195)', () => {
   test('waits for the dashboard answer of the document', async () => {
     const gate = createFirstRefreshGate(T);
     gate.newDocument();
