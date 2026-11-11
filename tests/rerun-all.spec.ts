@@ -307,3 +307,40 @@ for (const [scheme, width] of [
     await expect(button).toBeFocused();
   });
 }
+
+// The header is as tall with the button as without it, so a row turning red
+// moves nothing below it (#3236). Phones are where the button used to wrap.
+for (const [name, path] of [
+  ['Pull requests', '/pull-requests.html'],
+  ['Bots', '/bots.html'],
+] as const) {
+  for (const width of [320, 390, 820]) {
+    test(`${name}: the header keeps its height when the button appears at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const rows = (ci: string) => [
+        pr(1, { ci, author: name === 'Bots' ? 'dependabot[bot]' : 'ryankes' }),
+        pr(2, { ci, author: name === 'Bots' ? 'dependabot[bot]' : 'ryankes' }),
+      ];
+      await open(page, path, rows('success'), {});
+      await expect(page.locator('.row').first()).toBeVisible();
+      await expect(page.locator('#rerun-all-button')).toBeHidden();
+      const head = page.locator('.board-head');
+      const without = (await head.boundingBox())?.height;
+      const rowTop = (await page.locator('.row').first().boundingBox())?.y;
+
+      const withIt = await page.context().newPage();
+      await withIt.setViewportSize({ width, height: 800 });
+      await open(withIt, path, rows('failure'), {});
+      await expect(withIt.locator('#rerun-all-button')).toBeVisible();
+      expect((await withIt.locator('.board-head').boundingBox())?.height).toBe(
+        without,
+      );
+      expect((await withIt.locator('.row').first().boundingBox())?.y).toBe(
+        rowTop,
+      );
+      await withIt.close();
+    });
+  }
+}
