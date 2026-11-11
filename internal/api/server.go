@@ -121,6 +121,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/v1/main-branches/advisories", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindAdvisories, handleAdvisoryList(deps))))
 	mux.Handle("POST /api/v1/checks/cancel-run", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindUserAction, handleCancelRun(deps))))
 	mux.Handle("GET /api/v1/checks/log", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindDetails, handleJobLog(deps))))
+	mux.Handle("GET /api/v1/images", auth.RequireAuth(deps.AuthStore)(handleImage(deps)))
 	mux.Handle("GET /api/v1/stats/forge-api", auth.RequireAuth(deps.AuthStore)(handleForgeAPIStats(deps)))
 	watches := newCheckWatches()
 	mux.Handle("GET /api/v1/dashboard/stream", auth.RequireAuth(deps.AuthStore)(handleDashboardStream(deps, watches)))

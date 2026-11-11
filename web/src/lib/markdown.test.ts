@@ -219,3 +219,75 @@ describe('code blocks', () => {
     }
   });
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/3405
+// An image loads only through the caller's imageSource, which says where from
+// (the server's proxy) or refuses. Otherwise it shows as a link or as text.
+describe('images', () => {
+  const imageSource = (src: string) =>
+    src.startsWith('https://git.example/')
+      ? `/api/v1/images?forge=forgejo&url=${encodeURIComponent(src)}`
+      : null;
+  const render = (text: string) => renderMarkdown(text, { imageSource });
+
+  test('an allowed image is drawn from the proxy with its alt text', async () => {
+    const html = await render('![a mockup](https://git.example/attachments/1)');
+    expect(html).toContain(
+      '<img src="/api/v1/images?forge=forgejo&amp;url=https%3A%2F%2Fgit.example%2Fattachments%2F1" alt="a mockup"',
+    );
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain('decoding="async"');
+    expect(html).toContain('referrerpolicy="no-referrer"');
+    expect(html).not.toContain('src="https://git.example');
+  });
+
+  test('a blank alt is decorative', async () => {
+    expect(await render('![](https://git.example/a.png)')).toContain('alt=""');
+  });
+
+  test('an image opens full size in a new tab, unless it is already in a link', async () => {
+    const plain = await render('![shot](https://git.example/a.png)');
+    expect(plain).toContain('target="_blank" rel="noopener noreferrer"');
+    const linked = await render(
+      '[![shot](https://git.example/a.png)](https://example.org/x)',
+    );
+    expect(linked.match(/<a /g)?.length).toBe(1);
+    expect(linked).toContain('<img');
+  });
+
+  test('a refused host is never loaded and shows as a link', async () => {
+    const html = await render('![chart](https://example.org/tracker.png)');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('href="https://example.org/tracker.png"');
+    expect(html).toContain('>chart</a>');
+  });
+
+  test('without an imageSource no image is drawn', async () => {
+    const html = await renderMarkdown('![x](https://git.example/a.png)');
+    expect(html).not.toContain('<img');
+    expect(html).toContain('x');
+  });
+
+  test('alt text is escaped', async () => {
+    const html = await render('![a "quote" <b>](https://git.example/a.png)');
+    expect(html).not.toContain('<b>');
+    expect(html).toContain('alt="a &quot;quote&quot; &lt;b&gt;"');
+  });
+
+  test('a javascript: or data: image is text, not an image', async () => {
+    for (const src of [
+      '![x](javascript:alert(1))',
+      '![x](data:image/png;base64,AAAA)',
+    ]) {
+      const html = await render(src);
+      expect(html).not.toContain('<img');
+      expect(html).not.toContain('href="javascript');
+      expect(html).not.toContain('href="data');
+    }
+  });
+
+  test('the title attribute is not carried over', async () => {
+    const html = await render('![x](https://git.example/a.png "hover")');
+    expect(html).not.toContain('title=');
+  });
+});

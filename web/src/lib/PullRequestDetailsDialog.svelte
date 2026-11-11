@@ -71,6 +71,8 @@
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { imageFallback } from "#lib/image-fallback.js";
+  import { imageSourceFor } from "#lib/image-source.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import { repoUrlOf } from "#lib/repo-url.js";
 
@@ -335,11 +337,12 @@
       const jobs: Promise<void>[] = [];
       const add = (key: string, text: string) =>
         jobs.push(
-          renderMarkdown(text, { repoUrl: repoUrlOf(current.url) }).then(
-            (out) => {
-              rendered[key] = out;
-            },
-          ),
+          renderMarkdown(text, {
+            repoUrl: repoUrlOf(current.url),
+            imageSource: imageSourceFor(current.forge, repoUrlOf(current.url)),
+          }).then((out) => {
+            rendered[key] = out;
+          }),
         );
       if (!isReleaseTarget(current))
         add("description", loaded.description.text);
@@ -636,8 +639,10 @@
             {#if releaseNotes.text.trim() === ""}
               <p class="details-note">No release notes.</p>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-              <div class="markdown">{@html html.notes}</div>
+              <div class="markdown" use:imageFallback>
+                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                {@html html.notes}
+              </div>
             {/if}
             {#if releaseNotes.truncated}
               <p class="details-note">
@@ -654,12 +659,16 @@
             {:else if isBot}
               <details class="details-collapsed">
                 <summary>Show the generated description</summary>
-                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-                <div class="markdown">{@html html.description}</div>
+                <div class="markdown" use:imageFallback>
+                  <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                  {@html html.description}
+                </div>
               </details>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-              <div class="markdown">{@html html.description}</div>
+              <div class="markdown" use:imageFallback>
+                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                {@html html.description}
+              </div>
             {/if}
             {#if details.description.truncated}
               <p class="details-note">
@@ -727,8 +736,10 @@
                       {#if c.edited}<span class="comment-edited">edited</span
                         >{/if}
                     </div>
-                    <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
-                    <div class="markdown">{@html html[c.id]}</div>
+                    <div class="markdown" use:imageFallback>
+                      <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                      {@html html[c.id]}
+                    </div>
                     {#if c.truncated}
                       <p class="details-note">Cut at 20,000 characters.</p>
                     {/if}
@@ -908,6 +919,17 @@
   .markdown :global(a) {
     color: var(--accent);
     overflow-wrap: anywhere;
+  }
+  .markdown :global(img.md-image) {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+  .markdown :global(.md-image-missing) {
+    color: var(--ink-2);
+    font-style: italic;
   }
   /* The header links are small text where colour alone would be the cue. */
   .ref-link {

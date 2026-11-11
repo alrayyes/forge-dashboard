@@ -96,6 +96,7 @@ const singleUserSpecs = [
   '**/repo-author-multi-select.spec.ts',
   '**/author-choices-per-forge.spec.ts',
   '**/pr-details-dialog.spec.ts',
+  '**/pr-details-images.spec.ts',
   '**/pr-details-short-viewport.spec.ts',
   '**/pr-details-task-lists.spec.ts',
   '**/pr-dialog-actions.spec.ts',

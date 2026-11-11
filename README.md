@@ -56,6 +56,11 @@ workflow regenerates every screenshot on each release (see
 `scripts/capture-screenshots.ts`), so they're never more than one release
 stale.
 
+Images embedded in a description, a comment, or release notes load through the
+server, from the item's own forge only. The server holds the token for a
+private repository, so the browser never gets it, and no third party sees the
+page open. Any other image shows as a link.
+
 ## Requirements
 
 - **Go 1.27 or newer**, to build.
