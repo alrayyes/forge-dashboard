@@ -214,22 +214,30 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
         await context.addCookies([
           { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
         ]);
+
         await page.emulateMedia({ reducedMotion: 'reduce' });
+
         await mockDashboard(
           page,
           makePR({ mergeStatus: 'mergeable', empty: true }),
         );
+
         await page.goto('/pull-requests.html');
+
         const close = await closeButton(page);
+
         expect(
           (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
         ).toEqual([]);
+
         await close.click();
+
         await expect(
           details(page).getByRole('button', {
             name: 'Confirm close pull request?',
           }),
         ).toBeVisible();
+
         expect(
           (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
         ).toEqual([]);

@@ -148,7 +148,9 @@ test.describe('pull request details dialog', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await mockDashboard(page, [makePR()]);
+
         await mockDetails(
           page,
           details({
@@ -169,20 +171,29 @@ test.describe('pull request details dialog', () => {
             commentCount: 1,
           }),
         );
+
         await page.goto('/pull-requests.html');
+
         await trigger(page).click();
+
         await expect(dialog(page)).toContainText(
           '🤖 I have created a release beep boop',
         );
+
         await expect(dialog(page)).not.toContainText(':robot: I have');
+
         await expect(dialog(page)).toContainText('Ship it 🎉 at 10:30:45');
+
         await expect(dialog(page).locator('code')).toHaveText(':robot:');
+
         await expect(dialog(page).locator('img[alt*="robot" i]')).toHaveCount(
           0,
         );
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }
@@ -197,11 +208,13 @@ test.describe('pull request details dialog', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await mockDashboard(page, [
           makePR({
             url: 'https://github.com/alrayyes/forge-dashboard/pull/42',
           }),
         ]);
+
         await mockDetails(
           page,
           details({
@@ -210,35 +223,48 @@ test.describe('pull request details dialog', () => {
             ),
           }),
         );
+
         await page.goto('/pull-requests.html');
+
         await trigger(page).click();
+
         const header = dialog(page).locator('.details-ref');
+
         await expect(
           header.getByRole('link', { name: /^alrayyes\/forge-dashboard/ }),
         ).toHaveAttribute(
           'href',
           'https://github.com/alrayyes/forge-dashboard',
         );
+
         await expect(
           header.getByRole('link', { name: /^#42/ }),
         ).toHaveAttribute(
           'href',
           'https://github.com/alrayyes/forge-dashboard/pull/42',
         );
+
         const text = dialog(page).locator('.markdown').first();
+
         await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
           'href',
           'https://github.com/alrayyes/forge-dashboard/issues/1859',
         );
+
         await expect(
           text.getByRole('link', { name: 'other/repo#12' }),
         ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
+
         await expect(text.getByRole('link')).toHaveCount(2);
+
         await expect(text.locator('code')).toHaveText('#7');
+
         await expect(text).toContainText('abc#5.');
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }
@@ -252,21 +278,32 @@ test.describe('pull request details dialog', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.setViewportSize({ width: 390, height: 780 });
+
         await page.emulateMedia({ colorScheme: scheme });
+
         const repo = `some-organisation-with-a-long-name/${'a-very-long-repository-name-'.repeat(2)}end`;
+
         await mockDashboard(page, [
           makePR({
             repo,
             url: `https://github.com/${repo}/pull/42`,
           }),
         ]);
+
         await mockDetails(page, details());
+
         await page.goto('/pull-requests.html');
+
         await trigger(page).click();
+
         const d = dialog(page);
+
         const links = d.locator('.details-ref').getByRole('link');
+
         await expect(links).toHaveCount(2);
+
         const boxes = [];
+
         for (const link of await links.all()) {
           const b = await link.boundingBox();
           expect(b?.height).toBeGreaterThanOrEqual(44);
@@ -274,22 +311,30 @@ test.describe('pull request details dialog', () => {
           expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
           boxes.push(b);
         }
+
         const [first, second] = boxes;
+
         const apart =
           (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
           (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
+
         expect(apart).toBe(true);
+
         await expect(links.first()).toHaveCSS(
           'text-decoration-line',
           'underline',
         );
+
         const overflow = await d.evaluate(
           (el) => el.scrollWidth - el.clientWidth,
         );
+
         expect(overflow).toBe(0);
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }
@@ -1120,6 +1165,7 @@ test.describe('pull request details dialog', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await mockDashboard(page, [
           makePR({
             ci: 'failure',
@@ -1131,6 +1177,7 @@ test.describe('pull request details dialog', () => {
             labels: [{ name: 'kind/chore', color: 'cccccc' }],
           }),
         ]);
+
         await mockDetails(
           page,
           details({
@@ -1145,12 +1192,17 @@ test.describe('pull request details dialog', () => {
             commentsTruncated: true,
           }),
         );
+
         await page.goto('/bots.html');
+
         await trigger(page).click();
+
         await expect(dialog(page).locator('.details-comment')).toHaveCount(2);
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }
@@ -1164,8 +1216,11 @@ test.describe('pull request details dialog', () => {
       for (const width of [1280, 320]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.setViewportSize({ width, height: 500 });
+
           await page.emulateMedia({ colorScheme: scheme });
+
           await mockDashboard(page, [makePR()]);
+
           await mockDetails(
             page,
             details({
@@ -1177,12 +1232,17 @@ test.describe('pull request details dialog', () => {
               ),
             }),
           );
+
           await page.goto('/pull-requests.html');
+
           await trigger(page).click();
+
           await expect(dialog(page).locator('.markdown')).toBeVisible();
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }
@@ -1195,8 +1255,11 @@ test.describe('pull request details dialog', () => {
       for (const width of [1280, 360]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.setViewportSize({ width, height: 800 });
+
           await page.emulateMedia({ colorScheme: scheme });
+
           await mockDashboard(page, [makePR()]);
+
           await mockDetails(
             page,
             details({
@@ -1208,12 +1271,17 @@ test.describe('pull request details dialog', () => {
               }),
             }),
           );
+
           await page.goto('/pull-requests.html');
+
           await trigger(page).click();
+
           await dialog(page)
             .getByRole('group', { name: /thumbs up/ })
             .focus();
+
           await expect(dialog(page).locator('.reaction-people')).toBeVisible();
+
           const results = await new AxeBuilder({ page })
             .withTags([
               'wcag2a',
@@ -1224,6 +1292,7 @@ test.describe('pull request details dialog', () => {
               'best-practice',
             ])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }

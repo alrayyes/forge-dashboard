@@ -122,6 +122,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     for (const theme of ['light', 'dark'] as const) {
       await test.step(`${theme}`, async () => {
         await page.emulateMedia({ colorScheme: theme });
+
         await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
           route.fulfill({
             status: 200,
@@ -135,18 +136,31 @@ test.describe('Awaiting workflow approval (#1280)', () => {
             }),
           }),
         );
+
         await open(page);
+
         await row(page, 'Held for approval')
           .getByRole('button', { name: /^#\d+ / })
           .click();
+
         const pill = page
           .getByRole('dialog', { name: /^Pull request details/ })
           .locator('.details-state .ci-pill');
+
         await expect(pill).toContainText('Waiting for workflow approval');
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
+
+        // axe files this pill's contrast under "incomplete", never as a
+        // violation (it can't tell the text from decoration), so a pill with
+        // unreadable colours would pass the scan above. Measure it directly:
+        // 4.5:1 is WCAG 1.4.3 for text this size.
+        // https://www.w3.org/TR/WCAG22/#contrast-minimum
+        // https://github.com/alrayyes/forge-dashboard/issues/1527
         const contrast = await pill.evaluate((el) => {
           const channels = (css: string) =>
             (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
@@ -164,6 +178,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
           ].sort((a, b) => b - a);
           return (hi + 0.05) / (lo + 0.05);
         });
+
         expect(contrast).toBeGreaterThanOrEqual(4.5);
       });
     }
@@ -198,15 +213,19 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     for (const theme of ['light', 'dark'] as const) {
       await test.step(`${theme}`, async () => {
         await page.emulateMedia({ colorScheme: theme });
+
         await open(page);
+
         await expect(
           row(page, 'Held for approval').getByRole('link', {
             name: /approve.*GitHub/i,
           }),
         ).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

@@ -243,10 +243,13 @@ test.describe('stacked pull requests (#861)', () => {
     ] as const) {
       await test.step(`${name}`, async () => {
         await open(page, size);
+
         await rowFor(page, 839).locator('.stack-chip').click();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

@@ -105,13 +105,17 @@ test.describe('the Branches pill and its dialog agree', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await open(page);
+
         await expect(panel(page).getByRole('listitem')).toHaveCount(
           JOBS.length,
         );
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

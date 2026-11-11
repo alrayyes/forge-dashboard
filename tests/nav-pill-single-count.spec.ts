@@ -121,7 +121,9 @@ test(`no axe violations with a total-less pill in both themes`, async ({
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await open(page, cases[0].counts);
+
       for (const size of [
         { width: 1280, height: 800 },
         { width: 320, height: 740 },

@@ -87,9 +87,13 @@ for (const n of NAVS) {
     for (const theme of ['light', 'dark']) {
       await test.step(`${theme}`, async () => {
         await page.goto('/');
+
         await setTheme(page, theme);
+
         await open(page, n.width);
+
         const results = await new AxeBuilder({ page }).include('nav').analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

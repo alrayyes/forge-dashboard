@@ -54,11 +54,15 @@ test.describe('an upstream error banner (#3527)', () => {
     for (const colorScheme of ['light', 'dark'] as const) {
       await test.step(`${colorScheme}`, async () => {
         await page.emulateMedia({ colorScheme });
+
         await page.goto('/pull-requests.html');
+
         await expect(page.locator('#unreachable-banner')).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

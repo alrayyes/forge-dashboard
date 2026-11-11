@@ -1062,7 +1062,9 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
     for (const width of [1280, 390]) {
       await test.step(`${scheme} ${width}px`, async () => {
         await page.setViewportSize({ width, height: 800 });
+
         await page.emulateMedia({ colorScheme: scheme });
+
         await start(
           page,
           [
@@ -1096,16 +1098,21 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
             },
           },
         );
+
         const dialog = await openActionsDialog(row(page));
+
         await footer(dialog)
           .getByRole('button', { name: 'Update branch', exact: true })
           .click();
+
         await expect(
           dialog.locator('.details-feedback .row-feedback-line'),
         ).toContainText('Failed');
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

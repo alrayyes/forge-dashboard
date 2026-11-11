@@ -131,9 +131,11 @@ test.describe('webhooks table at tablet width', () => {
     for (const width of [820, 1280]) {
       await test.step(`${width}px`, async () => {
         await open(page, width);
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

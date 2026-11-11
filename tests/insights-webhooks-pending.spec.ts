@@ -206,12 +206,17 @@ for (const p of PAGES) {
       for (const scheme of ['light', 'dark'] as const) {
         await test.step(`${scheme}`, async () => {
           await page.emulateMedia({ colorScheme: scheme });
+
           await holdRead(page, { status: 200, body: FULL });
+
           await page.goto(p.url);
+
           await expect(page.getByTestId('list-skeleton').first()).toBeVisible();
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }

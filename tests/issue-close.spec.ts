@@ -470,19 +470,29 @@ test(`has no axe violations in the footer, the comment field and the closed stat
     for (const width of [1280, 390]) {
       await test.step(`${scheme} ${width}px`, async () => {
         await page.setViewportSize({ width, height: 800 });
+
         await page.emulateMedia({ colorScheme: scheme });
+
         const { dialog } = await start(page);
+
         await expectNoViolations(page);
+
         await footer(dialog)
           .getByRole('button', { name: 'Close with a comment' })
           .click();
+
         await expect(
           dialog.getByRole('textbox', { name: 'Comment' }),
         ).toBeVisible();
+
         await expectNoViolations(page);
+
         await dialog.getByRole('textbox', { name: 'Comment' }).fill('Done.');
+
         await dialog.getByRole('button', { name: 'Comment and close' }).click();
+
         await expect(dialog.locator('.details-closed')).toBeVisible();
+
         await expectNoViolations(page);
       });
     }

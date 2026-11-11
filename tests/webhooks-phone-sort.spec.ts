@@ -158,10 +158,13 @@ test.describe('webhooks sort on a phone', () => {
       for (const width of [390, 700]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.emulateMedia({ colorScheme: scheme });
+
           await open(page, width);
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }

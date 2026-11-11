@@ -157,7 +157,9 @@ test.describe('the status area on a pull request row (#1375)', () => {
     ] as const) {
       await test.step(`${label}`, async () => {
         await page.setViewportSize(size);
+
         await open(page, [EMPTY, WAITING, READY]);
+
         for (const title of ['Empty', 'Waiting']) {
           const r = row(page, title);
           const area = await r.locator('.status-area').boundingBox();
@@ -166,9 +168,11 @@ test.describe('the status area on a pull request row (#1375)', () => {
             (box?.x ?? 0) + (box?.width ?? 0) + 1,
           );
         }
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

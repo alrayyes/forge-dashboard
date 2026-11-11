@@ -489,20 +489,27 @@ test.describe('references inside the issue dialog', () => {
         for (const scheme of ['light', 'dark'] as const) {
           await test.step(`${width}px ${scheme}`, async () => {
             await page.setViewportSize({ width, height: 800 });
+
             await page.emulateMedia({ colorScheme: scheme });
+
             await mockBoard(page, {
               shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
               issues: [issue(12, [linked(13)])],
             });
+
             await page.goto(path);
+
             if (path === '/issues.html')
               await page
                 .locator('#issue-rows .row button.title')
                 .first()
                 .click();
             else await closingPill(page, 1).click();
+
             await issueDialog(page).locator('.linked-pr').click();
+
             await expect(pullDialog(page)).toBeVisible();
+
             await axeClean(page, `${label} ${scheme} at ${width}px`);
           });
         }

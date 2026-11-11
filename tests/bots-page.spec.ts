@@ -152,26 +152,36 @@ test.describe('Bots page (#1192)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await mockDashboard(page, SNAPSHOT);
+
         await page.goto('/bots.html');
+
         await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
+
         await expect(page.locator('#pr-rows .attr-chip.bot')).toHaveCount(0);
+
         expect(
           (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
             .violations,
         ).toEqual([]);
+
         await page.setViewportSize({ width: 390, height: 844 });
+
         const fits = await page
           .locator('#pr-rows .row')
           .evaluateAll((els) =>
             els.map((el) => el.scrollWidth <= el.clientWidth + 1),
           );
+
         expect(fits.every(Boolean)).toBe(true);
+
         const overflow = await page.evaluate(
           () =>
             document.documentElement.scrollWidth -
             document.documentElement.clientWidth,
         );
+
         expect(overflow).toBeLessThanOrEqual(0);
       });
     }

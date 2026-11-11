@@ -244,25 +244,35 @@ test.describe('Settings: ignored title counts (#1676)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await standInSettings(page, {
           ignoredTitles: ['^three', '^zero'],
           matches: { '^three': 3, '^zero': 0 },
         });
+
         await page.setViewportSize({ width: 360, height: 780 });
+
         await page.goto('/settings.html#behaviour');
+
         await expect(
           section(page).getByRole('heading', { name: 'Issues' }),
         ).toBeVisible();
+
         await addPattern(page, '^pending');
+
         await expect(row(page, '^three')).toContainText('hides 3 issues');
+
         await expect(row(page, '^zero')).toContainText('hides no issues');
+
         await expect(row(page, '^pending')).toContainText(
           'Counted after you save',
         );
+
         const results = await new AxeBuilder({ page })
           .include('#issue-settings')
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

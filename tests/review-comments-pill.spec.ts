@@ -225,10 +225,13 @@ test.describe('the review comments pill (#1335)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await open(page, scheme);
+
         await expect(pill(page, 'Open')).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

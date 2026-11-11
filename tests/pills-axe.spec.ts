@@ -173,6 +173,7 @@ test(`pull request pills in every state have no axe violations in both themes`, 
   for (const scheme of THEMES) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await routeDashboard(page, {
         forges: [
           { forge: 'github', reachable: true, repoCount: 1 },
@@ -180,8 +181,11 @@ test(`pull request pills in every state have no axe violations in both themes`, 
         ],
         pullRequests: PRS,
       });
+
       await page.goto('/pull-requests.html');
+
       await expect(page.locator('#pr-rows > .row').first()).toBeVisible();
+
       await expectAccessible(page, [WIDE, PHONE, NARROW], () =>
         expect(page.locator('#pr-rows > .row .ci-pill')).toHaveCount(
           PRS.length,
@@ -224,8 +228,11 @@ test(`issue pills have no axe violations in both themes`, async ({ page }) => {
   for (const scheme of THEMES) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await routeDashboard(page, { issues: ISSUES, openIssueCount: 2 });
+
       await page.goto('/issues.html');
+
       await expectAccessible(page, [WIDE, PHONE], () =>
         expect(page.locator('#issue-rows .row .linked-pr')).toHaveCount(
           ISSUES.length,
@@ -292,7 +299,9 @@ test(`Main branches pills have no axe violations in both themes`, async ({
   for (const scheme of THEMES) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await routeDashboard(page, {});
+
       await page.route('**/api/v1/main-branches', (route: Route) =>
         route.fulfill({
           status: 200,
@@ -312,7 +321,9 @@ test(`Main branches pills have no axe violations in both themes`, async ({
           }),
         }),
       );
+
       await page.goto('/');
+
       await expectAccessible(page, [WIDE, PHONE], () =>
         expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
           BRANCHES.length,
@@ -342,6 +353,7 @@ test(`nav pills have no axe violations in both themes`, async ({ page }) => {
   for (const scheme of THEMES) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await routeDashboard(page, {
         openIssueCount: 4,
         navCounts: {
@@ -361,7 +373,9 @@ test(`nav pills have no axe violations in both themes`, async ({ page }) => {
           'awaiting_approval',
         ]),
       });
+
       await page.goto('/settings.html');
+
       await expectAccessible(page, [WIDE, NAV_PHONE], async () => {
         await expect(
           page.locator('header nav a[href="/pull-requests.html"] .nav-pills'),

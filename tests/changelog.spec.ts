@@ -455,6 +455,7 @@ test.describe('release history page', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await serveNotes(
           page,
           [
@@ -468,10 +469,15 @@ test.describe('release history page', () => {
             '> quoted note',
           ].join('\n'),
         );
+
         await page.goto('/changelog.html');
+
         await waitForReleasesToSettle(page);
+
         const notesBox = page.locator('.release-notes');
+
         await expect(notesBox.locator('ol li')).toHaveCount(2);
+
         const spacing = async (sel: string, prop: string) =>
           page
             .locator(sel)
@@ -480,29 +486,42 @@ test.describe('release history page', () => {
               (el, p) => getComputedStyle(el).getPropertyValue(p),
               prop,
             );
+
         expect(await spacing('.release-notes ol', 'padding-left')).toBe('20px');
+
         expect(await spacing('.release-notes pre', 'margin-bottom')).toBe(
           '8px',
         );
+
         expect(
           await spacing('.release-notes blockquote', 'margin-bottom'),
         ).toBe('8px');
+
+        // Colours come from tokens, so they differ from the card's own and
+        // follow the scheme.
         expect(
           await spacing('.release-notes pre', 'background-color'),
         ).not.toBe(await spacing('.release', 'background-color'));
+
         expect(await spacing('.release-notes pre', 'border-top-width')).toBe(
           '1px',
         );
+
         expect(
           await spacing('.release-notes blockquote', 'border-left-width'),
         ).toBe('3px');
+
         expect(await spacing('.release-notes blockquote', 'color')).not.toBe(
           await spacing('.release-notes li', 'color'),
         );
+
+        // A scrolling code block takes keyboard focus, so it can be read.
         await expect(notesBox.locator('pre')).toHaveAttribute('tabindex', '0');
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

@@ -518,8 +518,11 @@ test.describe('A pull request can have its own automatic branch update', () => {
           await context.addCookies([
             { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
           ]);
+
           await page.setViewportSize(viewport);
+
           await page.emulateMedia({ reducedMotion: 'reduce' });
+
           const states: AutoUpdate[] = [
             FOLLOWS_REPO_ON,
             { enabled: false, source: 'pullRequest', unavailable: null },
@@ -533,6 +536,7 @@ test.describe('A pull request can have its own automatic branch update', () => {
               },
             },
           ];
+
           for (const autoUpdate of states) {
             await page.unroute('**/api/v1/dashboard*').catch(() => {});
             await page.unroute('**/api/v1/dashboard/refresh*').catch(() => {});

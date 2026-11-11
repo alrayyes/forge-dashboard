@@ -376,17 +376,25 @@ test.describe('main branches pipeline panel updates live', () => {
       for (const width of [390, 1280]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.setViewportSize({ width, height: 800 });
+
           await page.emulateMedia({ colorScheme: scheme });
+
           const state = await open(page, RUNNING, RUN);
+
           state.row = PASSED;
+
           state.checks = DONE;
+
           await update(page, state);
+
           await expect(panel(page).getByRole('listitem').nth(1)).toContainText(
             'Passed',
           );
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }

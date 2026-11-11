@@ -247,11 +247,17 @@ test(`the confirm fits a phone in light and dark and passes axe`, async ({
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await page.setViewportSize({ width: 360, height: 800 });
+
       await open(page, [pr(1), pr(2)]);
+
       await page.getByRole('button', { name: 'Update all (2)' }).click();
+
       await expect(page.getByRole('dialog')).toBeVisible();
+
       await expectNoAxeViolations(page);
+
       expect(
         await page.evaluate(
           () =>
@@ -402,8 +408,11 @@ test(`the strip passes axe in light and dark`, async ({ page }) => {
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await open(page, [pr(1), pr(2, { allowedActions: [] })]);
+
       await expect(chips(page)).toHaveText(['1 ready to update']);
+
       await expectNoAxeViolations(page);
     });
   }

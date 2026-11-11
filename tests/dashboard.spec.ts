@@ -3520,15 +3520,21 @@ test.describe('repo group headers: host and sync status (#679)', () => {
     for (const theme of ['light', 'dark']) {
       await test.step(`${theme}`, async () => {
         await setTheme(page, theme);
+
         await page.reload();
+
         await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
         await page.selectOption('#shared-group-select', 'repo');
+
         await expect(
           header(page, 'ryan/infra').locator('.group-sync'),
         ).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

@@ -407,13 +407,20 @@ test.describe('settings groups', () => {
   test(`axe passes in every group, light and dark, every width`, async ({
     page,
   }) => {
+    // Four passes over four groups, each scanned twice.
+    test.setTimeout(90_000);
     for (const scheme of ['light', 'dark'] as const) {
       for (const width of [1280, 360]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.emulateMedia({ colorScheme: scheme });
+
           await page.setViewportSize({ width, height: 900 });
+
           for (const g of GROUPS) {
             await page.goto(`/settings.html#${g.id}`);
+            // A hash change is not a load: reload so the help a previous
+            // pass opened is closed again.
+            await page.reload();
             await expect(cardHeading(page, g.cards[0])).toBeVisible();
             const results = await new AxeBuilder({ page })
               .withTags([
@@ -438,14 +445,18 @@ test.describe('settings groups', () => {
                 'wcag22aa',
               ])
               .analyze();
-            expect(
-              opened.violations,
-              `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
-            ).toEqual([]);
-            expect(
-              results.violations,
-              `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
-            ).toEqual([]);
+            expect
+              .soft(
+                opened.violations,
+                `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
+              )
+              .toEqual([]);
+            expect
+              .soft(
+                results.violations,
+                `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
+              )
+              .toEqual([]);
           }
         });
       }

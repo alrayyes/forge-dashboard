@@ -349,11 +349,15 @@ test.describe('row status grammar (#1563)', () => {
     for (const theme of ['light', 'dark'] as const) {
       await test.step(`${theme}`, async () => {
         await page.emulateMedia({ colorScheme: theme });
+
         await open(page, [everything()], '/bots.html');
+
         await expect(firstRow(page).locator('.attr-chip')).toHaveCount(3);
+
         const results = await new AxeBuilder({ page })
           .withTags(AXE_TAGS)
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

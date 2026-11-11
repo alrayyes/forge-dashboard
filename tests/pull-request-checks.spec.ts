@@ -1095,6 +1095,7 @@ test.describe('pull request pipeline checks panel', () => {
     for (const theme of ['light', 'dark'] as const) {
       await test.step(`${theme}`, async () => {
         await page.emulateMedia({ colorScheme: theme });
+
         await mockDashboard(
           page,
           'forgejo',
@@ -1104,6 +1105,7 @@ test.describe('pull request pipeline checks panel', () => {
             ci: 'failure',
           }),
         );
+
         await mockChecks(page, {
           checks: [
             {
@@ -1116,6 +1118,7 @@ test.describe('pull request pipeline checks panel', () => {
             },
           ],
         });
+
         await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
           route.fulfill({
             status: 409,
@@ -1127,22 +1130,29 @@ test.describe('pull request pipeline checks panel', () => {
             }),
           }),
         );
+
         await page.goto('/pull-requests.html');
+
         await page
           .locator('#pr-rows .row')
           .first()
           .getByRole('button', { name: 'Open pipeline' })
           .click();
+
         const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
         await dialog
           .getByRole('button', { name: 'Rerun failed checks' })
           .click();
+
         await expect(
           dialog.getByText('no failed job to rerun on this pull request'),
         ).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

@@ -80,12 +80,17 @@ test.describe('Webhooks Per page select stays (#3462)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await open(page);
+
         await pick(page, '100');
+
         await expect(select(page)).toBeVisible();
+
         const results = await new AxeBuilder({ page })
           .include('#webhooks-pagination')
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

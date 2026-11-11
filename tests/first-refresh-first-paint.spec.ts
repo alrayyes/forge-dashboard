@@ -273,31 +273,41 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.setViewportSize({ width: 360, height: 740 });
+
         await page.emulateMedia({
           colorScheme: scheme,
           reducedMotion: 'reduce',
         });
+
         await holdFirstAnswer(page, { done: true });
+
         await page.goto('/pull-requests.html');
+
         await expect(page.getByTestId('list-skeleton')).toBeVisible();
+
         await expect(page.getByTestId('first-refresh-status')).toHaveText(
           'Loading your repositories…',
         );
+
         expect(
           await page
             .locator('.skeleton-bar')
             .first()
             .evaluate((el) => getComputedStyle(el).animationName),
         ).toBe('none');
+
         const overflow = await page.evaluate(
           () =>
             document.documentElement.scrollWidth -
             document.documentElement.clientWidth,
         );
+
         expect(overflow).toBeLessThanOrEqual(0);
+
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
+
         expect(results.violations).toEqual([]);
       });
     }

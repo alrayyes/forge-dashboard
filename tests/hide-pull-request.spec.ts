@@ -319,16 +319,23 @@ test.describe('hiding is accessible (#841)', () => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await open(page, { 1: { until: null } });
+
         const footer = await footerOf(page, 'Pull request 2');
+
         expect(
           (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
         ).toEqual([]);
+
         await footer
           .getByRole('button', { name: 'Hide this pull request' })
           .click();
+
         await page.locator('#hidden-prs-toggle').click();
+
         await expect(page.locator('#hidden-prs-list li')).toHaveCount(2);
+
         expect(
           (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
         ).toEqual([]);

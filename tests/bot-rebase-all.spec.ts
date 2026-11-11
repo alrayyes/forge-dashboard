@@ -264,11 +264,17 @@ test(`the header and dialog fit a phone in light and dark and pass axe`, async (
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await page.setViewportSize({ width: 360, height: 800 });
+
       await open(page, [pr(1), renovate(4)]);
+
       await page.getByRole('button', { name: 'Rebase all (2)' }).click();
+
       await expect(page.getByRole('dialog')).toBeVisible();
+
       await expectNoAxeViolations(page);
+
       expect(
         await page.evaluate(
           () =>
@@ -585,15 +591,18 @@ test(`the strip passes axe in light and dark with every chip tint`, async ({
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await open(page, [
         pr(1),
         pr(2, { behind: false, ci: 'failure', failingCi: true }),
       ]);
+
       await expect(page.locator('.rebase-all-chips > li')).toHaveText([
         '1 out of date',
         '1 failing',
         '1 ready to rebase',
       ]);
+
       await expectNoAxeViolations(page);
     });
   }
@@ -605,6 +614,7 @@ test(`the strip passes axe in light and dark with zero chips`, async ({
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await open(
         page,
         [pr(1)],
@@ -617,11 +627,13 @@ test(`the strip passes axe in light and dark with zero chips`, async ({
           },
         ],
       );
+
       await expect(page.locator('.rebase-all-chips > li')).toHaveText([
         '1 out of date',
         '0 failing',
         '0 ready to rebase',
       ]);
+
       await expectNoAxeViolations(page);
     });
   }
@@ -639,34 +651,53 @@ test(`an overflowing rebase list is a named tab stop that scrolls with the keys 
     for (const width of [320, 390]) {
       await test.step(`${scheme} ${width}px`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await page.setViewportSize({ width, height: 520 });
+
         await open(
           page,
           [1, 2, 3, 4, 5, 6].map((n) => pr(n, { title: longTitle(n) })),
         );
+
         await page.getByRole('button', { name: 'Rebase all (6)' }).click();
+
         const list = page.locator('#rebase-all-list');
+
         await expect(list).toBeVisible();
+
         expect(
           await list.evaluate((el) => el.scrollHeight > el.clientHeight),
         ).toBe(true);
+
         await expect(list).toHaveAttribute('tabindex', '0');
+
         await expect(list).toHaveAccessibleName('Pull requests to rebase (6)');
+
+        // Initial focus stays on Cancel; the list is the stop before it.
         await expect(
           page.getByRole('button', { name: 'Cancel' }),
         ).toBeFocused();
+
         await page.keyboard.press('Shift+Tab');
+
         await expect(list).toBeFocused();
+
         const outline = await list.evaluate(
           (el) => getComputedStyle(el).outlineStyle,
         );
+
         expect(outline).not.toBe('none');
+
         await page.keyboard.press('PageDown');
+
         await expect
           .poll(() => list.evaluate((el) => el.scrollTop))
           .toBeGreaterThan(0);
+
         await expectNoAxeViolations(page);
+
         await page.keyboard.press('Tab');
+
         await expect(
           page.getByRole('button', { name: 'Cancel' }),
         ).toBeFocused();

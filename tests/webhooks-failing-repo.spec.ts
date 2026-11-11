@@ -99,7 +99,9 @@ test.describe('failing repo badge', () => {
       for (const width of [1280, 390]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.emulateMedia({ colorScheme: scheme });
+
           await page.setViewportSize({ width, height: 800 });
+
           await mockDashboard(page, [
             {
               forge: 'github',
@@ -115,17 +117,23 @@ test.describe('failing repo badge', () => {
               failingForGood: true,
             },
           ]);
+
           await page.goto('/webhooks.html');
+
           await expect(page.locator('.failing-badge')).toHaveCount(2);
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
+
           const overflow = await page.evaluate(
             () =>
               document.documentElement.scrollWidth >
               document.documentElement.clientWidth,
           );
+
           expect(overflow).toBe(false);
         });
       }

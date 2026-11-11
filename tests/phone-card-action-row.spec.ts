@@ -128,11 +128,15 @@ test(`axe finds nothing on the phone card in light and dark`, async ({
   for (const scheme of ['light', 'dark'] as const) {
     await test.step(`${scheme}`, async () => {
       await page.emulateMedia({ colorScheme: scheme });
+
       await page.setViewportSize({ width: 390, height: 900 });
+
       await open(page, pr());
+
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
+
       expect(results.violations).toEqual([]);
     });
   }

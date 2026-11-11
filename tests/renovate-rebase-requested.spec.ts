@@ -546,14 +546,18 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
         await page.emulateMedia({ colorScheme: scheme });
+
         await serve(page, {
           rebase: CANCEL,
           extra: { botRequest: BOT_REQUEST },
         });
+
         const dialog = await open(page);
+
         await expect(
           dialog.getByRole('button', { name: CANCEL_NAME }),
         ).toBeVisible();
+
         expect(
           (
             await new AxeBuilder({ page })

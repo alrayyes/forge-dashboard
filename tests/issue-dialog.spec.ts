@@ -346,15 +346,23 @@ test.describe('an issue row opens its dialog', () => {
       for (const width of [1280, 390]) {
         await test.step(`${scheme} ${width}px`, async () => {
           await page.setViewportSize({ width, height: 800 });
+
           await page.emulateMedia({ colorScheme: scheme });
+
           await mockDashboard(page);
+
           await mockDetails(page);
+
           await page.goto('/issues.html');
+
           await titleButton(page).click();
+
           await expect(dialog(page).getByText('Seen it too.')).toBeVisible();
+
           const results = await new AxeBuilder({ page })
             .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
             .analyze();
+
           expect(results.violations).toEqual([]);
         });
       }
