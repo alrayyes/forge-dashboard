@@ -195,6 +195,7 @@
   } from "#lib/update-all.js";
   import type { StripChip } from "#lib/strip-chip.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
+  import { syncScrollRegion } from "#lib/scroll-region.js";
   import {
     formatClock,
     formatTime,
@@ -5884,6 +5885,7 @@
       return dialog instanceof HTMLDialogElement ? dialog : null;
     }
 
+    let stopRebaseAllScroll: (() => void) | null = null;
     function openRebaseAll() {
       const dialog = rebaseAllDialog();
       const plan = currentRebasePlan();
@@ -5911,6 +5913,24 @@
         }),
       );
       dialog.showModal();
+      // Cancel is the safe default, whether or not the list becomes a stop.
+      document.getElementById("rebase-all-cancel")?.focus();
+      // A list that scrolls is a named tab stop, for as long as it scrolls
+      // (#3402): the viewport and text size can change while this is open.
+      stopRebaseAllScroll?.();
+      if (list) {
+        stopRebaseAllScroll = syncScrollRegion(list, {
+          label: `Pull requests to rebase (${count})`,
+        });
+        dialog.addEventListener(
+          "close",
+          () => {
+            stopRebaseAllScroll?.();
+            stopRebaseAllScroll = null;
+          },
+          { once: true },
+        );
+      }
     }
 
     // One after another, so a forge sees a steady trickle and not a burst.

@@ -5209,10 +5209,13 @@ footer a[aria-current="page"] {
 .rebase-all-list {
   max-height: 40vh;
   margin: 0 0 12px;
-  padding: 0;
+  padding: 2px 4px;
   overflow-y: auto;
   list-style: none;
   font-size: 0.8125rem;
+}
+.rebase-all-list:focus-visible {
+  outline-offset: -2px;
 }
 .rebase-all-item {
   padding: 4px 0;
