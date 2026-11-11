@@ -652,6 +652,24 @@ header,
   color: var(--accent-ink);
 }
 
+/* Forced colors drops the accent fill that marks the current page, leaving
+   it looking like every other link (#3392). The top nav gets a 3px
+   system-colour bottom border (it replaces the 1px one, so the box keeps
+   its size). The bottom bar gets a 2px outline, and a thicker one while
+   focused so a focused current tab still differs from a focused other tab. */
+@media (forced-colors: active) {
+  .app-nav a.theme-toggle[aria-current="page"] {
+    border-bottom: 3px solid Highlight;
+  }
+  .bottom-nav-link[aria-current="page"] {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .bottom-nav-link[aria-current="page"]:focus-visible {
+    outline-width: 4px;
+  }
+}
+
 #force-refresh-button.is-refreshing svg {
   animation: spin-refresh 0.8s linear infinite;
 }
