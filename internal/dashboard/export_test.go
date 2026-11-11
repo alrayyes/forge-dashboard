@@ -29,3 +29,7 @@ func (s *Service) UserRefreshesForTest() int {
 
 // EndSentenceForTest exposes endSentence.
 func EndSentenceForTest(msg string) string { return endSentence(msg) }
+
+// IsTransientMergeFailureForTest exposes which merge failures are retried
+// after a wait; the wait itself runs on the wall clock.
+var IsTransientMergeFailureForTest = isTransientMergeFailure

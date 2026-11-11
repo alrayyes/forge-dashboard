@@ -196,7 +196,8 @@ func upgradeRepo(ctx context.Context, forge Forge, upgrader WebhookUpgrader, ful
 	updated, err := upgrader.UpgradeWebhook(ctx, owner, name, targetURL, secret)
 	if err != nil {
 		if clientErr, isClient := errors.AsType[*ClientError](err); isClient &&
-			(clientErr.Kind == ForgeErrorRateLimited || clientErr.Kind == ForgeErrorUnreachable) {
+			(clientErr.Kind == ForgeErrorRateLimited || clientErr.Kind == ForgeErrorUnreachable ||
+				clientErr.Kind == ForgeErrorUpstream) {
 			slog.Info("webhook upgrade: forge not available, trying later", "forge", forge, "repo", fullName, "kind", clientErr.Kind)
 
 			return false

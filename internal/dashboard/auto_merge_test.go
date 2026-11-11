@@ -208,6 +208,21 @@ func TestAutoMerge_FailedMerge_IsNotRetriedOnTheNextRefresh(t *testing.T) {
 	assert.Len(t, src.mergedPullRequests(), 1)
 }
 
+func TestAutoMerge_TransientMergeFailure_IsRetriedAfterAWait(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []dashboard.ForgeErrorKind{dashboard.ForgeErrorUnreachable, dashboard.ForgeErrorUpstream} {
+		t.Run(string(kind), func(t *testing.T) {
+			t.Parallel()
+			assert.True(t, dashboard.IsTransientMergeFailureForTest(&dashboard.ClientError{Kind: kind, Err: errors.New("x")}))
+		})
+	}
+	t.Run("a refusal is not", func(t *testing.T) {
+		t.Parallel()
+		assert.False(t, dashboard.IsTransientMergeFailureForTest(&dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: errors.New("x")}))
+	})
+}
+
 func TestAutoMerge_FailedMerge_KeepsTheIntent(t *testing.T) {
 	t.Parallel()
 	store := armedStore(armedKey)

@@ -153,6 +153,22 @@ func TestWebhookUpgrade_RateLimitedAnswer_StopsTheForgeAndRetriesOnTheNextRefres
 	assert.Equal(t, []string{"me/a", "me/a"}, src.called())
 }
 
+func TestWebhookUpgrade_UpstreamErrorAnswer_IsRetriedOnTheNextRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, covered(dashboard.ForgeGitHub, "me/a")...)
+	src.results = map[string]error{"me/a": &dashboard.ClientError{Kind: dashboard.ForgeErrorUpstream, Err: errors.New("502")}}
+	agg := upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src)
+
+	refreshAndWait(t, agg)
+	src.mu.Lock()
+	src.results = nil
+	src.mu.Unlock()
+	refreshAndWait(t, agg)
+
+	assert.Equal(t, []string{"me/a", "me/a"}, src.called())
+}
+
 func TestWebhookUpgrade_NoAdminRight_IsTriedOnceAndNotAgain(t *testing.T) {
 	t.Parallel()
 

@@ -48,8 +48,8 @@ type autoMergeAttempt struct {
 	until     time.Time
 }
 
-// transientAutoMergeWait is how long a rate limit or an unreachable forge
-// holds off the next attempt on the same pull request.
+// transientAutoMergeWait is how long a rate limit, an unreachable forge or a
+// forge server error holds off the next attempt on the same pull request.
 const transientAutoMergeWait = 5 * time.Minute
 
 // EnableAutoMerge turns on the hook that runs after every refresh: a Forgejo
@@ -235,9 +235,9 @@ func (c *autoMergeConfig) begin(pr PullRequest) bool {
 	return true
 }
 
-// failed records the refusal, and lets a rate limit or an unreachable forge be
-// tried again after a wait. Any other refusal stands until the pull request
-// changes.
+// failed records the refusal, and lets a rate limit, an unreachable forge or a
+// forge server error be tried again after a wait. Any other refusal stands
+// until the pull request changes.
 func (c *autoMergeConfig) failed(pr PullRequest, err error) {
 	key := dependabotPRKey(pr)
 	refusal := mergeRefusal(err)
@@ -245,7 +245,7 @@ func (c *autoMergeConfig) failed(pr PullRequest, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.failures[key] = AutoMergeFailure{UpdatedAt: pr.UpdatedAt, Refusal: refusal}
-	if refusal.Code == ActionRateLimited || isUnreachable(err) {
+	if refusal.Code == ActionRateLimited || isTransientMergeFailure(err) {
 		c.attempts[key] = autoMergeAttempt{updatedAt: pr.UpdatedAt, until: time.Now().Add(transientAutoMergeWait)}
 	}
 }
@@ -273,10 +273,12 @@ func (c *autoMergeConfig) recordMerged(m AutoMerged, now time.Time) {
 	delete(c.failures, dependabotPRKey(PullRequest{Forge: m.Forge, Repo: m.Repo, Number: m.Number}))
 }
 
-func isUnreachable(err error) bool {
+// isTransientMergeFailure reports a merge the forge never answered or
+// answered with its own server error: both clear by themselves.
+func isTransientMergeFailure(err error) bool {
 	clientErr, ok := errors.AsType[*ClientError](err)
 
-	return ok && clientErr.Kind == ForgeErrorUnreachable
+	return ok && (clientErr.Kind == ForgeErrorUnreachable || clientErr.Kind == ForgeErrorUpstream)
 }
 
 // prune forgets the attempts of pull requests that are no longer armed, so
