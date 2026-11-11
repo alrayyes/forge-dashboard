@@ -8004,13 +8004,15 @@
     }
 
     // ---- phones: the Filters sheet, active-filter chips (#828) ----
-    // Below 760px the bar is a search row, one scrolling row of quick
+    // Below 760px, or in a short window held sideways (#3406), the bar is a search row, one scrolling row of quick
     // filters and chips for what's active. Everything else lives in a
     // bottom sheet (a <dialog>): the controls move into it while it's open
     // and back when it closes, so their ids and handlers are the ones they
     // always had. Filters apply as you change them, and the sheet's "Show
     // N results" says what you'd see, so a refresh can't disturb an edit.
-    const phoneQuery = window.matchMedia("(max-width: 760px)");
+    const phoneQuery = window.matchMedia(
+      "(max-width: 760px), (max-height: 440px) and (orientation: landscape)",
+    );
     const filtersButton = document.getElementById(
       "filters-button",
     ) as HTMLButtonElement | null;
