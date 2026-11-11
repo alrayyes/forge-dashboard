@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.9](https://github.com/alrayyes/forge-dashboard/compare/v9.10.8...v9.10.9) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** clear the earlier copy status when the output panel is hidden ([#3423](https://github.com/alrayyes/forge-dashboard/issues/3423)) ([aaf50de](https://github.com/alrayyes/forge-dashboard/commit/aaf50de6849cfef9c4e5fde251f8e85b7fe7d1a0))
+
 ## [9.10.8](https://github.com/alrayyes/forge-dashboard/compare/v9.10.7...v9.10.8) (2026-11-11)
 
 
