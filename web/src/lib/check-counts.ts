@@ -13,9 +13,16 @@ export type CheckCounts = {
   // The server always sends it; optional here only because an older server
   // does not, which reads as none.
   skipped?: number;
+  // How many checks were cancelled. Beside passed, never inside it, and drawn
+  // only by a Cancelled pill (#3395); the other pills never read it.
+  cancelled?: number;
 };
 
-export type CheckKind = keyof CheckCounts;
+// What a fold tallies from a job list: every kind but cancelled, which a
+// pull request's fold counts apart.
+export type TalliedCounts = Required<Omit<CheckCounts, 'cancelled'>>;
+
+export type CheckKind = Exclude<keyof CheckCounts, 'cancelled'>;
 
 // The order the pill draws them in and the link's name reads them in: what is
 // done, what is going, what has not started, then what broke.

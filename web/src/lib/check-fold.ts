@@ -7,7 +7,7 @@
 // countChecks and tally in internal/forgejo/main_branch.go), kept in step by
 // the same cases in check-fold.test.ts.
 
-import type { CheckCounts } from './check-counts';
+import type { TalliedCounts } from './check-counts';
 import { type Check, checkState } from './pipeline-checks';
 
 // What a default branch's pill says. `none` is a branch with no job to fold.
@@ -23,7 +23,7 @@ export type BranchFold = {
   status: BranchStatus;
   // Every kind is present, zero when nothing is in it. Skipped is inside
   // passed, as check-counts.ts has it.
-  counts: Required<CheckCounts>;
+  counts: TalliedCounts;
   // The names of the jobs counted as failed, in the order they were listed:
   // what a row's Failing: line says. Empty when none failed.
   failing: string[];
@@ -130,7 +130,7 @@ export function foldNewestRuns(
 // Left out of the port: GitHub counts ACTION_REQUIRED as a failure, while
 // checkState reads it as held, for both forges.
 export function foldBranch(checks: readonly Check[]): BranchFold {
-  const counts: Required<CheckCounts> = {
+  const counts: TalliedCounts = {
     passed: 0,
     skipped: 0,
     running: 0,
@@ -178,7 +178,7 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
 }
 
 function statusOf(
-  counts: Required<CheckCounts>,
+  counts: TalliedCounts,
   { cancelled, held }: { cancelled: boolean; held: boolean },
   total: number,
 ): BranchStatus {

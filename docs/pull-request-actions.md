@@ -781,19 +781,23 @@ cancelled run a failure, the server reads the rollup itself: with no failed or
 timed-out check, no failed status, no run held for approval and nothing running,
 the row's `ci` is `cancelled`, `checks.failed` is 0 and `checks.cancelled`
 counts the cancelled runs. A real failure beside it stays Failed and counts only
-itself, and a cancelled run beside one still going stays Running. The pill is
-the word alone, like the branch pill; the count is in `checks.cancelled`. A
-Cancelled row is not in the Failing CI filter or the Failed number of the menu
-pill, and it is not a pass either: Ready, Merge and auto-merge still wait for a
-run to pass. Forgejo records a cancelled job as a failure status, and the server
-leaves those out of the failed count. When that leaves no failed check and
-nothing waiting, the row reads Cancelled too, with `checks.cancelled` counting
-the cancelled jobs beside the jobs that passed before the stop. A run that was
-re-run and passed has no failure statuses left, so it reads Passed. The page
-folds the jobs the panel lists the way a branch does, and the row follows the
-panel: a cancelled job beside one still going is Running, beside a real failure
-it is Failed, and beside passed jobs alone it is Cancelled, with no counts.
-Close the panel and the row goes back to what the server sent.
+itself, and a cancelled run beside one still going stays Running. The pill
+says how far the run got: `Cancelled · 4 passed, 9 cancelled` (`Cancelled · 13
+cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
+Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
+of 13 checks.` The branch pill stays the word alone; the count is in
+`checks.cancelled`. A Cancelled row is not in the Failing CI filter or the
+Failed number of the menu pill, and it is not a pass either: Ready, Merge and
+auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
+failure status, and the server leaves those out of the failed count. When that
+leaves no failed check and nothing waiting, the row reads Cancelled too, with
+`checks.cancelled` counting the cancelled jobs beside the jobs that passed
+before the stop. A run that was re-run and passed has no failure statuses left,
+so it reads Passed. The page folds the jobs the panel lists the way a branch
+does, and the row follows the panel: a cancelled job beside one still going is
+Running, beside a real failure it is Failed, and beside passed jobs alone it is
+Cancelled, counting how many of them passed and how many were cancelled. Close
+the panel and the row goes back to what the server sent.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

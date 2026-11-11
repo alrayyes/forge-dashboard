@@ -1908,6 +1908,14 @@ a.ci-pill:hover {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* The counts after Cancelled (#3395): words, so they need no glyph. A phone
+   keeps the passed count and drops the cancelled one; the pill's name and its
+   tooltip say both. */
+@media (max-width: 760px) {
+  .ci-pill .ci-cancel-extra {
+    display: none;
+  }
+}
 .ci-pill.none .dot {
   background: var(--neutral);
 }
@@ -1931,7 +1939,8 @@ a.ci-pill:hover {
    4.5:1 on it, which axe can't (it files these as incomplete). The slot grows
    to the pill for a row that has one, so the counts fit beside the word and
    are never clipped. */
-.ci-slot:has(.ci-pill.segmented) {
+.ci-slot:has(.ci-pill.segmented),
+.ci-slot:has(.ci-cancel) {
   width: max-content;
   min-width: 104px;
 }

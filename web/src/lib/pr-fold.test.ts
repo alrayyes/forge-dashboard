@@ -132,7 +132,14 @@ describe('foldPullRequest on a cancelled run', () => {
       expect(foldPullRequest(forge, jobs('cancelled'))).toEqual({
         ci: 'cancelled',
         awaiting: false,
-        counts: { passed: 0, skipped: 0, running: 0, waiting: 0, failed: 0 },
+        counts: {
+          passed: 0,
+          skipped: 0,
+          running: 0,
+          waiting: 0,
+          failed: 0,
+          cancelled: 1,
+        },
       });
     }
   });
@@ -236,5 +243,18 @@ describe('foldPullRequest, blocked jobs of a failed run', () => {
     const fold = foldPullRequest('forgejo', checks, [noRun]);
 
     expect(fold?.counts.waiting).toBe(1);
+  });
+});
+
+describe('foldPullRequest cancelled count (#3395)', () => {
+  test('counts the cancelled jobs beside the passed ones', () => {
+    const fold = foldPullRequest(
+      'forgejo',
+      jobs('success', 'success', 'cancelled', 'cancelled', 'cancelled'),
+    );
+
+    expect(fold?.ci).toBe('cancelled');
+    expect(fold?.counts.passed).toBe(2);
+    expect(fold?.counts.cancelled).toBe(3);
   });
 });

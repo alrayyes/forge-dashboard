@@ -937,9 +937,10 @@
           ? "Waiting for workflow approval"
           : CI_LABELS[status] || status,
         awaiting,
-        counts: SEGMENTED_CI.has(status)
-          ? (live?.counts ?? item.checks)
-          : undefined,
+        counts:
+          SEGMENTED_CI.has(status) || status === "cancelled"
+            ? (live?.counts ?? item.checks)
+            : undefined,
       });
       return { status, awaiting, model };
     }

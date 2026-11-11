@@ -30,7 +30,9 @@ export type CiPillInput = {
   word: string;
   awaiting?: boolean;
   counts?: CheckCounts;
-  // False for a state that has its own word and no counts (cancelled, held).
+  // False for a state that has its own word and no counts (held, a branch's
+  // cancelled). A pull request's cancelled pill is the exception: it words the
+  // passed and cancelled counts after the state (#3395).
   segmented?: boolean;
 };
 
@@ -42,14 +44,57 @@ export type CiPillModel = {
   // A failed pill whose pipeline has checks running or queued: the failure
   // stands, but the run can still change, so the pill says it is not over.
   live: boolean;
+  // A Cancelled pill's counts (#3395), drawn as words after the state: the
+  // checks that passed before the stop and the ones it cancelled.
+  cancelled?: { passed: number; cancelled: number };
   // The accessible name, without the "Open pipeline" a button adds.
   name: string;
 };
 
+// Whether the pill is a Cancelled one that says how far the run got. Needs the
+// server's cancelled count; without it the pill is the word alone.
+function cancelledCounts(
+  input: CiPillInput,
+  awaiting: boolean,
+): CiPillModel['cancelled'] {
+  const n = input.counts?.cancelled;
+  if (input.cls !== 'cancelled' || input.segmented === false || awaiting) {
+    return undefined;
+  }
+  if (!input.counts || n === undefined || !Number.isInteger(n) || n <= 0) {
+    return undefined;
+  }
+
+  return { passed: Math.max(0, input.counts.passed), cancelled: n };
+}
+
+// "4 passed, 9 cancelled": a zero passed count is left out, not said.
+function cancelledWords({
+  passed,
+  cancelled,
+}: NonNullable<CiPillModel['cancelled']>): string {
+  return passed > 0
+    ? `${passed} passed, ${cancelled} cancelled`
+    : `${cancelled} cancelled`;
+}
+
+// "13 checks", or "1 check".
+function cancelledTotal({
+  passed,
+  cancelled,
+}: NonNullable<CiPillModel['cancelled']>): string {
+  const total = passed + cancelled;
+
+  return `${total} ${total === 1 ? 'check' : 'checks'}`;
+}
+
 export function ciPillModel(input: CiPillInput): CiPillModel {
   const awaiting = input.awaiting === true;
+  const cancelled = cancelledCounts(input, awaiting);
   const segments =
-    input.segmented === false || awaiting ? [] : checkSegments(input.counts);
+    input.segmented === false || awaiting || input.cls === 'cancelled'
+      ? []
+      : checkSegments(input.counts);
   const word = pillWord(input.cls, input.word, segments);
   const segmented = segments.length > 0;
   const live =
@@ -66,9 +111,12 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     word,
     segments,
     live,
-    name: segmented
-      ? `${pillName(word, segments)}${live ? ', still running' : ''}`
-      : word,
+    cancelled,
+    name: cancelled
+      ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`
+      : segmented
+        ? `${pillName(word, segments)}${live ? ', still running' : ''}`
+        : word,
   };
 }
 
@@ -119,7 +167,25 @@ export function renderCiPill(
     const glyphs = checkGlyphElements(model.glyph);
     if (glyphs.length > 0) for (const g of glyphs) root.appendChild(g);
     else root.appendChild(span('dot'));
-    root.appendChild(document.createTextNode(model.word));
+    if (model.cancelled) {
+      const { passed, cancelled } = model.cancelled;
+      // One text run, so the pill's gap sits between the glyph and the text and
+      // not inside it. The cancelled part leaves a phone when a passed part
+      // stays, so the pill keeps to one line; the name and the tooltip say it
+      // whole.
+      const run = span('ci-cancel');
+      run.appendChild(document.createTextNode(`${model.word} · `));
+      if (passed > 0) {
+        run.appendChild(span('ci-cancel-passed', `${passed} passed`));
+        run.appendChild(span('ci-cancel-extra', `, ${cancelled} cancelled`));
+      } else {
+        run.appendChild(span('ci-cancel-passed', `${cancelled} cancelled`));
+      }
+      root.appendChild(run);
+      root.title = model.name;
+    } else {
+      root.appendChild(document.createTextNode(model.word));
+    }
   } else {
     // The word sits in its own span so a phone can hide it and keep the marker.
     const label = span('ci-seg ci-seg-label');
@@ -152,8 +218,11 @@ export function renderCiPill(
 
   if (onOpen) {
     if (id) root.id = id;
-    // The visible word leads the name (WCAG 2.5.3).
-    root.setAttribute('aria-label', `${model.name}. Open pipeline`);
+    // The name contains the visible text (WCAG 2.5.3).
+    root.setAttribute(
+      'aria-label',
+      `${model.name}${model.name.endsWith('.') ? '' : '.'} Open pipeline`,
+    );
     root.addEventListener('click', onOpen);
   } else if (segmented && announce) {
     // A badge has no name of its own, so a hidden line says it whole and the
