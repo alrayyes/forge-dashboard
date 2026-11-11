@@ -7,6 +7,7 @@ import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/cancelled-pill-counts.spec.ts',
+  '**/pills-axe.spec.ts',
   '**/landscape-first-row.spec.ts',
   '**/pipeline-long-check-name.spec.ts',
   '**/forced-colors-pressed-pills.spec.ts',
