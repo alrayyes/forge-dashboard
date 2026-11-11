@@ -144,6 +144,43 @@ describe('ciPillModel', () => {
     expect(m.name).toBe('Skipped 2: 2 skipped');
   });
 
+  test('a cancelled pill carries the passed and cancelled counts (#3395)', () => {
+    const m = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
+    });
+
+    expect(m.segments).toEqual([]);
+    expect(m.cancelled).toEqual({ passed: 4, cancelled: 9 });
+    expect(m.name).toBe(
+      'CI status: Cancelled. 4 passed, 9 cancelled out of 13 checks.',
+    );
+  });
+
+  test('a cancelled pill with nothing passed leaves "0 passed" out', () => {
+    const m = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 0, running: 0, waiting: 0, failed: 0, cancelled: 13 },
+    });
+
+    expect(m.name).toBe('CI status: Cancelled. 13 cancelled out of 13 checks.');
+  });
+
+  test('a cancelled pill without counts stays the plain word', () => {
+    const m = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+    });
+
+    expect(m.cancelled).toBeUndefined();
+    expect(m.name).toBe('Cancelled');
+  });
+
   test('segmented false keeps the plain pill whatever the counts', () => {
     const m = ciPillModel({
       cls: 'cancelled',

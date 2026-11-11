@@ -4,7 +4,7 @@
 // what a pull request's pill says: pending, failure, success or cancelled, the counts,
 // and a held job as a flag of its own. No DOM here.
 
-import type { CheckCounts } from './check-counts';
+import type { TalliedCounts } from './check-counts';
 import type { RunFacts } from './check-feed';
 import { foldBranch } from './check-fold';
 import { type Check, checkState } from './pipeline-checks';
@@ -14,7 +14,8 @@ export type PullRequestFold = {
   // The server's awaitingWorkflowApproval: GitHub sets it for any held run.
   // Forgejo never does.
   awaiting: boolean;
-  counts: Required<CheckCounts>;
+  // Cancelled is set on a cancelled fold only (#3395).
+  counts: TalliedCounts & { cancelled?: number };
 };
 
 // Returns null where there is nothing to fold: no jobs. A row given null keeps
@@ -44,7 +45,8 @@ export function foldPullRequest(
   checks: readonly Check[],
   runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
-  const { status, counts } = foldBranch(withoutBlocked(checks, runs));
+  const live = withoutBlocked(checks, runs);
+  const { status, counts } = foldBranch(live);
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forge === 'github' && held) {
@@ -60,7 +62,14 @@ export function foldPullRequest(
     case 'passed':
       return { ci: 'success', awaiting: false, counts };
     case 'cancelled':
-      return { ci: 'cancelled', awaiting: false, counts };
+      return {
+        ci: 'cancelled',
+        awaiting: false,
+        counts: {
+          ...counts,
+          cancelled: live.filter((c) => checkState(c) === 'cancelled').length,
+        },
+      };
     default:
       return null;
   }
