@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.17.0](https://github.com/alrayyes/forge-dashboard/compare/v9.16.0...v9.17.0) (2026-11-11)
+
+
+### Features
+
+* **web:** leave the total out of a nav pill when it repeats its only count ([#3513](https://github.com/alrayyes/forge-dashboard/issues/3513)) ([87dd9c9](https://github.com/alrayyes/forge-dashboard/commit/87dd9c900c24c9ddefa135789a788aefcfad48c2))
+
 ## [9.16.0](https://github.com/alrayyes/forge-dashboard/compare/v9.15.0...v9.16.0) (2026-11-11)
 
 
