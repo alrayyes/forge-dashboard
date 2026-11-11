@@ -179,6 +179,7 @@
   } from "#lib/forge-starting.js";
   import {
     progressLabel,
+    leftOutLine,
     rebaseAllLabel,
     rebaseAllPlan,
     showRebaseAll,
@@ -5859,9 +5860,16 @@
       const reasons = [...plan.blockedReasons];
       if (plan.behind > 0 && asking === 0 && reasons.length === 0)
         reasons.push("None can be asked to rebase now.");
+      const line =
+        asking > 0 && plan.leftOut.length > 0
+          ? leftOutLine(
+              asking,
+              plan.leftOut.map((l) => l.reason),
+            )
+          : reasons.join(" ");
       if (reason) {
-        reason.textContent = reasons.join(" ");
-        reason.hidden = reasons.length === 0;
+        reason.textContent = line;
+        reason.hidden = line === "";
       }
       if (chips)
         renderStripChips(chips, [
@@ -5896,23 +5904,37 @@
       if (title)
         title.textContent = `Rebase ${count} pull request${count === 1 ? "" : "s"}?`;
       const list = document.getElementById("rebase-all-list");
+      const rebaseAllItem = (item: PullRequestItem, why?: string) => {
+        const li = el("li", "rebase-all-item");
+        const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+        badge.appendChild(el("span", "dot"));
+        badge.appendChild(
+          document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
+        );
+        li.appendChild(badge);
+        li.appendChild(
+          document.createTextNode(
+            ` ${item.repo} #${item.number} \u00b7 ${item.title}`,
+          ),
+        );
+        if (why) li.appendChild(el("span", "rebase-all-why", why));
+        return li;
+      };
       list?.replaceChildren(
-        ...plan.eligible.map(({ item }) => {
-          const li = el("li", "rebase-all-item");
-          const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
-          badge.appendChild(el("span", "dot"));
-          badge.appendChild(
-            document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-          );
-          li.appendChild(badge);
-          li.appendChild(
-            document.createTextNode(
-              ` ${item.repo} #${item.number} \u00b7 ${item.title}`,
-            ),
-          );
-          return li;
-        }),
+        ...plan.eligible.map(({ item }) => rebaseAllItem(item)),
       );
+      const leftBlock = document.getElementById("rebase-all-left-out");
+      const leftTitle = document.getElementById("rebase-all-left-out-title");
+      if (leftTitle)
+        leftTitle.textContent = `Left out (${plan.leftOut.length})`;
+      document
+        .getElementById("rebase-all-left-out-list")
+        ?.replaceChildren(
+          ...plan.leftOut.map(({ item, reason }) =>
+            rebaseAllItem(item, reason),
+          ),
+        );
+      if (leftBlock) leftBlock.hidden = plan.leftOut.length === 0;
       dialog.showModal();
       // Cancel is the safe default, whether or not the list becomes a stop.
       document.getElementById("rebase-all-cancel")?.focus();
@@ -10213,6 +10235,14 @@
             Asks Dependabot and Renovate to rebase. Nothing is pushed by you.
           </p>
           <ul class="rebase-all-list" id="rebase-all-list"></ul>
+          <div class="rebase-all-left-out" id="rebase-all-left-out" hidden>
+            <h3 id="rebase-all-left-out-title">Left out</h3>
+            <ul
+              class="rebase-all-list rebase-all-left-out-list"
+              id="rebase-all-left-out-list"
+              aria-labelledby="rebase-all-left-out-title"
+            ></ul>
+          </div>
           <div class="rebase-all-actions">
             <button type="button" id="rebase-all-cancel">Cancel</button>
             <button type="button" id="rebase-all-confirm">Rebase</button>

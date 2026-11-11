@@ -22,8 +22,17 @@ export type Bot = 'dependabot' | 'renovate';
 
 export type Eligible<T extends RebaseRow> = { item: T; bot: Bot };
 
+// A row behind its base that Rebase all won't ask, and why, in the words the
+// row itself uses (#3281).
+export type LeftOut<T extends RebaseRow> = { item: T; reason: string };
+
+export const REQUESTED_REASON = 'Rebase requested.';
+export const NO_REBASE_REASON = 'No rebase is offered for this pull request.';
+
 export type RebasePlan<T extends RebaseRow> = {
   eligible: Eligible<T>[];
+  // Rows behind their base that are not asked, each with its reason.
+  leftOut: LeftOut<T>[];
   // Rows listed, whether or not they are behind.
   total: number;
   // Rows behind their base, whether or not a rebase can be asked for.
@@ -49,6 +58,15 @@ function botFor(item: RebaseRow): Bot | null {
   return null;
 }
 
+// What the server said when it listed a rebase but blocked it, else a plain
+// statement that none is offered.
+function noBotReason(item: RebaseRow): string {
+  const listed =
+    findAction(item, 'dependabot_rebase') ??
+    findAction(item, 'renovate_rebase');
+  return listed?.blocked?.message || NO_REBASE_REASON;
+}
+
 // The same two fields the row's Out of date badge reads.
 function isOutOfDate(item: RebaseRow): boolean {
   return item.behind === true && item.empty !== true;
@@ -59,6 +77,7 @@ export function rebaseAllPlan<T extends RebaseRow>(
   { blockedReason, requested }: PlanOptions<T>,
 ): RebasePlan<T> {
   const eligible: Eligible<T>[] = [];
+  const leftOut: LeftOut<T>[] = [];
   const blockedReasons: string[] = [];
   let behind = 0;
   let failing = 0;
@@ -66,19 +85,33 @@ export function rebaseAllPlan<T extends RebaseRow>(
     if (isFailing(item)) failing++;
     if (!isOutOfDate(item)) continue;
     behind++;
-    if (requested?.(item)) continue;
+    if (requested?.(item)) {
+      leftOut.push({ item, reason: REQUESTED_REASON });
+      continue;
+    }
     const bot = botFor(item);
-    if (!bot) continue;
+    if (!bot) {
+      leftOut.push({ item, reason: noBotReason(item) });
+      continue;
+    }
     if (bot === 'dependabot') {
       const reason = blockedReason(item.forge);
       if (reason) {
         if (!blockedReasons.includes(reason)) blockedReasons.push(reason);
+        leftOut.push({ item, reason });
         continue;
       }
     }
     eligible.push({ item, bot });
   }
-  return { eligible, total: items.length, behind, failing, blockedReasons };
+  return {
+    eligible,
+    leftOut,
+    total: items.length,
+    behind,
+    failing,
+    blockedReasons,
+  };
 }
 
 // The control only earns its place when something listed is out of date. A
@@ -101,4 +134,14 @@ export function summaryLine(count: number, total: number): string {
 
 export function progressLabel(done: number, count: number): string {
   return `Rebasing ${done} of ${count}`;
+}
+
+// The header's reason line when some behind rows can run and some can't.
+export function leftOutLine(
+  asking: number,
+  reasons: readonly string[],
+): string {
+  const unique = [...new Set(reasons)];
+  const verb = reasons.length === 1 ? 'is' : 'are';
+  return `${asking} can be rebased. ${reasons.length} ${verb} left out: ${unique.join(' ')}`;
 }

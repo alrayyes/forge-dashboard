@@ -5230,6 +5230,18 @@ footer a[aria-current="page"] {
   padding: 4px 0;
   overflow-wrap: anywhere;
 }
+.rebase-all-left-out[hidden] {
+  display: none;
+}
+.rebase-all-left-out h3 {
+  margin: 0 0 4px;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+.rebase-all-why {
+  display: block;
+  color: var(--ink-2);
+}
 .rebase-all-actions {
   display: flex;
   justify-content: flex-end;
