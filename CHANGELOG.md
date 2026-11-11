@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.19.2](https://github.com/alrayyes/forge-dashboard/compare/v9.19.1...v9.19.2) (2026-11-11)
+
+
+### Bug Fixes
+
+* **dashboard:** refresh a repo at most once every 30 seconds on webhook events ([#3537](https://github.com/alrayyes/forge-dashboard/issues/3537)) ([28b3738](https://github.com/alrayyes/forge-dashboard/commit/28b3738fa9bbf1e8f59f14dfda974fb47a1b60e3))
+* **github:** read the checked-commit lookup in bounded requests ([#3540](https://github.com/alrayyes/forge-dashboard/issues/3540)) ([414f51c](https://github.com/alrayyes/forge-dashboard/commit/414f51cc2da458f44aed8a647471172e141e3f0b)), closes [#3530](https://github.com/alrayyes/forge-dashboard/issues/3530)
+
 ## [9.19.1](https://github.com/alrayyes/forge-dashboard/compare/v9.19.0...v9.19.1) (2026-11-11)
 
 
