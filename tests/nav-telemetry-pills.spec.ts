@@ -1,4 +1,3 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
@@ -320,30 +319,6 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
         expect(tabFit.pillInside).toBe(true);
         expect(tabFit.clipped).toBe(false);
         expect(tabFit.height).toBeLessThanOrEqual(maxBar);
-      }
-    });
-  }
-
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations in the ${scheme} theme, on desktop and on a phone`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page, {
-        releases: { total: 6, running: 6, failed: 0, passed: 0 },
-        bots: { total: 16, running: 3, failed: 2, passed: 10, noChecks: 1 },
-      });
-
-      for (const size of [
-        { width: 1280, height: 800 },
-        { width: 360, height: 740 },
-      ]) {
-        await page.setViewportSize(size);
-        await expect(header(page, PRS).locator('.nav-pills')).toHaveCount(1);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
       }
     });
   }

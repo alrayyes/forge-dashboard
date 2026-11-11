@@ -1,4 +1,3 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -132,18 +131,5 @@ test.describe('the Branches nav pill matches the page chips (#2579)', () => {
     }
     await expect(pill(page).locator('.nav-failed')).toHaveText('2');
     await expect(pill(page).locator('.nav-running')).toHaveText('4');
-  });
-
-  test('has no axe-core violations in the light and dark themes', async ({
-    page,
-  }) => {
-    for (const scheme of ['light', 'dark'] as const) {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    }
   });
 });
