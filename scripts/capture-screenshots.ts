@@ -302,13 +302,13 @@ const CHECKS = {
       completedAt: '2026-10-03T10:02:08Z',
     },
     {
-      name: 'e2e (shard 1/4)',
+      name: 'e2e (shard 1/6)',
       status: 'in_progress',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/4',
       required: true,
     },
     {
-      name: 'e2e (shard 2/4)',
+      name: 'e2e (shard 2/6)',
       status: 'queued',
       url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/1/job/5',
       required: true,

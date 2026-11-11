@@ -47,10 +47,16 @@ jobs:
       prose: ${{ steps.areas.outputs.prose }}
       api: ${{ steps.areas.outputs.api }}
       release: ${{ steps.areas.outputs.release }}
+      e2e_shards: ${{ steps.shards.outputs.list }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+      # The one place the e2e shard count lives: the e2e-shard matrix runs these
+      # shards and the e2e job expects one blob report from each.
+      - name: list the e2e shards
+        id: shards
+        run: echo 'list=[1,2,3,4,5,6]' >> "$GITHUB_OUTPUT"
       - name: test the mapping
         run: scripts/test-changed-areas.sh
       - name: test the release type check
@@ -334,7 +340,7 @@ jobs:
     # The suite is about 25 minutes of tests in all, so six shards put the
     # slowest near 6 minutes. Playwright splits by test count, not duration, so
     # the shards drift apart as specs grow: re-count from a green run, and raise
-    # the shard count (the matrix is the only place) before this limit, never
+    # the shard list (the `changes` job's `e2e_shards` step is the only place) before this limit, never
     # to hide a suite growing back toward it.
     timeout-minutes: 10
     # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
@@ -354,7 +360,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6]
+        shard: ${{ fromJSON(needs.changes.outputs.e2e_shards) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -476,10 +482,13 @@ jobs:
           pattern: blob-report-*
           merge-multiple: true
       - name: merge them into JUnit XML
+        env:
+          SHARDS: ${{ needs.changes.outputs.e2e_shards }}
         run: |
+          EXPECTED="$(jq length <<<"$SHARDS")"
           reports="$(find all-blob-reports -name '*.zip' | wc -l)"
-          if [ "$reports" -ne 4 ]; then
-            echo "expected 4 blob reports, found $reports"
+          if [ "$reports" -ne "$EXPECTED" ]; then
+            echo "expected $EXPECTED blob reports, found $reports"
             exit 1
           fi
           PLAYWRIGHT_JUNIT_OUTPUT_FILE=e2e.xml bunx playwright merge-reports --reporter junit ./all-blob-reports
