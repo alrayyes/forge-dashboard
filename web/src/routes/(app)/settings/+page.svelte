@@ -1418,9 +1418,28 @@
     #timezone-select {
       max-width: 100%;
     }
+    /* On a phone the label sits above a select as wide as the card. At 320px
+       the card's inside is 234px and "Browser default (Europe/Amsterdam)" is
+       236px at 13.5px, so this card alone trims its side padding to 14px and
+       the select takes 12px type; tests/timezone-select-phone.spec.ts pins
+       that the text fits (#3366). */
+    @media (max-width: 760px) {
+      .card:has(#timezone-select) {
+        padding-inline: 14px;
+      }
+      .timezone-row label {
+        flex-basis: 100%;
+      }
+      #timezone-select {
+        width: 100%;
+        font-size: 12px;
+        padding: 9px 3px 9px 6px;
+      }
+    }
     .timezone-preview {
       font-size: 13px;
       color: var(--ink-3);
+      overflow-wrap: anywhere;
     }
     .check-row {
       display: flex;
@@ -1678,6 +1697,9 @@
                   previewNow,
                   timezone.setting || detectedZone,
                 )}</time
+              >
+              <span class="timezone-name"
+                >({timezone.setting || detectedZone})</span
               >
             </span>
           </div>
