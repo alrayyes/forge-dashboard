@@ -600,6 +600,14 @@
     color: var(--surface);
     border-color: var(--ink);
   }
+  /* Forced colors drops the ink fill of the pressed filter (#3388): a 3px
+     system-colour border marks it, padding cut to match. */
+  @media (forced-colors: active) {
+    .adv-filter[aria-pressed="true"] {
+      border: 3px solid Highlight;
+      padding: 0 10px;
+    }
+  }
   .adv-count {
     font-weight: 600;
   }
