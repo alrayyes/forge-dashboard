@@ -124,7 +124,8 @@ test('HTML in a title shows as text and injects nothing', async ({ page }) => {
     'x <img src=x onerror="window.__pwned=1"> <b>y</b>',
   );
   await expect(title.locator('img, b')).toHaveCount(0);
-  expect(
-    await page.evaluate(() => (window as never)['__pwned']),
-  ).toBeUndefined();
+  const pwned = await page.evaluate(
+    () => (window as unknown as Record<string, unknown>).__pwned,
+  );
+  expect(pwned).toBeUndefined();
 });
