@@ -174,6 +174,30 @@ for (const [scheme, width] of [
     expect(stranger).toEqual([]);
     expect(asked).not.toContain(STRANGER);
 
+    // The image rules must not leak into the dialog's own links.
+    const links = await dialog.evaluate((el) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'var(--accent)';
+      el.append(probe);
+      const accent = getComputedStyle(probe).color;
+      probe.remove();
+      return [...el.querySelectorAll('.details-note a, .ref-link')].map((a) => {
+        const cs = getComputedStyle(a);
+        return {
+          display: cs.display,
+          color: cs.color,
+          accent,
+          border: cs.borderTopWidth,
+        };
+      });
+    });
+    expect(links.length).toBeGreaterThan(0);
+    for (const link of links) {
+      expect(link.display).not.toBe('block');
+      expect(link.border).toBe('0px');
+      expect(link.color).toBe(link.accent);
+    }
+
     const overflow = await dialog.evaluate(
       (el) => el.scrollWidth - el.clientWidth,
     );

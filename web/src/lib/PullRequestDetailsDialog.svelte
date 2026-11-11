@@ -639,8 +639,10 @@
             {#if releaseNotes.text.trim() === ""}
               <p class="details-note">No release notes.</p>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
-              <div class="markdown" use:imageFallback>{@html html.notes}</div>
+              <div class="markdown" use:imageFallback>
+                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                {@html html.notes}
+              </div>
             {/if}
             {#if releaseNotes.truncated}
               <p class="details-note">
@@ -657,14 +659,14 @@
             {:else if isBot}
               <details class="details-collapsed">
                 <summary>Show the generated description</summary>
-                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                 <div class="markdown" use:imageFallback>
+                  <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                   {@html html.description}
                 </div>
               </details>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
               <div class="markdown" use:imageFallback>
+                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                 {@html html.description}
               </div>
             {/if}
@@ -734,8 +736,8 @@
                       {#if c.edited}<span class="comment-edited">edited</span
                         >{/if}
                     </div>
-                    <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                     <div class="markdown" use:imageFallback>
+                      <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                       {@html html[c.id]}
                     </div>
                     {#if c.truncated}
@@ -914,6 +916,10 @@
   }
   .details-note a,
   .ref-link,
+  .markdown :global(a) {
+    color: var(--accent);
+    overflow-wrap: anywhere;
+  }
   .markdown :global(img.md-image) {
     display: block;
     max-width: 100%;
@@ -924,10 +930,6 @@
   .markdown :global(.md-image-missing) {
     color: var(--ink-2);
     font-style: italic;
-  }
-  .markdown :global(a) {
-    color: var(--accent);
-    overflow-wrap: anywhere;
   }
   /* The header links are small text where colour alone would be the cue. */
   .ref-link {
