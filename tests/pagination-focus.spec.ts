@@ -162,8 +162,8 @@ for (const b of boards) {
     const size = page.locator(`#${b.prefix}-page-size`);
     await size.focus();
     await size.selectOption('100');
-    await expect(buttons).toHaveCount(0);
     await expect(size).toBeVisible();
+    await expect(buttons).toHaveCount(0);
     await expect(size).toBeFocused();
 
     await size.selectOption('25');
