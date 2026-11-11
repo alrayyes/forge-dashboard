@@ -893,16 +893,8 @@ section.board {
   .row {
     grid-template-columns: 240px minmax(0, 1fr) 280px 22px;
   }
-  /* A plain 1fr takes its content's minimum width, and a label chip does not
-     wrap, so three long labels pushed the title column over the status
-     column and the chips ran under the CI pill (#3261). minmax(0, 1fr) lets
-     the column be as wide as it is, and a chip with a long label wraps its
-     text inside the column instead of running out of it. */
-  .row .label-chip {
-    max-width: 100%;
-    white-space: normal;
-    overflow-wrap: anywhere;
-  }
+  /* minmax(0, 1fr) lets the title column be as wide as it is, and .label-chip
+     wraps a long name inside it (#3261, #3396). */
   .row .author,
   .row .author.has-avatar,
   .row .created,
@@ -1522,7 +1514,11 @@ button.title {
   border-radius: 999px;
   padding: 1px 7px;
   flex: none;
-  white-space: nowrap;
+  /* A label name has no length limit. The chip wraps its text inside its
+     container at every width rather than running out of the card (#3396). */
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
