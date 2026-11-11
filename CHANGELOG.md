@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.14.0](https://github.com/alrayyes/forge-dashboard/compare/v9.13.0...v9.14.0) (2026-11-11)
+
+
+### Features
+
+* **web:** show backtick spans in the pull request dialog title as inline code ([#3474](https://github.com/alrayyes/forge-dashboard/issues/3474)) ([6303857](https://github.com/alrayyes/forge-dashboard/commit/6303857e8530f63c9b25fa6515ee1d88cdde9a59))
+
 ## [9.13.0](https://github.com/alrayyes/forge-dashboard/compare/v9.12.0...v9.13.0) (2026-11-11)
 
 
