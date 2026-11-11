@@ -616,3 +616,59 @@ for (const scheme of ['light', 'dark'] as const) {
     await expectNoAxeViolations(page);
   });
 }
+
+// An overflowing list is reachable by keyboard (#3402): without a tab stop a
+// keyboard user can't scroll it to read every pull request before confirming.
+const longTitle = (n: number) =>
+  `Bump a dependency with a very long name and a longer version range ${n}`;
+
+for (const scheme of ['light', 'dark'] as const) {
+  for (const width of [320, 390]) {
+    test(`an overflowing rebase list is a named tab stop that scrolls with the keys at ${width}px in ${scheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width, height: 520 });
+      await open(
+        page,
+        [1, 2, 3, 4, 5, 6].map((n) => pr(n, { title: longTitle(n) })),
+      );
+      await page.getByRole('button', { name: 'Rebase all (6)' }).click();
+      const list = page.locator('#rebase-all-list');
+      await expect(list).toBeVisible();
+      expect(
+        await list.evaluate((el) => el.scrollHeight > el.clientHeight),
+      ).toBe(true);
+      await expect(list).toHaveAttribute('tabindex', '0');
+      await expect(list).toHaveAccessibleName('Pull requests to rebase (6)');
+
+      // The dialog opens on the list, and it stays in the Tab cycle.
+      await expect(list).toBeFocused();
+      await page.keyboard.press('Tab');
+      await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
+      await page.keyboard.press('Shift+Tab');
+      await expect(list).toBeFocused();
+      const outline = await list.evaluate(
+        (el) => getComputedStyle(el).outlineStyle,
+      );
+      expect(outline).not.toBe('none');
+
+      await page.keyboard.press('PageDown');
+      await expect
+        .poll(() => list.evaluate((el) => el.scrollTop))
+        .toBeGreaterThan(0);
+      await expectNoAxeViolations(page);
+    });
+  }
+}
+
+test('a rebase list that fits is not an extra tab stop', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, [pr(1), pr(2)]);
+  await page.getByRole('button', { name: 'Rebase all (2)' }).click();
+  await expect(page.locator('#rebase-all-list')).toBeVisible();
+  await expect(page.locator('#rebase-all-list')).not.toHaveAttribute(
+    'tabindex',
+    /.*/,
+  );
+});

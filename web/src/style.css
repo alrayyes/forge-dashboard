@@ -5108,6 +5108,9 @@ footer a[aria-current="page"] {
   list-style: none;
   font-size: 0.8125rem;
 }
+.rebase-all-list:focus-visible {
+  outline-offset: -2px;
+}
 .rebase-all-item {
   padding: 4px 0;
   overflow-wrap: anywhere;

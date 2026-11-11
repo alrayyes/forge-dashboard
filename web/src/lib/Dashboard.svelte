@@ -5911,6 +5911,15 @@
         }),
       );
       dialog.showModal();
+      // A list that scrolls needs a tab stop and a name, or a keyboard user
+      // can't read past the first rows (#3402). One that fits gets neither.
+      if (list && list.scrollHeight > list.clientHeight) {
+        list.tabIndex = 0;
+        list.setAttribute("aria-label", `Pull requests to rebase (${count})`);
+      } else if (list) {
+        list.removeAttribute("tabindex");
+        list.removeAttribute("aria-label");
+      }
     }
 
     // One after another, so a forge sees a steady trickle and not a burst.
