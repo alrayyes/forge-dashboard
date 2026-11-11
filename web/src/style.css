@@ -3718,9 +3718,8 @@ footer a.mono:focus-visible {
 .pipeline-check-name {
   flex: 1 1 auto;
   font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .pipeline-check-duration {
   flex: none;
