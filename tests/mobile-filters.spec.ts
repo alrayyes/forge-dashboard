@@ -20,7 +20,8 @@ function makePR(number: number, repo: string, author: string, ci = 'success') {
     author,
     draft: false,
     ci,
-    labels: [],
+    // Two labels, so the Label filter has a choice and stays in the bar.
+    labels: [{ name: number % 2 ? 'bug' : 'docs', color: 'ededed' }],
     createdAt: new Date().toISOString(),
     updatedAt: new Date(Date.now() - number * 1000).toISOString(),
     mergeStatus: 'blocked',
