@@ -229,13 +229,20 @@ filter offers) and the wording half of `wait-chip.ts`. Move a rule here when it
 is a pure function of its inputs, and keep the Playwright journey only for what
 the page does with the answer.
 
-Two things to know. Unit tests live under `web/src`, not `tests/`, because
-Playwright picks up any `tests/*.test.ts` and a bare `bun test` fails on
-Playwright specs. And `bun test` has no Svelte compiler, so it can't load a
-`.svelte.ts` rune module (`$state is not defined`) or render a component. When a
-test first needs one, add Vitest with `vite-plugin-svelte` for those files.
-`bun test` was picked for plain modules because it runs in about 0.01 s with
-nothing new to install, where Vitest takes 0.4 s or more and a dependency.
+What the built frontend ships, as opposed to how it behaves, is checked in Go,
+not in a browser: `internal/api/static_pages_test.go` reads the pages the
+binary embeds (so run `bun run build:web` first) and asserts the minified
+CSS, the font preloads and `@font-face` files being served, no external loads,
+a distinct description on every page, and `noindex`.
+
+Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
+helpers the e2e specs import), not `tests/`, because Playwright picks up any
+`tests/*.test.ts` and a bare `bun test` fails on Playwright specs. And
+`bun test` has no Svelte compiler, so it can't load a `.svelte.ts` rune module
+(`$state is not defined`) or render a component. When a test first needs one,
+add Vitest with `vite-plugin-svelte` for those files. `bun test` was picked
+for plain modules because it runs in about 0.01 s with nothing new to install,
+where Vitest takes 0.4 s or more and a dependency.
 
 ## How it fits together
 
