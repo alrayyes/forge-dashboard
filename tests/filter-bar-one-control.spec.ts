@@ -111,4 +111,34 @@ for (const scheme of ['light', 'dark'] as const) {
       expect(hasArrow, `${selector} ${JSON.stringify(shown)}`).toBe(true);
     }
   });
+
+  test(`pull requests: no select clips its text in forced colors, ${scheme} (3374)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
+    await open(page, '/pull-requests.html', 1280);
+    for (const selector of SELECTS) {
+      const fit = await page.locator(selector).evaluate((el) => {
+        const select = el as HTMLSelectElement;
+        const cs = getComputedStyle(select);
+        const ctx = document.createElement('canvas').getContext('2d');
+        if (!ctx) throw new Error('no canvas');
+        ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+        const text = select.selectedOptions[0]?.text ?? '';
+        // The native arrow takes its own room inside the box, on top of the
+        // padding, about 20px in Chromium.
+        const arrow = 20;
+        const needed =
+          ctx.measureText(text).width +
+          Number.parseFloat(cs.paddingLeft) +
+          Number.parseFloat(cs.paddingRight) +
+          arrow;
+        return { text, needed, width: select.clientWidth };
+      });
+      expect(
+        fit.needed,
+        `${selector} ${JSON.stringify(fit)}`,
+      ).toBeLessThanOrEqual(fit.width);
+    }
+  });
 }

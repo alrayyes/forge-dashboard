@@ -1061,6 +1061,9 @@ select.col-filter {
   .filter-bar select.col-filter,
   .filter-bar select.group-select {
     appearance: auto;
+    /* The native arrow brings its own room; the 22px reserved for the drawn
+       one would clip the text next to it. */
+    padding-right: revert;
   }
 }
 
