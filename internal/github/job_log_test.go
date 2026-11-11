@@ -217,6 +217,25 @@ func TestJobLog_AnExhaustedRateLimitIsRateLimited(t *testing.T) {
 	assert.Equal(t, dashboard.ForgeErrorRateLimited, ce.Kind)
 }
 
+func TestJobLog_AGatewayErrorCarriesItsStatusAndRequestID(t *testing.T) {
+	t.Parallel()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/actions/jobs/77/logs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("X-GitHub-Request-Id", "ABCD:1234")
+		w.WriteHeader(http.StatusBadGateway)
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	_, err := github.NewClient("test-token", "", srv.URL).JobLog(t.Context(), "alrayyes", "a", 77)
+
+	var ce *dashboard.ClientError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, dashboard.ForgeErrorUpstream, ce.Kind)
+	assert.Equal(t, http.StatusBadGateway, ce.UpstreamStatus)
+	assert.Equal(t, "ABCD:1234", ce.RequestID)
+}
+
 func TestJobLog_EveryRedirectHopIsChecked(t *testing.T) {
 	t.Parallel()
 	var hits int

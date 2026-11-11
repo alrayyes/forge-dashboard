@@ -100,7 +100,12 @@ func (c *Client) logRequestError(ctx context.Context, path string, resp *ghsdk.R
 		if kind != dashboard.ForgeErrorUnknown {
 			c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, string(kind), nil)
 
-			return &dashboard.ClientError{Kind: kind, Err: fmt.Errorf("%w: GET %s: %s", errJobLogRefused, path, resp.Status)}
+			status, requestID := forgeFailure(resp.Response)
+
+			return &dashboard.ClientError{
+				Kind: kind, UpstreamStatus: status, RequestID: requestID,
+				Err: fmt.Errorf("%w: GET %s: %s", errJobLogRefused, path, resp.Status),
+			}
 		}
 	}
 

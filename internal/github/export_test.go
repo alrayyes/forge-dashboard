@@ -135,3 +135,18 @@ func (c *Client) ReadSuiteChecks(ctx context.Context, ids []string) (counts map[
 
 	return counts, more
 }
+
+// RetryDelayForTest is the jittered wait before a retry of base.
+func RetryDelayForTest(base time.Duration) time.Duration { return retryDelay(base) }
+
+// SetRetryWaitForTest replaces the timer between GraphQL retries with one that
+// records each wait and returns at once.
+func SetRetryWaitForTest(c *Client, record func(time.Duration)) {
+	c.wait = func(d time.Duration) <-chan time.Time {
+		record(d)
+		done := make(chan time.Time, 1)
+		done <- time.Time{}
+
+		return done
+	}
+}

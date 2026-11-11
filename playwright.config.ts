@@ -134,6 +134,7 @@ const singleUserSpecs = [
   '**/stream-after-first-poll.spec.ts',
   '**/title-hover-text.spec.ts',
   '**/unreachable-forge.spec.ts',
+  '**/upstream-error-banner.spec.ts',
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
   '**/webhooks-failing-repo.spec.ts',
