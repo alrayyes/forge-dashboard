@@ -1420,4 +1420,70 @@ test.describe('a copy pressed while the output loads', () => {
     await expect(dialog.locator('.run-output-status')).toHaveText('');
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
   });
+
+  // #3360: the excerpt's refusal has no timer, so it came back on every
+  // Show output and was announced again with no new copy.
+  test('an old refusal stays quiet when the output is hidden and shown again', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    await setup(page, log, failed);
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    release();
+    await expect(dialog.locator('.run-output-status')).toContainText(
+      "Couldn't copy automatically",
+    );
+
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: build' }),
+    ).toBeVisible();
+    await expect(dialog.locator('.run-output-status')).toHaveText('');
+
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    await expect(dialog.locator('.run-output-status')).toContainText(
+      "Couldn't copy automatically",
+    );
+  });
+
+  test('a copy still running when the output lands shows Copying, then its result', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, log, failed);
+    // The excerpt's copy reads the whole log, so it waits on the same read.
+    const release = await holdLog(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await page.evaluate(() => {
+      // Keep the clipboard write pending until the test lets it go.
+      const w = window as unknown as { __let?: () => void };
+      const gate = new Promise<void>((r) => {
+        w.__let = r;
+      });
+      const real = navigator.clipboard.write.bind(navigator.clipboard);
+      navigator.clipboard.write = async (items: ClipboardItem[]) => {
+        await gate;
+        return real(items);
+      };
+      const text = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = async (t: string) => {
+        await gate;
+        return text(t);
+      };
+    });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    release();
+
+    await expect(dialog.locator('.run-output-status')).toHaveText('Copying');
+    await page.evaluate(() =>
+      (window as unknown as { __let?: () => void }).__let?.(),
+    );
+    await expect(dialog.locator('.run-output-status')).toHaveText('Copied');
+  });
 });
