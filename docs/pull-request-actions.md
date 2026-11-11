@@ -1048,10 +1048,15 @@ pushed by the dashboard. The button reads `Rebasing 3 of 6` as it goes. A
 request the forge refuses shows its reason on its own row, with that row's
 retry, and the others carry on.
 
-A pull request that is empty, already has a rebase requested, or has no rebase
-to offer isn't counted. When no pull request can be asked, the button is
-unavailable. A Dependabot pull request on a GitHub App with no saved personal
-token is left out too, and a line under the headline gives the reason.
+An empty pull request isn't counted as out of date. One that is out of date but
+can't be asked is counted in the headline and left out of the button: a rebase
+already requested, a Dependabot pull request on a GitHub App with no saved
+personal token, a rebase the server blocks, or none offered. When some can be
+asked, a line under the headline says how many and why, for example `2 can be
+rebased. 1 is left out: Rebase requested.`, in the words the row shows. The
+confirm dialog lists the pull requests it will rebase, then a `Left out` group
+with each one's reason. With nothing left out the group isn't there. When no
+pull request can be asked, the button is unavailable.
 
 The strip shows only while a listed pull request is out of date. When none is,
 because they're all current or a filter hides the ones that aren't, all of it

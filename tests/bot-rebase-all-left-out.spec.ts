@@ -20,7 +20,7 @@ function pr(number: number, overrides: Record<string, unknown> = {}) {
     updatedAt: new Date().toISOString(),
     mergeStatus: 'blocked',
     behind: true,
-    allowedActions: [{ action: 'dependabot_rebase' }],
+    allowedActions: [{ action: 'dependabot_rebase', primary: true }],
     ...overrides,
   };
 }
@@ -121,6 +121,7 @@ test('with every behind row rebasable there is no second group', async ({
 });
 
 for (const [scheme, width] of [
+  ['light', 320],
   ['light', 390],
   ['dark', 390],
   ['light', 1280],
