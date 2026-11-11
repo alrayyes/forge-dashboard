@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { headerLabel, pillParts, tabLabel } from './nav-labels';
+import { headerLabel, pillParts, showTotal, tabLabel } from './nav-labels';
 
 // What assistive tech hears for a nav item with counts, with no browser. The
 // layout feeds every nav item through these two functions, so the wording for
@@ -24,10 +24,10 @@ describe('headerLabel', () => {
         running: 0,
         passed: 8,
       }),
-    ).toBe('8 8, Pull requests, 8 total, 8 passing');
+    ).toBe('8, Pull requests, 8 passing');
     expect(
       headerLabel('Releases', { total: 6, failed: 0, running: 6, passed: 0 }),
-    ).toBe('6 6, Releases, 6 total, 6 running');
+    ).toBe('6, Releases, 6 running');
     expect(
       headerLabel('Bots', { total: 4, failed: 1, running: 0, passed: 0 }),
     ).toBe('4 1, Bots, 4 total, 1 failing');
@@ -62,7 +62,7 @@ describe('headerLabel', () => {
         passed: 3,
         none: 0,
       }),
-    ).toBe('3 3, Branches, 3 total, 3 passing');
+    ).toBe('3, Branches, 3 passing');
   });
 
   test('names the branches waiting for approval after the running ones, so the parts add up (#2024)', () => {
@@ -113,6 +113,37 @@ describe('headerLabel', () => {
     expect(
       headerLabel('Issues', { total: 0, failed: 0, running: 0, passed: 0 }),
     ).toBe('Issues');
+  });
+});
+
+describe('the total, when it only repeats the one count', () => {
+  test('showTotal is false only for one non-zero category that equals the total', () => {
+    expect(showTotal({ total: 2, failed: 0, running: 2 })).toBe(false);
+    expect(showTotal({ total: 7, failed: 7 })).toBe(false);
+    expect(showTotal({ total: 5, failed: 0, passed: 3 })).toBe(true);
+    expect(showTotal({ total: 4, failed: 2, running: 2 })).toBe(true);
+    expect(showTotal({ total: 9, failed: 0 })).toBe(true);
+  });
+
+  test('the names leave the total out of the numbers and the words alike', () => {
+    const only = { total: 2, failed: 0, passed: 0, running: 2 };
+    expect(headerLabel('Pull requests', only)).toBe(
+      '2, Pull requests, 2 running',
+    );
+    expect(tabLabel('PRs', only)).toBe('2 PRs, 2 running');
+  });
+
+  test('two categories and a category below the total keep it', () => {
+    const two = { total: 4, failed: 2, passed: 0, running: 2 };
+    expect(headerLabel('Pull requests', two)).toBe(
+      '4 2 2, Pull requests, 4 total, 2 failing, 2 running',
+    );
+    expect(tabLabel('PRs', two)).toBe('4 2 2 PRs, 2 failing, 2 running');
+    const below = { total: 5, failed: 0, passed: 3, running: 0 };
+    expect(headerLabel('Pull requests', below)).toBe(
+      '5 3, Pull requests, 5 total, 3 passing',
+    );
+    expect(tabLabel('PRs', below)).toBe('5 3 PRs, 3 passing');
   });
 });
 

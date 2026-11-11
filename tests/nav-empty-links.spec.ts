@@ -102,9 +102,10 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
     await page.goto('/settings.html');
     await expect(header(page, '/pull-requests.html')).toBeVisible();
-    // Counts are known once the pull request badge has its number.
+    // Counts are known once the pull request badge has its number. One
+    // category equal to the total draws that number once (#3489).
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
+      header(page, '/pull-requests.html').locator('.nav-pills'),
     ).toHaveText('1');
 
     for (const href of LINKS) {
@@ -172,7 +173,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
     await page.goto('/releases.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
+      header(page, '/pull-requests.html').locator('.nav-pills'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveAttribute(
       'aria-current',
@@ -182,7 +183,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
 
     await page.goto('/settings.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
+      header(page, '/pull-requests.html').locator('.nav-pills'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
   });
@@ -207,7 +208,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await mockDashboard(page, state);
     await page.goto('/pull-requests.html');
     await expect(
-      header(page, '/pull-requests.html').locator('.nav-total'),
+      header(page, '/pull-requests.html').locator('.nav-pills'),
     ).toHaveText('1');
     await expect(header(page, '/releases.html')).toHaveCount(0);
 
@@ -267,7 +268,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     const state: Snapshot = { pullRequests: [makePR(1)], openIssueCount: 0 };
     await mockDashboard(page, state);
     await page.goto('/settings.html');
-    await expect(header(page, PULLS).locator('.nav-total')).toHaveText('1');
+    await expect(header(page, PULLS).locator('.nav-pills')).toHaveText('1');
     expect(
       (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
     ).toEqual([]);

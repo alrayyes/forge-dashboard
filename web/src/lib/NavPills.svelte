@@ -1,13 +1,14 @@
 <script lang="ts">
   import type { NavCount } from "#lib/nav-counts.svelte.js";
-  import { pillParts } from "#lib/nav-labels.js";
+  import { pillParts, showTotal } from "#lib/nav-labels.js";
 
   // One pill (#1439, #1563): a neutral total, then the outcomes, failed and
   // passed, then a thin divider and the state, running, and for Branches the
   // ones without a pipeline (#1531), each with its own glyph. Colour is never
   // alone: the glyph says the state without it, and the link's own name says
   // it in words, so the pill is aria-hidden. Nothing at all for a page with
-  // nothing in it, and a zero is never drawn.
+  // nothing in it, and a zero is never drawn. The total is left out when it
+  // would only repeat the one count beside it (#3489).
   let {
     count,
     stacked = false,
@@ -31,7 +32,9 @@
   </span>
 {:else if count && count.total > 0}
   <span class="nav-pills" class:stacked aria-hidden="true">
-    <span class="nav-total">{count.total}</span>
+    {#if showTotal(count)}
+      <span class="nav-total">{count.total}</span>
+    {/if}
     {#each parts as part, i (part.kind)}
       <!-- A space before each count: Svelte trims the whitespace at the start of
            a block, and the pills read "15 2 10 3", not "152103", to a screen

@@ -77,6 +77,7 @@ const singleUserSpecs = [
   '**/nav-empty-links.spec.ts',
   '**/nav-counts-helper.spec.ts',
   '**/nav-pills.spec.ts',
+  '**/nav-pill-single-count.spec.ts',
   '**/nav-public-pages.spec.ts',
   '**/nav.spec.ts',
   '**/nav-telemetry-pills.spec.ts',
