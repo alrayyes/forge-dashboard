@@ -441,6 +441,32 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     expectNone(problems);
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/3397
+  // The pager only shows past one page of rows (25 by default), so the
+  // sweep never reached it. 60 rows make three pages.
+  test('pull requests: the pager under a long list', async ({ page }) => {
+    const problems: string[] = [];
+    await mockDashboard(
+      page,
+      Array.from({ length: 60 }, (_, i) => makePR(i + 1)),
+    );
+    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
+    await page.goto('/pull-requests.html');
+    await ready(page, '#pr-rows .row');
+    await expect(page.locator('#pr-pagination')).toBeVisible();
+    await sweepAll(page, 'pager', problems, { within: '#pr-pagination' });
+    // 320px with many pages still fits without sideways scroll.
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.getByLabel('Results per page').selectOption({ index: 0 });
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow, 'pager @320 scrolls sideways').toBeLessThanOrEqual(0);
+    expectNone(problems);
+  });
+
   // https://github.com/alrayyes/forge-dashboard/issues/1857
   // The pop-up is a full-height sheet up to 480px and a centred dialog above
   // it, so 700px (under the 761px phone rule) is where the header Close and
