@@ -1,6 +1,6 @@
-import { expect } from '@playwright/test';
-import { navCountsFor } from './nav-counts-helper';
-import { test } from './server-fixture';
+/// <reference types="bun" />
+import { expect, test } from 'bun:test';
+import { navCountsFor } from '../tests/nav-counts-helper';
 
 // The helper adds up the generated table. A pull request with no checks has
 // its own number (#3241), so the sum has to carry it, and every page's four

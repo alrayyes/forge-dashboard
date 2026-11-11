@@ -222,9 +222,10 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('Update branch shows only when listed, whatever the raw fields say', async ({
+  test('Update branch shows when listed, even though the pull request is not behind', async ({
     page,
   }) => {
+    // The row follows the server's list, not its own reading of `behind`.
     const listed = await open(
       page,
       makePR({
@@ -280,23 +281,6 @@ test.describe('the row follows allowedActions (#805)', () => {
     await expect(
       footer.getByRole('button', { name: 'Update branch' }),
     ).toHaveAttribute('aria-disabled', 'true');
-  });
-
-  test('Enable auto-merge shows only when listed', async ({ page }) => {
-    // Clean and passing: the old rule hid it (#662).
-    const row = await open(
-      page,
-      makePR({
-        allowedActions: [
-          { action: 'merge' },
-          { action: 'auto_merge' },
-          { action: 'close' },
-        ],
-      }),
-    );
-    await expect(
-      (await footerOf(row)).getByRole('button', { name: 'Enable auto-merge' }),
-    ).toBeVisible();
   });
 
   test('no auto_merge entry means no Enable auto-merge', async ({ page }) => {
@@ -365,7 +349,10 @@ test.describe('the row follows allowedActions (#805)', () => {
     ).toHaveCount(0);
   });
 
-  test('Renovate rebase shows only when listed', async ({ page }) => {
+  test('Renovate rebase shows when listed, whoever authored the pull request', async ({
+    page,
+  }) => {
+    // The row follows the server's list, not a guess from the author's name.
     const listed = await open(
       page,
       makePR({

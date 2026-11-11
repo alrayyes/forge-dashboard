@@ -9,11 +9,11 @@ import { test } from './server-fixture';
 
 // Page and layout make one read between them (#1801): Insights, Settings and
 // Webhooks take their forge list from the layout's read, not their own.
+// The other three share one layout, so the read is tested on Branches (it
+// draws its own list) and on Insights, which stands for them.
 const PAGES = [
   { name: 'Branches', url: '/' },
   { name: 'Insights', url: '/insights.html' },
-  { name: 'Settings', url: '/settings.html' },
-  { name: 'Webhooks', url: '/webhooks.html' },
 ];
 
 const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
@@ -85,7 +85,7 @@ async function noStream(page: Page) {
   await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
 }
 
-// What each of the three pages draws from the layout's read, so a held first
+// What Insights draws from the layout's read, so a held first
 // read and its late answer are shown to reach the page (#1801).
 const FROM_READ = [
   {
@@ -93,18 +93,6 @@ const FROM_READ = [
     url: '/insights.html',
     shows: '#insights-tracked',
     text: '3 repositories tracked',
-  },
-  {
-    name: 'Settings',
-    url: '/settings.html',
-    shows: '#webhook-coverage-count',
-    text: '1 of 2 confirmed',
-  },
-  {
-    name: 'Webhooks',
-    url: '/webhooks.html',
-    shows: '#webhooks-table',
-    text: 'alrayyes/held',
   },
 ];
 

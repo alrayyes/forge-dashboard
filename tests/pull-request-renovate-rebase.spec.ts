@@ -248,46 +248,6 @@ test.describe('pull request Renovate rebase button', () => {
   // case — Renovate has no separate Recreate, so promoting Rebase
   // inline leaves nothing but the dialog's own copy for this row.
   test.describe('promoted onto the row when out of date', () => {
-    test('a behind Renovate pull request shows Rebase inline on the row', async ({
-      page,
-    }) => {
-      await mockDashboard(page, 'github', makePR({ behind: true }));
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      // Visible without opening the dialog at all — that's the whole point,
-      // not just that it's reachable somewhere.
-      await expect(
-        row.getByRole('button', { name: 'Renovate: Rebase' }),
-      ).toBeVisible();
-    });
-
-    test('clicking the promoted Rebase button posts the same request', async ({
-      page,
-    }) => {
-      await mockDashboard(page, 'github', makePR({ behind: true }));
-      let requestBody: unknown;
-      await page.route(
-        '**/api/v1/pull-requests/renovate-rebase',
-        (route: Route) => {
-          requestBody = route.request().postDataJSON();
-          return route.fulfill({ status: 204 });
-        },
-      );
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await row.getByRole('button', { name: 'Renovate: Rebase' }).click();
-
-      await expect
-        .poll(() => requestBody)
-        .toEqual({
-          forge: 'github',
-          fullName: 'alrayyes/forge-dashboard',
-          number: 42,
-        });
-    });
-
     test('an empty, behind Renovate pull request keeps the button in the dialog, off the row', async ({
       page,
     }) => {

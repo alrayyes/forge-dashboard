@@ -1,17 +1,9 @@
 import { expect, type Page } from '@playwright/test';
 import { test } from './server-fixture';
 
-// #797: the fonts are served by the app itself. No page waits on, or sends
-// a visitor's address to, a third-party host just to render text.
-
-function recordHosts(page: Page) {
-  const hosts = new Set<string>();
-  page.on('request', (r) => {
-    const url = new URL(r.url());
-    if (url.protocol.startsWith('http')) hosts.add(url.host);
-  });
-  return hosts;
-}
+// The checks that the fonts come from the app, swap in and are preloaded are
+// Go tests over the built files (internal/api/static_pages_test.go). What stays
+// here needs a browser: which sheets block paint, and that a face really loads.
 
 async function loadedFaces(page: Page): Promise<string[]> {
   return page.evaluate(async () => {
@@ -21,60 +13,6 @@ async function loadedFaces(page: Page): Promise<string[]> {
       .map((f) => `${f.family.replace(/"/g, '')} ${f.weight}`);
   });
 }
-
-test.describe('self-hosted fonts (#797)', () => {
-  test.beforeEach(async ({ context }) => {
-    await context.clearCookies();
-  });
-
-  test('the login page requests no other host, for CSS or fonts', async ({
-    page,
-    baseURL,
-  }) => {
-    const hosts = recordHosts(page);
-    await page.goto('/login.html');
-    await loadedFaces(page);
-
-    expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
-  });
-
-  test('IBM Plex Sans loads from the app, with font-display swap', async ({
-    page,
-  }) => {
-    await page.goto('/login.html');
-    const faces = await loadedFaces(page);
-    expect(faces.some((f) => f.startsWith('IBM Plex Sans'))).toBe(true);
-
-    const display = await page.evaluate(() =>
-      [...document.fonts].map((f) => f.display),
-    );
-    expect(display.length).toBeGreaterThan(0);
-    for (const d of display) expect(d).toBe('swap');
-  });
-});
-
-test.describe('self-hosted fonts on the dashboard (#797)', () => {
-  test('the dashboard requests no other host either', async ({
-    page,
-    baseURL,
-  }) => {
-    const hosts = recordHosts(page);
-    await page.goto('/pull-requests.html');
-    await loadedFaces(page);
-
-    expect([...hosts]).toEqual([new URL(baseURL ?? '').host]);
-  });
-
-  // The login page has no monospace text, so the browser never fetches the
-  // Mono face there; the dashboard does render some.
-  test('IBM Plex Mono loads from the app where monospace text shows', async ({
-    page,
-  }) => {
-    await page.goto('/pull-requests.html');
-    const faces = await loadedFaces(page);
-    expect(faces.some((f) => f.startsWith('IBM Plex Mono'))).toBe(true);
-  });
-});
 
 // #1069: the layout's own CSS (which holds the @font-face rules) rides in the
 // page's HTML, so /style.css is the only stylesheet that blocks the first

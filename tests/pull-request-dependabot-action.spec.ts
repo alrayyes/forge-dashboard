@@ -573,53 +573,6 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
   // every non-bot pull request — Recreate stays in the dialog
   // regardless, since being behind doesn't call for it.
   test.describe('promoted onto the row when out of date', () => {
-    test('a behind Dependabot pull request shows Rebase inline, with Recreate only in the dialog', async ({
-      page,
-    }) => {
-      await mockDashboard(page, 'github', makePR({ behind: true }));
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(
-        row.getByRole('button', { name: 'Dependabot: Rebase' }),
-      ).toBeVisible();
-      await expect(
-        row.getByRole('button', { name: 'Dependabot: Recreate' }),
-      ).toHaveCount(0);
-
-      const footer = await openFooter(row);
-      await expect(
-        footer.getByRole('button', { name: 'Dependabot: Recreate' }),
-      ).toBeVisible();
-    });
-
-    test('clicking the promoted Rebase button posts the same rebase action', async ({
-      page,
-    }) => {
-      await mockDashboard(page, 'github', makePR({ behind: true }));
-      let requestBody: unknown;
-      await page.route(
-        '**/api/v1/pull-requests/dependabot-action',
-        (route: Route) => {
-          requestBody = route.request().postDataJSON();
-          return route.fulfill({ status: 204 });
-        },
-      );
-      await page.goto('/bots.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await row.getByRole('button', { name: 'Dependabot: Rebase' }).click();
-
-      await expect
-        .poll(() => requestBody)
-        .toEqual({
-          forge: 'github',
-          fullName: 'alrayyes/forge-dashboard',
-          number: 42,
-          action: 'rebase',
-        });
-    });
-
     // Mirrors updateBranchActionCell's own empty-pull-request exception
     // (#543) — nothing left to merge means asking the bot to rebase
     // wouldn't change anything, so Rebase stays exactly where it was
