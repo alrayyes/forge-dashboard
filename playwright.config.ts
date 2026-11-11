@@ -9,6 +9,7 @@ const singleUserSpecs = [
   '**/pipeline-long-check-name.spec.ts',
   '**/forced-colors-pressed-pills.spec.ts',
   '**/forced-colors-pressed-toggles.spec.ts',
+  '**/forced-colors-current-page.spec.ts',
   '**/filter-pill-count-contrast.spec.ts',
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
