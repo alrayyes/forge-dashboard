@@ -1107,6 +1107,50 @@ goes away, chip included, and focus moves to the `All` quick filter if the
 button had it. A run that's under way keeps the strip until it ends, and the
 ready chip counts down as rows are sent.
 
+## Rerunning every failing pull request
+
+Both the Pull requests and the Bots page header have a `Rerun failed checks`
+button for the failing pull requests the filters leave. It counts the ones a
+rerun can restart, so `Rerun failed checks (3)` means three, and a filter that
+narrows the list narrows the count. Chips beside it read `5 failing`, `3 ready
+to rerun`, `1 can't be rerun` and, while the answers come in, `1 checking`.
+
+The page doesn't guess which failing pull requests have a job to restart: the
+list doesn't carry each check's run. It asks the server, one pull request at a
+time, `GET /api/v1/pull-requests/rerunnable` with `forge`, `fullName` and
+`number`. The server reads what the rerun reads (the failed check runs on the
+head commit, or the failed Actions runs on Forgejo) and restarts nothing. The
+answer is `{ "rerunnable": true }`, or `{ "rerunnable": false, "reason": "..." }`
+when the rerun would answer "no failed job to rerun". A forge that can't be
+read keeps its own status, and the page then leaves that pull request in, so
+the forge decides when the rerun is sent. The page remembers an answer until
+the pull request's `updatedAt` moves. The probe is never part of the snapshot
+or the stream.
+
+A pull request is left out, with its reason, when:
+
+- it fails on an external CI, or no job ran: "Failing on an external CI, or no
+  job ran. It can't be rerun from here.";
+- the server doesn't offer `rerun_checks` for it, or blocks it;
+- a rerun is already queued for it;
+- its forge is locked: unreachable, or a Forgejo older than 17 with no rerun
+  route (the same reasons the row's button shows).
+
+Pressing the button opens a confirm dialog with two groups: `Will rerun (3)`
+and `Can't rerun (2)`, each pull request with its forge, repository, number and
+title, and the left-out ones with their reason. Cancel is focused. `Rerun`
+then sends the first group one after another, through the same
+`POST /api/v1/pull-requests/rerun-checks` the row's button sends. The button
+reads `Rerunning 2 of 3` as it goes. A refused rerun is listed under the strip
+as `owner/repo #12: reason`, keeps its failure on its row, and the others carry
+on. A screen reader hears `Rerun queued for 3.` or `Rerun queued for 2 of 3. 1
+refused.` when the run ends.
+
+With none to rerun the button is off and a line says why: "None of the 3
+failing pull requests can be rerun from here." followed by the reasons. With no
+failing pull request listed, the strip is gone and focus moves to the `All`
+quick filter if the button had it.
+
 ## Deleting the source branch on merge
 
 `POST /api/v1/pull-requests/merge` can also delete the branch the pull request

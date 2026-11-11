@@ -5087,7 +5087,8 @@ footer a[aria-current="page"] {
 
 /* Rebase all, on the Bots page (#2859). */
 .rebase-all,
-.update-all {
+.update-all,
+.rerun-all {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -5095,7 +5096,8 @@ footer a[aria-current="page"] {
   padding: 12px 18px;
 }
 .rebase-all[hidden],
-.update-all[hidden] {
+.update-all[hidden],
+.rerun-all[hidden] {
   display: none;
 }
 /* The headline and the reason are the sentence the button's aria-describedby
@@ -5119,17 +5121,20 @@ footer a[aria-current="page"] {
   display: none;
 }
 .rebase-all-button,
-.update-all-button {
+.update-all-button,
+.rerun-all-button {
   margin-left: auto;
 }
 @media (max-width: 640px) {
   .rebase-all,
-  .update-all {
+  .update-all,
+  .rerun-all {
     flex-direction: column;
     align-items: stretch;
   }
   .rebase-all-button,
-  .update-all-button {
+  .update-all-button,
+  .rerun-all-button {
     margin-left: 0;
   }
 }
@@ -5179,6 +5184,7 @@ footer a[aria-current="page"] {
   stroke-width: 2;
 }
 .rebase-all-button,
+.rerun-all-button,
 .rebase-all-actions button {
   min-height: 44px;
   padding: 6px 14px;
@@ -5192,12 +5198,15 @@ footer a[aria-current="page"] {
   cursor: pointer;
 }
 .rebase-all-button:not([aria-disabled="true"]),
-#rebase-all-confirm {
+.rerun-all-button:not([aria-disabled="true"]),
+#rebase-all-confirm,
+#rerun-all-confirm {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
 }
-.rebase-all-button[aria-disabled="true"] {
+.rebase-all-button[aria-disabled="true"],
+.rerun-all-button[aria-disabled="true"] {
   cursor: default;
   opacity: 0.7;
 }
@@ -5240,7 +5249,8 @@ footer a[aria-current="page"] {
 .rebase-all-left-out[hidden] {
   display: none;
 }
-.rebase-all-left-out h3 {
+.rebase-all-left-out h3,
+.rerun-all-dialog h3 {
   margin: 0 0 4px;
   font-size: 0.8125rem;
   color: var(--ink-2);
@@ -5258,6 +5268,31 @@ footer a[aria-current="page"] {
   margin: 12px 0 0;
   font-size: 0.75rem;
   color: var(--ink-3);
+}
+
+/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). It
+   shares the Rebase all strip, button and dialog rules above. */
+.rerun-all-none {
+  flex: 1 1 14em;
+  min-width: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.rerun-all-none[hidden] {
+  display: none;
+}
+.rerun-all-result {
+  margin: 0;
+  padding: 0 18px 12px;
+  list-style: none;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  overflow-wrap: anywhere;
+}
+.rerun-all-result[hidden] {
+  display: none;
 }
 
 /* Update all, on the Pull requests page (#3011). Its strip, headline, chips
