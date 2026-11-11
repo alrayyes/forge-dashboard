@@ -2943,6 +2943,14 @@ test.describe('dashboard page', () => {
       updatedAt: new Date().toISOString(),
     };
 
+    // The page ships its inputs in the served HTML and attaches their
+    // handlers when the script mounts. A fill or click before that is lost,
+    // so the button never changes. "Refreshed" showing means the first
+    // load finished, which only happens once the script has mounted (#3472).
+    async function boardReady(page: Page) {
+      await expect(page.locator('.refreshed')).toBeVisible();
+    }
+
     function mockDashboard(page: Page) {
       return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
@@ -2961,6 +2969,7 @@ test.describe('dashboard page', () => {
     test.beforeEach(async ({ page }) => {
       await mockDashboard(page);
       await page.goto('/pull-requests.html');
+      await boardReady(page);
     });
 
     test('is visible but disabled with no filters active', async ({ page }) => {
@@ -3015,6 +3024,7 @@ test.describe('dashboard page', () => {
     }) => {
       await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
       await page.goto('/issues.html');
+      await boardReady(page);
       await page.locator('#issue-hide-dependency-dashboard').uncheck();
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
@@ -3031,6 +3041,7 @@ test.describe('dashboard page', () => {
       await page.getByRole('button', { name: 'Clear filters' }).click();
 
       await page.reload();
+      await boardReady(page);
 
       await expect(
         page.getByRole('button', { name: 'Clear filters' }),
