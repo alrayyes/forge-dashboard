@@ -74,6 +74,7 @@
   import { imageFallback } from "#lib/image-fallback.js";
   import { imageSourceFor } from "#lib/image-source.js";
   import { renderMarkdown } from "#lib/markdown.js";
+  import { titleSegments } from "#lib/title-code.js";
   import { repoUrlOf } from "#lib/repo-url.js";
 
   // Puts a node the row's builders made into the header. A node already in
@@ -540,7 +541,11 @@
             {/if}
           </span>
         </p>
-        <h2 class="details-title">{target.title}</h2>
+        <h2 class="details-title">
+          {#each titleSegments(target.title) as seg}{#if seg.code}<code
+                class="title-code">{seg.text}</code
+              >{:else}{seg.text}{/if}{/each}
+        </h2>
         {#if itemTarget?.subject === "issue" && itemTarget.author}
           {#snippet filer()}
             {#if avatarSrc(itemTarget?.authorAvatarUrl) && !brokenFilerAvatar}
@@ -832,6 +837,16 @@
     font-size: 16px;
     font-weight: 600;
     overflow-wrap: anywhere;
+  }
+  .title-code {
+    font-family: "IBM Plex Mono", ui-monospace, monospace;
+    font-size: 0.92em;
+    font-weight: 500;
+    padding: 0 0.3em;
+    border-radius: 4px;
+    background: var(--surface-sunken);
+    overflow-wrap: normal;
+    white-space: nowrap;
   }
   .details-author {
     display: flex;
