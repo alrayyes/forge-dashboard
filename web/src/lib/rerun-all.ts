@@ -121,7 +121,7 @@ export function rerunProgressLabel(done: number, count: number): string {
   return `Rerunning ${done} of ${count}`;
 }
 
-// Beside the disabled button: why it is disabled.
+// The button's description and tooltip when nothing failing can be rerun.
 export function rerunNoneLine(failing: number): string {
   return failing === 1
     ? "The failing pull request can't be rerun from here."

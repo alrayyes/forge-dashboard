@@ -4,7 +4,7 @@ import { test } from './server-fixture';
 
 // "Rerun failed checks" on the Pull requests and Bots pages (#3236). Who may
 // rerun and the wording are pinned in rerun-all.test.ts; these cases pin the
-// wiring: the header strip, the two groups of the dialog, the requests made
+// wiring: the header button, the two groups of the dialog, the requests made
 // (none for a row that can't run), and the summary.
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
@@ -115,11 +115,15 @@ for (const [name, path, rows] of [
   ],
 ] as const) {
   test.describe(name, () => {
-    test('the button counts the rows a rerun can restart', async ({ page }) => {
-      await open(page, path, [...rows], mixedProbes);
+    test('the button counts the failing rows and asks the forge nothing until it is pressed', async ({
+      page,
+    }) => {
+      const { probed } = await open(page, path, [...rows], mixedProbes);
       await expect(
-        page.getByRole('button', { name: 'Rerun failed checks (2)' }),
+        page.getByRole('button', { name: 'Rerun failed checks (3)' }),
       ).toBeVisible();
+      await page.waitForTimeout(300);
+      expect(probed).toEqual([]);
     });
 
     test('the dialog sorts the rows, and confirming asks only the first group', async ({
@@ -128,8 +132,9 @@ for (const [name, path, rows] of [
       const { posts } = await open(page, path, [...rows], mixedProbes, {
         refuse: { 4: 'The run is too old to rerun.' },
       });
+      const rowTop = (await page.locator('.row').first().boundingBox())?.y;
       await page
-        .getByRole('button', { name: 'Rerun failed checks (2)' })
+        .getByRole('button', { name: 'Rerun failed checks (3)' })
         .click();
       const dialog = page.getByRole('dialog', {
         name: 'Rerun 2 pull requests?',
@@ -159,8 +164,17 @@ for (const [name, path, rows] of [
         'Rerun queued for 1 of 2. 1 refused.',
       );
       expect(posts).toEqual([1, 4]);
-      await expect(page.locator('#rerun-all-result')).toContainText(
+      // The refusal is told in the dialog, so no row moves.
+      const refusal = page.getByRole('dialog', {
+        name: 'Rerun queued for 1 of 2. 1 refused.',
+      });
+      await expect(refusal.locator('#rerun-all-result')).toContainText(
         'acme/app #4: The run is too old to rerun.',
+      );
+      await refusal.getByRole('button', { name: 'Close' }).click();
+      await expect(refusal).toBeHidden();
+      expect((await page.locator('.row').first().boundingBox())?.y).toBe(
+        rowTop,
       );
     });
   });
@@ -177,7 +191,7 @@ test('with no failing row the control is not there', async ({ page }) => {
   await expect(page.locator('#rerun-all-button')).toBeHidden();
 });
 
-test('when no failing row can run the button is off and says why', async ({
+test('when no failing row can run the dialog says so and sends nothing', async ({
   page,
 }) => {
   const none = { rerunnable: false, reason: 'no failed GitHub Actions job x' };
@@ -187,16 +201,63 @@ test('when no failing row can run the button is off and says why', async ({
     [pr(1), pr(2), pr(3)],
     { 1: none, 2: none, 3: none },
   );
-  const button = page.locator('#rerun-all-button');
-  await expect(button).toHaveText('Rerun failed checks');
-  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await page.getByRole('button', { name: 'Rerun failed checks (3)' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Nothing to rerun' });
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole('heading', { name: "Can't rerun (3)" }),
+  ).toBeVisible();
+  await expect(dialog.getByRole('button', { name: /^Rerun \d/ })).toBeHidden();
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  // Now the answers are in, the button says so without asking again.
+  await expect(page.locator('#rerun-all-button')).toHaveText(
+    'Rerun failed checks',
+  );
   await expect(page.locator('.rerun-all')).toContainText(
     'None of the 3 failing pull requests can be rerun from here.',
   );
-  await button.click({ force: true });
-  await expect(page.getByRole('dialog')).toBeHidden();
   expect(posts).toEqual([]);
 });
+
+// A forge that can't be asked: its rows are filed under Can't rerun with the
+// reason, and neither the probe nor the rerun is sent.
+const spent = {
+  limit: 5000,
+  remaining: 0,
+  resetsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+};
+for (const [name, forge, reason] of [
+  [
+    'unreachable',
+    { forge: 'github', reachable: false, repoCount: 1 },
+    /reach/i,
+  ],
+  [
+    'rate limited',
+    { forge: 'github', reachable: true, repoCount: 1, rateLimitREST: spent },
+    /rate limit reached/i,
+  ],
+] as const) {
+  test(`a ${name} forge's rows go under Can't rerun with the reason, and nothing is sent`, async ({
+    page,
+  }) => {
+    const { posts, probed } = await open(
+      page,
+      '/pull-requests.html',
+      [pr(1), pr(2)],
+      {},
+      { forges: [forge] },
+    );
+    await page.locator('#rerun-all-button').click();
+    const dialog = page.getByRole('dialog', { name: 'Nothing to rerun' });
+    await expect(dialog).toBeVisible();
+    const left = dialog.locator('#rerun-all-left-out-list > li');
+    await expect(left).toHaveCount(2);
+    await expect(left.first()).toContainText(reason);
+    expect(probed).toEqual([]);
+    expect(posts).toEqual([]);
+  });
+}
 
 test("a Forgejo with no rerun route goes under Can't rerun with its reason, unasked", async ({
   page,
@@ -265,7 +326,7 @@ for (const [scheme, width] of [
     await page.setViewportSize({ width, height: 800 });
     await open(page, '/pull-requests.html', [...mixed], mixedProbes);
     const button = page.getByRole('button', {
-      name: 'Rerun failed checks (2)',
+      name: 'Rerun failed checks (3)',
     });
     await expect(button).toBeVisible();
     const axe = async () =>
@@ -290,6 +351,7 @@ for (const [scheme, width] of [
     await button.click();
     const dialog = page.getByRole('dialog');
     await expect(dialog).toBeVisible();
+    await expect(page.locator('#rerun-all-plan')).toBeVisible();
     await expect(page.locator('#rerun-all-cancel')).toBeFocused();
     await axe();
     expect(await fits()).toBe(true);
@@ -304,7 +366,7 @@ for (const [scheme, width] of [
     }
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
-    await expect(button).toBeFocused();
+    await expect(page.locator('#rerun-all-button')).toBeFocused();
   });
 }
 
