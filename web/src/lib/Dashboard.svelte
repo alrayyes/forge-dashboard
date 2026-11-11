@@ -48,7 +48,7 @@
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
-  import type { Check } from "#lib/pipeline-checks.js";
+  import { type Check, rerunnableCounts } from "#lib/pipeline-checks.js";
   import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
   import {
     linkedPullRequestsToWatch,
@@ -6753,7 +6753,10 @@
     // "Rerun failed checks" (#698), shown only where the server lists
     // rerun_checks for this pull request and something actually failed. The
     // forge queues the jobs; the next refresh carries their result.
-    function pipelineRerunControl(item: PullRequestItem): HTMLElement | null {
+    function pipelineRerunControl(
+      item: PullRequestItem,
+      checks: Check[],
+    ): HTMLElement | null {
       pipelineRerunLock.drawn(pipelineRerunLockKey(item));
       if (!findAction(item, "rerun_checks")) return null;
       // The same locks as the row's cell: a spent budget or an unreachable
@@ -6777,7 +6780,23 @@
         return wrap;
       }
       const key = prKey(item);
-      const button = buttonEl("row-action", "Rerun failed checks");
+      // What the press will do, from the checks the dialog shows.
+      const { rerun, skipped } = rerunnableCounts(checks);
+      const count = el("p", "pipeline-rerun-count");
+      const forgeName = FORGE_LABELS[item.forge] || item.forge;
+      const left = skipped > 0 ? ` ${skipped} can't be rerun from here.` : "";
+      count.textContent =
+        rerun > 0
+          ? `${rerun} failed ${rerun === 1 ? "check" : "checks"} will rerun on ${forgeName}.${left}`
+          : skipped === 1
+            ? "The failed check can't be rerun from here."
+            : `None of the ${skipped} failed checks can be rerun from here.`;
+      if (rerun === 0) {
+        wrap.appendChild(count);
+        return wrap;
+      }
+      const label = `Rerun failed checks (${rerun})`;
+      const button = buttonEl("row-action", label);
       button.type = "button";
       const status = el("p", "pipeline-rerun-status");
       status.setAttribute("role", "status");
@@ -6795,7 +6814,7 @@
         const held = rerunQueued(item);
         const state = rerunState[key];
         const sending = state?.phase === "requesting";
-        button.textContent = held ? "Rerun queued" : "Rerun failed checks";
+        button.textContent = held ? "Rerun queued" : label;
         markPending(button, held || sending);
         status.textContent = held
           ? "Rerun queued. The new results show here after the next refresh."
@@ -6822,7 +6841,7 @@
         if (isPending(button)) return;
         doRerunChecks(item, sync);
       });
-      wrap.append(button, status, failureBox);
+      wrap.append(count, button, status, failureBox);
       return wrap;
     }
 
@@ -6859,7 +6878,7 @@
         controls: (failed, checks, runs) => {
           showLiveFold(item, checks, runs);
           return failed && pipelineItem
-            ? pipelineRerunControl(pipelineItem)
+            ? pipelineRerunControl(pipelineItem, checks)
             : null;
         },
         // Cancel run is offered while the server lists cancel_run for the row,

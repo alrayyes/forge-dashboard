@@ -595,6 +595,7 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
           name: 'test',
           status: 'completed',
           conclusion: 'failure',
+          runId: 1,
           url: 'https://example.com/r/2',
           required: true,
         },
@@ -622,6 +623,7 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
         name: 'test',
         status: 'completed',
         conclusion: 'failure',
+        runId: 1,
         url: 'https://example.com/r/2',
         required: true,
       },
@@ -629,6 +631,7 @@ test.describe('pipeline panel rerun control through a live redraw', () => {
         name: 'extra',
         status: 'completed',
         conclusion: 'failure',
+        runId: 1,
         url: 'https://example.com/r/3',
       },
     ];
