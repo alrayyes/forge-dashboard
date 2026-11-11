@@ -68,6 +68,9 @@ const appRepoBatchSize = 20
 // instead of reparsing JSON bodies by hand.
 type Client struct {
 	httpClient *http.Client
+	// wait stands in for time.After between GraphQL retries; nil uses the
+	// real timer. Only the package's own tests set it.
+	wait       func(time.Duration) <-chan time.Time
 	baseURL    string
 	graphqlURL string
 	// etag is the cache under httpClient, kept so SetStats can put its
@@ -2568,10 +2571,18 @@ func (c *Client) graphqlExec(ctx context.Context, query string, variables map[st
 		select {
 		case <-ctx.Done():
 			return failed, err
-		case <-time.After(retryDelay(delay)):
+		case <-c.waitFor(retryDelay(delay)):
 		}
 		delay *= 2
 	}
+}
+
+func (c *Client) waitFor(d time.Duration) <-chan time.Time {
+	if c.wait != nil {
+		return c.wait(d)
+	}
+
+	return time.After(d)
 }
 
 // retryDelay is base with up to half of it added or taken away at random, so

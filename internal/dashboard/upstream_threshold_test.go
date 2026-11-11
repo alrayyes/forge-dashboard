@@ -80,14 +80,31 @@ func TestAggregator_ASuccessResetsTheFailureCount(t *testing.T) {
 	agg.Refresh(t.Context())
 	for range 3 {
 		src.set(dashboard.ForgeErrorUpstream)
-		for range dashboard.ForgeFailureThreshold - 1 {
+		for range 2 {
 			agg.Refresh(t.Context())
+			require.True(t, health(agg.Get(), dashboard.ForgeGitHub).Reachable, "two failures since the last success are still held")
 		}
 		src.set("")
 		agg.Refresh(t.Context())
 	}
+}
 
-	assert.True(t, health(agg.Get(), dashboard.ForgeGitHub).Reachable)
+// The threshold is three, not whatever the constant is changed to.
+func TestAggregator_TheThirdUpstreamErrorInARowFlipsTheForge(t *testing.T) {
+	t.Parallel()
+
+	src := &answeringBadly{}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	src.set(dashboard.ForgeErrorUpstream)
+
+	var reachable []bool
+	for range 3 {
+		agg.Refresh(t.Context())
+		reachable = append(reachable, health(agg.Get(), dashboard.ForgeGitHub).Reachable)
+	}
+
+	assert.Equal(t, []bool{true, true, false}, reachable)
 }
 
 func TestAggregator_UnreachableIsNotHeldBack(t *testing.T) {

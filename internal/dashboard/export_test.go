@@ -1,6 +1,9 @@
 package dashboard
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // BackgroundForTest marks ctx the way the schedule does, so a test can run a
 // refresh nobody asked for.
@@ -30,6 +33,15 @@ func (s *Service) UserRefreshesForTest() int {
 // EndSentenceForTest exposes endSentence.
 func EndSentenceForTest(msg string) string { return endSentence(msg) }
 
-// IsTransientMergeFailureForTest exposes which merge failures are retried
-// after a wait; the wait itself runs on the wall clock.
-var IsTransientMergeFailureForTest = isTransientMergeFailure
+// MergeRetryAfterFailureForTest runs one failed merge through the attempt
+// bookkeeping and reports whether the pull request is barred for ever and,
+// if not, how long until it may be tried again.
+func MergeRetryAfterFailureForTest(err error) (forever bool, wait time.Duration) {
+	cfg := &autoMergeConfig{attempts: map[string]autoMergeAttempt{}, failures: map[string]AutoMergeFailure{}}
+	pr := PullRequest{Forge: ForgeGitHub, Repo: "o/r", Number: 1, UpdatedAt: time.Now()}
+	cfg.begin(pr)
+	cfg.failed(pr, err)
+	attempt := cfg.attempts[dependabotPRKey(pr)]
+
+	return attempt.forever, time.Until(attempt.until)
+}

@@ -68,3 +68,27 @@ func TestRetryDelay_IsJitteredAroundTheBase(t *testing.T) {
 	}
 	assert.Greater(t, len(seen), 20, "the delay varies")
 }
+
+// The retry loop must use the jittered wait, not the bare base.
+func TestFetch_TheGraphQLRetryWaitsAreJittered(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusGatewayTimeout)
+	}))
+	t.Cleanup(srv.Close)
+
+	first := map[time.Duration]bool{}
+	for range 20 {
+		var waits []time.Duration
+		client := github.NewClient("test-token", "", srv.URL)
+		github.SetRetryWaitForTest(client, func(d time.Duration) { waits = append(waits, d) })
+
+		client.Fetch(t.Context())
+
+		require.NotEmpty(t, waits)
+		first[waits[0]] = true
+	}
+
+	assert.Greater(t, len(first), 1, "the first retry wait differs between requests")
+}
