@@ -162,6 +162,7 @@ const singleUserSpecs = [
   '**/nav-count-reads.spec.ts',
   '**/dashboard.spec.ts',
   '**/insights-hide-title-regex.spec.ts',
+  '**/insights-chart-read-failure.spec.ts',
   '**/insights.spec.ts',
   '**/issue-hide-title-regex.spec.ts',
   '**/issue-settings-effect.spec.ts',

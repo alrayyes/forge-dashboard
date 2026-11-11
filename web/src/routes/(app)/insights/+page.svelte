@@ -115,6 +115,11 @@
     readPhase(dashboardRead, firstRefresh.done) === "pending",
   );
   const showSkeleton = $derived(awaiting && firstRefreshLoading(firstRefresh));
+  // A failed read with nothing to draw: the chart cards say so instead of
+  // claiming a real zero (#3361).
+  const readFailedEmpty = $derived(
+    dashboardRead.lastError !== null && !dashboardRead.data,
+  );
 
   // How many repositories the forges report, across both (#1325).
   const trackedText = $derived.by(() => {
@@ -825,6 +830,8 @@
 
     {#if awaiting}
       {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if readFailedEmpty}
+      <p class="empty-state">Data unavailable</p>
     {:else if prItems.length === 0}
       <p class="empty-state" id="ci-status-empty">No open pull requests.</p>
     {:else}
@@ -881,6 +888,8 @@
         <h3 id="repo-pr-ranking-heading">Pull requests</h3>
         {#if awaiting}
           {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+        {:else if readFailedEmpty}
+          <p class="empty-state">Data unavailable</p>
         {:else if prRepoRanking.top.length === 0}
           <p class="empty-state" id="repo-pr-ranking-empty">
             No open pull requests.
@@ -911,6 +920,8 @@
         <h3 id="repo-issue-ranking-heading">Issues</h3>
         {#if awaiting}
           {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+        {:else if readFailedEmpty}
+          <p class="empty-state">Data unavailable</p>
         {:else if issueRepoRanking.top.length === 0}
           <p class="empty-state" id="repo-issue-ranking-empty">
             No open issues.
@@ -949,6 +960,8 @@
 
     {#if awaiting}
       {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if readFailedEmpty}
+      <p class="empty-state">Data unavailable</p>
     {:else if prItems.length === 0}
       <p class="empty-state" id="pr-age-empty">No open pull requests.</p>
     {:else}
@@ -997,6 +1010,8 @@
 
     {#if awaiting}
       {#if showSkeleton}<ListSkeleton rows={3} />{/if}
+    {:else if readFailedEmpty}
+      <p class="empty-state">Data unavailable</p>
     {:else if issueItems.length === 0}
       <p class="empty-state" id="issue-age-empty">No open issues.</p>
     {:else}
