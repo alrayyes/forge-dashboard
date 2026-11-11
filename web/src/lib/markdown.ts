@@ -4,8 +4,10 @@
 //   - markdown-it with `html: false` escapes raw HTML as text;
 //   - its default link validator refuses javascript:, vbscript: and data:
 //     links, which stay as plain text;
-//   - images are switched off, so an <img> never loads from a stranger's URL
-//     and no hidden tracking pixel fires on open;
+//   - an image loads only when the caller's `imageSource` maps its address to
+//     the server's proxy (#3405). Any other image shows as a link or as its
+//     alt text, so no <img> loads from a stranger's URL and no tracking pixel
+//     fires on open;
 //   - task list items (`- [x] done`) become read-only checkboxes: a disabled
 //     <input type="checkbox"> inside a <label> with the item's text, built
 //     from the parsed tokens, so the text stays escaped (#1655);
@@ -19,6 +21,7 @@
 // The library is imported on first use, so the dashboard's own chunk doesn't
 // carry it.
 import type MarkdownIt from 'markdown-it';
+import type { ImageSource } from './image-source';
 
 type Renderer = InstanceType<typeof MarkdownIt>;
 type StateCore = Parameters<
@@ -128,7 +131,6 @@ function create(
   ) => void,
 ): Renderer {
   const md = new MarkdownItCtor({ html: false, linkify: true });
-  md.disable('image');
   emoji(md, { shortcuts: {} });
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.core.ruler.after('linkify', 'references', references);
@@ -140,6 +142,35 @@ function create(
     md.renderer.rules[rule] = (...args) =>
       base(...args).replace('<pre', '<pre tabindex="0"');
   }
+  md.renderer.rules.image = (tokens, idx, _options, env) => {
+    const token = tokens[idx];
+    const src = String(token.attrGet('src') ?? '');
+    const alt = token.children
+      ? md.renderer.renderInlineAsText(token.children, md.options, env)
+      : token.content;
+    const esc = md.utils.escapeHtml;
+    const imageSource = (env as { imageSource?: ImageSource } | undefined)
+      ?.imageSource;
+    let inLink = 0;
+    for (const t of tokens.slice(0, idx)) {
+      if (t.type === 'link_open') inLink++;
+      if (t.type === 'link_close') inLink--;
+    }
+    const proxy = imageSource?.(src) ?? null;
+    if (!proxy) {
+      // Never loaded: a link to it where a link may go, else its text.
+      const label = esc(alt || src);
+      return inLink === 0 && /^https?:/i.test(src)
+        ? `<a href="${esc(src)}" target="_blank" rel="noopener noreferrer">${label}</a>`
+        : label;
+    }
+    const img = `<img src="${esc(proxy)}" alt="${esc(alt)}" class="md-image" loading="lazy" decoding="async" referrerpolicy="no-referrer">`;
+    // A decorative image (no alt) or one already in a link gets no link of
+    // its own: an empty link has no name for a screen reader.
+    return alt && inLink === 0
+      ? `<a href="${esc(proxy)}" target="_blank" rel="noopener noreferrer">${img}</a>`
+      : img;
+  };
   md.renderer.rules.link_open = (tokens, idx, options, env, self) => {
     const href = String(tokens[idx].attrGet('href') ?? '');
     // Only absolute http(s) and mailto links are links. A relative or
@@ -185,13 +216,20 @@ function load(): Promise<Renderer> {
 // `repoUrl` is the repository the text belongs to; with it, `#12` and
 // `owner/repo#12` link to the item on that forge. `monoReferences` gives a
 // link labelled with a number or a commit hash the `mono` class.
+// `imageSource` maps an image address to where the page loads it from, or
+// null to refuse it; without one no image loads.
 export async function renderMarkdown(
   text: string,
-  options: { repoUrl?: string | null; monoReferences?: boolean } = {},
+  options: {
+    repoUrl?: string | null;
+    monoReferences?: boolean;
+    imageSource?: ImageSource;
+  } = {},
 ): Promise<string> {
   const repoUrl = options.repoUrl ?? undefined;
   return (await load()).render(text, {
     repoUrl,
     monoReferences: options.monoReferences,
+    imageSource: options.imageSource,
   });
 }

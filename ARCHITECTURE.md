@@ -302,6 +302,34 @@ answers the log itself). It lives in `logBlobClient` and `logTransport` in
 
 There is no allowlist: a blob host on a private network is refused, by design.
 
+### Which hosts an embedded image may come from
+
+A pull request, issue or release body can embed an image. The page never loads
+it from the forge or a third party: it asks `GET /api/v1/images`, which
+fetches it in `internal/imageproxy` and passes the bytes on. A private
+repository's image then needs no token in the browser, and a stranger's image
+can't fire a tracking pixel when the dialog opens.
+
+- The allowed hosts are a list, not a pattern. Forgejo: the saved instance's
+  host and port, and its token goes there and nowhere else. GitHub: `github.com`,
+  `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`
+  and `raw.githubusercontent.com`, with no token (its attachment links carry
+  their own signature).
+- The scheme must match, user info is refused, and every redirect hop is
+  checked against the list again. At most three are followed.
+- Like the log download above, a dial to a non-public address is refused on the
+  resolved address. The exception is the configured Forgejo instance, which is
+  often on a private network.
+- Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
+  the host's header. SVG is refused. Up to 8 MiB, 10 seconds.
+- The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
+  private cache, and passes nothing else the host sent.
+- The page repeats the list in `web/src/lib/image-source.ts` only to skip a
+  pointless request and show a link instead. The server is the one that
+  enforces it.
+- Not yet covered: the page's `img-src` policy still allows what avatars and
+  repository logos need, so it doesn't yet forbid a direct load.
+
 ### What the passkey login covers
 
 It covers passkey registration and login gating the
