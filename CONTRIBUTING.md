@@ -232,8 +232,8 @@ the page does with the answer.
 What the built frontend ships, as opposed to how it behaves, is checked in Go,
 not in a browser: `internal/api/static_pages_test.go` reads the pages the
 binary embeds (so run `bun run build:web` first) and asserts the minified
-CSS, the font preloads and `@font-face` files being served, no external loads,
-a distinct description on every page, and `noindex`.
+CSS, the font preload links and `@font-face` files being served, no external
+loads, a distinct description on every page, and `noindex`.
 
 Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
 helpers the e2e specs import), not `tests/`, because Playwright picks up any
