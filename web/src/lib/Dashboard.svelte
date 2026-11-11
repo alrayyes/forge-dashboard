@@ -5913,6 +5913,8 @@
         }),
       );
       dialog.showModal();
+      // Cancel is the safe default, whether or not the list becomes a stop.
+      document.getElementById("rebase-all-cancel")?.focus();
       // A list that scrolls is a named tab stop, for as long as it scrolls
       // (#3402): the viewport and text size can change while this is open.
       stopRebaseAllScroll?.();
@@ -10202,9 +10204,7 @@
           </p>
           <ul class="rebase-all-list" id="rebase-all-list"></ul>
           <div class="rebase-all-actions">
-            <button type="button" id="rebase-all-cancel" autofocus
-              >Cancel</button
-            >
+            <button type="button" id="rebase-all-cancel">Cancel</button>
             <button type="button" id="rebase-all-confirm">Rebase</button>
           </div>
           <p class="rebase-all-hint">Esc closes this.</p>
