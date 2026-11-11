@@ -152,3 +152,103 @@ test('390x844 portrait: the body still takes more than half the height', async (
   const body = await dialog.locator('.details-body').boundingBox();
   expect(body?.height).toBeGreaterThan(844 / 2);
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/3404
+//
+// At 500px of height the footer actions must be on screen once the one
+// scroll region is scrolled to its end, and tall enough to touch.
+for (const size of [
+  { width: 320, height: 500 },
+  { width: 390, height: 500 },
+]) {
+  test(`${size.width}x${size.height}: scrolled to the end, the footer actions are on screen and 44px tall`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    const dialog = await open(page);
+    await dialog.evaluate((d) => {
+      d.scrollTop = d.scrollHeight;
+    });
+    const buttons = dialog.locator('.details-footer').getByRole('button');
+    for (const button of await buttons.all()) {
+      const box = await button.boundingBox();
+      expect(box).not.toBeNull();
+      expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+        size.height + 1,
+      );
+      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    }
+  });
+}
+
+// Criterion 4 of #3404: the issue details dialog shares the component.
+test('320x500 issue dialog: scrolled to the end, both actions are on screen', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 500 });
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: now,
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [],
+        issues: [
+          {
+            forge: 'github',
+            repo: 'alrayyes/a-very-long-repository-name-for-the-dialog',
+            number: 7,
+            title:
+              'The page loses its place when a long title wraps over several lines',
+            url: 'https://example.com/issues/7',
+            author: 'ryankes',
+            labels: [
+              { name: 'kind/bug', color: 'd73a4a' },
+              { name: 'topic/layout', color: 'cccccc' },
+              { name: 'a-rather-long-label-name', color: 'ffcc00' },
+            ],
+            createdAt: now,
+            updatedAt: now,
+          },
+        ],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.route('**/api/v1/issues/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        description: {
+          text: long,
+          format: 'markdown',
+          truncated: false,
+          edited: false,
+          reactions: noReactions,
+        },
+        comments: [],
+        commentCount: 0,
+        commentsTruncated: false,
+      }),
+    }),
+  );
+  await page.goto('/issues.html');
+  await page.locator('#issue-rows .row').getByRole('button').first().click();
+  const dialog = page.getByRole('dialog', { name: /^Issue details/ });
+  await expect(dialog.locator('.details-body .markdown').first()).toBeVisible();
+  await dialog.evaluate((d) => {
+    d.scrollTop = d.scrollHeight;
+  });
+  const buttons = dialog.locator('.details-actions button');
+  expect(await buttons.count()).toBe(2);
+  for (const button of await buttons.all()) {
+    const box = await button.boundingBox();
+    expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(501);
+  }
+});
