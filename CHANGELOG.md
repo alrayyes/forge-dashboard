@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.10.10](https://github.com/alrayyes/forge-dashboard/compare/v9.10.9...v9.10.10) (2026-11-11)
+
+
+### Bug Fixes
+
+* **web:** show the whole Time zone select value at phone width ([#3419](https://github.com/alrayyes/forge-dashboard/issues/3419)) ([39ace69](https://github.com/alrayyes/forge-dashboard/commit/39ace6967173db4fd52635c5b3a97ee97130cb84))
+
 ## [9.10.9](https://github.com/alrayyes/forge-dashboard/compare/v9.10.8...v9.10.9) (2026-11-11)
 
 
