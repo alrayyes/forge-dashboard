@@ -321,7 +321,7 @@ can't fire a tracking pixel when the dialog opens.
   resolved address. The exception is the configured Forgejo instance, which is
   often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
-  the host's header. SVG is refused. Up to 8 MiB, 10 seconds.
+  the host's header. SVG is refused. Up to 8 megabytes and 10 seconds.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
