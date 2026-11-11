@@ -23,6 +23,10 @@ import { test } from './server-fixture';
 // main-branches-server-copy.spec.ts and Insights by filter-late-copy.spec.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
+// A control that is not there fails in seconds, naming its locator, instead of
+// waiting out the 90 s test timeout.
+test.use({ actionTimeout: 10_000 });
+
 type Board = 'pulls' | 'issues' | 'releases' | 'bots';
 
 const BOARDS: Record<
@@ -97,7 +101,23 @@ function prsFor(base: number, kind: string | undefined) {
     pr(base + 3, kind, { ci: 'pending', needsReview: true }),
     pr(base + 4, kind, { reviewRequestedFromMe: true, behind: true }),
     pr(base + 5, kind, { ci: 'none' }),
-    ...Array.from({ length: 27 }, (_, i) => pr(base + 6 + i, kind)),
+    // Two more acme/infra rows. The combined round picks the repo, then the
+    // author, then the label, and a pick filter with one choice is hidden
+    // (#3517). After the repo the author pool must still hold two people
+    // (dana, erin), and after dana the label pool two labels (bug, docs).
+    pr(base + 6, kind, {
+      forge: 'forgejo',
+      repo: 'acme/infra',
+      author: 'dana',
+      labels: [{ name: 'docs', color: '0366d6' }],
+    }),
+    pr(base + 7, kind, {
+      forge: 'forgejo',
+      repo: 'acme/infra',
+      author: 'erin',
+      labels: [{ name: 'bug', color: 'd73a4a' }],
+    }),
+    ...Array.from({ length: 25 }, (_, i) => pr(base + 8 + i, kind)),
   ];
 }
 
@@ -107,15 +127,20 @@ const PULLS = [
   ...prsFor(300, 'dependency'),
 ];
 
+// Issues 2, 3 and 4 are acme/infra too, for the same reason as the extra pull
+// request rows: after the repo the author pool holds sam and tess, and after
+// sam the label pool holds docs and bug, so no pick filter is hidden (#3517)
+// when the combined round reaches it.
+const INFRA = new Set([1, 2, 3]);
 const ISSUES = Array.from({ length: 32 }, (_, i) => ({
-  forge: i === 1 ? 'forgejo' : 'github',
-  repo: i === 1 ? 'acme/infra' : 'acme/app',
+  forge: INFRA.has(i) ? 'forgejo' : 'github',
+  repo: INFRA.has(i) ? 'acme/infra' : 'acme/app',
   number: i + 1,
   title: `Issue ${i + 1}`,
   url: `https://example.com/issues/${i + 1}`,
-  author: i === 1 ? 'sam' : 'ryan',
+  author: i === 1 || i === 3 ? 'sam' : i === 2 ? 'tess' : 'ryan',
   labels: [
-    i === 1
+    i === 1 || i === 2
       ? { name: 'docs', color: '0366d6' }
       : { name: 'bug', color: 'd73a4a' },
   ],
@@ -265,8 +290,8 @@ function toggle(name: string, selector: string, key: string): Control {
 
 const TITLE = '.filter-bar .col-filter[data-col="title"]';
 
-// The controls that combine, set together in one round. Every pick is the one
-// forgejo row, so the pills set earlier stay offered.
+// The controls that combine, set together in one round. The picks
+// narrow to forgejo acme/infra rows, which still offer two authors and labels.
 function combined(board: Board): Control[] {
   const issues = board === 'issues';
   const author = issues ? 'forgejo:sam' : 'forgejo:dana';
@@ -294,7 +319,16 @@ function combined(board: Board): Control[] {
     {
       name: 'repo filter',
       stored: [{ group: 'shared', key: 'repo', value: 'forgejo:acme/infra' }],
-      set: (page) => togglePicks(page, 'repo', 'forgejo:acme/infra'),
+      // The rounds before this one leave a pill (and auto-merge) on that
+      // narrow the data to one repo, which hides the repo filter. Widen first.
+      set: async (page) => {
+        await page.locator('.quick-pills [data-pill="all"]').click();
+        if (!issues)
+          await page
+            .locator('.am-group:not(.sheet-only) [data-am="any"]')
+            .click();
+        await togglePicks(page, 'repo', 'forgejo:acme/infra');
+      },
       show: (page) =>
         expect
           .poll(() => pickedValues(page, 'repo'))
