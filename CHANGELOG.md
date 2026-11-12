@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.32.0](https://github.com/alrayyes/forge-dashboard/compare/v9.31.1...v9.32.0) (2026-11-12)
+
+
+### Features
+
+* **api:** show private GitHub repository images in the details dialog ([#3675](https://github.com/alrayyes/forge-dashboard/issues/3675)) ([2c307e6](https://github.com/alrayyes/forge-dashboard/commit/2c307e67481679a6ad962066caa20008cbc3a5ff)), closes [#3469](https://github.com/alrayyes/forge-dashboard/issues/3469)
+
 ## [9.31.1](https://github.com/alrayyes/forge-dashboard/compare/v9.31.0...v9.31.1) (2026-11-12)
 
 
