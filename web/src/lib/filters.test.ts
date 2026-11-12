@@ -441,3 +441,17 @@ describe('matchesClosing', () => {
     expect(failingFilters(closes, true, {}, { closes: 'yes' })).toEqual([]);
   });
 });
+
+// A saved author pick is lowercase, but the item's author keeps its capitals
+// (#1620). The row must still match, and one by someone else must not.
+describe('an author pick against a capitalised author', () => {
+  test('matches the item whatever its case, and not another author', () => {
+    const shared = { author: 'github:ryan' };
+    expect(
+      matchesFilters(choiceItem({ author: 'Ryan' }), false, shared, undefined),
+    ).toBe(true);
+    expect(
+      matchesFilters(choiceItem({ author: 'sam' }), false, shared, undefined),
+    ).toBe(false);
+  });
+});
