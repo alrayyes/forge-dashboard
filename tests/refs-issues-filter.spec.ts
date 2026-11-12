@@ -9,6 +9,7 @@ import { test } from './server-fixture';
 // filter. Mocks /api/v1/dashboard and the details endpoint only.
 // https://github.com/alrayyes/forge-dashboard/issues/3612
 // https://github.com/alrayyes/forge-dashboard/issues/3655
+// https://github.com/alrayyes/forge-dashboard/issues/3657
 
 const REPO = 'acme/app';
 const ago = (minutes: number) =>
@@ -122,7 +123,12 @@ const details = {
   releaseNotes: null,
 };
 
-async function open(page: Page, path: string, issues: unknown[] = ISSUES) {
+async function open(
+  page: Page,
+  path: string,
+  issues: unknown[] = ISSUES,
+  prs: unknown[] = PRS,
+) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
@@ -131,12 +137,12 @@ async function open(page: Page, path: string, issues: unknown[] = ISSUES) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues,
         openIssueCount: issues.length,
         repos: [],
         hiddenDrafts: 0,
-        navCounts: navCountsFor(PRS as never, issues.length),
+        navCounts: navCountsFor(prs as never, issues.length),
       }),
     }),
   );
@@ -514,3 +520,116 @@ for (const width of [390, 1280]) {
     }
   }
 }
+
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+const isSave = (r: { url(): string; request(): { method(): string } }) =>
+  r.url().includes('/api/v1/settings/filter-state') &&
+  r.request().method() !== 'GET';
+
+test.describe('a saved closing choice from before the merge', () => {
+  test('is not sent back when the state is saved again, with no axe violations', async ({
+    page,
+  }) => {
+    await page.route(
+      '**/api/v1/settings/filter-state',
+      async (route: Route) => {
+        if (route.request().method() !== 'GET') return route.fallback();
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            shared: {},
+            pr: { closes: 'yes' },
+            issue: { closedBy: 'no' },
+            view: {},
+          }),
+        });
+      },
+    );
+    await open(page, '/pull-requests.html');
+    await expect(prTitles(page)).toHaveCount(4);
+
+    const put = page.waitForRequest(
+      (r) =>
+        r.url().includes('/api/v1/settings/filter-state') &&
+        r.method() === 'PUT',
+    );
+    await choice(page, 'yes').click();
+    const body = (await put).postDataJSON() as {
+      pr: Record<string, unknown>;
+      issue: Record<string, unknown>;
+    };
+
+    expect(body.pr.refs).toBe('yes');
+    expect(body.pr).not.toHaveProperty('closes');
+    expect(body.issue).not.toHaveProperty('closedBy');
+    const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
+
+// Two bot pull requests and two release ones, one of each referencing.
+const mixed = [
+  ...PRS,
+  {
+    ...pr(5, 'Bump a library', [], [issueLink(22, 'refs')]),
+    author: 'dependabot[bot]',
+    kind: 'dependency',
+  },
+  { ...pr(6, 'Bump another library'), kind: 'dependency' },
+  {
+    ...pr(7, 'Release 2.0.0', [issueLink(21, 'closes')]),
+    kind: 'release',
+  },
+  { ...pr(8, 'Release 2.1.0'), kind: 'release' },
+];
+
+test.describe('the references pick made on Pull requests', () => {
+  async function pickOnPullRequests(page: Page) {
+    await open(page, '/pull-requests.html', ISSUES, mixed);
+    const saved = page.waitForResponse(isSave);
+    await choice(page, 'yes').click();
+    await saved;
+  }
+
+  test('shows on the Bots page and Any clears it there', async ({ page }) => {
+    await pickOnPullRequests(page);
+    await page.goto('/bots.html');
+    await expect(prTitles(page).first()).toBeVisible();
+
+    await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
+    await expect(prTitles(page)).toHaveText(['#5 Bump a library']);
+    const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    expect(results.violations).toEqual([]);
+
+    const cleared = page.waitForResponse(isSave);
+    await choice(page, 'any').click();
+    await cleared;
+    await expect(prTitles(page)).toHaveCount(2);
+
+    await page.goto('/pull-requests.html');
+    await expect(choice(page, 'any')).toHaveAttribute('aria-pressed', 'true');
+  });
+
+  test('shows on the Releases page and Clear filters clears it there', async ({
+    page,
+  }) => {
+    await pickOnPullRequests(page);
+    await page.goto('/releases.html');
+    await expect(prTitles(page).first()).toBeVisible();
+
+    await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
+    await expect(prTitles(page)).toHaveText(['#7 Release 2.0.0']);
+    const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+    expect(results.violations).toEqual([]);
+
+    const cleared = page.waitForResponse(isSave);
+    await page.getByRole('button', { name: 'Clear filters' }).click();
+    await cleared;
+    await expect(prTitles(page)).toHaveCount(2);
+
+    await page.goto('/pull-requests.html');
+    await expect(choice(page, 'any')).toHaveAttribute('aria-pressed', 'true');
+  });
+});
