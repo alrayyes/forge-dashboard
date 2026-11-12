@@ -8,6 +8,10 @@
 //     the server's proxy (#3405). Any other image shows as a link or as its
 //     alt text, so no <img> loads from a stranger's URL and no tracking pixel
 //     fires on open;
+//   - an HTML comment (`<!-- ... -->`, the bookkeeping bots such as Renovate
+//     leave in a description) is dropped by two parser rules, never a regex
+//     over the source, so a code span or fenced block keeps its text. Nothing
+//     of the comment reaches the output, and `html` stays off (#3668);
 //   - task list items (`- [x] done`) become read-only checkboxes: a disabled
 //     <input type="checkbox"> inside a <label> with the item's text, built
 //     from the parsed tokens, so the text stays escaped (#1655);
@@ -24,11 +28,91 @@ import type MarkdownIt from 'markdown-it';
 import type { ImageSource } from './image-source';
 
 type Renderer = InstanceType<typeof MarkdownIt>;
+type StateInline = Parameters<
+  Parameters<Renderer['inline']['ruler']['push']>[1]
+>[0];
+type StateBlock = Parameters<
+  Parameters<Renderer['block']['ruler']['push']>[1]
+>[0];
 type StateCore = Parameters<
   Parameters<Renderer['core']['ruler']['push']>[1]
 >[0];
 
 let renderer: Promise<Renderer> | null = null;
+
+const COMMENT_OPEN = '<!--';
+const COMMENT_CLOSE = '-->';
+
+// An inline `<!-- ... -->`, on one line or several inside one paragraph: it
+// advances past the comment and emits no token. Code spans are matched by
+// their own rule at their own backtick, so a comment inside one never gets
+// here. An unclosed comment stays text.
+function commentInline(state: StateInline): boolean {
+  if (!state.src.startsWith(COMMENT_OPEN, state.pos)) return false;
+  const end = state.src.indexOf(COMMENT_CLOSE, state.pos + COMMENT_OPEN.length);
+  if (end === -1) return false;
+  state.pos = end + COMMENT_CLOSE.length;
+  return true;
+}
+
+// A comment that opens a line and closes on a later one, possibly across
+// blank lines (which would otherwise split it into paragraphs). A comment
+// that closes on its first line is left to the inline rule, since text may
+// follow it. Indented code and fences never reach this rule.
+function commentBlock(
+  state: StateBlock,
+  startLine: number,
+  endLine: number,
+  silent: boolean,
+): boolean {
+  if (state.sCount[startLine] - state.blkIndent >= 4) return false;
+  const text = (line: number) =>
+    state.src.slice(
+      state.bMarks[line] + state.tShift[line],
+      state.eMarks[line],
+    );
+  const first = text(startLine);
+  if (
+    !first.startsWith(COMMENT_OPEN) ||
+    first.indexOf(COMMENT_CLOSE, COMMENT_OPEN.length) !== -1
+  ) {
+    return false;
+  }
+  for (let line = startLine + 1; line < endLine; line++) {
+    if (state.isEmpty(line)) continue;
+    if (state.sCount[line] < state.blkIndent) return false;
+    const close = text(line).indexOf(COMMENT_CLOSE);
+    if (close === -1) continue;
+    if (
+      text(line)
+        .slice(close + COMMENT_CLOSE.length)
+        .trim() !== ''
+    ) {
+      return false;
+    }
+    if (!silent) state.line = line + 1;
+    return true;
+  }
+  return false;
+}
+
+// A paragraph that held only comments is empty once they're gone: drop it.
+function dropEmptyParagraphs(state: StateCore): void {
+  const { tokens } = state;
+  for (let i = tokens.length - 3; i >= 0; i--) {
+    const inline = tokens[i + 1];
+    if (
+      tokens[i].type === 'paragraph_open' &&
+      inline.type === 'inline' &&
+      tokens[i + 2].type === 'paragraph_close' &&
+      (inline.children ?? []).every(
+        (c) => c.type === 'text' && c.content.trim() === '',
+      )
+    ) {
+      tokens.splice(i, 3);
+    }
+  }
+}
 
 const TASK = /^\[([ xX])\](?=\s)\s*/;
 
@@ -132,6 +216,9 @@ function create(
 ): Renderer {
   const md = new MarkdownItCtor({ html: false, linkify: true });
   emoji(md, { shortcuts: {} });
+  md.block.ruler.before('paragraph', 'html-comment', commentBlock);
+  md.inline.ruler.before('autolink', 'html-comment', commentInline);
+  md.core.ruler.after('inline', 'drop-empty-paragraphs', dropEmptyParagraphs);
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.core.ruler.after('linkify', 'references', references);
   // A code block can scroll sideways, and a keyboard can only scroll what

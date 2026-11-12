@@ -761,6 +761,52 @@ test.describe('pull request details dialog', () => {
     await expect(ok).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/3668
+  test('HTML comments in a description are hidden, code keeps its text, with no axe violations', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    const text = [
+      '- [ ] <!-- rebase-check -->If you want to rebase/retry this PR, check this box',
+      '',
+      '<!--',
+      'a multi-line',
+      'marker',
+      '-->',
+      '',
+      'Inline `<!-- kept in code -->` stays.',
+      '',
+      '```html',
+      '<!-- kept in fence -->',
+      '```',
+      '',
+      `<!--renovate-debug:${'eyJjcmVhdGVkSW5WZXIiOiIxIn0='.repeat(6)}-->`,
+    ].join('\n');
+    await mockDetails(page, details({ description: body(text) }));
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const content = dialog(page).locator('.details-body .markdown').first();
+    await expect(
+      content.getByRole('checkbox', {
+        name: 'If you want to rebase/retry this PR, check this box',
+      }),
+    ).toBeVisible();
+    await expect(content).not.toContainText('rebase-check');
+    await expect(content).not.toContainText('renovate-debug');
+    await expect(content).not.toContainText('multi-line');
+    await expect(content).not.toContainText('<!--renovate');
+    await expect(content.locator('code').first()).toHaveText(
+      '<!-- kept in code -->',
+    );
+    await expect(content.locator('pre')).toContainText(
+      '<!-- kept in fence -->',
+    );
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('on a 360px phone the dialog is a full-height sheet with no horizontal scroll and 44px targets', async ({
     page,
   }) => {

@@ -72,9 +72,11 @@ are display only. When the details can't load, it says so in plain words with
 
 The text is Markdown and the server doesn't sanitise it, so the page renders
 it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML
-off: tags show as text, images aren't loaded, only absolute `http`, `https`
-and `mailto` links are links (anything else stays plain text), and they open
-in a new tab with `rel="noopener noreferrer"`. Task list items (`- [x]` and
+off: tags show as text, but HTML comments such as Renovate's
+`<!-- rebase-check -->` marker are hidden (a comment in code stays as written),
+images aren't loaded, only absolute `http`, `https` and `mailto` links are
+links (anything else stays plain text), and they open in a new tab with
+`rel="noopener noreferrer"`. Task list items (`- [x]` and
 `- [ ]`) show as read-only checkboxes; ticking one changes nothing on the
 forge. Emoji codes such as `:robot:` show as the emoji, as the forges
 draw them; they become plain Unicode characters, never images, and code stays
