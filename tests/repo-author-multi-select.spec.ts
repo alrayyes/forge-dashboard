@@ -10,6 +10,7 @@ import {
   pickTexts,
   togglePicks,
 } from './label-filter-helper';
+import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // Repo and Author take several values at once and show what matches any of
@@ -103,13 +104,13 @@ async function mock(
   prs: Record<string, unknown>[] = PRS,
   forges = [{ forge: 'github', reachable: true, repoCount: 3 }],
 ) {
-  await page.route(LOGO, (route: Route) =>
+  await routeImage(page, LOGO, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
   );
-  await page.route(AVATAR, (route: Route) =>
+  await routeImage(page, AVATAR, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
   );
-  await page.route(BROKEN, (route: Route) => route.abort());
+  await routeImage(page, BROKEN, (route: Route) => route.abort());
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
@@ -352,7 +353,10 @@ test.describe('Repo and Author: logos and avatars', () => {
     const api = pickPanel(page, 'repo').locator('.label-filter-option', {
       hasText: 'acme/api',
     });
-    await expect(api.locator('.pick-image img')).toHaveAttribute('src', LOGO);
+    await expect(api.locator('.pick-image img')).toHaveAttribute(
+      'src',
+      proxiedImage(LOGO),
+    );
     const web = pickPanel(page, 'repo').locator('.label-filter-option', {
       hasText: 'acme/web',
     });
@@ -366,7 +370,7 @@ test.describe('Repo and Author: logos and avatars', () => {
     });
     await expect(alice.locator('.pick-image img')).toHaveAttribute(
       'src',
-      AVATAR,
+      proxiedImage(AVATAR),
     );
     const carol = pickPanel(page, 'author').locator('.label-filter-option', {
       hasText: 'carol',
@@ -461,10 +465,10 @@ test.describe('Repo and Author: logos and avatars', () => {
     await expect(chips).toHaveCount(2);
     await expect(
       chips.filter({ hasText: 'acme/api' }).locator('.pick-image img'),
-    ).toHaveAttribute('src', LOGO);
+    ).toHaveAttribute('src', proxiedImage(LOGO));
     await expect(
       chips.filter({ hasText: 'alice' }).locator('.pick-image img'),
-    ).toHaveAttribute('src', AVATAR);
+    ).toHaveAttribute('src', proxiedImage(AVATAR));
 
     await page
       .getByRole('button', { name: 'Remove filter: Author alice' })
@@ -582,7 +586,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
       w.EventSource = StubEventSource;
       w.__push = (data) => w.__es?.onmessage?.({ data: JSON.stringify(data) });
     });
-    await page.route(NEW_AVATAR, (route: Route) =>
+    await routeImage(page, NEW_AVATAR, (route: Route) =>
       route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
     );
     await open(page);
@@ -592,7 +596,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
     });
     await expect(alice.locator('.pick-image img')).toHaveAttribute(
       'src',
-      AVATAR,
+      proxiedImage(AVATAR),
     );
     const box = alice.locator('input');
     await box.focus();
@@ -622,7 +626,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
     );
     await expect(alice.locator('.pick-image img')).toHaveAttribute(
       'src',
-      NEW_AVATAR,
+      proxiedImage(NEW_AVATAR),
     );
     await expect(box).toBeFocused();
   });

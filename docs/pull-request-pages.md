@@ -61,8 +61,8 @@ Conflicting, Checking for conflicts, Conflict not confirmed or Blocked pill
 beside it when the row has one, then the title, then the attributes as quiet
 outlined chips (auto-merge, draft, bot, out of date, labels, and the version on
 the Releases page). Each comment carries the
-author's avatar (the forge's own HTTPS image URL, or an initial if it isn't one
-or can't load), a relative time, and an
+author's avatar (the forge's own HTTPS image, fetched by this server, or an
+initial if it isn't one or can't load), a relative time, and an
 "edited" mark. The avatar and the name are one link to that person's page on
 the forge. A deleted author reads "ghost" and isn't a link. Hovering or
 focusing a reaction lists who gave it, up to ten names and then "and N more";
@@ -195,10 +195,13 @@ references with a keyword is a "Refs" pill instead, not a mention.
 
 ## Author on a row
 
-A row shows the author's avatar to the left of their name. It is the forge's
-own HTTPS image URL, loaded straight from the forge by your browser. When the
-forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
-the name alone. The narrow layout drops the author column, avatar included.
+A row shows the author's avatar to the left of their name. It is the forge's own
+HTTPS image, fetched by this server and passed on, so your browser never
+contacts the forge for it. On Forgejo that works only when the image is on the
+same host and scheme as the saved instance; a Gravatar or Libravatar avatar
+shows the initial instead. When the forge sends none, the URL isn't HTTPS, or
+the image can't load, the row shows the name alone. The narrow layout drops the
+author column, avatar included.
 
 The avatar and the name are one link to the author's page on the forge, opening
 in a new tab. The server builds the address from the forge's own web address, so
@@ -214,9 +217,11 @@ its name when it has one. On Forgejo, that is the avatar set on the repository.
 On GitHub, it is the custom social preview image uploaded in the repository's
 settings, which is a wide banner, so it is cropped to a small square. The
 generated card GitHub makes for a repository with no image is never shown, and
-neither is the owner's avatar. The image is the forge's own HTTPS URL, loaded
-straight from the forge by your browser. A repository with no logo, an image
-that isn't HTTPS or one that can't load shows the name alone. The unauthenticated
+neither is the owner's avatar. The image is the forge's own HTTPS image, which
+this server fetches and passes on. On Forgejo that works only when the image is
+on the same host and scheme as the saved instance, so a Gravatar or Libravatar
+avatar shows the initial instead. A repository with no logo, an image that isn't
+HTTPS or one that can't load shows the name alone. The unauthenticated
 username-only listing carries no images, so it shows none.
 
 ## Long repository names

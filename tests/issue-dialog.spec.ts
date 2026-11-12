@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // An issue row opens a dialog like a pull request's: the description and the
@@ -58,10 +59,10 @@ const AVATAR = Buffer.from(
 );
 
 async function mockDashboard(page: Page, issue: object = ISSUE) {
-  await page.route('https://avatars.example.com/u/7', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/u/7', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: AVATAR }),
   );
-  await page.route('https://avatars.example.com/broken', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/broken', (route: Route) =>
     route.abort(),
   );
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -158,7 +159,7 @@ test.describe('an issue row opens its dialog', () => {
     await expect(filedBy).toContainText('ryankes');
     await expect(filedBy.locator('img')).toHaveAttribute(
       'src',
-      'https://avatars.example.com/u/7',
+      proxiedImage('https://avatars.example.com/u/7'),
     );
     // Decorative: the name beside it already says who.
     await expect(filedBy.locator('img')).toHaveAttribute('alt', '');
@@ -280,7 +281,7 @@ test.describe('an issue row opens its dialog', () => {
     // The snapshot lists open issues only: closing it removes the row, and
     // the details endpoint is the one that says what the forge has now.
     let forgeState: 'open' | 'closed' = 'open';
-    await page.route('https://avatars.example.com/u/7', (route: Route) =>
+    await routeImage(page, 'https://avatars.example.com/u/7', (route: Route) =>
       route.fulfill({
         status: 200,
         contentType: 'image/svg+xml',

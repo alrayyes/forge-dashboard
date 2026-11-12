@@ -199,9 +199,15 @@ async function main() {
     await context.addInitScript(WATCH);
     await context.route('**/*', (route) => {
       const url = new URL(route.request().url());
+      // A logo is asked of the image proxy, which Storybook doesn't run: answer
+      // for the one address the stories use, keyed by the `url` it carries.
+      if (url.pathname === '/api/v1/images') {
+        const asked = new URL(url.searchParams.get('url') ?? 'about:blank');
+        return asked.hostname === LOGO_HOST && asked.protocol === 'https:'
+          ? route.fulfill({ contentType: 'image/svg+xml', body: LOGO_SVG })
+          : route.abort();
+      }
       if (url.hostname === 'localhost') return route.continue();
-      if (url.hostname === LOGO_HOST && url.protocol === 'https:')
-        return route.fulfill({ contentType: 'image/svg+xml', body: LOGO_SVG });
       return route.abort();
     });
 

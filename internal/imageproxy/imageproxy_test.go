@@ -339,3 +339,28 @@ func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 		})
 	}
 }
+
+// A plain miss on the host list is routine (a Gravatar avatar, say). Anything
+// else the proxy refuses, such as user info or another scheme, is a probe, and
+// the server logs the two at different levels.
+func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
+	t.Parallel()
+	s := serve(t, png)
+	p := instance(s, "")
+	host := s.Listener.Addr().String()
+
+	_, err := p.Fetch(t.Context(), "http://evil.example/a.png")
+	require.ErrorIs(t, err, imageproxy.ErrHostNotListed)
+	require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed, "still a refusal")
+
+	for name, raw := range map[string]string{
+		"userinfo":       "http://user:pw@" + host + "/a.png",
+		"userinfo trick": "http://" + host + "@evil.example/a.png",
+		"wrong scheme":   "https://" + host + "/a.png",
+		"relative":       "/attachments/abc",
+	} {
+		_, err := p.Fetch(t.Context(), raw)
+		require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed, name)
+		require.NotErrorIs(t, err, imageproxy.ErrHostNotListed, name)
+	}
+}

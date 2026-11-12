@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
@@ -526,7 +527,7 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await page.route('https://example.invalid/**', (route) =>
+    await routeImage(page, 'https://example.invalid/**', (route) =>
       route.fulfill({
         status: 200,
         contentType: 'image/png',
@@ -575,7 +576,9 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await page.route('https://example.invalid/**', (route) => route.abort());
+    await routeImage(page, 'https://example.invalid/**', (route) =>
+      route.abort(),
+    );
     await mockDetails(
       page,
       details({ comments: [comment('c1')], commentCount: 1 }),
@@ -922,7 +925,9 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await page.route('https://example.invalid/**', (route) => route.abort());
+    await routeImage(page, 'https://example.invalid/**', (route) =>
+      route.abort(),
+    );
     const httpsUrl = `https://example.invalid/${uniq()}.png`;
     const avatar = (id: string, url: string) =>
       comment(id, { author: { login: `user${id}`, avatarUrl: url } });
@@ -943,7 +948,10 @@ test.describe('pull request details dialog', () => {
     );
     const requested: string[] = [];
     page.on('request', (r) => {
-      if (r.url().includes('example.invalid')) requested.push(r.url());
+      const u = new URL(r.url());
+      if (u.pathname !== '/api/v1/images') return;
+      const target = u.searchParams.get('url') ?? '';
+      if (target.includes('example.invalid')) requested.push(target);
     });
     await page.goto('/pull-requests.html');
     await trigger(page).click();

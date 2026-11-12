@@ -16,12 +16,15 @@ import (
 
 // githubImageHosts are the hosts GitHub serves an image embedded in a pull
 // request, issue or release from: its own attachment route and the user-content
-// hosts that route redirects to. Nothing else is fetched (#3405).
+// hosts that route redirects to. Avatars and repository logos live on two more
+// (#3467). Nothing else is fetched (#3405).
 var githubImageHosts = []string{
 	"github.com",
 	"user-images.githubusercontent.com",
 	"private-user-images.githubusercontent.com",
 	"raw.githubusercontent.com",
+	"avatars.githubusercontent.com",
+	"repository-images.githubusercontent.com",
 }
 
 // imageProxyFor builds the proxy for one forge. Forgejo's allowed host is the
@@ -73,6 +76,19 @@ func imageFailure(err error) *statusError {
 	}
 }
 
+// imageRefusalLevel is how loudly a failed fetch is logged. A host that is
+// simply not on the list is expected for an avatar the saved Forgejo instance
+// doesn't serve (Gravatar, say), and the page asks again on every render, so
+// it is debug. Anything else, user info or a blocked address included, is a
+// probe worth seeing.
+func imageRefusalLevel(err error) slog.Level {
+	if errors.Is(err, imageproxy.ErrHostNotListed) {
+		return slog.LevelDebug
+	}
+
+	return slog.LevelWarn
+}
+
 // handleImage serves GET /api/v1/images: an image embedded in a forge's
 // Markdown, fetched here so the browser never contacts the forge or a third
 // party for it and a private repository's token stays on the server (#3405).
@@ -99,7 +115,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 		}
 		img, err := fetchImage(r.Context(), deps, creds, proxy, q, raw)
 		if err != nil {
-			slog.Warn("image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
+			slog.Log(r.Context(), imageRefusalLevel(err), "image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
 			imageFailure(err).write(w)
 
 			return

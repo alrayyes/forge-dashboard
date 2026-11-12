@@ -98,3 +98,5 @@ backreferences?
 ETags?
 Packagist
 rollups?(.s)?
+Gravatar
+Libravatar
