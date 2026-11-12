@@ -43,6 +43,7 @@ describe('CHECK_STATE_LABELS', () => {
       'awaiting_approval',
       'cancelled',
       'failure',
+      'not_reported',
       'queued',
       'running',
       'skipped',
@@ -271,6 +272,12 @@ describe('checkState', () => {
       expect(checkState(check(over))).toBe(state);
     });
   }
+
+  test('a required check nothing reported is its own state', () => {
+    expect(checkState({ status: 'queued', notReported: true })).toBe(
+      'not_reported',
+    );
+  });
 
   test('a conclusion before the status says completed is ignored', () => {
     expect(

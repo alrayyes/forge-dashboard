@@ -22,6 +22,9 @@ export type Check = {
   runAttempt?: number;
   failedStep?: string;
   excerpt?: string;
+  // A required check nothing on the head has reported: not a job, so no page,
+  // no log and no count. The page says which one hasn't reported (#3305).
+  notReported?: boolean;
   // The forge's job id, which the output is read by; absent when it has none.
   jobId?: number;
   // The Actions run the job belongs to, and its workflow's name; absent for a
@@ -57,8 +60,9 @@ export function checkRunKey(check: Check): string {
 // is where the page decides what each one means: a neutral job passed, a stale
 // or never-started one failed, and a word it doesn't know reads as a failure.
 export function checkState(
-  check: Pick<Check, 'status' | 'conclusion'>,
+  check: Pick<Check, 'status' | 'conclusion' | 'notReported'>,
 ): string {
+  if (check.notReported) return 'not_reported';
   switch (check.status) {
     case 'queued':
       return 'queued';
@@ -100,6 +104,7 @@ export const CHECK_STATE_LABELS: Record<string, string> = {
   skipped: 'Skipped',
   timed_out: 'Timed out',
   awaiting_approval: 'Waiting for approval',
+  not_reported: 'Not reported',
 };
 
 // How long a finished job ran, from the two timestamps the server sends.
@@ -134,7 +139,8 @@ export function isBlocking(check: Check): boolean {
     check.required === true &&
     (state === 'failure' ||
       state === 'timed_out' ||
-      state === 'awaiting_approval')
+      state === 'awaiting_approval' ||
+      state === 'not_reported')
   );
 }
 

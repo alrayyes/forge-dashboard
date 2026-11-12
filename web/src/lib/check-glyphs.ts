@@ -30,6 +30,7 @@ export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
   awaiting_approval: [
     { name: 'pause', body: `${RING}<path d="M6.4 5.6v4.8M9.6 5.6v4.8"/>` },
   ],
+  not_reported: [{ name: 'hourglass', body: HOURGLASS }],
   skipped: [{ name: 'slash', body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],
   cancelled: [
     {
