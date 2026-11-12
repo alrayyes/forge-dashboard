@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.22.1](https://github.com/alrayyes/forge-dashboard/compare/v9.22.0...v9.22.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** let the advisory detail scroll with its title ([#3576](https://github.com/alrayyes/forge-dashboard/issues/3576)) ([37213c2](https://github.com/alrayyes/forge-dashboard/commit/37213c29a8f15ea405235208809e8b8287d8bef0)), closes [#3390](https://github.com/alrayyes/forge-dashboard/issues/3390)
+
 ## [9.22.0](https://github.com/alrayyes/forge-dashboard/compare/v9.21.1...v9.22.0) (2026-11-12)
 
 
