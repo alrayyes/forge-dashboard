@@ -93,6 +93,9 @@ type clientState struct {
 	// reads Checking before it reads Conflicting (#3304).
 	conflicts *conflictTracker
 
+	// upToDate remembers each base branch's up-to-date rule (#3428).
+	upToDate *dashboard.UpToDateRuleCache
+
 	// version is the instance's major version, read from /version (see
 	// versionCache).
 	version versionCache
@@ -187,6 +190,7 @@ func NewClient(instanceURL, token, username string, recorder ...requestlog.Recor
 		reviews:        map[string]cachedReview{},
 		schedule:       map[string]cachedSchedule{},
 		conflicts:      newConflictTracker(),
+		upToDate:       &dashboard.UpToDateRuleCache{},
 		finishedJobs:   newFinishedJobs(maxFinishedJobs),
 		excerpts:       newExcerptCache(maxExcerpts),
 		excerptTimeout: dashboard.ExcerptReadTimeout,
@@ -1236,6 +1240,7 @@ func (c *Client) ListOpenPullRequests(ctx context.Context, owner, name, repo str
 	c.pruneSchedules(owner, name, open)
 	c.conflicts.prune(owner, name, unconfirmed)
 	c.applyScheduledMerges(ctx, owner, name, prs)
+	c.annotateUpToDateRule(ctx, owner, name, prs)
 
 	return prs, nil
 }

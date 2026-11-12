@@ -339,6 +339,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                                       | Yes                               |
 | `internal/github/required_checks.go`       | 2     | Check runs, statuses                                                                                                                                                                   | Yes                               |
 | `internal/github/rerun.go`                 | 4     | One pull request, commits, check runs, one job                                                                                                                                         | Yes                               |
+| `internal/github/up_to_date_rule.go`       | 1     | A base branch's required status checks, for the up-to-date rule, once per branch while a pull request is behind                                                                        | Yes                               |
 | `internal/forgejo/advisories.go`           | 3     | The repository's file tree, one call per 1000 files up to five, a slashed default branch's commit, and each lock file (at most 20)                                                     | No, Forgejo sends no ETag         |
 | `internal/forgejo/advisory_list.go`        | 1     | The repository, for its default branch, when someone opens the dialog                                                                                                                  | No, Forgejo sends no ETag         |
 | `internal/forgejo/cancel_run.go`           | 1     | The Actions runs of a commit, for the pipeline dialog                                                                                                                                  | No, Forgejo sends no ETag         |
@@ -350,6 +351,14 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/forgejo/pull_request_details.go` | 4     | Pull request, comments, reactions                                                                                                                                                      | No, Forgejo sends no ETag         |
 | `internal/forgejo/rerun.go`                | 2     | One pull request, Actions runs                                                                                                                                                         | No, Forgejo sends no ETag         |
 | `internal/forgejo/scheduled_merge.go`      | 1     | Issue timeline                                                                                                                                                                         | No, Forgejo sends no ETag         |
+| `internal/forgejo/up_to_date_rule.go`      | 1     | The repository's branch protections, for the up-to-date rule, once per branch while a pull request is behind                                                                           | No, Forgejo sends no ETag         |
+
+The rule that a branch must be current before it merges (GitHub's `strict`
+branch protection setting, Forgejo's "Block merge if the pull request is
+outdated") is read only for a branch that has a behind pull request, and kept
+per branch for five minutes, or one minute when it could not be read. A refresh
+therefore costs no call per pull request, and none at all while nothing is
+behind.
 
 One Forgejo read sits outside the table: the instance's version, read in the
 background on the first refresh for every Forgejo, to know whether it has a

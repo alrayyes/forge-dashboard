@@ -124,6 +124,8 @@ type Client struct {
 	// requiredChecks backs the "required check hasn't reported yet" rule
 	// (#1311).
 	requiredChecks requiredChecks
+	// upToDate remembers each base branch's up-to-date rule (#3428).
+	upToDate dashboard.UpToDateRuleCache
 
 	// advisories remembers each repo's open dependency advisories for a while.
 	advisories advisoryCache
@@ -3020,6 +3022,7 @@ func (c *Client) appendFetched(ctx context.Context, res *dashboard.Result, fetch
 	}
 	c.resolveAmbiguousBehind(ctx, res.PullRequests, behindChecks)
 	c.settleUnreportedRequiredChecks(ctx, res.PullRequests, unreported)
+	c.annotateUpToDateRule(ctx, res.PullRequests)
 }
 
 func namesOf(repos []probedRepo) []string {
@@ -3622,6 +3625,7 @@ func (c *Client) mapPullRequestsAcross(ctx context.Context, entries []repoPullRe
 	}
 	c.resolveAmbiguousBehind(ctx, prs, behindChecks)
 	c.settleUnreportedRequiredChecks(ctx, prs, unreported)
+	c.annotateUpToDateRule(ctx, prs)
 
 	return prs
 }
