@@ -23,6 +23,7 @@ func TestFetchRepo_CarriesTheMentionedIssueReferences(t *testing.T) {
 		node := stalePRNode("CLEAN", "head", "head", rollupFixture("SUCCESS", map[string]int{"SUCCESS": 1}, nil))
 		node["title"] = "Follow up on GH-5"
 		node["body"] = "Fixes #12. See #13, alrayyes/b#4 and https://github.com/alrayyes/c/issues/6."
+		node["body"] = node["body"].(string) + "\nRefs #20"
 		writeJSON(t, w, map[string]any{
 			"data": map[string]any{
 				"repository": map[string]any{
@@ -45,7 +46,13 @@ func TestFetchRepo_CarriesTheMentionedIssueReferences(t *testing.T) {
 		{Repo: "alrayyes/a", Number: 13, URL: "https://github.com/alrayyes/a/issues/13"},
 		{Repo: "alrayyes/b", Number: 4, URL: "https://github.com/alrayyes/b/issues/4"},
 		{Repo: "alrayyes/c", Number: 6, URL: "https://github.com/alrayyes/c/issues/6"},
-	}, prs[0].MentionsIssues)
+	}, prs[0].MentionsIssues[:5])
+	assert.Equal(t, []dashboard.IssueRef{
+		{Repo: "alrayyes/a", Number: 13, URL: "https://github.com/alrayyes/a/issues/13"},
+		{Repo: "alrayyes/b", Number: 4, URL: "https://github.com/alrayyes/b/issues/4"},
+		{Repo: "alrayyes/c", Number: 6, URL: "https://github.com/alrayyes/c/issues/6"},
+		{Repo: "alrayyes/a", Number: 20, URL: "https://github.com/alrayyes/a/issues/20"},
+	}, prs[0].RefsIssues)
 }
 
 // Without a token the client reads the public REST endpoints, which carry the
@@ -71,7 +78,7 @@ func TestFetch_RESTFallback_CarriesTheMentionedIssueReferences(t *testing.T) {
 			return
 		}
 		writeJSON(t, w, []map[string]any{{
-			"number": 7, "title": "Follow up on GH-5", "body": "See #13 and alrayyes/b#4.",
+			"number": 7, "title": "Follow up on GH-5", "body": "See #13 and alrayyes/b#4. Mentions #9.",
 			"html_url": "https://github.com/alrayyes/a/pull/7",
 			"head":     map[string]any{"sha": "abc", "ref": "f"},
 			"base":     map[string]any{"ref": "main"},
@@ -90,5 +97,7 @@ func TestFetch_RESTFallback_CarriesTheMentionedIssueReferences(t *testing.T) {
 		{Repo: "alrayyes/a", Number: 5, URL: "https://github.com/alrayyes/a/issues/5"},
 		{Repo: "alrayyes/a", Number: 13, URL: "https://github.com/alrayyes/a/issues/13"},
 		{Repo: "alrayyes/b", Number: 4, URL: "https://github.com/alrayyes/b/issues/4"},
-	}, result.PullRequests[0].MentionsIssues)
+	}, result.PullRequests[0].MentionsIssues[:3])
+	assert.Equal(t, []int{13, 4}, []int{result.PullRequests[0].RefsIssues[0].Number, result.PullRequests[0].RefsIssues[1].Number})
+	assert.Len(t, result.PullRequests[0].RefsIssues, 2)
 }

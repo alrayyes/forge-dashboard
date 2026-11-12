@@ -1659,6 +1659,12 @@ button.title {
 .linked-pr.draft {
   border-style: dashed;
 }
+/* A refs pill works on a ticket and does not close it: dashed and without the
+   sunken fill, so it reads apart from a closes pill by more than its word. */
+.linked-pr.refs-issue {
+  background: transparent;
+  border-style: dashed;
+}
 /* A pill never grows past its row: the number cuts a long cross-repo name
    short with an ellipsis, and the state and pipeline after it stay whole. The
    full name is in the pill's accessible name and in the dialog it opens. */

@@ -261,6 +261,7 @@
     // The issues it will close when it merges, with the address that opens
     // each on the Issues page, read from the server.
     closesIssues?: ClosingIssue[];
+    refsIssues?: ClosingIssue[];
     // The tickets it mentions without closing, read by the server.
     mentionsIssues?: MentionedIssue[];
     // The forge's own avatar URL for the author; empty when it has none.
@@ -1494,6 +1495,14 @@
         (issue) => followIssueFromDialog(item, issue),
       );
       if (closing) attributes.appendChild(closing);
+      const refs = closingPills(
+        `${prKey(item)}:refs`,
+        item.repo,
+        item.refsIssues,
+        undefined,
+        (issue) => followIssueFromDialog(item, issue),
+      );
+      if (refs) attributes.appendChild(refs);
       const mentions = mentionPills(
         `${prKey(item)}:mentions`,
         item.repo,
@@ -2525,6 +2534,14 @@
             openClosingIssue(item as PullRequestItem, issue, triggerId),
         );
         if (closing) titleCellEl.appendChild(closing);
+        const refs = closingPills(
+          `${prKey(item)}:refs`,
+          item.repo,
+          (item as PullRequestItem).refsIssues,
+          (issue, triggerId) =>
+            openClosingIssue(item as PullRequestItem, issue, triggerId),
+        );
+        if (refs) titleCellEl.appendChild(refs);
       }
       if (!isPR) {
         row.dataset.issueKey = prKey(item);

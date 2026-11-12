@@ -26,7 +26,7 @@ func TestContract_MentionsAreInTheSpecAndTheResponse(t *testing.T) {
 		require.Contains(t, pr.Required, "mentionsIssues")
 		items := pr.Properties["mentionsIssues"].Value.Items.Value
 
-		assert.ElementsMatch(t, []string{"repo", "number", "url", "pageUrl", "tracked"}, items.Required)
+		assert.ElementsMatch(t, []string{"repo", "number", "url", "pageUrl", "tracked", "relation"}, items.Required)
 	})
 	t.Run("the issue requires mentionedByPullRequests and reuses the linked entry", func(t *testing.T) {
 		t.Parallel()

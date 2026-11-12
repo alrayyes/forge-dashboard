@@ -227,6 +227,7 @@ const singleUserSpecs = [
   '**/pr-auto-update.spec.ts',
   '**/skipped-pill-counts.spec.ts',
   '**/closing-issues.spec.ts',
+  '**/refs-pills.spec.ts',
   '**/mentioned-tickets.spec.ts',
   '**/linked-pull-requests.spec.ts',
   '**/filter-choices-board.spec.ts',

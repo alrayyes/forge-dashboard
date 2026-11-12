@@ -1862,7 +1862,7 @@ type graphqlPullRequest struct {
 	BaseRefName string `json:"baseRefName"`
 	HeadRefName string `json:"headRefName"`
 	// Body feeds Renovate's rebase box (#1349) and, for every pull request, the
-	// tickets it mentions (MentionsIssues). It is never sent on as it is.
+	// tickets it mentions (MentionsIssues) and references (RefsIssues). It is never sent on as it is.
 	Body              string                   `json:"body"`
 	IsCrossRepository bool                     `json:"isCrossRepository"`
 	AutoMergeRequest  *graphqlAutoMergeRequest `json:"autoMergeRequest"`
@@ -3281,6 +3281,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		RequestedReviewerLogins: requestedReviewerLoginsFromGraphQL(p),
 		ClosesIssues:            closingIssuesFromGraphQL(p),
 		MentionsIssues:          mentionsIn(p.Title, p.Body, p.URL, p.Number, fullName),
+		RefsIssues:              refsIn(p.Title, p.Body, p.URL, p.Number, fullName),
 		ReviewComments:          comments,
 		ConversationComments:    conversationCount(p),
 		UnresolvedThreads:       &unresolved,
@@ -3313,6 +3314,17 @@ func mentionsIn(title, body, pageURL string, number int, fullName string) []dash
 	}
 
 	return dashboard.MentionedIssueRefs(dashboard.ForgeGitHub, title, body, fullName, number, base)
+}
+
+// refsIn lists the issues a pull request's title and description reference
+// with Refs, Related to or See. Never nil.
+func refsIn(title, body, pageURL string, number int, fullName string) []dashboard.IssueRef {
+	base := dashboard.WebBase(pageURL, fullName)
+	if base == "" {
+		base = "https://github.com"
+	}
+
+	return dashboard.ReferencedIssueRefs(dashboard.ForgeGitHub, title, body, fullName, number, base)
 }
 
 // requestedReviewerLoginsFromGraphQL lists the logins of the users asked to
@@ -3891,6 +3903,7 @@ func (c *Client) listOpenPullRequestsREST(ctx context.Context, owner, name, repo
 				Title:                   p.GetTitle(),
 				URL:                     p.GetHTMLURL(),
 				MentionsIssues:          mentionsIn(p.GetTitle(), p.GetBody(), p.GetHTMLURL(), p.GetNumber(), repo),
+				RefsIssues:              refsIn(p.GetTitle(), p.GetBody(), p.GetHTMLURL(), p.GetNumber(), repo),
 				Author:                  p.GetUser().GetLogin(),
 				AuthorAvatarURL:         p.GetUser().GetAvatarURL(),
 				Draft:                   p.GetDraft(),

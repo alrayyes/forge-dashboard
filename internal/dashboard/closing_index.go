@@ -28,12 +28,39 @@ func PullRequestsMentioning(prs []PullRequest) ClosingIndex {
 // closes. Cut at maxClosingRefs after the closed ones are off, so a long
 // description doesn't push real mentions out. Never nil.
 func (pr PullRequest) MentionedOnly() []IssueRef {
+	return pr.withoutClosed(pr.MentionsIssues)
+}
+
+// MentionedPlainly is MentionedOnly less what pr references too (RefsIssues),
+// for the list that sits beside the refs one.
+func (pr PullRequest) MentionedPlainly() []IssueRef {
+	return pr.withoutClosed(pr.MentionsIssues, pr.RefsIssues)
+}
+
+// RefsOnly lists the references pr makes with Refs, Related to or See, less
+// what ClosesIssues holds: one ticket is a closes link or a refs link on a
+// pull request, never both. Never nil.
+func (pr PullRequest) RefsOnly() []IssueRef {
+	return pr.withoutClosed(pr.RefsIssues)
+}
+
+// PullRequestsReferencing indexes prs by the issues they reference without
+// closing, the refs counterpart of PullRequestsClosing.
+func PullRequestsReferencing(prs []PullRequest) ClosingIndex {
+	return indexByIssue(prs, PullRequest.RefsOnly)
+}
+
+// withoutClosed is refs less what pr closes and less the also lists, which
+// hold a ticket under their own relation.
+func (pr PullRequest) withoutClosed(refs []IssueRef, also ...[]IssueRef) []IssueRef {
 	closed := map[string]struct{}{}
-	for _, ref := range pr.ClosesIssues {
-		closed[IssueKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
+	for _, list := range append([][]IssueRef{pr.ClosesIssues}, also...) {
+		for _, ref := range list {
+			closed[IssueKey(pr.Forge, ref.Repo, ref.Number)] = struct{}{}
+		}
 	}
 	out := []IssueRef{}
-	for _, ref := range pr.MentionsIssues {
+	for _, ref := range refs {
 		if _, isClosed := closed[IssueKey(pr.Forge, ref.Repo, ref.Number)]; isClosed {
 			continue
 		}

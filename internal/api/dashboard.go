@@ -238,7 +238,17 @@ func (b boardSettings) pullRequestPills(prs []dashboard.PullRequest) []linkedPul
 type closingIssue struct {
 	dashboard.IssueRef
 	PageURL string `json:"pageUrl"`
+	// Relation is how the pull request relates to the issue: closes, refs or
+	// mentions. One shape for all three, so a client words them from it.
+	Relation string `json:"relation"`
 }
+
+// The relations a pull request has to an issue.
+const (
+	relationCloses   = "closes"
+	relationRefs     = "refs"
+	relationMentions = "mentions"
+)
 
 // closingIssues adds the address to each of pr's closing references. Never nil.
 func closingIssues(pr dashboard.PullRequest) []closingIssue {
@@ -247,6 +257,7 @@ func closingIssues(pr dashboard.PullRequest) []closingIssue {
 		out = append(out, closingIssue{
 			IssueRef: ref,
 			PageURL:  dashboard.IssuePageURL(pr.Forge, ref.Repo, ref.Number),
+			Relation: relationCloses,
 		})
 	}
 
@@ -265,13 +276,24 @@ type mentionedIssue struct {
 // (GitHub's own closing list is the authority there). Nothing is tracked yet:
 // resolveMentions sets that once the issues are known. Never nil.
 func mentionedIssues(pr dashboard.PullRequest) []mentionedIssue {
-	refs := pr.MentionedOnly()
+	return withRelation(pr, pr.MentionedPlainly(), relationMentions)
+}
+
+// referencedIssues lists what pr references with Refs, Related to or See,
+// less whatever it closes. Never nil.
+func referencedIssues(pr dashboard.PullRequest) []mentionedIssue {
+	return withRelation(pr, pr.RefsOnly(), relationRefs)
+}
+
+func withRelation(pr dashboard.PullRequest, refs []dashboard.IssueRef, relation string) []mentionedIssue {
 	out := make([]mentionedIssue, 0, len(refs))
 	for _, ref := range refs {
-		out = append(out, mentionedIssue{
+		link := closingIssue{
 			IssueRef: ref,
 			PageURL:  dashboard.IssuePageURL(pr.Forge, ref.Repo, ref.Number),
-		})
+			Relation: relation,
+		}
+		out = append(out, mentionedIssue{closingIssue: link})
 	}
 
 	return out
@@ -286,8 +308,10 @@ func resolveMentions(prs []pullRequestView, issues []issueView) {
 		held[dashboard.IssueKey(issue.Forge, issue.Repo, issue.Number)] = struct{}{}
 	}
 	for i := range prs {
-		for j, m := range prs[i].MentionsIssues {
-			_, prs[i].MentionsIssues[j].Tracked = held[dashboard.IssueKey(prs[i].Forge, m.Repo, m.Number)]
+		for _, list := range [][]mentionedIssue{prs[i].MentionsIssues, prs[i].RefsIssues} {
+			for j, m := range list {
+				_, list[j].Tracked = held[dashboard.IssueKey(prs[i].Forge, m.Repo, m.Number)]
+			}
 		}
 	}
 }
@@ -307,6 +331,9 @@ type pullRequestView struct {
 	// MentionsIssues shadows the snapshot's list the same way, without what
 	// the pull request closes, and says which of them the dashboard holds.
 	MentionsIssues []mentionedIssue `json:"mentionsIssues"`
+	// RefsIssues is the same for the tickets it references with Refs, Related
+	// to or See, less what it closes.
+	RefsIssues []mentionedIssue `json:"refsIssues"`
 	// AuthorURL is the author's profile page on the forge, built here so no
 	// client needs a rule per forge. Empty for a deleted account.
 	AuthorURL string `json:"authorUrl"`
@@ -657,6 +684,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			AllowedActions: actions,
 			ClosesIssues:   closingIssues(pr),
 			MentionsIssues: mentionedIssues(pr),
+			RefsIssues:     referencedIssues(pr),
 			Status:         dashboard.PullRequestStatus(pr, actions),
 			ReadyToMerge:   dashboard.IsReadyToMerge(pr),
 			NeedsReview:    dashboard.NeedsReview(pr),

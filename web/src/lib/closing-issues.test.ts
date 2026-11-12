@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type ClosingIssue,
+  closingPillClass,
   closingPillId,
   closingPillName,
   closingPillText,
@@ -34,6 +35,48 @@ describe('closingPillText', () => {
     expect(
       closingPillText(issue({ repo: 'alrayyes/lib' }), 'alrayyes/app'),
     ).toBe('Closes alrayyes/lib#12');
+  });
+});
+
+describe('the refs relation', () => {
+  const ref = (overrides: Partial<ClosingIssue> = {}) =>
+    issue({ relation: 'refs', ...overrides });
+
+  test('is worded Refs, not Closes, from the relation the server sent', () => {
+    expect(closingPillText(ref(), 'alrayyes/app')).toBe('Refs #12');
+    expect(closingPillText(issue({ relation: 'closes' }), 'alrayyes/app')).toBe(
+      'Closes #12',
+    );
+  });
+
+  test('names the repo for another one, like a closing pill', () => {
+    expect(closingPillText(ref({ repo: 'alrayyes/lib' }), 'alrayyes/app')).toBe(
+      'Refs alrayyes/lib#12',
+    );
+  });
+
+  test('the name contains the visible text and says it opens the issue', () => {
+    expect(closingPillName(ref(), 'alrayyes/app')).toBe(
+      'Refs #12, opens the issue',
+    );
+  });
+
+  test('a pill id differs from the closing one for the same number', () => {
+    expect(closingPillId('github:a/b#1', ref())).not.toBe(
+      closingPillId('github:a/b#1', issue()),
+    );
+  });
+});
+
+describe('closingPillClass', () => {
+  test('keeps a refs pill apart from a closes one', () => {
+    expect(closingPillClass(issue({ relation: 'closes' }))).toBe(
+      'linked-pr closing-issue',
+    );
+    expect(closingPillClass(issue())).toBe('linked-pr closing-issue');
+    expect(closingPillClass(issue({ relation: 'refs' }))).toBe(
+      'linked-pr refs-issue',
+    );
   });
 });
 
