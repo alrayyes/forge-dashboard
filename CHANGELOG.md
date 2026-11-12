@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.33.1](https://github.com/alrayyes/forge-dashboard/compare/v9.33.0...v9.33.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** hide a filter segment that has one choice to offer ([#3685](https://github.com/alrayyes/forge-dashboard/issues/3685)) ([95faf2a](https://github.com/alrayyes/forge-dashboard/commit/95faf2a058d1b5aa4fe93c390c0a22c302b6d14e))
+
 ## [9.33.0](https://github.com/alrayyes/forge-dashboard/compare/v9.32.0...v9.33.0) (2026-11-12)
 
 
