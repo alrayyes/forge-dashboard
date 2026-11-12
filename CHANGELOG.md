@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.21.1](https://github.com/alrayyes/forge-dashboard/compare/v9.21.0...v9.21.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* survive a small memory limit and say so when restarting ([#3564](https://github.com/alrayyes/forge-dashboard/issues/3564)) ([fb795c6](https://github.com/alrayyes/forge-dashboard/commit/fb795c6fb11e1f9af3db2633ea64c4aea213b3e7))
+
 ## [9.21.0](https://github.com/alrayyes/forge-dashboard/compare/v9.20.2...v9.21.0) (2026-11-12)
 
 
