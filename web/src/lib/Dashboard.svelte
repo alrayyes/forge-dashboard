@@ -6989,6 +6989,7 @@
       const list = document.getElementById("activity-queued-list");
       if (!wrap || !list) return;
       wrap.hidden = items.length === 0;
+      feedbackUI.setQueuedCount(items.length);
       list.replaceChildren();
       for (const q of items) {
         const li = el("li", "activity-queued-item");
@@ -10325,7 +10326,7 @@
   -->
   <!-- #714: the Activity control stays in view while the page scrolls;
        its panel lists in-flight and recent per-pull-request actions. -->
-  <div class="activity-bar">
+  <div class="activity-bar" hidden>
     <button
       type="button"
       class="activity-toggle"

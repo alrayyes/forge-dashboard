@@ -424,6 +424,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     const prs = Array.from({ length: 15 }, (_, i) => makePR(i + 1));
     await page.setViewportSize({ width: 1280, height: 500 });
     await setup(page, prs);
+    await updateBranch(rowFor(page, 1));
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await expect(page.locator('#activity-toggle')).toBeInViewport();
   });
@@ -615,4 +616,98 @@ test.describe('inline feedback and a saved filter', () => {
       'Cleared the Author filter',
     );
   });
+});
+
+test.describe('the Activity control is hidden when empty (#3684)', () => {
+  const sizes = [
+    { width: 360, height: 740 },
+    { width: 390, height: 844 },
+    { width: 1280, height: 800 },
+  ];
+
+  test('no button and no row for it with nothing to show, then it appears with its count', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await expect(rowFor(page, 1)).toBeVisible();
+    await expect(page.locator('#activity-toggle')).toBeHidden();
+    await expect(page.locator('.activity-bar')).toBeHidden();
+    expect(
+      await page
+        .locator('.activity-bar')
+        .evaluate((el) => el.getBoundingClientRect().height),
+    ).toBe(0);
+
+    await updateBranch(rowFor(page, 1));
+    const toggle = page.locator('#activity-toggle');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toContainText('Activity 1');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toHaveAttribute('aria-controls', 'activity-panel');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator('#activity-panel')).toBeVisible();
+  });
+
+  test('Clear finished with nothing left closes the panel, hides the button and focuses Refresh', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(2)], { failing: [2] });
+    await updateBranch(rowFor(page, 2));
+    await expect(rowFor(page, 2).locator('.row-feedback')).toContainText(
+      'Failed',
+    );
+    await page.locator('#activity-toggle').click();
+    const panel = page.locator('#activity-panel');
+    await expect(panel).toBeVisible();
+
+    await panel.getByRole('button', { name: 'Clear finished' }).click();
+
+    await expect(panel).toBeHidden();
+    await expect(page.locator('#activity-toggle')).toBeHidden();
+    await expect(page.locator('#force-refresh-button')).toBeFocused();
+  });
+
+  test('a count change keeps focus on the button and is announced politely', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1), makePR(2)]);
+    await updateBranch(rowFor(page, 1));
+    const toggle = page.locator('#activity-toggle');
+    await toggle.focus();
+    // A script click, so the pointer doesn't move focus off the button.
+    await rowFor(page, 2)
+      .getByRole('button', { name: 'Update branch' })
+      .evaluate((el: HTMLElement) => el.click());
+    await expect(toggle).toContainText('Activity 2');
+    await expect(toggle).toBeFocused();
+    await expect(page.locator('#feedback-live')).toHaveAttribute(
+      'aria-live',
+      'polite',
+    );
+    await expect(page.locator('#feedback-live')).not.toBeEmpty();
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`has no axe violations while hidden and shown, ${scheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await setup(page, [makePR(1)]);
+      await expect(rowFor(page, 1)).toBeVisible();
+      for (const phase of ['hidden', 'shown']) {
+        if (phase === 'shown') {
+          await updateBranch(rowFor(page, 1));
+          await expect(page.locator('#activity-toggle')).toBeVisible();
+        }
+        for (const size of sizes) {
+          await page.setViewportSize(size);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations, `${phase} at ${size.width}px`).toEqual([]);
+        }
+      }
+    });
+  }
 });

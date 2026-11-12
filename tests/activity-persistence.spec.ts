@@ -141,7 +141,7 @@ test.describe('the Activity list across a reload', () => {
 
     await page.reload();
 
-    await expect(page.locator('#activity-toggle')).toContainText('Activity 0');
+    await expect(page.locator('#activity-toggle')).toBeHidden();
     await expect(rowFor(page, 1)).toBeVisible();
   });
 });
