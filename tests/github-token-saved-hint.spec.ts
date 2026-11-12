@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -55,6 +56,8 @@ const tokens = [
   { name: 'GitHub', prefix: 'github', empty: 'ghp_…' },
   { name: 'Forgejo', prefix: 'forgejo', empty: 'Paste a token' },
 ] as const;
+
+const axeTags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 const ids = (value: string | null) =>
   (value ?? '').split(/\s+/).filter(Boolean);
@@ -130,6 +133,33 @@ for (const { name, prefix, empty } of tokens) {
       expect(ids(await input.getAttribute('aria-describedby'))).toContain(
         `${prefix}-token-saved`,
       );
+    });
+
+    test('a saved token has no axe violations', async ({ page }) => {
+      await standIn(page, both);
+      await page.goto('/settings.html#connections');
+      await expect(page.locator(`#${prefix}-token-saved`)).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(axeTags)
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+
+    test('a saved token with a field error has no axe violations', async ({
+      page,
+    }) => {
+      await standIn(page, both, {
+        status: 400,
+        body: { error: 'That token was refused.', field: `${prefix}Token` },
+      });
+      await page.goto('/settings.html#connections');
+      await page.fill(`#${prefix}-token`, 'not-a-token');
+      await page.click('#save-connections-button');
+      await expect(page.locator(`#${prefix}-token-error`)).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(axeTags)
+        .analyze();
+      expect(results.violations).toEqual([]);
     });
   });
 }
