@@ -3,7 +3,7 @@ import { test } from './server-fixture';
 
 // #3377 gave the filter pills a pressed mark that forced colors keep. The other
 // aria-pressed buttons still say "pressed" by colour or box-shadow alone, which
-// forced colors drops: the auto-merge and closing-link segments, Pause live
+// forced colors drops: the auto-merge and refs segments, Pause live
 // updates and the advisories severity filters. Each needs a border width, an
 // outline or a weight. The Settings show-token buttons and the Webhooks
 // rebase-bots toggle already swap their text, so they need nothing here.

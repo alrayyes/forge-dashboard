@@ -10,14 +10,11 @@ import {
 import {
   ageChoices,
   ciBucket,
-  closingChoiceLabel,
   type FilterableItem,
   failingFilters,
-  matchesClosing,
   matchesFilters,
   matchesQuickFilter,
   matchesRefs,
-  offerClosing,
   offerPills,
   offerRefs,
   optionPool,
@@ -398,58 +395,9 @@ describe('the title box and ticket numbers', () => {
   });
 });
 
-// The closing-link filter: pull requests that close an issue, issues that a
-// pull request closes. Pure, so these run without a browser; the pages' wiring
-// is in closing-link-filter.spec.ts.
-describe('closingChoiceLabel', () => {
-  test('words each choice as its button reads, per page', () => {
-    expect(closingChoiceLabel(true, 'yes')).toBe('Closes an issue');
-    expect(closingChoiceLabel(true, 'no')).toBe('Closes no issue');
-    expect(closingChoiceLabel(false, 'yes')).toBe('Has a closing pull request');
-    expect(closingChoiceLabel(false, 'no')).toBe('No closing pull request');
-  });
-});
-
-describe('matchesClosing', () => {
-  const link = { repo: 'a/b', number: 1 };
-  const closes = choiceItem({ closesIssues: [link] });
-  const none = choiceItem({});
-  const empty = choiceItem({ closesIssues: [] });
-  const linked = choiceItem({ linkedPullRequests: [link] });
-
-  test('a pull request is matched on its closing issues', () => {
-    expect(matchesClosing(closes, true, 'yes')).toBe(true);
-    expect(matchesClosing(none, true, 'yes')).toBe(false);
-    expect(matchesClosing(none, true, 'no')).toBe(true);
-    expect(matchesClosing(empty, true, 'no')).toBe(true);
-    expect(matchesClosing(closes, true, 'no')).toBe(false);
-  });
-
-  test('an issue is matched on its linked pull requests', () => {
-    expect(matchesClosing(linked, false, 'yes')).toBe(true);
-    expect(matchesClosing(none, false, 'yes')).toBe(false);
-    expect(matchesClosing(none, false, 'no')).toBe(true);
-  });
-
-  test('no pick, or one it does not know, keeps everything', () => {
-    expect(matchesClosing(none, true, undefined)).toBe(true);
-    expect(matchesClosing(none, true, 'bogus')).toBe(true);
-  });
-
-  test('failingFilters names the key each page stores it under', () => {
-    expect(failingFilters(none, true, {}, { closes: 'yes' })).toEqual([
-      'closes',
-    ]);
-    expect(failingFilters(none, false, {}, { closedBy: 'yes' })).toEqual([
-      'closedBy',
-    ]);
-    expect(failingFilters(closes, true, {}, { closes: 'yes' })).toEqual([]);
-  });
-});
-
-// The refs filter mirrors the closing-link one on the same two pages: pull
-// requests that reference an issue, issues a pull request references. The
-// wiring is in refs-filter.spec.ts.
+// The refs filter: pull requests that reference or close an issue, issues a
+// pull request references or closes (a close is the strong form of a ref, #3655).
+// The wiring is in refs-issues-filter.spec.ts.
 describe('refsChoiceLabel', () => {
   test('words each choice as its button reads, per page', () => {
     expect(refsChoiceLabel(true, 'yes')).toBe('References an issue');
@@ -468,24 +416,24 @@ describe('matchesRefs', () => {
   const empty = choiceItem({ refsIssues: [] });
   const referenced = choiceItem({ referencedByPullRequests: [link] });
 
-  test('a pull request is matched on its refsIssues, not its closesIssues', () => {
+  test('a pull request is matched on its refsIssues or its closesIssues', () => {
     expect(matchesRefs(refs, true, 'yes')).toBe(true);
     expect(matchesRefs(none, true, 'yes')).toBe(false);
     expect(matchesRefs(none, true, 'no')).toBe(true);
     expect(matchesRefs(empty, true, 'no')).toBe(true);
     expect(matchesRefs(refs, true, 'no')).toBe(false);
-    expect(matchesRefs(choiceItem({ closesIssues: [link] }), true, 'yes')).toBe(
-      false,
-    );
+    const closer = choiceItem({ closesIssues: [link] });
+    expect(matchesRefs(closer, true, 'yes')).toBe(true);
+    expect(matchesRefs(closer, true, 'no')).toBe(false);
   });
 
-  test('an issue is matched on its referencing pull requests only', () => {
+  test('an issue is matched on its referencing or closing pull requests', () => {
     expect(matchesRefs(referenced, false, 'yes')).toBe(true);
     expect(matchesRefs(none, false, 'yes')).toBe(false);
     expect(matchesRefs(none, false, 'no')).toBe(true);
-    expect(
-      matchesRefs(choiceItem({ linkedPullRequests: [link] }), false, 'yes'),
-    ).toBe(false);
+    const closed = choiceItem({ linkedPullRequests: [link] });
+    expect(matchesRefs(closed, false, 'yes')).toBe(true);
+    expect(matchesRefs(closed, false, 'no')).toBe(false);
   });
 
   test('no pick, or one it does not know, keeps everything', () => {
@@ -498,22 +446,24 @@ describe('matchesRefs', () => {
     expect(refsKey(false)).toBe('refBy');
   });
 
-  test('failingFilters names the key and combines it with closing', () => {
+  test('failingFilters names the key; the old closing keys are not filters', () => {
     expect(failingFilters(none, true, {}, { refs: 'yes' })).toEqual(['refs']);
     expect(failingFilters(none, false, {}, { refBy: 'yes' })).toEqual([
       'refBy',
     ]);
     expect(failingFilters(refs, true, {}, { refs: 'yes' })).toEqual([]);
+    expect(failingFilters(none, true, {}, { closes: 'yes' } as never)).toEqual(
+      [],
+    );
     expect(
-      failingFilters(refs, true, {}, { refs: 'yes', closes: 'yes' }),
-    ).toEqual(['closes']);
+      failingFilters(none, false, {}, { closedBy: 'yes' } as never),
+    ).toEqual([]);
   });
 });
 
-// The closes and refs segments offer a Yes or No only while something in the
-// pool matches it (#3624); the picked one stays, and the segment goes when
-// neither is offered. The wiring is in closing-link-filter.spec.ts and
-// refs-issues-filter.spec.ts.
+// The refs segment offers a Yes or No only while something in the pool
+// matches it (#3624); the picked one stays, and the segment goes when neither
+// is offered. The wiring is in refs-issues-filter.spec.ts.
 type FakeButton = { hidden: boolean };
 function fakeSegment(attr: string) {
   const buttons: Record<string, FakeButton> = {
@@ -533,15 +483,6 @@ function fakeSegment(attr: string) {
 }
 
 describe.each([
-  {
-    name: 'offerClosing',
-    attr: 'link',
-    offer: offerClosing,
-    yes: (isPR: boolean) =>
-      isPR
-        ? { closesIssues: [{ repo: 'a/b', number: 1 }] }
-        : { linkedPullRequests: [{ repo: 'a/b', number: 1 }] },
-  },
   {
     name: 'offerRefs',
     attr: 'ref',
