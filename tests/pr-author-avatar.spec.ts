@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // A pull request row shows the author's avatar left of their name when the
@@ -38,10 +39,10 @@ const PRS = [
 ];
 
 async function open(page: Page) {
-  await page.route('https://avatars.example.com/u/1', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/u/1', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL }),
   );
-  await page.route('https://avatars.example.com/broken', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/broken', (route: Route) =>
     route.abort(),
   );
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -73,7 +74,10 @@ test.describe('Pull request row author avatar (#1913)', () => {
   test('shows the forge avatar next to the name', async ({ page }) => {
     await open(page);
     const cell = author(page, 'With avatar');
-    await expect(cell.locator('img')).toHaveAttribute('src', AVATAR);
+    await expect(cell.locator('img')).toHaveAttribute(
+      'src',
+      proxiedImage(AVATAR),
+    );
     await expect(cell).toContainText('claude');
   });
 

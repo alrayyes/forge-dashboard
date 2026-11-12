@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // A repository's own logo shows beside its name on the pull request rows and
@@ -53,10 +54,10 @@ function pr(number: number, name: string) {
 }
 
 async function mock(page: Page) {
-  await page.route(LOGO, (route: Route) =>
+  await routeImage(page, LOGO, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
   );
-  await page.route(BROKEN, (route: Route) => route.abort());
+  await routeImage(page, BROKEN, (route: Route) => route.abort());
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
@@ -94,7 +95,10 @@ test.describe('Repository logo (#2001)', () => {
   }) => {
     await openRows(page);
     const cell = repoCell(page, 'with-logo');
-    await expect(cell.locator('img.repo-logo')).toHaveAttribute('src', LOGO);
+    await expect(cell.locator('img.repo-logo')).toHaveAttribute(
+      'src',
+      proxiedImage(LOGO),
+    );
     await expect(cell.locator('.repo-name')).toHaveText('alrayyes/with-logo');
   });
 
@@ -135,7 +139,7 @@ test.describe('Repository logo (#2001)', () => {
     await expect(rows).toHaveCount(REPOS.length);
     await expect(
       rows.filter({ hasText: 'alrayyes/with-logo' }).locator('img.repo-logo'),
-    ).toHaveAttribute('src', LOGO);
+    ).toHaveAttribute('src', proxiedImage(LOGO));
     await expect(
       rows.filter({ hasText: 'alrayyes/no-logo' }).locator('img'),
     ).toHaveCount(0);

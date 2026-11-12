@@ -2354,12 +2354,8 @@ paths:
         20,000 characters (`truncated`), the conversation keeps its first 50
         comments (`commentsTruncated`, with the full `commentCount`), and a
         reaction names at most its first 10 people while `count` is the full
-        number. An avatar is the forge's own URL, passed through unchanged
-        and never proxied; this app sets no Content-Security-Policy today, so
-        the browser loads it directly. A future policy's `img-src` has to
-        allow avatars.githubusercontent.com, repository-images.githubusercontent.com
-        (a GitHub repository's logo, see `logoUrl` on a repo in GET
-        /api/v1/dashboard) and the Forgejo host.
+        number. An avatar is the forge's own URL, passed through unchanged;
+        the page loads it through GET /api/v1/images, never from the forge.
 
         A forge that can't be read is an error, never an empty thread.
       tags: [pull-requests]
@@ -2449,8 +2445,8 @@ paths:
         20,000 characters (`truncated`), the conversation keeps its first 50
         comments (`commentsTruncated`, with the full `commentCount`), and a
         reaction names at most its first 10 people while `count` is the full
-        number. An avatar is the forge's own URL, passed through unchanged and
-        never proxied.
+        number. An avatar is the forge's own URL, passed through unchanged;
+        the page loads it through GET /api/v1/images.
 
         The error answers are those of GET /api/v1/pull-requests/details, with
         the same codes. An issue that doesn't exist is a 404, and a forge that
@@ -3509,7 +3505,8 @@ paths:
         Only the forge the item belongs to is reached. Forgejo: the saved
         instance, with the saved token sent to that host only. GitHub:
         `github.com` and its user-content hosts (`user-images`,
-        `private-user-images` and `raw.githubusercontent.com`), without a
+        `private-user-images`, `raw`, `avatars` and `repository-images`
+        under `githubusercontent.com`), without a
         token, since its attachment links are signed. A
         `github.com/user-attachments/...` link in a private repository is not
         served unsigned, so when `fullName` and `number` (or `tag`) name the
@@ -5342,7 +5339,7 @@ components:
           type: string
         avatarUrl:
           type: string
-          description: The forge's own avatar URL, passed through unchanged and never proxied.
+          description: The forge's own avatar URL, passed through unchanged. The page loads it through GET /api/v1/images.
         url:
           type: string
           description: The person's profile page on the forge, built by the server from the web address of an item the board already holds for that forge. Empty when the board holds none yet, so a client shows the name alone.
@@ -5972,7 +5969,7 @@ components:
           type: string
         authorAvatarUrl:
           type: string
-          description: The forge's own avatar URL for the author, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+          description: The forge's own avatar URL for the author, passed through unchanged. The page loads it through GET /api/v1/images. Empty when the forge supplies none, such as a deleted account.
         authorUrl:
           type: string
           description: The author's profile page on the forge, built by the server from the forge's own web address, so a client needs no rule per forge. A GitHub bot links to its app page. Empty when there is nothing to link to, such as a deleted account.
@@ -6888,7 +6885,7 @@ components:
           type: string
         authorAvatarUrl:
           type: string
-          description: The forge's own avatar URL for whoever filed the issue, passed through unchanged and never proxied. Empty when the forge supplies none, such as a deleted account.
+          description: The forge's own avatar URL for whoever filed the issue, passed through unchanged. The page loads it through GET /api/v1/images. Empty when the forge supplies none, such as a deleted account.
         authorUrl:
           type: string
           description: The author's profile page on the forge, built by the server from the forge's own web address. Empty when there is nothing to link to, such as a deleted account.
@@ -7574,7 +7571,7 @@ components:
             repository's own avatar. Absent otherwise, and never the
             generated social card GitHub shows for a repository with none,
             nor the owner's avatar. Always an https URL, passed through
-            unchanged and never proxied: on GitHub exactly
+            unchanged; the page loads it through GET /api/v1/images. On GitHub exactly
             repository-images.githubusercontent.com, on Forgejo the
             instance's own host. A GitHub custom image is a wide banner,
             not a square logo.

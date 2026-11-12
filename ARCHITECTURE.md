@@ -304,17 +304,19 @@ There is no allowlist: a blob host on a private network is refused, by design.
 
 ### Which hosts an embedded image may come from
 
-A pull request, issue or release body can embed an image. The page never loads
-it from the forge or a third party: it asks `GET /api/v1/images`, which
-fetches it in `internal/imageproxy` and passes the bytes on. A private
+A pull request, issue, or release body can embed an image, and a row or dialog
+shows an avatar or a repository logo. The page never loads any of them from the
+forge or a third party: it asks `GET /api/v1/images`, which fetches it in
+`internal/imageproxy` and passes the bytes on. A private
 repository's image then needs no token in the browser, and a stranger's image
 can't fire a tracking pixel when the dialog opens.
 
 - The allowed hosts are a list, not a pattern. Forgejo: the saved instance's
   host and port, and its token goes there and nowhere else. GitHub: `github.com`,
-  `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`
-  and `raw.githubusercontent.com`, fetched with no token (its attachment links
-  carry their own signature).
+  `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`,
+  `raw.githubusercontent.com`, `avatars.githubusercontent.com` and
+  `repository-images.githubusercontent.com`, fetched with no token (its
+  attachment links carry their own signature).
 - A `github.com/user-attachments/...` link in a private repository isn't served
   unsigned. When the page names the item it sits in, the server reads that
   item's rendered HTML from the GitHub API, where the saved token is sent to
@@ -334,6 +336,11 @@ can't fire a tracking pixel when the dialog opens.
   the host's header. SVG is refused. Up to 8 megabytes and 10 seconds.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
+- An avatar or logo is the forge's own HTTPS URL, sent through the same route
+  by `web/src/lib/avatar.ts`: a GitHub avatar host goes to the GitHub list, any
+  other host to the saved Forgejo instance, which refuses a host that isn't its
+  own. A Forgejo avatar on a third-party host, Gravatar and Libravatar included,
+  therefore shows the initial instead.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
