@@ -181,6 +181,13 @@ export function refsChoiceLabel(isPR: boolean, value: 'yes' | 'no'): string {
     : 'No referencing pull request';
 }
 
+// The short text on a refs button, so Any and both choices share one row on a
+// phone. The full text from refsChoiceLabel is the accessible name.
+export function refsChoiceShort(isPR: boolean, value: 'yes' | 'no'): string {
+  if (isPR) return value === 'yes' ? 'Has issue' : 'No issue';
+  return value === 'yes' ? 'Has PR' : 'No PR';
+}
+
 // The pill that's active for a state: a quick filter wins, then a forge,
 // else "all". Exactly one pill is ever active.
 export function activePill(state: SharedFilterState): string {

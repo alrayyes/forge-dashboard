@@ -258,8 +258,9 @@ setting.
 The issues page filters like the pull request page: forge, repo, title, author,
 label, created and updated, plus Group by. Those filters are shared and saved
 with your other filters, so a filter set on one page is still set on the other.
-A **Refs PR** control adds Any, **Has a referencing pull request** and **No
-referencing pull request**. A pull request that closes an issue counts as
+A **Refs PR** control adds Any, **Has PR** and **No PR** (a pull request
+references the issue, or none does; the full wording is the button's name and
+tooltip). A pull request that closes an issue counts as
 referencing it, since a close is the strong form of a ref, so there is no
 separate closing control. It finds the issues something is already working on
 and the ones nothing is. Only this page's list is filtered by it, it is saved

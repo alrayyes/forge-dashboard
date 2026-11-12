@@ -20,6 +20,7 @@ import {
   optionPool,
   QUICK_FILTERS,
   refsChoiceLabel,
+  refsChoiceShort,
   refsKey,
   showBlockedChip,
 } from './filters';
@@ -565,5 +566,14 @@ describe('an author pick against a capitalised author', () => {
     expect(
       matchesFilters(choiceItem({ author: 'sam' }), false, shared, undefined),
     ).toBe(false);
+  });
+});
+
+describe('refsChoiceShort', () => {
+  test('is short enough for Any and both choices to share a phone row', () => {
+    expect(refsChoiceShort(false, 'yes')).toBe('Has PR');
+    expect(refsChoiceShort(false, 'no')).toBe('No PR');
+    expect(refsChoiceShort(true, 'yes')).toBe('Has issue');
+    expect(refsChoiceShort(true, 'no')).toBe('No issue');
   });
 });

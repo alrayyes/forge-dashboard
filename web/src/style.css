@@ -1051,7 +1051,10 @@ select.col-filter {
    just hands the arrow to the same drawn chevron. */
 .filter-bar select.col-filter,
 .filter-bar select.group-select,
-.filter-bar .label-filter-button {
+.filter-bar .label-filter-button,
+.filter-sheet select.col-filter,
+.filter-sheet select.group-select,
+.filter-sheet .label-filter-button {
   box-sizing: border-box;
   font-size: 0.75rem;
   line-height: 1.5;
@@ -1134,7 +1137,8 @@ select.col-filter {
 /* The button is a plain child of its host, not a flex item, so the bar's
    \`.col-filter { width: auto }\` would size it to its text and a long pick
    would run out of the host, under the control beside it. */
-.filter-bar .label-filter-button {
+.filter-bar .label-filter-button,
+.filter-sheet .label-filter-button {
   width: 100%;
 }
 .label-filter-panel {
@@ -4406,9 +4410,17 @@ button.pipeline-check-link:disabled {
   .filter-sheet .segment[hidden] {
     display: none;
   }
+  /* The Refs segment is one row of short choices that share the width (#3693). */
+  .filter-sheet .segment.sheet-only:not([hidden]) {
+    display: flex;
+    flex-wrap: nowrap;
+    margin-left: 0;
+  }
   .filter-sheet .segment button {
+    flex: 1 1 0;
     min-height: 44px;
     min-width: 44px;
+    padding: 4px 8px;
   }
   .filter-sheet .drafts-toggle {
     min-height: 44px;

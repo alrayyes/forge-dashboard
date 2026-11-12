@@ -264,18 +264,19 @@ has Any, On, and Off. On shows only pull requests that have auto-merge armed, Of
 only those without. It combines with a pill, so Failing CI with Auto-merge On
 finds armed pull requests whose checks have since failed.
 
-A **Refs issue** control beside it has Any, **References an issue**, and
-**References no issue**. **References an issue** keeps the pull requests that
-close or reference at least one ticket (the ones with a "Closes" or a "Refs"
-pill), since a close is the strong form of a ref, and **References no issue**
-the rest. There is no separate closing control. Like Auto-merge it is saved with
-your other filters, comes back after a reload, is emptied by **Clear filters**,
-and offers a choice only when something in the list is that way. On a phone it
-is in the Filters sheet with 44px choices. The pick is shared with the Bots and
-Releases pages, which filter by it too, so a pick made here can leave those
-lists empty; the control shows it there, and Any or **Clear filters** brings the
-rows back. A pick that is not yes or no is dropped on load, and so is a closing
-choice saved before the two controls were merged.
+A **Refs issue** control beside it has Any, **Has issue**, and **No issue** (the
+full wording, "References an issue" and "References no issue", is each button's
+name and tooltip, and the active-filter chip's text). **Has issue** keeps the
+pull requests that close or reference at least one ticket (the ones with a
+"Closes" or a "Refs" pill), since a close is the strong form of a ref, and **No
+issue** the rest. There is no separate closing control. Like Auto-merge it is
+saved with your other filters, comes back after a reload, is emptied by **Clear
+filters**, and offers a choice only when something in the list is that way. On a
+phone it is in the Filters sheet with 44px choices. The pick is shared with the
+Bots and Releases pages, which filter by it too, so a pick made here can leave
+those lists empty; the control shows it there, and Any or **Clear filters**
+brings the rows back. A pick that is not yes or no is dropped on load, and so is
+a closing choice saved before the two controls were merged.
 
 ## Bots
 

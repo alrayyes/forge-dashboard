@@ -10246,11 +10246,27 @@
       >{view === "issues" ? "Refs PR" : "Refs issue"}</span
     >
     <button type="button" data-ref="any" aria-pressed="true">Any</button>
-    <button type="button" data-ref="yes" aria-pressed="false"
-      >{Filters.refsChoiceLabel(pullsView, "yes")}</button
+    <button
+      type="button"
+      data-ref="yes"
+      aria-pressed="false"
+      title={Filters.refsChoiceLabel(pullsView, "yes")}
+      aria-label="{Filters.refsChoiceShort(
+        pullsView,
+        'yes',
+      )}, {Filters.refsChoiceLabel(pullsView, 'yes').toLowerCase()}"
+      >{Filters.refsChoiceShort(pullsView, "yes")}</button
     >
-    <button type="button" data-ref="no" aria-pressed="false"
-      >{Filters.refsChoiceLabel(pullsView, "no")}</button
+    <button
+      type="button"
+      data-ref="no"
+      aria-pressed="false"
+      title={Filters.refsChoiceLabel(pullsView, "no")}
+      aria-label="{Filters.refsChoiceShort(
+        pullsView,
+        'no',
+      )}, {Filters.refsChoiceLabel(pullsView, 'no').toLowerCase()}"
+      >{Filters.refsChoiceShort(pullsView, "no")}</button
     >
   </div>
 {/snippet}
