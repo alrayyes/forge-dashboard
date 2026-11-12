@@ -86,6 +86,13 @@ export class CopyFlow {
     this.busy = false;
   }
 
+  // Drops the line only. The field to copy from stays, and a copy still in
+  // flight keeps going: its result is still wanted (#3424).
+  clearStatus() {
+    clearTimeout(this.#timer);
+    this.status = '';
+  }
+
   destroy() {
     this.#gone = true;
     clearTimeout(this.#timer);
