@@ -815,6 +815,11 @@
        visual weight, not the quieter treatment a single "Ignore" gets. */
     .bulk-webhook-button {
       margin-bottom: 14px;
+      /* The label is long; at a large root size it wraps instead of
+         running past the viewport. */
+      max-width: 100%;
+      white-space: normal;
+      text-align: start;
     }
     .bulk-webhook-button:disabled {
       opacity: 0.6;

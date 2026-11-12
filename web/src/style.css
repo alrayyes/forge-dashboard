@@ -741,6 +741,9 @@ section.board {
   color: var(--ink-2);
   cursor: pointer;
   user-select: none;
+  /* A long label wraps at a large root size instead of leaving the bar. */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 .checkbox-filter input[type="checkbox"] {
   margin: 0;
@@ -1033,6 +1036,8 @@ select.col-filter {
   width: auto;
   flex: 1 1 130px;
   min-width: 120px;
+  /* Larger root text widens a field's own size; it never outgrows the bar. */
+  max-width: 100%;
 }
 /* A select holds a few short choices; alone on a wrapped line it would
    otherwise take the whole row. The title search is the wide control. */
@@ -1106,6 +1111,7 @@ select.col-filter {
   position: relative;
   flex: 1 1 130px;
   min-width: 120px;
+  max-width: 100%;
 }
 .label-filter-button {
   text-align: left;
@@ -1367,6 +1373,10 @@ select.col-filter {
   margin: 0;
   gap: 2px;
   flex: none;
+  /* A fieldset keeps its content's width as a floor; let it give way. */
+  min-width: 0;
+  max-width: 100%;
+  flex-wrap: wrap;
 }
 .forge-segmented label {
   position: relative;
@@ -4122,6 +4132,10 @@ button.pipeline-check-link:disabled {
 .filter-bar-top,
 .filter-controls {
   display: contents;
+}
+.filter-bar-top {
+  min-width: 0;
+  max-width: 100%;
 }
 .filters-trigger,
 .active-filters,
