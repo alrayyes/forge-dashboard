@@ -75,14 +75,38 @@ export function linkedPillName(
   relation: Relation = 'closes',
 ) {
   const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
-  if (!ci) return `Pull request ${head}, ${relation} this issue`;
+  const says = relation === 'refs' ? 'references' : relation;
+  if (!ci) return `Pull request ${head}, ${says} this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
-  return `Pull request ${head} ${said}, ${relation} this issue`;
+  return `Pull request ${head} ${said}, ${says} this issue`;
 }
 
 /** What a pull request does to the issue its pill sits on. */
-export type Relation = 'closes' | 'mentions';
+export type Relation = 'closes' | 'refs' | 'mentions';
+
+/** The pill's classes: a ref and a mention are each drawn apart from a close. */
+export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
+  return [
+    'linked-pr',
+    pr.draft ? 'draft' : '',
+    relation === 'mentions' ? 'mention-pill' : '',
+    relation === 'refs' ? 'refs-pill' : '',
+  ]
+    .filter(Boolean)
+    .join(' ');
+}
+
+const MORE_WORDING: Record<Relation, string> = {
+  closes: 'will close',
+  refs: 'reference',
+  mentions: 'mention',
+};
+
+/** The accessible name of the count that opens the pills kept back. */
+export function linkedMoreName(count: number, relation: Relation) {
+  return `${count} more pull requests that ${MORE_WORDING[relation]} this issue`;
+}
 
 /** The pills a row shows, and the ones kept behind the count. */
 export function splitLinked(list: LinkedPullRequest[]) {
@@ -170,13 +194,7 @@ export function linkedPills(
   const pill = (pr: LinkedPullRequest) => {
     const link = element(
       onOpen !== undefined ? 'button' : 'a',
-      [
-        'linked-pr',
-        pr.draft ? 'draft' : '',
-        relation === 'mentions' ? 'mention-pill' : '',
-      ]
-        .filter(Boolean)
-        .join(' '),
+      linkedPillClass(pr, relation),
     );
     if (link instanceof HTMLAnchorElement) {
       link.href = pr.pageUrl;
@@ -227,20 +245,15 @@ export function linkedPills(
 
   const more = element('button', 'linked-pr-more', `${rest.length} more`);
   more.type = 'button';
-  more.setAttribute(
-    'aria-label',
-    relation === 'mentions'
-      ? `${rest.length} more pull requests that mention this issue`
-      : `${rest.length} more pull requests that will close this issue`,
-  );
+  more.setAttribute('aria-label', linkedMoreName(rest.length, relation));
   const reveal = () => {
     const extra = rest.map(pill);
     more.replaceWith(...extra);
-    expanded.add(issueKey);
+    expanded.add(`${issueKey}:${relation}`);
     return extra;
   };
   more.addEventListener('click', () => reveal()[0]?.focus());
   wrap.append(more);
-  if (expanded.has(issueKey)) reveal();
+  if (expanded.has(`${issueKey}:${relation}`)) reveal();
   return wrap;
 }

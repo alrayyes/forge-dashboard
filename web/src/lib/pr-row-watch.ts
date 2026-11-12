@@ -65,11 +65,15 @@ export function pullRequestsInView(
 // drawn, so they are not watched. The same cap applies as for the pull request
 // page.
 export function linkedPullRequestsToWatch(
-  shown: readonly { linkedPullRequests?: readonly Row[] }[],
+  shown: readonly {
+    linkedPullRequests?: readonly Row[];
+    referencedByPullRequests?: readonly Row[];
+  }[],
 ): Subject[] {
   return pullRequestsToWatch(
-    shown.flatMap(
-      (issue) => issue.linkedPullRequests?.slice(0, SHOWN_PILLS) ?? [],
-    ),
+    shown.flatMap((issue) => [
+      ...(issue.linkedPullRequests?.slice(0, SHOWN_PILLS) ?? []),
+      ...(issue.referencedByPullRequests?.slice(0, SHOWN_PILLS) ?? []),
+    ]),
   );
 }

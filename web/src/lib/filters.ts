@@ -62,6 +62,10 @@ export interface FilterableItem {
   // close an issue. Only their presence is read here; the server joins them.
   closesIssues?: unknown[];
   linkedPullRequests?: unknown[];
+  // The tickets a pull request only references (Refs, Related to, See), and
+  // the pull requests that do so to an issue.
+  refsIssues?: unknown[];
+  referencedByPullRequests?: unknown[];
 }
 
 // The pull-request-only quick filter pills (#678). Stored as pr.quick.
@@ -163,6 +167,31 @@ export function matchesClosing(
   const linked = ((isPR ? item.closesIssues : item.linkedPullRequests) ?? [])
     .length;
   return value === 'yes' ? linked > 0 : linked === 0;
+}
+
+// The refs choice, shaped like the closing one: 'yes' keeps a pull request
+// that references an issue, or an issue a pull request references; 'no' keeps
+// the rest. A ticket a pull request closes is not a ref, so the two filters
+// combine.
+export function matchesRefs(
+  item: FilterableItem,
+  isPR: boolean,
+  value: string | undefined,
+): boolean {
+  if (value !== 'yes' && value !== 'no') return true;
+  const linked = (
+    (isPR ? item.refsIssues : item.referencedByPullRequests) ?? []
+  ).length;
+  return value === 'yes' ? linked > 0 : linked === 0;
+}
+
+// How each refs choice reads, on its button and in the active-filter chip.
+export function refsChoiceLabel(isPR: boolean, value: 'yes' | 'no'): string {
+  if (isPR)
+    return value === 'yes' ? 'References an issue' : 'References no issue';
+  return value === 'yes'
+    ? 'Has a referencing pull request'
+    : 'No referencing pull request';
 }
 
 // How each closing-link choice reads, on its button and in the active-filter
@@ -480,11 +509,13 @@ function dropUnknownAutoMerge(state: SharedFilterState): void {
     delete state.pr.autoMerge;
 }
 
-// The same for the closing-link choice, which is only 'yes' or 'no'.
+// The same for the closing-link and refs choices, which are only 'yes' or 'no'.
 function dropUnknownClosing(state: SharedFilterState): void {
   for (const [group, key] of [
     [state.pr, 'closes'],
     [state.issue, 'closedBy'],
+    [state.pr, 'refs'],
+    [state.issue, 'refBy'],
   ] as const) {
     const value = group[key];
     if (value !== undefined && value !== 'yes' && value !== 'no')
@@ -1295,6 +1326,8 @@ export function failingFilters(
     failing.push('closes');
   if (!isPR && !matchesClosing(item, false, extra?.closedBy))
     failing.push('closedBy');
+  if (isPR && !matchesRefs(item, true, extra?.refs)) failing.push('refs');
+  if (!isPR && !matchesRefs(item, false, extra?.refBy)) failing.push('refBy');
   // A bot's housekeeping issue (Renovate's Dependency Dashboard): the
   // server says which ones those are (#980), so this only reads the flag.
   if (!isPR && extra?.hideDependencyDashboard && item.housekeeping)
@@ -1509,6 +1542,8 @@ export const FILTER_NAMES: Record<string, string> = {
   autoMerge: 'Auto-merge',
   closes: 'Closing issue',
   closedBy: 'Closing pull request',
+  refs: 'Referencing issue',
+  refBy: 'Referencing pull request',
   hideTitleRegex: 'Hide titles matching',
 };
 
@@ -1656,6 +1691,11 @@ export function closingKey(pullsView: boolean): 'closes' | 'closedBy' {
   return pullsView ? 'closes' : 'closedBy';
 }
 
+// The same for the refs pick: a pull request's `refs` or an issue's `refBy`.
+export function refsKey(pullsView: boolean): 'refs' | 'refBy' {
+  return pullsView ? 'refs' : 'refBy';
+}
+
 export function closingGroup(
   state: SharedFilterState,
   pullsView: boolean,
@@ -1679,6 +1719,7 @@ export function filtersAreDefault(
     !state.pr.quick &&
     !state.pr.autoMerge &&
     !closingGroup(state, page.pullsView)[closingKey(page.pullsView)] &&
+    !closingGroup(state, page.pullsView)[refsKey(page.pullsView)] &&
     // A saved pick this page does not offer is still a filter (#1620).
     heldPicks().length === 0 &&
     // A field the Settings page replaced is not drawn, so what the page saved
@@ -1743,6 +1784,24 @@ export function offerClosing(
     {
       yes: pool.some((i) => matchesClosing(i, isPR, 'yes')),
       no: pool.some((i) => matchesClosing(i, isPR, 'no')),
+    },
+    picked,
+  );
+}
+
+// The refs segment's Yes and No.
+export function offerRefs(
+  groups: Iterable<HTMLElement>,
+  pool: FilterableItem[],
+  isPR: boolean,
+  picked: string,
+): void {
+  offerSegment(
+    groups,
+    'ref',
+    {
+      yes: pool.some((i) => matchesRefs(i, isPR, 'yes')),
+      no: pool.some((i) => matchesRefs(i, isPR, 'no')),
     },
     picked,
   );

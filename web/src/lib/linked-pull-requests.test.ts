@@ -2,6 +2,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type LinkedPullRequest,
+  linkedMoreName,
+  linkedPillClass,
   linkedPillId,
   linkedPillName,
   linkedPillText,
@@ -94,6 +96,12 @@ describe('linkedPillName', () => {
     );
   });
 
+  test('says it references the issue when that is what the pull request does', () => {
+    expect(linkedPillName(pr(), 'alrayyes/app', null, 'refs')).toBe(
+      'Pull request #12, references this issue',
+    );
+  });
+
   test('carries the whole repo when it is another one, and still the visible text', () => {
     const other = pr({ repo: 'alrayyes/other', draft: true });
     const name = linkedPillName(other, 'alrayyes/app');
@@ -174,5 +182,36 @@ describe('linkedPillId', () => {
       linkedPillId('github/alrayyes/app/1', pr({ number: 13 })),
     );
     expect(id).not.toBe(linkedPillId('github/alrayyes/app/2', pr()));
+  });
+});
+
+describe('linkedPillClass', () => {
+  test('a closing pill is plain, a draft one says so', () => {
+    expect(linkedPillClass(pr(), 'closes')).toBe('linked-pr');
+    expect(linkedPillClass(pr({ draft: true }), 'closes')).toBe(
+      'linked-pr draft',
+    );
+  });
+
+  test('a mention and a ref are each drawn apart from a closing pill', () => {
+    expect(linkedPillClass(pr(), 'mentions')).toBe('linked-pr mention-pill');
+    expect(linkedPillClass(pr(), 'refs')).toBe('linked-pr refs-pill');
+    expect(linkedPillClass(pr({ draft: true }), 'refs')).toBe(
+      'linked-pr draft refs-pill',
+    );
+  });
+});
+
+describe('linkedMoreName', () => {
+  test('says which relation the hidden pull requests have', () => {
+    expect(linkedMoreName(3, 'closes')).toBe(
+      '3 more pull requests that will close this issue',
+    );
+    expect(linkedMoreName(3, 'mentions')).toBe(
+      '3 more pull requests that mention this issue',
+    );
+    expect(linkedMoreName(3, 'refs')).toBe(
+      '3 more pull requests that reference this issue',
+    );
   });
 });

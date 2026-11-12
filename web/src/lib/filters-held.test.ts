@@ -136,3 +136,29 @@ describe('applyServerState with a closing-link choice', () => {
     expect(state.issue.closedBy).toBe('no');
   });
 });
+
+describe('applyServerState with a refs choice', () => {
+  const empty = (): SharedFilterState => ({
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+  });
+
+  test('a saved value other than yes or no reads as Any', () => {
+    const state = empty();
+    applyServerState(state, {
+      pr: { refs: 'maybe' },
+      issue: { refBy: 'maybe' },
+    });
+    expect(state.pr.refs).toBeUndefined();
+    expect(state.issue.refBy).toBeUndefined();
+  });
+
+  test('yes and no are kept', () => {
+    const state = empty();
+    applyServerState(state, { pr: { refs: 'yes' }, issue: { refBy: 'no' } });
+    expect(state.pr.refs).toBe('yes');
+    expect(state.issue.refBy).toBe('no');
+  });
+});

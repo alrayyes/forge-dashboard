@@ -24,7 +24,11 @@ const linked = (number: number, overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-const issue = (number: number, linkedPullRequests: unknown[]) => ({
+const issue = (
+  number: number,
+  linkedPullRequests: unknown[],
+  referencedByPullRequests: unknown[] = [],
+) => ({
   forge: 'github',
   repo: REPO,
   number,
@@ -35,6 +39,7 @@ const issue = (number: number, linkedPullRequests: unknown[]) => ({
   createdAt: ago(60),
   updatedAt: ago(5),
   linkedPullRequests,
+  referencedByPullRequests,
 });
 
 const pullRequest = (number: number) => ({
@@ -390,4 +395,31 @@ test(`has no axe violations with a closing pull request in the dialog, light and
       });
     }
   }
+});
+
+test('the dialog lists the referencing pull requests under Referenced in, after the closing one, and follows a poll', async ({
+  page,
+}) => {
+  let list = [issue(1, [linked(12)], [linked(13)])];
+  await mockBoard(page, () => list);
+  await page.goto('/issues.html');
+  await openDialog(page);
+
+  await expect(dialog(page)).toBeVisible();
+  await expect(dialogPills(page)).toHaveCount(2);
+  await expect(dialog(page).locator('.mentioned-by-label')).toHaveText(
+    'Referenced in',
+  );
+  await expect(dialogPills(page).first()).toHaveAccessibleName(
+    /^Pull request #12.*, closes this issue$/,
+  );
+  await expect(dialogPills(page).last()).toHaveAccessibleName(
+    /^Pull request #13.*, references this issue$/,
+  );
+
+  list = [issue(1, [linked(12)], [linked(13), linked(14)])];
+  await page.evaluate(() =>
+    document.querySelector<HTMLElement>('#force-refresh-button')?.click(),
+  );
+  await expect(dialogPills(page)).toHaveCount(3);
 });

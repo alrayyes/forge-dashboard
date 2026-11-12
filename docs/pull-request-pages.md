@@ -267,6 +267,13 @@ pick is shared with the Bots and Releases pages, which filter by it too, so a
 pick made here can leave those lists empty; the control shows it there, and Any
 or **Clear filters** brings the rows back.
 
+A **Refs issue** control beside it has Any, **References an issue**, and
+**References no issue**. It works the same way on the tickets a pull request
+only references (the ones with a "Refs" pill), and a ticket the pull request
+closes is not one of them. It is its own pick, so it combines with the closing
+one: both on finds pull requests that close one ticket and reference another.
+A pick that is not yes or no is dropped on load.
+
 ## Bots
 
 Dependabot and Renovate pull requests have their own page, `/bots.html`,
