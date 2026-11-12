@@ -69,47 +69,57 @@ test.describe('bottom nav labels (#3288)', () => {
           await expect(page.locator('.bottom-nav .nav-pills')).toHaveCount(5);
         }
 
-        const boxes = await page.$$eval('.bottom-nav-link', (links) =>
-          links.map((link) => {
-            const label = link.querySelector('.bottom-nav-label');
-            const l = label?.getBoundingClientRect();
-            const t = link.getBoundingClientRect();
-            return {
-              name: label?.textContent?.trim() ?? '',
-              left: l?.left ?? 0,
-              right: l?.right ?? 0,
-              tabLeft: t.left,
-              tabRight: t.right,
-            };
-          }),
-        );
+        // Retries until the bar has settled; a missing or empty label or tab
+        // is itself a problem, so an unrendered bar never passes.
+        const measure = async () => {
+          const boxes = await page.$$eval('.bottom-nav-link', (links) =>
+            links.map((link) => {
+              const label = link.querySelector('.bottom-nav-label');
+              const l = label?.getBoundingClientRect();
+              const t = link.getBoundingClientRect();
+              return {
+                name: label?.textContent?.trim() ?? '',
+                laidOut: !!l && l.width > 0 && t.width > 0,
+                left: l?.left ?? 0,
+                right: l?.right ?? 0,
+                tabLeft: t.left,
+                tabRight: t.right,
+              };
+            }),
+          );
 
-        const problems: string[] = [];
-        // Tabs are at least 44px wide where eight fit and 32px below that.
-        const minTab = width >= BREAKPOINT ? 44 : 32;
-        for (const b of boxes) {
-          if (b.tabRight - b.tabLeft < minTab - 0.01)
-            problems.push(
-              `${b.name} tab is ${(b.tabRight - b.tabLeft).toFixed(1)}px, under ${minTab}px`,
-            );
-        }
-        for (const [i, b] of boxes.entries()) {
-          if (b.left < 0 || b.right > width)
-            problems.push(
-              `${b.name} leaves the viewport (${b.left}-${b.right})`,
-            );
-          if (b.left < b.tabLeft - 0.01 || b.right > b.tabRight + 0.01)
-            problems.push(
-              `${b.name} ${b.left.toFixed(1)}-${b.right.toFixed(1)} overflows its tab ${b.tabLeft.toFixed(1)}-${b.tabRight.toFixed(1)}`,
-            );
-          const next = boxes[i + 1];
-          if (next && next.left - b.right < 2)
-            problems.push(
-              `${b.name}/${next.name} gap ${(next.left - b.right).toFixed(1)}px`,
-            );
-        }
-        expect
-          .soft(problems, `${width}px\n${problems.join('\n')}\n`)
+          const problems: string[] = [];
+          if (boxes.length !== 8)
+            problems.push(`${boxes.length} tabs, expected 8`);
+          // Tabs are at least 44px wide where eight fit and 32px below that.
+          const minTab = width >= BREAKPOINT ? 44 : 32;
+          for (const b of boxes) {
+            if (!b.laidOut) problems.push(`${b.name} is not laid out`);
+            if (b.tabRight - b.tabLeft < minTab - 0.01)
+              problems.push(
+                `${b.name} tab is ${(b.tabRight - b.tabLeft).toFixed(1)}px, under ${minTab}px`,
+              );
+          }
+          for (const [i, b] of boxes.entries()) {
+            if (b.left < 0 || b.right > width)
+              problems.push(
+                `${b.name} leaves the viewport (${b.left}-${b.right})`,
+              );
+            if (b.left < b.tabLeft - 0.01 || b.right > b.tabRight + 0.01)
+              problems.push(
+                `${b.name} ${b.left.toFixed(1)}-${b.right.toFixed(1)} overflows its tab ${b.tabLeft.toFixed(1)}-${b.tabRight.toFixed(1)}`,
+              );
+            const next = boxes[i + 1];
+            if (next && next.left - b.right < 2)
+              problems.push(
+                `${b.name}/${next.name} gap ${(next.left - b.right).toFixed(1)}px`,
+              );
+          }
+          return problems;
+        };
+        await expect
+          .configure({ soft: true })
+          .poll(measure, { message: `${width}px` })
           .toEqual([]);
       }
     });

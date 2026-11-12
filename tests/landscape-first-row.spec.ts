@@ -123,13 +123,17 @@ for (const size of LANDSCAPE) {
     test.describe(`${path} at ${size.width}x${size.height} (#3406)`, () => {
       test('a list row is on the first screen', async ({ page }) => {
         await open(page, path, size);
-        const b = await rowBottoms(page, rows);
-        if (size.width === 844) {
-          expect(b.row).toBeLessThanOrEqual(size.height);
-        } else {
-          expect(b.title).toBeLessThanOrEqual(size.height);
-          expect(b.status).toBeLessThanOrEqual(size.height);
-        }
+        // Retries until the row is laid out inside the first screen. A row
+        // with no height, or a bottom of zero, never passes.
+        await expect
+          .poll(async () => {
+            const b = await rowBottoms(page, rows);
+            const inside = (v: number) => v > 0 && v <= size.height;
+            return size.width === 844
+              ? inside(b.row)
+              : inside(b.title) && inside(b.status);
+          })
+          .toBe(true);
       });
 
       test('nothing scrolls sideways and every filter control is reachable', async ({
@@ -137,12 +141,17 @@ for (const size of LANDSCAPE) {
       }) => {
         await open(page, path, size);
         await firstRow(page, rows);
-        const overflow = await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth -
-            document.documentElement.clientWidth,
-        );
-        expect(overflow).toBeLessThanOrEqual(0);
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document.documentElement.clientWidth > 0 &&
+                document.documentElement.scrollWidth -
+                  document.documentElement.clientWidth <=
+                  0,
+            ),
+          )
+          .toBe(true);
 
         const search = page.getByRole('combobox', { name: 'Filter by title' });
         await expect(search).toBeVisible();
@@ -165,18 +174,27 @@ for (const size of LANDSCAPE) {
       }) => {
         await open(page, path, size);
         await firstRow(page, rows);
+        const tall = size.width <= 760 ? 44 : 24;
         for (const sel of ['#activity-toggle', '#force-refresh-button']) {
-          const box = await page.locator(sel).boundingBox();
-          expect(box).not.toBeNull();
-          expect(box?.height ?? 0).toBeGreaterThanOrEqual(
-            size.width <= 760 ? 44 : 24,
-          );
+          await expect
+            .poll(
+              async () => {
+                const box = await page.locator(sel).boundingBox();
+                return box !== null && box.height >= tall;
+              },
+              { message: sel },
+            )
+            .toBe(true);
         }
         if (size.width <= 760) {
-          const trigger = await page
-            .getByRole('button', { name: /^Filters/ })
-            .boundingBox();
-          expect(trigger?.height ?? 0).toBeGreaterThanOrEqual(44);
+          await expect
+            .poll(async () => {
+              const trigger = await page
+                .getByRole('button', { name: /^Filters/ })
+                .boundingBox();
+              return trigger !== null && trigger.height >= 44;
+            })
+            .toBe(true);
         }
       });
 

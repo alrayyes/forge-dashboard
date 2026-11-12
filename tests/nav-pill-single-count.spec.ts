@@ -97,14 +97,23 @@ for (const c of cases) {
         c.total ? 1 : 0,
       );
       await expect(tab(page)).toHaveAccessibleName(c.tabName);
-      const box = await tab(page).boundingBox();
-      expect(box?.height).toBeGreaterThanOrEqual(44);
-      const overflow = await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth -
-          document.documentElement.clientWidth,
-      );
-      expect(overflow).toBeLessThanOrEqual(0);
+      await expect
+        .poll(async () => {
+          const box = await tab(page).boundingBox();
+          const overflow = await page.evaluate(() => ({
+            client: document.documentElement.clientWidth,
+            over:
+              document.documentElement.scrollWidth -
+              document.documentElement.clientWidth,
+          }));
+          return (
+            box !== null &&
+            box.height >= 44 &&
+            overflow.client > 0 &&
+            overflow.over <= 0
+          );
+        })
+        .toBe(true);
     });
   });
 }
