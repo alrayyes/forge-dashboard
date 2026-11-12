@@ -103,30 +103,51 @@ async function titleGeometry(page: Page, board: string) {
   });
 }
 
+type Geometry = Awaited<ReturnType<typeof titleGeometry>>;
+
+// Re-measures until every check holds, so a layout still settling on a loaded
+// runner doesn't fail the test. Each check is a [what, passes] pair.
+async function expectGeometry(
+  page: Page,
+  board: string,
+  checks: (g: Geometry) => [string, boolean][],
+) {
+  await expect
+    .poll(async () => {
+      const g = await titleGeometry(page, board);
+      return checks(g)
+        .filter(([, ok]) => !ok)
+        .map(([what]) => `${what} (${JSON.stringify(g)})`);
+    })
+    .toEqual([]);
+}
+
 test.describe('title width (2801)', () => {
   test('an issue title takes the status column the row does not use', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1970, height: 900 });
     await open(page, '/issues.html');
-    const g = await titleGeometry(page, 'issue-rows');
     // 268px before, with a 280px empty track after the Updated column.
-    expect(g.isIssueRow).toBe(true);
-    expect(g.width).toBeGreaterThan(540);
-    expect(g.gapToAuthor).toBeLessThanOrEqual(13);
-    expect(g.scrollsSideways).toBe(false);
+    await expectGeometry(page, 'issue-rows', (g) => [
+      ['issue row', g.isIssueRow],
+      ['title wider than 540', g.width > 540],
+      ['gap to author <= 13', g.gapToAuthor <= 13],
+      ['no sideways scroll', !g.scrollsSideways],
+    ]);
   });
 
   test('a pull request keeps its status column', async ({ page }) => {
     await page.setViewportSize({ width: 1970, height: 900 });
     await open(page, '/pull-requests.html');
-    const g = await titleGeometry(page, 'pr-rows');
-    expect(g.isIssueRow).toBe(false);
     // The status cell fills a real track after the Updated column, so the
     // title shares the row with it instead of taking its width.
-    expect(g.statusTrack).toBeGreaterThan(0);
-    expect(g.statusWidth).toBeCloseTo(g.statusTrack, 0);
-    expect(g.scrollsSideways).toBe(false);
+    await expectGeometry(page, 'pr-rows', (g) => [
+      ['pull request row', !g.isIssueRow],
+      ['status track > 0', g.statusTrack > 0],
+      ['status fills its track', Math.abs(g.statusWidth - g.statusTrack) < 0.5],
+      ['no sideways scroll', !g.scrollsSideways],
+    ]);
   });
 
   for (const [board, path] of [
@@ -138,9 +159,10 @@ test.describe('title width (2801)', () => {
     }) => {
       await page.setViewportSize({ width: 390, height: 800 });
       await open(page, path);
-      const g = await titleGeometry(page, board);
-      expect(g.width).toBeGreaterThan(300);
-      expect(g.scrollsSideways).toBe(false);
+      await expectGeometry(page, board, (g) => [
+        ['title wider than 300', g.width > 300],
+        ['no sideways scroll', !g.scrollsSideways],
+      ]);
     });
   }
 
@@ -149,9 +171,10 @@ test.describe('title width (2801)', () => {
   }) => {
     await page.setViewportSize({ width: 900, height: 800 });
     await open(page, '/issues.html');
-    const g = await titleGeometry(page, 'issue-rows');
-    expect(g.width).toBeGreaterThan(400);
-    expect(g.goRight).toBeLessThanOrEqual(g.viewport);
-    expect(g.scrollsSideways).toBe(false);
+    await expectGeometry(page, 'issue-rows', (g) => [
+      ['title wider than 400', g.width > 400],
+      ['arrow on screen', g.goRight <= g.viewport],
+      ['no sideways scroll', !g.scrollsSideways],
+    ]);
   });
 });

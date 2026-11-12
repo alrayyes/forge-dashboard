@@ -281,35 +281,50 @@ for (const width of [390, 1280]) {
     await open(page, [pr(1), pr(2)]);
     const button = page.locator('#update-all-button');
     await expect(button).toBeVisible();
-    const m = await page.evaluate(() => {
-      const r = (el: Element | null) => el!.getBoundingClientRect();
-      const card = document.querySelector('section.board')!;
-      const chipList = document.querySelector('.update-all-chips')!;
-      const button = document.getElementById('update-all-button')!;
-      // The strip's own box, less its padding: the chips and the stacked
-      // phone layout move the content, but the insets stay 12px and 18px.
-      const block = document.querySelector('.update-all')!;
-      const pad = getComputedStyle(block);
-      return {
-        headingLeft: r(card.querySelector('.board-head h2')).left,
-        headBottom: r(card.querySelector('.board-head')).bottom,
-        cardInnerRight: r(card).right - card.clientLeft,
-        summaryLeft: r(chipList).left,
-        buttonRight: r(button).right,
-        blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
-        blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
-        rowTop: r(document.querySelector('#pr-rows > .row')).top,
-        buttonMinHeight: getComputedStyle(button).minHeight,
-        scrollW: document.documentElement.scrollWidth,
-        innerW: window.innerWidth,
-      };
-    });
-    expect(m.summaryLeft).toBeCloseTo(m.headingLeft, 0);
-    expect(m.cardInnerRight - m.buttonRight).toBeCloseTo(18, 0);
-    expect(m.blockTop - m.headBottom).toBeCloseTo(12, 0);
-    expect(m.rowTop - m.blockBottom).toBeCloseTo(12, 0);
-    expect(m.buttonMinHeight).toBe('44px');
-    expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+    const measure = () =>
+      page.evaluate(() => {
+        const r = (el: Element | null) => el!.getBoundingClientRect();
+        const card = document.querySelector('section.board')!;
+        const chipList = document.querySelector('.update-all-chips')!;
+        const button = document.getElementById('update-all-button')!;
+        // The strip's own box, less its padding: the chips and the stacked
+        // phone layout move the content, but the insets stay 12px and 18px.
+        const block = document.querySelector('.update-all')!;
+        const pad = getComputedStyle(block);
+        return {
+          headingLeft: r(card.querySelector('.board-head h2')).left,
+          headBottom: r(card.querySelector('.board-head')).bottom,
+          cardInnerRight: r(card).right - card.clientLeft,
+          summaryLeft: r(chipList).left,
+          buttonRight: r(button).right,
+          blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
+          blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
+          rowTop: r(document.querySelector('#pr-rows > .row')).top,
+          buttonMinHeight: getComputedStyle(button).minHeight,
+          scrollW: document.documentElement.scrollWidth,
+          innerW: window.innerWidth,
+        };
+      });
+    await expect
+      .poll(async () => {
+        const m = await measure();
+        return {
+          summaryOffset: Math.round(m.summaryLeft - m.headingLeft),
+          buttonInset: Math.round(m.cardInnerRight - m.buttonRight),
+          aboveBlock: Math.round(m.blockTop - m.headBottom),
+          belowBlock: Math.round(m.rowTop - m.blockBottom),
+          buttonMinHeight: m.buttonMinHeight,
+          fits: m.scrollW <= m.innerW,
+        };
+      })
+      .toEqual({
+        summaryOffset: 0,
+        buttonInset: 18,
+        aboveBlock: 12,
+        belowBlock: 12,
+        buttonMinHeight: '44px',
+        fits: true,
+      });
   });
 }
 
@@ -337,34 +352,50 @@ test('on a phone the chips keep their words and the button fills the strip', asy
   await page.setViewportSize({ width: 390, height: 900 });
   await open(page, [pr(1), pr(2), pr(4), pr(5, { allowedActions: [] })]);
   await expect(chips(page)).toHaveText(['3 ready to update']);
-  const m = await page.evaluate(() => {
-    const r = (el: Element) => el.getBoundingClientRect();
-    const block = document.querySelector('.update-all')!;
-    const button = document.getElementById('update-all-button')!;
-    const style = getComputedStyle(block);
-    return {
-      buttonLeft: r(button).left,
-      buttonRight: r(button).right,
-      buttonHeight: r(button).height,
-      left:
-        r(block).left + Number.parseFloat(style.paddingLeft) + block.clientLeft,
-      right:
-        r(block).right -
-        Number.parseFloat(style.paddingRight) -
-        block.clientLeft,
-      chipHeights: [...document.querySelectorAll('.update-all-chips > li')].map(
-        (li) => Math.round(r(li).height),
-      ),
-      scrollW: document.documentElement.scrollWidth,
-      innerW: window.innerWidth,
-    };
-  });
-  expect(m.buttonLeft).toBeCloseTo(m.left, 0);
-  expect(m.buttonRight).toBeCloseTo(m.right, 0);
-  expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
-  // One line tall: a chip's words never break mid-word.
-  expect(Math.max(...m.chipHeights)).toBeLessThan(40);
-  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  const measure = () =>
+    page.evaluate(() => {
+      const r = (el: Element) => el.getBoundingClientRect();
+      const block = document.querySelector('.update-all')!;
+      const button = document.getElementById('update-all-button')!;
+      const style = getComputedStyle(block);
+      return {
+        buttonLeft: r(button).left,
+        buttonRight: r(button).right,
+        buttonHeight: r(button).height,
+        left:
+          r(block).left +
+          Number.parseFloat(style.paddingLeft) +
+          block.clientLeft,
+        right:
+          r(block).right -
+          Number.parseFloat(style.paddingRight) -
+          block.clientLeft,
+        chipHeights: [
+          ...document.querySelectorAll('.update-all-chips > li'),
+        ].map((li) => Math.round(r(li).height)),
+        scrollW: document.documentElement.scrollWidth,
+        innerW: window.innerWidth,
+      };
+    });
+  await expect
+    .poll(async () => {
+      const m = await measure();
+      return {
+        leftOffset: Math.round(m.buttonLeft - m.left),
+        rightOffset: Math.round(m.buttonRight - m.right),
+        tallEnough: m.buttonHeight >= 44,
+        // One line tall: a chip's words never break mid-word.
+        chipsOneLine: Math.max(...m.chipHeights) < 40,
+        fits: m.scrollW <= m.innerW,
+      };
+    })
+    .toEqual({
+      leftOffset: 0,
+      rightOffset: 0,
+      tallEnough: true,
+      chipsOneLine: true,
+      fits: true,
+    });
 });
 
 test('the strip stays through a run and the chips follow it', async ({

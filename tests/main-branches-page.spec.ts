@@ -342,29 +342,40 @@ test.describe('Main branches page (#1224, #1279)', () => {
           await expect(badge).toHaveText(label);
           // Resolve each token through a probe element so the comparison is
           // against what the browser computes, in the theme under test.
-          const got = await badge.evaluate((el, f) => {
-            const probe = (
-              token: string,
-              prop: 'color' | 'backgroundColor',
-            ) => {
-              const d = document.createElement('div');
-              d.style[prop] = `var(${token})`;
-              document.body.appendChild(d);
-              const v = getComputedStyle(d)[prop];
-              d.remove();
-              return v;
-            };
-            const cs = getComputedStyle(el);
-            const dot = getComputedStyle(el.querySelector('.dot') as Element);
-            return {
-              bg: [cs.backgroundColor, probe(`--${f}-bg`, 'backgroundColor')],
-              fg: [cs.color, probe(`--${f}`, 'color')],
-              dot: [dot.backgroundColor, probe(`--${f}`, 'backgroundColor')],
-            };
-          }, forge);
-          expect(got.bg[0], `${theme} ${forge} background`).toBe(got.bg[1]);
-          expect(got.fg[0], `${theme} ${forge} text`).toBe(got.fg[1]);
-          expect(got.dot[0], `${theme} ${forge} dot`).toBe(got.dot[1]);
+          const read = () =>
+            badge.evaluate((el, f) => {
+              const probe = (
+                token: string,
+                prop: 'color' | 'backgroundColor',
+              ) => {
+                const d = document.createElement('div');
+                d.style[prop] = `var(${token})`;
+                document.body.appendChild(d);
+                const v = getComputedStyle(d)[prop];
+                d.remove();
+                return v;
+              };
+              const cs = getComputedStyle(el);
+              const dot = getComputedStyle(el.querySelector('.dot') as Element);
+              return {
+                bg: [cs.backgroundColor, probe(`--${f}-bg`, 'backgroundColor')],
+                fg: [cs.color, probe(`--${f}`, 'color')],
+                dot: [dot.backgroundColor, probe(`--${f}`, 'backgroundColor')],
+              };
+            }, forge);
+          await expect
+            .poll(
+              async () => {
+                const got = await read();
+                return {
+                  background: got.bg[0] === got.bg[1],
+                  text: got.fg[0] === got.fg[1],
+                  dot: got.dot[0] === got.dot[1],
+                };
+              },
+              { message: `${theme} ${forge} badge matches its tokens` },
+            )
+            .toEqual({ background: true, text: true, dot: true });
         }
       }
     } finally {
@@ -1130,25 +1141,26 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const note = slotOf(page, 5).locator('.attr-chip');
     await expect(note).toHaveText('No pipeline');
     await expect(slotOf(page, 5).locator('.ci-pill')).toHaveCount(0);
-    const style = await note.evaluate((el) => {
-      const s = getComputedStyle(el);
-      const probe = document.createElement('span');
-      const states = ['--good', '--warning', '--critical', '--queued'].map(
-        (t) => {
-          probe.style.color = `var(${t})`;
-          document.body.appendChild(probe);
-          const v = getComputedStyle(probe).color;
-          probe.remove();
-          return v;
-        },
-      );
-      return {
-        background: s.backgroundColor,
-        border: s.borderTopWidth,
-        animation: s.animationName,
-        isState: states.includes(s.color),
-      };
-    });
+    const readStyle = () =>
+      note.evaluate((el) => {
+        const s = getComputedStyle(el);
+        const probe = document.createElement('span');
+        const states = ['--good', '--warning', '--critical', '--queued'].map(
+          (t) => {
+            probe.style.color = `var(${t})`;
+            document.body.appendChild(probe);
+            const v = getComputedStyle(probe).color;
+            probe.remove();
+            return v;
+          },
+        );
+        return {
+          background: s.backgroundColor,
+          border: s.borderTopWidth,
+          animation: s.animationName,
+          isState: states.includes(s.color),
+        };
+      });
     // Right edge on the slot's right edge, as tall as the pills.
     const slotBox = await slotOf(page, 5).boundingBox();
     const noteBox = await note.boundingBox();
@@ -1158,7 +1170,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
       0,
     );
     expect(noteBox?.height).toBe(pillBox?.height);
-    expect(style).toEqual({
+    await expect.poll(readStyle).toEqual({
       background: 'rgba(0, 0, 0, 0)',
       border: '1px',
       animation: 'none',
