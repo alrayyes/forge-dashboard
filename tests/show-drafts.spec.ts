@@ -44,10 +44,28 @@ function makePR(number: number, draft: boolean): MockPR {
 const READY = [1, 2, 3, 4, 5].map((n) => makePR(n, false));
 const DRAFTS = [6, 7, 8].map((n) => makePR(n, true));
 
+// Whether the forges hold any draft at all; a test flips it to play a draft
+// closing between two refreshes (#3680).
+let draftsExist = true;
+
 // The API's own rule: drafts are absent and counted unless includeDrafts.
 function answer(route: Route) {
   const include =
     new URL(route.request().url()).searchParams.get('includeDrafts') === 'true';
+  if (!draftsExist) {
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: READY,
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    });
+  }
   return route.fulfill({
     status: 200,
     contentType: 'application/json',
@@ -101,6 +119,10 @@ const toggle = (page: Page) =>
 const rows = (page: Page) => page.locator('#pr-rows .row');
 
 test.describe('show drafts (#791)', () => {
+  test.beforeEach(() => {
+    draftsExist = true;
+  });
+
   test('drafts are left out by default, with a muted hidden count on an off toggle', async ({
     page,
   }) => {
@@ -181,5 +203,45 @@ test.describe('show drafts (#791)', () => {
       expect(results.violations).toEqual([]);
       await toggle(page).click();
     }
+  });
+
+  test.describe('with no draft to show (#3680)', () => {
+    for (const width of [360, 390, 1280]) {
+      test(`no button, no axe violations, at ${width}px`, async ({ page }) => {
+        draftsExist = false;
+        await page.setViewportSize({ width, height: 800 });
+        await setup(page);
+        await expect(rows(page)).toHaveCount(5);
+        await expect(toggle(page)).toHaveCount(0);
+        await expect(page.locator('#show-drafts-toggle')).toBeHidden();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+
+    test('a saved "on" choice with no draft left hides the button and no rows', async ({
+      page,
+    }) => {
+      await setup(page);
+      await toggle(page).click();
+      await expect(rows(page)).toHaveCount(8);
+
+      draftsExist = false;
+      await page.reload();
+      await expect(rows(page)).toHaveCount(5);
+      await expect(toggle(page)).toHaveCount(0);
+    });
+
+    test('the button comes back when a draft appears', async ({ page }) => {
+      draftsExist = false;
+      await setup(page);
+      await expect(toggle(page)).toHaveCount(0);
+
+      draftsExist = true;
+      await page.reload();
+      await expect(toggle(page)).toHaveCount(1);
+    });
   });
 });

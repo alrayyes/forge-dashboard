@@ -9977,6 +9977,7 @@
         startedSeq,
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
+      Filters.offerDrafts(showDraftsButton, prs, hiddenDrafts);
       syncDraftsToggle();
       hiddenPullRequests = data.hiddenPullRequests ?? 0;
       syncHiddenToggle();
@@ -10583,6 +10584,7 @@
           class="drafts-toggle"
           id="show-drafts-toggle"
           aria-pressed="false"
+          hidden
           >Show drafts<span
             class="drafts-hidden"
             id="drafts-hidden-count"
