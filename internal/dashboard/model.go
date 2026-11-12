@@ -108,6 +108,19 @@ const (
 	CheckAwaitingApproval CheckState = "awaiting_approval"
 )
 
+// WaitingFor says why a queued Forgejo job has not started: it waits on
+// earlier jobs it needs, or for a runner to pick it up. A fact for the page
+// to word; empty where the forge doesn't tell the two apart or the job isn't
+// going to start.
+type WaitingFor string
+
+const (
+	// WaitingForJobs is a job held back by the earlier jobs it needs.
+	WaitingForJobs WaitingFor = "jobs"
+	// WaitingForRunner is a job ready to run that no runner has picked up.
+	WaitingForRunner WaitingFor = "runner"
+)
+
 // Check is one job/check run against a pull request's head commit — the
 // per-job list a pipeline detail view shows, fetched on demand rather than
 // eagerly for every PR on every refresh (see dashboard.PullRequestChecker).
@@ -122,6 +135,9 @@ type Check struct {
 	// State is the server's own one-word reading of the job, which decides
 	// rerun, cancel and the main branch counts. It is not on the wire.
 	State CheckState `json:"-"`
+	// WaitingFor is why a queued job has not started, set for Forgejo jobs
+	// only. Matches components.schemas.Check.waitingFor.
+	WaitingFor WaitingFor `json:"waitingFor,omitempty"`
 	// ReportedConclusion is the word the forge itself gave for how a finished
 	// job ended (GitHub's conclusion, Forgejo's terminal status), kept raw
 	// because the page, not the server, decides what it means. Empty while the

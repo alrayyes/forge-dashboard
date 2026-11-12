@@ -1905,6 +1905,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			check := withRun(withJobTimes(dashboard.Check{
 				Name:       j.Name,
 				State:      checkStateFromWorkflowStatus(j.Status),
+				WaitingFor: jobWaiting(j.Status, run.Status),
 				URL:        j.HTMLURL,
 				JobID:      j.ID,
 				RunAttempt: j.RunAttempt,
@@ -2002,6 +2003,25 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 		return dashboard.CheckRunning
 	default: // "waiting", "blocked", "unknown", or anything unrecognized
 		return dashboard.CheckQueued
+	}
+}
+
+// jobWaiting says why a job nothing has started is still queued: blocked waits
+// on the jobs it needs, waiting on a runner. A blocked job in a run that has
+// failed never starts, so it gets no reason and keeps its plain reading
+// (blockedInFailedRuns). Any other status has nothing to wait for.
+func jobWaiting(jobStatus, runStatus string) dashboard.WaitingFor {
+	switch jobStatus {
+	case "waiting":
+		return dashboard.WaitingForRunner
+	case "blocked":
+		if checkStateFromWorkflowStatus(runStatus) == dashboard.CheckFailure {
+			return ""
+		}
+
+		return dashboard.WaitingForJobs
+	default:
+		return ""
 	}
 }
 
