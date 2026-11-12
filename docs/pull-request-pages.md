@@ -263,7 +263,9 @@ carry the row's Out of date badge. An empty pull request is left out. The
 choice is saved like the other pills. Next to them an **Auto-merge** control
 has Any, On, and Off. On shows only pull requests that have auto-merge armed, Off
 only those without. It combines with a pill, so Failing CI with Auto-merge On
-finds armed pull requests whose checks have since failed.
+finds armed pull requests whose checks have since failed. In the phone Filters
+sheet its choices are 44px targets at their own width, and a pressed choice
+keeps its size when high-contrast mode swaps the fill for a border.
 
 A **Refs issue** control beside it has Any, **Has issue**, and **No issue** (the
 full wording, "References an issue" and "References no issue", is each button's
