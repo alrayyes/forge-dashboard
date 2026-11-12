@@ -1075,6 +1075,26 @@ select.col-filter {
        one would clip the text next to it. */
     padding-right: revert;
   }
+
+  /* The pick triggers are buttons, which have no native arrow to hand back
+     (#3442). Draw one from borders instead, which forced colors keeps and
+     maps to system colors. It sits where the drawn chevron does, inside the
+     22px the padding reserves. */
+  .filter-bar .label-filter-button {
+    position: relative;
+  }
+  .filter-bar .label-filter-button::after {
+    content: "";
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    box-sizing: border-box;
+    width: 6px;
+    height: 6px;
+    border-right: 1.5px solid currentColor;
+    border-bottom: 1.5px solid currentColor;
+    transform: translateY(-75%) rotate(45deg);
+  }
 }
 
 /* The Label filter: a button that names the pick, opening a group of
