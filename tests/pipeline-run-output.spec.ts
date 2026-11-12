@@ -275,6 +275,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(link).toHaveAttribute('href', runUrl);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')
@@ -297,6 +298,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(link).toHaveAttribute('href', runUrl);
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('rel', /noopener/);
+    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')
@@ -330,11 +332,11 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(error).toContainText(
       "The saved GitHub token can't read this output.",
     );
-    await expect(
-      error.getByRole('link', {
-        name: checkLinkName('Open job on GitHub', 'build'),
-      }),
-    ).toHaveAttribute('href', runUrl);
+    const link = error.getByRole('link', {
+      name: checkLinkName('Open job on GitHub', 'build'),
+    });
+    await expect(link).toHaveAttribute('href', runUrl);
+    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
     await expect(dialog).not.toContainText('Resource not accessible');
 
     const results = await new AxeBuilder({ page })
