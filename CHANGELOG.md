@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.31.1](https://github.com/alrayyes/forge-dashboard/compare/v9.31.0...v9.31.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** hide HTML comments in rendered descriptions ([#3672](https://github.com/alrayyes/forge-dashboard/issues/3672)) ([1dcc4f9](https://github.com/alrayyes/forge-dashboard/commit/1dcc4f9c4c94f4cc7797ee51d67376554137d740))
+
 ## [9.31.0](https://github.com/alrayyes/forge-dashboard/compare/v9.30.0...v9.31.0) (2026-11-12)
 
 
