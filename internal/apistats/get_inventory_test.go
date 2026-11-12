@@ -256,7 +256,7 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/github/job_log.go:fetchLogBlob:Do":                  true, // job log download, listed as not conditional
 		"internal/github/advisory_list.go:readAlertPage:NewRequest":   true, // alert pages read when the advisories dialog opens: a user-driven live read, never cached
 		"internal/github/advisory_list.go:readAlertPage:Do":           true, // same read
-		"internal/github/image_link.go:SignedImageURL:NewRequest":     true, // one item's rendered body, read when the details dialog loads a private repository's image: user-driven, never cached
+		"internal/github/image_link.go:SignedImageURL:NewRequest":     true, // one item's rendered body, read when the details dialog loads a private repository's image: user-driven, and kept out of the ETag cache because its answer carries a short-lived signature
 		"internal/github/image_link.go:SignedImageURL:Do":             true, // same read
 
 		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing

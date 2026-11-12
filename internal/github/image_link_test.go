@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -67,4 +68,29 @@ func TestSignedImageURL_AnswersEmptyWhenTheItemDoesNotEmbedTheLink(t *testing.T)
 
 	require.NoError(t, err)
 	assert.Empty(t, got)
+}
+
+func TestSignedImageURL_NeverReplaysAnExpiredSignatureFromTheETagCache(t *testing.T) {
+	t.Parallel()
+	var calls int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octo/repo/issues/7", func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		assert.Empty(t, r.Header.Get("If-None-Match"), "a signed address is never revalidated")
+		w.Header().Set("ETag", `"same"`)
+		jwt := fmt.Sprintf("jwt%d", calls)
+		writeJSON(t, w, map[string]any{"body_html": `<a href="` + attachment + `"><img src="https://private-user-images.githubusercontent.com/1/s.png?jwt=` + jwt + `"></a>`})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	first, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+	second, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+
+	assert.Contains(t, first, "jwt1")
+	assert.Contains(t, second, "jwt2")
 }

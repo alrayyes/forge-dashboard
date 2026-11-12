@@ -46,7 +46,7 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	}
 	req.Header.Set("Accept", renderedMediaType)
 	var body renderedBody
-	resp, err := c.restClient.Do(ctx, req, &body)
+	resp, err := c.restClient.Do(withoutETagCache(ctx), req, &body)
 	if err != nil {
 		return "", asClientError(c.restError(ctx, http.MethodGet, "/"+path, err))
 	}
