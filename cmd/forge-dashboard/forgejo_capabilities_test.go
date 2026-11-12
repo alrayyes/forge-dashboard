@@ -69,6 +69,7 @@ var optionalCapabilities = []optionalCapability{
 	// there is this app's own intent rather than a forge call.
 	capabilityNamed[dashboard.PullRequestCommenter](true),
 	capabilityNamed[dashboard.PullRequestAutoMerger](true),
+	capabilityNamed[dashboard.ImageLinkResolver](true),
 	capabilityNamed[dashboard.PullRequestDetailer](false),
 }
 
