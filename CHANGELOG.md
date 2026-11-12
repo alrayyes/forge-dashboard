@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.36.1](https://github.com/alrayyes/forge-dashboard/compare/v9.36.0...v9.36.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** lay out the phone Filters sheet pickers and Refs segment consistently ([#3698](https://github.com/alrayyes/forge-dashboard/issues/3698)) ([74051cc](https://github.com/alrayyes/forge-dashboard/commit/74051cc0711687f898ebf3dc3f95dfc30bf9bf0f)), closes [#3693](https://github.com/alrayyes/forge-dashboard/issues/3693)
+
 ## [9.36.0](https://github.com/alrayyes/forge-dashboard/compare/v9.35.0...v9.36.0) (2026-11-12)
 
 
