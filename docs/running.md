@@ -23,7 +23,7 @@ docker build -t forge-dashboard .
 export ENCRYPTION_KEY="$(openssl rand -base64 32)"   # once; keep it for later runs
 docker run --rm -p 8080:8080 \
   --cap-drop=ALL --security-opt=no-new-privileges --read-only \
-  --memory=64m --cpus=0.5 --pids-limit=64 \
+  --memory=256m --cpus=0.5 --pids-limit=64 \
   -v forge-dashboard-data:/data \
   -e RP_ID=localhost -e RP_ORIGIN=http://localhost:8080 \
   -e ENCRYPTION_KEY \
@@ -69,6 +69,70 @@ Settings page.
 The published image is `ghcr.io/alrayyes/forge-dashboard`, built and
 pushed on every release by `.goreleaser.yml`'s `dockers:` block — tagged
 by version and `:latest`, `linux/amd64` and `linux/arm64`.
+
+## Memory
+
+Give the container **256 MiB** (`--memory=256m`, or `mem_limit: 256m` in
+Compose). That figure is a cautious recommendation, not a measurement: an
+instance tracking many repos on a 64 MiB limit can be OOM-killed during the
+first full refresh after a start. The true peak depends on how many repos you
+track (see [Measuring the peak](#measuring-the-peak)).
+
+The process reads the container's limit at start (cgroup `memory.max`, or the
+v1 equivalent) and, unless you set `GOMEMLIMIT` yourself, tells the Go runtime
+to collect garbage hard once the heap nears 90% of it. That soft limit makes a
+tight container survive a heavy moment by working harder. It does not
+create memory: below what the first refresh really needs the process still
+gets OOM-killed. The first log line says what it found:
+
+```text
+level=INFO msg=memory cgroupMemoryLimit=256MiB goMemoryLimit=230MiB goMemoryLimitSource=cgroup-90pct
+```
+
+`goMemoryLimitSource` is `cgroup-90pct` when the process set the limit,
+`GOMEMLIMIT` when you did, and `default` when nothing limits the heap. A
+container that restarts over and over shows this line again and again in
+`docker logs`. Docker's `State.OOMKilled` can read false when the memory
+controller ended the process, so count the restarts instead, or read the kernel
+log:
+
+```sh
+docker inspect --format '{{.RestartCount}}' <container>
+journalctl -k | grep -i 'oom'
+```
+
+A restart empties the in-memory state, and the first full refresh is the
+heaviest moment. For the first five minutes after a start the page words a
+forge that has not answered as "starting up", not "unreachable". A wrong token
+or instance URL keeps its own wording.
+
+### Measuring the peak
+
+The peak resident set of a fresh start is the high-water mark the memory
+controller keeps after the first refresh finishes. It needs the real account,
+so it is measured on the deployment, not in CI:
+
+1. Start the container with a limit well over what you expect, such as
+   `--memory=512m`, against the real account, and wait for the first refresh
+   (the page stops saying "starting up").
+2. Read the high-water mark from the host (cgroup v2, kernel 5.19 or newer):
+
+   ```sh
+   id=$(docker inspect --format '{{.Id}}' <container>)
+   numfmt --to=iec "$(cat /sys/fs/cgroup/system.slice/docker-$id.scope/memory.peak)"
+   ```
+
+   `docker stats --no-stream --format '{{.MemUsage}}' <container>` shows the
+   current use only, so sample it every second through the refresh and keep the
+   largest value if `memory.peak` is not available.
+
+3. Repeat from a restart (`docker restart`) two or three times and keep the
+   largest value.
+4. Note the number, the repo count, and the date for your own records.
+
+| Date | Tracked repos | Peak after the first refresh | Smallest limit that held |
+| ---- | ------------- | ---------------------------- | ------------------------ |
+| —    | —             | —                            | —                        |
 
 ## Before you upgrade
 
