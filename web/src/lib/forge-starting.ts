@@ -9,6 +9,7 @@ export type StartingHealth = {
   // Set by the server while the rows are the saved ones and no fetch has
   // answered since the app started.
   starting?: boolean;
+  errorKind?: string;
   staleSince?: string;
 };
 
@@ -23,6 +24,22 @@ export function isUnreachable(h: { reachable?: boolean }): boolean {
 // True only for a forge that was asked and did not answer.
 export function isOutage(h: StartingHealth): boolean {
   return isUnreachable(h) && !h.starting;
+}
+
+// An outage the server says is probably the first refresh still running: it
+// restarted in the last few minutes (`recentlyStarted`) and the forge has not
+// answered yet. A wrong token or instance URL is never that, so it keeps the
+// outage wording.
+export function isStartupGap(
+  h: StartingHealth,
+  recentlyStarted: boolean | undefined,
+): boolean {
+  if (!recentlyStarted || !isOutage(h)) return false;
+  return (
+    h.errorKind === undefined ||
+    h.errorKind === 'unreachable' ||
+    h.errorKind === 'upstream_error'
+  );
 }
 
 export function chipLabel(name: string, h: StartingHealth): string {
