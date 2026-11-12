@@ -276,6 +276,63 @@ describe('HTML comments', () => {
     expect(html).not.toContain('rebase-check');
   });
 
+  test('comments on consecutive lines draw no empty paragraph', async () => {
+    expect(await renderMarkdown('<!-- a -->\n<!-- b -->\n')).toBe('');
+    expect(await renderMarkdown('<!-- a -->  \n<!-- b -->\n')).toBe('');
+  });
+
+  test('a heading that held only a comment is dropped, other headings stay', async () => {
+    expect(await renderMarkdown('# <!-- x -->\n')).toBe('');
+    expect(await renderMarkdown('# Title <!-- x -->\n')).toContain('Title');
+  });
+
+  test('<!--> and <!---> are empty comments, and what follows is text', async () => {
+    const html = await renderMarkdown('<!-->\nfoo\n-->x\n');
+    expect(html).toContain('foo');
+    expect(html).not.toContain('&lt;!--');
+    const dash = await renderMarkdown('a <!---> b\n');
+    expect(dash).toBe('<p>a  b</p>\n');
+  });
+
+  test('text after --> on the closing line of a multi-line comment stays', async () => {
+    const html = await renderMarkdown('<!--\nhidden\n-->tail\n');
+    expect(html).toContain('tail');
+    expect(html).not.toContain('hidden');
+  });
+
+  test('a block comment never swallows the lines of the next list item', async () => {
+    const html = await renderMarkdown('- <!--\n  x\n- y\n-->\n');
+    expect(html.match(/<li>/g)).toHaveLength(2);
+    expect(html).toContain('y');
+  });
+
+  test('a multi-line comment inside a list item or a blockquote is hidden', async () => {
+    const item = await renderMarkdown(
+      '- one\n\n  <!--\n  hidden\n  -->\n\n  two\n',
+    );
+    expect(item).toContain('one');
+    expect(item).toContain('two');
+    expect(item).not.toContain('hidden');
+    const quote = await renderMarkdown('> <!--\n> hidden\n> -->\n\nafter\n');
+    expect(quote).not.toContain('hidden');
+    expect(quote).toContain('after');
+    const open = await renderMarkdown('> <!--\n> a\n\nafter -->\n');
+    expect(open).toContain('after');
+  });
+
+  test('many comment openers that never close stay fast', async () => {
+    for (const src of [
+      '<!--\n\n'.repeat(100_000),
+      '<!-- x\n'.repeat(40_000),
+      'a <!-- b '.repeat(40_000),
+    ]) {
+      const start = performance.now();
+      const html = await renderMarkdown(src);
+      expect(performance.now() - start).toBeLessThan(2000);
+      expect(html).toContain('&lt;!--');
+    }
+  });
+
   test('an unclosed comment and raw HTML stay escaped text', async () => {
     const open = await renderMarkdown('a <!-- never closed\n');
     expect(open).toContain('&lt;!-- never closed');
