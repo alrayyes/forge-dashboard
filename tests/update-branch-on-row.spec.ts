@@ -113,3 +113,33 @@ test('a pull request that is not behind has no Update branch on the row', async 
     0,
   );
 });
+
+for (const width of [360, 390]) {
+  test(`on a phone at ${width}px Update branch and Merge are compact, side by side, 44px tall (#3691)`, async ({
+    page,
+  }) => {
+    const row = await open(page, width, pr());
+    const update = row.getByRole('button', { name: 'Update branch' });
+    const merge = row.getByRole('button', { name: 'Merge', exact: true });
+    await update.scrollIntoViewIfNeeded();
+    const u = (await update.boundingBox())!;
+    const m = (await merge.boundingBox())!;
+    const card = (await row.boundingBox())!;
+    for (const b of [u, m]) {
+      expect(b.height).toBeGreaterThanOrEqual(44);
+      expect(b.height).toBeLessThan(56);
+      expect(b.width).toBeLessThan(card.width * 0.6);
+    }
+    expect(Math.abs(u.y - m.y)).toBeLessThan(2);
+  });
+}
+
+test('a lone Merge on a phone is compact too (#3691)', async ({ page }) => {
+  const row = await open(page, 390, pr({ behind: false }));
+  const merge = (await row
+    .getByRole('button', { name: 'Merge', exact: true })
+    .boundingBox())!;
+  const card = (await row.boundingBox())!;
+  expect(merge.height).toBeGreaterThanOrEqual(44);
+  expect(merge.width).toBeLessThan(card.width * 0.6);
+});

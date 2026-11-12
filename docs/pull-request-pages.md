@@ -5,7 +5,8 @@
 Clicking a pull request row, anywhere on it, opens a pop-up. The row's title is
 the button that does it, stretched over the row; the CI pill, the labels, and the
 row's own buttons stay clickable on top of it. On a phone the row's one button
-is the last tier of the card: after a divider (the full width and 44 pixels
+is the last tier of the card: after a divider (as wide as its label, not the
+full card, and 44 pixels
 tall). A locked Merge stays there greyed; the status block directly on top of it
 says
 why, and the button is described by it. The pop-up has the pull request's

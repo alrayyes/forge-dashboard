@@ -3,7 +3,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // On a phone the one control a row draws sits in its own action row: after a
-// hairline divider, full width and 44px tall, so the thumb finds it. The
+// hairline divider, content-width and 44px tall (not a full-width slab, #3691),
+// so the thumb finds it. The
 // 44px is WCAG 2.5.5 (AAA); 2.5.8 (AA) asks 24px.
 // https://github.com/alrayyes/forge-dashboard/issues/898
 
@@ -59,7 +60,7 @@ const cases = [
 
 for (const width of [360, 390]) {
   for (const { name, overrides } of cases) {
-    test(`${width}px: ${name} is one full-width 44px button after a divider`, async ({
+    test(`${width}px: ${name} is one compact 44px button after a divider`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -72,7 +73,7 @@ for (const width of [360, 390]) {
       const box = await btn.boundingBox();
       const barBox = await bar.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
-      expect(box?.width).toBeGreaterThanOrEqual((barBox?.width ?? 0) - 1);
+      expect(box?.width).toBeLessThan((barBox?.width ?? 0) * 0.6);
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
@@ -104,7 +105,7 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   );
 });
 
-test('a plain Merge is centred by the phone bar rule, full width', async ({
+test('a plain Merge is centred by the phone bar rule, content width', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
@@ -117,7 +118,7 @@ test('a plain Merge is centred by the phone bar rule, full width', async ({
   expect(style.justify).toBe('center');
   expect(style.min).toBe('44px');
   const barWidth = (await row.locator('.row-action-bar').boundingBox())?.width;
-  expect(Number.parseFloat(style.width)).toBeCloseTo(barWidth ?? 0, 0);
+  expect(Number.parseFloat(style.width)).toBeLessThan((barWidth ?? 0) * 0.6);
 });
 
 test(`axe finds nothing on the phone card in light and dark`, async ({
