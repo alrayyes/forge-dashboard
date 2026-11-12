@@ -85,11 +85,13 @@ for (const [name, path] of [
       page,
     }) => {
       await open(page, path, width);
-      const reference = await look(page, TRIGGERS[0]);
-      expect(reference.chevron).not.toBe('none');
-      for (const selector of [...TRIGGERS.slice(1), ...SELECTS]) {
-        expect(await look(page, selector), selector).toEqual(reference);
-      }
+      await expect(async () => {
+        const reference = await look(page, TRIGGERS[0]);
+        expect(reference.chevron).not.toBe('none');
+        for (const selector of [...TRIGGERS.slice(1), ...SELECTS]) {
+          expect(await look(page, selector), selector).toEqual(reference);
+        }
+      }).toPass();
     });
   }
 }
@@ -103,15 +105,17 @@ for (const scheme of ['light', 'dark'] as const) {
   }) => {
     await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
     await open(page, '/pull-requests.html', 1280);
-    for (const selector of SELECTS) {
-      const shown = await page.locator(selector).evaluate((el) => ({
-        appearance: getComputedStyle(el).appearance,
-        chevron: getComputedStyle(el).backgroundImage,
-      }));
-      const hasArrow =
-        shown.appearance !== 'none' || !/^none(, none)*$/.test(shown.chevron);
-      expect(hasArrow, `${selector} ${JSON.stringify(shown)}`).toBe(true);
-    }
+    await expect(async () => {
+      for (const selector of SELECTS) {
+        const shown = await page.locator(selector).evaluate((el) => ({
+          appearance: getComputedStyle(el).appearance,
+          chevron: getComputedStyle(el).backgroundImage,
+        }));
+        const hasArrow =
+          shown.appearance !== 'none' || !/^none(, none)*$/.test(shown.chevron);
+        expect(hasArrow, `${selector} ${JSON.stringify(shown)}`).toBe(true);
+      }
+    }).toPass();
   });
 
   test(`pull requests: no select clips its text in forced colors, ${scheme} (3374)`, async ({
@@ -119,29 +123,31 @@ for (const scheme of ['light', 'dark'] as const) {
   }) => {
     await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
     await open(page, '/pull-requests.html', 1280);
-    for (const selector of SELECTS) {
-      const fit = await page.locator(selector).evaluate((el) => {
-        const select = el as HTMLSelectElement;
-        const cs = getComputedStyle(select);
-        const ctx = document.createElement('canvas').getContext('2d');
-        if (!ctx) throw new Error('no canvas');
-        ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
-        const text = select.selectedOptions[0]?.text ?? '';
-        // The native arrow takes its own room inside the box, on top of the
-        // padding, about 20px in Chromium.
-        const arrow = 20;
-        const needed =
-          ctx.measureText(text).width +
-          Number.parseFloat(cs.paddingLeft) +
-          Number.parseFloat(cs.paddingRight) +
-          arrow;
-        return { text, needed, width: select.clientWidth };
-      });
-      expect(
-        fit.needed,
-        `${selector} ${JSON.stringify(fit)}`,
-      ).toBeLessThanOrEqual(fit.width);
-    }
+    await expect(async () => {
+      for (const selector of SELECTS) {
+        const fit = await page.locator(selector).evaluate((el) => {
+          const select = el as HTMLSelectElement;
+          const cs = getComputedStyle(select);
+          const ctx = document.createElement('canvas').getContext('2d');
+          if (!ctx) throw new Error('no canvas');
+          ctx.font = `${cs.fontStyle} ${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+          const text = select.selectedOptions[0]?.text ?? '';
+          // The native arrow takes its own room inside the box, on top of the
+          // padding, about 20px in Chromium.
+          const arrow = 20;
+          const needed =
+            ctx.measureText(text).width +
+            Number.parseFloat(cs.paddingLeft) +
+            Number.parseFloat(cs.paddingRight) +
+            arrow;
+          return { text, needed, width: select.clientWidth };
+        });
+        expect(
+          fit.needed,
+          `${selector} ${JSON.stringify(fit)}`,
+        ).toBeLessThanOrEqual(fit.width);
+      }
+    }).toPass();
   });
 }
 
@@ -158,27 +164,31 @@ for (const scheme of ['light', 'dark'] as const) {
     }) => {
       await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
       await open(page, path, 1280);
-      for (const selector of TRIGGERS) {
-        const arrow = await page.locator(selector).evaluate((el) => {
-          const cs = getComputedStyle(el, '::after');
-          return {
-            content: cs.content,
-            borderBottom: cs.borderBottomWidth,
-            borderRight: cs.borderRightWidth,
-            borderColor: cs.borderBottomColor,
-            text: getComputedStyle(el).color,
-          };
-        });
-        expect(arrow.content, selector).not.toMatch(/^(none|normal)$/);
-        expect(Number.parseFloat(arrow.borderBottom), selector).toBeGreaterThan(
-          0,
-        );
-        expect(Number.parseFloat(arrow.borderRight), selector).toBeGreaterThan(
-          0,
-        );
-        // System colors: the arrow takes the trigger's own forced text color.
-        expect(arrow.borderColor, selector).toBe(arrow.text);
-      }
+      await expect(async () => {
+        for (const selector of TRIGGERS) {
+          const arrow = await page.locator(selector).evaluate((el) => {
+            const cs = getComputedStyle(el, '::after');
+            return {
+              content: cs.content,
+              borderBottom: cs.borderBottomWidth,
+              borderRight: cs.borderRightWidth,
+              borderColor: cs.borderBottomColor,
+              text: getComputedStyle(el).color,
+            };
+          });
+          expect(arrow.content, selector).not.toMatch(/^(none|normal)$/);
+          expect(
+            Number.parseFloat(arrow.borderBottom),
+            selector,
+          ).toBeGreaterThan(0);
+          expect(
+            Number.parseFloat(arrow.borderRight),
+            selector,
+          ).toBeGreaterThan(0);
+          // System colors: the arrow takes the trigger's own forced text color.
+          expect(arrow.borderColor, selector).toBe(arrow.text);
+        }
+      }).toPass();
     });
 
     test(`${name}: no pick trigger clips its label in forced colors, ${scheme} (3442)`, async ({
@@ -186,25 +196,27 @@ for (const scheme of ['light', 'dark'] as const) {
     }) => {
       await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
       await open(page, path, 1280);
-      for (const selector of TRIGGERS) {
-        const fit = await page.locator(selector).evaluate((el) => {
-          const arrow = getComputedStyle(el, '::after');
-          const box = el.getBoundingClientRect();
-          return {
-            textEnd:
-              el.clientWidth -
-              Number.parseFloat(getComputedStyle(el).paddingRight),
-            arrowLeft:
-              box.width -
-              Number.parseFloat(arrow.right) -
-              Number.parseFloat(arrow.width),
-          };
-        });
-        expect(
-          fit.textEnd,
-          `${selector} ${JSON.stringify(fit)}`,
-        ).toBeLessThanOrEqual(fit.arrowLeft);
-      }
+      await expect(async () => {
+        for (const selector of TRIGGERS) {
+          const fit = await page.locator(selector).evaluate((el) => {
+            const arrow = getComputedStyle(el, '::after');
+            const box = el.getBoundingClientRect();
+            return {
+              textEnd:
+                el.clientWidth -
+                Number.parseFloat(getComputedStyle(el).paddingRight),
+              arrowLeft:
+                box.width -
+                Number.parseFloat(arrow.right) -
+                Number.parseFloat(arrow.width),
+            };
+          });
+          expect(
+            fit.textEnd,
+            `${selector} ${JSON.stringify(fit)}`,
+          ).toBeLessThanOrEqual(fit.arrowLeft);
+        }
+      }).toPass();
     });
   }
 }
@@ -213,10 +225,12 @@ test('pull requests: triggers draw no ::after arrow with forced colors off (3442
   page,
 }) => {
   await open(page, '/pull-requests.html', 1280);
-  for (const selector of TRIGGERS) {
-    const content = await page
-      .locator(selector)
-      .evaluate((el) => getComputedStyle(el, '::after').content);
-    expect(content, selector).toMatch(/^(none|normal)$/);
-  }
+  await expect(async () => {
+    for (const selector of TRIGGERS) {
+      const content = await page
+        .locator(selector)
+        .evaluate((el) => getComputedStyle(el, '::after').content);
+      expect(content, selector).toMatch(/^(none|normal)$/);
+    }
+  }).toPass();
 });

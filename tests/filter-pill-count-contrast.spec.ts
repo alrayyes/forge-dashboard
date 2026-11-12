@@ -110,15 +110,21 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto('/');
       await expect(page.locator('.mb-bar .mb-pill').first()).toBeVisible();
 
-      const ratios = await countContrasts(page);
-      expect(ratios.some((r) => r.pressed)).toBe(true);
-      expect(ratios.some((r) => !r.pressed)).toBe(true);
-      for (const { pressed, ratio } of ratios) {
-        expect(
-          ratio,
-          `${pressed ? 'active' : 'inactive'} pill count`,
-        ).toBeGreaterThanOrEqual(4.5);
-      }
+      await expect
+        .poll(async () => {
+          const ratios = await countContrasts(page);
+          return {
+            hasPressed: ratios.some((r) => r.pressed),
+            hasUnpressed: ratios.some((r) => !r.pressed),
+            low: ratios
+              .filter(({ ratio }) => ratio < 4.5)
+              .map(
+                ({ pressed, ratio }) =>
+                  `${pressed ? 'active' : 'inactive'} pill count ${ratio}`,
+              ),
+          };
+        })
+        .toEqual({ hasPressed: true, hasUnpressed: true, low: [] });
 
       if (width === 390) {
         const results = await new AxeBuilder({ page })

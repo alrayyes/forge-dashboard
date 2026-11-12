@@ -92,13 +92,10 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
     await page.goto('/pull-requests.html');
     const close = await closeButton(page);
     await expect(close).not.toHaveClass(/suggested/);
-    const style = await close.evaluate((node) => {
-      const s = getComputedStyle(node);
-      return { bg: s.backgroundColor, fg: s.color, border: s.borderTopColor };
-    });
-    expect(style.bg).toBe('rgba(0, 0, 0, 0)');
-    expect(style.fg).toBe(await token(page, '--critical'));
-    expect(style.border).toBe(await token(page, '--critical'));
+    const critical = await token(page, '--critical');
+    await expect(close).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(close).toHaveCSS('color', critical);
+    await expect(close).toHaveCSS('border-top-color', critical);
   });
 
   test('it carries the pull-request-closed glyph, hidden from assistive tech, and the header X stays the only plain Close', async ({
@@ -147,35 +144,40 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
       );
       await page.goto('/pull-requests.html');
       const close = await closeButton(page);
-      const { ratio, height } = await close.evaluate((node) => {
-        const parse = (s: string) =>
-          (s.match(/[\d.]+/g) ?? []).map(Number) as number[];
-        const lum = ([r, g, b]: number[]) => {
-          const f = (v: number) => {
-            const c = v / 255;
-            return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      const measure = () =>
+        close.evaluate((node) => {
+          const parse = (s: string) =>
+            (s.match(/[\d.]+/g) ?? []).map(Number) as number[];
+          const lum = ([r, g, b]: number[]) => {
+            const f = (v: number) => {
+              const c = v / 255;
+              return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
           };
-          return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-        };
-        let backdrop = [255, 255, 255];
-        for (let el = node.parentElement; el; el = el.parentElement) {
-          const c = parse(getComputedStyle(el).backgroundColor);
-          if (c.length >= 3 && (c[3] ?? 1) === 1) {
-            backdrop = c;
-            break;
+          let backdrop = [255, 255, 255];
+          for (let el = node.parentElement; el; el = el.parentElement) {
+            const c = parse(getComputedStyle(el).backgroundColor);
+            if (c.length >= 3 && (c[3] ?? 1) === 1) {
+              backdrop = c;
+              break;
+            }
           }
-        }
-        const [hi, lo] = [
-          lum(parse(getComputedStyle(node).color)),
-          lum(backdrop),
-        ].sort((x, y) => y - x);
-        return {
-          ratio: (hi + 0.05) / (lo + 0.05),
-          height: node.getBoundingClientRect().height,
-        };
-      });
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
-      expect(height).toBeGreaterThanOrEqual(44);
+          const [hi, lo] = [
+            lum(parse(getComputedStyle(node).color)),
+            lum(backdrop),
+          ].sort((x, y) => y - x);
+          return {
+            ratio: (hi + 0.05) / (lo + 0.05),
+            height: node.getBoundingClientRect().height,
+          };
+        });
+      await expect
+        .poll(async () => {
+          const { ratio, height } = await measure();
+          return { readable: ratio >= 4.5, tallEnough: height >= 44 };
+        })
+        .toEqual({ readable: true, tallEnough: true });
     });
   }
 
@@ -196,7 +198,10 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
       name: 'Confirm close pull request?',
     });
     await expect(confirm).toBeVisible();
-    expect(await background(confirm)).toBe(await token(page, '--warning-bg'));
+    await expect(confirm).toHaveCSS(
+      'background-color',
+      await token(page, '--warning-bg'),
+    );
     await expect(
       details(page).getByRole('button', { name: 'Cancel' }),
     ).toBeVisible();

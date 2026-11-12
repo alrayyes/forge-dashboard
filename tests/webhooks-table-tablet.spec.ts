@@ -48,9 +48,14 @@ async function open(page: Page, width: number) {
 test.describe('webhooks table at tablet width', () => {
   test('actions sit on one line, unhyphenated, at 820px', async ({ page }) => {
     await open(page, 820);
-    const bad = await page.evaluate(() =>
-      [...document.querySelectorAll('#webhooks-rows td.action button')].flatMap(
-        (b) => {
+    await expect(
+      page.locator('#webhooks-rows td.action button').first(),
+    ).toBeVisible();
+    const measure = () =>
+      page.evaluate(() =>
+        [
+          ...document.querySelectorAll('#webhooks-rows td.action button'),
+        ].flatMap((b) => {
           const el = b as HTMLElement;
           const cs = getComputedStyle(el);
           const oneLine =
@@ -60,10 +65,9 @@ test.describe('webhooks table at tablet width', () => {
           return ok && oneLine
             ? []
             : [`${el.textContent?.trim()} ws=${cs.whiteSpace}`];
-        },
-      ),
-    );
-    expect(bad).toEqual([]);
+        }),
+      );
+    await expect.poll(measure).toEqual([]);
   });
 
   test('a repo without a webhook keeps its manual link in the Webhook cell, and there is no Set up column', async ({
@@ -101,16 +105,22 @@ test.describe('webhooks table at tablet width', () => {
       page,
     }) => {
       await open(page, width);
-      const m = await page.evaluate(() => ({
-        sw: document.documentElement.scrollWidth,
-        cw: document.documentElement.clientWidth,
-        help: [...document.querySelectorAll('.webhook-locked-reason')].map(
-          (e) => Number.parseFloat(getComputedStyle(e).fontSize),
-        ),
-      }));
-      expect(m.sw).toBeLessThanOrEqual(m.cw);
-      expect(m.help.length).toBeGreaterThan(0);
-      for (const px of m.help) expect(px).toBeGreaterThanOrEqual(12);
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const help = [
+              ...document.querySelectorAll('.webhook-locked-reason'),
+            ].map((e) => Number.parseFloat(getComputedStyle(e).fontSize));
+            return {
+              fits:
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+              hasHelp: help.length > 0,
+              smallest: help.length ? Math.min(...help) >= 12 : false,
+            };
+          }),
+        )
+        .toEqual({ fits: true, hasHelp: true, smallest: true });
     });
   }
 
