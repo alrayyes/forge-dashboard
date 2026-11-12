@@ -136,7 +136,7 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
   test('recovery removes the pill and still announces once (#3681)', async ({
     page,
   }) => {
-    const state = { forge: down(), requests: 0 };
+    const state: State = { forge: down(), requests: 0 };
     await open(page, state);
     await expect(page.locator('#forge-health .forge-health')).toHaveCount(1);
     state.forge = up();
