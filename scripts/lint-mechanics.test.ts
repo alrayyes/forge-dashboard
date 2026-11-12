@@ -78,10 +78,16 @@ test('a push of Markdown checks only the pushed files', () => {
 });
 
 test('pushed files still go through the usual exclusions', () => {
-  const r = repo([...tree, 'openspec/changes/x/p.md', '.claude/n.md']).run([
+  const r = repo([
+    ...tree,
+    'openspec/changes/x/p.md',
+    'openspec/specs/s/spec.md',
+    '.claude/n.md',
+  ]).run([
     'docs/a.md',
     'CHANGELOG.md',
     'openspec/changes/x/p.md',
+    'openspec/specs/s/spec.md',
     '.claude/n.md',
   ]);
   expect(r.received).toEqual(['docs/a.md']);
