@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.29.0](https://github.com/alrayyes/forge-dashboard/compare/v9.28.0...v9.29.0) (2026-11-12)
+
+
+### Features
+
+* **web:** hide Rerun failed checks when none can be rerun ([#3640](https://github.com/alrayyes/forge-dashboard/issues/3640)) ([0e13003](https://github.com/alrayyes/forge-dashboard/commit/0e13003eb5f707e3532f1486bca0ef3ffe0adf5f))
+
 ## [9.28.0](https://github.com/alrayyes/forge-dashboard/compare/v9.27.0...v9.28.0) (2026-11-12)
 
 
