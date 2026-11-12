@@ -130,6 +130,7 @@ const singleUserSpecs = [
   '**/stable-rows.spec.ts',
   '**/stale-dashboard-instance.spec.ts',
   '**/stale-data-notice.spec.ts',
+  '**/startup-banner.spec.ts',
   '**/stream-after-first-poll.spec.ts',
   '**/title-hover-text.spec.ts',
   '**/unreachable-forge.spec.ts',

@@ -174,6 +174,7 @@
     chipLabel,
     healthSentence,
     isOutage,
+    isStartupGap,
     isUnreachable,
     staleNote,
   } from "#lib/forge-starting.js";
@@ -380,6 +381,8 @@
     generatedAt: string;
     // How often, in seconds, to re-read the snapshot (the server's advice).
     readIntervalSeconds?: number;
+    // True for the first minutes after the server started (#3554).
+    recentlyStarted?: boolean;
     forges: Forge[];
     pullRequests: PullRequestItem[];
     issues: IssueItem[];
@@ -7258,6 +7261,8 @@
     // action button when its forge is unreachable or its rate-limit
     // budget is already exhausted.
     let lastForges: Forge[] = [];
+    // The server's word that it restarted in the last few minutes (#3554).
+    let recentlyStarted = false;
     let sharedControlsRestored = false;
     // The server's copy has been asked for and answered (or failed). A pick
     // rewritten before that is saved after, so the cookie's version doesn't
@@ -8942,6 +8947,8 @@
     // a single Retry that forces a refresh. A forge held back by its rate
     // limit has that banner instead.
     function unreachableCause(f: Forge): string {
+      if (isStartupGap(f, recentlyStarted))
+        return "It hasn’t answered since the server restarted. This page tries again on its own.";
       switch (f.errorKind) {
         case "unreachable":
           return "It isn’t answering. This page tries again on its own.";
@@ -8963,7 +8970,13 @@
     function outageHeadline(f: Forge, label: string): string {
       const upstream =
         f.errorKind === "upstream_error" && f.upstreamStatus && f.error;
-      const what = upstream ? `${f.error}.` : `${label} is unreachable.`;
+      // Right after a restart the first refresh is still running, so a forge
+      // that has not answered is starting up, not down (#3554).
+      const what = isStartupGap(f, recentlyStarted)
+        ? `${label} is starting up.`
+        : upstream
+          ? `${f.error}.`
+          : `${label} is unreachable.`;
       return f.staleSince
         ? `${what} Showing the last data from ${formatTime(f.staleSince)}.`
         : what;
@@ -8987,7 +9000,10 @@
       // The zone is part of it: a changed zone redraws the times.
       const signature = [
         effectiveZone(),
-        ...down.map((f) => `${f.forge}|${f.errorKind}|${f.staleSince}`),
+        ...down.map(
+          (f) =>
+            `${f.forge}|${f.errorKind}|${f.staleSince}|${isStartupGap(f, recentlyStarted)}`,
+        ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) return;
       existing?.remove();
@@ -9733,6 +9749,7 @@
         lastForges.filter((f) => f.starting).map((f) => f.forge),
       );
       lastForges = data.forges || [];
+      recentlyStarted = data.recentlyStarted === true;
       // Rows that didn't change aren't redrawn, but their controls follow
       // whether the forge can be reached: a forge going down or coming back
       // has to redraw them (#1199).

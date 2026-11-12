@@ -5,6 +5,7 @@ import {
   chipLabel,
   healthSentence,
   isOutage,
+  isStartupGap,
   isUnreachable,
   splitStaleRows,
   staleNote,
@@ -40,6 +41,37 @@ describe('forge-starting', () => {
     expect(staleNote({ ...base, staleSince: 'x' }, 'a minute ago')).toBe(
       'Showing data from a minute ago',
     );
+  });
+});
+
+describe('isStartupGap', () => {
+  const failed = { ...base, errorKind: 'unreachable' };
+
+  test('a forge that has not answered right after a restart is starting up, not down', () => {
+    expect(isStartupGap(failed, true)).toBe(true);
+    expect(isStartupGap(base, true)).toBe(true);
+    expect(isStartupGap({ ...base, errorKind: 'upstream_error' }, true)).toBe(
+      true,
+    );
+  });
+
+  test('the same failure once the server has been up a while is an outage', () => {
+    expect(isStartupGap(failed, false)).toBe(false);
+    expect(isStartupGap(failed, undefined)).toBe(false);
+  });
+
+  test('a bad token or instance URL is never a start-up gap', () => {
+    expect(isStartupGap({ ...base, errorKind: 'unauthorized' }, true)).toBe(
+      false,
+    );
+    expect(isStartupGap({ ...base, errorKind: 'not_found' }, true)).toBe(false);
+  });
+
+  test('a reachable forge and one already marked starting are not outages to reword', () => {
+    expect(isStartupGap({ forge: 'github', reachable: true }, true)).toBe(
+      false,
+    );
+    expect(isStartupGap(starting, true)).toBe(false);
   });
 });
 
