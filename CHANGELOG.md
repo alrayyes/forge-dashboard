@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.34.0](https://github.com/alrayyes/forge-dashboard/compare/v9.33.1...v9.34.0) (2026-11-12)
+
+
+### Features
+
+* **api:** send a Content-Security-Policy with an img-src matching the image proxy ([#3678](https://github.com/alrayyes/forge-dashboard/issues/3678)) ([843f8dd](https://github.com/alrayyes/forge-dashboard/commit/843f8ddba458a2265ab70531d58d028c109bd283))
+
 ## [9.33.1](https://github.com/alrayyes/forge-dashboard/compare/v9.33.0...v9.33.1) (2026-11-12)
 
 
