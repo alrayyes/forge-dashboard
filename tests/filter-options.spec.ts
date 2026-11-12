@@ -141,7 +141,7 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
     await open(page, '/issues.html', NARROWING);
   });
 
-  test('picking an author narrows the repo choices to that author, and the author keeps its siblings', async ({
+  test('picking an author narrows the repo choices to that author, and the author keeps its siblings, with no axe-core violations', async ({
     page,
   }) => {
     await expect(
@@ -153,6 +153,12 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
     await expect(
       page.locator('#shared-repo-filter-panel .label-filter-option'),
     ).toHaveCount(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
     expect(await choices(page, 'shared-repo-filter')).toEqual([
       'All repos',
       'alrayyes/other',
@@ -182,19 +188,5 @@ test.describe('filter choices follow the other filters on the Issues page (#1427
       'alrayyes/dash-only',
     );
     await expect(page.locator('#issue-rows > .row')).toHaveCount(3);
-  });
-
-  test('has no axe-core violations with the narrowed choices', async ({
-    page,
-  }) => {
-    await pickOnly(page, 'author', 'github:claude');
-    await expect(
-      page.locator('#shared-repo-filter-panel .label-filter-option'),
-    ).toHaveCount(1);
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 });
