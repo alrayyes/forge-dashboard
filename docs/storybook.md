@@ -34,8 +34,9 @@ Stories run the real component. Only what Storybook can't run is replaced:
 - `fetch`, with `web/.storybook/mock-fetch.ts`, because there's no Go server.
 - The live check feed behind the pipeline dialog, with
   `web/.storybook/mock-feed.ts`.
-- Logos: the script answers `https://logos.example.test/` itself, and blocks
-  every other request that leaves the machine.
+- Logos: the page asks the image proxy for them, so the script answers a
+  `/api/v1/images` request whose `url` is on `logos.example.test` itself, and
+  blocks every other request that leaves the machine.
 
 A dialog opens from a small button in the story, and a `play` function clicks it.
 

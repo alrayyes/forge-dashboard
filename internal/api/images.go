@@ -95,7 +95,14 @@ func handleImage(deps Deps) http.HandlerFunc {
 		}
 		img, err := proxy.Fetch(r.Context(), raw)
 		if err != nil {
-			slog.Warn("image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
+			// A refused host is expected for an avatar the saved Forgejo instance
+			// doesn't serve (Gravatar, say), and the page asks on every render:
+			// not worth a warning each time.
+			level := slog.LevelWarn
+			if errors.Is(err, imageproxy.ErrHostNotAllowed) {
+				level = slog.LevelDebug
+			}
+			slog.Log(r.Context(), level, "image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
 			imageFailure(err).write(w)
 
 			return
