@@ -253,6 +253,49 @@ test('the Issues list lands too when the saved copy meets a paused view', async 
     .toEqual(['github:claude']);
 });
 
+test('a saved pick the held Issues list lacks stays held when the saved copy arrives', async ({
+  page,
+}) => {
+  const endpoint = '/api/v1/settings/filter-state';
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(`**${endpoint}`, async (route: Route) => {
+    if (route.request().method() !== 'GET') return route.fallback();
+    await gate;
+    return route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        shared: { author: 'github:ghost' },
+        pr: {},
+        issue: {},
+        view: { paused: '1' },
+      }),
+    });
+  });
+  await open(page, '/issues.html');
+  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page.evaluate(
+    (data) => window.__push(data),
+    snapshot([], ISSUES_NEWER),
+  );
+  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+
+  release();
+
+  // Landing the held list must not offer the choices before the copy's picks
+  // are in place, on the Issues page as on the pull request page: the pick
+  // belongs to an author neither list has, and it is kept, not cleared.
+  await expect(page.locator('#issue-rows')).toContainText('Issue 2');
+  await expect(
+    page
+      .locator('#held-picks')
+      .getByText('Saved author "ghost" is not on this page.'),
+  ).toBeVisible();
+});
+
 test('a pick the landed list no longer offers is cleared and the list shows again', async ({
   page,
 }) => {
