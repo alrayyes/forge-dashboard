@@ -1719,8 +1719,7 @@
           <div class="card">
             <h2>GitHub</h2>
             <p class="hint">
-              A token sees every repo it can push to, private included. Leave
-              the token blank to keep the one already saved.
+              A token sees every repo it can push to, private included.
             </p>
             <div class="field">
               <label for="github-token"
@@ -1736,9 +1735,11 @@
                   name="githubToken"
                   type={githubTokenShown ? "text" : "password"}
                   autocomplete="off"
-                  placeholder="ghp_…"
+                  placeholder={githubTokenSet ? "Unchanged" : "ghp_…"}
                   aria-invalid={fieldErrors.githubToken ? "true" : undefined}
-                  aria-describedby={describedBy("githubToken", "github-token")}
+                  aria-describedby={githubTokenSet
+                    ? `github-token-saved ${describedBy("githubToken", "github-token")}`
+                    : describedBy("githubToken", "github-token")}
                   bind:value={githubToken}
                 />
                 <button
@@ -1753,6 +1754,11 @@
                   >{githubTokenShown ? "Hide" : "Show"}</button
                 >
               </div>
+              {#if githubTokenSet}
+                <p class="field-hint" id="github-token-saved">
+                  Token saved. Leave blank to keep it.
+                </p>
+              {/if}
               <p
                 class="pattern-error"
                 id="github-token-error"
