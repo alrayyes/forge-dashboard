@@ -159,9 +159,18 @@ Forgejo has one `mergeable` flag, false for a conflict and also while the forge
 rechecks after a base push, so a Forgejo pull request that is false with a moved
 base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
 seconds, two refresh intervals. Its Merge stays locked with the same words.
-If the flag is still false for the same head and base after that, the row says
-"Conflicting", and a new head or base starts the wait again. GitHub reports
-conflicts itself and is unchanged.
+A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
+refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
+once, even inside the window, and names the files git reported ("In a.txt,
+docs/b.md"). If the flag is still false for the same head and base after the
+window and no refusal named a conflict, the row says "Conflict not confirmed",
+since the flag is false for a stuck check too. That pill is a button: a tap
+shows the reason, and Update branch stays available on it, because a refused
+update is how it gets confirmed. Either way the status is `conflicting` for the
+Conflicts filter, and the server sends `conflictConfirmed` and `conflictFiles`
+for the page to word it. The remembered refusal is kept in memory by repo,
+number, head and base, so a new head or a base push drops it, and so does a
+restart. GitHub reports conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
 

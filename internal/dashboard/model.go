@@ -246,6 +246,14 @@ type PullRequest struct {
 	// failed, so a client can show how far a pipeline is without opening it.
 	Checks      CheckCounts `json:"checks"`
 	MergeStatus MergeStatus `json:"mergeStatus"`
+	// ConflictConfirmed is Forgejo's only, and set only with MergeConflicting.
+	// True: a merge or update of this pull request was refused naming a
+	// conflict. False: only the mergeable flag staying false past the check
+	// window says so, which a forge that is still checking looks the same as.
+	// Nil on GitHub, which reports conflicts itself (#3308).
+	ConflictConfirmed *bool `json:"conflictConfirmed,omitempty"`
+	// ConflictFiles are the files that refusal named, when it named any.
+	ConflictFiles []string `json:"conflictFiles,omitempty"`
 	// Behind is deliberately its own field, not folded into MergeStatus,
 	// because the two aren't mutually exclusive on every forge: confirmed
 	// live against a real Forgejo instance (a PR's own Mergeable field
