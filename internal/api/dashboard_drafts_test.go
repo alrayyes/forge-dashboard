@@ -19,14 +19,21 @@ import (
 func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 	t.Helper()
 
+	return draftsServerWith(t, []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1},
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Draft: true},
+		{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3},
+	})
+}
+
+// draftsServerWith is draftsServer over the given pull requests.
+func draftsServerWith(t *testing.T, prs []dashboard.PullRequest) (srvURL string, sessionCookie *http.Cookie) {
+	t.Helper()
+
 	const secretToken = "sekrit-token" // #nosec G101 -- a fake test fixture, not a real credential
 	source := &fakeConfiguredSource{
 		health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true, RepoCount: 1},
-		prs: []dashboard.PullRequest{
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Draft: true},
-			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 3},
-		},
+		prs:    prs,
 	}
 	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken != secretToken {
@@ -51,7 +58,7 @@ func draftsServer(t *testing.T) (srvURL string, sessionCookie *http.Cookie) {
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboardWith(t, srv.URL, sessionCookie, "?includeDrafts=true")["pullRequests"].([]any)
 
-		return len(prs) == 3
+		return len(prs) == len(source.prs)
 	}, pollBudget, 10*time.Millisecond, "the background refresh should have picked up the fixture PRs")
 
 	return srv.URL, sessionCookie
@@ -154,5 +161,63 @@ func TestDashboard_Drafts(t *testing.T) {
 		case <-time.After(pollBudget):
 			t.Fatal("no SSE event received after the refresh")
 		}
+	})
+}
+
+func TestDashboard_HiddenDraftsByPage(t *testing.T) {
+	t.Parallel()
+
+	byPage := func(t *testing.T, snap map[string]any) map[string]any {
+		t.Helper()
+		counts, ok := snap["hiddenDraftsByPage"].(map[string]any)
+		require.True(t, ok, "hiddenDraftsByPage is always present")
+
+		return counts
+	}
+	repo := "alrayyes/a"
+	prs := []dashboard.PullRequest{
+		{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 1, Draft: true},
+		{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 2, Draft: true, Author: "dependabot[bot]"},
+		{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 3, Draft: true, Author: "renovate[bot]"},
+		{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 4, Draft: true, Labels: []dashboard.Label{{Name: "autorelease: pending"}}},
+		{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 5},
+	}
+
+	t.Run("counts each page's own drafts", func(t *testing.T) {
+		t.Parallel()
+		srvURL, cookie := draftsServerWith(t, prs)
+
+		snap := fetchDashboardWith(t, srvURL, cookie, "")
+
+		counts := byPage(t, snap)
+		assert.InDelta(t, 1, counts["pullRequests"], 0)
+		assert.InDelta(t, 1, counts["releases"], 0)
+		assert.InDelta(t, 2, counts["bots"], 0)
+		assert.InDelta(t, 4, snap["hiddenDrafts"], 0, "the total stays the sum of the pages")
+	})
+
+	t.Run("a board whose only draft is a dependency pull request has none for releases", func(t *testing.T) {
+		t.Parallel()
+		srvURL, cookie := draftsServerWith(t, []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 1, Draft: true, Author: "dependabot[bot]"},
+			{Forge: dashboard.ForgeGitHub, Repo: repo, Number: 2},
+		})
+
+		counts := byPage(t, fetchDashboardWith(t, srvURL, cookie, ""))
+
+		assert.InDelta(t, 0, counts["releases"], 0)
+		assert.InDelta(t, 1, counts["bots"], 0)
+		assert.InDelta(t, 0, counts["pullRequests"], 0)
+	})
+
+	t.Run("are all zero when the request includes drafts", func(t *testing.T) {
+		t.Parallel()
+		srvURL, cookie := draftsServerWith(t, prs)
+
+		counts := byPage(t, fetchDashboardWith(t, srvURL, cookie, "?includeDrafts=true"))
+
+		assert.InDelta(t, 0, counts["pullRequests"], 0)
+		assert.InDelta(t, 0, counts["releases"], 0)
+		assert.InDelta(t, 0, counts["bots"], 0)
 	})
 }

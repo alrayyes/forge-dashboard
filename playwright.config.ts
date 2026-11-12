@@ -74,6 +74,7 @@ const singleUserSpecs = [
   '**/mobile-filters.spec.ts',
   '**/filter-sheet-layout.spec.ts',
   '**/show-drafts.spec.ts',
+  '**/show-drafts-by-page.spec.ts',
   '**/show-row-clears-filters.spec.ts',
   '**/webhooks-clear-filters.spec.ts',
   '**/nav-empty-links.spec.ts',

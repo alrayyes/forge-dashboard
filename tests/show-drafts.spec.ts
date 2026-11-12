@@ -63,6 +63,7 @@ function answer(route: Route) {
         issues: [],
         repos: [],
         hiddenDrafts: 0,
+        hiddenDraftsByPage: { pullRequests: 0, releases: 0, bots: 0 },
       }),
     });
   }
@@ -76,6 +77,11 @@ function answer(route: Route) {
       issues: [],
       repos: [],
       hiddenDrafts: include ? 0 : DRAFTS.length,
+      hiddenDraftsByPage: {
+        pullRequests: include ? 0 : DRAFTS.length,
+        releases: 0,
+        bots: 0,
+      },
     }),
   });
 }

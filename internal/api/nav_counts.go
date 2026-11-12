@@ -76,3 +76,27 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 
 	return counts
 }
+
+// hiddenDraftCounts is how many drafts the board left out, per page that lists
+// them (#3704). Matches components.schemas.HiddenDraftCounts.
+type hiddenDraftCounts struct {
+	PullRequests int `json:"pullRequests"`
+	Releases     int `json:"releases"`
+	Bots         int `json:"bots"`
+}
+
+// add counts one hidden draft of kind on the page that lists that kind.
+func (c *hiddenDraftCounts) add(kind dashboard.PullRequestKind) {
+	switch kind {
+	case dashboard.KindRelease:
+		c.Releases++
+	case dashboard.KindDependency:
+		c.Bots++
+	default:
+		c.PullRequests++
+	}
+}
+
+func (c hiddenDraftCounts) total() int {
+	return c.PullRequests + c.Releases + c.Bots
+}
