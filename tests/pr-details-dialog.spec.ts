@@ -576,9 +576,11 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await routeImage(page, 'https://example.invalid/**', (route) =>
-      route.abort(),
-    );
+    let aborted = 0;
+    await routeImage(page, 'https://example.invalid/**', (route) => {
+      aborted++;
+      return route.abort();
+    });
     await mockDetails(
       page,
       details({ comments: [comment('c1')], commentCount: 1 }),
