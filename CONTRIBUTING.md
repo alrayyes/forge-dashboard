@@ -17,7 +17,9 @@
   CI uses.
 
   `ltex-cli-plus` needs nothing installed: the hook fetches and caches it
-  on first use.
+  on first use. The pre-push hook runs it only when the push contains
+  Markdown, and checks just those files; `bun run lint:mechanics` and CI
+  check everything.
 
 - **Docker**, for `internal/forgejo`'s container-based integration test
   (real testcontainers-go, a real Forgejo instance — see its own file
