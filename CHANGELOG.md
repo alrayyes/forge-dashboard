@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.27.0](https://github.com/alrayyes/forge-dashboard/compare/v9.26.0...v9.27.0) (2026-11-12)
+
+
+### Features
+
+* show refs pills on issue rows and add refs filters ([#3622](https://github.com/alrayyes/forge-dashboard/issues/3622)) ([8db47c5](https://github.com/alrayyes/forge-dashboard/commit/8db47c5688b1e2c828324608c45513d67911e7a0))
+
 ## [9.26.0](https://github.com/alrayyes/forge-dashboard/compare/v9.25.3...v9.26.0) (2026-11-12)
 
 
