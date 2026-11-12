@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.37.0](https://github.com/alrayyes/forge-dashboard/compare/v9.36.2...v9.37.0) (2026-11-12)
+
+
+### Features
+
+* **web:** hide the Activity control when it has nothing to show ([#3712](https://github.com/alrayyes/forge-dashboard/issues/3712)) ([a7e76d4](https://github.com/alrayyes/forge-dashboard/commit/a7e76d48dc662a12ff385e367f61a48ebc7045c0))
+
 ## [9.36.2](https://github.com/alrayyes/forge-dashboard/compare/v9.36.1...v9.36.2) (2026-11-12)
 
 
