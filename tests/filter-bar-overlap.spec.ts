@@ -50,7 +50,9 @@ async function open(page: Page, path: string, width: number) {
   await page.keyboard.press('Escape');
 }
 
-// Every pair of visible controls in the bar whose drawn boxes share area.
+// Every pair of visible controls in the bar whose drawn boxes share area, plus
+// a reason for each control that isn't laid out. Fewer than two drawn controls
+// is a problem too, so an empty bar can't pass.
 async function overlaps(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const boxes = [
@@ -65,6 +67,7 @@ async function overlaps(page: Page): Promise<string[]> {
       }))
       .filter(({ r }) => r.width > 0 && r.height > 0);
     const out: string[] = [];
+    if (boxes.length < 2) out.push(`only ${boxes.length} drawn controls`);
     for (let i = 0; i < boxes.length; i++)
       for (let j = i + 1; j < boxes.length; j++) {
         const a = boxes[i].r;
@@ -92,12 +95,22 @@ for (const [name, path] of [
       await open(page, path, width);
       const button = page.locator('#shared-repo-filter-button');
       await expect(button).toContainText('dotfiles-with-a-very-long');
-      expect(await overlaps(page)).toEqual([]);
-      const [button_, host] = await Promise.all([
-        button.boundingBox(),
-        page.locator('#shared-repo-filter').boundingBox(),
-      ]);
-      expect(button_?.width ?? 0).toBeLessThanOrEqual((host?.width ?? 0) + 0.5);
+      // Re-measured until no control overlaps another and the button fits its
+      // host, so a layout still settling on a loaded runner doesn't fail.
+      await expect
+        .poll(async () => {
+          const problems = await overlaps(page);
+          const [b, host] = await Promise.all([
+            button.boundingBox(),
+            page.locator('#shared-repo-filter').boundingBox(),
+          ]);
+          if (!b || !host || b.width <= 0 || host.width <= 0)
+            problems.push('button or host not laid out');
+          else if (b.width > host.width + 0.5)
+            problems.push(`button ${b.width} wider than host ${host.width}`);
+          return problems;
+        })
+        .toEqual([]);
       await expect(button).toHaveCSS('text-overflow', 'ellipsis');
     });
   }

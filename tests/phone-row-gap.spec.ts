@@ -88,21 +88,29 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
     const row = page.locator('#pr-rows > .row').first();
     await expect(row).toBeVisible();
 
-    const m = await row.evaluate((r) => {
-      const box = (s: string) => r.querySelector(s)?.getBoundingClientRect();
-      const metaBottom = Math.max(
-        ...['.author', '.created', '.updated'].map((s) => box(s)?.bottom ?? 0),
-      );
-      return {
-        gap: (box('.ci-slot')?.top ?? 0) - metaBottom,
-        slotTop: box('.wait-slot')?.top ?? 0,
-        slotHeight: box('.wait-slot')?.height ?? 0,
-        pillBottom: box('.ci-slot')?.bottom ?? 0,
-      };
-    });
-    expect(m.gap).toBeLessThanOrEqual(MAX_GAP);
-    expect(m.slotHeight).toBeGreaterThanOrEqual(44);
-    expect(m.slotTop).toBeGreaterThanOrEqual(m.pillBottom);
+    // Re-measured until every check holds, so a layout still settling on a
+    // loaded runner doesn't fail the test. An unrendered box can't pass.
+    await expect
+      .poll(() =>
+        row.evaluate((r, maxGap) => {
+          const box = (s: string) =>
+            r.querySelector(s)?.getBoundingClientRect();
+          const metaBottom = Math.max(
+            ...['.author', '.created', '.updated'].map(
+              (s) => box(s)?.bottom ?? 0,
+            ),
+          );
+          const ci = box('.ci-slot');
+          const slot = box('.wait-slot');
+          if (!ci || !slot || ci.height <= 0 || metaBottom <= 0) return false;
+          return (
+            ci.top - metaBottom <= maxGap &&
+            slot.height >= 44 &&
+            slot.top >= ci.bottom
+          );
+        }, MAX_GAP),
+      )
+      .toBe(true);
   });
 
   // WCAG 2.4.3 and 1.3.2: the slot sits below the pill on screen, so it
@@ -152,20 +160,29 @@ test.describe('wider rows keep the wait slot above the pill (#3264)', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
-  const offsets = (row: import('@playwright/test').Locator) =>
-    row.evaluate((r) => {
-      const top = r.getBoundingClientRect().top;
-      const y = (s: string) =>
-        Math.round(
-          (r.querySelector(s)?.getBoundingClientRect().top ?? NaN) - top,
-        );
-      return {
-        wait: y('.wait-slot'),
-        ci: y('.ci-slot'),
-        status: y('.status-area'),
-        height: Math.round(r.getBoundingClientRect().height),
-      };
-    });
+  // Offsets from the row's top edge, compared as booleans (never rounded, so
+  // there is no -0). A missing or unrendered element reads as false.
+  const atOffsets = (
+    row: import('@playwright/test').Locator,
+    want: Record<string, number>,
+  ) =>
+    expect
+      .poll(() =>
+        row.evaluate((r, want) => {
+          const rowBox = r.getBoundingClientRect();
+          if (rowBox.height <= 0) return false;
+          return Object.entries(want).every(([sel, offset]) => {
+            const b = r.querySelector(sel)?.getBoundingClientRect();
+            return (
+              b !== undefined &&
+              b !== null &&
+              b.height > 0 &&
+              Math.abs(b.top - rowBox.top - offset) < 0.5
+            );
+          });
+        }, want),
+      )
+      .toBe(true);
 
   for (const width of [820, 1280]) {
     test(`${width}px: plain row has the slot at 12 and the pill at 62`, async ({
@@ -176,8 +193,7 @@ test.describe('wider rows keep the wait slot above the pill (#3264)', () => {
       await page.goto('/bots.html');
       const row = page.locator('#pr-rows > .row').first();
       await expect(row).toBeVisible();
-      const m = await offsets(row);
-      expect({ wait: m.wait, ci: m.ci }).toEqual({ wait: 12, ci: 62 });
+      await atOffsets(row, { '.wait-slot': 12, '.ci-slot': 62 });
     });
 
     test(`${width}px: armed row has the slot at 12, the pill at 62, the status line at 92`, async ({
@@ -188,8 +204,11 @@ test.describe('wider rows keep the wait slot above the pill (#3264)', () => {
       await page.goto('/bots.html');
       const row = page.locator('#pr-rows > .row').first();
       await expect(row.locator('.wait-chip')).toBeVisible();
-      const m = await offsets(row);
-      expect(m).toEqual({ wait: 12, ci: 62, status: 92, height: m.height });
+      await atOffsets(row, {
+        '.wait-slot': 12,
+        '.ci-slot': 62,
+        '.status-area': 92,
+      });
     });
   }
 });

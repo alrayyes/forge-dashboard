@@ -32,6 +32,21 @@ async function labelGaps(button: Locator) {
   });
 }
 
+// Re-measures until the button is laid out and `ok` holds, so a layout still
+// settling on a loaded runner doesn't fail the test. A button with no box, or
+// no text, never passes.
+async function expectGaps(
+  button: Locator,
+  ok: (g: Awaited<ReturnType<typeof labelGaps>>) => boolean,
+) {
+  await expect
+    .poll(async () => {
+      const g = await labelGaps(button);
+      return g.width > 0 && g.height > 0 && ok(g);
+    })
+    .toBe(true);
+}
+
 async function box(locator: Locator) {
   const b = await locator.boundingBox();
   if (!b) throw new Error('element has no box');
@@ -58,10 +73,11 @@ test.describe('Revoke button layout (#3188)', () => {
     for (const button of await page
       .locator('#api-token-list .btn-remove')
       .all()) {
-      const g = await labelGaps(button);
-      expect(g.height).toBeGreaterThanOrEqual(44);
-      expect(g.width).toBeGreaterThanOrEqual(63);
-      expect(Math.abs(g.left - g.right)).toBeLessThanOrEqual(1);
+      await expectGaps(
+        button,
+        (g) =>
+          g.height >= 44 && g.width >= 63 && Math.abs(g.left - g.right) <= 1,
+      );
     }
   });
 
@@ -73,11 +89,14 @@ test.describe('Revoke button layout (#3188)', () => {
       for (const button of await page
         .locator('#api-token-list .btn-remove')
         .all()) {
-        const g = await labelGaps(button);
-        expect(Math.round(g.width)).toBe(63);
-        expect(Math.round(g.height)).toBe(25);
-        expect(Math.abs(g.left - 11)).toBeLessThanOrEqual(1);
-        expect(Math.abs(g.right - 11)).toBeLessThanOrEqual(1);
+        await expectGaps(
+          button,
+          (g) =>
+            Math.abs(g.width - 63) < 0.5 &&
+            Math.abs(g.height - 25) < 0.5 &&
+            Math.abs(g.left - 11) <= 1 &&
+            Math.abs(g.right - 11) <= 1,
+        );
       }
     });
   }
@@ -93,10 +112,11 @@ test.describe('Revoke button layout (#3188)', () => {
     for (const button of await page
       .locator('#passkey-list .btn-remove')
       .all()) {
-      const g = await labelGaps(button);
-      expect(g.height).toBeGreaterThanOrEqual(44);
-      expect(g.width).toBeGreaterThanOrEqual(63);
-      expect(Math.abs(g.left - g.right)).toBeLessThanOrEqual(1);
+      await expectGaps(
+        button,
+        (g) =>
+          g.height >= 44 && g.width >= 63 && Math.abs(g.left - g.right) <= 1,
+      );
     }
   });
 
@@ -112,10 +132,13 @@ test.describe('Revoke button layout (#3188)', () => {
     expect(buttonBox.x + buttonBox.width).toBeLessThanOrEqual(
       itemBox.x + itemBox.width + 1,
     );
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 
   test('axe is clean on the tokens card at 390px, 820px and 1280px', async ({
