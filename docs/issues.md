@@ -185,14 +185,18 @@ A pull request can mention an issue without closing it, with `Refs #12` or a
 link in its description. In `GET /api/v1/dashboard` each issue lists those open
 pull requests as `mentionedByPullRequests`, always present, ordered by repo and
 number and with the same entries as `linkedPullRequests`. A pull request that
-closes the issue is only in `linkedPullRequests`; one whose `Closes` doesn't
-close, because it aims at a branch other than the default, is listed here. The
+closes the issue is only in `linkedPullRequests`, and one that references it
+with `Refs`, `Related to` or `See` is only in `referencedByPullRequests`; one
+whose `Closes` doesn't close, because it aims at a branch other than the
+default, is listed here. The
 server works this out from the pull requests it already holds, so it costs the
 forge no request. The
 issue's pop-up lists them after "Mentioned in", drawn like the closing pull
 requests, and a plain click swaps the pop-up for that pull request's. The label
 and the pills are absent when no pull request mentions the issue. The rows don't
-show them. How a
+show them. The referencing ones are on the rows and in the pop-up under
+"Referenced in", drawn with a dotted outline and italic text, after the closing
+pills; a row shows two of several and a count that opens the rest. How a
 mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
@@ -257,6 +261,10 @@ closing pull request**, to find the issues something is already fixing and the
 ones nothing is. Only this page's list is filtered by it, it is saved and
 restored like the others, and a choice is offered only when some issue is that
 way. On a phone it is in the Filters sheet.
+A **Refs PR** control beside it does the same for the pull requests that only
+reference an issue: Any, **Has a referencing pull request** and **No
+referencing pull request**. It is its own pick and combines with the closing
+one. A value other than yes or no in a saved pick is dropped on load.
 The pull-request-only controls (the CI quick filters, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts) are not
 on the issues page. Which choices a page offers, and how filters are remembered,

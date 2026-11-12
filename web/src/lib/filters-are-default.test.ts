@@ -47,4 +47,15 @@ describe('filtersAreDefault', () => {
     expect(filtersAreDefault(s, page(true))).toBe(true);
     expect(filtersAreDefault(s, page(false))).toBe(false);
   });
+
+  test('a refs pick counts only on its own page', () => {
+    const pr = state({ pr: { refs: 'yes' } });
+    expect(filtersAreDefault(pr, page(false))).toBe(true);
+    expect(filtersAreDefault(pr, page(true))).toBe(false);
+    const issue = state({
+      issue: { hideDependencyDashboard: '1', refBy: 'no' },
+    });
+    expect(filtersAreDefault(issue, page(true))).toBe(true);
+    expect(filtersAreDefault(issue, page(false))).toBe(false);
+  });
 });

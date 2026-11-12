@@ -192,7 +192,8 @@ func TestDashboard_IssuesListThePullRequestsThatMentionThem(t *testing.T) {
 	t.Run("forgejo matches a lowercased repo against the mixed-case one", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, []int{7, 8}, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "mentionedByPullRequests")))
+		assert.Equal(t, []int{8}, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "mentionedByPullRequests")),
+			"#7 references the issue, so it is only in the refs list")
 	})
 	t.Run("an issue nothing mentions lists none, never null", func(t *testing.T) {
 		t.Parallel()

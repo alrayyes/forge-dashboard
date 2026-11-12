@@ -121,6 +121,25 @@ describe('linkedPullRequestsToWatch', () => {
     ).toHaveLength(2);
   });
 
+  test('names the pull requests a row references after the ones it closes', () => {
+    expect(
+      linkedPullRequestsToWatch([
+        { linkedPullRequests: [row(1)], referencedByPullRequests: [row(2)] },
+        { referencedByPullRequests: [row(3)] },
+      ]).map((s) => s.number),
+    ).toEqual([1, 2, 3]);
+  });
+
+  test("keeps each list's own hidden pills out", () => {
+    const many = Array.from({ length: SHOWN_PILLS + 1 }, (_, i) => row(i + 10));
+
+    expect(
+      linkedPullRequestsToWatch([
+        { linkedPullRequests: [row(1)], referencedByPullRequests: many },
+      ]).map((s) => s.number),
+    ).toEqual([1, ...many.slice(0, SHOWN_PILLS).map((r) => r.number)]);
+  });
+
   test('leaves a row with no links, or an unset list, out', () => {
     expect(linkedPullRequestsToWatch([{}, issue(), issue(row(5))])).toEqual([
       { kind: 'pull_request', forge: 'github', fullName: 'a/one', number: 5 },

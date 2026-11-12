@@ -372,6 +372,8 @@
     linkedPullRequests?: LinkedPullRequest[];
     // The open pull requests that mention it without closing it.
     mentionedByPullRequests?: LinkedPullRequest[];
+    // The open pull requests that reference it (Refs, Related to, See).
+    referencedByPullRequests?: LinkedPullRequest[];
   };
   // What the issue dialog needs of an issue: a listed row, or just the
   // reference a pull request's pill carries when the board does not list it.
@@ -2093,6 +2095,7 @@
       return JSON.stringify([
         item.labels,
         item.linkedPullRequests,
+        item.referencedByPullRequests,
         item.mentionedByPullRequests,
       ]);
     }
@@ -2439,8 +2442,26 @@
         attributes.setAttribute("aria-label", "Attributes when opened");
         attributes.appendChild(pills);
       }
-      // The pull requests that only mention it, under a label that says so;
-      // nothing at all when none does.
+      // The pull requests that reference it, then the ones that only mention
+      // it, each under a label that says so; nothing at all when none does.
+      const referenced = linkedPills(
+        `${prKey(item)}:refs`,
+        item.repo,
+        item.referencedByPullRequests,
+        undefined,
+        linkedCi,
+        (linked) => followLinkedFromDialog(item, linked),
+        "refs",
+      );
+      if (referenced) {
+        attributes.setAttribute("aria-label", "Attributes when opened");
+        const group = el("span", "mentioned-by");
+        group.append(
+          el("span", "mentioned-by-label", "Referenced in"),
+          referenced,
+        );
+        attributes.appendChild(group);
+      }
       const mentioned = linkedPills(
         `${prKey(item)}:mentions`,
         item.repo,
@@ -2554,6 +2575,16 @@
           linkedCi,
         );
         if (pills) titleCellEl.appendChild(pills);
+        const referenced = linkedPills(
+          `${prKey(item)}:refs`,
+          item.repo,
+          (item as IssueItem).referencedByPullRequests,
+          (linked, triggerId) => void openLinkedPullRequest(linked, triggerId),
+          linkedCi,
+          undefined,
+          "refs",
+        );
+        if (referenced) titleCellEl.appendChild(referenced);
       }
       if (isPR && (item as PullRequestItem).stack)
         titleCellEl.appendChild(stackInfo(item as PullRequestItem));
@@ -7439,7 +7470,8 @@
         | "apply"
         | "applyExceptQuick"
         | "applyExceptAutoMerge"
-        | "applyExceptClosing" = "apply",
+        | "applyExceptClosing"
+        | "applyExceptRefs" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -7460,11 +7492,13 @@
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
                 ...(board === "applyExceptClosing" ? { closes: "" } : {}),
+                ...(board === "applyExceptRefs" ? { refs: "" } : {}),
               }
             : undefined
           : {
               ...withSettings(sharedState.issue),
               ...(board === "applyExceptClosing" ? { closedBy: "" } : {}),
+              ...(board === "applyExceptRefs" ? { refBy: "" } : {}),
             },
       );
     }
@@ -7591,6 +7625,12 @@
         pullsView,
         closingGroup()[closingKey()] ?? "",
       );
+      Filters.offerRefs(
+        document.querySelectorAll<HTMLElement>(".refs-group"),
+        sharedPoolExcluding("", "applyExceptRefs"),
+        pullsView,
+        closingGroup()[refsKey()] ?? "",
+      );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         forgePillPool(),
@@ -7631,6 +7671,7 @@
       syncQuickPills();
       syncAutoMerge();
       syncClosing();
+      syncRefs();
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
         .forEach((c) => {
@@ -8342,6 +8383,9 @@
     function closingKey() {
       return Filters.closingKey(pullsView);
     }
+    function refsKey() {
+      return Filters.refsKey(pullsView);
+    }
 
     // ---- segmented filters: auto-merge (#1455) and closing link ----
     // Any plus the choices. The pick is saved with the page's other filters;
@@ -8407,6 +8451,22 @@
       (v) => {
         setPick(closingGroup(), closingKey(), v);
         Filters.touchKey(pullsView ? "pr" : "issue", closingKey());
+      },
+      () => {
+        prBoard.resetPage();
+        issueBoard.resetPage();
+      },
+    );
+
+    // Pull requests: references an issue or not. Issues: has a referencing
+    // pull request or not. Its own pick, so it combines with the closing one.
+    const syncRefs = wireSegment(
+      "refs-group",
+      "ref",
+      () => closingGroup()[refsKey()],
+      (v) => {
+        setPick(closingGroup(), refsKey(), v);
+        Filters.touchKey(pullsView ? "pr" : "issue", refsKey());
       },
       () => {
         prBoard.resetPage();
@@ -8614,6 +8674,15 @@
           ),
           clear: () => clearSegment("link-group", "link"),
         });
+      const refs = closingGroup()[refsKey()];
+      if (refs)
+        chips.push({
+          label: Filters.refsChoiceLabel(
+            pullsView,
+            refs === "yes" ? "yes" : "no",
+          ),
+          clear: () => clearSegment("refs-group", "ref"),
+        });
       if (pullsView && draftsOn())
         chips.push({
           label: "Drafts shown",
@@ -8732,7 +8801,7 @@
       );
       // Each filter is cleared in the group the page keeps it in: the
       // pull-request ones live in sharedState.pr, the rest in shared.
-      const prKeys = ["status", "quick", "autoMerge", "closes"];
+      const prKeys = ["status", "quick", "autoMerge", "closes", "refs"];
       for (const filter of failing) {
         if (filter === "label" || filter === "repo" || filter === "author") {
           // A pick control is cleared through the pick itself, so its ticks
@@ -8749,6 +8818,7 @@
         syncQuickPills();
         syncAutoMerge();
         syncClosing();
+        syncRefs();
         document
           .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
             `${FILTER_CONTROLS}`,
@@ -8800,6 +8870,7 @@
       syncQuickPills();
       syncAutoMerge();
       syncClosing();
+      syncRefs();
 
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
@@ -10237,6 +10308,29 @@
   </div>
 {/snippet}
 
+<!-- The refs segment, beside the closing one, in the bar and the sheet. -->
+{#snippet refsSegment(sheet: boolean)}
+  <div
+    class="segment refs-group"
+    class:sheet-only={sheet}
+    role="group"
+    aria-label={view === "issues"
+      ? "Referencing pull request"
+      : "Referencing issue"}
+  >
+    <span class="am-label" aria-hidden="true"
+      >{view === "issues" ? "Refs PR" : "Refs issue"}</span
+    >
+    <button type="button" data-ref="any" aria-pressed="true">Any</button>
+    <button type="button" data-ref="yes" aria-pressed="false"
+      >{Filters.refsChoiceLabel(pullsView, "yes")}</button
+    >
+    <button type="button" data-ref="no" aria-pressed="false"
+      >{Filters.refsChoiceLabel(pullsView, "no")}</button
+    >
+  </div>
+{/snippet}
+
 <svelte:head>
   <title
     >{view === "issues"
@@ -10538,6 +10632,7 @@
         >
       {/if}
       {@render closingSegment(true)}
+      {@render refsSegment(true)}
       <select
         class="group-select"
         id="pr-sort-select"
@@ -10593,6 +10688,7 @@
     <!-- Last in the bar, so the pills above it appearing or going moves
          nothing but this segment and the bar keeps its height. -->
     {@render closingSegment(false)}
+    {@render refsSegment(false)}
   </div>
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a

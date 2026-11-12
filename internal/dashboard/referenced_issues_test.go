@@ -47,6 +47,14 @@ func TestReferencedIssueRefs_ReadsAListAfterOneKeyword(t *testing.T) {
 	assert.Equal(t, []int{3, 4, 5}, issueNumbers(got), "in order, without repeats")
 }
 
+func TestReferencedIssueRefs_ReadsAListWithAnOxfordComma(t *testing.T) {
+	t.Parallel()
+
+	got := referenced(dashboard.ForgeGitHub, "", "Refs #1, #2, and #3")
+
+	assert.Equal(t, []int{1, 2, 3}, issueNumbers(got))
+}
+
 func TestReferencedIssueRefs_CodeAndCommentsAreIgnored(t *testing.T) {
 	t.Parallel()
 
@@ -113,4 +121,18 @@ func TestPullRequest_MentionedPlainlyLeavesOutRefsToo(t *testing.T) {
 	}
 
 	assert.Equal(t, []int{3}, issueNumbers(pr.MentionedPlainly()))
+}
+
+func TestPullRequestsMentioning_LeavesOutWhatThePullRequestReferences(t *testing.T) {
+	t.Parallel()
+
+	pr := dashboard.PullRequest{
+		Forge: dashboard.ForgeGitHub, Repo: "alrayyes/app", Number: 1,
+		MentionsIssues: []dashboard.IssueRef{{Repo: "alrayyes/app", Number: 12}, {Repo: "alrayyes/app", Number: 13}},
+		RefsIssues:     []dashboard.IssueRef{{Repo: "alrayyes/app", Number: 12}},
+	}
+	index := dashboard.PullRequestsMentioning([]dashboard.PullRequest{pr})
+
+	assert.Empty(t, index.For(dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/app", Number: 12}))
+	assert.Len(t, index.For(dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/app", Number: 13}), 1)
 }

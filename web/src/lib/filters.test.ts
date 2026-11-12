@@ -16,9 +16,12 @@ import {
   matchesClosing,
   matchesFilters,
   matchesQuickFilter,
+  matchesRefs,
   offerPills,
   optionPool,
   QUICK_FILTERS,
+  refsChoiceLabel,
+  refsKey,
   showBlockedChip,
 } from './filters';
 
@@ -439,6 +442,69 @@ describe('matchesClosing', () => {
       'closedBy',
     ]);
     expect(failingFilters(closes, true, {}, { closes: 'yes' })).toEqual([]);
+  });
+});
+
+// The refs filter mirrors the closing-link one on the same two pages: pull
+// requests that reference an issue, issues a pull request references. The
+// wiring is in refs-filter.spec.ts.
+describe('refsChoiceLabel', () => {
+  test('words each choice as its button reads, per page', () => {
+    expect(refsChoiceLabel(true, 'yes')).toBe('References an issue');
+    expect(refsChoiceLabel(true, 'no')).toBe('References no issue');
+    expect(refsChoiceLabel(false, 'yes')).toBe(
+      'Has a referencing pull request',
+    );
+    expect(refsChoiceLabel(false, 'no')).toBe('No referencing pull request');
+  });
+});
+
+describe('matchesRefs', () => {
+  const link = { repo: 'a/b', number: 1 };
+  const refs = choiceItem({ refsIssues: [link] });
+  const none = choiceItem({});
+  const empty = choiceItem({ refsIssues: [] });
+  const referenced = choiceItem({ referencedByPullRequests: [link] });
+
+  test('a pull request is matched on its refsIssues, not its closesIssues', () => {
+    expect(matchesRefs(refs, true, 'yes')).toBe(true);
+    expect(matchesRefs(none, true, 'yes')).toBe(false);
+    expect(matchesRefs(none, true, 'no')).toBe(true);
+    expect(matchesRefs(empty, true, 'no')).toBe(true);
+    expect(matchesRefs(refs, true, 'no')).toBe(false);
+    expect(matchesRefs(choiceItem({ closesIssues: [link] }), true, 'yes')).toBe(
+      false,
+    );
+  });
+
+  test('an issue is matched on its referencing pull requests only', () => {
+    expect(matchesRefs(referenced, false, 'yes')).toBe(true);
+    expect(matchesRefs(none, false, 'yes')).toBe(false);
+    expect(matchesRefs(none, false, 'no')).toBe(true);
+    expect(
+      matchesRefs(choiceItem({ linkedPullRequests: [link] }), false, 'yes'),
+    ).toBe(false);
+  });
+
+  test('no pick, or one it does not know, keeps everything', () => {
+    expect(matchesRefs(none, true, undefined)).toBe(true);
+    expect(matchesRefs(none, true, 'bogus')).toBe(true);
+  });
+
+  test('each page stores it under its own key', () => {
+    expect(refsKey(true)).toBe('refs');
+    expect(refsKey(false)).toBe('refBy');
+  });
+
+  test('failingFilters names the key and combines it with closing', () => {
+    expect(failingFilters(none, true, {}, { refs: 'yes' })).toEqual(['refs']);
+    expect(failingFilters(none, false, {}, { refBy: 'yes' })).toEqual([
+      'refBy',
+    ]);
+    expect(failingFilters(refs, true, {}, { refs: 'yes' })).toEqual([]);
+    expect(
+      failingFilters(refs, true, {}, { refs: 'yes', closes: 'yes' }),
+    ).toEqual(['closes']);
   });
 });
 

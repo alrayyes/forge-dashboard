@@ -298,3 +298,17 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   }
 }
+
+// The refs filter has its own segment, and picking it leaves the closing pick
+// alone. Its pages are covered in refs-issues-filter.spec.ts.
+test('the closing and refs segments are separate picks on the same page', async ({
+  page,
+}) => {
+  await open(page, '/pull-requests.html');
+  await choice(page, 'yes').click();
+
+  await expect(
+    page.locator('.filter-bar > .refs-group [data-ref="any"]'),
+  ).toHaveAttribute('aria-pressed', 'true');
+  await expect(prTitles(page)).toHaveCount(2);
+});

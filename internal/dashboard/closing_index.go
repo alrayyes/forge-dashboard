@@ -17,10 +17,10 @@ func PullRequestsClosing(prs []PullRequest) ClosingIndex {
 }
 
 // PullRequestsMentioning indexes prs by the issues they mention without
-// closing: a mention of an issue the same pull request closes is left to the
-// closing list, so the two never repeat each other.
+// closing or referencing: a mention of an issue the same pull request closes
+// or references is left to that list, so the lists never repeat each other.
 func PullRequestsMentioning(prs []PullRequest) ClosingIndex {
-	return indexByIssue(prs, PullRequest.MentionedOnly)
+	return indexByIssue(prs, PullRequest.MentionedPlainly)
 }
 
 // MentionedOnly lists the references pr mentions without closing: the

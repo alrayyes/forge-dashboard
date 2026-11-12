@@ -1659,11 +1659,15 @@ button.title {
 .linked-pr.draft {
   border-style: dashed;
 }
-/* A refs pill works on a ticket and does not close it: dashed and without the
-   sunken fill, so it reads apart from a closes pill by more than its word. */
-.linked-pr.refs-issue {
+/* A refs pill works on a ticket and does not close it: a dotted outline, no
+   sunken fill and italic text. A draft's border is dashed, so the two never
+   look alike. The border stays 1px, since the phone hit area is measured
+   from the padding box. */
+.linked-pr.refs-issue,
+.linked-pr.refs-pill {
   background: transparent;
-  border-style: dashed;
+  border-style: dotted;
+  font-style: italic;
 }
 /* A pill never grows past its row: the number cuts a long cross-repo name
    short with an ellipsis, and the state and pipeline after it stay whole. The
