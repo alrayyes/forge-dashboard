@@ -120,6 +120,22 @@ func TestFetch_RefusesARedirectToAnotherHost(t *testing.T) {
 	assert.Zero(t, hits, "the redirect target must never be contacted")
 }
 
+// A listed host that redirects somewhere unlisted is not the routine miss of
+// an avatar nobody serves: the caller logs it as a probe, so the error must
+// not read as a plain host-list miss.
+func TestFetch_ARedirectToAnUnlistedHostIsNotAPlainListMiss(t *testing.T) {
+	t.Parallel()
+	elsewhere := serve(t, png)
+	allowed := serve(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/x.png", http.StatusFound)
+	})
+
+	_, err := instance(allowed, "secret").Fetch(t.Context(), allowed.URL+"/a")
+
+	require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed)
+	assert.NotErrorIs(t, err, imageproxy.ErrHostNotListed)
+}
+
 func TestFetch_FollowsARedirectWithinTheAllowedSet(t *testing.T) {
 	t.Parallel()
 	allowed := serve(t, func(w http.ResponseWriter, r *http.Request) {

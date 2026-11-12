@@ -576,9 +576,11 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await routeImage(page, 'https://example.invalid/**', (route) =>
-      route.abort(),
-    );
+    let aborted = 0;
+    await routeImage(page, 'https://example.invalid/**', (route) => {
+      aborted++;
+      return route.abort();
+    });
     await mockDetails(
       page,
       details({ comments: [comment('c1')], commentCount: 1 }),
@@ -587,6 +589,8 @@ test.describe('pull request details dialog', () => {
     await trigger(page).click();
     const avatar = dialog(page).locator('.details-comment .avatar').first();
     await expect(avatar).toHaveText('A');
+    // The fallback only means something if the image was asked for and failed.
+    expect(aborted).toBeGreaterThan(0);
     await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
   });
 
@@ -925,9 +929,11 @@ test.describe('pull request details dialog', () => {
     page,
   }) => {
     await mockDashboard(page, [makePR()]);
-    await routeImage(page, 'https://example.invalid/**', (route) =>
-      route.abort(),
-    );
+    let answered = 0;
+    await routeImage(page, 'https://example.invalid/**', (route) => {
+      answered++;
+      return route.abort();
+    });
     const httpsUrl = `https://example.invalid/${uniq()}.png`;
     const avatar = (id: string, url: string) =>
       comment(id, { author: { login: `user${id}`, avatarUrl: url } });
@@ -958,8 +964,13 @@ test.describe('pull request details dialog', () => {
     await expect(dialog(page).locator('.details-comment')).toHaveCount(4);
     // Only the https one is ever requested (it fails to load here, which also
     // falls back to the initial, so all four end as initials).
-    await expect.poll(() => requested).toEqual([httpsUrl]);
+    await expect.poll(() => requested).toContain(httpsUrl);
+    await expect.poll(() => answered).toBe(1);
     await expect(dialog(page).locator('.avatar')).toHaveCount(4);
+    // Settled: a request that arrives after the https one would still be
+    // caught here, where the poll above has already passed.
+    await page.waitForTimeout(500);
+    expect(requested).toEqual([httpsUrl]);
   });
 
   test('markdown links must be absolute http(s) or mailto; relative and protocol-relative ones are plain text', async ({
