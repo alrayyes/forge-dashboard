@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.31.0](https://github.com/alrayyes/forge-dashboard/compare/v9.30.0...v9.31.0) (2026-11-12)
+
+
+### Features
+
+* **web:** merge the closing filter into the references filter ([#3656](https://github.com/alrayyes/forge-dashboard/issues/3656)) ([c2d13b4](https://github.com/alrayyes/forge-dashboard/commit/c2d13b4ee799591fe6a62e8814ad61ef2d4b43a3)), closes [#3655](https://github.com/alrayyes/forge-dashboard/issues/3655)
+
 ## [9.30.0](https://github.com/alrayyes/forge-dashboard/compare/v9.29.0...v9.30.0) (2026-11-12)
 
 
