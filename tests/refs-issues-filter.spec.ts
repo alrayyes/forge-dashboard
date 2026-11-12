@@ -569,7 +569,8 @@ test.describe('a saved closing choice from before the merge', () => {
   });
 });
 
-// Two bot pull requests and two release ones, one of each referencing.
+// Two bot pull requests and two release ones, one of each referencing. Each
+// referencing one only references an issue: a plain link, no closing keyword.
 const mixed = [
   ...PRS,
   {
@@ -579,7 +580,7 @@ const mixed = [
   },
   { ...pr(6, 'Bump another library'), kind: 'dependency' },
   {
-    ...pr(7, 'Release 2.0.0', [issueLink(21, 'closes')]),
+    ...pr(7, 'Release 2.0.0', [], [issueLink(21, 'refs')]),
     kind: 'release',
   },
   { ...pr(8, 'Release 2.1.0'), kind: 'release' },
