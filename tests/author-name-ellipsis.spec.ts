@@ -76,11 +76,14 @@ async function expectCut(page: Page, n: number) {
   const span = name(page, n);
   await expect(span).toBeVisible();
   await expect(span).toHaveCSS('text-overflow', 'ellipsis');
-  const [scroll, client] = await span.evaluate((el) => [
-    el.scrollWidth,
-    el.clientWidth,
-  ]);
-  expect(scroll).toBeGreaterThan(client);
+  // Retries until the name is laid out and wider than its box.
+  await expect
+    .poll(() =>
+      span.evaluate(
+        (el) => el.clientWidth > 0 && el.scrollWidth > el.clientWidth,
+      ),
+    )
+    .toBe(true);
 }
 
 for (const width of [390, 1280]) {

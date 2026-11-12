@@ -76,19 +76,22 @@ test.describe('a long label name stays inside its card (#3396)', () => {
         const row = page.locator(`${rows} > .row`).first();
         const chip = row.locator('.label-chip');
         await expect(chip).toHaveCount(1);
-        const r = await row.boundingBox();
-        const c = await chip.boundingBox();
-        expect(r && c).toBeTruthy();
-        if (!r || !c) return;
-        expect(c.x + c.width).toBeLessThanOrEqual(r.x + r.width);
-        expect(c.x).toBeGreaterThanOrEqual(r.x);
-        expect(
-          await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth >
-              document.documentElement.clientWidth,
-          ),
-        ).toBe(false);
+        // Retry until the layout settles; a missing or empty box never passes.
+        await expect
+          .poll(async () => {
+            const r = await row.boundingBox();
+            const c = await chip.boundingBox();
+            if (!r || !c || r.width <= 0 || c.width <= 0) return false;
+            const pageOverflows = await page.evaluate(
+              () =>
+                document.documentElement.scrollWidth >
+                document.documentElement.clientWidth,
+            );
+            return (
+              c.x + c.width <= r.x + r.width && c.x >= r.x && !pageOverflows
+            );
+          })
+          .toBe(true);
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
