@@ -154,3 +154,50 @@ describe('flushPendingSave', () => {
     expect(sent).toHaveLength(1);
   });
 });
+
+describe('leaving the page', () => {
+  // listenForLeaving registers once per module, on the first save made with a
+  // window to listen on, so this block is the only one that gives it one.
+  test('pagehide and a tab turning hidden each send the pending save, once', () => {
+    const handlers: Record<string, () => void> = {};
+    const docHandlers: Record<string, () => void> = {};
+    let state: 'visible' | 'hidden' = 'visible';
+    Object.assign(globalThis, {
+      addEventListener: (name: string, fn: () => void) => {
+        handlers[name] = fn;
+      },
+    });
+    Object.assign(fakeDoc, {
+      addEventListener: (name: string, fn: () => void) => {
+        docHandlers[name] = fn;
+      },
+    });
+    Object.defineProperty(fakeDoc, 'visibilityState', {
+      configurable: true,
+      get: () => state,
+    });
+
+    saveState(typed('first'), 'title');
+    expect(sent).toHaveLength(0);
+
+    state = 'hidden';
+    docHandlers.visibilitychange();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body.pr.title).toBe('first');
+
+    // Leaving for good right after hiding has nothing left to send.
+    handlers.pagehide();
+    expect(sent).toHaveLength(1);
+
+    // Coming back to visible sends nothing; a new value waits for its timer or
+    // the next leave.
+    state = 'visible';
+    saveState(typed('second'), 'title');
+    docHandlers.visibilitychange();
+    expect(sent).toHaveLength(1);
+    handlers.pagehide();
+    expect(sent).toHaveLength(2);
+    expect(sent[1].body.pr.title).toBe('second');
+    delete (globalThis as Record<string, unknown>).addEventListener;
+  });
+});
