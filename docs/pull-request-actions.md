@@ -34,7 +34,11 @@ show their status and nothing to click, except a behind bot pull request, which
 shows its rebase (or, once a Renovate rebase is requested, its cancel). A behind
 bot pull request that is ready to merge keeps Merge as its main button and
 draws its rebase beside it, or the cancel while a Renovate rebase is requested.
-A pull request that is behind the base branch is the one case where
+A behind person's pull request whose row button is Merge, or none (ready to
+merge, failing checks, a known conflict), also draws the Update branch the
+server lists in the row bar, below the main button, so the Out of date chip is
+never beside a gap; a conflict shows it locked with its reason (#3691). A pull
+request that is behind the base branch is the one case where
 a locked Merge is not the row's button: the row draws no button of its own,
 because the cure (Update branch, or the bot's rebase) sits inside the status
 block on top of it, and the greyed Merge is in the pop-up. A behind bot pull

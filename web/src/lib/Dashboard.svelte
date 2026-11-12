@@ -2710,12 +2710,14 @@
         const rowAction = rowActionCell(pr, settledRow, mergeAction);
         // In a bar of its own: on a phone it is the card's last tier, after a
         // divider; on a wider screen the bar adds no box of its own.
-        if (rowAction) {
+        const rebase =
+          rowAction && rowAction === mergeAction ? rebaseBesideMerge(pr) : null;
+        const update = settledRow ? null : updateBranchBesidePrimary(pr);
+        if (rowAction || update) {
           const bar = el("div", "row-action-bar");
-          bar.appendChild(rowAction);
-          const rebase =
-            rowAction === mergeAction ? rebaseBesideMerge(pr) : null;
+          if (rowAction) bar.appendChild(rowAction);
           if (rebase) bar.appendChild(rebase);
+          if (update) bar.appendChild(update);
           statusCell.appendChild(bar);
         }
         // A refused Close locks a button that lives in the pop-up, so the row
@@ -2797,6 +2799,21 @@
         default:
           return null;
       }
+    }
+
+    // A behind pull request whose row button is something else (Merge, or
+    // nothing) still draws the Update branch the server lists, so the row
+    // offers the cure instead of an Out of date chip and a gap (#3691). Not
+    // when the Behind warning or the row's own primary already holds it.
+    function updateBranchBesidePrimary(
+      pr: PullRequestItem,
+    ): HTMLElement | null {
+      if (!pr.behind || !findAction(pr, "update_branch")) return null;
+      if (primaryAction(pr)?.action === "update_branch") return null;
+      if (statusFixName(pr) === "update_branch") return null;
+      const phase = mergeState[prKey(pr)]?.phase;
+      if (phase === "confirming" || phase === "merging") return null;
+      return updateBranchActionCell(pr);
     }
 
     // A behind bot pull request the forge still calls mergeable has Merge as

@@ -98,7 +98,13 @@ test.describe('an armed pull request that is behind (#3428)', () => {
             'Auto-merge stopped: merge conflict. Resolve it on GitHub and it carries on.',
         },
         allowedActions: [
-          { action: 'update_branch', blocked: { code: 'conflict' } },
+          {
+            action: 'update_branch',
+            blocked: {
+              code: 'conflict',
+              message: 'Conflicts need fixing by hand.',
+            },
+          },
           { action: 'cancel_auto_merge' },
           { action: 'close' },
         ],
