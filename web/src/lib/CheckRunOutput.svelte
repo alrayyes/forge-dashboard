@@ -121,7 +121,7 @@
     href={runUrl}
     target="_blank"
     rel="noopener"
-    aria-label={checkLinkLabel(label, name)}>{label}</a
+    aria-label={checkLinkLabel(label, name)}>{label}<ExternalLinkIcon /></a
   >
 {/snippet}
 <button
