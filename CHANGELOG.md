@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.28.0](https://github.com/alrayyes/forge-dashboard/compare/v9.27.0...v9.28.0) (2026-11-12)
+
+
+### Features
+
+* tell a job waiting on earlier jobs from one queued for a runner on Forgejo ([#3637](https://github.com/alrayyes/forge-dashboard/issues/3637)) ([f3ee385](https://github.com/alrayyes/forge-dashboard/commit/f3ee385b438ff32b5b7768a16f823b3ef4cad8e8)), closes [#3634](https://github.com/alrayyes/forge-dashboard/issues/3634)
+
 ## [9.27.0](https://github.com/alrayyes/forge-dashboard/compare/v9.26.0...v9.27.0) (2026-11-12)
 
 
