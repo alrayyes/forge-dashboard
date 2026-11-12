@@ -116,7 +116,7 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     });
   }
 
-  test(`the details dialog has no axe violations in light and dark mode`, async ({
+  test(`the held row and its details dialog have no axe violations in light and dark mode`, async ({
     page,
   }) => {
     for (const theme of ['light', 'dark'] as const) {
@@ -138,6 +138,18 @@ test.describe('Awaiting workflow approval (#1280)', () => {
         );
 
         await open(page);
+
+        await expect(
+          row(page, 'Held for approval').getByRole('link', {
+            name: /approve.*GitHub/i,
+          }),
+        ).toBeVisible();
+
+        const listResults = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(listResults.violations).toEqual([]);
 
         await row(page, 'Held for approval')
           .getByRole('button', { name: /^#\d+ / })
@@ -208,27 +220,5 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     const box = await link.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);
     expect(box?.width).toBeGreaterThanOrEqual(44);
-  });
-
-  test(`has no axe violations in light and dark mode`, async ({ page }) => {
-    for (const theme of ['light', 'dark'] as const) {
-      await test.step(`${theme}`, async () => {
-        await page.emulateMedia({ colorScheme: theme });
-
-        await open(page);
-
-        await expect(
-          row(page, 'Held for approval').getByRole('link', {
-            name: /approve.*GitHub/i,
-          }),
-        ).toBeVisible();
-
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-
-        expect(results.violations).toEqual([]);
-      });
-    }
   });
 });
