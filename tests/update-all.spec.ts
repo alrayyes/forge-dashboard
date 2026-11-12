@@ -232,13 +232,17 @@ test('Update all sits where Rebase all sits on the Bots page', async ({
   page,
 }) => {
   await open(page, [pr(1)]);
-  const head = await page.locator('.board-head').boundingBox();
-  const block = await page.locator('.update-all').boundingBox();
-  expect(head).not.toBeNull();
-  expect(block).not.toBeNull();
+  await expect(page.locator('.update-all')).toBeVisible();
   // Straight under the board header, as the Bots page's block is.
-  expect(block!.y).toBeGreaterThanOrEqual(head!.y + head!.height);
-  expect(block!.y - (head!.y + head!.height)).toBeLessThan(40);
+  await expect
+    .poll(async () => {
+      const head = await page.locator('.board-head').boundingBox();
+      const block = await page.locator('.update-all').boundingBox();
+      if (!head || !block) return 'not laid out';
+      const gap = block.y - (head.y + head.height);
+      return gap >= 0 && gap < 40 ? 'under the header' : `gap ${gap}px`;
+    })
+    .toBe('under the header');
 });
 
 test(`the confirm fits a phone in light and dark and passes axe`, async ({
@@ -309,19 +313,19 @@ for (const width of [390, 1280]) {
       .poll(async () => {
         const m = await measure();
         return {
-          summaryOffset: Math.round(m.summaryLeft - m.headingLeft),
-          buttonInset: Math.round(m.cardInnerRight - m.buttonRight),
-          aboveBlock: Math.round(m.blockTop - m.headBottom),
-          belowBlock: Math.round(m.rowTop - m.blockBottom),
+          summaryAligned: Math.abs(m.summaryLeft - m.headingLeft) < 0.5,
+          buttonInset18: Math.abs(m.cardInnerRight - m.buttonRight - 18) < 0.5,
+          aboveBlock12: Math.abs(m.blockTop - m.headBottom - 12) < 0.5,
+          belowBlock12: Math.abs(m.rowTop - m.blockBottom - 12) < 0.5,
           buttonMinHeight: m.buttonMinHeight,
           fits: m.scrollW <= m.innerW,
         };
       })
       .toEqual({
-        summaryOffset: 0,
-        buttonInset: 18,
-        aboveBlock: 12,
-        belowBlock: 12,
+        summaryAligned: true,
+        buttonInset18: true,
+        aboveBlock12: true,
+        belowBlock12: true,
         buttonMinHeight: '44px',
         fits: true,
       });
@@ -381,8 +385,8 @@ test('on a phone the chips keep their words and the button fills the strip', asy
     .poll(async () => {
       const m = await measure();
       return {
-        leftOffset: Math.round(m.buttonLeft - m.left),
-        rightOffset: Math.round(m.buttonRight - m.right),
+        leftAligned: Math.abs(m.buttonLeft - m.left) < 0.5,
+        rightAligned: Math.abs(m.buttonRight - m.right) < 0.5,
         tallEnough: m.buttonHeight >= 44,
         // One line tall: a chip's words never break mid-word.
         chipsOneLine: Math.max(...m.chipHeights) < 40,
@@ -390,8 +394,8 @@ test('on a phone the chips keep their words and the button fills the strip', asy
       };
     })
     .toEqual({
-      leftOffset: 0,
-      rightOffset: 0,
+      leftAligned: true,
+      rightAligned: true,
       tallEnough: true,
       chipsOneLine: true,
       fits: true,

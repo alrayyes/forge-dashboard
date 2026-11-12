@@ -48,6 +48,9 @@ async function open(page: Page, width: number) {
 test.describe('webhooks table at tablet width', () => {
   test('actions sit on one line, unhyphenated, at 820px', async ({ page }) => {
     await open(page, 820);
+    await expect(
+      page.locator('#webhooks-rows td.action button').first(),
+    ).toBeVisible();
     const measure = () =>
       page.evaluate(() =>
         [
