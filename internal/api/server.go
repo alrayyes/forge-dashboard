@@ -33,6 +33,12 @@ type Deps struct {
 	// version var for how it's set.
 	Version string
 
+	// StartedAt is when this process started. The dashboard reports
+	// RecentlyStarted for a few minutes after it, so a page can tell a forge
+	// that failed because the first refresh is still running from a real
+	// outage. Zero means unknown, and never counts as recent.
+	StartedAt time.Time
+
 	AuthService *auth.Service
 	AuthStore   *auth.Store
 

@@ -106,6 +106,21 @@ type dashboardResponse struct {
 	// serialized FirstRefreshDone, which is also true for a snapshot restored
 	// from the saved cache.
 	ReadIntervalSeconds int `json:"readIntervalSeconds"`
+	// RecentlyStarted is true for startupGrace after the process started. A
+	// restart (an OOM kill, a deploy) empties the in-memory state, and the
+	// first full refresh is the heaviest moment, so a forge that has not
+	// answered yet is starting up, not down. Always serialized.
+	RecentlyStarted bool `json:"recentlyStarted"`
+}
+
+// startupGrace is how long after a start the page words a forge that has not
+// answered as starting up.
+const startupGrace = 5 * time.Minute
+
+// recentlyStarted reports whether startedAt is within startupGrace before now.
+// A zero startedAt is unknown, not recent.
+func recentlyStarted(startedAt, now time.Time) bool {
+	return !startedAt.IsZero() && now.Sub(startedAt) < startupGrace
 }
 
 // clientReadInterval is what the API advises clients to re-read the
@@ -467,6 +482,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		QueuedActions:      board.queuedActions(),
 
 		ReadIntervalSeconds: int(readInterval(done) / time.Second),
+		RecentlyStarted:     recentlyStarted(deps.StartedAt, board.now),
 	}
 }
 
