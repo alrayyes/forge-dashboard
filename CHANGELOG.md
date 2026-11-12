@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.36.0](https://github.com/alrayyes/forge-dashboard/compare/v9.35.0...v9.36.0) (2026-11-12)
+
+
+### Features
+
+* **web:** show forge health and request budget only when they need attention ([#3705](https://github.com/alrayyes/forge-dashboard/issues/3705)) ([ca8ee4f](https://github.com/alrayyes/forge-dashboard/commit/ca8ee4f24487e8d73b58319068581ae8c9544cae))
+
 ## [9.35.0](https://github.com/alrayyes/forge-dashboard/compare/v9.34.1...v9.35.0) (2026-11-12)
 
 
