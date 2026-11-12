@@ -104,13 +104,19 @@ export function rerunAllPlan<T extends RerunRow>(
   return { eligible, leftOut, checking, total: items.length, failing };
 }
 
-// The control only earns its place when something listed is failing. A run in
-// progress keeps it, so the progress count doesn't vanish mid-run.
+// The control only earns its place while a failing row could still be rerun:
+// one the server said yes to, one it failed to answer for, or one it has not
+// been asked about yet. Once every failing row is left out (a rerun already
+// queued, a locked forge, an answer of "nothing to rerun") the button is gone,
+// since pressing it could only say so (#3636). The reasons stay on the rows.
+// A run in progress, or the dialog being open, keeps it, so the progress
+// count doesn't vanish mid-run and focus has somewhere to come back to.
 export function showRerunAll<T extends RerunRow>(
   plan: RerunPlan<T>,
-  running: boolean,
+  busy: boolean,
 ): boolean {
-  return plan.failing > 0 || running;
+  if (busy) return true;
+  return plan.eligible.length + plan.checking.length > 0;
 }
 
 export function rerunAllLabel(count: number): string {
@@ -119,11 +125,4 @@ export function rerunAllLabel(count: number): string {
 
 export function rerunProgressLabel(done: number, count: number): string {
   return `Rerunning ${done} of ${count}`;
-}
-
-// The button's description and tooltip when nothing failing can be rerun.
-export function rerunNoneLine(failing: number): string {
-  return failing === 1
-    ? "The failing pull request can't be rerun from here."
-    : `None of the ${failing} failing pull requests can be rerun from here.`;
 }

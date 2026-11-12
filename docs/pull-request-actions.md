@@ -1207,12 +1207,22 @@ on. Showing it there leaves the list where it was. A screen reader hears
 `Rerun queued for 3.` or `Rerun queued for 2 of 3. 1 refused.` when the run
 ends.
 
-With none to rerun the dialog is titled `Nothing to rerun`, lists the reasons
-under `Can't rerun`, and has no confirm button. Once the answers are in, the
-button drops its count and its hover text and description read "None of the 3
-failing pull requests can be rerun from here." followed by the reasons. With no
-failing pull request listed the button is gone, and focus moves to the `All`
-quick filter if the button had it.
+The button is there only while a failing pull request could still be rerun:
+one the server said yes to, one it couldn't answer for, or one it hasn't been
+asked about yet. It is never hidden on a guess. Once every failing pull request
+is left out, the button is gone instead of opening a dialog that says so: a
+rerun is already queued for each, the forge is locked, `rerun_checks` isn't
+offered, or the server answered that nothing ran. The reasons stay where they
+were, a queued rerun on the row and the refusal on the row's own `Rerun`
+button. The button comes back when a row can be rerun again, for example when
+its `updatedAt` moves and the next refresh brings a new head. If the button had
+focus when it goes, focus moves to the `All` quick filter. The same happens
+with no failing pull request listed.
+
+Pressing the button can still end in a dialog titled `Nothing to rerun`: when
+the rows were all still waiting to be asked and every answer comes back "no".
+It lists the reasons under `Can't rerun` and has no confirm button. The button
+stays while that dialog or a run is open, and goes when it closes.
 
 ## Deleting the source branch on merge
 

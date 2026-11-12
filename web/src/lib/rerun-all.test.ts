@@ -6,7 +6,6 @@ import {
   QUEUED_REASON,
   rerunAllLabel,
   rerunAllPlan,
-  rerunNoneLine,
   rerunProgressLabel,
   showRerunAll,
 } from './rerun-all';
@@ -151,20 +150,52 @@ describe('labels', () => {
     expect(rerunProgressLabel(2, 4)).toBe('Rerunning 2 of 4');
   });
 
-  test('the none line names how many fail', () => {
-    expect(rerunNoneLine(3)).toBe(
-      'None of the 3 failing pull requests can be rerun from here.',
-    );
-    expect(rerunNoneLine(1)).toBe(
-      "The failing pull request can't be rerun from here.",
-    );
+  test('the control shows only while a failing row can still run or a run is going', () => {
+    const noFailing = plan([row({ number: 1, ci: 'success' })]);
+    const some = plan([row({ number: 1 })]);
+    expect(showRerunAll(noFailing, false)).toBe(false);
+    expect(showRerunAll(noFailing, true)).toBe(true);
+    expect(showRerunAll(some, false)).toBe(true);
   });
 
-  test('the control shows only while something is failing or a run is going', () => {
-    const none = plan([row({ number: 1, ci: 'success' })]);
-    const some = plan([row({ number: 1 })]);
-    expect(showRerunAll(none, false)).toBe(false);
-    expect(showRerunAll(none, true)).toBe(true);
-    expect(showRerunAll(some, false)).toBe(true);
+  test('it is gone once every failing row is left out, whatever the reason', () => {
+    const no: Probe = { rerunnable: false, reason: 'no failed job' };
+    const queued = plan([row({ number: 1 }), row({ number: 2 })], {
+      queued: () => true,
+    });
+    const answered = plan([row({ number: 1 })], { probe: () => no });
+    const locked = plan([row({ number: 1 })], { lock: () => 'rate limited' });
+    const notOffered = plan([row({ number: 1, allowedActions: [] })]);
+    for (const p of [queued, answered, locked, notOffered])
+      expect(showRerunAll(p, false)).toBe(false);
+  });
+
+  test('it stays while a run or the dialog is open, so progress and focus survive', () => {
+    const answered = plan([row({ number: 1 })], {
+      probe: () => ({ rerunnable: false, reason: 'no failed job' }),
+    });
+    expect(showRerunAll(answered, true)).toBe(true);
+  });
+
+  test('it is never hidden before the server has answered', () => {
+    const waiting = plan([row({ number: 1 }), row({ number: 2 })], {
+      probe: () => undefined,
+    });
+    expect(showRerunAll(waiting, false)).toBe(true);
+  });
+
+  test('it comes back when one row can run again', () => {
+    const no: Probe = { rerunnable: false, reason: 'no failed job' };
+    const gone = plan([row({ number: 1 })], { probe: () => no });
+    const back = plan([row({ number: 1 })], { probe: () => yes });
+    expect(showRerunAll(gone, false)).toBe(false);
+    expect(showRerunAll(back, false)).toBe(true);
+  });
+
+  test('one row that can run is enough, beside rows that cannot', () => {
+    const p = plan([row({ number: 1 }), row({ number: 2 })], {
+      queued: (r) => r.number === 1,
+    });
+    expect(showRerunAll(p, false)).toBe(true);
   });
 });

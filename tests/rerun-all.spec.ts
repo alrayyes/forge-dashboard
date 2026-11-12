@@ -112,7 +112,7 @@ async function open(
     return route.fulfill({ status: 204 });
   });
   await page.goto(path);
-  return { posts, probed };
+  return { posts, probed, pullRequests };
 }
 
 const mixed = [
@@ -230,15 +230,68 @@ test('when no failing row can run the dialog says so and sends nothing', async (
     dialog.getByRole('heading', { name: "Can't rerun (3)" }),
   ).toBeVisible();
   await expect(dialog.getByRole('button', { name: /^Rerun \d/ })).toBeHidden();
+  await expect(page.locator('#rerun-all-button')).toBeVisible();
   await dialog.getByRole('button', { name: 'Close' }).click();
-  // Now the answers are in, the button says so without asking again.
-  await expect(page.locator('#rerun-all-button')).toHaveText(
-    'Rerun failed checks',
-  );
-  await expect(page.locator('.rerun-all')).toContainText(
-    'None of the 3 failing pull requests can be rerun from here.',
-  );
+  // Now the answers are in, nothing is left to press: the button is gone, and
+  // focus moved to the All quick filter instead of dropping to the body.
+  await expect(page.locator('#rerun-all-button')).toBeHidden();
+  await expect(
+    page.locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]'),
+  ).toBeFocused();
+  await expect(page.locator('.rerun-all')).toBeHidden();
   expect(posts).toEqual([]);
+});
+
+// The ticket's own case: every failing row already has a rerun queued. The
+// button is gone, with no dialog to open and nothing asked of the forge.
+test('once every failing row has a rerun queued the button is gone', async ({
+  page,
+}) => {
+  const { posts, probed } = await open(
+    page,
+    '/pull-requests.html',
+    [pr(1), pr(2)],
+    {},
+  );
+  const button = page.locator('#rerun-all-button');
+  await button.click();
+  await page.getByRole('button', { name: 'Rerun 2 pull requests' }).click();
+  await expect.poll(() => posts).toEqual([1, 2]);
+  const dialog = page.getByRole('dialog');
+  if (await dialog.isVisible()) await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(button).toBeHidden();
+  await expect(
+    page.getByRole('dialog', { name: 'Nothing to rerun' }),
+  ).toHaveCount(0);
+  expect(probed).toEqual([1, 2]);
+});
+
+// A row's updatedAt moving drops the remembered "no", so after the next
+// refresh the button is back with the row counted.
+test('the button comes back when an answered row changes and can run', async ({
+  page,
+}) => {
+  const no = { rerunnable: false, reason: 'no failed job to rerun' };
+  const probes: Probes = { 1: no };
+  const { pullRequests } = await open(
+    page,
+    '/pull-requests.html',
+    [pr(1)],
+    probes,
+  );
+  const button = page.locator('#rerun-all-button');
+  await button.click();
+  await page.locator('#rerun-all-cancel').click();
+  await expect(button).toBeHidden();
+  probes[1] = { rerunnable: true };
+  pullRequests[0] = pr(1, {
+    updatedAt: new Date(Date.now() + 60_000).toISOString(),
+  });
+  await page.locator('#force-refresh-button').click();
+  await expect(
+    page.getByRole('button', { name: 'Rerun failed checks (1)' }),
+  ).toBeVisible();
 });
 
 // A forge that can't be asked: its rows are filed under Can't rerun with the
@@ -248,19 +301,14 @@ const spent = {
   remaining: 0,
   resetsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
 };
-for (const [name, forge, reason] of [
-  [
-    'unreachable',
-    { forge: 'github', reachable: false, repoCount: 1 },
-    /reach/i,
-  ],
+for (const [name, forge] of [
+  ['unreachable', { forge: 'github', reachable: false, repoCount: 1 }],
   [
     'rate limited',
     { forge: 'github', reachable: true, repoCount: 1, rateLimitREST: spent },
-    /rate limit reached/i,
   ],
 ] as const) {
-  test(`a ${name} forge's rows go under Can't rerun with the reason, and nothing is sent`, async ({
+  test(`with a ${name} forge the button is gone and nothing is sent`, async ({
     page,
   }) => {
     const { posts, probed } = await open(
@@ -270,12 +318,10 @@ for (const [name, forge, reason] of [
       {},
       { forges: [forge] },
     );
-    await page.locator('#rerun-all-button').click();
-    const dialog = page.getByRole('dialog', { name: 'Nothing to rerun' });
-    await expect(dialog).toBeVisible();
-    const left = dialog.locator('#rerun-all-left-out-list > li');
-    await expect(left).toHaveCount(2);
-    await expect(left.first()).toContainText(reason);
+    // Every failing row is left out before any probe, so there is nothing to
+    // press and the reason stays on the rows.
+    await expect(page.locator('.row').first()).toBeVisible();
+    await expect(page.locator('#rerun-all-button')).toBeHidden();
     expect(probed).toEqual([]);
     expect(posts).toEqual([]);
   });
@@ -517,7 +563,7 @@ test('an answer that lands after the dialog closed updates the count', async ({
   await expect(page.locator('#rerun-all-checking')).toBeVisible();
   await page.keyboard.press('Escape');
   release();
-  await expect(button).toHaveText('Rerun failed checks');
+  await expect(button).toBeHidden();
 });
 
 // With the Hidden toggle on a 320px row the label wraps instead of spilling
