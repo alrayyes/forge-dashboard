@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.23.0](https://github.com/alrayyes/forge-dashboard/compare/v9.22.1...v9.23.0) (2026-11-12)
+
+
+### Features
+
+* show GitHub workflow runs that failed to start ([#3579](https://github.com/alrayyes/forge-dashboard/issues/3579)) ([d2adc1b](https://github.com/alrayyes/forge-dashboard/commit/d2adc1b0683b50fd37af1e4079f9404acf7b0623)), closes [#3305](https://github.com/alrayyes/forge-dashboard/issues/3305)
+
 ## [9.22.1](https://github.com/alrayyes/forge-dashboard/compare/v9.22.0...v9.22.1) (2026-11-12)
 
 
