@@ -4294,6 +4294,11 @@ button.pipeline-check-link:disabled {
   .quick-pills .forge-pill {
     display: none;
   }
+  /* With the forge pills gone, a group offering no quick pill is a lone All
+     (#3669). */
+  .quick-pills:not([data-quick-offered]) {
+    display: none;
+  }
   .active-filters {
     order: 2;
     display: flex;
@@ -5560,4 +5565,12 @@ footer a[aria-current="page"] {
   .update-all-actions button {
     flex: 1;
   }
+}
+
+/* A pill group with nothing to offer is hidden (#3669). The flex and sheet
+   rules above would otherwise beat the UA's [hidden]. */
+.quick-pills[hidden],
+.forge-group[hidden],
+.filter-sheet .forge-group[hidden] {
+  display: none;
 }

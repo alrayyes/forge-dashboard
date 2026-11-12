@@ -195,6 +195,18 @@ export function activePill(state: SharedFilterState): string {
   return 'all';
 }
 
+// The pill in effect on a page. The issues page ignores the pull-request-only
+// quick pills (#827), so a forge pick held next to one is what filters there.
+export function effectivePill(
+  state: SharedFilterState,
+  isIssues: boolean,
+): string {
+  const active = activePill(state);
+  if (isIssues && (QUICK_FILTERS as readonly string[]).includes(active))
+    return state.shared.forge || 'all';
+  return active;
+}
+
 // Activates one pill in place: clears the other pill's effect first, so
 // choosing one always deselects the rest. Mutated, not replaced — board
 // closures hold these exact objects.
@@ -1631,9 +1643,13 @@ export function offerForges(
   }
 }
 
-// Shows a quick pill only when clicking it would show something, or it is the
-// active one, so it can be seen and cleared (#1427). A forge pill matches the
-// items on that forge, any other pill its own rule. "All" always stays.
+// Shows a quick pill only when clicking it would change the list, or it is the
+// active one, so it can be seen and cleared (#1427, #3669). A forge pill
+// matches the items on that forge, any other pill its own rule. A pill that
+// matches nothing shows nothing, and one that matches every item in its pool
+// shows what no filter shows, so both are hidden. A pill group left with only
+// "All" is hidden whole; "All" itself is never hidden on its own, and a group
+// holding the active pill stays so the pick can be cleared.
 // Choosing a forge clears the repo, author, label and age picks it leaves
 // nothing for, so the forge pills count the items those picks would not hide
 // (forgePool); a quick pill keeps them, so it counts what they leave
@@ -1645,16 +1661,35 @@ export function offerPills(
   quickPool: FilterableItem[],
   active: string,
 ): void {
+  const groups = new Map<HTMLElement, boolean>();
+  const quickShown = new Set<HTMLElement>();
   for (const button of pills) {
     const pill = button.dataset.pill ?? '';
+    const group = button.parentElement;
+    if (group && !groups.has(group)) groups.set(group, false);
     if (!pill || pill === 'all') continue;
     // The bar and the Filters sheet each have a copy, and only the bar's
     // forge pills carry a class, so a pill is a quick one when it names one
     // of the quick filters and a forge one otherwise.
-    const matches = (QUICK_FILTERS as readonly string[]).includes(pill)
-      ? quickPool.some((item) => matchesQuickFilter(item, pill))
-      : forgePool.some((item) => item.forge === pill);
-    button.hidden = !(matches || pill === active);
+    const isQuick = (QUICK_FILTERS as readonly string[]).includes(pill);
+    const pool = isQuick ? quickPool : forgePool;
+    const matches = (item: FilterableItem) =>
+      isQuick ? matchesQuickFilter(item, pill) : item.forge === pill;
+    button.hidden = !(
+      pill === active ||
+      (pool.some(matches) && !pool.every(matches))
+    );
+    if (group && !button.hidden) {
+      groups.set(group, true);
+      if (isQuick) quickShown.add(group);
+    }
+  }
+  for (const [group, anyOffered] of groups) {
+    group.hidden = !anyOffered;
+    // On a phone the forge pills live in the Filters sheet, so a bar group
+    // with no quick pill to offer would show a lone "All". CSS keys on this.
+    if (quickShown.has(group)) group.dataset.quickOffered = '';
+    else delete group.dataset.quickOffered;
   }
 }
 
@@ -1697,24 +1732,27 @@ export function filtersAreDefault(
   );
 }
 
-// Shows a segmented control's choices only when something in the pool is that
-// way, or it is the one picked, and the whole segment only when something is on
-// offer. "Any" is always there while the segment is. `attr` names the data
-// attribute on its buttons; `available` says which choices the pool backs.
+// Shows a segmented control's choice only when it would change the list: it
+// backs some of the pool but not all of it (a choice every item has shows what
+// "Any" shows), or it is the one picked so it can be cleared (#3669). The whole
+// segment goes when no choice is offered. "Any" is always there while the
+// segment is. `attr` names the data attribute on its buttons; `counts` says how
+// many of the `total` pool items back each choice.
 function offerSegment(
   groups: Iterable<HTMLElement>,
   attr: string,
-  available: Record<string, boolean>,
+  counts: Record<string, number>,
+  total: number,
   picked: string,
 ): void {
   for (const group of groups) {
     let allHidden = true;
-    for (const [value, backed] of Object.entries(available)) {
+    for (const [value, count] of Object.entries(counts)) {
       const button = group.querySelector<HTMLElement>(
         `[data-${attr}="${value}"]`,
       );
       if (!button) continue;
-      button.hidden = !(backed || picked === value);
+      button.hidden = !(picked === value || (count > 0 && count < total));
       allHidden &&= button.hidden;
     }
     group.hidden = allHidden;
@@ -1731,9 +1769,10 @@ export function offerAutoMerge(
     groups,
     'am',
     {
-      on: pool.some((i) => i.autoMergeEnabled === true),
-      off: pool.some((i) => i.autoMergeEnabled === false),
+      on: pool.filter((i) => i.autoMergeEnabled === true).length,
+      off: pool.filter((i) => i.autoMergeEnabled === false).length,
     },
+    pool.length,
     picked,
   );
 }
@@ -1749,9 +1788,10 @@ export function offerRefs(
     groups,
     'ref',
     {
-      yes: pool.some((i) => matchesRefs(i, isPR, 'yes')),
-      no: pool.some((i) => matchesRefs(i, isPR, 'no')),
+      yes: pool.filter((i) => matchesRefs(i, isPR, 'yes')).length,
+      no: pool.filter((i) => matchesRefs(i, isPR, 'no')).length,
     },
+    pool.length,
     picked,
   );
 }

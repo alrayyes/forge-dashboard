@@ -8,19 +8,23 @@ import {
   test,
 } from 'bun:test';
 import {
+  activePill,
   ageChoices,
   ciBucket,
+  effectivePill,
   type FilterableItem,
   failingFilters,
   matchesFilters,
   matchesQuickFilter,
   matchesRefs,
+  offerAutoMerge,
   offerPills,
   offerRefs,
   optionPool,
   QUICK_FILTERS,
   refsChoiceLabel,
   refsKey,
+  type SharedFilterState,
   showBlockedChip,
 } from './filters';
 
@@ -299,7 +303,9 @@ describe('the No checks quick filter', () => {
       offerPills([noChecks as unknown as HTMLElement], [], pool, active);
       return !noChecks.hidden;
     };
-    expect(offered([choiceItem({ ci: 'none' })], '')).toBe(true);
+    expect(
+      offered([choiceItem({ ci: 'none' }), choiceItem({ ci: 'success' })], ''),
+    ).toBe(true);
     expect(offered([choiceItem({ ci: 'success' })], '')).toBe(false);
     expect(offered([choiceItem({ ci: 'success' })], 'no-checks')).toBe(true);
   });
@@ -313,6 +319,112 @@ describe('the No checks quick filter', () => {
         { status: 'failure' },
       ),
     ).toBe(true);
+  });
+});
+
+// A pill that matches the whole pool shows what no filter shows, so it is
+// hidden unless active, and a pill group with only "All" left is hidden
+// (#3669).
+describe('offerPills when a pill would change nothing', () => {
+  function fakePills(names: string[]) {
+    const group = {
+      hidden: false,
+      dataset: {} as Record<string, string>,
+    };
+    const pills = names.map((pill) => ({
+      dataset: { pill },
+      hidden: false,
+      parentElement: group,
+    }));
+    return { group, pills: pills as unknown as HTMLElement[], raw: pills };
+  }
+  const gh = choiceItem({ forge: 'github', ci: 'success' });
+  const fj = choiceItem({ forge: 'forgejo', ci: 'success' });
+  const running = choiceItem({ ci: 'pending' });
+
+  test('hides a forge pill when every item is on that forge, keeps both when mixed', () => {
+    const { pills, raw, group } = fakePills(['all', 'github', 'forgejo']);
+    offerPills(pills, [fj, fj], [fj, fj], 'all');
+    expect(raw.map((p) => p.hidden)).toEqual([false, true, true]);
+    expect(group.hidden).toBe(true);
+
+    offerPills(pills, [gh, fj], [gh, fj], 'all');
+    expect(raw.map((p) => p.hidden)).toEqual([false, false, false]);
+    expect(group.hidden).toBe(false);
+  });
+
+  test('hides Running CI when every item is running, keeps it when mixed', () => {
+    const { pills, raw, group } = fakePills(['all', 'running']);
+    offerPills(pills, [], [running, running], 'all');
+    expect(raw[1].hidden).toBe(true);
+    expect(group.hidden).toBe(true);
+
+    offerPills(pills, [], [running, gh], 'all');
+    expect(raw[1].hidden).toBe(false);
+    expect(group.hidden).toBe(false);
+  });
+
+  test('keeps the active pill, and its group, even when it matches everything', () => {
+    const { pills, raw, group } = fakePills(['all', 'running']);
+    offerPills(pills, [], [running, running], 'running');
+    expect(raw[1].hidden).toBe(false);
+    expect(group.hidden).toBe(false);
+  });
+
+  test('marks a group that offers a quick pill, for the phone bar', () => {
+    const { pills, group } = fakePills(['all', 'github', 'running']);
+    offerPills(pills, [gh, fj], [running, gh], 'all');
+    expect('quickOffered' in group.dataset).toBe(true);
+    // Only forge pills are left: shown, but the phone bar hides them.
+    offerPills(pills, [gh, fj], [gh, gh], 'all');
+    expect(group.hidden).toBe(false);
+    expect('quickOffered' in group.dataset).toBe(false);
+  });
+
+  test('never hides All on its own', () => {
+    const { pills, raw } = fakePills(['all', 'running']);
+    offerPills(pills, [], [gh, running], 'all');
+    expect(raw[0].hidden).toBe(false);
+  });
+});
+
+// The issues page ignores the pull-request-only quick pills, so a forge pick
+// held beside one is the pill in effect there (#3669). Passing the quick pick
+// instead would hide the forge pill that holds the filter.
+describe('effectivePill', () => {
+  const state = (shared: string, quick: string): SharedFilterState =>
+    ({
+      shared: { forge: shared },
+      pr: { quick },
+      issue: {},
+      view: {},
+    }) as SharedFilterState;
+
+  test('on the pull request pages a quick pick wins, as activePill says', () => {
+    expect(effectivePill(state('github', 'failing'), false)).toBe('failing');
+    expect(activePill(state('github', 'failing'))).toBe('failing');
+  });
+
+  test('on the issues page the forge pick is in effect next to a quick pick', () => {
+    expect(effectivePill(state('github', 'failing'), true)).toBe('github');
+    expect(effectivePill(state('', 'failing'), true)).toBe('all');
+  });
+
+  test('keeps the held forge pill visible on the issues page', () => {
+    const gh = choiceItem({ forge: 'github' });
+    const pill = { dataset: { pill: 'github' }, hidden: false };
+    const group = { hidden: false, dataset: {} as Record<string, string> };
+    const all = { dataset: { pill: 'all' }, hidden: false };
+    for (const p of [pill, all])
+      (p as unknown as { parentElement: unknown }).parentElement = group;
+    offerPills(
+      [all, pill] as unknown as HTMLElement[],
+      [gh, gh],
+      [gh, gh],
+      effectivePill(state('github', 'failing'), true),
+    );
+    expect(pill.hidden).toBe(false);
+    expect(group.hidden).toBe(false);
   });
 });
 
@@ -461,14 +573,16 @@ describe('matchesRefs', () => {
   });
 });
 
-// The refs segment offers a Yes or No only while something in the pool
-// matches it (#3624); the picked one stays, and the segment goes when neither
-// is offered. The wiring is in refs-issues-filter.spec.ts.
+// A segmented filter offers a choice only while something in the pool backs
+// it (#3624), and the whole control only while there is a real choice: both
+// choices backed, or a lone one that is the active pick (#3669). Any plus a
+// lone choice filters nothing. The wiring is in refs-issues-filter.spec.ts,
+// auto-merge-filter.spec.ts and segment-single-choice.spec.ts.
 type FakeButton = { hidden: boolean };
-function fakeSegment(attr: string) {
+function fakeSegment(attr: string, names: [string, string]) {
   const buttons: Record<string, FakeButton> = {
-    yes: { hidden: false },
-    no: { hidden: false },
+    [names[0]]: { hidden: false },
+    [names[1]]: { hidden: false },
   };
   const group = {
     hidden: false,
@@ -482,76 +596,111 @@ function fakeSegment(attr: string) {
   return { group: group as unknown as HTMLElement, buttons, state: group };
 }
 
-describe.each([
-  {
-    name: 'offerRefs',
-    attr: 'ref',
-    offer: offerRefs,
-    yes: (isPR: boolean) =>
-      isPR
-        ? { refsIssues: [{ repo: 'a/b', number: 1 }] }
-        : { referencedByPullRequests: [{ repo: 'a/b', number: 1 }] },
-  },
-])('$name', ({ attr, offer, yes }) => {
-  for (const isPR of [true, false]) {
-    const page = isPR ? 'pull requests' : 'issues';
-    const matching = choiceItem(yes(isPR));
-    const plain = choiceItem({});
+type Offer = (
+  groups: HTMLElement[],
+  pool: FilterableItem[],
+  isPR: boolean,
+  picked: string,
+) => void;
 
-    test(`${page}: offers only Yes when every item matches it`, () => {
-      const { group, buttons } = fakeSegment(attr);
-      offer([group], [matching], isPR, '');
-      expect(buttons.yes.hidden).toBe(false);
-      expect(buttons.no.hidden).toBe(true);
-    });
+const refsCases = [true, false].map((isPR) => ({
+  name: `offerRefs, ${isPR ? 'pull requests' : 'issues'}`,
+  attr: 'ref',
+  names: ['yes', 'no'] as [string, string],
+  isPR,
+  offer: offerRefs as Offer,
+  first: choiceItem(
+    isPR
+      ? { refsIssues: [{ repo: 'a/b', number: 1 }] }
+      : { referencedByPullRequests: [{ repo: 'a/b', number: 1 }] },
+  ),
+  second: choiceItem({}),
+}));
+const autoMergeCase = {
+  name: 'offerAutoMerge',
+  attr: 'am',
+  names: ['on', 'off'] as [string, string],
+  isPR: true,
+  offer: ((groups, pool, _isPR, picked) =>
+    offerAutoMerge(groups, pool, picked)) as Offer,
+  first: choiceItem({ autoMergeEnabled: true }),
+  second: choiceItem({ autoMergeEnabled: false }),
+};
 
-    test(`${page}: offers only No when nothing matches Yes`, () => {
-      const { group, buttons } = fakeSegment(attr);
-      offer([group], [plain], isPR, '');
-      expect(buttons.yes.hidden).toBe(true);
-      expect(buttons.no.hidden).toBe(false);
-    });
+describe.each([...refsCases, autoMergeCase])(
+  '$name',
+  ({ attr, names, isPR, offer, first, second }) => {
+    const [a, b] = names;
 
-    test(`${page}: offers both when the pool has both kinds`, () => {
-      const { group, buttons, state } = fakeSegment(attr);
-      offer([group], [matching, plain], isPR, '');
-      expect(buttons.yes.hidden).toBe(false);
-      expect(buttons.no.hidden).toBe(false);
+    test('offers both choices and the segment when the pool has both kinds', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [first, second], isPR, '');
+      expect(buttons[a].hidden).toBe(false);
+      expect(buttons[b].hidden).toBe(false);
       expect(state.hidden).toBe(false);
     });
 
-    test(`${page}: hides the segment when there are no items`, () => {
-      const { group, buttons, state } = fakeSegment(attr);
-      offer([group], [], isPR, '');
-      expect(buttons.yes.hidden).toBe(true);
-      expect(buttons.no.hidden).toBe(true);
+    test('hides the segment when only the first choice is backed and none is picked', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [first], isPR, '');
+      expect(buttons[a].hidden).toBe(true);
+      expect(buttons[b].hidden).toBe(true);
       expect(state.hidden).toBe(true);
     });
 
-    test(`${page}: keeps the picked choice even when nothing matches it`, () => {
-      const { group, buttons, state } = fakeSegment(attr);
-      offer([group], [plain], isPR, 'yes');
-      expect(buttons.yes.hidden).toBe(false);
-      expect(buttons.no.hidden).toBe(false);
+    test('hides the segment when only the second choice is backed and none is picked', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [second], isPR, '');
+      expect(buttons[a].hidden).toBe(true);
+      expect(buttons[b].hidden).toBe(true);
+      expect(state.hidden).toBe(true);
+    });
+
+    test('hides the segment when there are no items', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [], isPR, '');
+      expect(buttons[a].hidden).toBe(true);
+      expect(buttons[b].hidden).toBe(true);
+      expect(state.hidden).toBe(true);
+    });
+
+    test('keeps a lone backed choice and the segment when it is the pick', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [first], isPR, a);
+      expect(buttons[a].hidden).toBe(false);
       expect(state.hidden).toBe(false);
     });
 
-    test(`${page}: keeps a picked Yes and its segment when the pool is empty`, () => {
-      const { group, buttons, state } = fakeSegment(attr);
-      offer([group], [], isPR, 'yes');
-      expect(buttons.yes.hidden).toBe(false);
-      expect(buttons.no.hidden).toBe(true);
+    test('keeps the picked choice when nothing backs it, and hides the one every item has', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [second], isPR, a);
+      expect(buttons[a].hidden).toBe(false);
+      expect(buttons[b].hidden).toBe(true);
       expect(state.hidden).toBe(false);
     });
 
-    test(`${page}: keeps a picked No and its segment when only Yes is backed`, () => {
-      const { group, buttons, state } = fakeSegment(attr);
-      offer([group], [matching], isPR, 'no');
-      expect(buttons.yes.hidden).toBe(false);
-      expect(buttons.no.hidden).toBe(false);
+    test('keeps a picked choice and its segment when the pool is empty', () => {
+      const { group, buttons, state } = fakeSegment(attr, names);
+      offer([group], [], isPR, a);
+      expect(buttons[a].hidden).toBe(false);
+      expect(buttons[b].hidden).toBe(true);
       expect(state.hidden).toBe(false);
     });
-  }
+  },
+);
+
+// An item the forge does not report on is in neither On nor Off, so On still
+// narrows a pool that holds one (#3669).
+test('offerAutoMerge keeps On when an unreported item is in the pool', () => {
+  const { group, buttons, state } = fakeSegment('am', ['on', 'off']);
+  offerAutoMerge(
+    [group],
+    [choiceItem({ autoMergeEnabled: true }), choiceItem()],
+    '',
+  );
+  expect(buttons.on.hidden).toBe(false);
+  expect(buttons.off.hidden).toBe(true);
+  expect(state.hidden).toBe(false);
 });
 
 // A saved author pick is lowercase, but the item's author keeps its capitals

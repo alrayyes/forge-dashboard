@@ -264,9 +264,10 @@ referencing it, since a close is the strong form of a ref, so there is no
 separate closing control. It finds the issues something is already working on
 and the ones nothing is. Only this page's list is filtered by it, it is saved
 and restored like the others, and a choice is offered only when some issue is
-that way. On a phone it is in the Filters sheet. A value other than yes or no
-in a saved pick is dropped on load, and so is a closing choice saved before the
-two controls were merged. The row's pills still tell a close from a ref.
+that way and not every issue is. On a phone it is in the Filters sheet. A value
+other than yes or no in a saved pick is dropped on load, and so is a closing
+choice saved before the two controls were merged. The row's pills still tell a
+close from a ref.
 The pull-request-only controls (the CI quick filters, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts) are not
 on the issues page. Which choices a page offers, and how filters are remembered,

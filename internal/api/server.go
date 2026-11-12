@@ -257,7 +257,22 @@ func NewMux(deps Deps) http.Handler {
 		})
 	}
 
-	return noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(mux))))
+	return contentSecurityPolicyHeader(noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(mux)))))
+}
+
+// contentSecurityPolicy lets the browser load an image from this server and
+// nowhere else (#3467). Avatars, logos and embedded images all come through
+// GET /api/v1/images, which fetches them from the hosts it allows, so none of
+// those hosts belongs here. `data:` is the inline check mark on a ticked box.
+const contentSecurityPolicy = "img-src 'self' data:"
+
+// contentSecurityPolicyHeader sends the policy on every response. A handler
+// that wants a stricter one, as the image route does, sets its own over it.
+func contentSecurityPolicyHeader(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Security-Policy", contentSecurityPolicy)
+		next.ServeHTTP(w, r)
+	})
 }
 
 // noIndex marks every response, page, script, JSON or error, as not for search

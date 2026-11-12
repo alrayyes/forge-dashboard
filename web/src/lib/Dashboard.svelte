@@ -5999,6 +5999,37 @@
       });
     }
 
+    // Where focus goes when a button under it hides: the All pill or, when
+    // the pill group has nothing to offer and is hidden too (#3669), the title
+    // filter. Focus lost inside the open Filters sheet stays in it, on the All
+    // pill or else the close button, since the bar is behind the modal.
+    function focusFilterBar(from: Element | null = null) {
+      const candidates = from?.closest("#filter-sheet")
+        ? ['#filter-sheet .quick-pill[data-pill="all"]', "#filter-sheet-close"]
+        : [
+            '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
+            '.filter-bar .col-filter[data-col="title"]',
+          ];
+      for (const selector of candidates) {
+        const target = document.querySelector<HTMLElement>(selector);
+        if (target && target.getClientRects().length > 0) {
+          target.focus();
+          return;
+        }
+      }
+    }
+
+    // After a filter group hides under focus, moves focus to a control that
+    // is still there. `focused` is the element that held it before.
+    function keepFocusInBar(focused: Element | null) {
+      if (
+        focused instanceof HTMLElement &&
+        focused.closest(".quick-pills, .forge-group, .am-group, .refs-group") &&
+        focused.getClientRects().length === 0
+      )
+        focusFilterBar(focused);
+    }
+
     function updateRebaseAll() {
       const button = document.getElementById("rebase-all-button");
       const summary = document.getElementById("rebase-all-summary");
@@ -6010,11 +6041,7 @@
         const show = showRebaseAll(plan, rebaseAllRun !== null);
         // A button that vanishes under focus would drop it to the body.
         if (!show && !block.hidden && block.contains(document.activeElement))
-          document
-            .querySelector<HTMLElement>(
-              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
-            )
-            ?.focus();
+          focusFilterBar();
         block.hidden = !show;
       }
       button.textContent = rebaseAllRun
@@ -6191,11 +6218,7 @@
         const show = showUpdateAll(plan, updateAllRun !== null);
         // A button that vanishes under focus would drop it to the body.
         if (!show && !block.hidden && block.contains(document.activeElement))
-          document
-            .querySelector<HTMLElement>(
-              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
-            )
-            ?.focus();
+          focusFilterBar();
         block.hidden = !show;
       }
       button.textContent = updateAllRun
@@ -6375,11 +6398,7 @@
         );
         // A button that vanishes under focus would drop it to the body.
         if (!show && !block.hidden && block.contains(document.activeElement))
-          document
-            .querySelector<HTMLElement>(
-              '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
-            )
-            ?.focus();
+          focusFilterBar();
         block.hidden = !show;
       }
       button.textContent = rerunAllRun
@@ -7612,6 +7631,9 @@
       // A quick pill is offered only if clicking it would show something
       // (#1427); the one active stays. Worked out after the stale picks are
       // cleared, since the pools are built from what is left.
+      // Clearing a pick can hide the group that holds it; focus must not
+      // fall to the body (#3669).
+      const focused = document.activeElement;
       if (pullsView)
         Filters.offerAutoMerge(
           document.querySelectorAll<HTMLElement>(".am-group"),
@@ -7628,8 +7650,9 @@
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         forgePillPool(),
         sharedPoolExcluding("forge", "applyExceptQuick"),
-        Filters.activePill(sharedState),
+        Filters.effectivePill(sharedState, view === "issues"),
       );
+      keepFocusInBar(focused);
       return cleared;
     }
 
@@ -8343,14 +8366,9 @@
       document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
     );
     function syncQuickPills() {
-      let active = Filters.activePill(sharedState);
       // The issues page has no pull-request-only pills, and they don't
-      // filter issues, so All is what's in effect there (#827).
-      if (
-        view === "issues" &&
-        (Filters.QUICK_FILTERS as readonly string[]).includes(active)
-      )
-        active = "all";
+      // filter issues, so they are not what's in effect there (#827).
+      const active = Filters.effectivePill(sharedState, view === "issues");
       for (const b of quickPills)
         b.setAttribute("aria-pressed", String(b.dataset.pill === active));
     }

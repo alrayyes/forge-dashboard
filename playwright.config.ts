@@ -231,6 +231,7 @@ const singleUserSpecs = [
   '**/closing-issues.spec.ts',
   '**/refs-pills.spec.ts',
   '**/refs-issues-filter.spec.ts',
+  '**/segment-single-choice.spec.ts',
   '**/mentioned-tickets.spec.ts',
   '**/linked-pull-requests.spec.ts',
   '**/filter-choices-board.spec.ts',
@@ -251,6 +252,7 @@ const singleUserSpecs = [
   '**/main-branch-snapshot-runs.spec.ts',
   '**/author-link-focus-ring.spec.ts',
   '**/settings-hint-size.spec.ts',
+  '**/csp-img-src.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

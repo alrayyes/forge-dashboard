@@ -39,7 +39,9 @@ async function seedPulls(page: Page) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        // Two repos and authors, so those filters stay in the bar.
+        // Two repos and authors, so those filters stay in the bar. One pull
+        // request fails and one passes, so the Failing CI pill changes the
+        // list and the quick pills are offered (#3669).
         pullRequests: [
           ['acme/app', 'someone'],
           ['acme/lib', 'other'],
@@ -51,7 +53,7 @@ async function seedPulls(page: Page) {
           url: `https://example.com/${i + 1}`,
           author,
           draft: false,
-          ci: 'failure',
+          ci: i === 0 ? 'failure' : 'success',
           mergeStatus: 'blocked',
           labels: [],
           createdAt: new Date().toISOString(),

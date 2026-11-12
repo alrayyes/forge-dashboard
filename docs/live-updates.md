@@ -263,7 +263,8 @@ own filters (the quick pills, Auto-merge and the closing-issue choice; on the
 issue page, the closing-pull-request choice), so an author with nothing in the
 list on screen isn't offered and picking a choice never leaves an empty list.
 The quick pills do too: a pill is offered only when clicking it would show
-something, and the one that is active stays so it can be cleared.
+something and not when it matches the whole pool, and the one that is active
+stays so it can be cleared.
 
 ## The Label filter
 

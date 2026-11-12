@@ -383,7 +383,11 @@ test.describe('stable rows: a long list', () => {
     });
 
   async function openMany(page: Page, count = 24) {
-    const many = Array.from({ length: count }, (_, i) => makePR(i + 1));
+    // One pull request fails from the start, so the Failing CI pill is already
+    // offered: a pill group appearing mid-test would move the page (#3669).
+    const many = Array.from({ length: count }, (_, i) =>
+      makePR(i + 1, i === 0 ? { ci: 'failure' } : {}),
+    );
     await page.route('**/api/v1/dashboard', (route: Route) =>
       route.fulfill({
         status: 200,

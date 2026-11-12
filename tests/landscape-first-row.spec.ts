@@ -46,9 +46,12 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
+// One pull request with auto-merge on and one with it off, so the Auto-merge
+// segment is offered and the bar keeps the controls these heights measure
+// (#3669 hides a segment with one choice).
 const PULLS = [
-  makePR(1),
-  makePR(2, { ci: 'failure' }),
+  makePR(1, { autoMergeEnabled: true }),
+  makePR(2, { ci: 'failure', autoMergeEnabled: false }),
   makePR(3, { kind: 'release', title: 'chore(main): release 1.0.0' }),
   makePR(4, { kind: 'release', title: 'chore(main): release 1.1.0' }),
   makePR(5, { kind: 'dependency', title: 'Bump left-pad from 1.0.0 to 1.0.1' }),

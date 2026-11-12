@@ -11,6 +11,10 @@ HTML shell has a matching `<meta name="robots">` tag, and `robots.txt` allows
 crawling on purpose: a crawler that can't fetch a page never reads its
 `noindex`. The real barrier is the passkey login below.
 
+Every response also carries `Content-Security-Policy: img-src 'self' data:`.
+Avatars, repository logos and images in descriptions all come through this
+server, so your browser refuses to load an image from anywhere else.
+
 The first visit registers a passkey and becomes the instance's only user —
 no password anywhere, and no separate account system. Neither registering nor
 signing in asks for a username: the server names the account, and the sign-in

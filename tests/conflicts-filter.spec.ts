@@ -28,7 +28,12 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
 
 const MIXED = [
   makePR(1, { title: 'Conflicts with main', mergeStatus: 'conflicting' }),
-  makePR(2, { title: 'Merges cleanly', mergeStatus: 'mergeable' }),
+  // On the other forge, so the forge pills have a real choice to offer.
+  makePR(2, {
+    title: 'Merges cleanly',
+    forge: 'forgejo',
+    mergeStatus: 'mergeable',
+  }),
   makePR(3, { title: 'Status not known yet', mergeStatus: 'unknown' }),
   makePR(4, {
     title: 'A draft that conflicts',
@@ -179,6 +184,8 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await page.goto('/pull-requests.html');
 
     await expect(pill(page, 'Conflicts')).toBeHidden();
-    await expect(pill(page, 'All')).toBeVisible();
+    // Every row is on one forge and no other pill backs any, so only All is
+    // left, and a group with only All is hidden whole (#3669).
+    await expect(page.locator('.filter-bar .quick-pills')).toBeHidden();
   });
 });
