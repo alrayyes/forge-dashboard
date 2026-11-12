@@ -221,9 +221,17 @@ pre-push:
 
     # Grammar and spelling. Left out of pre-commit on the grounds that it is a
     # ~300 MB download, which it is — but it caches outside the repository and
-    # then costs about ten seconds.
+    # then costs about ten seconds, plus a JVM start that is real CPU when
+    # several pushes land at once. So it runs only when the push holds prose,
+    # and checks only the pushed Markdown; the script says why when it stops
+    # early, and checks the whole tree when .ltex.json or itself is in the
+    # push. CI and `bun run lint:mechanics` still check everything.
     - name: mechanics
-      run: bun run lint:mechanics
+      glob:
+        - "*.md"
+        - ".ltex.json"
+        - "scripts/lint-mechanics.sh"
+      run: ./scripts/lint-mechanics.sh {push_files}
 
     - name: redocly
       run: bun run lint:api

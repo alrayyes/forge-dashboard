@@ -9,6 +9,12 @@
 # is ghcr.io/alrayyes/ltex-cli-plus (built once by that repo, not fetched
 # fresh here), so ltex-cli-plus is already on PATH and this script's only job
 # there is to skip the fetch and use it.
+#
+# With arguments (the pre-push hook passes the pushed files), only the pushed
+# Markdown is checked: ltex starts a JVM, and a push with no prose should not
+# pay for it. A push that includes .ltex.json or this script checks the whole
+# tree, since either can change what every document is held to. With no
+# arguments (CI, bun run lint:mechanics) everything is checked.
 set -uo pipefail
 
 cd "$(dirname "$0")/.."
@@ -18,6 +24,39 @@ cd "$(dirname "$0")/.."
 # pipeline fails, which is the failure this whole arrangement exists to
 # avoid.
 VERSION=18.7.0
+
+# Which files to check: the whole tree on a bare run, or when the push
+# changes what every document is held to; otherwise only the pushed Markdown
+# that still exists (a deleted file is in the push list but not on disk).
+whole=true
+if [ $# -gt 0 ]; then
+  whole=false
+  for f in "$@"; do
+    case "$f" in
+      .ltex.json | scripts/lint-mechanics.sh) whole=true ;;
+    esac
+  done
+fi
+
+if [ "$whole" = true ]; then
+  candidates=$(git ls-files '*.md')
+else
+  candidates=$(for f in "$@"; do
+    case "$f" in *.md) [ -f "$f" ] && echo "$f" ;; esac
+  done)
+fi
+
+# CHANGELOG.md is written by the release job; correcting it is not this
+# script's business. openspec/changes/** and openspec/specs/** excluded for
+# the same reason as scripts/lint-prose.sh: OpenSpec's own content, not this
+# repo's house style — American spelling throughout (this repo runs British)
+# and technical vocabulary (groupBy, globals) neither dictionary knows.
+files=$(echo "$candidates" | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/' | grep -v '^openspec/changes/' | grep -v '^openspec/specs/')
+
+if [ -z "$files" ]; then
+  echo "No Markdown in this push for ltex to check."
+  exit 0
+fi
 
 if command -v ltex-cli-plus >/dev/null 2>&1; then
   CLI=$(command -v ltex-cli-plus)
@@ -49,13 +88,6 @@ else
   fi
   export JAVA_HOME="$jdk"
 fi
-
-# CHANGELOG.md is written by the release job; correcting it is not this
-# script's business. openspec/changes/** and openspec/specs/** excluded for
-# the same reason as scripts/lint-prose.sh: OpenSpec's own content, not this
-# repo's house style — American spelling throughout (this repo runs British)
-# and technical vocabulary (groupBy, globals) neither dictionary knows.
-files=$(git ls-files '*.md' | grep -v '^CHANGELOG.md$' | grep -v '^\.claude/' | grep -v '^openspec/changes/' | grep -v '^openspec/specs/')
 
 echo "Checking:"
 echo "$files"
