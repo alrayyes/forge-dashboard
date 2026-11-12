@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // #3681: the overview shows a budget only once less than 20% of it is left;
 // the full budget lives on the Insights page.
-// #1433: GitHub has two independent budgets. The text under the forge pill
+// #1433: GitHub has two independent budgets. The text under the forge pill when shown
 // shows each one, labelled, so it never describes a different budget from the
 // banner, and a remaining count above its limit is never shown against that
 // limit.
@@ -38,7 +38,7 @@ async function open(page: Page, forge: Record<string, unknown>) {
 const budgets = (page: Page) =>
   page.locator('#forge-health .forge-health-budget');
 
-test.describe('the budget text under the forge pill (#1433)', () => {
+test.describe('the budget text on the overview (#1433)', () => {
   test('a spent GraphQL budget shows next to a healthy REST one, each labelled', async ({
     page,
   }) => {
@@ -147,6 +147,7 @@ test.describe('the budget text under the forge pill (#1433)', () => {
     await expect(budgets(page)).toHaveCount(0);
     await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
     await expect(page.locator('#forge-names')).toHaveCount(0);
+    await expect(page.locator('.dashboard-toolbar-forges')).toHaveCount(0);
     await expect(page.getByText('Connected forges')).toHaveCount(0);
   });
 
