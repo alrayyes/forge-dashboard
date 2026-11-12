@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.25.0](https://github.com/alrayyes/forge-dashboard/compare/v9.24.0...v9.25.0) (2026-11-12)
+
+
+### Features
+
+* say when a behind armed pull request waits for a branch update ([#3591](https://github.com/alrayyes/forge-dashboard/issues/3591)) ([102e47d](https://github.com/alrayyes/forge-dashboard/commit/102e47dbd9e6627620eb01c771908ae90778d974)), closes [#3428](https://github.com/alrayyes/forge-dashboard/issues/3428)
+
 ## [9.24.0](https://github.com/alrayyes/forge-dashboard/compare/v9.23.0...v9.24.0) (2026-11-12)
 
 
