@@ -684,6 +684,8 @@ func (c *Client) MergePullRequest(ctx context.Context, owner, name string, numbe
 	// conflict, or the empty-commit case above) reports Forgejo's own
 	// reason instead of a bare status code.
 	if _, resp, err := c.rawRequest(ctx, http.MethodPost, mergePath, bytes.NewReader(mergeBody)); err != nil {
+		c.rememberConflict(owner, name, number, err)
+
 		return c.forgejoError(ctx, http.MethodPost, mergePath, resp, err)
 	}
 
@@ -773,6 +775,8 @@ func (c *Client) UpdateBranch(ctx context.Context, owner, name string, number in
 	// MergePullRequest's own comment on why: same getStatusCode gap,
 	// same lost-reason symptom.
 	if _, resp, err := c.rawRequest(ctx, http.MethodPost, path, nil); err != nil {
+		c.rememberConflict(owner, name, number, err)
+
 		return false, c.forgejoError(ctx, http.MethodPost, path, resp, err)
 	}
 
@@ -968,10 +972,10 @@ func posterLogin(u *gitea.User) string {
 // mergeStatus is mergeStatusOf with the Checking window applied: a pull
 // request mergeStatusOf can't confirm stays Checking for conflictWindow, then
 // is Conflicting.
-func (c *Client) mergeStatus(owner, name string, p *gitea.PullRequest) dashboard.MergeStatus {
+func (c *Client) mergeStatus(owner, name string, p *gitea.PullRequest) conflictVerdict {
 	status := mergeStatusOf(p)
 	if status != dashboard.MergeChecking {
-		return status
+		return conflictVerdict{Status: status}
 	}
 
 	return c.conflicts.status(conflictKey(owner, name, p))
@@ -1164,6 +1168,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	}
 
 	review, reviewComments := c.reviewState(ctx, owner, name, p)
+	verdict := c.mergeStatus(owner, name, p)
 
 	return dashboard.PullRequest{
 		Forge:                   dashboard.ForgeForgejo,
@@ -1179,7 +1184,9 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		UpdatedAt:               updated,
 		CI:                      ci,
 		Checks:                  checks,
-		MergeStatus:             c.mergeStatus(owner, name, p),
+		MergeStatus:             verdict.Status,
+		ConflictConfirmed:       verdict.Confirmed,
+		ConflictFiles:           verdict.Files,
 		Behind:                  isBehind(p),
 		HeadSHA:                 sha,
 		BaseBranch:              branchRef(p.Base),
@@ -2205,14 +2212,7 @@ func (c *Client) rawRequestMax(ctx context.Context, method, path string, body io
 		respBody = respBody[:maxBytes] // a refusal's body is only read for its message
 	}
 	if httpResp.StatusCode >= 300 {
-		msg := rawRequestErrorMessage(respBody)
-		if msg == "" {
-			// Forgejo sometimes refuses with an empty reason, e.g. merging an
-			// already-merged PR. Say the status, never the raw body.
-			msg = httpResp.Status
-		}
-
-		return nil, resp, fmt.Errorf("%w: %s", errForgeRefused, msg)
+		return nil, resp, rawRefusal(httpResp.StatusCode, httpResp.Status, respBody)
 	}
 	// The success path's own recording — a failure here returns to the
 	// caller, which persists its own entry via forgejoError(ctx, method,
@@ -2431,4 +2431,24 @@ func sameCommit(a, b string) bool {
 	}
 
 	return strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
+}
+
+// rawRefusal is the error for a raw request the forge answered with a status
+// of 300 or more: its own reason, or the status when it gave none. A 409 that
+// names a conflict also carries the files (#3308).
+func rawRefusal(code int, status string, body []byte) error {
+	msg := rawRequestErrorMessage(body)
+	if msg == "" {
+		// Forgejo sometimes refuses with an empty reason, e.g. merging an
+		// already-merged PR. Say the status, never the raw body.
+		msg = status
+	}
+	refused := fmt.Errorf("%w: %s", errForgeRefused, msg)
+	if code == http.StatusConflict {
+		if files, ok := conflictFromBody(body); ok {
+			return &conflictRefusal{err: refused, files: files}
+		}
+	}
+
+	return refused
 }

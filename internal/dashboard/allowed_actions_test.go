@@ -6,6 +6,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // summary flattens a pull request's allowed actions to "action" for an
@@ -183,6 +184,16 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		{"blocked with only a cancelled run", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CICancelled }, dashboard.ActionBlockedByProtection, "Blocked, the only run was cancelled", "Run the checks again to unlock Merge"},
 		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
 		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
+		{"conflict the forge has not confirmed", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			no := false
+			p.ConflictConfirmed = &no
+		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out"},
+		{"conflict a refusal named", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			yes := true
+			p.ConflictConfirmed = &yes
+		}, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
 		{"checking for conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeChecking; p.Behind = true }, dashboard.ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes"},
 		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge"},
 		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it"},
@@ -438,4 +449,33 @@ func TestAllowedActions_PendingDependabotCommandOffersNeitherButton(t *testing.T
 		req := &dashboard.BotRequest{Bot: dashboard.BotRenovate, Action: dashboard.BotRebase, Phase: dashboard.BotQueued}
 		assert.Len(t, dependabotCommands(dependabot(req)), 2)
 	})
+}
+
+// A Conflicting row that only the forge's flag vouches for can still try
+// Update branch, which is how a refusal confirms it. One a refusal named stays
+// locked (#3308).
+func TestAllowedActions_UpdateBranchOnAnUnconfirmedConflict(t *testing.T) {
+	t.Parallel()
+
+	update := func(confirmed *bool) dashboard.ActionAvailability {
+		pr := ghPR(func(p *dashboard.PullRequest) {
+			p.Forge = dashboard.ForgeForgejo
+			p.Behind = true
+			p.MergeStatus = dashboard.MergeConflicting
+			p.ConflictConfirmed = confirmed
+		})
+		for _, a := range dashboard.AllowedActions(pr, nil) {
+			if a.Action == dashboard.ActionUpdateBranch {
+				return a
+			}
+		}
+
+		return dashboard.ActionAvailability{}
+	}
+	no, yes := false, true
+
+	assert.Nil(t, update(&no).Blocked)
+	require.NotNil(t, update(&yes).Blocked)
+	assert.Equal(t, dashboard.ActionConflict, update(&yes).Blocked.Code)
+	require.NotNil(t, update(nil).Blocked)
 }

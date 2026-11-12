@@ -200,12 +200,20 @@ func primaryCandidates(pr PullRequest, actions []ActionAvailability) []ActionNam
 	return nil
 }
 
+// conflictKnown is a conflict a person has to fix by hand. A Forgejo row that
+// is Conflicting only because its flag stayed false (ConflictConfirmed false)
+// is not: updating the branch is how it finds out, and a refusal that names a
+// conflict makes it known (#3308).
+func conflictKnown(pr PullRequest) bool {
+	return pr.MergeStatus == MergeConflicting && (pr.ConflictConfirmed == nil || *pr.ConflictConfirmed)
+}
+
 // botRebaseWorthOffering: a behind pull request can be rebased unless a
 // conflict needs a person, it is a draft, or it is stacked on another one.
 // Only a bot pull request lists a bot rebase, so the caller's candidates
 // name nothing for any other.
 func botRebaseWorthOffering(pr PullRequest) bool {
-	return pr.Behind && pr.MergeStatus != MergeConflicting && !pr.Draft && pr.StackedOn == nil
+	return pr.Behind && !conflictKnown(pr) && !pr.Draft && pr.StackedOn == nil
 }
 
 // heldForApproval: runs wait for a maintainer and nothing else explains why
@@ -272,6 +280,9 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 
 		return mergeBlocked(ActionStacked, "Stacked on "+parent+". Merge that one first.",
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
+	case pr.MergeStatus == MergeConflicting && pr.ConflictConfirmed != nil && !*pr.ConflictConfirmed:
+		// Only the forge's flag, false for a while, says so (#3308).
+		return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out")
 	case pr.MergeStatus == MergeConflicting:
 		return mergeBlocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.MergeStatus == MergeChecking:
@@ -343,7 +354,7 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) {
 		return ActionAvailability{}, false
 	}
-	if pr.MergeStatus == MergeConflicting {
+	if conflictKnown(pr) {
 		return ActionAvailability{Action: ActionUpdateBranch, Blocked: &Blocked{
 			Code:    ActionConflict,
 			Message: "Conflicts need fixing by hand — resolve them on the forge.",

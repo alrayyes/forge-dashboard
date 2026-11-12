@@ -245,7 +245,7 @@ func queuedSkipReason(q QueuedAction, pr PullRequest, renovateAuthors []string) 
 		return ActionAlreadyUpToDate, "The pull request is no longer behind, so the bot already rebased it."
 	case !pr.Behind:
 		return ActionAlreadyUpToDate, "Already up to date with the base branch."
-	case q.Action == ActionUpdateBranch && pr.MergeStatus == MergeConflicting:
+	case q.Action == ActionUpdateBranch && conflictKnown(pr):
 		return ActionConflict, "Conflicts need fixing by hand. Resolve them on the forge."
 	case bot && pr.BotRequest != nil, !bot && pr.UpdateRequest != nil,
 		q.Action == ActionRenovateRebase && pr.RenovateRebaseRequested:
