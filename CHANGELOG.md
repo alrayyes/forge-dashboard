@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.20.2](https://github.com/alrayyes/forge-dashboard/compare/v9.20.1...v9.20.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** draw a dropdown arrow on filter bar pick triggers in forced colors ([#3553](https://github.com/alrayyes/forge-dashboard/issues/3553)) ([69b5066](https://github.com/alrayyes/forge-dashboard/commit/69b5066013f76866e1649cb0cfa0ce51fdac646b))
+
 ## [9.20.1](https://github.com/alrayyes/forge-dashboard/compare/v9.20.0...v9.20.1) (2026-11-12)
 
 
