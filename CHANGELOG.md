@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.20.1](https://github.com/alrayyes/forge-dashboard/compare/v9.20.0...v9.20.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** keep the excerpt's copy-by-hand field when the output panel hides ([#3552](https://github.com/alrayyes/forge-dashboard/issues/3552)) ([6da5951](https://github.com/alrayyes/forge-dashboard/commit/6da5951fa0638bac74a0c448f9bbd0ad863c9e72))
+
 ## [9.20.0](https://github.com/alrayyes/forge-dashboard/compare/v9.19.2...v9.20.0) (2026-11-11)
 
 
