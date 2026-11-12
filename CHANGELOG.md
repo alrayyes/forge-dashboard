@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.35.0](https://github.com/alrayyes/forge-dashboard/compare/v9.34.1...v9.35.0) (2026-11-12)
+
+
+### Features
+
+* **web:** hide Show drafts when there is no draft pull request ([#3703](https://github.com/alrayyes/forge-dashboard/issues/3703)) ([854fee6](https://github.com/alrayyes/forge-dashboard/commit/854fee6933bbf8fe75ecec6c80ce86bc6da95251))
+
+## [9.34.1](https://github.com/alrayyes/forge-dashboard/compare/v9.34.0...v9.34.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** draw Update branch on the row of a behind pull request ([#3695](https://github.com/alrayyes/forge-dashboard/issues/3695)) ([71dc570](https://github.com/alrayyes/forge-dashboard/commit/71dc5703fa0baf50dc78c64c99191b6e88a6d3ae))
+
+## [9.34.0](https://github.com/alrayyes/forge-dashboard/compare/v9.33.1...v9.34.0) (2026-11-12)
+
+
+### Features
+
+* **api:** send a Content-Security-Policy with an img-src matching the image proxy ([#3678](https://github.com/alrayyes/forge-dashboard/issues/3678)) ([843f8dd](https://github.com/alrayyes/forge-dashboard/commit/843f8ddba458a2265ab70531d58d028c109bd283))
+
 ## [9.33.1](https://github.com/alrayyes/forge-dashboard/compare/v9.33.0...v9.33.1) (2026-11-12)
 
 

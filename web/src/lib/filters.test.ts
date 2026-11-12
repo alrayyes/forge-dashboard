@@ -18,6 +18,7 @@ import {
   matchesQuickFilter,
   matchesRefs,
   offerAutoMerge,
+  offerDrafts,
   offerPills,
   offerRefs,
   optionPool,
@@ -724,5 +725,41 @@ describe('refsChoiceShort', () => {
     expect(refsChoiceShort(false, 'no')).toBe('No PR');
     expect(refsChoiceShort(true, 'yes')).toBe('Has issue');
     expect(refsChoiceShort(true, 'no')).toBe('No issue');
+  });
+});
+
+// The Show drafts button is offered only when there is a draft to show (#3680):
+// one on screen, or one the server left out and counted.
+describe('offerDrafts', () => {
+  const button = () => ({ hidden: false }) as unknown as HTMLElement;
+
+  test('hides the button when no pull request is a draft and none are hidden', () => {
+    const b = button();
+    offerDrafts(b, [choiceItem(), choiceItem({ draft: false })], 0);
+    expect(b.hidden).toBe(true);
+  });
+
+  test('shows it when the server left drafts out', () => {
+    const b = button();
+    offerDrafts(b, [choiceItem()], 2);
+    expect(b.hidden).toBe(false);
+  });
+
+  test('shows it when a loaded pull request is a draft', () => {
+    const b = button();
+    offerDrafts(b, [choiceItem(), choiceItem({ draft: true })], 0);
+    expect(b.hidden).toBe(false);
+  });
+
+  test('brings it back when a draft appears after it was hidden', () => {
+    const b = button();
+    offerDrafts(b, [], 0);
+    expect(b.hidden).toBe(true);
+    offerDrafts(b, [], 1);
+    expect(b.hidden).toBe(false);
+  });
+
+  test('does nothing without a button', () => {
+    expect(() => offerDrafts(null, [], 0)).not.toThrow();
   });
 });

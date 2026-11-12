@@ -80,7 +80,7 @@ async function open(page: Page, url: string) {
         issues: ISSUES,
         openIssueCount: ISSUES.length,
         repos: [],
-        hiddenDrafts: 0,
+        hiddenDrafts: 1,
       }),
     }),
   );
