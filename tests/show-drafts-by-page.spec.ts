@@ -74,6 +74,13 @@ test.describe('show drafts per page (#3704)', () => {
     }) => {
       await open(page, '/releases.html', width);
       await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+      // Open the phone sheet first, or the button is out of sight whatever the
+      // page offers. Another control proves the sheet is open.
+      if (width < 700)
+        await page.getByRole('button', { name: /^Filters/ }).click();
+      await expect(
+        page.getByRole('combobox', { name: 'Sort pull requests by' }),
+      ).toBeVisible();
       await expect(toggle(page)).toBeHidden();
       expect((await axe(page)).violations).toEqual([]);
     });
