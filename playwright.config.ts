@@ -230,6 +230,7 @@ const singleUserSpecs = [
   '**/closing-issues.spec.ts',
   '**/refs-pills.spec.ts',
   '**/refs-issues-filter.spec.ts',
+  '**/segment-single-choice.spec.ts',
   '**/mentioned-tickets.spec.ts',
   '**/linked-pull-requests.spec.ts',
   '**/filter-choices-board.spec.ts',

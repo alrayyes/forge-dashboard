@@ -235,8 +235,10 @@ test('when no failing row can run the dialog says so and sends nothing', async (
   // Now the answers are in, nothing is left to press: the button is gone, and
   // focus moved to the All quick filter instead of dropping to the body.
   await expect(page.locator('#rerun-all-button')).toBeHidden();
+  // Every row is failing and on one forge, so the pill group has nothing to
+  // offer and is hidden (#3669), and focus goes to the next control of the bar.
   await expect(
-    page.locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]'),
+    page.locator('.filter-bar .col-filter[data-col="title"]'),
   ).toBeFocused();
   await expect(page.locator('.rerun-all')).toBeHidden();
   expect(posts).toEqual([]);

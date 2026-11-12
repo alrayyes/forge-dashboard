@@ -46,7 +46,13 @@ function issue(number: number, overrides: Record<string, unknown> = {}) {
 // bot's pull request belongs to the Bots page).
 const PRS = [
   pr(1),
-  pr(2, { repo: 'acme/infra', author: 'dana', title: 'Pull request two' }),
+  pr(2, {
+    repo: 'acme/infra',
+    author: 'dana',
+    title: 'Pull request two',
+    // Not every row passes, so the Passing CI pill has a choice to offer.
+    ci: 'failure',
+  }),
   pr(3, { author: 'renovate[bot]', labels: [] }),
 ];
 const ISSUES = [
