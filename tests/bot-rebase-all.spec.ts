@@ -275,16 +275,24 @@ test(`the header and dialog fit a phone in light and dark and pass axe`, async (
 
       await expectNoAxeViolations(page);
 
-      expect(
-        await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth <=
-            document.documentElement.clientWidth,
-        ),
-      ).toBe(true);
+      await expectFitsSideways(page);
     });
   }
 });
+
+// Retries until the page has width and nothing pokes past it, so a layout
+// still settling doesn't fail it and a page with no width can't pass.
+const expectFitsSideways = (page: Page) =>
+  expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          document.documentElement.clientWidth > 0 &&
+          document.documentElement.scrollWidth <=
+            document.documentElement.clientWidth,
+      ),
+    )
+    .toBe(true);
 
 // The summary line and its button sit inside the card's own padding (#3246):
 // the sentence starts where the heading does, the button ends 18px inside the
@@ -298,35 +306,53 @@ for (const width of [390, 1280]) {
     await open(page, [pr(1), pr(2)]);
     const button = page.locator('#rebase-all-button');
     await expect(button).toBeVisible();
-    const m = await page.evaluate(() => {
-      const r = (el: Element | null) => el!.getBoundingClientRect();
-      const card = document.querySelector('section.board')!;
-      const summary = document.getElementById('rebase-all-summary')!;
-      const button = document.getElementById('rebase-all-button')!;
-      // The strip's own box, less its padding: the chips and the stacked
-      // phone layout move the content, but the insets stay 12px and 18px.
-      const block = document.querySelector('.rebase-all')!;
-      const pad = getComputedStyle(block);
-      return {
-        headingLeft: r(card.querySelector('.board-head h2')).left,
-        headBottom: r(card.querySelector('.board-head')).bottom,
-        cardInnerRight: r(card).right - card.clientLeft,
-        summaryLeft: r(summary).left,
-        buttonRight: r(button).right,
-        blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
-        blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
-        rowTop: r(document.querySelector('#pr-rows > .row')).top,
-        buttonMinHeight: getComputedStyle(button).minHeight,
-        scrollW: document.documentElement.scrollWidth,
-        innerW: window.innerWidth,
-      };
-    });
-    expect(m.summaryLeft).toBeCloseTo(m.headingLeft, 0);
-    expect(m.cardInnerRight - m.buttonRight).toBeCloseTo(18, 0);
-    expect(m.blockTop - m.headBottom).toBeCloseTo(12, 0);
-    expect(m.rowTop - m.blockBottom).toBeCloseTo(12, 0);
-    expect(m.buttonMinHeight).toBe('44px');
-    expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+    const measure = () =>
+      page.evaluate(() => {
+        const r = (el: Element | null) => el!.getBoundingClientRect();
+        const card = document.querySelector('section.board')!;
+        const summary = document.getElementById('rebase-all-summary')!;
+        const button = document.getElementById('rebase-all-button')!;
+        // The strip's own box, less its padding: the chips and the stacked
+        // phone layout move the content, but the insets stay 12px and 18px.
+        const block = document.querySelector('.rebase-all')!;
+        const pad = getComputedStyle(block);
+        return {
+          headingLeft: r(card.querySelector('.board-head h2')).left,
+          headBottom: r(card.querySelector('.board-head')).bottom,
+          cardInnerRight: r(card).right - card.clientLeft,
+          summaryLeft: r(summary).left,
+          buttonRight: r(button).right,
+          blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
+          blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
+          rowTop: r(document.querySelector('#pr-rows > .row')).top,
+          buttonMinHeight: getComputedStyle(button).minHeight,
+          scrollW: document.documentElement.scrollWidth,
+          innerW: window.innerWidth,
+          buttonHeight: r(button).height,
+        };
+      });
+    // Re-measures until every inset holds, so a layout still settling on a
+    // loaded runner doesn't fail the test. An empty button can't pass.
+    await expect
+      .poll(async () => {
+        const m = await measure();
+        const checks: [string, boolean][] = [
+          ['button has a box', m.buttonHeight > 0],
+          ['summary starts at the heading', near(m.summaryLeft, m.headingLeft)],
+          [
+            'button 18px inside the card',
+            near(m.cardInnerRight - m.buttonRight, 18),
+          ],
+          ['12px under the header rule', near(m.blockTop - m.headBottom, 12)],
+          ['12px above the first row', near(m.rowTop - m.blockBottom, 12)],
+          ['button min-height 44px', m.buttonMinHeight === '44px'],
+          ['no sideways scroll', m.scrollW <= m.innerW],
+        ];
+        return checks
+          .filter(([, ok]) => !ok)
+          .map(([what]) => `${what} (${JSON.stringify(m)})`);
+      })
+      .toEqual([]);
   });
 }
 
@@ -334,6 +360,10 @@ for (const width of [390, 1280]) {
 // three count chips and the button. The chips repeat the headline's numbers for
 // scanning, so they sit outside the element the button's aria-describedby
 // reads.
+// Within half a pixel, the threshold toBeCloseTo(x, 0) used. Compared as a
+// boolean so a small negative offset can't round to -0.
+const near = (a: number, b: number) => Math.abs(a - b) < 0.5;
+
 const chipTexts = (page: Page) =>
   page.locator('.rebase-all-chips > li').allInnerTexts();
 
@@ -472,30 +502,45 @@ test('with nothing rebasable the reason sits under the headline and the button s
     'rebase-all-summary',
   );
   await expect(page.locator('.rebase-all-reason')).toHaveText(reason);
-  const m = await page.evaluate(() => {
-    const r = (el: Element | null) => el!.getBoundingClientRect();
-    const card = document.querySelector('section.board')!;
-    const reason = document.querySelector('.rebase-all-reason')!;
-    const headline = document.querySelector('.rebase-all-headline')!;
-    return {
-      headlineBottom: r(headline).bottom,
-      reasonTop: r(reason).top,
-      reasonLeft: r(reason).left,
-      reasonRight: r(reason).right,
-      cardLeft: r(card).left,
-      cardRight: r(card).right,
-      color: getComputedStyle(reason).color,
-      ink2: getComputedStyle(document.documentElement)
-        .getPropertyValue('--ink-2')
-        .trim(),
-      scrollW: document.documentElement.scrollWidth,
-      innerW: window.innerWidth,
-    };
-  });
-  expect(m.reasonTop).toBeGreaterThanOrEqual(m.headlineBottom);
-  expect(m.reasonLeft - m.cardLeft).toBeGreaterThanOrEqual(18);
-  expect(m.cardRight - m.reasonRight).toBeGreaterThanOrEqual(18);
-  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  const measure = () =>
+    page.evaluate(() => {
+      const r = (el: Element | null) => el!.getBoundingClientRect();
+      const card = document.querySelector('section.board')!;
+      const reason = document.querySelector('.rebase-all-reason')!;
+      const headline = document.querySelector('.rebase-all-headline')!;
+      return {
+        headlineBottom: r(headline).bottom,
+        reasonTop: r(reason).top,
+        reasonLeft: r(reason).left,
+        reasonRight: r(reason).right,
+        cardLeft: r(card).left,
+        cardRight: r(card).right,
+        color: getComputedStyle(reason).color,
+        ink2: getComputedStyle(document.documentElement)
+          .getPropertyValue('--ink-2')
+          .trim(),
+        scrollW: document.documentElement.scrollWidth,
+        innerW: window.innerWidth,
+      };
+    });
+  await expect
+    .poll(async () => {
+      const m = await measure();
+      const checks: [string, boolean][] = [
+        ['reason has a box', m.reasonRight > m.reasonLeft],
+        ['reason under the headline', m.reasonTop >= m.headlineBottom],
+        ['reason 18px inside the left edge', m.reasonLeft - m.cardLeft >= 18],
+        [
+          'reason 18px inside the right edge',
+          m.cardRight - m.reasonRight >= 18,
+        ],
+        ['no sideways scroll', m.scrollW <= m.innerW],
+      ];
+      return checks
+        .filter(([, ok]) => !ok)
+        .map(([what]) => `${what} (${JSON.stringify(m)})`);
+    })
+    .toEqual([]);
   await expectNoAxeViolations(page);
 });
 
@@ -510,34 +555,48 @@ test('on a phone the chips keep their words and the button fills the strip', asy
     '0 failing',
     '2 ready to rebase',
   ]);
-  const m = await page.evaluate(() => {
-    const r = (el: Element) => el.getBoundingClientRect();
-    const block = document.querySelector('.rebase-all')!;
-    const button = document.getElementById('rebase-all-button')!;
-    const style = getComputedStyle(block);
-    const left =
-      r(block).left + Number.parseFloat(style.paddingLeft) + block.clientLeft;
-    const right =
-      r(block).right - Number.parseFloat(style.paddingRight) - block.clientLeft;
-    return {
-      buttonLeft: r(button).left,
-      buttonRight: r(button).right,
-      buttonHeight: r(button).height,
-      left,
-      right,
-      chipLines: [...document.querySelectorAll('.rebase-all-chips > li')].map(
-        (li) => Math.round(r(li).height),
-      ),
-      scrollW: document.documentElement.scrollWidth,
-      innerW: window.innerWidth,
-    };
-  });
-  expect(m.buttonLeft).toBeCloseTo(m.left, 0);
-  expect(m.buttonRight).toBeCloseTo(m.right, 0);
-  expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
-  // A chip is one line tall: its words never break mid-word.
-  expect(Math.max(...m.chipLines)).toBeLessThan(40);
-  expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+  const measure = () =>
+    page.evaluate(() => {
+      const r = (el: Element) => el.getBoundingClientRect();
+      const block = document.querySelector('.rebase-all')!;
+      const button = document.getElementById('rebase-all-button')!;
+      const style = getComputedStyle(block);
+      const left =
+        r(block).left + Number.parseFloat(style.paddingLeft) + block.clientLeft;
+      const right =
+        r(block).right -
+        Number.parseFloat(style.paddingRight) -
+        block.clientLeft;
+      return {
+        buttonLeft: r(button).left,
+        buttonRight: r(button).right,
+        buttonHeight: r(button).height,
+        left,
+        right,
+        chipLines: [...document.querySelectorAll('.rebase-all-chips > li')].map(
+          (li) => Math.round(r(li).height),
+        ),
+        scrollW: document.documentElement.scrollWidth,
+        innerW: window.innerWidth,
+      };
+    });
+  await expect
+    .poll(async () => {
+      const m = await measure();
+      const checks: [string, boolean][] = [
+        ['three chips', m.chipLines.length === 3],
+        ['button starts at the strip', near(m.buttonLeft, m.left)],
+        ['button ends at the strip', near(m.buttonRight, m.right)],
+        ['button at least 44 tall', m.buttonHeight >= 44],
+        // A chip is one line tall: its words never break mid-word.
+        ['chips one line tall', m.chipLines.every((h) => h > 0 && h < 40)],
+        ['no sideways scroll', m.scrollW <= m.innerW],
+      ];
+      return checks
+        .filter(([, ok]) => !ok)
+        .map(([what]) => `${what} (${JSON.stringify(m)})`);
+    })
+    .toEqual([]);
 });
 
 test('the chip list is hidden with the strip', async ({ page }) => {
@@ -665,9 +724,13 @@ test(`an overflowing rebase list is a named tab stop that scrolls with the keys 
 
         await expect(list).toBeVisible();
 
-        expect(
-          await list.evaluate((el) => el.scrollHeight > el.clientHeight),
-        ).toBe(true);
+        await expect
+          .poll(() =>
+            list.evaluate(
+              (el) => el.clientHeight > 0 && el.scrollHeight > el.clientHeight,
+            ),
+          )
+          .toBe(true);
 
         await expect(list).toHaveAttribute('tabindex', '0');
 
