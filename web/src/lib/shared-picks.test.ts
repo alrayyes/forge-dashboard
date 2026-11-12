@@ -1,8 +1,10 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  applyServerState,
   type FilterableItem,
   releaseAllHeld,
+  resetTouched,
   type SharedFilterState,
 } from './filters';
 import { SharedPicks, savePick } from './shared-picks';
@@ -34,7 +36,10 @@ const fake = () => {
   };
 };
 
-afterEach(() => releaseAllHeld());
+afterEach(() => {
+  releaseAllHeld();
+  resetTouched();
+});
 
 describe('SharedPicks.refresh', () => {
   const pool = [item('acme/api', 'ann'), item('acme/web', 'bob')];
@@ -81,5 +86,16 @@ describe('savePick', () => {
     const s = state();
     savePick(s, 'author', ['ann', 'bob']);
     expect(s.shared.author).toBe('ann\nbob');
+  });
+
+  test('an edit made while the server copy loads wins over that copy (#1713)', () => {
+    const s = state({ author: 'github:ann' });
+    savePick(s, 'author', []);
+    applyServerState(s, {
+      shared: { author: 'github:ann', label: 'bug' },
+    });
+    expect(s.shared.author).toBe('');
+    // Only the key the user touched is protected; the rest takes the copy.
+    expect(s.shared.label).toBe('bug');
   });
 });
