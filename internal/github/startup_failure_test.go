@@ -69,6 +69,26 @@ func TestListChecks_StartupFailureRun_IsListedAsAFailedWorkflow(t *testing.T) {
 	assert.Zero(t, found.RunID, "no jobs to rerun or cancel")
 }
 
+func TestListChecks_StartupFailureRun_IsMarkedRequiredWhenARequiredCheckNeverReported(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := startupFailureServer(t, []map[string]any{startupFailureRun()}, &lookups)
+
+	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 25)
+
+	require.NoError(t, err)
+	var found *dashboard.Check
+	for i := range checks {
+		if checks[i].Name == "pr-title" {
+			found = &checks[i]
+		}
+	}
+	require.NotNil(t, found)
+	require.NotNil(t, found.Required, "the row is not left unknown: it is why the check never reported")
+	assert.True(t, *found.Required)
+}
+
 func TestListChecks_RequiredCheckNoRunProvides_IsListedAsNotReported(t *testing.T) {
 	t.Parallel()
 
