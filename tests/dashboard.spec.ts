@@ -3284,13 +3284,15 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await pill(page, 'Failing CI').click();
     await page.goto('/issues.html');
-    // The pull-request-only pill is not on the issues page, and All is what
-    // is in effect there (#827).
+    // The pull-request-only pill is not on the issues page, and the held pick
+    // filters nothing there: the one issue is listed (#827).
     await expect(pill(page, 'Failing CI')).toHaveCount(0);
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     // The one issue is on GitHub, so neither forge pill changes the list and
-    // neither is offered (#1427, #3669).
+    // neither is offered, and a group left with only All is hidden whole
+    // (#1427, #3669).
+    await expect(page.locator('.quick-pills')).toBeHidden();
+    await expect(pill(page, 'All')).toBeHidden();
     await expect(pill(page, 'Forgejo')).toBeHidden();
     await expect(pill(page, 'GitHub')).toBeHidden();
   });

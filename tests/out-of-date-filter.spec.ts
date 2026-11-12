@@ -211,7 +211,9 @@ test.describe('Out of date badge and quick filter', () => {
     ]);
     await page.goto('/pull-requests.html');
     await expect(pill(page, 'Out of date')).toBeHidden();
-    await expect(pill(page, 'All')).toBeVisible();
+    // Left with only All, the group has nothing to offer and is hidden whole
+    // (#3669).
+    await expect(pill(page, 'All')).toBeHidden();
   });
 
   test('has no axe-core violations in both themes with the badge and the pill active', async ({
