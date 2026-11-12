@@ -173,6 +173,24 @@ describe('checkHint', () => {
     expect(checkHint({ status: 'queued' }, repo)).toBe('Not started yet.');
   });
 
+  test('a queued Forgejo job says what it waits for (#3634)', () => {
+    expect(checkHint({ status: 'queued', waitingFor: 'jobs', url }, repo)).toBe(
+      'Waiting on earlier jobs.',
+    );
+    expect(
+      checkHint({ status: 'queued', waitingFor: 'runner', url }, repo),
+    ).toBe('Queued for a runner.');
+  });
+
+  test('a waitingFor on a job that is not queued is ignored', () => {
+    expect(
+      checkHint(
+        { status: 'in_progress', waitingFor: 'jobs', url, jobId: 7 },
+        repo,
+      ),
+    ).toBe('Output is available when it finishes.');
+  });
+
   test('a running GitHub job with a page says its output waits for the end', () => {
     expect(checkHint({ status: 'in_progress', url, jobId: 7 }, repo)).toBe(
       'Output is available when it finishes.',

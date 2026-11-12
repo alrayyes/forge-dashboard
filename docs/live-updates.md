@@ -78,6 +78,13 @@ don't hold. GitHub gives no finish time for a run, so that one is always
 missing there. A Forgejo run held back with no jobs yet arrives with nothing
 but its status. A held GitHub run has no run event of its own, so it carries no
 run facts.
+
+A queued Forgejo job also carries `waitingFor`, the reason it has not started:
+`jobs` when it needs earlier jobs (Forgejo's `blocked`) and `runner` when it is
+ready and waits for a runner (`waiting`). The row says "Waiting on earlier
+jobs." or "Queued for a runner." A blocked job in a run that has failed never
+starts, so it carries no reason and reads "Not started yet." as before, and a
+GitHub check never carries one.
 Each job in it carries a `status` (queued, in progress, completed or waiting)
 and, once it has finished, a `conclusion`. The conclusion is the forge's own
 word, not a fixed set: GitHub's `neutral`, `stale` and `action_required` arrive
