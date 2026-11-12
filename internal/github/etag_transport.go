@@ -73,11 +73,19 @@ func (t *etagTransport) wrapBase(wrap func(http.RoundTripper) http.RoundTripper)
 	t.base = wrap(t.raw)
 }
 
+type noETagKey struct{}
+
+// withoutETagCache marks a request that must neither be revalidated nor
+// stored, such as one whose answer carries a short-lived signature (#3469).
+func withoutETagCache(ctx context.Context) context.Context {
+	return context.WithValue(ctx, noETagKey{}, true)
+}
+
 // RoundTrip implements http.RoundTripper. Only a GET is ever cached — a
 // write isn't safely retryable/cacheable, and GitHub's own conditional-
 // request support is documented for GET/HEAD only.
 func (t *etagTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if req.Method != http.MethodGet {
+	if req.Method != http.MethodGet || req.Context().Value(noETagKey{}) != nil {
 		resp, err := t.base.RoundTrip(req)
 		if err != nil {
 			return nil, fmt.Errorf("github: round trip: %w", err)
