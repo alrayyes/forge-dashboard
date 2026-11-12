@@ -109,8 +109,10 @@ Draft pull requests are left out by default. The **Show drafts** toggle in the
 filter bar, off to start with, brings them back, marked "Draft", and its muted
 "N hidden" count says how many are left out. The choice is saved like the other
 filters and goes with every dashboard request, refresh, and the live stream.
-The toggle shows only while there is a draft to show, so a board with none has
-no button.
+The toggle shows only while the page has a draft to show, so a board with none
+has no button. Each page counts its own: the server sends `hiddenDraftsByPage`,
+the hidden drafts split into pull requests, releases and bots, so a draft
+dependency pull request offers the button on Bots and not on Releases.
 
 ## When nobody is looking
 

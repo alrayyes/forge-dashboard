@@ -49,10 +49,10 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 			continue
 		}
 		page := &counts.PullRequests
-		switch pr.Kind {
-		case dashboard.KindRelease:
+		switch pageOfKind(pr.Kind) {
+		case pageReleases:
 			page = &counts.Releases
-		case dashboard.KindDependency:
+		case pageBots:
 			page = &counts.Bots
 		}
 		page.Total++
@@ -75,4 +75,50 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 	counts.Issues.Total = openIssues
 
 	return counts
+}
+
+// hiddenDraftCounts is how many drafts the board left out, per page that lists
+// them (#3704). Matches components.schemas.HiddenDraftCounts.
+type hiddenDraftCounts struct {
+	PullRequests int `json:"pullRequests"`
+	Releases     int `json:"releases"`
+	Bots         int `json:"bots"`
+}
+
+// add counts one hidden draft of kind on the page that lists that kind.
+func (c *hiddenDraftCounts) add(kind dashboard.PullRequestKind) {
+	switch pageOfKind(kind) {
+	case pageReleases:
+		c.Releases++
+	case pageBots:
+		c.Bots++
+	default:
+		c.PullRequests++
+	}
+}
+
+func (c hiddenDraftCounts) total() int {
+	return c.PullRequests + c.Releases + c.Bots
+}
+
+type listingPage int
+
+const (
+	pagePullRequests listingPage = iota
+	pageReleases
+	pageBots
+)
+
+// pageOfKind is the one place that says which page lists a kind of pull
+// request, shared by the nav counts and the hidden draft counts so they can't
+// drift apart.
+func pageOfKind(kind dashboard.PullRequestKind) listingPage {
+	switch kind {
+	case dashboard.KindRelease:
+		return pageReleases
+	case dashboard.KindDependency:
+		return pageBots
+	default:
+		return pagePullRequests
+	}
 }

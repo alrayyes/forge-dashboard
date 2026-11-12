@@ -422,6 +422,11 @@
     repos?: Filters.RepoRef[];
     // Drafts the API left out (#791). 0 when the request asked for them.
     hiddenDrafts?: number;
+    hiddenDraftsByPage?: {
+      pullRequests: number;
+      releases: number;
+      bots: number;
+    };
     // Pull requests the user hid that are still open (#841).
     hiddenPullRequests?: number;
     // What this app auto-merged in the last ten minutes (Forgejo).
@@ -9979,7 +9984,15 @@
         ),
         startedSeq,
       );
-      hiddenDrafts = data.hiddenDrafts ?? 0;
+      // The server counts the drafts each page lists (#3704), so this page
+      // reads its own number.
+      const draftsByPage = data.hiddenDraftsByPage;
+      hiddenDrafts =
+        (view === "releases"
+          ? draftsByPage?.releases
+          : view === "bots"
+            ? draftsByPage?.bots
+            : draftsByPage?.pullRequests) ?? 0;
       Filters.offerDrafts(showDraftsButton, prs, hiddenDrafts);
       syncDraftsToggle();
       hiddenPullRequests = data.hiddenPullRequests ?? 0;

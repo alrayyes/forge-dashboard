@@ -111,9 +111,10 @@ and leaves out an empty pull request, which has nothing to update.
 
 Draft pull requests are left out of `/api/v1/dashboard` by default, since
 nothing can be merged or updated on one. The response says how many it left out
-in `hiddenDrafts`. Pass `includeDrafts=true` to get them back, on the dashboard,
-its stream, and the refresh endpoint alike. The auto-update-branch feature
-never touches a draft either.
+in `hiddenDrafts`, and `hiddenDraftsByPage` splits that count by the page that
+lists the drafts (pull requests, releases, bots). Pass `includeDrafts=true` to
+get them back, on the dashboard, its stream, and the refresh endpoint alike. The
+auto-update-branch feature never touches a draft either.
 
 Stacked pull requests are marked in `/api/v1/dashboard`. A pull request is
 stacked on another when its base branch is that one's head branch, in the same
