@@ -58,7 +58,7 @@ test.describe('stale data notice (#933)', () => {
 
   test('no staleSince, no notice', async ({ page }) => {
     await open(page, { reachable: true });
-    await expect(page.locator('#forge-health')).toContainText('reachable');
+    await expect(page.locator('#forge-health-live')).toContainText('reachable');
     await expect(page.locator('#forge-health')).not.toContainText(
       'Showing data',
     );

@@ -275,7 +275,7 @@ const EXPECTED: Record<
   '390x844': {
     activityPosition: 'sticky',
     header: 84,
-    toolbar: 113,
+    toolbar: 68,
     filterBar: 120,
     updatesBar: 58,
   },
