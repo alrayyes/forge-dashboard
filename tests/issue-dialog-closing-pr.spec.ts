@@ -169,9 +169,15 @@ test('the dialog pill shows the same CI state as the row, failing and passing', 
       })),
     }));
   for (const i of [0, 1]) {
-    expect(await signature(dialogPills(page).nth(i))).toEqual(
-      await signature(rowPills(page).nth(i)),
-    );
+    await expect
+      .poll(async () => {
+        const [inDialog, inRow] = [
+          await signature(dialogPills(page).nth(i)),
+          await signature(rowPills(page).nth(i)),
+        ];
+        return JSON.stringify(inDialog) === JSON.stringify(inRow);
+      })
+      .toBe(true);
   }
   // The two pipelines differ, so the comparison above is not vacuous.
   expect(await signature(dialogPills(page).nth(0))).not.toEqual(

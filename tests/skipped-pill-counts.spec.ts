@@ -133,8 +133,6 @@ test.describe('skipped counts on the pull request pill', () => {
       await page.emulateMedia({ colorScheme: scheme });
       await openBoard(page, '/pull-requests.html');
 
-      const colour = (l: Locator) =>
-        l.evaluate((e) => getComputedStyle(e).color);
       const token = (name: string) =>
         page.evaluate((n) => {
           const probe = document.createElement('span');
@@ -146,13 +144,14 @@ test.describe('skipped counts on the pull request pill', () => {
         }, name);
       const all = prPill(page, 'All skipped');
       await expect(all).toHaveClass(/all-skipped/);
-      expect(await colour(all.locator('.ci-seg-label'))).toBe(
+      await expect(all.locator('.ci-seg-label')).toHaveCSS(
+        'color',
         await token('--ink-2'),
       );
       // A pass that ran something keeps its green.
-      expect(
-        await colour(prPill(page, 'Some skipped').locator('.ci-seg-label')),
-      ).toBe(await token('--good'));
+      await expect(
+        prPill(page, 'Some skipped').locator('.ci-seg-label'),
+      ).toHaveCSS('color', await token('--good'));
     });
   }
 
