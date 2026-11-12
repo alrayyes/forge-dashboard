@@ -101,3 +101,16 @@ func TestPullRequestsReferencing_IndexesByIssueAndSkipsWhatIsClosed(t *testing.T
 	assert.Empty(t, index.For(dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/app", Number: 12}))
 	assert.Len(t, index.For(dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/app", Number: 13}), 1)
 }
+
+func TestPullRequest_MentionedPlainlyLeavesOutRefsToo(t *testing.T) {
+	t.Parallel()
+
+	pr := dashboard.PullRequest{
+		Forge:          dashboard.ForgeGitHub,
+		MentionsIssues: []dashboard.IssueRef{{Repo: "a/b", Number: 1}, {Repo: "a/b", Number: 2}, {Repo: "a/b", Number: 3}},
+		ClosesIssues:   []dashboard.IssueRef{{Repo: "a/b", Number: 1}},
+		RefsIssues:     []dashboard.IssueRef{{Repo: "A/B", Number: 2}},
+	}
+
+	assert.Equal(t, []int{3}, issueNumbers(pr.MentionedPlainly()))
+}

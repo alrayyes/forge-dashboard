@@ -44,11 +44,14 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 			pr(dashboard.ForgeGitHub, "alrayyes/a", 10, func(p *dashboard.PullRequest) {
 				p.ClosesIssues = []dashboard.IssueRef{ref("alrayyes/a", 1)}
 				p.MentionsIssues = []dashboard.IssueRef{ref("alrayyes/a", 1), ref("alrayyes/a", 2), ref("alrayyes/a", 99), ref("other/repo", 3)}
+				p.RefsIssues = []dashboard.IssueRef{ref("alrayyes/a", 1)}
 			}),
 			pr(dashboard.ForgeGitHub, "alrayyes/a", 11, func(p *dashboard.PullRequest) {
 				p.MentionsIssues = []dashboard.IssueRef{ref("alrayyes/a", 1)}
 			}),
-			pr(dashboard.ForgeGitHub, "alrayyes/a", 12, nil),
+			pr(dashboard.ForgeGitHub, "alrayyes/a", 12, func(p *dashboard.PullRequest) {
+				p.RefsIssues = []dashboard.IssueRef{ref("alrayyes/a", 2), ref("alrayyes/a", 99), ref("other/repo", 3)}
+			}),
 		},
 		issues: []dashboard.Issue{
 			issue(dashboard.ForgeGitHub, "alrayyes/a", 1), issue(dashboard.ForgeGitHub, "alrayyes/a", 2), issue(dashboard.ForgeGitHub, "alrayyes/a", 3),
@@ -60,6 +63,7 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 		prs: []dashboard.PullRequest{
 			pr(dashboard.ForgeForgejo, "Ryan/Hush", 7, func(p *dashboard.PullRequest) {
 				p.MentionsIssues = []dashboard.IssueRef{ref("ryan/hush", 3)}
+				p.RefsIssues = []dashboard.IssueRef{ref("ryan/hush", 3)}
 			}),
 			// A plain #3 in a mixed-case repo keeps the repo's own spelling.
 			pr(dashboard.ForgeForgejo, "Ryan/Hush", 8, func(p *dashboard.PullRequest) {
@@ -145,12 +149,10 @@ func TestDashboard_PullRequestsListTheTicketsTheyMention(t *testing.T) {
 		assert.Equal(t, false, got[1].(map[string]any)["tracked"])
 		assert.Equal(t, false, got[2].(map[string]any)["tracked"])
 	})
-	t.Run("forgejo matches a lowercased repo against the mixed-case one", func(t *testing.T) {
+	t.Run("a mention that is also a ref is listed as the ref only", func(t *testing.T) {
 		t.Parallel()
 
-		got := listOf(t, body, "pullRequests", "forgejo:Ryan/Hush#7", "mentionsIssues")[0].(map[string]any)
-
-		assert.Equal(t, true, got["tracked"])
+		assert.Empty(t, listOf(t, body, "pullRequests", "forgejo:Ryan/Hush#7", "mentionsIssues"))
 	})
 	t.Run("a mention spelled in the repo's own case is tracked too", func(t *testing.T) {
 		t.Parallel()
