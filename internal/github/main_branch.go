@@ -1,6 +1,7 @@
 package github
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -118,6 +119,10 @@ type graphqlBranchRef struct {
 	// heldRunURL is the page of a workflow run held for approval on the newest
 	// commit, set by withCheckedCommits (#2024). Not part of the response.
 	heldRunURL string
+	// failedRuns are the workflow runs of the newest commit that ended in
+	// startup_failure, which created no check run (#3582). Not part of the
+	// response.
+	failedRuns []dashboard.Check
 }
 
 // graphqlRelease is a repository's latestRelease.
@@ -222,6 +227,7 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 	rollup := target.StatusCheckRollup
 	if rollup == nil {
 		markAwaitingApproval(&row, ref)
+		markStartupFailed(&row, ref)
 
 		return row
 	}
@@ -349,6 +355,23 @@ func markAwaitingApproval(row *dashboard.MainBranch, ref *graphqlBranchRef) {
 	}
 	row.Status = dashboard.MainBranchAwaitingApproval
 	row.RunURL = ref.heldRunURL
+}
+
+// markStartupFailed gives the row the failed status when the newest commit has
+// no rollup because a workflow run ended in startup_failure: it made no check
+// run, so the rollup is empty, but the commit is broken, not unchecked. A held
+// run, which the row reports first, wins (#3582).
+func markStartupFailed(row *dashboard.MainBranch, ref *graphqlBranchRef) {
+	if len(ref.failedRuns) == 0 || ref.heldRunURL != "" {
+		return
+	}
+	row.Status = dashboard.MainBranchFailed
+	row.RunURL = cmp.Or(ref.failedRuns[0].URL, row.RunURL)
+	row.FailingJobs = make([]string, 0, len(ref.failedRuns))
+	for _, run := range ref.failedRuns {
+		row.FailingJobs = append(row.FailingJobs, run.Name)
+	}
+	row.Checks.Failed = len(ref.failedRuns)
 }
 
 // failedConclusion reports a check run conclusion that breaks the branch, the
@@ -569,21 +592,22 @@ type branchRepo struct {
 }
 
 // heldBranchRun reports whether the commit's workflow runs are held for
-// approval, and the page of the newest held run. It answers from the per-commit
-// answer the pull request pill and the panel share when there is one, whether
-// held, not held or unreadable, so a poll every few seconds costs a request a
-// minute for a commit, and a token that cannot read Actions is not asked again
-// on every poll (the forge API budget). Unreadable reads as not held.
-func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (string, bool) {
+// approval, the page of the newest held run, and the runs that ended in
+// startup_failure. It answers from the per-commit answer the pull request pill
+// and the panel share when there is one, whether held, not held or unreadable,
+// so a poll every few seconds costs a request a minute for a commit, and a
+// token that cannot read Actions is not asked again on every poll (the forge
+// API budget). Unreadable reads as neither held nor failed.
+func (c *Client) heldBranchRun(ctx context.Context, owner, name, sha string) (string, bool, []dashboard.Check) {
 	if answer, ok := c.requiredChecks.cachedHeld(sha); ok {
-		return answer.runURL, answer.held
+		return answer.runURL, answer.held, slices.Clone(answer.failed)
 	}
-	held := c.heldWorkflowChecks(ctx, owner, name, sha)
-	if len(held) == 0 {
-		return "", false
+	answer := c.headWorkflowRuns(ctx, owner, name, sha, false)
+	if len(answer.checks) == 0 {
+		return "", false, slices.Clone(answer.failed)
 	}
 
-	return held[0].URL, true
+	return answer.checks[0].URL, true, slices.Clone(answer.failed)
 }
 
 // uncheckedBranches picks the repos whose newest commit has no rollup (or only
@@ -605,11 +629,17 @@ func (c *Client) uncheckedBranches(ctx context.Context, tracked []graphqlRepo) [
 		if ref.Target.StatusCheckRollup != nil {
 			continue
 		}
-		if runURL, held := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID); held {
+		runURL, held, failed := c.heldBranchRun(ctx, r.Owner.Login, r.Name, ref.Target.OID)
+		if held {
 			ref.heldRunURL = runURL
 			if ref.heldRunURL == "" {
 				ref.heldRunURL = ref.Target.URL + "/checks"
 			}
+
+			continue
+		}
+		if len(failed) > 0 {
+			ref.failedRuns = failed
 
 			continue
 		}
