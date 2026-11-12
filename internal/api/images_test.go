@@ -191,7 +191,7 @@ func (r *realLinkSource) SignedImageURL(ctx context.Context, owner, name string,
 	return r.client.SignedImageURL(ctx, owner, name, item, link) //nolint:wrapcheck // a test double
 }
 
-const githubToken = "github-token-for-images" //nolint:gosec // a fixture, not a credential
+const githubToken = "github-token-for-images"
 
 // githubImages is a GitHub account with two local servers standing in for the
 // API host and the user-content host. The first sees the saved token; the
@@ -389,7 +389,8 @@ func TestImages_DoesNotLookUpTheItemWhenTheRequestCannotNameOne(t *testing.T) {
 func TestImages_DoesNotLookUpAnItemForAnImageThatIsNotAnAttachment(t *testing.T) {
 	t.Parallel()
 	g := newGitHubImages(t, "/s.png", 0, nil)
-	extra := url.Values{"url": {g.link[:strings.Index(g.link, "/user-attachments")] + "/plain.png"}}
+	before, _, _ := strings.Cut(g.link, "/user-attachments")
+	extra := url.Values{"url": {before + "/plain.png"}}
 	maps.Copy(extra, issue7)
 
 	status := g.status(t, extra)
