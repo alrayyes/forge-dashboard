@@ -94,6 +94,7 @@ const singleUserSpecs = [
   '**/rerun-all.spec.ts',
   '**/ci-pill-counts.spec.ts',
   '**/checking-for-conflicts.spec.ts',
+  '**/conflict-not-confirmed.spec.ts',
   '**/running-pill-counts.spec.ts',
   '**/issue-author-avatar.spec.ts',
   '**/pr-author-avatar.spec.ts',
