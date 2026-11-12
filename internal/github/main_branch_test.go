@@ -473,6 +473,58 @@ func TestFetch_MainBranch_ANewestCommitWhoseWorkflowFailedToStartIsFailed(t *tes
 	assert.Equal(t, 1, row.Checks.Failed)
 }
 
+// A commit with one workflow held for approval and another that failed to
+// start is still waiting on someone: the held run is the one a person can act
+// on, so the row says so rather than Failed (#3582).
+func TestFetch_MainBranch_AHeldRunBesideAFailedToStartRunAwaitsApproval(t *testing.T) {
+	t.Parallel()
+
+	newest := map[string]any{
+		"oid": "d77a71648ce53adf4e77dc02ce7c434f55538953", "abbreviatedOid": "d77a716",
+		"messageHeadline": "feat: from a first-time contributor",
+		"url":             "https://github.com/alrayyes/a/commit/d77a716",
+		"committedDate":   "2026-10-20T09:10:00Z", "statusCheckRollup": nil,
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 2, "workflow_runs": []map[string]any{
+			{
+				"id": 1, "name": "ci", "workflow_id": 7, "conclusion": "action_required",
+				"html_url": "https://github.com/alrayyes/a/actions/runs/1",
+			},
+			{
+				"id": 2, "name": "pr-title", "workflow_id": 8, "conclusion": "startup_failure",
+				"html_url": "https://github.com/alrayyes/a/actions/runs/2",
+			},
+		}})
+	})
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		_ = readGraphQLRequest(t, r)
+		head := branchRef(nil)
+		head["target"] = newest
+		writeJSON(t, w, map[string]any{"data": map[string]any{
+			"rateLimit": map[string]any{"limit": 5000, "remaining": 5000, "resetAt": "2026-09-14T16:00:00Z"},
+			"viewer": map[string]any{"repositories": map[string]any{
+				"pageInfo": map[string]any{"hasNextPage": false},
+				"nodes": []map[string]any{{
+					"name": "a", "url": "https://github.com/alrayyes/a", "viewerPermission": "WRITE",
+					"owner":            map[string]any{"login": "alrayyes"},
+					"pullRequests":     map[string]any{"nodes": []map[string]any{}},
+					"issues":           map[string]any{"nodes": []map[string]any{}},
+					"defaultBranchRef": head,
+				}},
+			}},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.MainBranches, 1)
+	assert.Equal(t, dashboard.MainBranchAwaitingApproval, result.MainBranches[0].Status)
+}
+
 // The repository query reads latestRelease beside defaultBranchRef, so a row
 // names the newest published release at no request of its own. GitHub leaves
 // drafts and pre-releases out of latestRelease and answers null for none.

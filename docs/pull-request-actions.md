@@ -131,7 +131,7 @@ the only problem, the dialog has no failed check, so it offers no Copy log or
 Rerun failed checks, and the Failed number stays at zero. The same goes for a
 default branch: when the newest commit has no check run because a workflow
 ended in `startup_failure`, the Main branches row reads Failed and names the
-workflow, and links the run, rather than showing an older commit's result.
+workflow and links the run, rather than showing an older commit's result.
 
 The workflow-runs read takes the newest 100 runs of a head commit. A held or
 `startup_failure` run further back goes unseen.

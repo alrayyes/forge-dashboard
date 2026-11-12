@@ -360,9 +360,9 @@ func markAwaitingApproval(row *dashboard.MainBranch, ref *graphqlBranchRef) {
 // markStartupFailed gives the row the failed status when the newest commit has
 // no rollup because a workflow run ended in startup_failure: it made no check
 // run, so the rollup is empty, but the commit is broken, not unchecked. A held
-// run, which the row reports first, wins (#3582).
+// run never reaches here: uncheckedBranches keeps the two apart (#3582).
 func markStartupFailed(row *dashboard.MainBranch, ref *graphqlBranchRef) {
-	if len(ref.failedRuns) == 0 || ref.heldRunURL != "" {
+	if len(ref.failedRuns) == 0 {
 		return
 	}
 	row.Status = dashboard.MainBranchFailed
