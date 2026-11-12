@@ -285,7 +285,9 @@ const EXPECTED: Record<
     activityPosition: 'sticky',
     header: 82,
     toolbar: 54,
-    filterBar: 135,
+    // One row shorter since the page offers no Show drafts when no draft
+    // exists (#3680): the mock holds none.
+    filterBar: 96,
     updatesBar: 41,
   },
   '1280x800': {
