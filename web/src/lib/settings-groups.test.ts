@@ -42,6 +42,15 @@ describe('settings groups', () => {
         anchor: id,
       });
     }
-    expect(groupFromHash('#github-token').group).toBe('connections');
+    for (const id of ['github-token', 'forgejo-token', 'forgejo-url']) {
+      expect(groupFromHash(`#${id}`)).toEqual({
+        group: 'connections',
+        anchor: id,
+      });
+    }
+    expect(groupFromHash('#timezone-select')).toEqual({
+      group: 'display',
+      anchor: 'timezone-select',
+    });
   });
 });
