@@ -200,7 +200,6 @@
     chosenRows,
     progressLabel as updateProgressLabel,
     showUpdateAll,
-    updateAllChips,
     updateAllLabel,
     updateAllPlan,
   } from "#lib/update-all.js";
@@ -6191,8 +6190,6 @@
         ? updateProgressLabel(updateAllRun.done, updateAllRun.total)
         : updateAllLabel(ready);
       markPending(button, updateAllRun !== null);
-      const chips = document.querySelector(".update-all-chips");
-      if (chips) renderStripChips(chips, updateAllChips(plan));
     }
 
     function updateAllDialog(): HTMLDialogElement | null {
@@ -10818,7 +10815,6 @@
         </dialog>
       {:else if view === "pulls"}
         <div class="update-all" hidden>
-          <ul class="strip-chips update-all-chips"></ul>
           <button
             type="button"
             class="update-all-button"
