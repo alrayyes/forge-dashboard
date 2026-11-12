@@ -120,17 +120,25 @@ test('a plain Merge is centred by the phone bar rule, full width', async ({
   expect(Number.parseFloat(style.width)).toBeCloseTo(barWidth ?? 0, 0);
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`axe finds nothing on the phone card in ${scheme}`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await page.setViewportSize({ width: 390, height: 900 });
-    await open(page, pr());
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
-}
+test(`axe finds nothing on the phone card in light and dark`, async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+
+      await page.setViewportSize({ width: 390, height: 900 });
+
+      await open(page, pr());
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+
+      expect(results.violations).toEqual([]);
+    });
+  }
+});
 
 test('on a desktop the button keeps its small size beside the status', async ({
   page,

@@ -313,27 +313,35 @@ test.describe('the Hidden list (#841)', () => {
 test.describe('hiding is accessible (#841)', () => {
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`the menu items, the status message and the Hidden list have no axe violations (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page, { 1: { until: null } });
-      const footer = await footerOf(page, 'Pull request 2');
-      expect(
-        (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-      ).toEqual([]);
+  test(`the menu items, the status message and the Hidden list have no axe violations (light and dark)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
 
-      await footer
-        .getByRole('button', { name: 'Hide this pull request' })
-        .click();
-      await page.locator('#hidden-prs-toggle').click();
-      await expect(page.locator('#hidden-prs-list li')).toHaveCount(2);
-      expect(
-        (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-      ).toEqual([]);
-    });
-  }
+        await open(page, { 1: { until: null } });
+
+        const footer = await footerOf(page, 'Pull request 2');
+
+        expect(
+          (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
+        ).toEqual([]);
+
+        await footer
+          .getByRole('button', { name: 'Hide this pull request' })
+          .click();
+
+        await page.locator('#hidden-prs-toggle').click();
+
+        await expect(page.locator('#hidden-prs-list li')).toHaveCount(2);
+
+        expect(
+          (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
+        ).toEqual([]);
+      });
+    }
+  });
 
   test('the Undo, toggle and Restore targets are at least 24px', async ({
     page,

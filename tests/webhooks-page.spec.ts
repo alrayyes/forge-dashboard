@@ -596,17 +596,6 @@ test.describe('webhooks page', () => {
     await expect(page.locator('#webhooks-rows tr')).toHaveCount(5);
   });
 
-  test('a set under one page shows no pagination controls', async ({
-    page,
-  }) => {
-    await mockDashboard(page, [
-      { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-    ]);
-    await page.goto('/webhooks.html');
-
-    await expect(page.locator('#webhooks-pagination')).toBeHidden();
-  });
-
   // One desktop scan for every control the page can render at once: filter
   // bar, a sorted table, a row with a webhook and auto-update on and off, a
   // row with the Add button, a permission-denied row and both bulk buttons.

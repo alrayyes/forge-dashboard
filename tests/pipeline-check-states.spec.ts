@@ -266,51 +266,58 @@ test.describe('pipeline check states (#1473)', () => {
     await expect(dialog.getByText('Blocking')).toHaveCount(3);
   });
 
-  for (const theme of ['light', 'dark']) {
-    test(`has no axe-core violations and clears contrast, ${theme}`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      const dialog = await open(page);
-      // The owner's saved theme wins over a cookie on load, so set the
-      // attribute the theme module itself sets, once the page has settled.
-      await page.evaluate(
-        (t) => document.documentElement.setAttribute('data-theme', t),
-        theme,
-      );
-      expect(
-        (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-      ).toEqual([]);
+  test(`has no axe-core violations and clears contrast, light and dark`, async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark']) {
+      await test.step(`${theme}`, async () => {
+        await page.emulateMedia({ reducedMotion: 'reduce' });
 
-      // Axe skips svg glyphs: hold every glyph to 3:1 (1.4.11) and every
-      // label to 4.5:1 (1.4.3) against its own pill, skipped included.
-      for (const { state } of STATES) {
-        const pill = status(dialog, state);
-        const m = await pill.evaluate((el) => {
-          const g = [...el.querySelectorAll('svg')].find(
-            (n) => getComputedStyle(n).display !== 'none',
-          ) as Element;
-          return {
-            bg: (() => {
-              // Skipped has no fill: use what actually sits behind it.
-              for (let n: Element | null = el; n; n = n.parentElement) {
-                const c = getComputedStyle(n).backgroundColor;
-                if (!/rgba\(.*, 0\)$/.test(c) && c !== 'transparent') return c;
-              }
-              return 'rgb(255, 255, 255)';
-            })(),
-            text: getComputedStyle(el).color,
-            glyph: getComputedStyle(g).color,
-          };
-        });
-        expect(contrast(m.text, m.bg), `${state} label`).toBeGreaterThanOrEqual(
-          4.5,
+        const dialog = await open(page);
+
+        // The owner's saved theme wins over a cookie on load, so set the
+        // attribute the theme module itself sets, once the page has settled.
+        await page.evaluate(
+          (t) => document.documentElement.setAttribute('data-theme', t),
+          theme,
         );
+
         expect(
-          contrast(m.glyph, m.bg),
-          `${state} glyph`,
-        ).toBeGreaterThanOrEqual(3);
-      }
-    });
-  }
+          (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+        ).toEqual([]);
+
+        // Axe skips svg glyphs: hold every glyph to 3:1 (1.4.11) and every
+        // label to 4.5:1 (1.4.3) against its own pill, skipped included.
+        for (const { state } of STATES) {
+          const pill = status(dialog, state);
+          const m = await pill.evaluate((el) => {
+            const g = [...el.querySelectorAll('svg')].find(
+              (n) => getComputedStyle(n).display !== 'none',
+            ) as Element;
+            return {
+              bg: (() => {
+                // Skipped has no fill: use what actually sits behind it.
+                for (let n: Element | null = el; n; n = n.parentElement) {
+                  const c = getComputedStyle(n).backgroundColor;
+                  if (!/rgba\(.*, 0\)$/.test(c) && c !== 'transparent')
+                    return c;
+                }
+                return 'rgb(255, 255, 255)';
+              })(),
+              text: getComputedStyle(el).color,
+              glyph: getComputedStyle(g).color,
+            };
+          });
+          expect(
+            contrast(m.text, m.bg),
+            `${state} label`,
+          ).toBeGreaterThanOrEqual(4.5);
+          expect(
+            contrast(m.glyph, m.bg),
+            `${state} glyph`,
+          ).toBeGreaterThanOrEqual(3);
+        }
+      });
+    }
+  });
 });

@@ -504,51 +504,57 @@ test.describe('A pull request can have its own automatic branch update', () => {
     }
   });
 
-  for (const theme of ['light', 'dark']) {
-    for (const viewport of [
-      { width: 1280, height: 800 },
-      { width: 390, height: 800 },
-    ]) {
-      test(`has no axe-core violations with the box on, own choice and unavailable, ${theme} at ${viewport.width}px`, async ({
-        page,
-        context,
-        baseURL,
-      }) => {
-        await context.addCookies([
-          { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
-        ]);
-        await page.setViewportSize(viewport);
-        await page.emulateMedia({ reducedMotion: 'reduce' });
-        const states: AutoUpdate[] = [
-          FOLLOWS_REPO_ON,
-          { enabled: false, source: 'pullRequest', unavailable: null },
-          {
-            enabled: false,
-            source: 'repo',
-            unavailable: {
-              code: 'release_please',
-              reason:
-                'A release-please pull request is never updated automatically: release-please rewrites its own branch with every release.',
+  test(`has no axe-core violations with the box on, own choice and unavailable, light and dark at every width`, async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    for (const theme of ['light', 'dark']) {
+      for (const viewport of [
+        { width: 1280, height: 800 },
+        { width: 390, height: 800 },
+      ]) {
+        await test.step(`${theme} ${viewport.width}px`, async () => {
+          await context.addCookies([
+            { name: 'forge-board-theme', value: theme, url: baseURL ?? '' },
+          ]);
+
+          await page.setViewportSize(viewport);
+
+          await page.emulateMedia({ reducedMotion: 'reduce' });
+
+          const states: AutoUpdate[] = [
+            FOLLOWS_REPO_ON,
+            { enabled: false, source: 'pullRequest', unavailable: null },
+            {
+              enabled: false,
+              source: 'repo',
+              unavailable: {
+                code: 'release_please',
+                reason:
+                  'A release-please pull request is never updated automatically: release-please rewrites its own branch with every release.',
+              },
             },
-          },
-        ];
-        for (const autoUpdate of states) {
-          await page.unroute('**/api/v1/dashboard*').catch(() => {});
-          await page.unroute('**/api/v1/dashboard/refresh*').catch(() => {});
-          await serve(page, { pr: makePR(autoUpdate), posts: [] });
-          await page.goto('/pull-requests.html');
-          const dialog = await openActionsDialog(row(page));
-          await expect(
-            dialog.getByRole('checkbox', {
-              name: 'Update this branch automatically',
-            }),
-          ).toBeVisible();
-          expect(
-            (await new AxeBuilder({ page }).withTags(TAGS).analyze())
-              .violations,
-          ).toEqual([]);
-        }
-      });
+          ];
+
+          for (const autoUpdate of states) {
+            await page.unroute('**/api/v1/dashboard*').catch(() => {});
+            await page.unroute('**/api/v1/dashboard/refresh*').catch(() => {});
+            await serve(page, { pr: makePR(autoUpdate), posts: [] });
+            await page.goto('/pull-requests.html');
+            const dialog = await openActionsDialog(row(page));
+            await expect(
+              dialog.getByRole('checkbox', {
+                name: 'Update this branch automatically',
+              }),
+            ).toBeVisible();
+            expect(
+              (await new AxeBuilder({ page }).withTags(TAGS).analyze())
+                .violations,
+            ).toEqual([]);
+          }
+        });
+      }
     }
-  }
+  });
 });

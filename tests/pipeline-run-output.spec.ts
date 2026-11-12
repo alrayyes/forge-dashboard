@@ -1450,6 +1450,78 @@ test.describe('a copy pressed while the output loads', () => {
     );
   });
 
+  // #3424: hiding the panel clears the excerpt's line, not the field the
+  // person was told to copy from.
+  test('the excerpt field to copy from survives hiding and showing the output', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const field = dialog.getByRole('textbox', {
+      name: 'Output to copy: build',
+    });
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    await expect(field).toHaveValue(log.body.text);
+
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(dialog.locator('.run-output-text')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(dialog.locator('.run-output-text')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
+
+    await expect(field).toHaveValue(log.body.text);
+  });
+
+  test('a copy still running when the output is hidden lands once after Show', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, log, failed);
+    await page.evaluate(() => {
+      const w = window as unknown as { __let?: () => void; __writes: number };
+      w.__writes = 0;
+      const gate = new Promise<void>((r) => {
+        w.__let = r;
+      });
+      const real = navigator.clipboard.write.bind(navigator.clipboard);
+      navigator.clipboard.write = async (items: ClipboardItem[]) => {
+        w.__writes++;
+        await gate;
+        return real(items);
+      };
+      const text = navigator.clipboard.writeText.bind(navigator.clipboard);
+      navigator.clipboard.writeText = async (t: string) => {
+        w.__writes++;
+        await gate;
+        return text(t);
+      };
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(dialog.locator('.run-output-text')).toBeVisible();
+    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
+      'Copying',
+    );
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await expect(dialog.locator('.run-output-text')).toBeVisible();
+    await expect(dialog.locator('.run-output-status')).toHaveText('Copying');
+
+    await page.evaluate(() =>
+      (window as unknown as { __let?: () => void }).__let?.(),
+    );
+    await expect(dialog.locator('.run-output-status')).toHaveText('Copied');
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __writes: number }).__writes,
+      ),
+    ).toBe(1);
+  });
+
   test('a copy still running when the output lands shows Copying, then its result', async ({
     page,
     context,

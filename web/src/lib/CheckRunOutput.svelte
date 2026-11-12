@@ -66,9 +66,10 @@
     shown = !shown;
     flow.reset();
     // What the excerpt's copy said was heard once; hiding the panel ends it, so
-    // showing the panel again doesn't announce it as new (#3360). A copy still
-    // running keeps going.
-    if (!shown && earlier && !earlier.busy) earlier.reset();
+    // showing the panel again doesn't announce it as new (#3360). Only the line
+    // goes: the field to copy from stays, and a copy still running keeps going
+    // (#3424).
+    if (!shown) earlier?.clearStatus();
     if (!shown || !url) {
       ask++;
       onloaded?.(false);

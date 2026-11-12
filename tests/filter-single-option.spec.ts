@@ -118,15 +118,21 @@ test.describe('a filter with one option leaves the bar (#3496)', () => {
     });
   }
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`passes axe in the ${scheme} theme`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page, '/pull-requests.html', [row(1, 'alrayyes/a', 'ann')]);
-      await expect(repoFilter(page)).toBeHidden();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`passes axe in both themes`, async ({ page }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+
+        await open(page, '/pull-requests.html', [row(1, 'alrayyes/a', 'ann')]);
+
+        await expect(repoFilter(page)).toBeHidden();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

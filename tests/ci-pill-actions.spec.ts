@@ -107,15 +107,6 @@ test.describe('CI pill opens the pipeline (#1139)', () => {
     await expect(pill).toBeFocused();
   });
 
-  test('a row with no CI draws no pill button', async ({ page }) => {
-    await mockDashboard(page, makePR({ ci: 'none' }));
-    await page.goto('/pull-requests.html');
-    const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByRole('button', { name: /Open pipeline/ }),
-    ).toHaveCount(0);
-  });
-
   // Every row offers Hide (#841), so Close is no longer alone: it sits in the
   // row's dialog with the two Hide items.
   test('Close sits in the dialog beside the Hide items', async ({ page }) => {

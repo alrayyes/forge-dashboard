@@ -115,24 +115,28 @@ test('the zero-count pill is unchanged: no pill at all', async ({ page }) => {
   await expect(header(page)).toHaveCount(0);
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`no axe violations with a total-less pill in the ${scheme} theme`, async ({
-    page,
-  }) => {
-    await page.emulateMedia({ colorScheme: scheme });
-    await open(page, cases[0].counts);
-    for (const size of [
-      { width: 1280, height: 800 },
-      { width: 320, height: 740 },
-    ]) {
-      await page.setViewportSize(size);
-      const pill = page.locator(`a[href="${PRS}"] .nav-pills:visible`);
-      await expect(pill).toHaveCount(1);
-      await expect(pill.locator('.nav-total')).toHaveCount(0);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    }
-  });
-}
+test(`no axe violations with a total-less pill in both themes`, async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await test.step(`${scheme}`, async () => {
+      await page.emulateMedia({ colorScheme: scheme });
+
+      await open(page, cases[0].counts);
+
+      for (const size of [
+        { width: 1280, height: 800 },
+        { width: 320, height: 740 },
+      ]) {
+        await page.setViewportSize(size);
+        const pill = page.locator(`a[href="${PRS}"] .nav-pills:visible`);
+        await expect(pill).toHaveCount(1);
+        await expect(pill.locator('.nav-total')).toHaveCount(0);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      }
+    });
+  }
+});

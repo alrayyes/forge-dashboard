@@ -243,6 +243,78 @@ func TestRefreshRepoDebounced_AnEventInTheNextBurstStartsANewWindow(t *testing.T
 	assert.Equal(t, 2, f.src.repoFetchCallCount("alrayyes/a"), "the second burst waits out the minimum interval, then refreshes")
 }
 
+func TestRefreshRepoDebounced_AConfiguredMinIntervalReplacesTheDefault(t *testing.T) {
+	t.Parallel()
+	clock := newFakeTimers()
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now),
+		dashboard.WithDebounceTimer(clock.After), dashboard.WithWebhookMinInterval(10*time.Second))
+
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	clock.Advance(2 * time.Second)
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	clock.Advance(9*time.Second + 999*time.Millisecond)
+	assert.Equal(t, 1, src.repoFetchCallCount("alrayyes/a"), "held back by the interval")
+	clock.Advance(time.Millisecond)
+
+	assert.Equal(t, 2, src.repoFetchCallCount("alrayyes/a"), "the second refresh runs 10s after the first, not 30s")
+}
+
+func TestRefreshRepoDebounced_AZeroMinIntervalLeavesOnlyTheQuietWindowAndTheCap(t *testing.T) {
+	t.Parallel()
+	clock := newFakeTimers()
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now),
+		dashboard.WithDebounceTimer(clock.After), dashboard.WithWebhookMinInterval(0))
+
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	clock.Advance(2 * time.Second)
+	agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	clock.Advance(2 * time.Second)
+
+	assert.Equal(t, 2, src.repoFetchCallCount("alrayyes/a"), "the second burst waits only the 2s quiet window")
+}
+
+func TestService_SetWebhookMinIntervalReachesTheDebouncer(t *testing.T) {
+	t.Parallel()
+	var (
+		mu    sync.Mutex
+		waits []time.Duration
+		last  func()
+	)
+	record := func(d time.Duration, f func()) func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		waits = append(waits, d)
+		last = f
+
+		return func() bool { return true }
+	}
+	src := newFakeRepoRefresherSource()
+	src.setRepo("alrayyes/a", nil)
+	m := dashboard.NewService(time.Hour)
+	m.SetWebhookDebounceTimer(record)
+	m.SetWebhookMinInterval(10 * time.Second)
+	t.Cleanup(m.Stop)
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.fetchCallCount() >= 1 }, 5*time.Second, time.Millisecond, "the first full refresh")
+
+	m.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+	mu.Lock()
+	fire := last
+	mu.Unlock()
+	fire()
+	m.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a")
+
+	mu.Lock()
+	defer mu.Unlock()
+	require.Len(t, waits, 2)
+	assert.Greater(t, waits[1], 9*time.Second, "held back by the configured interval")
+	assert.LessOrEqual(t, waits[1], 10*time.Second, "not by the 30s default")
+}
+
 // A push's check_run deliveries arrive over tens of seconds, with gaps longer
 // than the quiet window, so the window alone merges nothing.
 func TestRefreshRepoDebounced_FiveEventsOver23SecondsRefreshTwice(t *testing.T) {

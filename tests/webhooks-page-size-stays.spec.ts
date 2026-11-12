@@ -70,24 +70,33 @@ test.describe('Webhooks Per page select stays (#3462)', () => {
   }) => {
     await mock(page, 5);
     await page.goto('/webhooks.html');
+    // Wait for the rows first: an absence check on an unrendered page passes.
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(5);
     await expect(page.locator('#webhooks-page-size')).toHaveCount(0);
     await expect(page.locator('#webhooks-pagination')).toHaveCount(0);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`single page with the select passes axe in ${scheme}`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page);
-      await pick(page, '100');
-      await expect(select(page)).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .include('#webhooks-pagination')
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`single page with the select passes axe in light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+
+        await open(page);
+
+        await pick(page, '100');
+
+        await expect(select(page)).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .include('#webhooks-pagination')
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 
   test('select is 44px tall at 390 and nothing scrolls sideways at 320', async ({
     page,

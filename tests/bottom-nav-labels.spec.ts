@@ -47,19 +47,19 @@ async function withCounts(page: Page) {
 
 test.describe('bottom nav labels (#3288)', () => {
   for (const counts of [false, true]) {
-    for (const width of WIDTHS) {
-      test(`labels are separate and inside their tabs at ${width}px${counts ? ' with counts' : ''}`, async ({
-        page,
-      }) => {
+    test(`labels are separate and inside their tabs at every width${counts ? ' with counts' : ''}`, async ({
+      page,
+    }) => {
+      if (counts) {
+        await withCounts(page);
+      } else {
+        // A count that isn't known yet keeps its tab in the bar, so with the
+        // dashboard read refused all eight tabs show.
+        await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+        await page.route('**/api/v1/dashboard*', (r) => r.abort());
+      }
+      for (const width of WIDTHS) {
         await page.setViewportSize({ width, height: 700 });
-        if (counts) {
-          await withCounts(page);
-        } else {
-          // A count that isn't known yet keeps its tab in the bar, so with the
-          // dashboard read refused all eight tabs show.
-          await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
-          await page.route('**/api/v1/dashboard*', (r) => r.abort());
-        }
         await page.goto('/insights.html');
         await expect(page.locator('.bottom-nav-label')).toHaveCount(8);
         // Widths are those of the web font, not the fallback it replaces.
@@ -108,8 +108,10 @@ test.describe('bottom nav labels (#3288)', () => {
               `${b.name}/${next.name} gap ${(next.left - b.right).toFixed(1)}px`,
             );
         }
-        expect(problems, `\n${problems.join('\n')}\n`).toEqual([]);
-      });
-    }
+        expect
+          .soft(problems, `${width}px\n${problems.join('\n')}\n`)
+          .toEqual([]);
+      }
+    });
   }
 });

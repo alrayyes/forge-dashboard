@@ -482,27 +482,39 @@ test.describe('references inside the issue dialog', () => {
     ['/pull-requests.html', 'Pull requests'],
     ['/issues.html', 'Issues'],
   ] as const) {
-    for (const width of [1280, 390]) {
-      for (const scheme of ['light', 'dark'] as const) {
-        test(`has no axe violations with the pull request dialog reached from the issue dialog, ${label} page, ${scheme} at ${width}px`, async ({
-          page,
-        }) => {
-          await page.setViewportSize({ width, height: 800 });
-          await page.emulateMedia({ colorScheme: scheme });
-          await mockBoard(page, {
-            shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
-            issues: [issue(12, [linked(13)])],
+    test(`has no axe violations with the pull request dialog reached from the issue dialog, ${label} page, light and dark at every width`, async ({
+      page,
+    }) => {
+      for (const width of [1280, 390]) {
+        for (const scheme of ['light', 'dark'] as const) {
+          await test.step(`${width}px ${scheme}`, async () => {
+            await page.setViewportSize({ width, height: 800 });
+
+            await page.emulateMedia({ colorScheme: scheme });
+
+            await mockBoard(page, {
+              shown: [pullRequest(1, [closing(12)]), pullRequest(13)],
+              issues: [issue(12, [linked(13)])],
+            });
+
+            await page.goto(path);
+
+            if (path === '/issues.html')
+              await page
+                .locator('#issue-rows .row button.title')
+                .first()
+                .click();
+            else await closingPill(page, 1).click();
+
+            await issueDialog(page).locator('.linked-pr').click();
+
+            await expect(pullDialog(page)).toBeVisible();
+
+            await axeClean(page, `${label} ${scheme} at ${width}px`);
           });
-          await page.goto(path);
-          if (path === '/issues.html')
-            await page.locator('#issue-rows .row button.title').first().click();
-          else await closingPill(page, 1).click();
-          await issueDialog(page).locator('.linked-pr').click();
-          await expect(pullDialog(page)).toBeVisible();
-          await axeClean(page, `${label} ${scheme} at ${width}px`);
-        });
+        }
       }
-    }
+    });
   }
 
   test('a reference the dashboard does not hold is said plainly on the Pull requests page', async ({

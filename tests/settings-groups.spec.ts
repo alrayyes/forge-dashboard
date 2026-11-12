@@ -32,14 +32,6 @@ const GROUPS = [
   },
 ] as const;
 
-const ANCHORS: Record<string, string> = {
-  'issue-settings': 'behaviour',
-  'forgejo-auto-merge': 'behaviour',
-  webhooks: 'integrations',
-  passkeys: 'integrations',
-  'api-tokens': 'integrations',
-};
-
 const cardHeading = (page: Page, name: string) =>
   page.getByRole('heading', { level: 2, name, exact: true });
 const groupLink = (page: Page, label: string) =>
@@ -106,22 +98,17 @@ test.describe('settings groups', () => {
     }
   });
 
-  for (const [anchor, group] of Object.entries(ANCHORS)) {
-    test(`/settings.html#${anchor} opens ${group} and scrolls the card into view`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width: 1280, height: 500 });
-      await page.goto(`/settings.html#${anchor}`);
-      const card = page.locator(`#${anchor}`);
-      await expect(card).toBeVisible();
-      await expect(card).toBeInViewport();
-      const g = GROUPS.find((x) => x.id === group);
-      await expect(groupLink(page, g?.label ?? '').first()).toHaveAttribute(
-        'aria-current',
-        'page',
-      );
-    });
-  }
+  // The anchor-to-group mapping is pinned in settings-groups.test.ts. This one
+  // proves the scroll: the API tokens card sits below the fold at 500px high.
+  test('/settings.html#api-tokens opens its group and scrolls the card into view', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    await page.goto('/settings.html#api-tokens');
+    const card = page.locator('#api-tokens');
+    await expect(card).toBeVisible();
+    await expect(card).toBeInViewport();
+  });
 
   test('hashchange, back and forward move between groups', async ({ page }) => {
     await page.goto('/settings.html');
@@ -404,37 +391,62 @@ test.describe('settings groups', () => {
     });
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 360]) {
-      test(`axe passes in every group, ${scheme}, ${width}px`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width, height: 900 });
-        for (const g of GROUPS) {
-          await page.goto(`/settings.html#${g.id}`);
-          await expect(cardHeading(page, g.cards[0])).toBeVisible();
-          const results = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-            .analyze();
-          // Help opened as well: its text and chevron are part of the page.
-          const toggles = page.locator('.disclosure-toggle:visible');
-          for (let i = 0; i < (await toggles.count()); i++) {
-            await toggles.nth(i).click();
+  test(`axe passes in every group, light and dark, every width`, async ({
+    page,
+  }) => {
+    // Four passes over four groups, each scanned twice.
+    test.setTimeout(90_000);
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 360]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+
+          await page.setViewportSize({ width, height: 900 });
+
+          for (const g of GROUPS) {
+            await page.goto(`/settings.html#${g.id}`);
+            // A hash change is not a load: reload so the help a previous
+            // pass opened is closed again.
+            await page.reload();
+            await expect(cardHeading(page, g.cards[0])).toBeVisible();
+            const results = await new AxeBuilder({ page })
+              .withTags([
+                'wcag2a',
+                'wcag2aa',
+                'wcag21a',
+                'wcag21aa',
+                'wcag22aa',
+              ])
+              .analyze();
+            // Help opened as well: its text and chevron are part of the page.
+            const toggles = page.locator('.disclosure-toggle:visible');
+            for (let i = 0; i < (await toggles.count()); i++) {
+              await toggles.nth(i).click();
+            }
+            const opened = await new AxeBuilder({ page })
+              .withTags([
+                'wcag2a',
+                'wcag2aa',
+                'wcag21a',
+                'wcag21aa',
+                'wcag22aa',
+              ])
+              .analyze();
+            expect
+              .soft(
+                opened.violations,
+                `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
+              )
+              .toEqual([]);
+            expect
+              .soft(
+                results.violations,
+                `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
+              )
+              .toEqual([]);
           }
-          const opened = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-            .analyze();
-          expect(
-            opened.violations,
-            `${g.id} (help open): ${opened.violations.map((v) => v.id).join(', ')}`,
-          ).toEqual([]);
-          expect(
-            results.violations,
-            `${g.id}: ${results.violations.map((v) => v.id).join(', ')}`,
-          ).toEqual([]);
-        }
-      });
+        });
+      }
     }
-  }
+  });
 });
