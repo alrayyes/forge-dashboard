@@ -20,6 +20,7 @@ const singleUserSpecs = [
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
   '**/forgejo-token-saved-hint.spec.ts',
+  '**/github-token-saved-hint.spec.ts',
   '**/insights-webhooks-read-failure.spec.ts',
   '**/insights-webhooks-pending.spec.ts',
   '**/branches-load-failure.spec.ts',
