@@ -144,3 +144,79 @@ for (const scheme of ['light', 'dark'] as const) {
     }
   });
 }
+
+// The triggers draw their chevron as a background image, which forced colors
+// drops (#3442). They get a border-drawn chevron on ::after instead, which
+// forced colors keeps and maps to system colors.
+for (const scheme of ['light', 'dark'] as const) {
+  for (const [name, path] of [
+    ['issues', '/issues.html'],
+    ['pull requests', '/pull-requests.html'],
+  ] as const) {
+    test(`${name}: every pick trigger shows an arrow in forced colors, ${scheme} (3442)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
+      await open(page, path, 1280);
+      for (const selector of TRIGGERS) {
+        const arrow = await page.locator(selector).evaluate((el) => {
+          const cs = getComputedStyle(el, '::after');
+          return {
+            content: cs.content,
+            borderBottom: cs.borderBottomWidth,
+            borderRight: cs.borderRightWidth,
+            borderColor: cs.borderBottomColor,
+            text: getComputedStyle(el).color,
+          };
+        });
+        expect(arrow.content, selector).not.toMatch(/^(none|normal)$/);
+        expect(Number.parseFloat(arrow.borderBottom), selector).toBeGreaterThan(
+          0,
+        );
+        expect(Number.parseFloat(arrow.borderRight), selector).toBeGreaterThan(
+          0,
+        );
+        // System colors: the arrow takes the trigger's own forced text color.
+        expect(arrow.borderColor, selector).toBe(arrow.text);
+      }
+    });
+
+    test(`${name}: no pick trigger clips its label in forced colors, ${scheme} (3442)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ forcedColors: 'active', colorScheme: scheme });
+      await open(page, path, 1280);
+      for (const selector of TRIGGERS) {
+        const fit = await page.locator(selector).evaluate((el) => {
+          const arrow = getComputedStyle(el, '::after');
+          const box = el.getBoundingClientRect();
+          return {
+            textEnd:
+              el.clientWidth -
+              Number.parseFloat(getComputedStyle(el).paddingRight),
+            arrowLeft:
+              box.width -
+              Number.parseFloat(arrow.right) -
+              Number.parseFloat(arrow.width),
+          };
+        });
+        expect(
+          fit.textEnd,
+          `${selector} ${JSON.stringify(fit)}`,
+        ).toBeLessThanOrEqual(fit.arrowLeft);
+      }
+    });
+  }
+}
+
+test('pull requests: triggers draw no ::after arrow with forced colors off (3442)', async ({
+  page,
+}) => {
+  await open(page, '/pull-requests.html', 1280);
+  for (const selector of TRIGGERS) {
+    const content = await page
+      .locator(selector)
+      .evaluate((el) => getComputedStyle(el, '::after').content);
+    expect(content, selector).toMatch(/^(none|normal)$/);
+  }
+});
