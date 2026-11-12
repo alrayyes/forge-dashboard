@@ -64,9 +64,9 @@ for (const scheme of ['light', 'dark'] as const) {
     await stub(page);
     await page.goto('/issues.html');
     await expect(page.locator('#issue-hide-title-regex')).toBeVisible();
-    expect(
-      await placeholderContrast(page, '#issue-hide-title-regex'),
-    ).toBeGreaterThanOrEqual(4.5);
+    await expect
+      .poll(() => placeholderContrast(page, '#issue-hide-title-regex'))
+      .toBeGreaterThanOrEqual(4.5);
   });
 
   test(`Branches search placeholder reads at 4.5:1 (${scheme}) (#3201)`, async ({

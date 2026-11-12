@@ -77,13 +77,16 @@ for (const [scheme, motion] of CASES) {
 
     await page.goto('/pull-requests.html');
     await expect(page.getByTestId('list-skeleton')).toBeVisible();
+    await expect.poll(() => dimmestContrast(page)).toBeGreaterThan(1.03);
     const list = await dimmestContrast(page);
 
     await page.goto('/');
     await expect(page.getByTestId('list-skeleton')).toBeVisible();
-    const branches = await dimmestContrast(page);
-
-    expect(list).toBeGreaterThan(1.03);
-    expect(branches).toBeGreaterThanOrEqual(list);
+    await expect
+      .poll(async () => {
+        const [barsHere, barsOnList] = [await dimmestContrast(page), list];
+        return barsHere >= barsOnList;
+      })
+      .toBe(true);
   });
 }

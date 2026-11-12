@@ -236,20 +236,21 @@ test.describe('the footer is the same on every page', () => {
             path === '/disclaimer.html' ? 'Disclaimer' : 'Privacy',
           );
           // Not colour alone: the current link is underlined 2px; the others 1px.
-          const thickness = await page
-            .locator('footer a')
-            .evaluateAll((els) =>
-              els.map((el) =>
-                el.getAttribute('aria-current')
-                  ? getComputedStyle(el).textDecorationThickness
-                  : null,
-              ),
-            );
-          expect(thickness.filter(Boolean)).toEqual(['2px']);
-          const underlined = await page
-            .locator('footer a[aria-current]')
-            .evaluate((el) => getComputedStyle(el).textDecorationLine);
-          expect(underlined).toContain('underline');
+          await expect
+            .poll(() =>
+              page
+                .locator('footer a')
+                .evaluateAll((els) =>
+                  els
+                    .filter((el) => el.getAttribute('aria-current'))
+                    .map((el) => getComputedStyle(el).textDecorationThickness),
+                ),
+            )
+            .toEqual(['2px']);
+          await expect(page.locator('footer a[aria-current]')).toHaveCSS(
+            'text-decoration-line',
+            /underline/,
+          );
           await expectAxeAndNoSidewaysScroll(page);
         });
       }

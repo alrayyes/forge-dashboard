@@ -214,12 +214,8 @@ test.describe('stacked pull requests (#861)', () => {
     expect(chipBox?.width ?? 999).toBeLessThan(140);
     expect(waitBox?.y ?? 0).toBeGreaterThan((chipBox?.y ?? 0) + 8);
 
-    const rule = await rowFor(page, 840).evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { left: s.borderLeftWidth, margin: s.marginLeft };
-    });
-    expect(rule.left).toBe('2px');
-    expect(rule.margin).toBe('0px');
+    await expect(rowFor(page, 840)).toHaveCSS('border-left-width', '2px');
+    await expect(rowFor(page, 840)).toHaveCSS('margin-left', '0px');
 
     const title = rowFor(page, 840).locator('.title-text');
     expect(await title.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(

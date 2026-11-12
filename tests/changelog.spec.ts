@@ -487,33 +487,39 @@ test.describe('release history page', () => {
               prop,
             );
 
-        expect(await spacing('.release-notes ol', 'padding-left')).toBe('20px');
+        const css = (sel: string) => (prop: string) => spacing(sel, prop);
+        const ol = css('.release-notes ol');
+        const pre = css('.release-notes pre');
+        const quote = css('.release-notes blockquote');
 
-        expect(await spacing('.release-notes pre', 'margin-bottom')).toBe(
-          '8px',
-        );
-
-        expect(
-          await spacing('.release-notes blockquote', 'margin-bottom'),
-        ).toBe('8px');
+        await expect.poll(() => ol('padding-left')).toBe('20px');
+        await expect.poll(() => pre('margin-bottom')).toBe('8px');
+        await expect.poll(() => quote('margin-bottom')).toBe('8px');
 
         // Colours come from tokens, so they differ from the card's own and
         // follow the scheme.
-        expect(
-          await spacing('.release-notes pre', 'background-color'),
-        ).not.toBe(await spacing('.release', 'background-color'));
+        await expect
+          .poll(async () => {
+            const [inNotes, onCard] = [
+              await pre('background-color'),
+              await spacing('.release', 'background-color'),
+            ];
+            return inNotes !== onCard;
+          })
+          .toBe(true);
 
-        expect(await spacing('.release-notes pre', 'border-top-width')).toBe(
-          '1px',
-        );
+        await expect.poll(() => pre('border-top-width')).toBe('1px');
+        await expect.poll(() => quote('border-left-width')).toBe('3px');
 
-        expect(
-          await spacing('.release-notes blockquote', 'border-left-width'),
-        ).toBe('3px');
-
-        expect(await spacing('.release-notes blockquote', 'color')).not.toBe(
-          await spacing('.release-notes li', 'color'),
-        );
+        await expect
+          .poll(async () => {
+            const [quoted, listed] = [
+              await quote('color'),
+              await spacing('.release-notes li', 'color'),
+            ];
+            return quoted !== listed;
+          })
+          .toBe(true);
 
         // A scrolling code block takes keyboard focus, so it can be read.
         await expect(notesBox.locator('pre')).toHaveAttribute('tabindex', '0');

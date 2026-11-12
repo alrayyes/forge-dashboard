@@ -178,11 +178,8 @@ test.describe('a pull request row opens its dialog', () => {
     await titleButton(page).focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    const outline = await titleButton(page).evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return `${cs.outlineWidth} ${cs.outlineStyle}`;
-    });
-    expect(outline).toBe('2px solid');
+    await expect(titleButton(page)).toHaveCSS('outline-width', '2px');
+    await expect(titleButton(page)).toHaveCSS('outline-style', 'solid');
   });
 
   test('has no axe-core violations closed or open', async ({ page }) => {

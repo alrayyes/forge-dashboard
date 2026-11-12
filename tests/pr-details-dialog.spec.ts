@@ -825,11 +825,8 @@ test.describe('pull request details dialog', () => {
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(pre).toBeFocused();
-    const outline = await pre.evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return [cs.outlineStyle, cs.outlineWidth];
-    });
-    expect(outline).toEqual(['solid', '2px']);
+    await expect(pre).toHaveCSS('outline-style', 'solid');
+    await expect(pre).toHaveCSS('outline-width', '2px');
   });
 
   test('a failed markdown chunk shows a plain error and Try again recovers once the network is back', async ({
@@ -1095,25 +1092,37 @@ test.describe('pull request details dialog', () => {
     await trigger(page).click();
     const chips = dialog(page).locator('.attr-cluster .attr-chip');
     await expect(chips).toHaveCount(5);
-    const styles = await chips.evaluateAll((els) =>
-      els.map((el) => {
-        const s = getComputedStyle(el);
-        return {
-          behind: el.classList.contains('behind'),
-          bg: s.backgroundColor,
-          border: s.borderTopWidth,
-          color: s.color,
-        };
-      }),
-    );
+    const quietStyles = () =>
+      chips.evaluateAll((els) =>
+        els
+          .filter((el) => !el.classList.contains('behind'))
+          .map((el) => {
+            const s = getComputedStyle(el);
+            return {
+              bg: s.backgroundColor,
+              border: s.borderTopWidth,
+              color: s.color,
+            };
+          }),
+      );
     // Out of date is the one chip with a fill and the warning colour; the
     // rest stay quiet.
-    const quiet = styles.filter((s) => !s.behind);
-    for (const s of quiet) {
-      expect(s.bg).toBe('rgba(0, 0, 0, 0)');
-      expect(s.border).toBe('1px');
-      expect(s.color).toBe(quiet[0].color);
-    }
+    await expect
+      .poll(async () => {
+        const quiet = await quietStyles();
+        return quiet.map((s) => ({
+          bg: s.bg,
+          border: s.border,
+          sameColour: s.color === quiet[0].color,
+        }));
+      })
+      .toEqual(
+        Array.from({ length: 4 }, () => ({
+          bg: 'rgba(0, 0, 0, 0)',
+          border: '1px',
+          sameColour: true,
+        })),
+      );
   });
 
   test('on a 360px phone the header status has no overflow, the slot is first and the attributes wrap', async ({
