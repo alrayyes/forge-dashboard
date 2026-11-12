@@ -335,9 +335,13 @@ can't fire a tracking pixel when the dialog opens.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
-- Not yet covered: the app sets no Content-Security-Policy yet, so nothing in
-  the browser forbids a direct image load. A follow-up adds one that matches
-  this list.
+- Every response carries `Content-Security-Policy: img-src 'self' data:`
+  (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
+  refuses a direct image load from any other host. None of the hosts above
+  appears in it, because the server fetches them and the browser never does.
+  `data:` is for the inline check mark on a ticked box. The image route sends
+  its own stricter policy over it. A Go test checks the policy against the
+  proxy's host list, and against the hosts the page sends through it.
 
 ### What the passkey login covers
 
