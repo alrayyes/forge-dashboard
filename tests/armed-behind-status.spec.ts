@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import fixture from './generated/behind-status.json';
 import { test } from './server-fixture';
 
 // #3428: an armed pull request that is behind says whether being behind is
@@ -13,38 +14,15 @@ import { test } from './server-fixture';
 
 type MockPR = Record<string, unknown>;
 
-const strictMessage =
-  'Auto-merge is waiting for the branch to be updated. GitHub requires it to be up to date before it merges.';
-const cancelledMessage =
-  'Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes.';
-
+// The pull requests are the ones the server builds, from
+// tests/generated/behind-status.json (#3601), so a field the server stops
+// sending fails here instead of passing against a hand-written payload.
 function armedBehind(overrides: MockPR = {}): MockPR {
-  return {
-    forge: 'github',
-    repo: 'alrayyes/forge-dashboard',
-    number: 3417,
-    title: 'An armed pull request that is behind',
-    url: 'https://example.com/3417',
-    author: 'claude',
-    draft: false,
-    ci: 'success',
-    labels: [],
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-    mergeStatus: 'mergeable',
-    behind: true,
-    baseRequiresUpToDate: true,
-    autoMergeEnabled: true,
-    autoMerge: { state: 'waiting', code: 'behind', message: strictMessage },
-    allowedActions: [
-      { action: 'merge' },
-      { action: 'update_branch' },
-      { action: 'cancel_auto_merge' },
-      { action: 'close' },
-    ],
-    ...overrides,
-  };
+  return { ...fixture.pullRequests.strict, ...overrides };
 }
+
+const strictMessage = fixture.pullRequests.strict.autoMerge.message;
+const cancelledMessage = fixture.pullRequests.notStrict.autoMerge.message;
 
 async function open(page: Page, pr: MockPR) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -97,18 +75,7 @@ test.describe('an armed pull request that is behind (#3428)', () => {
   test('where the repo does not require it, being behind is not blamed and the cancelled run is named', async ({
     page,
   }) => {
-    await open(
-      page,
-      armedBehind({
-        ci: 'cancelled',
-        baseRequiresUpToDate: false,
-        autoMerge: {
-          state: 'waiting',
-          code: 'checks_pending',
-          message: cancelledMessage,
-        },
-      }),
-    );
+    await open(page, armedBehind(fixture.pullRequests.notStrict));
     const chip = row(page).locator('.wait-chip');
 
     await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
