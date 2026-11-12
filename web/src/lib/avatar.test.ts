@@ -2,14 +2,27 @@
 import { describe, expect, test } from 'bun:test';
 import { avatarSrc } from './avatar';
 
-// The forge's avatar URL is passed through unchanged, but only https is
-// loaded: anything else shows the fallback.
+// An avatar or logo is the forge's own https URL, but the page never loads it
+// from there: it asks the image proxy, so the Content-Security-Policy can
+// name this server alone (#3467). The server holds the host lists and is the
+// one that enforces them.
+
+const proxied = (forge: string, url: string) =>
+  `/api/v1/images?forge=${forge}&url=${encodeURIComponent(url)}`;
 
 describe('avatarSrc', () => {
-  test('keeps an https URL as it is', () => {
-    expect(avatarSrc('https://avatars.example.com/u/1?s=64')).toBe(
-      'https://avatars.example.com/u/1?s=64',
-    );
+  test('sends a GitHub avatar or repository logo through the GitHub proxy', () => {
+    for (const url of [
+      'https://avatars.githubusercontent.com/u/1?v=4',
+      'https://repository-images.githubusercontent.com/1/logo',
+    ]) {
+      expect(avatarSrc(url)).toBe(proxied('github', url));
+    }
+  });
+
+  test('sends any other https URL through the Forgejo proxy', () => {
+    const url = 'https://git.example/avatars/abc?size=64';
+    expect(avatarSrc(url)).toBe(proxied('forgejo', url));
   });
 
   test.each([
@@ -20,6 +33,12 @@ describe('avatarSrc', () => {
     ['empty', ''],
   ])('refuses %s', (_name, url) => {
     expect(avatarSrc(url)).toBeNull();
+  });
+
+  test('refuses a user-info trick', () => {
+    expect(
+      avatarSrc('https://avatars.githubusercontent.com@evil.test/a.png'),
+    ).toBeNull();
   });
 
   test('refuses a missing URL', () => {

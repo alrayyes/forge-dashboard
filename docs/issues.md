@@ -86,9 +86,10 @@ pages take a number in their title box the same way.
 ## Who filed it
 
 A row shows the avatar of whoever filed the issue to the left of their name,
-the same as a pull request row. It is the forge's own HTTPS image URL, loaded
-straight from the forge by your browser. When the forge sends none, the URL
-isn't HTTPS, or the image can't load, the row shows the name alone. The narrow
+the same as a pull request row. It is the forge's own HTTPS image, fetched by
+this server and passed on, so your browser never contacts the forge for it.
+When the forge sends none, the URL isn't HTTPS, or the image can't load, the
+row shows the name alone. The narrow
 layout drops the author column, avatar included.
 
 The avatar and the name are one link to that person's page on the forge, in a new

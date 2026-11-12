@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { navCountsFor } from './nav-counts-helper';
+import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3237
@@ -49,7 +50,7 @@ const PRS = CASES.map((c, i) => bot(i + 1, c.title, c.author, c.avatar));
 async function open(page: Page, width: number, scheme: 'light' | 'dark') {
   await page.setViewportSize({ width, height: 900 });
   await page.emulateMedia({ colorScheme: scheme });
-  await page.route('https://avatars.example.com/u/1', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/u/1', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: AVATAR }),
   );
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());

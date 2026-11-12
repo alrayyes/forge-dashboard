@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // A long author name ends in an ellipsis with or without an avatar, and
@@ -45,10 +46,12 @@ const PRS = [
 
 async function open(page: Page, width: number) {
   await page.setViewportSize({ width, height: 800 });
-  await page.route(AVATAR, (route: Route) =>
+  await routeImage(page, AVATAR, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: SVG }),
   );
-  await page.route(BROKEN, (route: Route) => route.fulfill({ status: 404 }));
+  await routeImage(page, BROKEN, (route: Route) =>
+    route.fulfill({ status: 404 }),
+  );
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({

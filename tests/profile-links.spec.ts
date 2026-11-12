@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
 // A person's avatar and name are one link to their page on the forge, on the
@@ -56,7 +57,7 @@ const ISSUES = [
 ];
 
 async function mock(page: Page, issues: object[] = ISSUES) {
-  await page.route('https://avatars.example.com/**', (route: Route) =>
+  await routeImage(page, 'https://avatars.example.com/**', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL }),
   );
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>

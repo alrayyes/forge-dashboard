@@ -340,7 +340,8 @@ Each repo shows its own logo and each author their avatar beside the name, in
 the choices and on the chips below the search on a phone. When there is no
 image, or it does not load, the first letter of the name stands in. The images
 are decoration for sighted readers; the name beside them is what a screen
-reader speaks. An avatar or logo is shown only over HTTPS.
+reader speaks. An avatar or logo is shown only over HTTPS, and this server
+fetches it.
 
 The choices narrow each other as the Label filter's do, so ticking a repo
 drops an author who has nothing in it. Pick the control you care most about
