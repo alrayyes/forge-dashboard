@@ -311,6 +311,14 @@ const PULL_REQUESTS = [
     mergeStatus: 'blocked',
     checks: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
   }),
+  // A Forgejo conflict only the forge's flag vouches for: a button pill (#3308).
+  makePR(14, {
+    forge: 'forgejo',
+    repo: 'homelab/infra',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: false,
+    behind: true,
+  }),
 ];
 
 const ISSUES = [1, 2, 3].map((number) => ({

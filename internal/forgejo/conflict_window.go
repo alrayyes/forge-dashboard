@@ -146,8 +146,10 @@ var conflictFile = regexp.MustCompile(`(?m)CONFLICT \([^)]*\): (?:Merge conflict
 // conflictFromBody reports whether a 409 body from Forgejo's merge or update
 // names a conflict, and which files. The merge endpoint serialises git's
 // output as StdOut and StdErr, the update endpoint wraps the same text in
-// "message". Anything else on a 409 (a head that moved, a merged pull request)
-// does not.
+// "message". Git's own "CONFLICT (" lines are the proof. Only the update
+// endpoint's message, which has no git output beside it, may say "conflict" in
+// plain words. Anything else on a 409 (a head that moved, a merged pull
+// request, a StdOut that merely mentions the word) does not.
 func conflictFromBody(body []byte) ([]string, bool) {
 	text := string(body)
 	var decoded struct {
@@ -155,11 +157,11 @@ func conflictFromBody(body []byte) ([]string, bool) {
 		StdOut  *string
 		StdErr  string
 	}
-	gitOutput := false
+	updateMessage := false
 	if json.Unmarshal(body, &decoded) == nil {
-		gitOutput = decoded.StdOut != nil
+		updateMessage = decoded.StdOut == nil && decoded.StdErr == "" && decoded.Message != ""
 		text = decoded.Message + "\n" + decoded.StdErr
-		if gitOutput {
+		if decoded.StdOut != nil {
 			text += "\n" + *decoded.StdOut
 		}
 	}
@@ -177,7 +179,8 @@ func conflictFromBody(body []byte) ([]string, bool) {
 		seen[file] = true
 		files = append(files, file)
 	}
-	named := len(files) > 0 || gitOutput || strings.Contains(strings.ToLower(text), "conflict")
+	named := len(files) > 0 || strings.Contains(text, "CONFLICT (") ||
+		(updateMessage && strings.Contains(strings.ToLower(decoded.Message), "conflict"))
 
 	return files, named
 }

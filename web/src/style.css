@@ -4171,6 +4171,13 @@ button.pipeline-check-link:disabled {
   button.ci-pill {
     min-height: 44px;
   }
+  /* Conflict not confirmed (#3308): the pill stays small to read, the hit
+     area is a pseudo-element, as for a label chip. */
+  .merge-pill.unconfirmed::after {
+    content: "";
+    position: absolute;
+    inset: -10px -2px;
+  }
 }
 
 /* The phone filter bar also serves a short window held sideways (#3406): a

@@ -264,7 +264,7 @@ func TestConflictMemory_AConflictWithNoFilesIsStillConfirmed(t *testing.T) {
 
 	s := newConflictServer(t)
 	s.pull(t)
-	s.refuseWith(http.StatusConflict, `{"Style":"merge","StdOut":"","StdErr":"","Err":{}}`)
+	s.refuseWith(http.StatusConflict, `{"Style":"merge","StdOut":"CONFLICT (rename/rename): a.txt renamed to b.txt and c.txt","StdErr":"","Err":{}}`)
 	require.Error(t, s.client.MergePullRequest(t.Context(), "o", "r", 7))
 
 	pr := s.pull(t)
@@ -335,4 +335,44 @@ func TestConflictMemory_A409ThatNamesNoConflictIsNotRemembered(t *testing.T) {
 	require.Error(t, s.client.MergePullRequest(t.Context(), "o", "r", 7))
 
 	assert.Equal(t, dashboard.MergeChecking, s.status(t))
+}
+
+func TestConflictMemory_A409ThatOnlyMentionsTheWordIsNotRemembered(t *testing.T) {
+	t.Parallel()
+
+	for name, body := range map[string]string{
+		"git output without a conflict line": `{"Style":"merge","StdOut":"no conflict here","StdErr":"","Err":{}}`,
+		"empty git output":                   `{"Style":"merge","StdOut":"","StdErr":"","Err":{}}`,
+		"a plain body":                       `conflict`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			s := newConflictServer(t)
+			s.pull(t)
+			s.refuseWith(http.StatusConflict, body)
+			require.Error(t, s.client.MergePullRequest(t.Context(), "o", "r", 7))
+
+			pr := s.pull(t)
+			assert.Equal(t, dashboard.MergeChecking, pr.MergeStatus)
+			assert.Equal(t, "unset", confirmed(pr))
+		})
+	}
+}
+
+func TestConflictMemory_AClosedPullRequestDropsIt(t *testing.T) {
+	t.Parallel()
+
+	s := newConflictServer(t)
+	s.pull(t)
+	s.refuseWith(http.StatusConflict, gitConflictBody)
+	require.Error(t, s.client.MergePullRequest(t.Context(), "o", "r", 7))
+	s.set(func(s *conflictServer) { s.listed = false })
+	s.pull(t)
+	s.set(func(s *conflictServer) { s.listed = true })
+
+	pr := s.pull(t)
+	assert.Equal(t, dashboard.MergeChecking, pr.MergeStatus)
+	assert.Equal(t, "unset", confirmed(pr))
+	assert.Empty(t, pr.ConflictFiles)
 }
