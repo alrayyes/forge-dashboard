@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,4 +76,33 @@ func TestListChecks_CarriesTheJobTimes(t *testing.T) {
 	require.NotNil(t, checks[0].CompletedAt)
 	assert.True(t, jobStart.Equal(*checks[0].StartedAt))
 	assert.True(t, jobEnd.Equal(*checks[0].CompletedAt))
+}
+
+func TestListChecks_SaysWhatAQueuedJobWaitsFor(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "head": map[string]string{"sha": "cafef00d"}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"id": 42, "status": "running"}}})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/actions/runs/42/jobs", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"total_count": 3, "jobs": []map[string]any{
+			{"id": 1, "name": "build", "status": "waiting"},
+			{"id": 2, "name": "deploy", "status": "blocked"},
+			{"id": 3, "name": "lint", "status": "success"},
+		}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	checks, err := forgejo.NewClient(srv.URL, "test-token", "").ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 3)
+	assert.Equal(t, dashboard.WaitingForRunner, checks[0].WaitingFor)
+	assert.Equal(t, dashboard.WaitingForJobs, checks[1].WaitingFor)
+	assert.Empty(t, checks[2].WaitingFor)
 }

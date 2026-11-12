@@ -28,6 +28,7 @@
           "name": "deploy",
           "status": "queued",
           "url": "https://forge.example/alrayyes/a/actions/runs/1/jobs/deploy",
+          "waitingFor": "runner",
           "jobId": 22,
           "runId": 2,
           "runName": "ci",

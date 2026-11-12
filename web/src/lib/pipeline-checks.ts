@@ -12,6 +12,9 @@ export type Check = {
   // grades them into what it shows (checkState).
   status: string;
   conclusion?: string;
+  // Why a queued Forgejo job has not started: it needs earlier jobs, or it
+  // waits for a runner. Absent for GitHub and for any job not queued.
+  waitingFor?: 'jobs' | 'runner';
   url: string;
   required?: boolean;
   // When the forge says the job started and finished (RFC 3339); the page

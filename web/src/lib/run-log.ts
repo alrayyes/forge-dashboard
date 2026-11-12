@@ -243,7 +243,10 @@ export function checkControl(
 // the gap doesn't read as a broken dialog. The first rule that matches wins.
 // A skipped check says nothing: its status chip already does.
 export function checkHint(
-  check: Pick<Check, 'status' | 'conclusion' | 'jobId' | 'notReported'> & {
+  check: Pick<
+    Check,
+    'status' | 'conclusion' | 'jobId' | 'notReported' | 'waitingFor'
+  > & {
     url?: string;
     name?: string;
   },
@@ -257,7 +260,12 @@ export function checkHint(
     return "The workflow didn't start, so it ran no jobs.";
   }
   if (state === 'skipped') return null;
-  if (state === 'queued') return 'Not started yet.';
+  if (state === 'queued') {
+    if (check.waitingFor === 'jobs') return 'Waiting on earlier jobs.';
+    if (check.waitingFor === 'runner') return 'Queued for a runner.';
+
+    return 'Not started yet.';
+  }
   if (!check.url) return 'No page for this check.';
   if (runningWithoutLog(state, repo)) {
     return 'Output is available when it finishes.';

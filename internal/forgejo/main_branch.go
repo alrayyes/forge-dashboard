@@ -358,6 +358,7 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 				job := withRun(withJobTimes(dashboard.Check{
 					Name:       j.Name,
 					State:      branchJobState(r, j),
+					WaitingFor: jobWaiting(j.Status, r.Status),
 					URL:        j.HTMLURL,
 					JobID:      j.ID,
 					RunAttempt: j.RunAttempt,
