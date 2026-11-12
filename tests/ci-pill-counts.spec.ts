@@ -190,12 +190,16 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
       pill(page, title)
         .locator('.ci-seg-label')
         .evaluate((e) => getComputedStyle(e).color);
-    const [passed, failed, running] = [
-      await colour('Clean run'),
-      await colour('Mixed run'),
-      await colour('Going'),
-    ];
-    expect(new Set([passed, failed, running]).size).toBe(3);
+    await expect
+      .poll(
+        async () =>
+          new Set([
+            await colour('Clean run'),
+            await colour('Mixed run'),
+            await colour('Going'),
+          ]).size,
+      )
+      .toBe(3);
   });
 
   test('without counts the pill stays plain', async ({ page }) => {

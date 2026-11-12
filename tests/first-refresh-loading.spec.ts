@@ -236,9 +236,7 @@ test.describe('first refresh loading state (#1672)', () => {
 
     const bar = page.locator('.skeleton-bar').first();
     await expect(bar).toBeVisible();
-    expect(await bar.evaluate((el) => getComputedStyle(el).animationName)).toBe(
-      'none',
-    );
+    await expect(bar).toHaveCSS('animation-name', 'none');
   });
 
   test('the skeleton shimmers when motion is fine', async ({ page }) => {
@@ -247,9 +245,7 @@ test.describe('first refresh loading state (#1672)', () => {
     await page.goto('/pull-requests.html');
 
     const bar = page.locator('.skeleton-bar').first();
-    expect(await bar.evaluate((el) => getComputedStyle(el).animationName)).toBe(
-      'skeleton-shimmer',
-    );
+    await expect(bar).toHaveCSS('animation-name', 'skeleton-shimmer');
   });
 
   for (const scheme of ['light', 'dark'] as const) {

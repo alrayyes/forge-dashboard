@@ -648,10 +648,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(page.getByRole('button', { name: 'Cancel' })).toBeFocused();
       await page.keyboard.press('Shift+Tab');
       await expect(list).toBeFocused();
-      const outline = await list.evaluate(
-        (el) => getComputedStyle(el).outlineStyle,
-      );
-      expect(outline).not.toBe('none');
+      await expect(list).not.toHaveCSS('outline-style', 'none');
 
       await page.keyboard.press('PageDown');
       await expect

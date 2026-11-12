@@ -133,10 +133,7 @@ test.describe('pipeline check states (#1473)', () => {
     const glyph = status(dialog, 'running').locator('svg:visible');
     await expect(glyph).toHaveCount(1);
     await expect(glyph).toHaveAttribute('data-glyph', 'clock');
-    const anim = await glyph.evaluate(
-      (el) => getComputedStyle(el).animationName,
-    );
-    expect(anim).toBe('none');
+    await expect(glyph).toHaveCSS('animation-name', 'none');
   });
 
   test('running spins an arc otherwise', async ({ page }) => {
@@ -144,10 +141,7 @@ test.describe('pipeline check states (#1473)', () => {
     const dialog = await open(page);
     const glyph = status(dialog, 'running').locator('svg:visible');
     await expect(glyph).toHaveAttribute('data-glyph', 'arc');
-    const anim = await glyph.evaluate(
-      (el) => getComputedStyle(el).animationName,
-    );
-    expect(anim).not.toBe('none');
+    await expect(glyph).not.toHaveCSS('animation-name', 'none');
   });
 
   test('a held workflow links to its page to approve it (#1933)', async ({

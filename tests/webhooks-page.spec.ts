@@ -1547,6 +1547,7 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, repos);
       await page.goto('/webhooks.html');
 
+      await expect(page.locator('body')).toHaveCSS('font-family', /.+/);
       const bodyFont = await page.evaluate(
         () => getComputedStyle(document.body).fontFamily,
       );
