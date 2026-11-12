@@ -1,12 +1,15 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -25,9 +28,13 @@ var githubImageHosts = []string{
 // saved instance, trusted to be on a private address, and the only place its
 // token goes. GitHub's are fixed public hosts, reached without the token: its
 // attachment links carry their own signature.
-func imageProxyFor(forge string, creds settings.Credentials) (*imageproxy.Proxy, *statusError) {
+func imageProxyFor(deps Deps, forge string, creds settings.Credentials) (*imageproxy.Proxy, *statusError) {
 	switch forge {
 	case "github":
+		if deps.GitHubImageProxy != nil {
+			return deps.GitHubImageProxy, nil
+		}
+
 		return imageproxy.New(imageproxy.Config{Hosts: githubImageHosts, Scheme: "https"}), nil
 	case "forgejo":
 		u, err := url.Parse(creds.ForgejoURL)
@@ -84,11 +91,14 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		proxy, serr := imageProxyFor(q.Get("forge"), creds)
+		proxy, serr := imageProxyFor(deps, q.Get("forge"), creds)
 		if serr != nil {
 			serr.write(w)
 
 			return
+		}
+		if q.Get("forge") == "github" {
+			raw = signedGitHubImage(r.Context(), deps, creds, q, raw)
 		}
 		img, err := proxy.Fetch(r.Context(), raw)
 		if err != nil {
@@ -106,4 +116,63 @@ func handleImage(deps Deps) http.HandlerFunc {
 		h.Set("Cache-Control", "private, max-age=3600")
 		_, _ = w.Write(img.Data)
 	}
+}
+
+// signedGitHubImage swaps a user-attachment link for the signed address the
+// item's rendered HTML uses, which is what a private repository serves. The
+// token goes to the GitHub API in that lookup and nowhere else: the image
+// itself is fetched by the proxy, which holds no token. Any miss leaves the
+// link as it was, so a public repository's image still loads (#3469).
+func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credentials, q url.Values, raw string) string {
+	if !isGitHubAttachment(raw) {
+		return raw
+	}
+	item, ok := imageItemOf(q)
+	if !ok {
+		return raw
+	}
+	owner, name, ok := splitFullName(q.Get("fullName"))
+	if !ok {
+		return raw
+	}
+	src, serr := pickForgeSource(deps, creds, "github")
+	if serr != nil {
+		return raw
+	}
+	resolver, ok := src.(dashboard.ImageLinkResolver)
+	if !ok {
+		return raw
+	}
+	signed, err := resolver.SignedImageURL(ctx, owner, name, item, raw)
+	if err != nil || signed == "" {
+		if err != nil {
+			slog.Warn("image link lookup failed", "forge", "github", "kind", err)
+		}
+
+		return raw
+	}
+
+	return signed
+}
+
+// isGitHubAttachment reports whether raw is a github.com/user-attachments
+// link, the one kind a private repository won't serve unsigned.
+func isGitHubAttachment(raw string) bool {
+	u, err := url.Parse(raw)
+
+	return err == nil && u.Scheme == "https" && strings.EqualFold(u.Host, "github.com") &&
+		strings.HasPrefix(u.Path, "/user-attachments/")
+}
+
+// imageItemOf reads which issue, pull request or release the image sits in.
+func imageItemOf(q url.Values) (dashboard.ImageItem, bool) {
+	if tag := q.Get("tag"); tag != "" {
+		return dashboard.ImageItem{Kind: dashboard.ImageItemRelease, Tag: tag}, true
+	}
+	number, err := strconv.Atoi(q.Get("number"))
+	if err != nil || number <= 0 {
+		return dashboard.ImageItem{}, false
+	}
+
+	return dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: number}, true
 }
