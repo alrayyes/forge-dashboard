@@ -150,6 +150,78 @@ test('a bot pull request, which the server gives no update_branch, has none on i
   );
 });
 
+// These two state allowedActions and status themselves, so they test what the
+// row does with the server's answer rather than with the stand-in's table
+// (#3700).
+test('a status fix of update_branch beside a Merge primary draws one Update branch, not a copy on the row too', async ({
+  page,
+}) => {
+  const row = await open(
+    page,
+    390,
+    pr({
+      allowedActions: [
+        { action: 'merge', primary: true },
+        { action: 'update_branch' },
+        { action: 'close' },
+      ],
+      status: {
+        code: 'behind',
+        message: 'Behind the base branch',
+        action: 'update_branch',
+      },
+    }),
+  );
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    1,
+  );
+  await expect(
+    row.locator('.status-area').getByRole('button', { name: 'Update branch' }),
+  ).toHaveCount(1);
+});
+
+test('a behind bot pull request whose allowedActions omit update_branch gets none drawn by the page', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [
+          pr({
+            author: 'dependabot[bot]',
+            kind: 'dependency',
+            allowedActions: [
+              { action: 'merge', primary: true },
+              { action: 'close' },
+            ],
+            status: null,
+          }),
+        ],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto('/bots.html');
+  const row = page.locator('#pr-rows > .row').first();
+  await row.waitFor();
+  await expect(
+    row.getByRole('button', { name: 'Merge', exact: true }),
+  ).toHaveCount(1);
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
+  );
+});
+
 test('Update branch leaves the row while Merge is confirming', async ({
   page,
 }) => {

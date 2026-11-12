@@ -170,6 +170,12 @@ func (p *Proxy) Fetch(ctx context.Context, raw string) (Image, error) {
 			return Image{}, ErrUpstream
 		}
 		if u, err = p.check(loc.String()); err != nil {
+			// A listed host sending us to an unlisted one is not the routine
+			// miss of an avatar nobody serves, so it must not read as one.
+			if errors.Is(err, ErrHostNotListed) {
+				err = fmt.Errorf("%w: redirected off the list", ErrHostNotAllowed)
+			}
+
 			return Image{}, err
 		}
 	}
