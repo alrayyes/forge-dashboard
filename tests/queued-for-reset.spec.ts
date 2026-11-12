@@ -204,6 +204,40 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
     );
   });
 
+  test('Activity shows for a queued item alone and goes when the queue empties (#3684)', async ({
+    page,
+  }) => {
+    const state = await setup(page, limited(), makePR());
+    state.queuedActions = [
+      {
+        id: 'q1',
+        action: 'update_branch',
+        forge: 'github',
+        fullName: 'alrayyes/forge-dashboard',
+        number: 42,
+        status: 'queued',
+        runAt: RESET,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+    await page.goto('/pull-requests.html');
+
+    const toggle = page.locator('#activity-toggle');
+    await expect(toggle).toBeVisible();
+    await expect(toggle).toContainText('Activity 0');
+    await toggle.click();
+    const cancel = page
+      .locator('#activity-queued-list')
+      .getByRole('button', { name: /^Cancel/ });
+    await cancel.focus();
+    await cancel.click();
+
+    await expect.poll(() => state.deletes).toEqual(['q1']);
+    await expect(toggle).toBeHidden();
+    await expect(page.locator('#activity-panel')).toBeHidden();
+    await expect(page.locator('#force-refresh-button')).toBeFocused();
+  });
+
   test('Cancel removes it and the control returns', async ({ page }) => {
     const state = await setup(page, limited(), makePR());
     await page.goto('/pull-requests.html');
