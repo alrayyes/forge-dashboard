@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.36.1](https://github.com/alrayyes/forge-dashboard/compare/v9.36.0...v9.36.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** lay out the phone Filters sheet pickers and Refs segment consistently ([#3698](https://github.com/alrayyes/forge-dashboard/issues/3698)) ([74051cc](https://github.com/alrayyes/forge-dashboard/commit/74051cc0711687f898ebf3dc3f95dfc30bf9bf0f)), closes [#3693](https://github.com/alrayyes/forge-dashboard/issues/3693)
+
+## [9.36.0](https://github.com/alrayyes/forge-dashboard/compare/v9.35.0...v9.36.0) (2026-11-12)
+
+
+### Features
+
+* **web:** show forge health and request budget only when they need attention ([#3705](https://github.com/alrayyes/forge-dashboard/issues/3705)) ([ca8ee4f](https://github.com/alrayyes/forge-dashboard/commit/ca8ee4f24487e8d73b58319068581ae8c9544cae))
+
+## [9.35.0](https://github.com/alrayyes/forge-dashboard/compare/v9.34.1...v9.35.0) (2026-11-12)
+
+
+### Features
+
+* **web:** hide Show drafts when there is no draft pull request ([#3703](https://github.com/alrayyes/forge-dashboard/issues/3703)) ([854fee6](https://github.com/alrayyes/forge-dashboard/commit/854fee6933bbf8fe75ecec6c80ce86bc6da95251))
+
+## [9.34.1](https://github.com/alrayyes/forge-dashboard/compare/v9.34.0...v9.34.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** draw Update branch on the row of a behind pull request ([#3695](https://github.com/alrayyes/forge-dashboard/issues/3695)) ([71dc570](https://github.com/alrayyes/forge-dashboard/commit/71dc5703fa0baf50dc78c64c99191b6e88a6d3ae))
+
 ## [9.34.0](https://github.com/alrayyes/forge-dashboard/compare/v9.33.1...v9.34.0) (2026-11-12)
 
 

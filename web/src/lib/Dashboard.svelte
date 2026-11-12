@@ -155,6 +155,7 @@
   import type { RevealOutcome } from "#lib/feedback-ui.js";
   import {
     budgetText,
+    showsOnOverview,
     isRateLimited,
     isRunningLow,
     msUntilReset,
@@ -186,6 +187,7 @@
     isOutage,
     isStartupGap,
     isUnreachable,
+    needsChip,
     staleNote,
   } from "#lib/forge-starting.js";
   import {
@@ -226,7 +228,7 @@
   // its own duplicate copies of that chrome, and the nav.js injection
   // that used to drive them, were removed when it moved here
   // (alrayyes/forge-dashboard#645). Its own genuinely page-specific
-  // content (the forge-names subtitle, forge health,
+  // content (forge health,
   // the refresh button) used to be injected into the layout's <header>
   // via a Svelte context the layout exposed — that approach didn't work:
   // SvelteKit's SSR renders a layout's own template (everything before
@@ -8953,14 +8955,23 @@
       container.innerHTML = "";
       for (const f of forges) {
         const item = el("div", "forge-health-item");
-        const chip = el("span", chipClass(f));
-        chip.appendChild(el("span", "pulse-dot"));
-        chip.appendChild(
-          document.createTextNode(
-            chipLabel(FORGE_LABELS[f.forge] || f.forge, f),
-          ),
-        );
-        item.appendChild(chip);
+        // A healthy forge draws no chip (#3681); the live region still
+        // announces it.
+        if (
+          needsChip(
+            f,
+            isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL),
+          )
+        ) {
+          const chip = el("span", chipClass(f));
+          chip.appendChild(el("span", "pulse-dot"));
+          chip.appendChild(
+            document.createTextNode(
+              chipLabel(FORGE_LABELS[f.forge] || f.forge, f),
+            ),
+          );
+          item.appendChild(chip);
+        }
         // The rows of an unreachable forge are its last good ones, not
         // current ones (#933). Plain text, for every error kind: the
         // rate-limit banner doesn't say the data is old.
@@ -8978,7 +8989,7 @@
           ["GraphQL", f.rateLimitGraphQL],
           ["REST", f.rateLimitREST],
         ] as const) {
-          if (!budget) continue;
+          if (!budget || !showsOnOverview(budget)) continue;
           const text = el(
             "span",
             "forge-health-budget",
@@ -9012,16 +9023,7 @@
           details.appendChild(document.createTextNode(f.error));
           item.appendChild(details);
         }
-        container.appendChild(item);
-      }
-      const forgeNames = document.getElementById("forge-names");
-      if (forgeNames) {
-        forgeNames.innerHTML = forges
-          .map(
-            (f) =>
-              `<span class="mono">${FORGE_LABELS[f.forge] || f.forge}</span>`,
-          )
-          .join(" + ");
+        if (item.childNodes.length > 0) container.appendChild(item);
       }
     }
 
@@ -9978,6 +9980,7 @@
         startedSeq,
       );
       hiddenDrafts = data.hiddenDrafts ?? 0;
+      Filters.offerDrafts(showDraftsButton, prs, hiddenDrafts);
       syncDraftsToggle();
       hiddenPullRequests = data.hiddenPullRequests ?? 0;
       syncHiddenToggle();
@@ -10282,11 +10285,27 @@
       >{view === "issues" ? "Refs PR" : "Refs issue"}</span
     >
     <button type="button" data-ref="any" aria-pressed="true">Any</button>
-    <button type="button" data-ref="yes" aria-pressed="false"
-      >{Filters.refsChoiceLabel(pullsView, "yes")}</button
+    <button
+      type="button"
+      data-ref="yes"
+      aria-pressed="false"
+      title={Filters.refsChoiceLabel(pullsView, "yes")}
+      aria-label="{Filters.refsChoiceShort(
+        pullsView,
+        'yes',
+      )}, {Filters.refsChoiceLabel(pullsView, 'yes').toLowerCase()}"
+      >{Filters.refsChoiceShort(pullsView, "yes")}</button
     >
-    <button type="button" data-ref="no" aria-pressed="false"
-      >{Filters.refsChoiceLabel(pullsView, "no")}</button
+    <button
+      type="button"
+      data-ref="no"
+      aria-pressed="false"
+      title={Filters.refsChoiceLabel(pullsView, "no")}
+      aria-label="{Filters.refsChoiceShort(
+        pullsView,
+        'no',
+      )}, {Filters.refsChoiceLabel(pullsView, 'no').toLowerCase()}"
+      >{Filters.refsChoiceShort(pullsView, "no")}</button
     >
   </div>
 {/snippet}
@@ -10315,7 +10334,7 @@
 
 <div class="wrap">
   <!--
-    This page's own genuinely-unique content — connected forges, the
+    This page's own genuinely-unique content — the
     forge-health panel, the ticking "refreshed"
     clock, the manual refresh button — used to be injected into the
     shared layout's <header> landmark (see the script block's own
@@ -10356,18 +10375,6 @@
     </div>
   </div>
   <div class="dashboard-toolbar">
-    <!-- No longer sits directly under the "Forge Board" <h1> the way it
-         used to as the brand's subtitle, so the sr-only prefix below
-         gives it the same "these are the connected forges" context a
-         screen-reader user previously got for free from that
-         positioning; sighted users still get it from this toolbar's own
-         placement right under the header. forgeNames.innerHTML (below)
-         only ever replaces #forge-names's own children, never this
-         label, since the label is a sibling, not a child. -->
-    <p class="dashboard-toolbar-forges">
-      <span class="sr-only">Connected forges: </span>
-      <span id="forge-names"><span class="mono">&hellip;</span></span>
-    </p>
     <div id="forge-health"></div>
     <!-- The one polite live region for forge health. #forge-health is
          redrawn on every snapshot, so it can't be live itself: this text
@@ -10584,6 +10591,7 @@
           class="drafts-toggle"
           id="show-drafts-toggle"
           aria-pressed="false"
+          hidden
           >Show drafts<span
             class="drafts-hidden"
             id="drafts-hidden-count"

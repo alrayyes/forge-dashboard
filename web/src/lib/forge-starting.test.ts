@@ -7,6 +7,7 @@ import {
   isOutage,
   isStartupGap,
   isUnreachable,
+  needsChip,
   splitStaleRows,
   staleNote,
 } from './forge-starting';
@@ -111,5 +112,29 @@ describe('isUnreachable', () => {
     expect(
       isOutage({ forge: 'github', reachable: false, starting: true }),
     ).toBe(false);
+  });
+});
+
+describe('needsChip', () => {
+  test('a healthy reachable forge draws no chip', () => {
+    expect(needsChip({ forge: 'github', reachable: true }, false)).toBe(false);
+  });
+
+  test('unreachable, starting, stale and rate limited forges keep their chip', () => {
+    expect(needsChip({ forge: 'github', reachable: false }, false)).toBe(true);
+    expect(
+      needsChip({ forge: 'github', reachable: true, starting: true }, false),
+    ).toBe(true);
+    expect(
+      needsChip(
+        {
+          forge: 'github',
+          reachable: true,
+          staleSince: '2030-01-01T00:00:00Z',
+        },
+        false,
+      ),
+    ).toBe(true);
+    expect(needsChip({ forge: 'github', reachable: true }, true)).toBe(true);
   });
 });

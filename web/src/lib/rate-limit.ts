@@ -41,6 +41,15 @@ export function rateLimitSeverity(
   return 'ok';
 }
 
+// Whether the overview shows a budget's text: only once it is under 20% left
+// or spent. The full budget stays on the Insights page (#3681).
+export function showsOnOverview(
+  limit: RateLimit,
+  now: number = Date.now(),
+): boolean {
+  return rateLimitSeverity(limit, now) !== 'ok';
+}
+
 export const PERMISSION_REASON =
   'Missing permission — check your token in Settings.';
 

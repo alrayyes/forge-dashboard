@@ -42,6 +42,13 @@ export function isStartupGap(
   );
 }
 
+// Whether the forge gets a chip under the header (#3681). A reachable forge
+// with current rows and budget left has nothing to act on, so it draws none;
+// the page's own fresh rows and "Refreshed" line already show it answered.
+export function needsChip(h: StartingHealth, rateLimited: boolean): boolean {
+  return !!h.starting || isUnreachable(h) || !!h.staleSince || rateLimited;
+}
+
 export function chipLabel(name: string, h: StartingHealth): string {
   if (h.starting) return `${name} loading`;
   return `${name} ${isUnreachable(h) ? 'unreachable' : 'reachable'}`;

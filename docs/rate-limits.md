@@ -125,8 +125,8 @@ against its own clock:
 
 | Severity   | Meaning                    | What you see                                                                |
 | ---------- | -------------------------- | --------------------------------------------------------------------------- |
-| `ok`       | At least 20% left.         | The count and reset in the header, and a green gauge on the Insights page.  |
-| `warning`  | Under 20% left.            | The same, with an amber gauge. No banner.                                   |
+| `ok`       | At least 20% left.         | Nothing on the overview, and a green gauge on the Insights page.            |
+| `warning`  | Under 20% left.            | The count and reset under the forge pill, and an amber gauge. No banner.    |
 | `low`      | Under 5% left.             | A red gauge, and the banner "Rate limit running low" with the count left.   |
 | `exceeded` | Nothing left, reset ahead. | A red gauge that says "Rate limit exceeded", and a banner with a countdown. |
 
