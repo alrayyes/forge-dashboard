@@ -12,6 +12,8 @@ export type ClosingIssue = {
   number: number;
   url: string;
   pageUrl: string;
+  /** How the pull request relates to the issue; closes when the server sent none. */
+  relation?: 'closes' | 'refs' | 'mentions';
 };
 
 /** How many pills a row shows before the rest wait behind a count. */
@@ -25,10 +27,17 @@ export const issueNumber = (issue: ClosingIssue, prRepo: string) =>
     ? `#${issue.number}`
     : `${issue.repo}#${issue.number}`;
 
-/** What the pill shows: the number, with the whole repo when it is not the pull request's. */
+/** What the pill shows: the relation, then the number, with the whole repo when it is not the pull request's. */
 export function closingPillText(issue: ClosingIssue, prRepo: string) {
-  return `Closes ${issueNumber(issue, prRepo)}`;
+  const word = issue.relation === 'refs' ? 'Refs' : 'Closes';
+  return `${word} ${issueNumber(issue, prRepo)}`;
 }
+
+/** The pill's class: a refs pill is drawn apart from a closes one. */
+export const closingPillClass = (issue: ClosingIssue) =>
+  issue.relation === 'refs'
+    ? 'linked-pr refs-issue'
+    : 'linked-pr closing-issue';
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
 export function closingPillName(issue: ClosingIssue, prRepo: string) {
@@ -105,7 +114,7 @@ const expanded = new Set<string>();
 
 /** A pill's id: stable across redraws, so a closed dialog finds it again. */
 export const closingPillId = (prKey: string, issue: ClosingIssue) =>
-  `closing-pill-${prKey}-${issue.repo}-${issue.number}`.replace(
+  `closing-pill-${issue.relation ?? 'closes'}-${prKey}-${issue.repo}-${issue.number}`.replace(
     /[^A-Za-z0-9_-]/g,
     '-',
   );
@@ -132,7 +141,7 @@ export function closingPills(
   const pill = (issue: ClosingIssue) => {
     const link = element(
       onOpen !== undefined ? 'button' : 'a',
-      'linked-pr closing-issue',
+      closingPillClass(issue),
     );
     if (link instanceof HTMLAnchorElement) {
       link.href = issue.pageUrl;
@@ -161,7 +170,7 @@ export function closingPills(
   more.type = 'button';
   more.setAttribute(
     'aria-label',
-    `${rest.length} more issues that this pull request will close`,
+    `${rest.length} more issues that this pull request ${list[0]?.relation === 'refs' ? 'references' : 'will close'}`,
   );
   const reveal = () => {
     const extra = rest.map(pill);

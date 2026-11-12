@@ -120,6 +120,28 @@ The server works out which issues those are, and builds the address that opens
 each. In `GET /api/v1/dashboard` each pull request has `closesIssues`, always
 present, and each entry carries the `pageUrl` that opens it.
 
+## Tickets a pull request references
+
+A pull request that works on a ticket without closing it says so with a keyword
+in its title or description: `Refs #12`, `Ref #12`, `Related to #12` or
+`See #12` (case does not matter, a colon after the keyword is fine, and
+`owner/repo#12` names another repo). Several may follow one keyword, as in
+`Refs #3, #4 and #5`. The server reads both forges the same way and lists what
+it finds in `GET /api/v1/dashboard` as `refsIssues`, always present. Code, HTML
+comments and link text are skipped, as for mentions, and a ticket the pull
+request also closes appears only under closing.
+
+Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
+`relation`: `closes`, `refs` or `mentions`. A ticket is listed under one
+relation, closing first, then refs, then plain mentions.
+
+A row shows a "Refs" pill for each, after the "Closes" ones. It is drawn with a
+dashed outline and no fill, so it reads apart from a closing pill by more than
+its word. It behaves like a closing pill: the first two show, a count opens the
+rest, a press opens the ticket's pop-up in place and Escape returns focus to
+the pill, and on a phone the hit area is 44 pixels. The pull request's pop-up lists
+them among the attributes too.
+
 ## Tickets a pull request mentions
 
 Besides the issues it closes, a pull request can mention others: `Refs #12` in
@@ -166,7 +188,8 @@ plain click. One the dashboard doesn't hold opens on its forge in a new tab, and
 screen readers hear "opens on the forge" instead of "opens the issue". The first
 two show, and the rest sit behind a "more" button that opens them in place, as
 with the closing ones. With nothing mentioned, the pop-up shows no label and no
-empty space. The rows don't show mentions.
+empty space. The rows show no mentions. A ticket the pull request
+references with a keyword is a "Refs" pill instead, not a mention.
 
 ## Author on a row
 
