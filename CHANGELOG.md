@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.33.0](https://github.com/alrayyes/forge-dashboard/compare/v9.32.0...v9.33.0) (2026-11-12)
+
+
+### Features
+
+* **web:** load avatars and repository logos through the image proxy ([#3677](https://github.com/alrayyes/forge-dashboard/issues/3677)) ([7cd5488](https://github.com/alrayyes/forge-dashboard/commit/7cd5488f381821f5b6d6bcd5e39814ddefe9c99c))
+
 ## [9.32.0](https://github.com/alrayyes/forge-dashboard/compare/v9.31.1...v9.32.0) (2026-11-12)
 
 
