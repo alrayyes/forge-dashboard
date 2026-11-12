@@ -221,36 +221,38 @@ test.describe('the footer is the same on every page', () => {
     }
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const path of ['/disclaimer.html', '/privacy.html']) {
-      test(`${path} at 360px in ${scheme}: current link, no sideways scroll, axe clean`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width: 360, height: 800 });
-        await mockVersion(page);
-        await page.goto(path);
-        await expectFooter(
-          page,
-          path === '/disclaimer.html' ? 'Disclaimer' : 'Privacy',
-        );
-        // Not colour alone: the current link is underlined 2px; the others 1px.
-        const thickness = await page
-          .locator('footer a')
-          .evaluateAll((els) =>
-            els.map((el) =>
-              el.getAttribute('aria-current')
-                ? getComputedStyle(el).textDecorationThickness
-                : null,
-            ),
+  test('/disclaimer.html and /privacy.html at 360px in both themes: current link, no sideways scroll, axe clean', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 800 });
+    await mockVersion(page);
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const path of ['/disclaimer.html', '/privacy.html']) {
+        await test.step(`${path} ${scheme}`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.goto(path);
+          await expectFooter(
+            page,
+            path === '/disclaimer.html' ? 'Disclaimer' : 'Privacy',
           );
-        expect(thickness.filter(Boolean)).toEqual(['2px']);
-        const underlined = await page
-          .locator('footer a[aria-current]')
-          .evaluate((el) => getComputedStyle(el).textDecorationLine);
-        expect(underlined).toContain('underline');
-        await expectAxeAndNoSidewaysScroll(page);
-      });
+          // Not colour alone: the current link is underlined 2px; the others 1px.
+          const thickness = await page
+            .locator('footer a')
+            .evaluateAll((els) =>
+              els.map((el) =>
+                el.getAttribute('aria-current')
+                  ? getComputedStyle(el).textDecorationThickness
+                  : null,
+              ),
+            );
+          expect(thickness.filter(Boolean)).toEqual(['2px']);
+          const underlined = await page
+            .locator('footer a[aria-current]')
+            .evaluate((el) => getComputedStyle(el).textDecorationLine);
+          expect(underlined).toContain('underline');
+          await expectAxeAndNoSidewaysScroll(page);
+        });
+      }
     }
-  }
+  });
 });

@@ -209,47 +209,57 @@ test.describe('Out of date badge and quick filter', () => {
     await expect(pill(page, 'All')).toBeVisible();
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations in ${scheme} with the badge and the pill active`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, PULLS);
-      await page.goto('/pull-requests.html');
-      await expect(rows(page)).toHaveCount(4);
-      expect(
-        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-          .violations,
-      ).toEqual([]);
+  test('has no axe-core violations in both themes with the badge and the pill active', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(scheme, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, PULLS);
+        await page.goto('/pull-requests.html');
+        await expect(rows(page)).toHaveCount(4);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
 
-      await pill(page, 'Out of date').click();
-      await expect(rows(page)).toHaveCount(2);
-      expect(
-        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-          .violations,
-      ).toEqual([]);
-    });
-  }
+        await pill(page, 'Out of date').click();
+        await expect(rows(page)).toHaveCount(2);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+        // The choice is saved: put it back so the next theme starts from All.
+        await pill(page, 'All').click();
+        await expect(rows(page)).toHaveCount(4);
+      });
+    }
+  });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations on the Bots page in ${scheme} with the badge and the pill active`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await mockDashboard(page, BOTS);
-      await page.goto('/bots.html');
-      await expect(rows(page)).toHaveCount(4);
-      expect(
-        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-          .violations,
-      ).toEqual([]);
+  test('has no axe-core violations on the Bots page in both themes with the badge and the pill active', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(scheme, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await mockDashboard(page, BOTS);
+        await page.goto('/bots.html');
+        await expect(rows(page)).toHaveCount(4);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
 
-      await pill(page, 'Out of date').click();
-      await expect(rows(page)).toHaveCount(3);
-      expect(
-        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-          .violations,
-      ).toEqual([]);
-    });
-  }
+        await pill(page, 'Out of date').click();
+        await expect(rows(page)).toHaveCount(3);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+        // The choice is saved: put it back so the next theme starts from All.
+        await pill(page, 'All').click();
+        await expect(rows(page)).toHaveCount(4);
+      });
+    }
+  });
 });

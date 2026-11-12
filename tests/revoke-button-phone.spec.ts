@@ -118,13 +118,20 @@ test.describe('Revoke button layout (#3188)', () => {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 
-  for (const width of [390, 820, 1280]) {
-    test(`axe is clean on the tokens card at ${width}px`, async ({ page }) => {
-      await open(page, width);
-      const results = await new AxeBuilder({ page })
-        .include('#api-tokens')
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test('axe is clean on the tokens card at 390px, 820px and 1280px', async ({
+    page,
+  }) => {
+    // The tokens are made once and the page resized, so each width sees the
+    // same two.
+    await open(page, 390);
+    for (const width of [390, 820, 1280]) {
+      await test.step(`${width}px`, async () => {
+        await page.setViewportSize({ width, height: 844 });
+        const results = await new AxeBuilder({ page })
+          .include('#api-tokens')
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

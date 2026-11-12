@@ -331,35 +331,39 @@ test.describe('the waiting chip on a bot rebase', () => {
     await noOverflow(page);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations while waiting, still waiting and settled (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      const scan = async () => {
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      };
-      await ask(page);
-      await scan();
+  test('has no axe violations while waiting, still waiting and settled, in both themes', async ({
+    page,
+  }) => {
+    // The chip only moves forward (waiting, still waiting, settled), so each
+    // state is scanned in both themes before the next one.
+    const scan = async () => {
+      for (const scheme of ['light', 'dark'] as const) {
+        await test.step(scheme, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
+    };
+    await ask(page);
+    await test.step('waiting', scan);
 
-      await skew(page, 121_000);
-      await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
-        'Still waiting',
-      );
-      await scan();
+    await skew(page, 121_000);
+    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
+      'Still waiting',
+    );
+    await test.step('still waiting', scan);
 
-      await skew(page, 0);
-      current = { ...current, behind: false, botRequest: undefined };
-      await push(page, current);
-      await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
-        'Settled',
-      );
-      await scan();
-    });
-  }
+    await skew(page, 0);
+    current = { ...current, behind: false, botRequest: undefined };
+    await push(page, current);
+    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
+      'Settled',
+    );
+    await test.step('settled', scan);
+  });
 });
 
 test.describe('the waiting chip on Update branch', () => {
@@ -616,19 +620,21 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     );
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations with the chip (${scheme})`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page, armed());
-      await expect(chipOf(page)).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test('has no axe violations with the chip, in both themes', async ({
+    page,
+  }) => {
+    await open(page, armed());
+    await expect(chipOf(page)).toBeVisible();
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(scheme, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });
 
 test.describe('the waiting chip on an action queued for a reset (#756)', () => {

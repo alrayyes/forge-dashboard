@@ -258,20 +258,27 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await expect(titles(page)).toHaveCount(PRS.length);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations in the ${scheme} theme, with a CI pill and the segment active`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await open(page);
-      await pill(page, 'Passing CI').click();
-      await am(page, 'off').click();
-      await expect(titles(page)).toHaveCount(1);
+  test('has no axe-core violations in both themes, with a CI pill and the segment active', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(scheme, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await open(page);
+        await pill(page, 'Passing CI').click();
+        await am(page, 'off').click();
+        await expect(titles(page)).toHaveCount(1);
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+
+        // The choice is saved: put it back so the next theme starts clean.
+        await pill(page, 'All').click();
+        await am(page, 'any').click();
+        await expect(titles(page)).toHaveCount(PRS.length);
+      });
+    }
+  });
 });

@@ -445,24 +445,30 @@ test.describe('steady issues refresh', () => {
     );
   });
 
-  for (const [name, size] of [
-    ['desktop', { width: 1280, height: 800 }],
-    ['phone', { width: 390, height: 844 }],
-  ] as const) {
-    test(`the live-update controls have no axe violations, paused, at ${name} width`, async ({
-      page,
-    }) => {
-      await page.setViewportSize(size);
-      await open(page);
-      await scrollDown(page);
-      await page.getByRole('button', { name: 'Pause live updates' }).click();
-      await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
-      await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  test('the live-update controls have no axe violations, paused, at desktop and phone width', async ({
+    page,
+  }) => {
+    // One page, resized between steps: opening it again would stack a second
+    // stream hook on the first.
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await open(page);
+    await scrollDown(page);
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
+    await expect(page.locator('#updates-paused-hint')).toBeVisible();
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+    for (const [name, size] of [
+      ['desktop', { width: 1280, height: 800 }],
+      ['phone', { width: 390, height: 844 }],
+    ] as const) {
+      await test.step(name, async () => {
+        await page.setViewportSize(size);
+        await expect(page.locator('#updates-paused-hint')).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });
