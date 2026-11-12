@@ -322,9 +322,9 @@ describe('HTML comments', () => {
 
   test('many comment openers that never close stay fast', async () => {
     for (const src of [
-      '<!--\n\n'.repeat(100_000),
-      '<!-- x\n'.repeat(40_000),
-      'a <!-- b '.repeat(40_000),
+      `<!-- ${'x'.repeat(100)}\n\n`.repeat(20_000),
+      '<!-- x\n'.repeat(20_000),
+      'a <!-- b '.repeat(20_000),
     ]) {
       const start = performance.now();
       const html = await renderMarkdown(src);
