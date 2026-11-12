@@ -221,19 +221,21 @@ test.describe('the review comments pill (#1335)', () => {
     await expect(p).toBeVisible();
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe-core violations in the ${scheme} theme`, async ({
-      page,
-    }) => {
-      await open(page, scheme);
-      await expect(pill(page, 'Open')).toBeVisible();
+  test(`has no axe-core violations in both themes`, async ({ page }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await open(page, scheme);
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+        await expect(pill(page, 'Open')).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 
   test('on a 360px phone the pill is a 44px target, inside the card, with no axe violations', async ({
     page,

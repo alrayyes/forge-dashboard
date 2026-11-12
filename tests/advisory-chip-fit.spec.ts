@@ -136,16 +136,22 @@ for (const width of [320, 390, 820, 1280]) {
       expect(body, 'no horizontal dialog overflow').toBeLessThanOrEqual(0);
     });
 
-    for (const scheme of ['light', 'dark'] as const) {
-      test(`the list passes axe in the ${scheme} theme`, async ({ page }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await open(page, json(LIST));
-        await expect(page.getByTestId('advisory-row')).toHaveCount(2);
-        const results = await new AxeBuilder({ page })
-          .include('[data-testid="advisories-dialog"]')
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
-    }
+    test(`the list passes axe in both themes`, async ({ page }) => {
+      for (const scheme of ['light', 'dark'] as const) {
+        await test.step(`${scheme}`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+
+          await open(page, json(LIST));
+
+          await expect(page.getByTestId('advisory-row')).toHaveCount(2);
+
+          const results = await new AxeBuilder({ page })
+            .include('[data-testid="advisories-dialog"]')
+            .analyze();
+
+          expect(results.violations).toEqual([]);
+        });
+      }
+    });
   });
 }

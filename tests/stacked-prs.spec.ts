@@ -234,20 +234,24 @@ test.describe('stacked pull requests (#861)', () => {
     ).toBe(true);
   });
 
-  for (const [name, size] of [
-    ['desktop', { width: 1280, height: 900 }],
-    ['phone', { width: 390, height: 844 }],
-  ] as const) {
-    test(`a stacked list has no axe violations at ${name} width`, async ({
-      page,
-    }) => {
-      await open(page, size);
-      await rowFor(page, 839).locator('.stack-chip').click();
+  test(`a stacked list has no axe violations at every width`, async ({
+    page,
+  }) => {
+    for (const [name, size] of [
+      ['desktop', { width: 1280, height: 900 }],
+      ['phone', { width: 390, height: 844 }],
+    ] as const) {
+      await test.step(`${name}`, async () => {
+        await open(page, size);
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+        await rowFor(page, 839).locator('.stack-chip').click();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

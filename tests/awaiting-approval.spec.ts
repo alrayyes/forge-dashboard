@@ -116,62 +116,73 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     });
   }
 
-  for (const theme of ['light', 'dark'] as const) {
-    test(`the details dialog has no axe violations in ${theme} mode`, async ({
-      page,
-    }) => {
-      await page.emulateMedia({ colorScheme: theme });
-      await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            description: null,
-            comments: [],
-            commentCount: 0,
-            commentsTruncated: false,
-            releaseNotes: null,
+  test(`the details dialog has no axe violations in light and dark mode`, async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      await test.step(`${theme}`, async () => {
+        await page.emulateMedia({ colorScheme: theme });
+
+        await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              description: null,
+              comments: [],
+              commentCount: 0,
+              commentsTruncated: false,
+              releaseNotes: null,
+            }),
           }),
-        }),
-      );
-      await open(page);
-      await row(page, 'Held for approval')
-        .getByRole('button', { name: /^#\d+ / })
-        .click();
-      const pill = page
-        .getByRole('dialog', { name: /^Pull request details/ })
-        .locator('.details-state .ci-pill');
-      await expect(pill).toContainText('Waiting for workflow approval');
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-      // axe files this pill's contrast under "incomplete", never as a
-      // violation (it can't tell the text from decoration), so a pill with
-      // unreadable colours would pass the scan above. Measure it directly:
-      // 4.5:1 is WCAG 1.4.3 for text this size.
-      // https://www.w3.org/TR/WCAG22/#contrast-minimum
-      // https://github.com/alrayyes/forge-dashboard/issues/1527
-      const contrast = await pill.evaluate((el) => {
-        const channels = (css: string) =>
-          (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-        const luminance = (rgb: number[]) => {
-          const [r, g, b] = rgb.map((v) => {
-            const s = v / 255;
-            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-          });
-          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        };
-        const style = getComputedStyle(el);
-        const [hi, lo] = [
-          luminance(channels(style.color)),
-          luminance(channels(style.backgroundColor)),
-        ].sort((a, b) => b - a);
-        return (hi + 0.05) / (lo + 0.05);
+        );
+
+        await open(page);
+
+        await row(page, 'Held for approval')
+          .getByRole('button', { name: /^#\d+ / })
+          .click();
+
+        const pill = page
+          .getByRole('dialog', { name: /^Pull request details/ })
+          .locator('.details-state .ci-pill');
+
+        await expect(pill).toContainText('Waiting for workflow approval');
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+
+        // axe files this pill's contrast under "incomplete", never as a
+        // violation (it can't tell the text from decoration), so a pill with
+        // unreadable colours would pass the scan above. Measure it directly:
+        // 4.5:1 is WCAG 1.4.3 for text this size.
+        // https://www.w3.org/TR/WCAG22/#contrast-minimum
+        // https://github.com/alrayyes/forge-dashboard/issues/1527
+        const contrast = await pill.evaluate((el) => {
+          const channels = (css: string) =>
+            (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+          const luminance = (rgb: number[]) => {
+            const [r, g, b] = rgb.map((v) => {
+              const s = v / 255;
+              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+            });
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const style = getComputedStyle(el);
+          const [hi, lo] = [
+            luminance(channels(style.color)),
+            luminance(channels(style.backgroundColor)),
+          ].sort((a, b) => b - a);
+          return (hi + 0.05) / (lo + 0.05);
+        });
+
+        expect(contrast).toBeGreaterThanOrEqual(4.5);
       });
-      expect(contrast).toBeGreaterThanOrEqual(4.5);
-    });
-  }
+    }
+  });
 
   test('a failing row without the flag is unchanged', async ({ page }) => {
     await open(page);
@@ -198,19 +209,25 @@ test.describe('Awaiting workflow approval (#1280)', () => {
     expect(box?.width).toBeGreaterThanOrEqual(44);
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    test(`has no axe violations in ${theme} mode`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: theme });
-      await open(page);
-      await expect(
-        row(page, 'Held for approval').getByRole('link', {
-          name: /approve.*GitHub/i,
-        }),
-      ).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`has no axe violations in light and dark mode`, async ({ page }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      await test.step(`${theme}`, async () => {
+        await page.emulateMedia({ colorScheme: theme });
+
+        await open(page);
+
+        await expect(
+          row(page, 'Held for approval').getByRole('link', {
+            name: /approve.*GitHub/i,
+          }),
+        ).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

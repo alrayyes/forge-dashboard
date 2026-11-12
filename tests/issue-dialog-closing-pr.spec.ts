@@ -358,21 +358,30 @@ test('a modified click on the dialog pill is left to the browser and opens the p
   await expect(dialog(page)).toBeVisible();
 });
 
-for (const width of [1280, 390]) {
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations with a closing pull request in the dialog, ${scheme} at ${width}px`, async ({
-      page,
-    }) => {
-      await mockBoard(page, () => [issue(1, [linked(12)])]);
-      await page.setViewportSize({ width, height: 800 });
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.goto('/issues.html');
-      await openDialog(page);
-      await expect(dialogPills(page)).toHaveCount(1);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
+test(`has no axe violations with a closing pull request in the dialog, light and dark at every width`, async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${width}px ${scheme}`, async () => {
+        await mockBoard(page, () => [issue(1, [linked(12)])]);
+
+        await page.setViewportSize({ width, height: 800 });
+
+        await page.emulateMedia({ colorScheme: scheme });
+
+        await page.goto('/issues.html');
+
+        await openDialog(page);
+
+        await expect(dialogPills(page)).toHaveCount(1);
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
   }
-}
+});

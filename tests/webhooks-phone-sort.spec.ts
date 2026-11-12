@@ -151,18 +151,23 @@ test.describe('webhooks sort on a phone', () => {
     await expect(select).toHaveValue('fullName:asc');
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [390, 700]) {
-      test(`no axe-core violations at ${width}px, ${scheme}`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await open(page, width);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+  test(`no axe-core violations at every width, light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [390, 700]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+
+          await open(page, width);
+
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+            .analyze();
+
+          expect(results.violations).toEqual([]);
+        });
+      }
     }
-  }
+  });
 });

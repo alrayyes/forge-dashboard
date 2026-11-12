@@ -180,17 +180,23 @@ for (const size of LANDSCAPE) {
         }
       });
 
-      for (const scheme of ['light', 'dark'] as const) {
-        test(`axe finds nothing in ${scheme}`, async ({ page }) => {
-          await open(page, path, size);
-          await setTheme(page, scheme);
-          await firstRow(page, rows);
-          const results = await new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-            .analyze();
-          expect(results.violations).toEqual([]);
-        });
-      }
+      test(`axe finds nothing in light and dark`, async ({ page }) => {
+        for (const scheme of ['light', 'dark'] as const) {
+          await test.step(`${scheme}`, async () => {
+            await open(page, path, size);
+
+            await setTheme(page, scheme);
+
+            await firstRow(page, rows);
+
+            const results = await new AxeBuilder({ page })
+              .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+              .analyze();
+
+            expect(results.violations).toEqual([]);
+          });
+        }
+      });
     });
   }
 }

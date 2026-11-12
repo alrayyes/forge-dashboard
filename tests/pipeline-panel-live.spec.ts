@@ -505,26 +505,35 @@ test.describe('pipeline panel updates live', () => {
     await expect(names).toHaveText(['lint', 'build']);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [390, 1280]) {
-      test(`has no axe violations after a live update, ${scheme} at ${width}px`, async ({
-        page,
-      }) => {
-        await page.setViewportSize({ width, height: 800 });
-        await page.emulateMedia({ colorScheme: scheme });
-        const state = await open(page, RUNNING, RUN);
-        state.checks = DONE;
-        await update(page, state, PASSED);
-        await expect(
-          dialog(page).locator('.pipeline-check').nth(1),
-        ).toContainText('Passed');
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+  test(`has no axe violations after a live update, light and dark at every width`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [390, 1280]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.setViewportSize({ width, height: 800 });
+
+          await page.emulateMedia({ colorScheme: scheme });
+
+          const state = await open(page, RUNNING, RUN);
+
+          state.checks = DONE;
+
+          await update(page, state, PASSED);
+
+          await expect(
+            dialog(page).locator('.pipeline-check').nth(1),
+          ).toContainText('Passed');
+
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+
+          expect(results.violations).toEqual([]);
+        });
+      }
     }
-  }
+  });
 });
 
 test.describe('pipeline panel with live updates paused', () => {

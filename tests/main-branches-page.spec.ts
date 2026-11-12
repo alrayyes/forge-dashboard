@@ -1184,31 +1184,47 @@ test.describe('Main branches page (#1224, #1279)', () => {
     expect(playing).toEqual([]);
   });
 
-  for (const theme of ['light', 'dark']) {
-    test(`the slot at 360px has no overflow and passes axe in ${theme} mode`, async ({
-      page,
-    }) => {
-      await mock(page, snapshot(MIXED));
-      await page.setViewportSize({ width: 360, height: 800 });
-      await page.goto('/');
-      await setTheme(page, theme);
-      await page.reload();
-      await expect(rows(page)).toHaveCount(6);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
-      );
-      expect(overflow).toBeLessThanOrEqual(0);
-      const card = await rows(page).first().boundingBox();
-      const slot = await slotOf(page, 0).boundingBox();
-      expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
-        (card?.x ?? 0) + (card?.width ?? 0) + 1,
-      );
-      expect(slot?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
-      const results = await new AxeBuilder({ page })
-        .withTags([...AXE_TAGS, 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-      await setTheme(page, 'light');
-    });
-  }
+  test(`the slot at 360px has no overflow and passes axe in light and dark mode`, async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark']) {
+      await test.step(`${theme}`, async () => {
+        await mock(page, snapshot(MIXED));
+
+        await page.setViewportSize({ width: 360, height: 800 });
+
+        await page.goto('/');
+
+        await setTheme(page, theme);
+
+        await page.reload();
+
+        await expect(rows(page)).toHaveCount(6);
+
+        const overflow = await page.evaluate(
+          () => document.documentElement.scrollWidth - window.innerWidth,
+        );
+
+        expect(overflow).toBeLessThanOrEqual(0);
+
+        const card = await rows(page).first().boundingBox();
+
+        const slot = await slotOf(page, 0).boundingBox();
+
+        expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
+          (card?.x ?? 0) + (card?.width ?? 0) + 1,
+        );
+
+        expect(slot?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+
+        const results = await new AxeBuilder({ page })
+          .withTags([...AXE_TAGS, 'wcag22aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+
+        await setTheme(page, 'light');
+      });
+    }
+  });
 });

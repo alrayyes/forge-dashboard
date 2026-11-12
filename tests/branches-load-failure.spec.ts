@@ -89,16 +89,25 @@ test.describe('Branches when the main-branches read fails (#3272)', () => {
     await expect(page.getByTestId('main-branch-row')).toHaveCount(1);
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`the banner has no axe violations in ${scheme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await serve(page, 'http500');
-      await page.goto('/');
-      await expect(banner(page)).toBeVisible();
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+  test(`the banner has no axe violations in light and dark`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      await test.step(`${scheme}`, async () => {
+        await page.emulateMedia({ colorScheme: scheme });
+
+        await serve(page, 'http500');
+
+        await page.goto('/');
+
+        await expect(banner(page)).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
 });

@@ -113,24 +113,37 @@ test('reloads cleanly with the trimmed cookie and the picks still set', async ({
   expect(await cookieSize(page)).toBeLessThanOrEqual(3800);
 });
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`the notice fits a 390px screen and passes axe in ${scheme} mode`, async ({
-    page,
-    baseURL,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 800 });
-    await page.emulateMedia({ colorScheme: scheme });
-    await open(page, baseURL);
-    await expect(page.locator('#issue-rows')).toBeAttached();
-    await titleBox(page).fill('漢'.repeat(200));
-    await expect(notice(page)).toBeVisible();
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-    const box = await notice(page).boundingBox();
-    expect(box?.x).toBeGreaterThanOrEqual(0);
-    expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
-    await axeClean(page);
-  });
-}
+test(`the notice fits a 390px screen and passes axe in light and dark mode`, async ({
+  page,
+  baseURL,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await test.step(`${scheme}`, async () => {
+      await page.setViewportSize({ width: 390, height: 800 });
+
+      await page.emulateMedia({ colorScheme: scheme });
+
+      await open(page, baseURL);
+
+      await expect(page.locator('#issue-rows')).toBeAttached();
+
+      await titleBox(page).fill('漢'.repeat(200));
+
+      await expect(notice(page)).toBeVisible();
+
+      const overflow = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+
+      expect(overflow).toBeLessThanOrEqual(0);
+
+      const box = await notice(page).boundingBox();
+
+      expect(box?.x).toBeGreaterThanOrEqual(0);
+
+      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(390);
+
+      await axeClean(page);
+    });
+  }
+});
