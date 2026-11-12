@@ -43,6 +43,10 @@ import (
 // built off an unknown tree.
 var version = "dev"
 
+// processStart is when this process began, reported to clients so they can
+// word a forge that has not answered yet as starting up (#3554).
+var processStart = time.Now()
+
 // defaultRefreshInterval was 5 minutes, sized around polling being the
 // only way an update ever arrived. Every tracked repo gets a real webhook
 // now (#361's own prerequisite), so the poll is a reconciliation safety
@@ -368,6 +372,7 @@ func run() error {
 		Dashboard:      service,
 		APIStats:       apistats.New(),
 		AppContext:     ctx,
+		StartedAt:      processStart,
 		// The env var buildAuth already requires for WebAuthn's RPOrigins; see
 		// Deps.PublicOrigin.
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),

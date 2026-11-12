@@ -6867,6 +6867,7 @@ components:
           autoMerged,
           queuedActions,
           readIntervalSeconds,
+          recentlyStarted,
         ]
       properties:
         queuedActions:
@@ -6932,6 +6933,14 @@ components:
           type: string
           format: date-time
           description: When this snapshot was refreshed, not when it was requested.
+        recentlyStarted:
+          type: boolean
+          description: |
+            True for the first five minutes after the server process started.
+            A restart empties the in-memory state and the first full refresh is
+            the heaviest moment, so a forge that has not answered yet is
+            starting up, not down. A client words its unreachable banner as
+            starting up while this is true. Always present.
         readIntervalSeconds:
           type: integer
           minimum: 1
