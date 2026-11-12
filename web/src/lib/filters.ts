@@ -1777,6 +1777,17 @@ export function offerAutoMerge(
   );
 }
 
+// The Show drafts button, only while there is a draft to show: one in the
+// loaded pull requests, or one the server left out and counted (#3680).
+export function offerDrafts(
+  button: HTMLElement | null,
+  pool: FilterableItem[],
+  hiddenDrafts: number,
+): void {
+  if (!button) return;
+  button.hidden = hiddenDrafts <= 0 && !pool.some((i) => i.draft === true);
+}
+
 // The refs segment's Yes and No.
 export function offerRefs(
   groups: Iterable<HTMLElement>,
