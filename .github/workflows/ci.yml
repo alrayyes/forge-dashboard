@@ -338,10 +338,13 @@ jobs:
     # Four shards ran 5.1 to 6.9 minutes of tests plus about 70 seconds of
     # setup (run 43007742117), and a loaded runner pushed shard 2 past 10 (#3477).
     # The suite is about 25 minutes of tests in all, so six shards put the
-    # slowest near 6 minutes. Playwright splits by test count, not duration, so
-    # the shards drift apart as specs grow: re-count from a green run, and raise
-    # the shard list (the `changes` job's `e2e_shards` step is the only place) before this limit, never
-    # to hide a suite growing back toward it.
+    # slowest near 6 minutes. Playwright's own --shard splits by test count, not
+    # duration, and left the six shards 2m25s apart (#3492), so each shard runs
+    # the spec files scripts/e2e-shards.ts assigns it from tests/e2e-durations.json
+    # (a new spec counts as the average one). Refresh that file from a green run
+    # (CONTRIBUTING.md), and raise the shard list (the `changes` job's
+    # `e2e_shards` step is the only place) before this limit, never to hide a
+    # suite growing back toward it.
     timeout-minutes: 10
     # Our own CI image (github.com/alrayyes/ci-playwright): Playwright's
     # browsers and system packages, Bun, node, git, gh and ImageMagick are
@@ -376,7 +379,9 @@ jobs:
       - name: run this shard's journey tests against a real binary
         env:
           E2E_BINARY: "${{ github.workspace }}/forge-dashboard"
-        run: bunx playwright test --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+        run: |
+          bun scripts/e2e-shards.ts shard "${{ matrix.shard }}" "${{ strategy.job-total }}" > shard-specs.txt
+          xargs -a shard-specs.txt bunx playwright test
       - name: upload this shard's blob report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
