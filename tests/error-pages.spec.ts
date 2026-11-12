@@ -76,7 +76,7 @@ test.describe('expectNoInternals (#1069)', () => {
 
 test.describe('error pages (#1175)', () => {
   for (const { name: pageName, title, headline, chip, body, status } of PAGES) {
-    test(`the ${pageName} says what happened, in plain words, and links home`, async ({
+    test(`the ${pageName} says what happened, links home, and has no axe-core violations at desktop and 375px or horizontal scroll`, async ({
       page,
     }) => {
       await openError(page, body, status);
@@ -101,12 +101,7 @@ test.describe('error pages (#1175)', () => {
         ).toHaveAttribute('href', href);
       }
       expectNoInternals(body);
-    });
 
-    test(`the ${pageName} has no axe-core violations at desktop and 375px, and no horizontal scroll`, async ({
-      page,
-    }) => {
-      await openError(page, body, status);
       expect(
         (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
           .violations,
