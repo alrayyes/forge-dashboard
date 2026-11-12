@@ -94,11 +94,11 @@ test.describe('Dashboard error banner', () => {
     await page.keyboard.press('Tab');
     await retry.focus();
     await expect(retry).toBeFocused();
-    const outline = await retry.evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { style: s.outlineStyle, width: parseFloat(s.outlineWidth) };
-    });
-    expect(outline.style).not.toBe('none');
-    expect(outline.width).toBeGreaterThanOrEqual(2);
+    await expect(retry).not.toHaveCSS('outline-style', 'none');
+    await expect
+      .poll(() =>
+        retry.evaluate((el) => parseFloat(getComputedStyle(el).outlineWidth)),
+      )
+      .toBeGreaterThanOrEqual(2);
   });
 });

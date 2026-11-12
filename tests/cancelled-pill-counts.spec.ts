@@ -140,29 +140,30 @@ test.describe('Cancelled pill counts (#3395)', () => {
       }
       await open(page);
 
-      const ratio = await pill(page, 'Some passed').evaluate((el) => {
-        const rgb = (c: string) => {
-          const m = c.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
+      const ratio = () =>
+        pill(page, 'Some passed').evaluate((el) => {
+          const rgb = (c: string) => {
+            const m = c.match(/[\d.]+/g)?.map(Number) ?? [0, 0, 0];
 
-          return m.slice(0, 3);
-        };
-        const lum = (c: number[]) => {
-          const [r, g, b] = c.map((v) => {
-            const s = v / 255;
+            return m.slice(0, 3);
+          };
+          const lum = (c: number[]) => {
+            const [r, g, b] = c.map((v) => {
+              const s = v / 255;
 
-            return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-          });
+              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+            });
 
-          return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-        };
-        const style = getComputedStyle(el);
-        const fg = lum(rgb(style.color));
-        const bg = lum(rgb(style.backgroundColor));
-        const [hi, lo] = fg > bg ? [fg, bg] : [bg, fg];
+            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          };
+          const style = getComputedStyle(el);
+          const fg = lum(rgb(style.color));
+          const bg = lum(rgb(style.backgroundColor));
+          const [hi, lo] = fg > bg ? [fg, bg] : [bg, fg];
 
-        return (hi + 0.05) / (lo + 0.05);
-      });
-      expect(ratio).toBeGreaterThanOrEqual(4.5);
+          return (hi + 0.05) / (lo + 0.05);
+        });
+      await expect.poll(ratio).toBeGreaterThanOrEqual(4.5);
     });
   }
 });
