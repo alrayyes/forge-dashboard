@@ -55,6 +55,9 @@ type Deps struct {
 	// GitHubImageProxy fetches a GitHub item's embedded images. Nil means the
 	// real GitHub hosts; only tests set it, to reach a local server.
 	GitHubImageProxy *imageproxy.Proxy
+	// GitHubImageOrigin is where a user-attachment link lives. Empty means
+	// https://github.com; only tests set it.
+	GitHubImageOrigin string
 
 	// Database and Dashboard back GET /readyz. Either may be nil, in which
 	// case that check is skipped.

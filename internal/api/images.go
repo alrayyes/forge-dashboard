@@ -97,10 +97,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		if q.Get("forge") == "github" {
-			raw = signedGitHubImage(r.Context(), deps, creds, q, raw)
-		}
-		img, err := proxy.Fetch(r.Context(), raw)
+		img, err := fetchImage(r.Context(), deps, creds, proxy, q, raw)
 		if err != nil {
 			slog.Warn("image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
 			imageFailure(err).write(w)
@@ -118,38 +115,54 @@ func handleImage(deps Deps) http.HandlerFunc {
 	}
 }
 
-// signedGitHubImage swaps a user-attachment link for the signed address the
-// item's rendered HTML uses, which is what a private repository serves. The
-// token goes to the GitHub API in that lookup and nowhere else: the image
-// itself is fetched by the proxy, which holds no token. Any miss leaves the
-// link as it was, so a public repository's image still loads (#3469).
+// fetchImage reads raw through the proxy. A GitHub user-attachment link is
+// tried at its signed address first, which is what a private repository
+// serves; if that can't be found, isn't an allowed host or fails to load, the
+// link as written is fetched, so nothing that loaded before stops loading
+// (#3469).
+func fetchImage(ctx context.Context, deps Deps, creds settings.Credentials, proxy *imageproxy.Proxy, q url.Values, raw string) (imageproxy.Image, error) {
+	if q.Get("forge") == "github" {
+		if signed := signedGitHubImage(ctx, deps, creds, q, raw); signed != "" {
+			img, err := proxy.Fetch(ctx, signed)
+			if err == nil {
+				return img, nil
+			}
+			slog.Warn("signed image fetch failed, trying the link as written", "forge", "github", "kind", err)
+		}
+	}
+
+	return proxy.Fetch(ctx, raw) //nolint:wrapcheck // the kinds are mapped by imageFailure
+}
+
+// signedGitHubImage returns the signed address the item's rendered HTML uses
+// for a user-attachment link, or "" when there is none. The token goes to the
+// GitHub API in that lookup and nowhere else: the image itself is fetched by
+// the proxy, which holds no token.
 func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credentials, q url.Values, raw string) string {
-	if !isGitHubAttachment(raw) {
-		return raw
+	if !isGitHubAttachment(deps, raw) {
+		return ""
 	}
 	item, ok := imageItemOf(q)
 	if !ok {
-		return raw
+		return ""
 	}
 	owner, name, ok := splitFullName(q.Get("fullName"))
 	if !ok {
-		return raw
+		return ""
 	}
 	src, serr := pickForgeSource(deps, creds, "github")
 	if serr != nil {
-		return raw
+		return ""
 	}
 	resolver, ok := src.(dashboard.ImageLinkResolver)
 	if !ok {
-		return raw
+		return ""
 	}
 	signed, err := resolver.SignedImageURL(ctx, owner, name, item, raw)
-	if err != nil || signed == "" {
-		if err != nil {
-			slog.Warn("image link lookup failed", "forge", "github", "kind", err)
-		}
+	if err != nil {
+		slog.Warn("image link lookup failed", "forge", "github", "kind", err)
 
-		return raw
+		return ""
 	}
 
 	return signed
@@ -157,16 +170,26 @@ func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credential
 
 // isGitHubAttachment reports whether raw is a github.com/user-attachments
 // link, the one kind a private repository won't serve unsigned.
-func isGitHubAttachment(raw string) bool {
+func isGitHubAttachment(deps Deps, raw string) bool {
+	origin := deps.GitHubImageOrigin
+	if origin == "" {
+		origin = "https://github.com"
+	}
 	u, err := url.Parse(raw)
+	home, herr := url.Parse(origin)
 
-	return err == nil && u.Scheme == "https" && strings.EqualFold(u.Host, "github.com") &&
+	return err == nil && herr == nil && u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) &&
 		strings.HasPrefix(u.Path, "/user-attachments/")
 }
 
 // imageItemOf reads which issue, pull request or release the image sits in.
 func imageItemOf(q url.Values) (dashboard.ImageItem, bool) {
-	if tag := q.Get("tag"); tag != "" {
+	if q.Has("tag") {
+		tag := q.Get("tag")
+		if !safeRepoSegment(tag) || strings.Contains(tag, "/") {
+			return dashboard.ImageItem{}, false
+		}
+
 		return dashboard.ImageItem{Kind: dashboard.ImageItemRelease, Tag: tag}, true
 	}
 	number, err := strconv.Atoi(q.Get("number"))

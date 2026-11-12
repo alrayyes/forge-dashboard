@@ -321,7 +321,9 @@ can't fire a tracking pixel when the dialog opens.
   the API host and nowhere else, and fetches the signed
   `private-user-images.githubusercontent.com` address found there. That
   second fetch carries no token and goes through the same host list. If the
-  lookup finds nothing, the link is fetched as written.
+  lookup finds nothing or fails, or the signed address is refused or doesn't
+  load, the link is fetched as written. The lookup is one API request per
+  image and skips the ETag cache, since the signature expires.
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public
