@@ -169,23 +169,29 @@ test.describe('webhooks: Clear filters', () => {
     await expect.poll(() => serverCopy(page)).toMatchObject({ repo: '' });
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 390]) {
-      test(`has no axe violations with the control showing (${scheme}, ${width}px)`, async ({
-        page,
-      }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await page.setViewportSize({ width, height: 800 });
-        await open(page);
-        await page.locator('#webhooks-repo-filter').fill('no-such-repo');
-        await expect(clear(page)).toBeEnabled();
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
+  test('has no axe violations with the control showing, in both themes at 1280px and 390px', async ({
+    page,
+  }) => {
+    // The filter is saved, so one page is opened once and each pass clears it
+    // again before the theme or width changes.
+    await open(page);
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [1280, 390]) {
+        await test.step(`${scheme}, ${width}px`, async () => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await page.setViewportSize({ width, height: 800 });
+          await page.locator('#webhooks-repo-filter').fill('no-such-repo');
+          await expect(clear(page)).toBeEnabled();
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+          await clear(page).click();
+          await expect(clear(page)).toBeDisabled();
+        });
+      }
     }
-  }
+  });
 });
 
 test('on a phone the button is a 44 px target', async ({ page }) => {
