@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.22.0](https://github.com/alrayyes/forge-dashboard/compare/v9.21.1...v9.22.0) (2026-11-12)
+
+
+### Features
+
+* **web:** add a Previous / Page N of M stepper and page announcement on a phone ([#3565](https://github.com/alrayyes/forge-dashboard/issues/3565)) ([52fd5eb](https://github.com/alrayyes/forge-dashboard/commit/52fd5eb293a76eee456e9dc6e84a7a86d6d464a2))
+
 ## [9.21.1](https://github.com/alrayyes/forge-dashboard/compare/v9.21.0...v9.21.1) (2026-11-12)
 
 
