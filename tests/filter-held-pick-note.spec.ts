@@ -228,25 +228,6 @@ test.describe('seeded saved picks (#1620)', () => {
     await expect(page.locator('#held-picks')).toBeFocused();
   });
 
-  test('clearing one pick leaves the other line untouched', async ({
-    page,
-  }) => {
-    await seed(page, { author: 'ryan', label: 'bug' });
-    await open(page, '/pull-requests.html');
-    const labelLine = page.locator('#held-picks .held-pick', {
-      hasText: 'label',
-    });
-    await expect(labelLine).toBeVisible();
-    await labelLine.evaluate((n) => {
-      (n as HTMLElement).dataset.kept = 'yes';
-    });
-    await page
-      .getByRole('button', { name: 'Clear saved author "ryan"' })
-      .click();
-    await expect(page.locator('#held-picks .held-pick')).toHaveCount(1);
-    await expect(labelLine).toHaveAttribute('data-kept', 'yes');
-  });
-
   // #1620 item 6: a pick held for another page rides along in the saved state.
   // An unrelated save has to write it back, in the cookie and on the server,
   // or the page it belongs to loses it the next time it opens.

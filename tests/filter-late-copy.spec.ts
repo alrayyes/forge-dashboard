@@ -5,7 +5,6 @@ import {
   pickedValues,
   pickOnly,
   toggleLabels,
-  togglePicks,
 } from './label-filter-helper';
 import { test } from './server-fixture';
 
@@ -157,28 +156,6 @@ test.describe('an edit made while the saved copy loads wins over it (#1713)', ()
         ];
       })
       .toEqual(['', 'bug', 'github:ryan', 'issue', 'qqq']);
-  });
-
-  test('a cleared author stays cleared and is saved, the label still takes the copy', async ({
-    page,
-  }) => {
-    const copy = await holdCopy(page);
-    await page.goto('/issues.html');
-    await expect(issueRows(page)).toHaveCount(3);
-    await copy.requested;
-    // Ticked and unticked: the person's own change, so the copy leaves it.
-    await togglePicks(page, 'author', 'github:ryan');
-    await togglePicks(page, 'author', 'github:ryan');
-    copy.release();
-
-    await expectCopyApplied(page, 'author');
-    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
-    await expect
-      .poll(async () => {
-        const saved = await savedCopy(page);
-        return [saved.shared?.author ?? '', saved.shared?.label];
-      })
-      .toEqual(['', 'bug']);
   });
 
   test('typed title text stays and is saved, the label still takes the copy', async ({

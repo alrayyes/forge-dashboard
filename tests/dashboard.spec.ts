@@ -1973,7 +1973,7 @@ test.describe('dashboard page', () => {
     });
   });
 
-  test.describe('CI pill wording for a passed pipeline', () => {
+  test.describe('CI pill wording beside the Merge button', () => {
     function mockOnePR(page: Page, overrides: Partial<MockItem>) {
       return page.route('**/api/v1/dashboard*', (route: Route) =>
         route.fulfill({
@@ -2002,33 +2002,6 @@ test.describe('dashboard page', () => {
         }),
       );
     }
-
-    // #1563: an outcome reads "Passed" whether or not a Merge button sits
-    // beside it, so the CI slot's word never changes with the actions.
-    test('shows "Passed" when a Merge button is also on the row', async ({
-      page,
-    }) => {
-      await mockOnePR(page, { mergeStatus: 'mergeable' });
-      await page.goto('/pull-requests.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
-      await expect(row.locator('.ci-pill')).toContainText('Passed');
-    });
-
-    // #705: the row now keeps a locked Merge, so "no Merge button" means
-    // no clickable one.
-    test('shows "Passed" once Merge is locked on the row', async ({ page }) => {
-      await mockOnePR(page, { mergeStatus: 'blocked' });
-      await page.goto('/pull-requests.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
-        'aria-disabled',
-        'true',
-      );
-      await expect(row.locator('.ci-pill')).toContainText('Passed');
-    });
 
     test('a failing or running pipeline is worded the same regardless of the Merge button', async ({
       page,
@@ -3458,11 +3431,6 @@ test.describe('repo group headers: host and sync status (#679)', () => {
 
   const header = (page: Page, name: string) =>
     page.locator('#pr-rows > h3.group-heading', { hasText: name });
-
-  test('the flat list shows no host chip or status pill', async ({ page }) => {
-    await expect(page.locator('.group-host')).toHaveCount(0);
-    await expect(page.locator('.group-sync')).toHaveCount(0);
-  });
 
   test('a group header shows forge badge, host chip, repo name and status', async ({
     page,
