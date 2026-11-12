@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.36.2](https://github.com/alrayyes/forge-dashboard/compare/v9.36.1...v9.36.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **api:** count hidden drafts per page so Show drafts only appears when it reveals something ([#3713](https://github.com/alrayyes/forge-dashboard/issues/3713)) ([cf5c9a5](https://github.com/alrayyes/forge-dashboard/commit/cf5c9a5b741e18fd5e3e7d2bcb28785e9753ad54))
+
 ## [9.36.1](https://github.com/alrayyes/forge-dashboard/compare/v9.36.0...v9.36.1) (2026-11-12)
 
 
