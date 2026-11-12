@@ -926,7 +926,7 @@
   .pipeline-cancel-refused {
     margin: 0;
     flex-basis: 100%;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
   }
   .pipeline-cancel-refused {
     color: var(--critical);

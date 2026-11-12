@@ -397,7 +397,7 @@
   <style>
     .settings-note {
       margin: 8px 0 0;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-2);
     }
     .settings-note a {
@@ -413,14 +413,14 @@
       margin-bottom: 22px;
     }
     .insights-header h1 {
-      font-size: 19px;
+      font-size: 1.1875rem;
       margin: 0;
     }
     /* The repo count the dashboard's tiles used to carry (#1325): quiet, since
        it is context for the charts and not something to act on. */
     .insights-tracked {
       margin: 4px 0 0;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink-2);
     }
     .card {
@@ -432,19 +432,19 @@
       margin-bottom: 18px;
     }
     .card h2 {
-      font-size: 13px;
+      font-size: 0.8125rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--ink-2);
       margin: 0 0 4px;
     }
     .card .hint {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0 0 16px;
     }
     .empty-state {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0;
     }
@@ -465,7 +465,7 @@
       gap: 10px;
     }
     .ci-bar-label {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
     }
     .ci-bar-track {
@@ -493,7 +493,7 @@
     }
     .ci-count {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink);
       text-align: right;
     }
@@ -512,7 +512,7 @@
       }
     }
     .rank-columns h3 {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
       margin: 0 0 10px;
       font-weight: 500;
@@ -530,7 +530,7 @@
       gap: 8px;
     }
     .rank-label {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
       overflow: hidden;
       text-overflow: ellipsis;
@@ -551,12 +551,12 @@
     }
     .rank-count {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink);
       text-align: right;
     }
     .rank-more {
-      font-size: 11.5px;
+      font-size: 0.71875rem;
       color: var(--ink-3);
       margin: 4px 0 0;
     }
@@ -576,7 +576,7 @@
       gap: 10px;
     }
     .age-bar-label {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
     }
     .age-bar-track {
@@ -593,7 +593,7 @@
     }
     .age-count {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink);
       text-align: right;
     }
@@ -610,7 +610,7 @@
       margin-bottom: 0;
     }
     .rate-limit-forge-name {
-      font-size: 13px;
+      font-size: 0.8125rem;
       font-weight: 600;
       color: var(--ink);
       margin: 0 0 8px;
@@ -645,7 +645,7 @@
       margin-bottom: 6px;
     }
     .rate-limit-forge {
-      font-size: 11.5px;
+      font-size: 0.71875rem;
       text-transform: uppercase;
       letter-spacing: 0.04em;
       color: var(--ink-3);
@@ -653,7 +653,7 @@
     }
     .rate-limit-count {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink);
     }
     .rate-limit-budget.rl-exhausted .rate-limit-forge,
@@ -682,7 +682,7 @@
       background: var(--critical);
     }
     .rate-limit-reset {
-      font-size: 11.5px;
+      font-size: 0.71875rem;
       color: var(--ink-3);
       margin: 4px 0 0;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -691,13 +691,13 @@
       color: var(--critical);
     }
     .rate-limit-cost {
-      font-size: 11.5px;
+      font-size: 0.71875rem;
       color: var(--ink-3);
       margin: 2px 0 0;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
     }
     .rate-limit-note {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
     }
 

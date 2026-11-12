@@ -2272,7 +2272,7 @@ a.ci-pill:hover {
   max-width: 100%;
 }
 .merge-where {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }

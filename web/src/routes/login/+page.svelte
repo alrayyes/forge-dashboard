@@ -192,14 +192,14 @@
       margin: 0 auto 16px;
     }
     .auth-card h1 {
-      font-size: 18px;
+      font-size: 1.125rem;
       margin: 0 0 4px;
       text-align: center;
     }
     .auth-card p.sub {
       margin: 0 0 22px;
       text-align: center;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink-3);
     }
     .auth-actions {
@@ -210,7 +210,7 @@
     }
     .btn {
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       font-weight: 500;
       padding: 10px 14px;
       border-radius: 8px;
@@ -239,7 +239,7 @@
     }
     .status {
       margin-top: 14px;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       text-align: center;
       min-height: 1.4em;
     }

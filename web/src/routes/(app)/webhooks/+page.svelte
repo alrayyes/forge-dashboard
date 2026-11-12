@@ -779,8 +779,9 @@
       margin-bottom: 22px;
     }
     .webhooks-header h1 {
-      font-size: 19px;
+      font-size: 1.1875rem;
       margin: 0;
+      overflow-wrap: anywhere;
     }
     .card {
       background: var(--surface);
@@ -791,17 +792,17 @@
       margin-bottom: 18px;
     }
     .card .hint {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0 0 14px;
     }
     .empty-state {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0;
     }
     .status {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       min-height: 1.4em;
       margin: 0 0 12px;
     }
@@ -828,7 +829,7 @@
     .data-table {
       width: 100%;
       border-collapse: collapse;
-      font-size: 13px;
+      font-size: 0.8125rem;
     }
     .data-table th,
     .data-table td {
@@ -858,7 +859,7 @@
     }
     .data-table td.action button {
       font-family: inherit;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--accent);
       background: none;
       border: none;
@@ -874,7 +875,7 @@
     }
     .ignore-scope-select {
       font-family: inherit;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--accent);
       background: none;
       border: none;
@@ -898,7 +899,7 @@
       max-width: 220px;
     }
     .webhook-locked-reason {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
       white-space: normal;
     }
@@ -906,7 +907,7 @@
       color: inherit;
     }
     .status-detail {
-      font-size: 11px;
+      font-size: 0.6875rem;
       color: var(--ink-3);
       margin-top: 2px;
     }
@@ -919,7 +920,7 @@
     }
     .failing-note {
       display: block;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
     }
     .failing-badge {
@@ -927,7 +928,7 @@
       margin-left: 8px;
       padding: 1px 8px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--warning);
       background: var(--warning-bg);
     }
@@ -954,7 +955,7 @@
       color: var(--ink);
     }
     .sort-arrow {
-      font-size: 9px;
+      font-size: 0.5625rem;
     }
     .webhooks-filter-bar {
       display: flex;
@@ -977,7 +978,7 @@
     }
     .ignored-disclosure {
       margin-top: 18px;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
     }
     .ignored-disclosure summary {
@@ -999,11 +1000,11 @@
       gap: 10px;
     }
     .ignored-scope {
-      font-size: 11px;
+      font-size: 0.6875rem;
       color: var(--ink-3);
     }
     .ignored-disclosure button {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--accent);
       background: none;
       border: none;
@@ -1063,6 +1064,7 @@
       .data-table td {
         border-bottom: none;
         padding: 3px 0;
+        overflow-wrap: anywhere;
       }
       /* Only the value-only cells (Forge/Repo/Webhook) get a label —
          the two action cells already read fine on their own: a
@@ -1073,10 +1075,20 @@
       .data-table td[data-label]::before {
         content: attr(data-label);
         display: block;
-        font-size: 11px;
+        font-size: 0.6875rem;
         color: var(--ink-3);
       }
       .webhook-locked {
+        max-width: 100%;
+      }
+      /* At a large root size a button label or the scope picker is wider
+         than the card: wrap the label, shrink the picker. */
+      .data-table td.action button {
+        white-space: normal;
+        max-width: 100%;
+        text-align: start;
+      }
+      .ignore-scope-select {
         max-width: 100%;
       }
     }

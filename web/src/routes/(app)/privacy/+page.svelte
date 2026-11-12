@@ -14,7 +14,7 @@
       margin-bottom: 22px;
     }
     .legal-header h1 {
-      font-size: 19px;
+      font-size: 1.1875rem;
       margin: 0;
     }
     .legal-body {
@@ -23,12 +23,12 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 18px 22px 20px;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       color: var(--ink-2);
       line-height: 1.6;
     }
     .legal-body h2 {
-      font-size: 14px;
+      font-size: 0.875rem;
       color: var(--ink);
       margin: 18px 0 6px;
     }
