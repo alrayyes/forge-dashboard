@@ -211,6 +211,137 @@ describe('reference links', () => {
   });
 });
 
+// https://github.com/alrayyes/forge-dashboard/issues/3668
+// An HTML comment is the author's bookkeeping, not text: the forges hide it.
+describe('HTML comments', () => {
+  test('a comment before text is hidden and the text stays', async () => {
+    const html = await renderMarkdown(
+      '<!-- rebase-check -->If you want to rebase/retry this PR, check this box\n',
+    );
+    expect(html).toContain(
+      'If you want to rebase/retry this PR, check this box',
+    );
+    expect(html).not.toContain('rebase-check');
+    expect(html).not.toContain('&lt;!--');
+  });
+
+  test('a long trailing comment leaves nothing behind', async () => {
+    const debug = `<!--renovate-debug:${'eyJjcmVhdGVkSW5WZXIiOiIxIn0='.repeat(8)}-->`;
+    const html = await renderMarkdown(`Body text.\n\n${debug}\n`);
+    expect(html).toBe('<p>Body text.</p>\n');
+  });
+
+  test('a multi-line comment is hidden, inline or as its own block', async () => {
+    const inline = await renderMarkdown('before <!-- one\ntwo --> after\n');
+    expect(inline).toContain('before');
+    expect(inline).toContain('after');
+    expect(inline).not.toContain('one');
+    expect(inline).not.toContain('two');
+    const block = await renderMarkdown(
+      'first\n\n<!--\nhidden\n\nstill hidden\n-->\n\nlast\n',
+    );
+    expect(block).toBe('<p>first</p>\n<p>last</p>\n');
+  });
+
+  test('a comment alone on a line draws no empty paragraph', async () => {
+    expect(await renderMarkdown('<!-- note -->\n')).toBe('');
+  });
+
+  test('comment-looking text in a code span or fenced block stays', async () => {
+    const span = await renderMarkdown('use `<!-- keep -->` to hide\n');
+    expect(span).toContain('<code>&lt;!-- keep --&gt;</code>');
+    const fence = await renderMarkdown('```html\n<!-- keep -->\n```\n');
+    expect(fence).toContain('&lt;!-- keep --&gt;');
+    const indented = await renderMarkdown('    <!-- keep -->\n');
+    expect(indented).toContain('&lt;!-- keep --&gt;');
+  });
+
+  test('a comment between list items leaves both items', async () => {
+    const html = await renderMarkdown('- one\n<!-- gap -->\n- two\n');
+    expect(html.match(/<li>/g)).toHaveLength(2);
+    expect(html).not.toContain('gap');
+    const loose = await renderMarkdown('- one\n\n<!-- gap -->\n\n- two\n');
+    expect(loose).toContain('one');
+    expect(loose).toContain('two');
+    expect(loose).not.toContain('gap');
+  });
+
+  test('a comment next to a task checkbox keeps the checkbox and its text', async () => {
+    const html = await renderMarkdown(
+      '- [ ] <!-- rebase-check -->If you want to rebase, check this box\n',
+    );
+    expect(html).toContain(
+      '<label class="task"><input type="checkbox" disabled> If you want to rebase, check this box</label>',
+    );
+    expect(html).not.toContain('rebase-check');
+  });
+
+  test('comments on consecutive lines draw no empty paragraph', async () => {
+    expect(await renderMarkdown('<!-- a -->\n<!-- b -->\n')).toBe('');
+    expect(await renderMarkdown('<!-- a -->  \n<!-- b -->\n')).toBe('');
+  });
+
+  test('a heading that held only a comment is dropped, other headings stay', async () => {
+    expect(await renderMarkdown('# <!-- x -->\n')).toBe('');
+    expect(await renderMarkdown('# Title <!-- x -->\n')).toContain('Title');
+  });
+
+  test('<!--> and <!---> are empty comments, and what follows is text', async () => {
+    const html = await renderMarkdown('<!-->\nfoo\n-->x\n');
+    expect(html).toContain('foo');
+    expect(html).not.toContain('&lt;!--');
+    const dash = await renderMarkdown('a <!---> b\n');
+    expect(dash).toBe('<p>a  b</p>\n');
+  });
+
+  test('text after --> on the closing line of a multi-line comment stays', async () => {
+    const html = await renderMarkdown('<!--\nhidden\n-->tail\n');
+    expect(html).toContain('tail');
+    expect(html).not.toContain('hidden');
+  });
+
+  test('a block comment never swallows the lines of the next list item', async () => {
+    const html = await renderMarkdown('- <!--\n  x\n- y\n-->\n');
+    expect(html.match(/<li>/g)).toHaveLength(2);
+    expect(html).toContain('y');
+  });
+
+  test('a multi-line comment inside a list item or a blockquote is hidden', async () => {
+    const item = await renderMarkdown(
+      '- one\n\n  <!--\n  hidden\n  -->\n\n  two\n',
+    );
+    expect(item).toContain('one');
+    expect(item).toContain('two');
+    expect(item).not.toContain('hidden');
+    const quote = await renderMarkdown('> <!--\n> hidden\n> -->\n\nafter\n');
+    expect(quote).not.toContain('hidden');
+    expect(quote).toContain('after');
+    const open = await renderMarkdown('> <!--\n> a\n\nafter -->\n');
+    expect(open).toContain('after');
+  });
+
+  test('many comment openers that never close stay fast', async () => {
+    for (const src of [
+      `<!-- ${'x'.repeat(100)}\n\n`.repeat(20_000),
+      '<!-- x\n'.repeat(20_000),
+      'a <!-- b '.repeat(20_000),
+    ]) {
+      const start = performance.now();
+      const html = await renderMarkdown(src);
+      expect(performance.now() - start).toBeLessThan(2000);
+      expect(html).toContain('&lt;!--');
+    }
+  });
+
+  test('an unclosed comment and raw HTML stay escaped text', async () => {
+    const open = await renderMarkdown('a <!-- never closed\n');
+    expect(open).toContain('&lt;!-- never closed');
+    const tag = await renderMarkdown('<b>x</b> <!-- c -->\n');
+    expect(tag).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(tag).not.toContain('<b>');
+  });
+});
+
 describe('code blocks', () => {
   test('take keyboard focus, so a block that scrolls sideways can be read', async () => {
     for (const src of ['```\ncode\n```\n', '    indented\n']) {
