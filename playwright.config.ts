@@ -86,6 +86,7 @@ const singleUserSpecs = [
   '**/pipeline-panel-live.spec.ts',
   '**/pipeline-run-output.spec.ts',
   '**/behind-fix-button.spec.ts',
+  '**/update-branch-on-row.spec.ts',
   '**/bot-row-rebase.spec.ts',
   '**/bot-rebase-all.spec.ts',
   '**/bot-rebase-all-left-out.spec.ts',
