@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.24.0](https://github.com/alrayyes/forge-dashboard/compare/v9.23.0...v9.24.0) (2026-11-12)
+
+
+### Features
+
+* **web:** make Not yet on Webhooks look like the state that needs action ([#3581](https://github.com/alrayyes/forge-dashboard/issues/3581)) ([f58914f](https://github.com/alrayyes/forge-dashboard/commit/f58914ffedf350986ee957018473cef957aef0f7)), closes [#3318](https://github.com/alrayyes/forge-dashboard/issues/3318)
+* **web:** mark the output error and cut-log job links as external ([#3584](https://github.com/alrayyes/forge-dashboard/issues/3584)) ([19a4de1](https://github.com/alrayyes/forge-dashboard/commit/19a4de1ab9c5af4fedc36967f6ec643235c14c3f))
+
 ## [9.23.0](https://github.com/alrayyes/forge-dashboard/compare/v9.22.1...v9.23.0) (2026-11-12)
 
 
