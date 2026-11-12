@@ -16,20 +16,23 @@ import (
 // newest event. maxHold caps the whole wait, counted from the first event, so
 // a repo whose events never stop (a busy CI) still refreshes instead of being
 // pushed back for ever. A lone event therefore waits webhookQuiet, and an
-// event waits no longer than webhookMaxHold unless webhookMinInterval, below,
+// event waits no longer than webhookMaxHold unless the minimum interval, below,
 // holds it back further.
 //
 // A push's check runs send events over tens of seconds, with gaps longer than
-// quiet, so those two alone cost a refresh per event. webhookMinInterval is the
+// quiet, so those two alone cost a refresh per event. the webhook minimum interval is the
 // least time between two refreshes of one repo: an event inside it waits for it
 // to pass, and the one refresh then reads everything that came in meanwhile.
 // 30 seconds is the browser tab's own poll period, so a webhook refresh any
 // faster than that shows up on the page no sooner than the poll would, while
 // it multiplies the load on a forge that is already struggling.
+// DefaultWebhookMinInterval is that default; WEBHOOK_MIN_INTERVAL changes it, and
+// zero turns the throttle off.
 const (
-	webhookQuiet       = 2 * time.Second
-	webhookMaxHold     = 5 * time.Second
-	webhookMinInterval = 30 * time.Second
+	webhookQuiet   = 2 * time.Second
+	webhookMaxHold = 5 * time.Second
+
+	DefaultWebhookMinInterval = 30 * time.Second
 )
 
 // AfterFunc runs f once, after d, and returns a function that cancels it and
@@ -190,6 +193,13 @@ func WithDebounceTimer(after AfterFunc) AggregatorOption {
 	return func(a *Aggregator) { a.after = after }
 }
 
+// WithWebhookMinInterval sets the least time between two webhook-driven
+// refreshes of one repo. Zero turns the throttle off, leaving the quiet window
+// and the cap. The default is DefaultWebhookMinInterval.
+func WithWebhookMinInterval(d time.Duration) AggregatorOption {
+	return func(a *Aggregator) { a.webhookMinInterval = d }
+}
+
 // WithDebounceOwner ties the webhook debouncer to ctx, the lifetime of the
 // Aggregator's own run: once ctx ends, every pending refresh is dropped with its
 // timer and later events are refused. Without it a refresh queued for a
@@ -201,7 +211,7 @@ func WithDebounceOwner(ctx context.Context) AggregatorOption {
 // RefreshRepoDebounced is RefreshRepo for a webhook delivery: events for one
 // repo that arrive close together cause one scoped refresh after the last of
 // them, not one each, and no two refreshes of a repo start less than
-// webhookMinInterval apart. Polls, force refreshes and user actions call RefreshRepo
+// the webhook minimum interval apart. Polls, force refreshes and user actions call RefreshRepo
 // (or Refresh) directly and are never held back.
 //
 // It reports false at once, arming nothing, when no Source can do a scoped
