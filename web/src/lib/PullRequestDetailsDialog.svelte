@@ -342,7 +342,13 @@
         jobs.push(
           renderMarkdown(text, {
             repoUrl: repoUrlOf(current.url),
-            imageSource: imageSourceFor(current.forge, repoUrlOf(current.url)),
+            imageSource: imageSourceFor(
+              current.forge,
+              repoUrlOf(current.url),
+              isReleaseTarget(current)
+                ? { fullName: current.repo, tag: current.tag }
+                : { fullName: current.repo, number: current.number },
+            ),
           }).then((out) => {
             rendered[key] = out;
           }),

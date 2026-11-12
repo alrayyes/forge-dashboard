@@ -63,6 +63,40 @@ describe('imageSourceFor a GitHub item', () => {
   });
 });
 
+describe('imageSourceFor with the item named', () => {
+  const attachment = 'https://github.com/user-attachments/assets/1234';
+  const enc = encodeURIComponent(attachment);
+
+  test('adds an issue or pull request to a GitHub attachment', () => {
+    const src = imageSourceFor('github', 'https://github.com/o/r', {
+      fullName: 'o/r',
+      number: 7,
+    });
+    expect(src(attachment)).toBe(
+      `/api/v1/images?forge=github&url=${enc}&fullName=o%2Fr&number=7`,
+    );
+  });
+
+  test('adds a release by its tag', () => {
+    const src = imageSourceFor('github', 'https://github.com/o/r', {
+      fullName: 'o/r',
+      tag: 'v1.0.0',
+    });
+    expect(src(attachment)).toBe(
+      `/api/v1/images?forge=github&url=${enc}&fullName=o%2Fr&tag=v1.0.0`,
+    );
+  });
+
+  test('leaves every other address as it was', () => {
+    const src = imageSourceFor('github', 'https://github.com/o/r', {
+      fullName: 'o/r',
+      number: 7,
+    });
+    const other = 'https://user-images.githubusercontent.com/1/a.png';
+    expect(src(other)).toBe(proxied('github', other));
+  });
+});
+
 test('an item with no repository address gets no images', () => {
   expect(
     imageSourceFor('forgejo', null)('https://git.example/a.png'),

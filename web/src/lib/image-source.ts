@@ -13,6 +13,12 @@ const GITHUB_HOSTS = new Set([
 
 export type ImageSource = (src: string) => string | null;
 
+// The issue, pull request or release the text belongs to. A private GitHub
+// repository serves an attachment only at a signed address that the server
+// finds in the item's rendered body, so it has to know which item that is
+// (#3469).
+export type ImageItem = { fullName: string; number?: number; tag?: string };
+
 function parse(raw: string): URL | null {
   try {
     const u = new URL(raw);
@@ -22,8 +28,21 @@ function parse(raw: string): URL | null {
   }
 }
 
-function proxied(forge: string, src: string): string {
-  return `/api/v1/images?forge=${forge}&url=${encodeURIComponent(src)}`;
+function proxied(forge: string, src: string, item?: ImageItem): string {
+  const base = `/api/v1/images?forge=${forge}&url=${encodeURIComponent(src)}`;
+  if (!item || forge !== 'github' || !isAttachment(src)) return base;
+  const which =
+    item.tag !== undefined
+      ? `tag=${encodeURIComponent(item.tag)}`
+      : `number=${item.number}`;
+  return `${base}&fullName=${encodeURIComponent(item.fullName)}&${which}`;
+}
+
+function isAttachment(src: string): boolean {
+  const u = parse(src);
+  return (
+    u?.hostname === 'github.com' && u.pathname.startsWith('/user-attachments/')
+  );
 }
 
 // `repoUrl` is the repository the text belongs to. A Forgejo item may embed
@@ -31,6 +50,7 @@ function proxied(forge: string, src: string): string {
 export function imageSourceFor(
   forge: string,
   repoUrl: string | null | undefined,
+  item?: ImageItem,
 ): ImageSource {
   const home = repoUrl ? parse(repoUrl) : null;
   return (src) => {
@@ -38,7 +58,7 @@ export function imageSourceFor(
     if (!u) return null;
     if (forge === 'github') {
       return u.protocol === 'https:' && !u.port && GITHUB_HOSTS.has(u.hostname)
-        ? proxied(forge, src)
+        ? proxied(forge, src, item)
         : null;
     }
     if (forge === 'forgejo' && home && u.origin === home.origin) {
