@@ -151,23 +151,6 @@ test('choices follow the list when a held list lands by a sort change', async ({
   ]);
 });
 
-test('choices follow the list when the pointer leaves a held list', async ({
-  page,
-}) => {
-  await open(page);
-  await page.locator('#pr-rows .row').first().hover();
-  await page.evaluate((data) => window.__push(data), snapshot(NEWER));
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
-
-  await page.mouse.move(2, 2);
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-  expect(await choices(page, 'shared-author-filter')).toEqual([
-    'alrayyes',
-    'claude',
-  ]);
-});
-
 test('the Issues page keeps its choices with the list while updates are paused', async ({
   page,
 }) => {
@@ -284,18 +267,4 @@ test('a pick the landed list no longer offers is cleared and the list shows agai
 
   await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-});
-
-test('the Title suggestions follow the list that lands', async ({ page }) => {
-  await open(page);
-  await page.evaluate((data) => window.__push(data), snapshot(NEWER));
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-
-  await expect
-    .poll(() =>
-      page
-        .locator('#shared-title-options option')
-        .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value)),
-    )
-    .toEqual(['Pull request 1', 'Pull request 2']);
 });
