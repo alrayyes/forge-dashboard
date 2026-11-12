@@ -3,6 +3,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
+// #3681: the overview shows a budget only once less than 20% of it is left;
+// the full budget lives on the Insights page.
 // #1433: GitHub has two independent budgets. The text under the forge pill
 // shows each one, labelled, so it never describes a different budget from the
 // banner, and a remaining count above its limit is never shown against that
@@ -45,13 +47,11 @@ test.describe('the budget text under the forge pill (#1433)', () => {
       rateLimitREST: rateLimit(5000, 4800, inMinutes(40)),
     });
 
-    await expect(budgets(page)).toHaveCount(2);
-    await expect(budgets(page).nth(0)).toContainText(
+    await expect(budgets(page)).toHaveCount(1);
+    await expect(budgets(page)).toContainText(
       /^GH GraphQL: 0\/5,000 reqs, resets .+/,
     );
-    await expect(budgets(page).nth(1)).toContainText(
-      /^GH REST: 4,800\/5,000 reqs, resets .+/,
-    );
+    await expect(page.locator('#forge-health')).not.toContainText('GH REST');
     // The banner and the pill now describe the same budget.
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /GraphQL budget is spent/,
@@ -61,10 +61,10 @@ test.describe('the budget text under the forge pill (#1433)', () => {
   test('a forge with one budget still says which one it is', async ({
     page,
   }) => {
-    await open(page, { rateLimitREST: rateLimit(5000, 4800, inMinutes(40)) });
+    await open(page, { rateLimitREST: rateLimit(5000, 800, inMinutes(40)) });
 
     await expect(budgets(page)).toHaveCount(1);
-    await expect(budgets(page)).toContainText(/^GH REST: 4,800\/5,000 reqs/);
+    await expect(budgets(page)).toContainText(/^GH REST: 800\/5,000 reqs/);
     await expect(page.locator('#forge-health')).not.toContainText(/GH: /);
   });
 
@@ -85,7 +85,7 @@ test.describe('the budget text under the forge pill (#1433)', () => {
               forge: 'forgejo',
               reachable: true,
               repoCount: 1,
-              rateLimitREST: rateLimit(1000, 900, inMinutes(40)),
+              rateLimitREST: rateLimit(1000, 150, inMinutes(40)),
             },
           ],
           pullRequests: [],
@@ -98,10 +98,10 @@ test.describe('the budget text under the forge pill (#1433)', () => {
     await page.goto('/pull-requests.html');
 
     await expect(budgets(page)).toHaveCount(1);
-    await expect(budgets(page)).toContainText(/^FJ REST: 900\/1,000 reqs/);
+    await expect(budgets(page)).toContainText(/^FJ REST: 150\/1,000 reqs/);
   });
 
-  test('a remaining count above its limit is never shown against that limit', async ({
+  test('a remaining count above its limit is never shown on the overview', async ({
     page,
   }) => {
     await open(page, {
@@ -112,11 +112,10 @@ test.describe('the budget text under the forge pill (#1433)', () => {
       },
     });
 
-    await expect(budgets(page)).toHaveCount(1);
-    await expect(budgets(page)).toContainText(
-      /^GH REST: 9,992 reqs left, resets .+/,
+    await expect(page.locator('#forge-health-live')).toContainText(
+      'GitHub reachable',
     );
-    await expect(budgets(page)).not.toContainText('/1,000');
+    await expect(budgets(page)).toHaveCount(0);
   });
 
   test('each text stays out of the live region, and the page has no axe violations', async ({
@@ -126,7 +125,7 @@ test.describe('the budget text under the forge pill (#1433)', () => {
       rateLimitGraphQL: rateLimit(5000, 0, inMinutes(12)),
       rateLimitREST: rateLimit(5000, 4800, inMinutes(40)),
     });
-    await expect(budgets(page)).toHaveCount(2);
+    await expect(budgets(page)).toHaveCount(1);
 
     for (const text of await budgets(page).all()) {
       await expect(text).toHaveAttribute('aria-live', 'off');
@@ -136,4 +135,34 @@ test.describe('the budget text under the forge pill (#1433)', () => {
       .analyze();
     expect(results.violations).toEqual([]);
   });
+
+  test('a budget with plenty left shows no text on the overview (#3681)', async ({
+    page,
+  }) => {
+    await open(page, {
+      rateLimitGraphQL: rateLimit(5000, 4900, inMinutes(12)),
+      rateLimitREST: rateLimit(5000, 1000, inMinutes(40)),
+    });
+    await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
+    await expect(budgets(page)).toHaveCount(0);
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
+    await expect(page.locator('#forge-names')).toHaveCount(0);
+    await expect(page.getByText('Connected forges')).toHaveCount(0);
+  });
+
+  for (const width of [360, 390, 1280]) {
+    test(`a quiet header has no axe violations at ${width}px (#3681)`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page, {
+        rateLimitREST: rateLimit(5000, 4900, inMinutes(40)),
+      });
+      await expect(budgets(page)).toHaveCount(0);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
 });

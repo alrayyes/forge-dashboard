@@ -216,7 +216,7 @@ header,
   padding: 28px 0 20px;
 }
 
-/* The dashboard page's own toolbar (forge-names, the owner-select, forge
+/* The dashboard page's own toolbar (the owner-select, forge
    health, the refreshed clock, the refresh button) — plain markup right
    below the shared <header>, not part of it (see (app)/+page.svelte's own
    comment on why: a Svelte context "slot" into the layout's <header> broke
@@ -226,12 +226,6 @@ header,
    paid that cost. */
 .dashboard-toolbar {
   padding-top: 4px;
-}
-
-.dashboard-toolbar-forges {
-  margin: 0;
-  font-size: 0.78125rem;
-  color: var(--ink-3);
 }
 
 .brand {

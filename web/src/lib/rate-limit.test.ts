@@ -3,9 +3,8 @@ import { describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { isRateLimited, isRunningLow, rateLimitSeverity } = await import(
-  './rate-limit'
-);
+const { isRateLimited, isRunningLow, rateLimitSeverity, showsOnOverview } =
+  await import('./rate-limit');
 
 const now = Date.parse('2030-01-01T12:00:00Z');
 const future = '2030-01-01T12:10:00Z';
@@ -93,5 +92,24 @@ describe('isRunningLow', () => {
     expect(
       isRunningLow({ limit: 5000, remaining: 500, resetsAt: future }, now),
     ).toBe(false);
+  });
+});
+
+describe('showsOnOverview', () => {
+  const at = (remaining: number) => ({
+    limit: 5000,
+    remaining,
+    resetsAt: future,
+  });
+
+  test('a budget with 20% or more left stays off the overview', () => {
+    expect(showsOnOverview(at(5000), now)).toBe(false);
+    expect(showsOnOverview(at(1000), now)).toBe(false);
+  });
+
+  test('under 20% left it shows, and so does a spent one', () => {
+    expect(showsOnOverview(at(999), now)).toBe(true);
+    expect(showsOnOverview(at(100), now)).toBe(true);
+    expect(showsOnOverview(at(0), now)).toBe(true);
   });
 });

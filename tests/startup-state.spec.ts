@@ -85,7 +85,11 @@ test.describe('start-up state', () => {
     await expect(page.locator('#forge-health')).toContainText('loading');
 
     state.forges = [up('github'), outage('forgejo')];
-    await expect(page.locator('#forge-health')).toContainText(
+    // A reachable forge draws no chip; the live region still says so.
+    await expect(page.locator('#forge-health-live')).toContainText(
+      'GitHub reachable',
+    );
+    await expect(page.locator('#forge-health')).not.toContainText(
       'GitHub reachable',
     );
     await expect(page.locator('#forge-health')).toContainText(

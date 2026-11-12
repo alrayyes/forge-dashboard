@@ -125,13 +125,24 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
     await expect(page.locator(LIVE)).toContainText('GitHub reachable');
   });
 
-  test('the visible pill keeps its content', async ({ page }) => {
+  test('a healthy forge draws no visible pill (#3681)', async ({ page }) => {
     const state = { forge: up(), requests: 0 };
     await open(page, state);
     await poll(page, state);
-    await expect(page.locator('#forge-health .forge-health')).toContainText(
-      'GitHub reachable',
-    );
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
+    await expect(page.locator(LIVE)).toContainText('GitHub reachable');
+  });
+
+  test('recovery removes the pill and still announces once (#3681)', async ({
+    page,
+  }) => {
+    const state = { forge: down(), requests: 0 };
+    await open(page, state);
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(1);
+    state.forge = up();
+    await poll(page, state);
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
+    await expect(page.locator(LIVE)).toContainText('GitHub reachable');
   });
 
   test('going unreachable announces once, and recovery once', async ({
