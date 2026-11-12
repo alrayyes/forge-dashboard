@@ -7786,9 +7786,14 @@
         }
       }
 
+      // Set by a person's page move so the next render speaks the new page
+      // (#3450). A filter or size change re-renders without speaking.
+      let announcePage = false;
+
       function setPage(page: number) {
         onUserChange?.();
         state.page = page;
+        announcePage = true;
         render();
       }
 
@@ -7814,6 +7819,12 @@
           : null;
         pages.innerHTML = "";
 
+        if (announcePage) {
+          announcePage = false;
+          const live = document.getElementById(`${idPrefix}-pagination-live`);
+          if (live) live.textContent = `Page ${state.page} of ${totalPages}`;
+        }
+
         const prev = buttonEl("pagination-nav", "Previous");
         prev.type = "button";
         prev.disabled = state.page <= 1;
@@ -7821,6 +7832,12 @@
           setPage(state.page - 1);
         });
         pages.appendChild(prev);
+
+        // Shown in place of the page numbers on a phone (#3450).
+        const status = document.createElement("span");
+        status.className = "pagination-status";
+        status.textContent = `Page ${state.page} of ${totalPages}`;
+        pages.appendChild(status);
 
         for (let p = 1; p <= totalPages; p++) {
           const button = buttonEl("pagination-page", String(p));
@@ -10703,6 +10720,12 @@
           </p>
           <div class="pagination" id="pr-pagination" hidden>
             <div class="pagination-pages" id="pr-pagination-pages"></div>
+            <span
+              class="sr-only"
+              id="pr-pagination-live"
+              role="status"
+              aria-live="polite"
+            ></span>
             <label class="pagination-size">
               Per page
               <select id="pr-page-size" aria-label="Results per page">
@@ -10775,6 +10798,12 @@
           </p>
           <div class="pagination" id="issue-pagination" hidden>
             <div class="pagination-pages" id="issue-pagination-pages"></div>
+            <span
+              class="sr-only"
+              id="issue-pagination-live"
+              role="status"
+              aria-live="polite"
+            ></span>
             <label class="pagination-size">
               Per page
               <select id="issue-page-size" aria-label="Results per page">
