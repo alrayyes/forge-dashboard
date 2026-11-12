@@ -183,25 +183,17 @@
           >Back to advisories
         </button>
       {/if}
-      <h2 class="adv-title" id="adv-title">
-        {current ? current.summary : "Dependency advisories"}
-      </h2>
-      <p class="adv-subtitle">
-        {target?.fullName ?? ""}{target?.branch ? ` · ${target.branch}` : ""}
-        {#if !current}<span class="adv-source">{forgeName}</span>{/if}
-      </p>
+      {#if !current}
+        <h2 class="adv-title" id="adv-title">Dependency advisories</h2>
+        <p class="adv-subtitle">
+          {target?.fullName ?? ""}{target?.branch ? ` · ${target.branch}` : ""}
+          <span class="adv-source">{forgeName}</span>
+        </p>
+      {/if}
     </div>
     <div class="adv-header-actions">
-      {#if (current?.url ?? list?.url) && httpHref(current?.url ?? list?.url ?? "")}
-        <a
-          class="adv-ghost"
-          data-testid="advisory-open-on-forge"
-          href={current?.url ?? list?.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open on {words.linkName} (opens in a new tab)"
-          >Open on {words.linkName}</a
-        >
+      {#if !current && list?.url && httpHref(list.url)}
+        {@render openLink(list.url)}
       {/if}
       <button
         type="button"
@@ -311,16 +303,15 @@
     {/if}
   </div>
 
-  <div class="adv-footer">
-    {#if current}
-      <button type="button" class="adv-ghost" onclick={back}
-        >Back to advisories</button
+  <!-- The detail view has Back and Close in its header, so it needs no footer
+       repeating them (#3390). -->
+  {#if !current}
+    <div class="adv-footer">
+      <button type="button" class="adv-ghost" onclick={() => dialog.close()}
+        >Close</button
       >
-    {/if}
-    <button type="button" class="adv-ghost" onclick={() => dialog.close()}
-      >Close</button
-    >
-  </div>
+    </div>
+  {/if}
 </dialog>
 
 {#snippet sev(severity: string | undefined)}
@@ -341,7 +332,28 @@
   >
 {/snippet}
 
+{#snippet openLink(href: string)}
+  <a
+    class="adv-ghost"
+    data-testid="advisory-open-on-forge"
+    {href}
+    target="_blank"
+    rel="noopener noreferrer"
+    aria-label="Open on {words.linkName} (opens in a new tab)"
+    >Open on {words.linkName}</a
+  >
+{/snippet}
+
 {#snippet detail(item: AdvisoryItem)}
+  <!-- The title block scrolls with the body, so a long title does not take the
+       screen from the description on a small phone (#3390). -->
+  <div class="adv-detail-head">
+    <h2 class="adv-title" id="adv-title">{item.summary}</h2>
+    <p class="adv-subtitle">
+      {target?.fullName ?? ""}{target?.branch ? ` · ${target.branch}` : ""}
+    </p>
+    {#if item.url && httpHref(item.url)}{@render openLink(item.url)}{/if}
+  </div>
   <div class="adv-badges">
     <span class="adv-chip">{item.state === "open" ? "Open" : item.state}</span>
     {@render sev(item.severity)}
@@ -488,6 +500,12 @@
     color: var(--ink-2);
     font-family: "IBM Plex Mono", ui-monospace, monospace;
     overflow-wrap: anywhere;
+  }
+  .adv-detail-head {
+    margin-bottom: 12px;
+  }
+  .adv-detail-head .adv-ghost {
+    margin-top: 10px;
   }
   .adv-source {
     font-family: inherit;
