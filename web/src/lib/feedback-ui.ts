@@ -87,6 +87,15 @@ type ToastTimer = {
   focused: boolean;
 };
 
+// The Activity control only shows when it has something to list: a recent or
+// in-flight action, or one queued for a rate limit reset (#3684).
+export function activityControlVisible(
+  entryCount: number,
+  queuedCount: number,
+): boolean {
+  return entryCount > 0 || queuedCount > 0;
+}
+
 export function mountFeedbackUI(
   store: FeedbackStore,
   options: FeedbackUIOptions,
@@ -678,10 +687,29 @@ export function mountFeedbackUI(
     return item;
   }
 
+  const bar = toggle?.closest<HTMLElement>('.activity-bar') ?? null;
+  let queuedCount = 0;
+  function syncVisibility(entryCount: number) {
+    if (!bar) return;
+    const show = activityControlVisible(entryCount, queuedCount);
+    if (!show && !bar.hidden && bar.contains(document.activeElement)) {
+      // A control that vanishes under focus would drop it to the body.
+      document.getElementById('force-refresh-button')?.focus();
+    }
+    if (!show && panel && !panel.hidden) closePanel(false);
+    bar.hidden = !show;
+  }
+
+  function setQueuedCount(count: number) {
+    queuedCount = count;
+    syncVisibility(store.entries().length);
+  }
+
   let panelSig = '';
   function renderPanel() {
     const entries = store.entries();
     if (toggle) toggle.textContent = `Activity ${entries.length}`;
+    syncVisibility(entries.length);
     if (clearButton)
       clearButton.disabled = !entries.some((e) => isFinished(e.phase));
     if (!panelList) return;
@@ -732,5 +760,11 @@ export function mountFeedbackUI(
   store.subscribe(render);
   render();
 
-  return { decorateRow, syncRows, tick, inlineLines: buildInline };
+  return {
+    decorateRow,
+    syncRows,
+    tick,
+    inlineLines: buildInline,
+    setQueuedCount,
+  };
 }

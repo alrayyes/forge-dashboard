@@ -162,6 +162,13 @@ test.describe('Author link focus ring (#3237)', () => {
           expect(
             await link.evaluate((el) => el.matches(':focus-visible')),
           ).toBe(true);
+          // Tab scrolls the link only as far as the nearest edge, which can
+          // leave its bottom band under the fixed bottom nav on a phone and
+          // depends on the page height above it. Put it mid-screen so the
+          // four-sided check sees the whole ring (#3684).
+          await link.evaluate((el) =>
+            el.scrollIntoView({ block: 'center', inline: 'nearest' }),
+          );
           const box = await link.boundingBox();
           const cellBox = await cell.boundingBox();
           if (!box || !cellBox) throw new Error('no box');

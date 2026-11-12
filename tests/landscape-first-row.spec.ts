@@ -172,13 +172,13 @@ for (const size of LANDSCAPE) {
         }
       });
 
-      test('the Activity control and Refresh stay reachable and 44px on a phone-sized touch target', async ({
+      test('Refresh stays reachable and 44px on a phone-sized touch target', async ({
         page,
       }) => {
         await open(page, path, size);
         await firstRow(page, rows);
         const tall = size.width <= 760 ? 44 : 24;
-        for (const sel of ['#activity-toggle', '#force-refresh-button']) {
+        for (const sel of ['#force-refresh-button']) {
           await expect
             .poll(
               async () => {

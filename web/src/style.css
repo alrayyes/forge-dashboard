@@ -2774,6 +2774,10 @@ a.ci-pill:hover {
   pointer-events: none;
 }
 
+.activity-bar[hidden] {
+  display: none;
+}
+
 .activity-bar > * {
   pointer-events: auto;
 }

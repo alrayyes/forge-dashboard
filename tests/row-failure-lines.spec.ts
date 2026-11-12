@@ -170,10 +170,8 @@ test.describe('row failure lines (#752)', () => {
     setSnapshot([]);
     await page.locator('#force-refresh-button').click();
     await expect(page.locator('#pr-rows .row')).toHaveCount(0);
-    await page.locator('#activity-toggle').click();
-    await expect(
-      page.locator('#activity-panel .activity-item', { hasText: 'Failed' }),
-    ).toHaveCount(0);
+    // Nothing is left to list, so the Activity control goes too (#3684).
+    await expect(page.locator('#activity-toggle')).toBeHidden();
   });
 
   test('acting on the row again clears the earlier failure line', async ({

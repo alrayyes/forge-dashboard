@@ -510,15 +510,17 @@ request is merged or closed it says so) and a dismiss button. Success toasts go
 after about six seconds and wait while you hover or focus them. Error toasts
 stay until you dismiss them. The sticky "Activity" control keeps a count and
 opens a panel of in-flight and recent actions per pull request, with "Show row"
-and "Clear finished", so a dismissed toast isn't lost. A reload keeps the
-finished entries for as long as the tab stays open, up to 40, until you use
-"Clear finished" (they live in the tab's `sessionStorage`; with storage blocked
-the list starts empty). A restored failure has no Retry. A request still queued
-comes back from the server, which holds it on the pull request until a refresh
-shows it landed or the wait runs out. One polite live region announces each
-event once and never reads out the countdown, and with reduced motion on, toasts
-appear without animation. The banner at the top is left for global conditions
-such as a rate limit or an unreachable forge.
+and "Clear finished", so a dismissed toast isn't lost. The control is hidden
+while there is nothing to list (no recent, in-flight or queued action), and
+clearing the last entry closes the panel and moves focus to Refresh. A reload
+keeps the finished entries for as long as the tab stays open, up to 40, until
+you use "Clear finished" (they live in the tab's `sessionStorage`; with storage
+blocked the list starts empty). A restored failure has no Retry. A request still
+queued comes back from the server, which holds it on the pull request until a
+refresh shows it landed or the wait runs out. One polite live region announces
+each event once and never reads out the countdown, and with reduced motion on,
+toasts appear without animation. The banner at the top is left for global
+conditions such as a rate limit or an unreachable forge.
 
 The waiting chip is how a row says "something is happening, hold on". It is one
 chip in a slot at the top of the row's action area, which every pull request row
