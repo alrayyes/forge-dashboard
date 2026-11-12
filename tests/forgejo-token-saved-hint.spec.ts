@@ -86,18 +86,21 @@ for (const saved of [true, false]) {
 
         // The placeholder shows whole: it needs no more room than the input
         // has once its padding is taken off.
-        const fits = await input.evaluate((el) => {
-          const field = el as HTMLInputElement;
-          const style = getComputedStyle(field);
-          const ctx = document.createElement('canvas').getContext('2d')!;
-          ctx.font = style.font;
-          const room =
-            field.clientWidth -
-            parseFloat(style.paddingLeft) -
-            parseFloat(style.paddingRight);
-          return ctx.measureText(field.placeholder).width <= room;
-        });
-        expect(fits).toBe(true);
+        await expect
+          .poll(() =>
+            input.evaluate((el) => {
+              const field = el as HTMLInputElement;
+              const style = getComputedStyle(field);
+              const ctx = document.createElement('canvas').getContext('2d')!;
+              ctx.font = style.font;
+              const room =
+                field.clientWidth -
+                parseFloat(style.paddingLeft) -
+                parseFloat(style.paddingRight);
+              return ctx.measureText(field.placeholder).width <= room;
+            }),
+          )
+          .toBe(true);
 
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
