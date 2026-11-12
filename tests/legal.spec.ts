@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
 import { test } from './server-fixture';
 
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
+
 const PAGES = [
   { path: '/disclaimer.html', title: 'Disclaimer' },
   { path: '/privacy.html', title: 'Privacy' },
@@ -9,32 +11,22 @@ const PAGES = [
 
 test.describe('disclaimer and privacy pages', () => {
   for (const { path, title } of PAGES) {
-    test(`${path} is reachable without a session`, async ({ page }) => {
+    test(`${path} is reachable without a session and has no axe-core violations or horizontal scroll at desktop and phone width`, async ({
+      page,
+    }) => {
       await page.goto(path);
       await expect(page).toHaveURL(new RegExp(`${path.replace('.', '\\.')}$`));
       await expect(page.locator('.legal-header h1')).toHaveText(title);
-    });
 
-    test(`${path} has no axe-core violations at desktop width`, async ({
-      page,
-    }) => {
-      await page.goto(path);
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      const desktop = await new AxeBuilder({ page })
+        .withTags(AXE_TAGS)
         .analyze();
-      expect(results.violations).toEqual([]);
-    });
+      expect(desktop.violations).toEqual([]);
 
-    test(`${path} has no axe-core violations and no horizontal scroll at phone width`, async ({
-      page,
-    }) => {
       await page.setViewportSize({ width: 390, height: 844 });
-      await page.goto(path);
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
+      await page.reload();
+      const phone = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+      expect(phone.violations).toEqual([]);
 
       const scrollWidth = await page.evaluate(
         () => document.documentElement.scrollWidth,
