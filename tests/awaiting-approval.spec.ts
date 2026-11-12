@@ -161,25 +161,26 @@ test.describe('Awaiting workflow approval (#1280)', () => {
         // 4.5:1 is WCAG 1.4.3 for text this size.
         // https://www.w3.org/TR/WCAG22/#contrast-minimum
         // https://github.com/alrayyes/forge-dashboard/issues/1527
-        const contrast = await pill.evaluate((el) => {
-          const channels = (css: string) =>
-            (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-          const luminance = (rgb: number[]) => {
-            const [r, g, b] = rgb.map((v) => {
-              const s = v / 255;
-              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-            });
-            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-          };
-          const style = getComputedStyle(el);
-          const [hi, lo] = [
-            luminance(channels(style.color)),
-            luminance(channels(style.backgroundColor)),
-          ].sort((a, b) => b - a);
-          return (hi + 0.05) / (lo + 0.05);
-        });
+        const contrast = () =>
+          pill.evaluate((el) => {
+            const channels = (css: string) =>
+              (css.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+            const luminance = (rgb: number[]) => {
+              const [r, g, b] = rgb.map((v) => {
+                const s = v / 255;
+                return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+              });
+              return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            };
+            const style = getComputedStyle(el);
+            const [hi, lo] = [
+              luminance(channels(style.color)),
+              luminance(channels(style.backgroundColor)),
+            ].sort((a, b) => b - a);
+            return (hi + 0.05) / (lo + 0.05);
+          });
 
-        expect(contrast).toBeGreaterThanOrEqual(4.5);
+        await expect.poll(contrast).toBeGreaterThanOrEqual(4.5);
       });
     }
   });

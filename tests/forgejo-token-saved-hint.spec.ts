@@ -54,18 +54,17 @@ for (const saved of [true, false]) {
         const input = page.locator('#forgejo-token');
         const helper = page.locator('#forgejo-token-saved');
         await expect(input).toBeVisible();
-        const described = (
-          (await input.getAttribute('aria-describedby')) ?? ''
-        ).split(/\s+/);
-        const placeholder = (await input.getAttribute('placeholder')) ?? '';
 
         if (saved) {
           await expect(page.locator('#forgejo-token-badge')).toBeVisible();
           await expect(helper).toBeVisible();
           await expect(helper).toContainText('Token saved');
           await expect(helper).toContainText('Leave blank to keep');
-          expect(described).toContain('forgejo-token-saved');
-          expect(placeholder).toBe('Unchanged');
+          await expect(input).toHaveAttribute(
+            'aria-describedby',
+            /(^|\s)forgejo-token-saved(\s|$)/,
+          );
+          await expect(input).toHaveAttribute('placeholder', 'Unchanged');
 
           // The helper sits right under the input, not behind a placeholder.
           const inputBox = await input.boundingBox();
@@ -80,8 +79,14 @@ for (const saved of [true, false]) {
         } else {
           await expect(page.locator('#forgejo-token-badge')).toBeHidden();
           await expect(helper).toHaveCount(0);
-          expect(described).not.toContain('forgejo-token-saved');
-          expect(placeholder).not.toMatch(/saved|keep|blank|unchanged/i);
+          await expect(input).not.toHaveAttribute(
+            'aria-describedby',
+            /(^|\s)forgejo-token-saved(\s|$)/,
+          );
+          await expect(input).not.toHaveAttribute(
+            'placeholder',
+            /saved|keep|blank|unchanged/i,
+          );
         }
 
         // The placeholder shows whole: it needs no more room than the input
