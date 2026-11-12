@@ -271,9 +271,11 @@
   // (#3325).
   let prevButton = $state<HTMLButtonElement>();
   let nextButton = $state<HTMLButtonElement>();
+  let announcement = $state("");
   async function goToPage(n: number) {
     const held = document.activeElement;
     page = n;
+    announcement = `Page ${n} of ${totalPages}`;
     await tick();
     if (held === prevButton && prevButton?.disabled)
       nextButton?.focus({ preventScroll: true });
@@ -1580,13 +1582,16 @@
                   bind:this={prevButton}
                   onclick={() => goToPage(clampedPage - 1)}>Previous</button
                 >
+                <span class="pagination-status"
+                  >Page {clampedPage} of {totalPages}</span
+                >
                 {#each pageNumbers as n (n)}
                   <button
                     type="button"
                     class="pagination-page"
                     class:active={n === clampedPage}
                     aria-current={n === clampedPage ? "page" : undefined}
-                    onclick={() => (page = n)}>{n}</button
+                    onclick={() => goToPage(n)}>{n}</button
                   >
                 {/each}
                 <button
@@ -1597,6 +1602,9 @@
                   onclick={() => goToPage(clampedPage + 1)}>Next</button
                 >
               </div>
+              <span class="sr-only" role="status" aria-live="polite"
+                >{announcement}</span
+              >
             {/if}
             <label class="pagination-size">
               Per page

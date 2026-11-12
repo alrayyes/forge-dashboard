@@ -2647,6 +2647,15 @@ a.ci-pill:hover {
   outline-offset: 1px;
 }
 
+/* The phone stepper's "Page N of M" (#3450): hidden until the pager is a
+   stepper, below. */
+.pagination-status {
+  display: none;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  padding: 0 6px;
+}
+
 .pagination-size {
   display: flex;
   align-items: center;
@@ -4899,6 +4908,22 @@ footer a[aria-current="page"] {
     label:not(.task):has(> input[type="radio"])
   ) {
   min-height: var(--tap-floor);
+}
+
+/* 390px and narrower: Previous, "Page N of M", Next in place of the numbers
+   (#3450). Between 391 and 760px the numbers stay. */
+@media (max-width: 390px) {
+  .pagination-pages {
+    flex: 1 1 100%;
+    justify-content: space-between;
+  }
+  .pagination-page {
+    display: none;
+  }
+  .pagination-status {
+    display: block;
+    text-align: center;
+  }
 }
 
 @media (max-width: 760px) {
