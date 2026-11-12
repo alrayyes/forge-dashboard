@@ -83,6 +83,16 @@ var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s\x0B\p{Z}\x{85}(\[{,;:>"'
 // host. Only the first 64 KiB of the body is read.
 // Never nil.
 func MentionedIssueRefs(forge Forge, title, body, repo string, number int, baseURL string) []IssueRef {
+	return scanMentions(forge, title, body, repo, number, baseURL, nil)
+}
+
+// scanMentions is MentionedIssueRefs, keeping only the references keep accepts
+// when it is set. keep gets the text that was read and where the reference
+// starts in it.
+func scanMentions(forge Forge, title, body, repo string, number int, baseURL string, keep func(text string, at int) bool) []IssueRef {
+	if keep == nil {
+		keep = func(string, int) bool { return true }
+	}
 	refs := []IssueRef{}
 	seen := map[string]struct{}{}
 	base := strings.TrimRight(baseURL, "/")
@@ -97,11 +107,10 @@ func MentionedIssueRefs(forge Forge, title, body, repo string, number int, baseU
 		if err != nil || n <= 0 {
 			continue
 		}
-		target := repo
-		if f.repo != "" && !strings.EqualFold(f.repo, repo) {
-			// Both forges match repository names without regard to case.
-			target = strings.ToLower(f.repo)
+		if !keep(text, f.at) {
+			continue
 		}
+		target := mentionTarget(f.repo, repo)
 		if n == number && strings.EqualFold(target, repo) {
 			continue
 		}
@@ -117,6 +126,17 @@ func MentionedIssueRefs(forge Forge, title, body, repo string, number int, baseU
 	}
 
 	return refs
+}
+
+// mentionTarget is the repo a reference points at: the pull request's own
+// repo for a plain #N or the same name in another case, else the named one
+// lowercased, since both forges match repository names without regard to case.
+func mentionTarget(named, own string) string {
+	if named == "" || strings.EqualFold(named, own) {
+		return own
+	}
+
+	return strings.ToLower(named)
 }
 
 // candidate is a reference found in text, before it is checked against the

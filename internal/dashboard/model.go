@@ -309,6 +309,10 @@ type PullRequest struct {
 	// description mentions without closing them (see MentionedIssueRefs).
 	// Always a list, empty when there are none.
 	MentionsIssues []IssueRef `json:"mentionsIssues"`
+	// RefsIssues lists the issues the title or description references with
+	// Refs, Ref, Related to or See (see ReferencedIssueRefs): work on a
+	// ticket that stays open. Always a list, empty when there are none.
+	RefsIssues []IssueRef `json:"refsIssues"`
 	// UnresolvedThreads is how many review threads are still open, or nil when
 	// the forge reports no resolved state (Forgejo), so a client shows the
 	// count without an "open" state rather than a false zero.

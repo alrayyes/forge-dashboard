@@ -38,7 +38,7 @@ func orEmptyIssues(refs []IssueRef) []IssueRef {
 // open pull requests takes the lowest-numbered one as parent, and a loop of
 // branches is treated as no stack at all. prs holds open pull requests only,
 // so a base branch no open pull request owns is not flagged. It also turns a
-// missing ClosesIssues or MentionsIssues into an empty list, the one pass every snapshot goes
+// missing ClosesIssues, MentionsIssues or RefsIssues into an empty list, the one pass every snapshot goes
 // through, so the field is never null on the wire.
 func AnnotateStacks(prs []PullRequest) {
 	for i := range prs {
@@ -47,6 +47,7 @@ func AnnotateStacks(prs []PullRequest) {
 		prs[i].StackChildren = []int{}
 		prs[i].ClosesIssues = orEmptyIssues(prs[i].ClosesIssues)
 		prs[i].MentionsIssues = orEmptyIssues(prs[i].MentionsIssues)
+		prs[i].RefsIssues = orEmptyIssues(prs[i].RefsIssues)
 	}
 
 	parent := parents(prs)
