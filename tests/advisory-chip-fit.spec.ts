@@ -107,33 +107,51 @@ for (const width of [320, 390, 820, 1280]) {
       const rows = page.getByTestId('advisory-row');
       await expect(rows).toHaveCount(2);
 
-      const row = await rows.first().boundingBox();
+      // Re-measured until every check holds, so a layout still settling on a
+      // loaded runner doesn't fail. A missing or empty box never passes.
       const chip = page.locator('.adv-chip-package').first();
-      const box = await chip.boundingBox();
-      if (!row || !box) throw new Error('row or chip has no box');
-      expect(box.x, 'chip starts inside the row').toBeGreaterThanOrEqual(row.x);
-      expect(box.x + box.width, 'chip ends inside the row').toBeLessThanOrEqual(
-        row.x + row.width,
-      );
+      await expect
+        .poll(async () => {
+          const [row, box, short] = await Promise.all([
+            rows.first().boundingBox(),
+            chip.boundingBox(),
+            page.locator('.adv-chip-package').nth(1).boundingBox(),
+          ]);
+          if (!row || !box || !short) return ['a box is missing'];
+          if (row.width <= 0 || box.width <= 0 || short.height <= 0)
+            return ['a box is empty'];
+          const problems: string[] = [];
+          if (box.x < row.x) problems.push('chip starts outside the row');
+          if (box.x + box.width > row.x + row.width)
+            problems.push('chip ends outside the row');
+          if (short.height >= 26) problems.push('short chip wraps');
+          return problems;
+        })
+        .toEqual([]);
       // The full name and the ecosystem are in the text, not cut away.
       await expect(chip).toContainText(LONG_PACKAGE);
       await expect(chip).toContainText('npm');
 
-      // A short name keeps its one-line pill.
-      const short = await page
-        .locator('.adv-chip-package')
-        .nth(1)
-        .boundingBox();
-      expect(short?.height, 'short chip stays one line').toBeLessThan(26);
-
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth - window.innerWidth,
-      );
-      expect(overflow, 'no horizontal page overflow').toBeLessThanOrEqual(0);
-      const body = await page
-        .locator('.adv-body')
-        .evaluate((el) => el.scrollWidth - el.clientWidth);
-      expect(body, 'no horizontal dialog overflow').toBeLessThanOrEqual(0);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              () => document.documentElement.scrollWidth - window.innerWidth,
+            ),
+          { message: 'no horizontal page overflow' },
+        )
+        .toBeLessThanOrEqual(0);
+      await expect
+        .poll(
+          () =>
+            page
+              .locator('.adv-body')
+              .evaluate((el) =>
+                el.clientWidth > 0 ? el.scrollWidth - el.clientWidth : NaN,
+              ),
+          { message: 'no horizontal dialog overflow' },
+        )
+        .toBeLessThanOrEqual(0);
     });
 
     test(`the list passes axe in both themes`, async ({ page }) => {

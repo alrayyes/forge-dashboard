@@ -74,26 +74,27 @@ for (const path of ['/bots.html', '/pull-requests.html']) {
         await expect(chip).toBeVisible();
         await expect(chip).toHaveText(/Out of date/);
 
-        const m = await chip.evaluate((el) => {
-          const box = el.getBoundingClientRect();
-          const range = document.createRange();
-          range.selectNodeContents(el);
-          const kids = Array.from(range.getClientRects());
-          return {
-            scrollWidth: el.scrollWidth,
-            clientWidth: el.clientWidth,
-            right: box.right,
-            bottom: box.bottom,
-            top: box.top,
-            childRightMax: Math.max(...kids.map((r) => r.right)),
-            childBottomMax: Math.max(...kids.map((r) => r.bottom)),
-            childTopMin: Math.min(...kids.map((r) => r.top)),
-          };
-        });
-        expect(m.scrollWidth).toBeLessThanOrEqual(m.clientWidth);
-        expect(m.childRightMax).toBeLessThanOrEqual(m.right + 0.5);
-        expect(m.childBottomMax).toBeLessThanOrEqual(m.bottom + 0.5);
-        expect(m.childTopMin).toBeGreaterThanOrEqual(m.top - 0.5);
+        // Re-measured until every check holds, so a layout still settling on a
+        // loaded runner doesn't fail the test. A chip with no box, or no text
+        // rectangles, never passes.
+        await expect
+          .poll(() =>
+            chip.evaluate((el) => {
+              const box = el.getBoundingClientRect();
+              const range = document.createRange();
+              range.selectNodeContents(el);
+              const kids = Array.from(range.getClientRects());
+              if (box.width <= 0 || box.height <= 0 || kids.length === 0)
+                return false;
+              return (
+                el.scrollWidth <= el.clientWidth &&
+                Math.max(...kids.map((r) => r.right)) <= box.right + 0.5 &&
+                Math.max(...kids.map((r) => r.bottom)) <= box.bottom + 0.5 &&
+                Math.min(...kids.map((r) => r.top)) >= box.top - 0.5
+              );
+            }),
+          )
+          .toBe(true);
       });
     }
   }

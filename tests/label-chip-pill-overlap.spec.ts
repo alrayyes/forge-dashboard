@@ -118,23 +118,36 @@ test.describe('Label chips and the CI pill (#3261)', () => {
           await expect(row).toBeVisible();
           await expect(row.locator('.label-chip')).toHaveCount(3);
 
-          const chips = await row.locator('.label-chip').evaluateAll((els) =>
-            els.map((el) => {
-              const r = el.getBoundingClientRect();
-              return { l: r.left, t: r.top, r: r.right, b: r.bottom };
-            }),
-          );
-          const pill = await row.locator('.ci-pill').first().boundingBox();
-          expect(pill).not.toBeNull();
-          if (!pill) return;
-          for (const c of chips) {
-            const apart =
-              c.r <= pill.x ||
-              c.l >= pill.x + pill.width ||
-              c.b <= pill.y ||
-              c.t >= pill.y + pill.height;
-            expect(apart, `chip ${JSON.stringify(c)} vs pill`).toBe(true);
-          }
+          // Chips and pill are read together and re-measured until every chip
+          // is laid out and clear of the pill. An unrendered box never passes.
+          await expect
+            .poll(() =>
+              row.evaluate((r) => {
+                const pill = r
+                  .querySelector('.ci-pill')
+                  ?.getBoundingClientRect();
+                const chips = Array.from(r.querySelectorAll('.label-chip')).map(
+                  (el) => el.getBoundingClientRect(),
+                );
+                if (!pill || pill.width <= 0 || pill.height <= 0)
+                  return ['pill not laid out'];
+                return chips
+                  .filter(
+                    (c) =>
+                      c.width <= 0 ||
+                      c.height <= 0 ||
+                      !(
+                        c.right <= pill.left ||
+                        c.left >= pill.right ||
+                        c.bottom <= pill.top ||
+                        c.top >= pill.bottom
+                      ),
+                  )
+                  .map((c) => JSON.stringify(c))
+                  .concat(chips.length === 3 ? [] : ['chip count']);
+              }),
+            )
+            .toEqual([]);
 
           const results = await new AxeBuilder({ page })
             .withRules(['target-size'])
