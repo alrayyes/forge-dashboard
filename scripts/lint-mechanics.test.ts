@@ -12,6 +12,16 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
+// process.env without anything a git hook exported (GIT_DIR, GIT_INDEX_FILE, ...).
+function cleanEnv(): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(
+      (e): e is [string, string] =>
+        e[1] !== undefined && !e[0].startsWith('GIT_'),
+    ),
+  );
+}
+
 const script = path.join(import.meta.dir, 'lint-mechanics.sh');
 const dirs: string[] = [];
 afterEach(() => {
@@ -39,7 +49,7 @@ function repo(files: string[]) {
   );
   chmodSync(fake, 0o755);
   const git = (...args: string[]) =>
-    spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+    spawnSync('git', args, { cwd: dir, encoding: 'utf8', env: cleanEnv() });
   git('init', '-q');
   git('add', '-A');
   return {
@@ -48,7 +58,7 @@ function repo(files: string[]) {
       const r = spawnSync('bash', ['scripts/lint-mechanics.sh', ...args], {
         cwd: dir,
         encoding: 'utf8',
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH}`, ...env },
+        env: { ...cleanEnv(), PATH: `${bin}:${process.env.PATH}`, ...env },
       });
       let received: string[] | null = null;
       try {
@@ -62,6 +72,31 @@ function repo(files: string[]) {
     },
   };
 }
+
+// Git hooks export GIT_DIR and GIT_INDEX_FILE. A child git that inherits them
+// acts on the caller's repository, so every child below gets a scrubbed env.
+test('building the throwaway repo leaves a repository named by GIT_DIR alone', () => {
+  const decoy = mkdtempSync(path.join(tmpdir(), 'decoy-'));
+  dirs.push(decoy);
+  spawnSync('git', ['init', '-q'], { cwd: decoy, env: cleanEnv() });
+  const saved = { dir: process.env.GIT_DIR, index: process.env.GIT_INDEX_FILE };
+  process.env.GIT_DIR = path.join(decoy, '.git');
+  process.env.GIT_INDEX_FILE = path.join(decoy, '.git', 'index');
+  try {
+    repo(['README.md', 'docs/a.md']).run([]);
+  } finally {
+    if (saved.dir === undefined) delete process.env.GIT_DIR;
+    else process.env.GIT_DIR = saved.dir;
+    if (saved.index === undefined) delete process.env.GIT_INDEX_FILE;
+    else process.env.GIT_INDEX_FILE = saved.index;
+  }
+  const tracked = spawnSync('git', ['ls-files'], {
+    cwd: decoy,
+    encoding: 'utf8',
+    env: cleanEnv(),
+  });
+  expect(tracked.stdout).toBe('');
+});
 
 const tree = ['README.md', 'docs/a.md', 'docs/b.md', 'CHANGELOG.md', 'src.ts'];
 
