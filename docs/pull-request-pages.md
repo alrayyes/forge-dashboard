@@ -221,8 +221,8 @@ neither is the owner's avatar. The image is the forge's own HTTPS image, which
 this server fetches and passes on. On Forgejo that works only when the image is
 on the same host and scheme as the saved instance, so a Gravatar or Libravatar
 avatar shows the initial instead. A repository with no logo, an image that isn't
-HTTPS or one that can't load shows the name alone. The unauthenticated username-
-only listing carries no images, so it shows none.
+HTTPS or one that can't load shows the name alone. The unauthenticated
+username-only listing carries no images, so it shows none.
 
 ## Long repository names
 

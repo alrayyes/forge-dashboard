@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
@@ -31,6 +30,6 @@ func TestImageProxyFor_GithubAcceptsAvatarAndLogoAddresses(t *testing.T) {
 		"https://repository-images.githubusercontent.com/1/logo",
 	} {
 		_, err := proxy.Fetch(ctx, raw)
-		assert.False(t, errors.Is(err, imageproxy.ErrHostNotAllowed), raw)
+		assert.NotErrorIs(t, err, imageproxy.ErrHostNotAllowed, raw)
 	}
 }
