@@ -13,12 +13,15 @@ import (
 
 // githubImageHosts are the hosts GitHub serves an image embedded in a pull
 // request, issue or release from: its own attachment route and the user-content
-// hosts that route redirects to. Nothing else is fetched (#3405).
+// hosts that route redirects to. Avatars and repository logos live on two more
+// (#3467). Nothing else is fetched (#3405).
 var githubImageHosts = []string{
 	"github.com",
 	"user-images.githubusercontent.com",
 	"private-user-images.githubusercontent.com",
 	"raw.githubusercontent.com",
+	"avatars.githubusercontent.com",
+	"repository-images.githubusercontent.com",
 }
 
 // imageProxyFor builds the proxy for one forge. Forgejo's allowed host is the
