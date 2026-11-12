@@ -341,7 +341,8 @@ can't fire a tracking pixel when the dialog opens.
   appears in it, because the server fetches them and the browser never does.
   `data:` is for the inline check mark on a ticked box. The image route sends
   its own stricter policy over it. A Go test checks the policy against the
-  proxy's host list, and against the hosts the page sends through it.
+  proxy's host list, and against the hosts `web/src/lib/image-source.ts` and
+  `web/src/lib/avatar.ts` send through it.
 
 ### What the passkey login covers
 
