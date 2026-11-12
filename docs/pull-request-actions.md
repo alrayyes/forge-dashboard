@@ -134,7 +134,7 @@ ended in `startup_failure`, the Main branches row reads Failed and names the
 workflow, and links the run, rather than showing an older commit's result.
 
 The workflow-runs read takes the newest 100 runs of a head commit. A held or
-`startup_failure` run beyond those 100 isn't found.
+`startup_failure` run further back goes unseen.
 
 A job that really failed beside a held run still counts as failed. With
 auto-merge armed, the status line says it is waiting for workflow approval, not
