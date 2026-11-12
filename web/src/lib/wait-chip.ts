@@ -268,6 +268,8 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
       return words('Waiting for CI', 'Merges when CI passes');
     case 'stacked':
       return words('Waiting for parent', 'Merges after its parent');
+    case 'behind':
+      return words('Waiting for update', 'The branch must be up to date');
     case 'rate_limited':
       return words('Rate limited', 'Retries after the reset');
     case '':

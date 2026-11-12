@@ -163,6 +163,25 @@ describe('autoMergeChip wording', () => {
     ).toBe('Waiting for ready');
   });
 
+  // #3428: the forge won't merge a behind branch here and doesn't update it
+  // itself, so the chip says what is being waited for.
+  test('a behind branch in a strict repo reads Waiting for update', () => {
+    const chip = autoMergeChip(
+      waiting({
+        code: 'behind',
+        forge: 'github',
+        message: 'Auto-merge is waiting for the branch to be updated.',
+      }),
+    );
+    expect(chip?.label).toBe('Waiting for update');
+    expect(chip?.detail).toBe('The branch must be up to date');
+    expect(chip?.action).toBe('disarm');
+    expect(chip?.tooltip).toBe(
+      'Auto-merge is waiting for the branch to be updated.',
+    );
+    expect(words(chip?.label ?? '')).toBeLessThanOrEqual(3);
+  });
+
   // #1505: with nothing left to wait for, Forgejo's app merges on its next
   // refresh, but GitHub's own auto-merge merges as soon as it can.
   test('a green Forgejo auto-merge merges on the next refresh', () => {

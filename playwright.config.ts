@@ -139,6 +139,7 @@ const singleUserSpecs = [
   '**/upstream-error-banner.spec.ts',
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
+  '**/armed-behind-status.spec.ts',
   '**/webhooks-failing-repo.spec.ts',
   '**/webhooks-filter-choices.spec.ts',
   '**/webmcp.spec.ts',
