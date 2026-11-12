@@ -841,6 +841,16 @@
     .data-table td.status-pending {
       color: var(--ink-3);
     }
+    /* "Not yet" is the state that needs action, so it takes the warning
+       colour, a heavier weight and a decorative glyph. The words carry the
+       meaning; the glyph is aria-hidden. */
+    .data-table td.status-pending .status-word {
+      color: var(--warning);
+      font-weight: 600;
+    }
+    .data-table td.status-pending .status-icon {
+      margin-right: 2px;
+    }
     .data-table td.action button {
       font-family: inherit;
       font-size: 12.5px;
@@ -1435,7 +1445,13 @@
                     ? "action status-confirmed"
                     : "action status-pending"}
                 >
-                  {repo.hasWebhook ? "Confirmed" : "Not yet"}
+                  <span class="status-word"
+                    >{#if !repo.hasWebhook}<span
+                        class="status-icon"
+                        aria-hidden="true">&#9888;</span
+                      >
+                    {/if}{repo.hasWebhook ? "Confirmed" : "Not yet"}</span
+                  >
                   {#if !repo.hasWebhook}
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
