@@ -69,6 +69,37 @@ state.
 - **WHEN** a pull request does not have auto-merge enabled
 - **THEN** no auto-merge indicator appears on its row
 
+### Requirement: An armed pull request that is behind says whether that holds it
+
+The system SHALL report, for each behind pull request, whether the base
+branch's protection requires pull requests to be up to date (GitHub branch
+protection `strict`, Forgejo `block_on_outdated_branch`), read from the forge
+once per branch and cached, with no extra call per pull request on a refresh.
+When the rule can't be read the answer SHALL be unknown, never guessed. An
+armed pull request that is behind where the rule is on SHALL be reported as
+waiting for the branch to be updated, with Update branch offered. Where the
+rule is off or unknown, being behind SHALL NOT be reported as the hold (#3428).
+
+#### Scenario: Armed and behind where up-to-date branches are required
+
+- **WHEN** auto-merge is armed on a behind pull request and the base branch requires up-to-date branches
+- **THEN** its auto-merge status is waiting with code `behind`, the row's chip reads "Waiting for update", and Update branch is offered
+
+#### Scenario: Armed and behind where they are not required
+
+- **WHEN** auto-merge is armed on a behind pull request and the base branch does not require up-to-date branches
+- **THEN** its auto-merge status names the check that holds it, not being behind
+
+#### Scenario: The protection can't be read
+
+- **WHEN** the token can't read the base branch's protection
+- **THEN** the rule is unknown, nothing is guessed, and being behind is not reported as the hold
+
+#### Scenario: A refresh with several behind pull requests on one branch
+
+- **WHEN** several pull requests behind the same base branch are refreshed within five minutes
+- **THEN** the rule is read from the forge once
+
 ### Requirement: A forge that cannot report a state says so explicitly
 
 The system SHALL distinguish "this forge cannot report this state" from a

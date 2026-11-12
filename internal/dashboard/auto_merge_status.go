@@ -91,6 +91,11 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for the draft to be marked ready.")
 	case pr.StackedOn != nil:
 		return status(AutoMergeWaiting, ActionStacked, "Auto-merge is waiting for the pull request it is stacked on to merge.")
+	case heldForBranchUpdate(pr):
+		// The forge won't merge a behind branch here, and doesn't update it
+		// itself, so it waits until someone does (#3428). Without the rule a
+		// behind branch merges as soon as checks pass, so it isn't blamed.
+		return status(AutoMergeWaiting, ActionBehind, "Auto-merge is waiting for the branch to be updated. "+forgeName(pr.Forge)+" requires it to be up to date before it merges.")
 	case waitingOnChecks(pr.CI) != "":
 		return status(AutoMergeWaiting, ActionChecksPending, waitingOnChecks(pr.CI))
 	case pr.MergeStatus != MergeMergeable:
@@ -102,6 +107,12 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 	}
 
 	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")
+}
+
+// heldForBranchUpdate is true when the base branch needs a pull request to be
+// current and this one is behind. An unknown rule is not a yes.
+func heldForBranchUpdate(pr PullRequest) bool {
+	return pr.Behind && pr.BaseRequiresUpToDate != nil && *pr.BaseRequiresUpToDate
 }
 
 // waitingOnChecks says what an armed pull request with no passing run is

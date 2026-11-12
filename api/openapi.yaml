@@ -4719,7 +4719,10 @@ components:
           enum: [waiting, stopped]
           description: |
             `waiting` clears by itself: checks still running, a draft, a
-            stack parent that hasn't merged, a rate limit. `stopped` needs the
+            stack parent that hasn't merged, a rate limit. It also covers a
+            behind pull request in a repo that requires up-to-date branches
+            (code `behind`): the forge doesn't update the branch itself, so it
+            waits for Update branch or the automatic update. `stopped` needs the
             person: a failing check, a conflict, or a merge Forgejo refused
             (including a token without merge permission). A stopped pull
             request stays armed and merges once the cause is gone, or the
@@ -4729,7 +4732,7 @@ components:
           description: |
             The same codes as `ActionError.code` (`checks_pending`,
             `checks_failing`, `conflict`, `stacked`, `permission`,
-            `rate_limited`, `not_mergeable`). Omitted when the pull request
+            `rate_limited`, `not_mergeable`, `behind`). Omitted when the pull request
             is simply waiting for the next refresh to merge it.
         message:
           type: string
@@ -6187,6 +6190,20 @@ components:
             Cancel clears both. Omitted means unknown: a client must not
             guess it from other fields, and should treat a value it doesn't
             know like an omitted one.
+        baseRequiresUpToDate:
+          type: boolean
+          description: |
+            Whether the base branch's protection requires a pull request to be
+            up to date before it merges: GitHub's branch protection "Require
+            branches to be up to date before merging" (`strict`), Forgejo's
+            "Block merge if the pull request is outdated"
+            (`block_on_outdated_branch`). A fact about the branch, read once
+            per repository and cached, and only for a pull request that is
+            `behind`, since that is the only one it matters for. Omitted when
+            unknown (the protection can't be read with this token, GitHub's
+            branch has no classic rule so a ruleset may require it instead, or
+            the pull request isn't behind). A client must not guess it, and
+            must not blame being behind for a hold unless this is true.
         autoMergeAllowed:
           type: boolean
           description: |
