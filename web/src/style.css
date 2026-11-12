@@ -230,7 +230,7 @@ header,
 
 .dashboard-toolbar-forges {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-3);
 }
 
@@ -254,7 +254,7 @@ header,
 }
 
 .brand h1 {
-  font-size: 19px;
+  font-size: 1.1875rem;
   margin: 0;
   letter-spacing: -0.01em;
 }
@@ -263,7 +263,7 @@ header,
 }
 .brand p {
   margin: 2px 0 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-3);
 }
 .brand p .mono {
@@ -291,13 +291,13 @@ header,
 }
 
 .forge-health-error {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--critical);
   max-width: 320px;
 }
 
 .forge-health-detail {
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--ink-3);
   max-width: 320px;
 }
@@ -315,7 +315,7 @@ header,
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -367,7 +367,7 @@ header,
 }
 
 .refreshed {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 
@@ -501,7 +501,7 @@ header,
   border: 1px solid var(--border-strong);
   border-radius: 999px;
   background: var(--surface-sunken);
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -596,7 +596,7 @@ header,
   height: auto;
   max-width: 100%;
   border-radius: 8px;
-  font-size: 10px;
+  font-size: 0.625rem;
 }
 /* In a bottom tab the pill takes the tab's width and adds nothing to it: tabs
    size by their label, and a wide pill ("12 · 3 · 9") would otherwise widen
@@ -629,7 +629,7 @@ header,
 }
 
 .bottom-nav-label {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
 }
 /* Eight tabs share a 360px bar: a little smaller, and the tab's own padding
@@ -639,7 +639,7 @@ header,
     padding-inline: 1px;
   }
   .bottom-nav-label {
-    font-size: 10px;
+    font-size: 0.625rem;
     letter-spacing: -0.01em;
   }
 }
@@ -703,7 +703,7 @@ section.board {
 }
 
 .board-head h2 {
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0;
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -712,7 +712,7 @@ section.board {
 
 .board-head .count {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-3);
 }
 
@@ -729,7 +729,7 @@ section.board {
 .board-head-controls select.col-filter,
 .board-head-controls select.group-select {
   width: auto;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 5px 7px;
 }
 
@@ -737,7 +737,7 @@ section.board {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   cursor: pointer;
   user-select: none;
@@ -756,14 +756,14 @@ section.board {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .text-filter input[type="text"] {
   width: 160px;
   max-width: 100%;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 5px 7px;
   border-radius: 6px;
   border: 1px solid var(--control-border);
@@ -780,7 +780,7 @@ section.board {
   .text-filter input[type="text"] {
     min-height: 44px;
     width: 100%;
-    font-size: 16px;
+    font-size: 1rem;
   }
 }
 .text-filter input[aria-invalid="true"] {
@@ -791,7 +791,7 @@ section.board {
 .rule-error {
   flex-basis: 100%;
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .rule-note {
   color: var(--ink-2);
@@ -819,7 +819,7 @@ section.board {
   gap: 8px;
   margin: 0;
   padding: 10px 18px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -840,7 +840,7 @@ section.board {
    technical identifier beside the repo name (#679). */
 .group-host {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   text-transform: none;
   letter-spacing: normal;
@@ -852,7 +852,7 @@ section.board {
 }
 /* Sync status. The text label is the signal; colour only reinforces it. */
 .group-sync {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   text-transform: none;
   letter-spacing: normal;
@@ -983,7 +983,7 @@ section.board {
 .col-filter {
   width: 100%;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 6px 8px;
   border-radius: 6px;
   border: 1px solid var(--border-strong);
@@ -1048,7 +1048,7 @@ select.col-filter {
 .filter-bar select.group-select,
 .filter-bar .label-filter-button {
   box-sizing: border-box;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.5;
   padding: 5px 22px 5px 8px;
   appearance: none;
@@ -1161,13 +1161,13 @@ select.col-filter {
 }
 .label-filter-legend {
   padding: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 .label-filter-hint,
 .label-filter-empty {
   margin: 2px 0 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .label-filter-options {
@@ -1183,7 +1183,7 @@ select.col-filter {
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   cursor: pointer;
   overflow-wrap: anywhere;
 }
@@ -1207,7 +1207,7 @@ select.col-filter {
   border: 1px solid var(--border);
   box-sizing: border-box;
   color: var(--ink);
-  font-size: 10px;
+  font-size: 0.625rem;
   line-height: 14px;
   text-align: center;
 }
@@ -1230,7 +1230,7 @@ select.col-filter {
 .pick-group-heading {
   display: block;
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink);
 }
@@ -1242,7 +1242,7 @@ select.col-filter {
   min-height: 32px;
   padding: 4px 10px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   border-radius: 6px;
   border: 1px solid var(--border-strong);
   background: var(--surface);
@@ -1262,7 +1262,7 @@ select.col-filter {
 .clear-filters {
   flex: none;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 6px 10px;
   border-radius: 6px;
   border: 1px solid var(--border-strong);
@@ -1290,7 +1290,7 @@ select.col-filter {
   margin-bottom: 12px;
   border: 1px solid transparent;
   border-radius: var(--radius);
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .updates-bar:has(.updates-paused:not([hidden])) {
@@ -1302,7 +1302,7 @@ select.col-filter {
 }
 .updates-bar button {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 5px 10px;
   border-radius: 6px;
   border: 1px solid var(--border-strong);
@@ -1334,7 +1334,7 @@ select.col-filter {
 /* The marker is words, so it doesn't rely on colour or motion; the fade
    only plays for people who haven't asked for reduced motion. */
 .updated-just-now {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   color: var(--ink-2);
   white-space: nowrap;
@@ -1400,7 +1400,7 @@ select.col-filter {
   align-items: center;
   padding: 5px 12px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   cursor: pointer;
 }
@@ -1424,7 +1424,7 @@ select.col-filter {
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   padding: 3px 7px 3px 6px;
   border-radius: 6px;
@@ -1484,7 +1484,7 @@ select.col-filter {
 
 .repo-name {
   font-family: "IBM Plex Mono", monospace;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1519,7 +1519,7 @@ select.col-filter {
      part of the stretched-link pattern below. The ellipsis truncation
      that needs overflow:hidden now lives on the inner .title-text span
      instead, where it can't clip the overlay. */
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   text-decoration: none;
   color: inherit;
   display: block;
@@ -1529,7 +1529,7 @@ select.col-filter {
 /* On a pull request the title is a <button>: drop the button chrome. */
 button.title {
   font: inherit;
-  font-size: 13.5px;
+  font-size: 0.84375rem;
   text-align: left;
   background: none;
   border: 0;
@@ -1565,14 +1565,14 @@ button.title {
 .title .num {
   color: var(--ink-3);
   font-family: "IBM Plex Mono", monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   margin-right: 2px;
 }
 
 /* The version on the Releases page (#1107): text, so it never relies on
    colour. */
 .release-version {
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 600;
   color: var(--ink-2);
   background: var(--neutral-bg);
@@ -1584,7 +1584,7 @@ button.title {
 .release-behind-note {
   flex-basis: 100%;
   margin: 2px 0 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 
@@ -1594,7 +1594,7 @@ button.title {
   position: relative;
   z-index: 1;
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   color: var(--ink-2);
   background: var(--surface-sunken);
   border: 1px solid var(--border);
@@ -1635,7 +1635,7 @@ button.title {
   position: relative;
   z-index: 1;
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   color: var(--ink-2);
   background: var(--surface-sunken);
   border: 1px solid var(--border);
@@ -1695,7 +1695,7 @@ button.title {
 }
 
 .author {
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-2);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1751,12 +1751,12 @@ button.title {
 .updated {
   display: flex;
   flex-direction: column;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
 .time-label {
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -1797,7 +1797,7 @@ button.title {
   gap: 4px;
   box-sizing: border-box;
   max-width: 100%;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 500;
   line-height: 1.2;
   padding: 1px 6px;
@@ -1816,7 +1816,7 @@ button.title {
   background: var(--warning-bg);
   border-color: var(--warning);
   border-width: 1.5px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-weight: 700;
   padding: 2px 8px;
 }
@@ -1844,7 +1844,7 @@ button.title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   padding: 4px 9px;
   border-radius: 999px;
@@ -2066,7 +2066,7 @@ a.ci-pill:hover {
 }
 .linked-pr .ci-pill {
   min-height: 0;
-  font-size: 10.5px;
+  font-size: 0.65625rem;
   line-height: 1.4;
 }
 .linked-pr .ci-pill.segmented,
@@ -2103,7 +2103,7 @@ a.ci-pill:hover {
   display: inline-flex;
   align-items: center;
   min-height: 24px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--accent);
   text-decoration: underline;
   white-space: nowrap;
@@ -2137,7 +2137,7 @@ a.ci-pill:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   padding: 4px 9px;
   border-radius: 999px;
@@ -2173,7 +2173,7 @@ a.ci-pill:hover {
   border-radius: 8px;
   background: var(--neutral-bg);
   color: var(--ink-2);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   line-height: 1.4;
   text-align: left;
 }
@@ -2207,7 +2207,7 @@ a.ci-pill:hover {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   padding: 4px 9px;
   border-radius: 999px;
@@ -2260,7 +2260,7 @@ a.ci-pill:hover {
 /* Why an armed pull request hasn't merged: the state leads in bold text, so
    it never rests on colour. */
 .auto-merge-status {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink);
 }
 /* Same "above .title::after's stretched-link overlay" reasoning .ci-pill
@@ -2288,7 +2288,7 @@ a.ci-pill:hover {
   display: inline-flex;
   align-items: center;
   min-height: 30px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   padding: 4px 11px;
   border-radius: 6px;
@@ -2399,7 +2399,7 @@ a.ci-pill:hover {
   border-radius: 999px;
   background: var(--neutral-bg);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
 }
 /* mergeActionCell's locked Merge (#705): the reason is the content, so it
@@ -2416,7 +2416,7 @@ a.ci-pill:hover {
   align-items: flex-end;
   max-width: 220px;
   text-align: right;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1.3;
   color: var(--ink-2);
   white-space: normal;
@@ -2531,7 +2531,7 @@ a.ci-pill:hover {
   background: var(--surface);
   border: 1px solid var(--border-strong);
   color: var(--ink-3);
-  font-size: 9px;
+  font-size: 0.5625rem;
   font-weight: 700;
   font-style: italic;
   line-height: 1;
@@ -2549,7 +2549,7 @@ a.ci-pill:hover {
   background: var(--surface);
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
-  font-size: 11px;
+  font-size: 0.6875rem;
   color: var(--ink-2);
   white-space: normal;
   opacity: 0;
@@ -2584,7 +2584,7 @@ a.ci-pill:hover {
   padding: 28px 18px;
   text-align: center;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .pagination {
@@ -2615,7 +2615,7 @@ a.ci-pill:hover {
 .pagination-nav,
 .pagination-page {
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   padding: 5px 9px;
   border-radius: 6px;
   border: 1px solid var(--border-strong);
@@ -2651,7 +2651,7 @@ a.ci-pill:hover {
    stepper, below. */
 .pagination-status {
   display: none;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-2);
   padding: 0 6px;
 }
@@ -2660,12 +2660,12 @@ a.ci-pill:hover {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 .pagination-size select {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 4px 6px;
   border-radius: 6px;
   border: 1px solid var(--control-border);
@@ -2680,7 +2680,7 @@ a.ci-pill:hover {
   border-radius: var(--radius);
   padding: 12px 16px;
   margin-bottom: 16px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -2729,7 +2729,7 @@ a.ci-pill:hover {
 
 .activity-toggle {
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-weight: 500;
   min-height: 32px;
   padding: 4px 12px;
@@ -2769,13 +2769,13 @@ a.ci-pill:hover {
 
 .activity-title {
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
 }
 
 .activity-clear {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   min-height: 28px;
   padding: 3px 10px;
   border-radius: 6px;
@@ -2801,7 +2801,7 @@ a.ci-pill:hover {
 .activity-empty {
   padding: 8px 0;
   border-top: 1px solid var(--border);
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 
 .activity-item-head {
@@ -2823,7 +2823,7 @@ a.ci-pill:hover {
 
 .feedback-link {
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   min-height: 24px;
   padding: 2px 0;
   border: 0;
@@ -2920,14 +2920,14 @@ a.ci-pill:hover {
   line-height: 1.25;
 }
 .wait-chip-label {
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .wait-chip-detail {
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 400;
   white-space: nowrap;
   overflow: hidden;
@@ -2961,7 +2961,7 @@ a.ci-pill:hover {
   border-radius: 6px;
   background: var(--surface);
   color: var(--ink);
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 400;
   line-height: 1.35;
   box-shadow: var(--shadow);
@@ -2981,7 +2981,7 @@ a.ci-pill:hover {
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-2);
 }
 
@@ -3041,7 +3041,7 @@ a.ci-pill:hover {
 }
 .details-actions .row-action {
   min-height: 36px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   padding: 4px 14px;
   background: var(--neutral-bg);
   color: var(--ink-2);
@@ -3092,7 +3092,7 @@ a.ci-pill:hover {
   align-items: center;
   gap: 8px;
   min-height: 36px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink);
   cursor: pointer;
 }
@@ -3118,12 +3118,12 @@ a.ci-pill:hover {
   order: 3;
   flex: 1 1 100%;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .auto-update-reset {
   min-height: 32px;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 2px 10px;
 }
 /* The reason beside a locked button reads left to right here, whole. */
@@ -3134,7 +3134,7 @@ a.ci-pill:hover {
   align-items: flex-start;
   max-width: 28ch;
   text-align: left;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 /* The comment field that Close with a comment opens above the footer. */
 .issue-comment-option {
@@ -3143,7 +3143,7 @@ a.ci-pill:hover {
   gap: 4px;
 }
 .issue-comment-label {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 .issue-comment-field {
@@ -3152,7 +3152,7 @@ a.ci-pill:hover {
   min-height: 80px;
   padding: 8px 10px;
   font: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--border);
@@ -3162,12 +3162,12 @@ a.ci-pill:hover {
 .details-issue-failure {
   margin: 0;
   padding-bottom: 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--critical);
 }
 /* The status block and failure lines in the dialog are full width. */
 .details-status-block .status-area {
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .details-feedback .row-feedback {
   padding-bottom: 8px;
@@ -3247,7 +3247,7 @@ a.ci-pill:hover {
 }
 
 .feedback-toast-ref {
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -3259,14 +3259,14 @@ a.ci-pill:hover {
   border-radius: 4px;
   background: none;
   color: var(--ink-2);
-  font-size: 18px;
+  font-size: 1.125rem;
   line-height: 1;
   cursor: pointer;
 }
 
 .feedback-toast-message {
   margin: 4px 0 8px;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }
@@ -3337,7 +3337,7 @@ a.ci-pill:hover {
 .unreachable-banner-text {
   margin: 0;
   flex: 1 1 260px;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: var(--ink);
 }
 
@@ -3345,7 +3345,7 @@ a.ci-pill:hover {
   min-height: 44px;
   padding: 0 16px;
   font-family: inherit;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--ink);
   background: var(--surface);
@@ -3371,14 +3371,14 @@ a.ci-pill:hover {
 .rate-limit-banner-label {
   color: var(--critical);
   font-weight: 600;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .rate-limit-banner-timer {
   color: var(--critical);
   font-family: "IBM Plex Mono", monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 /* A budget that's running low but hasn't actually hit zero yet (#450) —
@@ -3393,7 +3393,7 @@ a.ci-pill:hover {
 
 /* "Why?" under a read-only row (#735): closed until asked. */
 .rate-limit-why {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
@@ -3418,7 +3418,7 @@ a.ci-pill:hover {
 
 /* "What still works" under a read-only banner (#755): closed until asked. */
 .rate-limit-still-works {
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 
@@ -3436,7 +3436,7 @@ a.ci-pill:hover {
 
 footer {
   text-align: center;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
   padding-top: 8px;
 }
@@ -3534,7 +3534,7 @@ footer a.mono:focus-visible {
     width: 100%;
     min-height: 44px;
     justify-content: center;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
   .row-action-bar .row-action-locked,
   .row-action-bar .row-action-group {
@@ -3652,12 +3652,12 @@ footer a.mono:focus-visible {
 }
 .pipeline-dialog-title {
   margin: 0;
-  font-size: 15.5px;
+  font-size: 0.96875rem;
   font-weight: 600;
 }
 .pipeline-dialog-subtitle {
   margin: 4px 0 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-3);
   font-family: "IBM Plex Mono", ui-monospace, monospace;
   overflow-wrap: anywhere;
@@ -3691,16 +3691,16 @@ footer a.mono:focus-visible {
   margin: 0;
   padding: 8px 18px 0;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .pipeline-status {
   margin: 0;
   color: var(--ink-3);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .pipeline-run {
   margin: 14px 0 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .pipeline-run a {
   display: inline-flex;
@@ -3732,7 +3732,7 @@ footer a.mono:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   font-weight: 500;
   padding: 3px 8px;
   border-radius: 999px;
@@ -3815,25 +3815,25 @@ footer a.mono:focus-visible {
 }
 .pipeline-check-name {
   flex: 1 1 auto;
-  font-size: 13px;
+  font-size: 0.8125rem;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 .pipeline-check-duration {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
 }
 .pipeline-check-hint {
   flex: 1 1 100%;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .pipeline-check-step {
   flex: 1 1 100%;
   margin: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .pipeline-check-manual {
@@ -3843,7 +3843,7 @@ footer a.mono:focus-visible {
   margin: 0;
   padding: 8px 10px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.45;
   color: inherit;
   border-radius: var(--radius);
@@ -3858,7 +3858,7 @@ footer a.mono:focus-visible {
   padding: 8px 10px;
   max-height: 220px;
   overflow: auto;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -3869,7 +3869,7 @@ footer a.mono:focus-visible {
 /* Text badge, so a blocking failure doesn't rely on colour alone. */
 .pipeline-check-flag {
   flex: none;
-  font-size: 11px;
+  font-size: 0.6875rem;
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
@@ -3881,7 +3881,7 @@ footer a.mono:focus-visible {
 }
 .pipeline-group-title {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -3892,13 +3892,13 @@ footer a.mono:focus-visible {
 }
 .pipeline-group-hint {
   margin: 0 0 8px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-3);
   overflow-wrap: anywhere;
 }
 .pipeline-check-link {
   flex: none;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--accent);
   text-decoration: none;
@@ -3934,13 +3934,13 @@ button.pipeline-check-link:disabled {
 .pipeline-rerun-count {
   flex: 1 0 100%;
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 .pipeline-rerun-status,
 .pipeline-rerun .pipeline-error {
   margin: 0;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
 }
 .pipeline-rerun-status {
   color: var(--ink-2);
@@ -3951,7 +3951,7 @@ button.pipeline-check-link:disabled {
   align-items: flex-start;
   gap: 10px;
   color: var(--critical);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .pipeline-error p {
   margin: 0;
@@ -3990,7 +3990,7 @@ button.pipeline-check-link:disabled {
 }
 .quick-pill {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 5px 12px;
   border: 1px solid var(--border-strong);
   border-radius: 999px;
@@ -4016,12 +4016,12 @@ button.pipeline-check-link:disabled {
 }
 .am-label {
   padding: 0 8px 0 10px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .segment button {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 4px 11px;
   border: 0;
   border-radius: 999px;
@@ -4066,7 +4066,7 @@ button.pipeline-check-link:disabled {
    when off, solid accent outline when on, and the label says which. */
 .drafts-toggle {
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   padding: 5px 12px;
   border: 1px dashed var(--border-strong);
   border-radius: 999px;
@@ -4102,7 +4102,7 @@ button.pipeline-check-link:disabled {
   top: 50%;
   transform: translateY(-50%);
   font-family: inherit;
-  font-size: 11px;
+  font-size: 0.6875rem;
   line-height: 1;
   padding: 2px 6px;
   border: 1px solid var(--border-strong);
@@ -4177,7 +4177,7 @@ button.pipeline-check-link:disabled {
     min-height: 44px;
     padding: 0 14px;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
     border: 1px solid var(--border-strong);
     border-radius: 6px;
     background: var(--surface);
@@ -4237,7 +4237,7 @@ button.pipeline-check-link:disabled {
     min-height: 44px;
     padding: 0 14px;
     font-family: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
     border: 1px solid var(--accent);
     border-radius: 999px;
     background: transparent;
@@ -4281,12 +4281,12 @@ button.pipeline-check-link:disabled {
   }
   .filter-sheet-head h2 {
     margin: 0;
-    font-size: 15px;
+    font-size: 0.9375rem;
   }
   .filter-sheet-close {
     min-width: 44px;
     min-height: 44px;
-    font-size: 22px;
+    font-size: 1.375rem;
     line-height: 1;
     border: 0;
     background: transparent;
@@ -4367,7 +4367,7 @@ button.pipeline-check-link:disabled {
     min-height: 44px;
     padding: 0 16px;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 0.875rem;
     border-radius: 6px;
     cursor: pointer;
   }
@@ -4498,7 +4498,7 @@ button.pipeline-check-link:disabled {
   border-radius: var(--radius);
   background: var(--surface-sunken);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .group-callout a {
   color: var(--accent);
@@ -4509,13 +4509,13 @@ button.pipeline-check-link:disabled {
 .forge-health-budget {
   font-family: "IBM Plex Mono", monospace;
   font-variant-numeric: tabular-nums;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 
 /* A forge showing its last good data after a failed refresh (#933). */
 .forge-health-stale {
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 
@@ -4545,7 +4545,7 @@ button.pipeline-check-link:disabled {
   align-items: center;
   gap: 4px 8px;
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .stack-chip {
@@ -4558,7 +4558,7 @@ button.pipeline-check-link:disabled {
   min-height: 24px;
   padding: 0 8px;
   font-family: inherit;
-  font-size: 11.5px;
+  font-size: 0.71875rem;
   color: var(--ink);
   background: var(--surface-sunken);
   border: 1px solid var(--border-strong);
@@ -4624,7 +4624,7 @@ button.pipeline-check-link:disabled {
   align-items: center;
   flex-wrap: wrap;
   gap: 6px 8px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   color: var(--ink-2);
 }
 
@@ -4646,7 +4646,7 @@ button.pipeline-check-link:disabled {
   border: 1px solid var(--border);
   border-radius: var(--radius);
   background: var(--surface-sunken);
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink);
 }
 .hide-status[hidden] {
@@ -4658,7 +4658,7 @@ button.pipeline-check-link:disabled {
   min-height: 30px;
   padding: 4px 12px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 500;
   color: var(--ink);
   background: var(--surface);
@@ -4693,7 +4693,7 @@ button.pipeline-check-link:disabled {
   flex-wrap: wrap;
   gap: 4px 16px;
   padding: 10px 14px;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .hidden-prs-item + .hidden-prs-item {
   border-top: 1px solid var(--border);
@@ -4706,7 +4706,7 @@ button.pipeline-check-link:disabled {
 }
 .hidden-prs-when {
   color: var(--ink-2);
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 
 /* Copy error details (#1323): the button beside a failure, and the box the
@@ -4721,7 +4721,7 @@ button.pipeline-check-link:disabled {
   margin: 6px 0 0;
   padding: 8px 10px;
   font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.4;
   color: var(--ink);
   background: var(--surface-sunken);
@@ -4758,7 +4758,7 @@ button.pipeline-check-link:disabled {
   align-items: center;
   gap: 0 10px;
   margin: 0;
-  font-size: 13px;
+  font-size: 0.8125rem;
   color: var(--ink-2);
 }
 .held-pick span {
@@ -4770,7 +4770,7 @@ button.pipeline-check-link:disabled {
   padding: 0 14px;
   white-space: nowrap;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 0.8125rem;
   border: 1px solid var(--border-strong);
   border-radius: 6px;
   background: var(--surface);
@@ -4783,7 +4783,7 @@ button.pipeline-check-link:disabled {
 .first-refresh-status {
   margin: 0;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 .first-refresh-status.active {
   padding: 12px 18px 0;
@@ -5078,20 +5078,20 @@ footer a[aria-current="page"] {
   margin-top: 6px;
 }
 .run-output-title {
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink-2);
 }
 .run-output-status {
   margin: 4px 0 0;
   min-height: 1em;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
 }
 .run-output-note,
 .run-output-error {
   margin: 4px 0;
-  font-size: 12px;
+  font-size: 0.75rem;
 }
 .run-output-error {
   color: var(--critical);
@@ -5102,7 +5102,7 @@ footer a[aria-current="page"] {
   max-height: 320px;
   overflow: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 0.75rem;
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -5126,7 +5126,7 @@ footer a[aria-current="page"] {
 .pipeline-check-copy-status {
   flex: 1 1 14em;
   min-width: 0;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: var(--ink-2);
   overflow-wrap: anywhere;
 }
@@ -5196,7 +5196,7 @@ footer a[aria-current="page"] {
   align-items: center;
   gap: 5px;
   padding: 2px 10px;
-  font-size: 12.5px;
+  font-size: 0.78125rem;
   font-weight: 600;
   white-space: nowrap;
   color: var(--ink-2);
@@ -5345,7 +5345,7 @@ footer a[aria-current="page"] {
   /* The label wraps in two lines when the Hidden toggle shares the row. */
   .rerun-all-button {
     padding: 4px 8px;
-    font-size: 11px;
+    font-size: 0.6875rem;
     line-height: 1.2;
   }
 }
@@ -5353,7 +5353,7 @@ footer a[aria-current="page"] {
   min-height: 44px;
   padding: 4px 12px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--ink);
   background: var(--surface);

@@ -365,8 +365,10 @@
       </div>
     </a>
     <div class="header-status">
-      <span class="mono" id="whoami" style="font-size:12px;color:var(--ink-3);"
-        >{displayName}</span
+      <span
+        class="mono"
+        id="whoami"
+        style="font-size:0.75rem;color:var(--ink-3);">{displayName}</span
       >
       <nav class="app-nav" aria-label="Main">
         <a

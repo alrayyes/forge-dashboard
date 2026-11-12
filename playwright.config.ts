@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/cancelled-pill-counts.spec.ts',
   '**/pills-axe.spec.ts',
+  '**/root-font-size.spec.ts',
   '**/pager-stepper.spec.ts',
   '**/rerun-count.spec.ts',
   '**/landscape-first-row.spec.ts',
