@@ -719,7 +719,7 @@
     {/if}
   </div>
   <ReadFailureAlert />
-  <FirstRefreshStatus pending={showSkeleton} srOnly />
+  <FirstRefreshStatus pending={showSkeleton} subject="insights" srOnly />
 
   <div class="card">
     <h2>Filters</h2>

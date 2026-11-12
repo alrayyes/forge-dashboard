@@ -12,6 +12,16 @@
     view === "releases" ? "release" : view === "bots" ? "dependency" : null,
   );
   const pullsView = $derived(view !== "issues");
+  // What the loading line names on this view (#3602).
+  const loadingSubject = $derived(
+    view === "issues"
+      ? "issues"
+      : view === "bots"
+        ? "bot pull requests"
+        : view === "releases"
+          ? "release pull requests"
+          : "pull requests",
+  );
 
   import { onMount } from "svelte";
   import { BACKGROUND_READ_HEADER } from "#lib/presence-browser.js";
@@ -10773,7 +10783,7 @@
         <ul class="hidden-prs-list" id="hidden-prs-list"></ul>
       </div>
 
-      <FirstRefreshStatus pending={loadingFirst} />
+      <FirstRefreshStatus pending={loadingFirst} subject={loadingSubject} />
       <div class="list-region" aria-busy={loadingFirst ? "true" : undefined}>
         {#if loadingFirst}<ListSkeleton />{/if}
         <div hidden={loadingFirst}>
@@ -10857,7 +10867,7 @@
         {/if}
       </div>
 
-      <FirstRefreshStatus pending={loadingFirst} />
+      <FirstRefreshStatus pending={loadingFirst} subject={loadingSubject} />
       <div class="list-region" aria-busy={loadingFirst ? "true" : undefined}>
         {#if loadingFirst}<ListSkeleton />{/if}
         <div hidden={loadingFirst}>

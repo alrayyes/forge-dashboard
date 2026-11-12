@@ -132,8 +132,13 @@ until the first refresh succeeds, then the mark clears. The rest of this section
 covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
-polite "Loading your repositories…" line, not their empty states, and the
-navigation shows a dash where a count would be. After about ten seconds the line
+polite line that names the page's own subject, not their empty states: "Loading
+your pull requests…", "Loading your release pull requests…", "Loading your bot
+pull requests…", "Loading your issues…" or "Loading your branches…". Insights
+and Webhooks say "Loading your insights…" and "Loading your webhooks…" to a
+screen reader only. The page picks the words; the server sends the same flag for
+every page. The navigation shows a dash where a count would be. After about
+ten seconds the line
 says the first refresh can take a while. The placeholder doesn't animate under
 reduced motion. A snapshot without the flag counts as loaded. An unreachable
 forge still shows in the forge health banner. While the flag is `false` the
@@ -157,7 +162,7 @@ saved settings has nothing to refresh, so it reads `true` at once. `GET
 The page doesn't wait for that answer to say it is loading. The server can hold
 `GET /api/v1/dashboard` for up to 15 seconds on a cold start, so if nothing has
 answered after 200 ms the list pages show their placeholder rows, the polite
-"Loading your repositories…" line and a dash in the navigation, and a warm
+loading line and a dash in the navigation, and a warm
 server that answers inside that time shows none of it. A failed first request
 drops the placeholders. The "Still loading" text appears 10 seconds after the
 page opens, and the page reads again after the interval the server advises

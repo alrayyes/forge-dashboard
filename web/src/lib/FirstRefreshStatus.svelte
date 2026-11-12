@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { firstRefreshStatus } from "#lib/first-refresh.js";
+  import {
+    type FirstRefreshSubject,
+    firstRefreshStatus,
+  } from "#lib/first-refresh.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
 
   // The one polite status line for the first refresh (#1672). It stays in the
@@ -7,8 +10,16 @@
   // and the later "still loading" once, and nothing when the rows arrive.
   // `srOnly` is for pages that draw their own visible loading text (Insights,
   // Webhooks, #3367): the line is still the one live region, but not drawn.
-  let { pending, srOnly = false }: { pending: boolean; srOnly?: boolean } =
-    $props();
+  // `subject` is what the page lists, so the line names it (#3602).
+  let {
+    pending,
+    subject,
+    srOnly = false,
+  }: {
+    pending: boolean;
+    subject: FirstRefreshSubject;
+    srOnly?: boolean;
+  } = $props();
 
   let elapsed = $state(0);
 
@@ -27,7 +38,7 @@
     return () => clearInterval(timer);
   });
 
-  const text = $derived(firstRefreshStatus(pending, elapsed));
+  const text = $derived(firstRefreshStatus(pending, elapsed, subject));
 </script>
 
 <p

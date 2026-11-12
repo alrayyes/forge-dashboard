@@ -79,20 +79,28 @@ const navPills = (page: Page) =>
 const LISTS = [
   {
     name: 'Pull requests',
+    line: 'Loading your pull requests…',
     url: '/pull-requests.html',
     emptyText: /No open pull requests/,
   },
   {
     name: 'Releases',
+    line: 'Loading your release pull requests…',
     url: '/releases.html',
     emptyText: /No release pull requests are open/,
   },
   {
     name: 'Bots',
+    line: 'Loading your bot pull requests…',
     url: '/bots.html',
     emptyText: /No bot pull requests are open/,
   },
-  { name: 'Issues', url: '/issues.html', emptyText: /No open issues/ },
+  {
+    name: 'Issues',
+    line: 'Loading your issues…',
+    url: '/issues.html',
+    emptyText: /No open issues/,
+  },
 ];
 
 test.describe('first refresh loading from the first paint (#1672)', () => {
@@ -111,7 +119,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
       await expect(region).toHaveAttribute('aria-busy', 'true');
       await expect(region.getByTestId('list-skeleton')).toBeVisible();
       await expect(page.getByTestId('first-refresh-status')).toHaveText(
-        'Loading your repositories…',
+        list.line,
       );
       await expect(page.getByText(list.emptyText)).toBeHidden();
       for (const text of await navPills(page).allTextContents())
@@ -134,7 +142,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
       'true',
     );
     await expect(page.getByTestId('first-refresh-status')).toHaveText(
-      'Loading your repositories…',
+      'Loading your branches…',
     );
     await expect(page.getByTestId('no-repos')).toBeHidden();
     release();
@@ -286,7 +294,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
         await expect(page.getByTestId('list-skeleton')).toBeVisible();
 
         await expect(page.getByTestId('first-refresh-status')).toHaveText(
-          'Loading your repositories…',
+          'Loading your pull requests…',
         );
 
         await expect(page.locator('.skeleton-bar').first()).toHaveCSS(

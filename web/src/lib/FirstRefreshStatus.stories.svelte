@@ -10,12 +10,12 @@
 </script>
 
 <!-- The server has finished its first refresh: the line stays, with no text. -->
-<Story name="Done" args={{ pending: false }} />
+<Story name="Done" args={{ pending: false, subject: "issues" }} />
 
 <!-- Just after page load. -->
 <Story
   name="Loading"
-  args={{ pending: true }}
+  args={{ pending: true, subject: "issues" }}
   beforeEach={() => {
     firstRefresh.startedAt = Date.now();
   }}
@@ -24,7 +24,7 @@
 <!-- Past ten seconds the line admits it is slow. -->
 <Story
   name="Still loading"
-  args={{ pending: true }}
+  args={{ pending: true, subject: "issues" }}
   beforeEach={() => {
     firstRefresh.startedAt = Date.now() - 30_000;
   }}
