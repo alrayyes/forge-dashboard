@@ -541,6 +541,17 @@ func (s *GenericSource) GetPullRequestDetails(ctx context.Context, owner, name s
 	return detailer.GetPullRequestDetails(ctx, owner, name, number) //nolint:wrapcheck // see above
 }
 
+// SignedImageURL implements ImageLinkResolver at the Source level.
+func (s *GenericSource) SignedImageURL(ctx context.Context, owner, name string, item ImageItem, link string) (string, error) {
+	resolver, ok := s.client.(ImageLinkResolver)
+	if !ok {
+		return "", fmt.Errorf("dashboard: %s's client can't resolve image links: %w", s.forge, errUnsupportedByClient)
+	}
+
+	// Not wrapped, for the same reason as AddLabel.
+	return resolver.SignedImageURL(ctx, owner, name, item, link) //nolint:wrapcheck // see above
+}
+
 // GetIssueDetails implements IssueDetailer at the Source level, the same
 // shape as GetPullRequestDetails.
 func (s *GenericSource) GetIssueDetails(ctx context.Context, owner, name string, number int) (IssueDetails, error) {
