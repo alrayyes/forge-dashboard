@@ -88,6 +88,10 @@ type dashboardResponse struct {
 	// HiddenDrafts is how many draft pull requests PullRequests leaves out
 	// (#791). Always serialized, and zero when the request included drafts.
 	HiddenDrafts int `json:"hiddenDrafts"`
+	// HiddenDraftsByPage splits HiddenDrafts by the page that lists them, so a
+	// page shows its Show drafts button only when it has a draft to reveal
+	// (#3704). Always serialized.
+	HiddenDraftsByPage hiddenDraftCounts `json:"hiddenDraftsByPage"`
 	// HiddenPullRequests is how many pull requests the user hid that are still
 	// open and not expired (#841). Always serialized. With includeHidden they
 	// are in PullRequests, marked hidden, and still counted here.
@@ -505,7 +509,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		NavCounts:                buildNavCounts(pullRequests, openIssues),
 		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, branches),
 		Repos:                    board.repoStatuses(snap.Repos),
-		HiddenDrafts:             hiddenDrafts,
+		HiddenDrafts:             hiddenDrafts.total(),
+		HiddenDraftsByPage:       hiddenDrafts,
 
 		HiddenPullRequests: hiddenPullRequests,
 		AutoMerged:         board.autoMerged(),
@@ -660,7 +665,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 // pullRequestViews leaves out the pull requests of ignored repos, then the ones
 // the user hid unless view.includeHidden, then the drafts unless
 // view.includeDrafts. It says how many it hid of each of the last two.
-func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardView) (views []pullRequestView, hiddenDrafts, hiddenPullRequests int) {
+func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardView) (views []pullRequestView, hiddenDrafts hiddenDraftCounts, hiddenPullRequests int) {
 	out := make([]pullRequestView, 0, len(prs))
 	for _, pr := range prs {
 		if b.ignored[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)].PRs {
@@ -674,7 +679,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			}
 		}
 		if pr.Draft && !view.includeDrafts && !isHidden {
-			hiddenDrafts++
+			hiddenDrafts.add(dashboard.KindOf(pr, b.renovateAuthors))
 
 			continue
 		}

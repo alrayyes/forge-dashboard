@@ -81,6 +81,7 @@ async function open(page: Page, url: string) {
         openIssueCount: ISSUES.length,
         repos: [],
         hiddenDrafts: 1,
+        hiddenDraftsByPage: { pullRequests: 1, releases: 0, bots: 0 },
       }),
     }),
   );

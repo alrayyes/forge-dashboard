@@ -176,6 +176,7 @@ async function open(page: Page, board: Board) {
         openIssueCount: ISSUES.length,
         repos: [],
         hiddenDrafts: 1,
+        hiddenDraftsByPage: { pullRequests: 1, releases: 0, bots: 0 },
         hiddenPullRequests: 1,
       }),
     }),
