@@ -190,14 +190,10 @@ for (const p of PAGES) {
       await page.goto(p.url);
       const bar = page.locator('.skeleton-bar').first();
       await expect(bar).toBeVisible();
-      expect(
-        await bar.evaluate((el) => getComputedStyle(el).animationName),
-      ).toBe('none');
+      await expect(bar).toHaveCSS('animation-name', 'none');
 
       await page.emulateMedia({ reducedMotion: 'no-preference' });
-      expect(
-        await bar.evaluate((el) => getComputedStyle(el).animationName),
-      ).toBe('skeleton-shimmer');
+      await expect(bar).toHaveCSS('animation-name', 'skeleton-shimmer');
     });
 
     test(`the pending state has no axe violations (light and dark)`, async ({

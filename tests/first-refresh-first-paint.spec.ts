@@ -289,12 +289,10 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
           'Loading your repositories…',
         );
 
-        expect(
-          await page
-            .locator('.skeleton-bar')
-            .first()
-            .evaluate((el) => getComputedStyle(el).animationName),
-        ).toBe('none');
+        await expect(page.locator('.skeleton-bar').first()).toHaveCSS(
+          'animation-name',
+          'none',
+        );
 
         const overflow = await page.evaluate(
           () =>

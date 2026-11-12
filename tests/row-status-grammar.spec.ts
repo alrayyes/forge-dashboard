@@ -154,10 +154,11 @@ test.describe('row status grammar (#1563)', () => {
       firstRow(page)
         .locator('.ci-pill')
         .evaluate((el) => Number(getComputedStyle(el).fontWeight));
+    await expect.poll(weight).toBeGreaterThan(0);
     const failed = await weight();
     await push(page, [makePR(1, { ci: 'success' })]);
     await expect(firstRow(page).locator('.ci-pill')).toHaveText('Passed');
-    expect(failed).toBeGreaterThan(await weight());
+    await expect.poll(weight).toBeLessThan(failed);
   });
 
   test('the running glyph keeps still under reduced motion', async ({

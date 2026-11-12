@@ -215,10 +215,7 @@ for (const width of [390, 1280]) {
       await page.keyboard.press('Shift');
       await pick(pressedSel).focus();
       const focusedPressed = await shape(pick(pressedSel));
-      const offset = await pick(pressedSel).evaluate(
-        (el) => getComputedStyle(el).outlineOffset,
-      );
-      expect(offset).not.toBe('0px');
+      await expect(pick(pressedSel)).not.toHaveCSS('outline-offset', '0px');
       if (!single) {
         await pick(openSel).focus();
         expect(await shape(pick(openSel))).not.toBe(focusedPressed);

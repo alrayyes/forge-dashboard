@@ -175,8 +175,7 @@ test('in forced-colors mode a checked box differs from an unchecked one', async 
   expect(checked.equals(open)).toBe(false);
   // The drawn tick is a fixed-colour image that forced colours can't recolour,
   // so the native control (which keeps its own state mark) takes over.
-  const appearance = await dialog
-    .getByRole('checkbox', { name: 'done item' })
-    .evaluate((el) => getComputedStyle(el).appearance);
-  expect(appearance).not.toBe('none');
+  await expect(
+    dialog.getByRole('checkbox', { name: 'done item' }),
+  ).not.toHaveCSS('appearance', 'none');
 });

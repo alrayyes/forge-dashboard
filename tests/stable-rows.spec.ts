@@ -270,10 +270,7 @@ test.describe('stable rows', () => {
     await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
     const marker = page.getByText('Updated just now');
     await expect(marker).toBeVisible();
-    const animation = await marker.evaluate(
-      (el) => getComputedStyle(el).animationName,
-    );
-    expect(animation).toBe('none');
+    await expect(marker).toHaveCSS('animation-name', 'none');
   });
   test('a touch holds added rows for a moment, then they land', async ({
     page,
@@ -658,9 +655,9 @@ test.describe('stable rows: choices the server saves', () => {
       page
         .locator('#updates-bar')
         .evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await box()).toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(box).toBe('rgba(0, 0, 0, 0)');
     await page.getByRole('button', { name: 'Pause live updates' }).click();
-    expect(await box()).not.toBe('rgba(0, 0, 0, 0)');
+    await expect.poll(box).not.toBe('rgba(0, 0, 0, 0)');
     await page.getByRole('button', { name: 'Pause live updates' }).click();
   });
 });

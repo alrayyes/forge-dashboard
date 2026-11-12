@@ -142,9 +142,7 @@ for (const scheme of ['light', 'dark'] as const) {
         reached = await body.evaluate((el) => el === document.activeElement);
       }
       expect(reached).toBe(true);
-      expect(
-        await body.evaluate((el) => getComputedStyle(el).outlineStyle),
-      ).not.toBe('none');
+      await expect(body).not.toHaveCSS('outline-style', 'none');
 
       await page.keyboard.press('ArrowDown');
       await expect

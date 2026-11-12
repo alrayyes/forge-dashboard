@@ -682,11 +682,7 @@ test(`an overflowing rebase list is a named tab stop that scrolls with the keys 
 
         await expect(list).toBeFocused();
 
-        const outline = await list.evaluate(
-          (el) => getComputedStyle(el).outlineStyle,
-        );
-
-        expect(outline).not.toBe('none');
+        await expect(list).not.toHaveCSS('outline-style', 'none');
 
         await page.keyboard.press('PageDown');
 

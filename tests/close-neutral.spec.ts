@@ -127,10 +127,8 @@ test.describe("Close pull request looks unlike the dialog's own close", () => {
     await page.goto('/pull-requests.html');
     const close = await closeButton(page);
     await expect(close).not.toHaveClass(/suggested/);
-    expect(await background(close)).toBe('rgba(0, 0, 0, 0)');
-    expect(await close.evaluate((n) => getComputedStyle(n).color)).toBe(
-      await token(page, '--critical'),
-    );
+    await expect(close).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(close).toHaveCSS('color', await token(page, '--critical'));
   });
 
   for (const theme of ['light', 'dark']) {

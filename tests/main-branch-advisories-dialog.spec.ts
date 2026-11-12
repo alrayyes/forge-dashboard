@@ -369,10 +369,10 @@ test.describe('Branches page advisories dialog', () => {
 
       await pre.focus();
       await page.keyboard.press('Shift');
-      const outline = await pre.evaluate(
-        (el) => getComputedStyle(el).outlineStyle,
+      await expect(pre, `focus outline ${width}px`).not.toHaveCSS(
+        'outline-style',
+        'none',
       );
-      expect(outline, `focus outline ${width}px`).not.toBe('none');
       await page.getByTestId('advisory-back').click();
     }
   });

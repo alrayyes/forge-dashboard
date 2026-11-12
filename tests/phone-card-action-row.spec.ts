@@ -66,9 +66,7 @@ for (const width of [360, 390]) {
       const row = await open(page, pr(overrides));
       const bar = row.locator('.row-action-bar');
       await expect(bar).toBeVisible();
-      expect(
-        await bar.evaluate((el) => getComputedStyle(el).borderTopWidth),
-      ).toBe('1px');
+      await expect(bar).toHaveCSS('border-top-width', '1px');
 
       const btn = bar.getByRole('button', { name: 'Merge' });
       const box = await btn.boundingBox();
@@ -159,9 +157,5 @@ test('on a desktop the button keeps its small size beside the status', async ({
     (rowBox?.x ?? 0) + (rowBox?.width ?? 0),
   );
   expect(box?.x).toBeGreaterThanOrEqual((pill?.x ?? 0) - 1);
-  expect(
-    await row
-      .locator('.row-action-bar')
-      .evaluate((el) => getComputedStyle(el).display),
-  ).toBe('contents');
+  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'contents');
 });

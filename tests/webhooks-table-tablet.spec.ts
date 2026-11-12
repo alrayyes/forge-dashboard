@@ -116,11 +116,10 @@ test.describe('webhooks table at tablet width', () => {
 
   test('390px stays a card layout', async ({ page }) => {
     await open(page, 390);
-    const display = await page
-      .locator('#webhooks-rows tr')
-      .first()
-      .evaluate((e) => getComputedStyle(e).display);
-    expect(display).toBe('block');
+    await expect(page.locator('#webhooks-rows tr').first()).toHaveCSS(
+      'display',
+      'block',
+    );
     const fits = await page.evaluate(
       () => document.documentElement.scrollWidth <= innerWidth,
     );

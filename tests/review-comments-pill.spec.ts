@@ -130,7 +130,12 @@ test.describe('the review comments pill (#1335)', () => {
     await expect(p.locator('.dot')).toHaveCount(1);
     const background = (title: string) =>
       pill(page, title).evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await background('Open')).not.toBe(await background('Resolved'));
+    await expect
+      .poll(
+        async () =>
+          (await background('Open')) !== (await background('Resolved')),
+      )
+      .toBe(true);
   });
 
   test('a lone comment and a lone open thread read in the singular', async ({
@@ -198,10 +203,7 @@ test.describe('the review comments pill (#1335)', () => {
     );
 
     await github.focus();
-    const ring = await github.evaluate(
-      (el) => getComputedStyle(el).outlineStyle,
-    );
-    expect(ring).not.toBe('none');
+    await expect(github).not.toHaveCSS('outline-style', 'none');
   });
 
   test('128 comments and 24 open stay on one line without breaking the row', async ({
