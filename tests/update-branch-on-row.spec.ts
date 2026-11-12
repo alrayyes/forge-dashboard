@@ -96,13 +96,96 @@ test('a behind pull request whose warning holds Update branch has no second copy
   ).toHaveCount(1);
 });
 
-test('a behind pull request with a known conflict shows Update branch locked with its reason', async ({
+test('a behind pull request with a known conflict shows Update branch locked with its reason, apart from Merge', async ({
   page,
 }) => {
   const row = await open(page, 390, pr({ mergeStatus: 'conflicting' }));
-  await expect(row.getByRole('button', { name: /Update branch/ })).toHaveCount(
-    1,
+  const update = row.getByRole('button', { name: 'Update branch' });
+  await expect(update).toHaveCount(1);
+  await expect(update).toHaveAttribute('aria-disabled', 'true');
+  const describedBy = await update.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  await expect(page.locator(`[id="${describedBy}"]`)).toContainText(
+    'Conflicts need fixing by hand',
   );
+});
+
+test('a mergeable behind pull request has a live Update branch, distinct from Merge', async ({
+  page,
+}) => {
+  const row = await open(page, 390, pr());
+  const update = row.getByRole('button', { name: 'Update branch' });
+  await expect(update).not.toHaveAttribute('aria-disabled', 'true');
+  await expect(
+    row.getByRole('button', { name: 'Merge', exact: true }),
+  ).toHaveCount(1);
+});
+
+test('a bot pull request, which the server gives no update_branch, has none on its row', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [pr({ author: 'dependabot[bot]', kind: 'dependency' })],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto('/bots.html');
+  const row = page.locator('#pr-rows > .row').first();
+  await row.waitFor();
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
+  );
+});
+
+test('Update branch leaves the row while Merge is confirming', async ({
+  page,
+}) => {
+  const row = await open(page, 390, pr());
+  await row.getByRole('button', { name: 'Merge', exact: true }).click();
+  await expect(row.getByRole('button', { name: /Confirm/ })).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
+  );
+});
+
+test('Update branch leaves the row while Merge is running', async ({
+  page,
+}) => {
+  await page.route(
+    '**/api/v1/pull-requests/merge',
+    () => new Promise(() => {}),
+  );
+  const row = await open(page, 390, pr());
+  await row.getByRole('button', { name: 'Merge', exact: true }).click();
+  await row.getByRole('button', { name: /Confirm/ }).click();
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
+  );
+});
+
+test('a clicked Update branch on the row shows Queued and is disabled', async ({
+  page,
+}) => {
+  await page.route(
+    '**/api/v1/pull-requests/update-branch',
+    () => new Promise(() => {}),
+  );
+  const row = await open(page, 390, pr());
+  await row.getByRole('button', { name: 'Update branch' }).click();
+  await expect(row.getByRole('button', { name: 'Queued…' })).toBeDisabled();
 });
 
 test('a pull request that is not behind has no Update branch on the row', async ({
