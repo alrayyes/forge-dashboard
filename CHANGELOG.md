@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.25.1](https://github.com/alrayyes/forge-dashboard/compare/v9.25.0...v9.25.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** size shared stylesheet text in rem so it follows the browser setting ([#3592](https://github.com/alrayyes/forge-dashboard/issues/3592)) ([6f4e84a](https://github.com/alrayyes/forge-dashboard/commit/6f4e84ad790e1dd95fed09431650f049f1486858)), closes [#3398](https://github.com/alrayyes/forge-dashboard/issues/3398)
+
 ## [9.25.0](https://github.com/alrayyes/forge-dashboard/compare/v9.24.0...v9.25.0) (2026-11-12)
 
 
