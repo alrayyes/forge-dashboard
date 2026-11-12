@@ -29,6 +29,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/memlimit"
 	"github.com/alrayyes/forge-dashboard/internal/osv"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -233,6 +234,9 @@ func main() {
 	}
 
 	configureLogging()
+	// First line of the log: an OOM loop shows up here, in `docker logs`, and
+	// not only in the kernel log (#3554).
+	slog.Info("memory", memlimit.Apply().Attrs()...)
 
 	// Operator recovery: runs against the database and exits, no server.
 	if len(os.Args) > 1 && os.Args[1] == "reset-passkeys" {
