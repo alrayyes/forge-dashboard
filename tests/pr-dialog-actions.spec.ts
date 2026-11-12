@@ -832,36 +832,50 @@ for (const scheme of ['light', 'dark'] as const) {
           border: c.borderTopStyle,
         };
       });
-    const locked = await style(
-      footer(dialog).getByRole('button', { name: 'Merge', exact: true }),
-    );
-    const live = await style(
-      footer(dialog).getByRole('button', {
-        name: 'Update branch',
-        exact: true,
-      }),
-    );
-    expect(locked).not.toEqual(live);
-    expect(locked.border).not.toBe(live.border);
-    expect(locked.background).not.toBe(live.color);
+    const merge = footer(dialog).getByRole('button', {
+      name: 'Merge',
+      exact: true,
+    });
+    const update = footer(dialog).getByRole('button', {
+      name: 'Update branch',
+      exact: true,
+    });
+    await expect
+      .poll(async () => {
+        const [locked, live] = [await style(merge), await style(update)];
+        return {
+          differ: JSON.stringify(locked) !== JSON.stringify(live),
+          borderDiffers: locked.border !== live.border,
+          backgroundNotLiveColour: locked.background !== live.color,
+        };
+      })
+      .toEqual({
+        differ: true,
+        borderDiffers: true,
+        backgroundNotLiveColour: true,
+      });
 
     // The reason is readable text: 4.5:1 or better against what is behind it.
     for (const sel of ['.status-area-message', '.status-area-next']) {
-      const colours = await dialog.locator(sel).evaluate((e) => {
-        let bg: HTMLElement | null = e as HTMLElement;
-        while (
-          bg &&
-          getComputedStyle(bg).backgroundColor === 'rgba(0, 0, 0, 0)'
-        )
-          bg = bg.parentElement;
-        return {
-          fg: getComputedStyle(e).color,
-          bg: bg ? getComputedStyle(bg).backgroundColor : 'rgb(255, 255, 255)',
-        };
-      });
-      expect(
-        await contrast(page, colours.fg, colours.bg),
-      ).toBeGreaterThanOrEqual(4.5);
+      await expect
+        .poll(async () => {
+          const colours = await dialog.locator(sel).evaluate((e) => {
+            let bg: HTMLElement | null = e as HTMLElement;
+            while (
+              bg &&
+              getComputedStyle(bg).backgroundColor === 'rgba(0, 0, 0, 0)'
+            )
+              bg = bg.parentElement;
+            return {
+              fg: getComputedStyle(e).color,
+              bg: bg
+                ? getComputedStyle(bg).backgroundColor
+                : 'rgb(255, 255, 255)',
+            };
+          });
+          return contrast(page, colours.fg, colours.bg);
+        })
+        .toBeGreaterThanOrEqual(4.5);
     }
   });
 }

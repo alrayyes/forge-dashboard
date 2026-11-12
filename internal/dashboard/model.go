@@ -246,6 +246,14 @@ type PullRequest struct {
 	// failed, so a client can show how far a pipeline is without opening it.
 	Checks      CheckCounts `json:"checks"`
 	MergeStatus MergeStatus `json:"mergeStatus"`
+	// ConflictConfirmed is Forgejo's only, and set only with MergeConflicting.
+	// True: a merge or update of this pull request was refused naming a
+	// conflict. False: only the mergeable flag staying false past the check
+	// window says so, which a forge that is still checking looks the same as.
+	// Nil on GitHub, which reports conflicts itself (#3308).
+	ConflictConfirmed *bool `json:"conflictConfirmed,omitempty"`
+	// ConflictFiles are the files that refusal named, when it named any.
+	ConflictFiles []string `json:"conflictFiles,omitempty"`
 	// Behind is deliberately its own field, not folded into MergeStatus,
 	// because the two aren't mutually exclusive on every forge: confirmed
 	// live against a real Forgejo instance (a PR's own Mergeable field
@@ -348,6 +356,14 @@ type PullRequest struct {
 	// merge. Set only while AutoMergeEnabled is true, and empty (omitted)
 	// when the holder isn't known, so a client must not guess it.
 	AutoMergeHeldBy AutoMergeHolder `json:"autoMergeHeldBy,omitempty"`
+	// BaseRequiresUpToDate is whether the base branch's protection requires a
+	// pull request to be up to date before it merges (GitHub branch protection
+	// "strict", Forgejo "block_on_outdated_branch", #3428). It is a fact about
+	// the branch, read once per repo and cached. Only set on a behind pull
+	// request, since that is the only one it matters for. Nil when unknown (the
+	// protection can't be read, or no source reads it), so a client must not
+	// guess it.
+	BaseRequiresUpToDate *bool `json:"baseRequiresUpToDate,omitempty"`
 	// AutoMergeAllowed is GitHub's per-viewer viewerCanEnableAutoMerge
 	// answer (#738): false when GitHub would refuse "Enable auto-merge",
 	// e.g. a stacked PR whose base branch has no protection rule. Nil when

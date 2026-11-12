@@ -574,15 +574,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await updateBranch(rowFor(page, 1));
     const toast = toasts(page).first();
     await expect(toast).toBeVisible();
-    const motion = await toast.evaluate((node) => {
-      const style = getComputedStyle(node);
-      return {
-        animation: style.animationName,
-        transition: style.transitionDuration,
-      };
-    });
-    expect(motion.animation).toBe('none');
-    expect(motion.transition).toMatch(/^0s(, 0s)*$/);
+    await expect(toast).toHaveCSS('animation-name', 'none');
+    await expect(toast).toHaveCSS('transition-duration', /^0s(, 0s)*$/);
   });
 
   test('has no axe violations with a toast and the panel open', async ({

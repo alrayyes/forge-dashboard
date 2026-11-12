@@ -148,10 +148,12 @@ test.describe('settings groups', () => {
           weight: Number(label.fontWeight),
         };
       });
-    const a = await style(current);
-    const b = await style(other);
-    expect(a.weight).toBeGreaterThan(b.weight);
-    expect(a.barColour).not.toBe(b.barColour);
+    await expect
+      .poll(async () => {
+        const [a, b] = [await style(current), await style(other)];
+        return a.weight > b.weight && a.barColour !== b.barColour;
+      })
+      .toBe(true);
   });
 
   test('the GitHub token help names the Dependabot alerts permission as optional', async ({

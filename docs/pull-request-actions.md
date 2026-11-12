@@ -159,9 +159,18 @@ Forgejo has one `mergeable` flag, false for a conflict and also while the forge
 rechecks after a base push, so a Forgejo pull request that is false with a moved
 base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
 seconds, two refresh intervals. Its Merge stays locked with the same words.
-If the flag is still false for the same head and base after that, the row says
-"Conflicting", and a new head or base starts the wait again. GitHub reports
-conflicts itself and is unchanged.
+A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
+refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
+once, even inside the window, and names the files git reported ("In a.txt,
+docs/b.md"). If the flag is still false for the same head and base after the
+window and no refusal named a conflict, the row says "Conflict not confirmed",
+since the flag is false for a stuck check too. That pill is a button: a tap
+shows the reason, and Update branch stays available on it, because a refused
+update is how it gets confirmed. Either way the status is `conflicting` for the
+Conflicts filter, and the server sends `conflictConfirmed` and `conflictFiles`
+for the page to word it. The remembered refusal is kept in memory by repo,
+number, head and base, so a new head or a base push drops it, and so does a
+restart. GitHub reports conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
 
@@ -514,6 +523,22 @@ the server says Forgejo itself holds the merge (it merges when checks pass),
 and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
 merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
 Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
+
+An armed pull request that is behind says whether that is what holds it. Where
+the base branch needs the branch to be current before a merge (GitHub's `strict`
+branch protection setting, Forgejo's "Block merge if the pull request is
+outdated"), the forge waits until someone updates the branch, so the chip reads
+`Waiting for update` and its explanation says the branch has to be updated
+first. Update branch is offered as usual. Where the rule is off, or can't be
+read, being behind isn't blamed: a pending, cancelled, or failing check is named
+instead, as it would be on a branch that isn't behind. A conflict still stops
+it, with the armed state kept. The rule is a fact about the branch, sent as
+`baseRequiresUpToDate` on a behind pull request. It is read from the forge's
+branch protection once per branch and kept for five minutes (one when it could
+not be read), so a refresh costs no call per pull request. On GitHub only
+classic branch protection is read, with admin rights on the repo; a branch that
+only a ruleset protects reads as unknown.
+
 When a pull request goes empty, because its branch
 landed on the base some other way, the app cancels an armed auto-merge on it
 (GitHub's with the same mutation, Forgejo's by dropping its intent) and the

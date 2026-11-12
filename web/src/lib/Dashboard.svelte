@@ -260,6 +260,10 @@
     authorUrl?: string;
     draft: boolean;
     ci: string;
+    // Forgejo only: whether a refused merge or update named the conflict
+    // (true) or only the forge's flag says so (false), and the files named.
+    conflictConfirmed?: boolean;
+    conflictFiles?: string[];
     // How many checks passed, are running, are waiting and failed (#2004). The
     // server tallies them; absent from an older server, which leaves the pill
     // as it was.
@@ -1031,15 +1035,73 @@
     // not a completion gate the way an incomplete "blocked" is.
     // #1561: "blocked" is also silent while ci is "failure", the failing CI
     // pill already says why (Filters.showBlockedChip).
-    function mergeStatusPill(status: string, ci: string): HTMLElement | null {
+    function mergeStatusPill(
+      status: string,
+      ci: string,
+      conflict: ConflictFacts = {},
+    ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
+      // Forgejo's flag stayed false and no refusal named a conflict (#3308).
+      if (status === "conflicting" && conflict.confirmed === false)
+        return unconfirmedConflictPill();
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
-      return pill;
+      const where = conflictWhere(conflict.files ?? []);
+      if (status !== "conflicting" || !where) return pill;
+      const group = el("span", "merge-state");
+      group.appendChild(pill);
+      group.appendChild(el("span", "merge-where", where));
+      return group;
+    }
+
+    type ConflictFacts = { confirmed?: boolean; files?: string[] };
+
+    function conflictFacts(item: PullRequestItem): ConflictFacts {
+      return { confirmed: item.conflictConfirmed, files: item.conflictFiles };
+    }
+
+    // "In a.txt, b.md and 2 more": where a refused merge or update said the
+    // conflict is. Nothing when the refusal named no file.
+    function conflictWhere(files: string[]): string {
+      if (files.length === 0) return "";
+      const shown = files.slice(0, 3).join(", ");
+      const more = files.length - 3;
+      return more > 0 ? `In ${shown} and ${more} more` : `In ${shown}`;
+    }
+
+    let unconfirmedReasonCount = 0;
+
+    // "Conflict not confirmed" and the reason one tap away. The server leaves
+    // it at that: the forge's flag has been false past the check window, which
+    // it is for a conflict and also for a check that never finishes.
+    function unconfirmedConflictPill(): HTMLElement {
+      const id = `conflict-reason-${++unconfirmedReasonCount}`;
+      const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
+      pill.type = "button";
+      pill.setAttribute("aria-expanded", "false");
+      pill.setAttribute("aria-controls", id);
+      pill.appendChild(el("span", "dot"));
+      pill.appendChild(document.createTextNode("Conflict not confirmed"));
+      const reason = el(
+        "span",
+        "merge-where",
+        "The forge says this can't merge, and says the same while it is still checking. No merge or update has been refused with a conflict yet. Update the branch to find out.",
+      );
+      reason.id = id;
+      reason.hidden = true;
+      pill.addEventListener("click", (event) => {
+        event.stopPropagation();
+        reason.hidden = !reason.hidden;
+        pill.setAttribute("aria-expanded", String(!reason.hidden));
+      });
+      const group = el("span", "merge-state");
+      group.appendChild(pill);
+      group.appendChild(reason);
+      return group;
     }
 
     // The Out of date badge: a pull request whose base branch has moved on,
@@ -1392,7 +1454,11 @@
       slot.appendChild(ciPill(item, false));
       state.appendChild(slot);
       // Mergeable draws nothing, as on the row.
-      const merge = mergeStatusPill(item.mergeStatus, item.ci);
+      const merge = mergeStatusPill(
+        item.mergeStatus,
+        item.ci,
+        conflictFacts(item),
+      );
       if (merge) state.appendChild(merge);
       const attributes = attributeCluster(item);
       attributes.setAttribute("role", "group");
@@ -2552,7 +2618,11 @@
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
-        const conflictPill = mergeStatusPill(pr.mergeStatus, pr.ci);
+        const conflictPill = mergeStatusPill(
+          pr.mergeStatus,
+          pr.ci,
+          conflictFacts(pr),
+        );
         if (conflictPill) statusCell.appendChild(conflictPill);
         const reviewActivity = reviewPill(pr);
         if (reviewActivity) statusCell.appendChild(reviewActivity);

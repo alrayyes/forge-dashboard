@@ -45,6 +45,57 @@ func TestAutoMergeStatusOf(t *testing.T) {
 	}
 }
 
+func TestAutoMergeStatusOf_BehindInAStrictRepo_WaitsForTheBranchUpdate(t *testing.T) {
+	t.Parallel()
+	pr := amPR(func(p *dashboard.PullRequest) {
+		p.Behind, p.BaseRequiresUpToDate = true, new(true)
+	})
+
+	got := dashboard.AutoMergeStatusOf(pr, nil)
+
+	assert.Equal(t, dashboard.AutoMergeWaiting, got.State)
+	assert.Equal(t, dashboard.ActionBehind, got.Code)
+	assert.Contains(t, got.Message, "branch to be updated")
+}
+
+func TestAutoMergeStatusOf_BehindWithoutAStrictRule_DoesNotBlameBeingBehind(t *testing.T) {
+	t.Parallel()
+	for name, rule := range map[string]*bool{"not required": new(false), "unknown": nil} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			pr := amPR(func(p *dashboard.PullRequest) {
+				p.Behind, p.BaseRequiresUpToDate, p.CI = true, rule, dashboard.CICancelled
+			})
+
+			got := dashboard.AutoMergeStatusOf(pr, nil)
+
+			assert.Equal(t, dashboard.ActionChecksPending, got.Code)
+			assert.Contains(t, got.Message, "cancelled")
+		})
+	}
+}
+
+func TestAutoMergeStatusOf_BehindInAStrictRepoWithAFailedCheck_NamesTheCheck(t *testing.T) {
+	t.Parallel()
+	pr := amPR(func(p *dashboard.PullRequest) {
+		p.Behind, p.BaseRequiresUpToDate, p.CI = true, new(true), dashboard.CIFailure
+	})
+
+	assert.Equal(t, dashboard.ActionChecksFailing, dashboard.AutoMergeStatusOf(pr, nil).Code)
+}
+
+func TestAutoMergeStatusOf_ConflictBehindInAStrictRepo_StaysStopped(t *testing.T) {
+	t.Parallel()
+	pr := amPR(func(p *dashboard.PullRequest) {
+		p.Behind, p.BaseRequiresUpToDate, p.MergeStatus = true, new(true), dashboard.MergeConflicting
+	})
+
+	got := dashboard.AutoMergeStatusOf(pr, nil)
+
+	assert.Equal(t, dashboard.AutoMergeStopped, got.State)
+	assert.Equal(t, dashboard.ActionConflict, got.Code)
+}
+
 func TestAutoMergeStatusOf_StackedOnAParent_WaitsForIt(t *testing.T) {
 	t.Parallel()
 	pr := amPR(func(p *dashboard.PullRequest) { p.StackedOn = &dashboard.StackRef{Number: 9} })
