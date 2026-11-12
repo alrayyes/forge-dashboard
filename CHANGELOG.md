@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.25.3](https://github.com/alrayyes/forge-dashboard/compare/v9.25.2...v9.25.3) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** size the remaining text in rem ([#3611](https://github.com/alrayyes/forge-dashboard/issues/3611)) ([749a70c](https://github.com/alrayyes/forge-dashboard/commit/749a70c0ed549b9b87fa1fde3e2ff760cfaa8bb2)), closes [#3398](https://github.com/alrayyes/forge-dashboard/issues/3398)
+
 ## [9.25.2](https://github.com/alrayyes/forge-dashboard/compare/v9.25.1...v9.25.2) (2026-11-12)
 
 
