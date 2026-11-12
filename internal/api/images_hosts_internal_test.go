@@ -47,7 +47,7 @@ func TestImageProxyFor_TakesEachForgesOwnHostsOnly(t *testing.T) {
 		{"github", forgejoOwn, false},
 		{"github", stranger, false},
 	} {
-		proxy, serr := imageProxyFor(tc.forge, creds)
+		proxy, serr := imageProxyFor(Deps{}, tc.forge, creds)
 		require.Nil(t, serr)
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
