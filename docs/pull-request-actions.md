@@ -37,7 +37,7 @@ draws its rebase beside it, or the cancel while a Renovate rebase is requested.
 A behind person's pull request whose row button is Merge, or none (ready to
 merge, failing checks, a known conflict), also draws the Update branch the
 server lists in the row bar, below the main button, so the Out of date chip is
-never beside a gap; a conflict shows it locked with its reason (#3691). A pull
+never beside a gap; a conflict shows it locked with its reason. A pull
 request that is behind the base branch is the one case where
 a locked Merge is not the row's button: the row draws no button of its own,
 because the cure (Update branch, or the bot's rebase) sits inside the status
