@@ -126,6 +126,16 @@ reported." The panel and the pull request row share one workflow-runs read per
 head commit, kept for a minute. A `failure` or `cancelled` run with no jobs is
 not listed, since telling it from a normal one takes a request per run.
 
+A "Not reported" row blocks the merge but doesn't count as failed. When it is
+the only problem, the dialog has no failed check, so it offers no Copy log or
+Rerun failed checks, and the Failed number stays at zero. The same goes for a
+default branch: when the newest commit has no check run because a workflow
+ended in `startup_failure`, the Main branches row reads Failed and names the
+workflow, and links the run, rather than showing an older commit's result.
+
+The workflow-runs read takes the newest 100 runs of a head commit. A held or
+`startup_failure` run beyond those 100 isn't found.
+
 A job that really failed beside a held run still counts as failed. With
 auto-merge armed, the status line says it is waiting for workflow approval, not
 that a check failed.
