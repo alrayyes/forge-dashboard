@@ -194,10 +194,10 @@ forge no request. The
 issue's pop-up lists them after "Mentioned in", drawn like the closing pull
 requests, and a plain click swaps the pop-up for that pull request's. The label
 and the pills are absent when no pull request mentions the issue. The rows don't
-show them. The referencing ones are on the rows and in the pop-up under
-"Referenced in", drawn with a dotted outline and italic text, after the closing
-pills; a row shows two of several and a count that opens the rest. How a
-mention is read is in [Tickets a pull request
+show them. Pull requests that reference the issue are on the rows and in the
+pop-up under "Referenced in", drawn with a dotted outline and italic text,
+after the closing pills; a row shows two of several and a count that opens the
+rest. How a mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
 ## Opening an issue from its address
