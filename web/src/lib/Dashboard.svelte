@@ -6034,10 +6034,6 @@
             text: `${plan.failing} failing`,
             tone: plan.failing > 0 ? "bad" : undefined,
           },
-          {
-            text: `${asking} ready to rebase`,
-            tone: asking > 0 ? "good" : undefined,
-          },
         ]);
     }
 

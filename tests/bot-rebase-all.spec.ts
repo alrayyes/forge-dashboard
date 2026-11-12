@@ -357,25 +357,28 @@ for (const width of [390, 1280]) {
 }
 
 // The summary as a status strip (#3276): a headline, an optional reason line,
-// three count chips and the button. The chips repeat the headline's numbers for
+// two count chips and the button. The chips repeat the headline's numbers for
 // scanning, so they sit outside the element the button's aria-describedby
-// reads.
+// reads. The ready count is the button's label, not a chip (#3639).
 // Within half a pixel, the threshold toBeCloseTo(x, 0) used. Compared as a
 // boolean so a small negative offset can't round to -0.
 const near = (a: number, b: number) => Math.abs(a - b) < 0.5;
 
+// The button's label carries the ready count (#3639), so no chip repeats it.
+const noChip = (page: Page) => page.getByText(/ready to rebase/);
+
 const chipTexts = (page: Page) =>
   page.locator('.rebase-all-chips > li').allInnerTexts();
 
-test('the strip shows the counts as chips beside the headline', async ({
+test('the strip shows two count chips beside the headline', async ({
   page,
 }) => {
   await open(page, [pr(1), pr(2)]);
   await expect(page.locator('.rebase-all-chips > li')).toHaveText([
     '2 out of date',
     '0 failing',
-    '2 ready to rebase',
   ]);
+  await expect(noChip(page)).toHaveCount(0);
   await expect(page.locator('.rebase-all-headline')).toHaveText(
     '2 of 2 are out of date.',
   );
@@ -432,12 +435,14 @@ test('the chips count the rows the filters leave, not held CI or waiting request
   await expect(page.locator('.rebase-all-chips > li')).toHaveText([
     '3 out of date',
     '1 failing',
-    '1 ready to rebase',
   ]);
+  await expect(
+    page.getByRole('button', { name: 'Rebase all (1)' }),
+  ).toBeVisible();
   expect(posts).toHaveLength(1);
 });
 
-test('the reason is its own line and a narrower view narrows every chip', async ({
+test('the reason is its own line and a narrower view narrows the chips and the button', async ({
   page,
 }) => {
   await open(
@@ -463,8 +468,10 @@ test('the reason is its own line and a narrower view narrows every chip', async 
   await expect(page.locator('.rebase-all-chips > li')).toHaveText([
     '2 out of date',
     '0 failing',
-    '1 ready to rebase',
   ]);
+  await expect(
+    page.getByRole('button', { name: 'Rebase all (1)' }),
+  ).toBeVisible();
   await page
     .locator('.quick-pill.forge-pill[data-pill="github"]')
     .evaluate((el) => {
@@ -473,8 +480,8 @@ test('the reason is its own line and a narrower view narrows every chip', async 
   await expect(page.locator('.rebase-all-chips > li')).toHaveText([
     '1 out of date',
     '0 failing',
-    '0 ready to rebase',
   ]);
+  await expect(page.locator('#rebase-all-button')).toHaveText('Rebase all');
 });
 
 test('with nothing rebasable the reason sits under the headline and the button says why', async ({
@@ -549,12 +556,8 @@ test('on a phone the chips keep their words and the button fills the strip', asy
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await open(page, [pr(1), pr(2)]);
-  await expect(page.locator('.rebase-all-chips > li')).toHaveCount(3);
-  expect(await chipTexts(page)).toEqual([
-    '2 out of date',
-    '0 failing',
-    '2 ready to rebase',
-  ]);
+  await expect(page.locator('.rebase-all-chips > li')).toHaveCount(2);
+  expect(await chipTexts(page)).toEqual(['2 out of date', '0 failing']);
   const measure = () =>
     page.evaluate(() => {
       const r = (el: Element) => el.getBoundingClientRect();
@@ -584,7 +587,7 @@ test('on a phone the chips keep their words and the button fills the strip', asy
     .poll(async () => {
       const m = await measure();
       const checks: [string, boolean][] = [
-        ['three chips', m.chipLines.length === 3],
+        ['two chips', m.chipLines.length === 2],
         ['button starts at the strip', near(m.buttonLeft, m.left)],
         ['button ends at the strip', near(m.buttonRight, m.right)],
         ['button at least 44 tall', m.buttonHeight >= 44],
@@ -631,9 +634,8 @@ test('the chips follow a run, one snapshot at a time', async ({ page }) => {
   await expect(page.locator('.rebase-all-chips > li')).toHaveText([
     '2 out of date',
     '0 failing',
-    // Requests go one after another, so 0 or 1 are still left to ask.
-    /^[01] ready to rebase$/,
   ]);
+  await expect(noChip(page)).toHaveCount(0);
   release();
   await expect(page.locator('#rebase-all-status')).toHaveText(
     'Rebase requested for 2.',
@@ -659,8 +661,8 @@ test(`the strip passes axe in light and dark with every chip tint`, async ({
       await expect(page.locator('.rebase-all-chips > li')).toHaveText([
         '1 out of date',
         '1 failing',
-        '1 ready to rebase',
       ]);
+      await expect(noChip(page)).toHaveCount(0);
 
       await expectNoAxeViolations(page);
     });
@@ -690,8 +692,8 @@ test(`the strip passes axe in light and dark with zero chips`, async ({
       await expect(page.locator('.rebase-all-chips > li')).toHaveText([
         '1 out of date',
         '0 failing',
-        '0 ready to rebase',
       ]);
+      await expect(noChip(page)).toHaveCount(0);
 
       await expectNoAxeViolations(page);
     });
@@ -833,4 +835,27 @@ test('the tab stop follows the root font size while open', async ({ page }) => {
     document.documentElement.style.fontSize = '';
   });
   await expect(list).not.toHaveAttribute('tabindex', /.*/);
+});
+
+test('focus moves to the All quick filter when the strip hides under it', async ({
+  page,
+}) => {
+  const rows = [pr(1)];
+  await open(page, rows);
+  const button = page.locator('#rebase-all-button');
+  await expect(button).toBeVisible();
+  // The page may still be settling after load and take focus back, so retry.
+  await expect(async () => {
+    await button.focus();
+    await expect(button).toBeFocused({ timeout: 500 });
+  }).toPass();
+  rows[0].behind = false;
+  // A script click, so the refresh button doesn't take focus first.
+  await page
+    .locator('#force-refresh-button')
+    .evaluate((el) => (el as HTMLElement).click());
+  await expect(page.locator('.rebase-all')).toBeHidden();
+  await expect(
+    page.locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]'),
+  ).toBeFocused();
 });
