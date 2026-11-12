@@ -4,10 +4,11 @@ import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // The Issues page shows the pull requests that only reference an issue as
-// refs pills beside the closing ones, and both pages filter on the refs
-// relation the way they filter on closing. Mocks /api/v1/dashboard and the
-// details endpoint only.
+// refs pills beside the closing ones. Both pages filter on one refs relation
+// that covers a close as well as a plain ref; there is no separate closing
+// filter. Mocks /api/v1/dashboard and the details endpoint only.
 // https://github.com/alrayyes/forge-dashboard/issues/3612
+// https://github.com/alrayyes/forge-dashboard/issues/3655
 
 const REPO = 'acme/app';
 const ago = (minutes: number) =>
@@ -161,8 +162,6 @@ const closePills = (page: Page, title: string) =>
 const bar = (page: Page) => page.locator('.filter-bar > .refs-group');
 const choice = (page: Page, value: 'any' | 'yes' | 'no') =>
   bar(page).locator(`[data-ref="${value}"]`);
-const closingChoice = (page: Page, value: 'any' | 'yes' | 'no') =>
-  page.locator(`.filter-bar > .link-group [data-link="${value}"]`);
 const prTitles = (page: Page) => page.locator('#pr-rows > .row .title-text');
 const issueTitles = (page: Page) =>
   page.locator('#issue-rows > .row .title-text');
@@ -316,29 +315,50 @@ test.describe('Pull requests: references an issue', () => {
     await expect(prTitles(page)).toHaveCount(4);
 
     await choice(page, 'yes').click();
-    await expect(prTitles(page)).toHaveCount(2);
-    await expect(page.locator('#pr-rows')).not.toContainText('Fixes a bug');
+    await expect(prTitles(page)).toHaveCount(3);
+    await expect(page.locator('#pr-rows')).toContainText('Fixes a bug');
+    await expect(page.locator('#pr-rows')).toContainText('Part of a larger');
+    await expect(page.locator('#pr-rows')).not.toContainText(
+      'Standalone change',
+    );
     await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
 
     await choice(page, 'no').click();
-    await expect(prTitles(page)).toHaveCount(2);
+    await expect(prTitles(page)).toHaveCount(1);
     await expect(page.locator('#pr-rows')).toContainText('Standalone change');
-    await expect(page.locator('#pr-rows')).toContainText('Fixes a bug');
 
     await choice(page, 'any').click();
     await expect(prTitles(page)).toHaveCount(4);
   });
 
-  test('combines with the closing pick', async ({ page }) => {
+  test('offers no separate closing filter, and ignores an old saved closing choice', async ({
+    page,
+  }) => {
+    await page.route(
+      '**/api/v1/settings/filter-state',
+      async (route: Route) => {
+        if (route.request().method() !== 'GET') return route.fallback();
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            shared: {},
+            pr: { closes: 'yes' },
+            issue: { closedBy: 'no' },
+            view: {},
+          }),
+        });
+      },
+    );
     await open(page, '/pull-requests.html');
 
-    await choice(page, 'yes').click();
-    await closingChoice(page, 'yes').click();
-
-    await expect(prTitles(page)).toHaveCount(1);
-    await expect(prTitles(page).first()).toContainText('touches another');
-    await choice(page, 'any').click();
-    await expect(prTitles(page)).toHaveCount(2);
+    await expect(page.locator('.link-group')).toHaveCount(0);
+    await expect(page.getByText('Closing issue')).toHaveCount(0);
+    await expect(prTitles(page)).toHaveCount(4);
+    await expect(
+      page.getByRole('button', { name: /^Remove filter/ }),
+    ).toHaveCount(0);
+    await expect(page.locator('#held-picks')).toBeEmpty();
   });
 
   test('the pick survives a reload and Clear filters resets it', async ({
@@ -354,7 +374,7 @@ test.describe('Pull requests: references an issue', () => {
     await saved;
     await page.reload();
     await expect(choice(page, 'yes')).toHaveAttribute('aria-pressed', 'true');
-    await expect(prTitles(page)).toHaveCount(2);
+    await expect(prTitles(page)).toHaveCount(3);
 
     await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(choice(page, 'any')).toHaveAttribute('aria-pressed', 'true');
@@ -382,7 +402,7 @@ test.describe('Pull requests: references an issue', () => {
 
     await sheet.locator('[data-ref="no"]').click();
     await page.keyboard.press('Escape');
-    await expect(prTitles(page)).toHaveCount(2);
+    await expect(prTitles(page)).toHaveCount(1);
     await expect(
       page.getByRole('button', { name: 'Remove filter: References no issue' }),
     ).toBeVisible();
@@ -398,7 +418,7 @@ test.describe('Pull requests: references an issue', () => {
       .locator('dialog#filter-sheet .refs-group [data-ref="yes"]')
       .click();
     await page.keyboard.press('Escape');
-    await expect(issueTitles(page)).toHaveCount(3);
+    await expect(issueTitles(page)).toHaveCount(4);
 
     await page
       .getByRole('button', {
@@ -415,24 +435,16 @@ test.describe('Issues: has a referencing pull request', () => {
     await expect(issueTitles(page)).toHaveCount(5);
 
     await choice(page, 'yes').click();
-    await expect(issueTitles(page)).toHaveCount(3);
+    await expect(issueTitles(page)).toHaveCount(4);
+    await expect(page.locator('#issue-rows')).toContainText('Has a fix coming');
+    await expect(page.locator('#issue-rows')).toContainText(
+      'Only mentioned by work',
+    );
     await expect(page.locator('#issue-rows')).not.toContainText('Nobody on it');
 
     await choice(page, 'no').click();
-    await expect(issueTitles(page)).toHaveCount(2);
-    await expect(page.locator('#issue-rows')).toContainText('Has a fix coming');
-  });
-
-  test('combines with the closing pick', async ({ page }) => {
-    await open(page, '/issues.html');
-
-    await choice(page, 'yes').click();
-    await closingChoice(page, 'yes').click();
-
-    await expect(issueTitles(page)).toHaveCount(2);
-    await expect(page.locator('#issue-rows')).not.toContainText(
-      'Only mentioned by work',
-    );
+    await expect(issueTitles(page)).toHaveCount(1);
+    await expect(page.locator('#issue-rows')).toContainText('Nobody on it');
   });
 
   test('stays offered when nothing matches, and the two pages keep their own pick', async ({
@@ -467,3 +479,38 @@ test.describe('Issues: has a referencing pull request', () => {
     await expect(choice(page, 'no')).toBeHidden();
   });
 });
+
+for (const width of [390, 1280]) {
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const path of ['/pull-requests.html', '/issues.html']) {
+      test(`${path} filter bar has no axe violations at ${width}px in ${scheme} with the pick on`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
+        await open(page, path);
+        if (width === 390) {
+          await page.getByRole('button', { name: /^Filters/ }).click();
+          const sheet = page.locator('dialog#filter-sheet .refs-group');
+          await sheet.locator('[data-ref="yes"]').click();
+          for (const value of ['any', 'yes', 'no']) {
+            const box = await sheet
+              .locator(`[data-ref="${value}"]`)
+              .boundingBox();
+            expect(box?.height).toBeGreaterThanOrEqual(44);
+          }
+        } else {
+          await choice(page, 'yes').click();
+          await expect(choice(page, 'yes')).toHaveAttribute(
+            'aria-pressed',
+            'true',
+          );
+        }
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
+}

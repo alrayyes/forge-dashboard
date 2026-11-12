@@ -7455,7 +7455,6 @@
         | "apply"
         | "applyExceptQuick"
         | "applyExceptAutoMerge"
-        | "applyExceptClosing"
         | "applyExceptRefs" = "apply",
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
@@ -7476,13 +7475,11 @@
                 ...sharedState.pr,
                 ...(board === "applyExceptQuick" ? { quick: "" } : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
-                ...(board === "applyExceptClosing" ? { closes: "" } : {}),
                 ...(board === "applyExceptRefs" ? { refs: "" } : {}),
               }
             : undefined
           : {
               ...withSettings(sharedState.issue),
-              ...(board === "applyExceptClosing" ? { closedBy: "" } : {}),
               ...(board === "applyExceptRefs" ? { refBy: "" } : {}),
             },
       );
@@ -7604,17 +7601,11 @@
           sharedPoolExcluding("", "applyExceptAutoMerge"),
           sharedState.pr.autoMerge ?? "",
         );
-      Filters.offerClosing(
-        document.querySelectorAll<HTMLElement>(".link-group"),
-        sharedPoolExcluding("", "applyExceptClosing"),
-        pullsView,
-        closingGroup()[closingKey()] ?? "",
-      );
       Filters.offerRefs(
         document.querySelectorAll<HTMLElement>(".refs-group"),
         sharedPoolExcluding("", "applyExceptRefs"),
         pullsView,
-        closingGroup()[refsKey()] ?? "",
+        pickGroup()[refsKey()] ?? "",
       );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
@@ -7655,7 +7646,6 @@
     function syncSharedControlsToState() {
       syncQuickPills();
       syncAutoMerge();
-      syncClosing();
       syncRefs();
       document
         .querySelectorAll<HTMLInputElement | HTMLSelectElement>(FILTER_CONTROLS)
@@ -8362,17 +8352,14 @@
     }
     syncQuickPills();
 
-    function closingGroup() {
-      return Filters.closingGroup(sharedState, pullsView);
-    }
-    function closingKey() {
-      return Filters.closingKey(pullsView);
+    function pickGroup() {
+      return Filters.pickGroup(sharedState, pullsView);
     }
     function refsKey() {
       return Filters.refsKey(pullsView);
     }
 
-    // ---- segmented filters: auto-merge (#1455) and closing link ----
+    // ---- segmented filters: auto-merge (#1455) and refs ----
     // Any plus the choices. The pick is saved with the page's other filters;
     // `get` and `set` say where it lives, `after` what else changes with it.
     function wireSegment(
@@ -8427,30 +8414,14 @@
       },
       () => prBoard.resetPage(),
     );
-    // Pull requests: closes an issue or not. Issues: has a closing pull
-    // request or not.
-    const syncClosing = wireSegment(
-      "link-group",
-      "link",
-      () => closingGroup()[closingKey()],
-      (v) => {
-        setPick(closingGroup(), closingKey(), v);
-        Filters.touchKey(pullsView ? "pr" : "issue", closingKey());
-      },
-      () => {
-        prBoard.resetPage();
-        issueBoard.resetPage();
-      },
-    );
-
-    // Pull requests: references an issue or not. Issues: has a referencing
-    // pull request or not. Its own pick, so it combines with the closing one.
+    // Pull requests: references (or closes) an issue or not. Issues: has a
+    // referencing (or closing) pull request or not.
     const syncRefs = wireSegment(
       "refs-group",
       "ref",
-      () => closingGroup()[refsKey()],
+      () => pickGroup()[refsKey()],
       (v) => {
-        setPick(closingGroup(), refsKey(), v);
+        setPick(pickGroup(), refsKey(), v);
         Filters.touchKey(pullsView ? "pr" : "issue", refsKey());
       },
       () => {
@@ -8650,16 +8621,7 @@
           label: `Auto-merge ${sharedState.pr.autoMerge}`,
           clear: () => clearSegment("am-group", "am"),
         });
-      const closing = closingGroup()[closingKey()];
-      if (closing)
-        chips.push({
-          label: Filters.closingChoiceLabel(
-            pullsView,
-            closing === "yes" ? "yes" : "no",
-          ),
-          clear: () => clearSegment("link-group", "link"),
-        });
-      const refs = closingGroup()[refsKey()];
+      const refs = pickGroup()[refsKey()];
       if (refs)
         chips.push({
           label: Filters.refsChoiceLabel(
@@ -8786,7 +8748,7 @@
       );
       // Each filter is cleared in the group the page keeps it in: the
       // pull-request ones live in sharedState.pr, the rest in shared.
-      const prKeys = ["status", "quick", "autoMerge", "closes", "refs"];
+      const prKeys = ["status", "quick", "autoMerge", "refs"];
       for (const filter of failing) {
         if (filter === "label" || filter === "repo" || filter === "author") {
           // A pick control is cleared through the pick itself, so its ticks
@@ -8802,7 +8764,6 @@
       if (failing.length > 0) {
         syncQuickPills();
         syncAutoMerge();
-        syncClosing();
         syncRefs();
         document
           .querySelectorAll<HTMLInputElement | HTMLSelectElement>(
@@ -8854,7 +8815,6 @@
       Filters.touchAll();
       syncQuickPills();
       syncAutoMerge();
-      syncClosing();
       syncRefs();
 
       document
@@ -10271,29 +10231,8 @@
   }
 </script>
 
-<!-- The closing-link segment, once in the filter bar and once in the phone
-     Filters sheet, so the two cannot drift apart. -->
-{#snippet closingSegment(sheet: boolean)}
-  <div
-    class="segment link-group"
-    class:sheet-only={sheet}
-    role="group"
-    aria-label={view === "issues" ? "Closing pull request" : "Closing issue"}
-  >
-    <span class="am-label" aria-hidden="true"
-      >{view === "issues" ? "Closing PR" : "Closing issue"}</span
-    >
-    <button type="button" data-link="any" aria-pressed="true">Any</button>
-    <button type="button" data-link="yes" aria-pressed="false"
-      >{Filters.closingChoiceLabel(pullsView, "yes")}</button
-    >
-    <button type="button" data-link="no" aria-pressed="false"
-      >{Filters.closingChoiceLabel(pullsView, "no")}</button
-    >
-  </div>
-{/snippet}
-
-<!-- The refs segment, beside the closing one, in the bar and the sheet. -->
+<!-- The refs segment, once in the filter bar and once in the phone Filters
+     sheet, so the two cannot drift apart. -->
 {#snippet refsSegment(sheet: boolean)}
   <div
     class="segment refs-group"
@@ -10616,7 +10555,6 @@
           ></span></button
         >
       {/if}
-      {@render closingSegment(true)}
       {@render refsSegment(true)}
       <select
         class="group-select"
@@ -10672,7 +10610,6 @@
     </div>
     <!-- Last in the bar, so the pills above it appearing or going moves
          nothing but this segment and the bar keeps its height. -->
-    {@render closingSegment(false)}
     {@render refsSegment(false)}
   </div>
 

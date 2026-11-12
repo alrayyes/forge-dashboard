@@ -108,32 +108,20 @@ describe('applyServerState with a held pick', () => {
   });
 });
 
-describe('applyServerState with a closing-link choice', () => {
-  const empty = (): SharedFilterState => ({
-    shared: {},
-    pr: {},
-    issue: {},
-    view: {},
-  });
-
-  test('a saved value other than yes or no reads as Any', () => {
-    const state = empty();
-    applyServerState(state, {
-      pr: { closes: 'maybe' },
-      issue: { closedBy: 'maybe' },
-    });
-    expect(state.pr.closes).toBeUndefined();
-    expect(state.issue.closedBy).toBeUndefined();
-  });
-
-  test('yes and no are kept', () => {
-    const state = empty();
+describe('applyServerState with an old closing-link choice', () => {
+  test('is dropped, whatever it holds (#3655)', () => {
+    const state: SharedFilterState = {
+      shared: {},
+      pr: {},
+      issue: {},
+      view: {},
+    };
     applyServerState(state, {
       pr: { closes: 'yes' },
       issue: { closedBy: 'no' },
     });
-    expect(state.pr.closes).toBe('yes');
-    expect(state.issue.closedBy).toBe('no');
+    expect(state.pr.closes).toBeUndefined();
+    expect(state.issue.closedBy).toBeUndefined();
   });
 });
 

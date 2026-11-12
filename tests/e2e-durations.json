@@ -39,7 +39,6 @@
   "ci-status-pulldown-gone.spec.ts": 0.827,
   "close-neutral.spec.ts": 4.573,
   "closing-issues.spec.ts": 7.392,
-  "closing-link-filter.spec.ts": 8.77,
   "conflicts-filter.spec.ts": 2.812,
   "copy-failure.spec.ts": 14.431,
   "dashboard-error-banner.spec.ts": 0.93,

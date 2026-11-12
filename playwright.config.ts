@@ -245,7 +245,6 @@ const singleUserSpecs = [
   '**/error-pages.spec.ts',
   '**/label-multi-select.spec.ts',
   '**/legal.spec.ts',
-  '**/closing-link-filter.spec.ts',
   '**/pull-request-rows-live.spec.ts',
   '**/issue-rows-live.spec.ts',
   '**/main-branch-snapshot-runs.spec.ts',

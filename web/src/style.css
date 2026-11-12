@@ -4051,7 +4051,7 @@ button.pipeline-check-link:disabled {
   color: var(--ink-2);
   cursor: pointer;
 }
-/* The segmented filters (#1455), auto-merge and closing link: Any plus its
+/* The segmented filters (#1455), auto-merge and refs: Any plus its
    choices, on the trailing edge of the quick pill row, and as a sheet-only
    copy in the Filters sheet on a phone. */
 .segment {

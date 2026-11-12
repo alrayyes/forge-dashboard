@@ -256,15 +256,15 @@ setting.
 The issues page filters like the pull request page: forge, repo, title, author,
 label, created and updated, plus Group by. Those filters are shared and saved
 with your other filters, so a filter set on one page is still set on the other.
-A **Closing PR** control adds Any, **Has a closing pull request**, and **No
-closing pull request**, to find the issues something is already fixing and the
-ones nothing is. Only this page's list is filtered by it, it is saved and
-restored like the others, and a choice is offered only when some issue is that
-way. On a phone it is in the Filters sheet.
-A **Refs PR** control beside it does the same for the pull requests that only
-reference an issue: Any, **Has a referencing pull request** and **No
-referencing pull request**. It is its own pick and combines with the closing
-one. A value other than yes or no in a saved pick is dropped on load.
+A **Refs PR** control adds Any, **Has a referencing pull request** and **No
+referencing pull request**. A pull request that closes an issue counts as
+referencing it, since a close is the strong form of a ref, so there is no
+separate closing control. It finds the issues something is already working on
+and the ones nothing is. Only this page's list is filtered by it, it is saved
+and restored like the others, and a choice is offered only when some issue is
+that way. On a phone it is in the Filters sheet. A value other than yes or no
+in a saved pick is dropped on load, and so is a closing choice saved before the
+two controls were merged. The row's pills still tell a close from a ref.
 The pull-request-only controls (the CI quick filters, the quick filters for
 failing, ready, needs-review and conflicting pull requests, Show drafts) are not
 on the issues page. Which choices a page offers, and how filters are remembered,
