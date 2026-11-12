@@ -26,3 +26,15 @@ func TestContract_RefsAreInTheSpec(t *testing.T) {
 	values = append(values, relation.Enum...)
 	assert.ElementsMatch(t, []any{"closes", "refs", "mentions"}, values)
 }
+
+// The issue carries the other side of refsIssues, in the linked entry.
+func TestContract_IssueRequiresReferencedByPullRequests(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+
+	issue := doc.Components.Schemas["Issue"].Value
+	require.Contains(t, issue.Required, "referencedByPullRequests")
+	assert.Equal(t, "#/components/schemas/LinkedPullRequest", issue.Properties["referencedByPullRequests"].Value.Items.Ref)
+}

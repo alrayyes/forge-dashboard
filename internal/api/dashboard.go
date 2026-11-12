@@ -176,6 +176,9 @@ type issueView struct {
 	// MentionedByPullRequests are the open pull requests that mention this
 	// issue without closing it.
 	MentionedByPullRequests []linkedPullRequest `json:"mentionedByPullRequests"`
+	// ReferencedByPullRequests are the open pull requests that reference this
+	// issue (Refs, Related to, See) without closing it.
+	ReferencedByPullRequests []linkedPullRequest `json:"referencedByPullRequests"`
 }
 
 // linkedPullRequest is one pull request that will close an issue, with the
@@ -880,6 +883,7 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, prs []dashboard.Pull
 	}
 	index := dashboard.PullRequestsClosing(visible)
 	mentions := dashboard.PullRequestsMentioning(visible)
+	refs := dashboard.PullRequestsReferencing(visible)
 	for _, issue := range issues {
 		if b.ignored[settings.WebhookDeliveryKey(string(issue.Forge), issue.Repo)].Issues {
 			continue
@@ -897,6 +901,8 @@ func (b boardSettings) issueViews(issues []dashboard.Issue, prs []dashboard.Pull
 
 			LinkedPullRequests:      b.linkedPullRequests(index, issue),
 			MentionedByPullRequests: b.pullRequestPills(mentions.For(issue)),
+
+			ReferencedByPullRequests: b.pullRequestPills(refs.For(issue)),
 		})
 		if !housekeeping {
 			open++

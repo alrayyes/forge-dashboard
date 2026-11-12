@@ -59,3 +59,36 @@ func TestDashboard_PullRequestsListTheTicketsTheyReference(t *testing.T) {
 		require.NotEmpty(t, closes["pageUrl"])
 	})
 }
+
+func TestDashboard_IssuesListThePullRequestsThatReferenceThem(t *testing.T) {
+	t.Parallel()
+
+	srvURL, cookie := mentionsServer(t)
+	body := fetchDashboardWith(t, srvURL, cookie, "")
+
+	t.Run("a pull request that closes the issue is not repeated as a ref", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Empty(t, listOf(t, body, "issues", "github:alrayyes/a#1", "referencedByPullRequests"))
+	})
+	t.Run("a pull request that references the issue is listed with its dialog address", func(t *testing.T) {
+		t.Parallel()
+
+		got := listOf(t, body, "issues", "github:alrayyes/a#2", "referencedByPullRequests")
+
+		require.Len(t, got, 1)
+		assert.Equal(t, "/pull-requests.html?pr=github/alrayyes/a/12", got[0].(map[string]any)["pageUrl"])
+	})
+	t.Run("a pull request that references an issue is not also listed as mentioning it", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, []int{7}, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "referencedByPullRequests")))
+		assert.NotContains(t, numbers(listOf(t, body, "issues", "forgejo:Ryan/Hush#3", "mentionedByPullRequests")), 7)
+	})
+	t.Run("an issue nothing references lists none, never null", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Empty(t, listOf(t, body, "issues", "github:alrayyes/a#3", "referencedByPullRequests"))
+		assert.NotNil(t, listOf(t, body, "issues", "github:alrayyes/a#3", "referencedByPullRequests"))
+	})
+}
