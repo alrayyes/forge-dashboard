@@ -81,12 +81,11 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(spans).toHaveText(['d9b6a1b', 'dc0963f']);
 
     // Monospace face and a tint that differs from the dialog surface.
-    const look = await spans.first().evaluate((el) => {
-      const s = getComputedStyle(el);
-      return { font: s.fontFamily, bg: s.backgroundColor };
-    });
-    expect(look.font.toLowerCase()).toMatch(/mono/);
-    expect(look.bg).not.toBe('rgba(0, 0, 0, 0)');
+    await expect(spans.first()).toHaveCSS('font-family', /mono/i);
+    await expect(spans.first()).not.toHaveCSS(
+      'background-color',
+      'rgba(0, 0, 0, 0)',
+    );
 
     // A digest never breaks mid-word.
     for (const box of await spans.evaluateAll((els) =>

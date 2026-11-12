@@ -20,33 +20,26 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.goto(`/settings.html#${group}`);
       await expect(page.locator(`#${group}`)).toBeVisible();
 
-      const hints = await page
-        .locator(`#${group} .field-hint`)
-        .evaluateAll((els) =>
+      // The sizes are read inside the poll, so a hint that is still taking
+      // its style does not fail the run.
+      const misfits = () =>
+        page.locator(`#${group} .field-hint`).evaluateAll((els) =>
           els
             .filter((el) => (el as HTMLElement).offsetParent !== null)
-            .map((el) => {
+            .flatMap((el) => {
               const cardLevel = el.closest('.field') === null;
               const s = getComputedStyle(el);
               const size = Number.parseFloat(s.fontSize);
               const lh = Number.parseFloat(s.lineHeight) || 1.5 * size;
-              return {
-                text: (el.textContent ?? '').trim().slice(0, 40),
-                size,
-                cardLevel,
-                lines: Math.round(el.getBoundingClientRect().height / lh),
-              };
+              const lines = Math.round(el.getBoundingClientRect().height / lh);
+              const text = (el.textContent ?? '').trim().slice(0, 40);
+              const [min, max] = cardLevel && lines > 2 ? [13, 14] : [12, 16];
+              const ok =
+                size < 16 && size >= min && (max === 16 || size <= max);
+              return ok ? [] : [`${text}: ${size}px`];
             }),
         );
-      for (const h of hints) {
-        expect(h.size, h.text).toBeLessThan(16);
-        if (h.cardLevel && h.lines > 2) {
-          expect(h.size, h.text).toBeGreaterThanOrEqual(13);
-          expect(h.size, h.text).toBeLessThanOrEqual(14);
-        } else {
-          expect(h.size, h.text).toBeGreaterThanOrEqual(12);
-        }
-      }
+      await expect.poll(misfits).toEqual([]);
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,

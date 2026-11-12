@@ -94,10 +94,13 @@ test.describe('Label chips and the CI pill (#3261)', () => {
       await page.goto(PAGES[0].path);
       const row = page.locator('#pr-rows > .row').first();
       await expect(row).toBeVisible();
-      const tracks = await row.evaluate((el) =>
-        getComputedStyle(el).gridTemplateColumns.split(' '),
-      );
-      expect(tracks[2]).toBe(track);
+      await expect
+        .poll(() =>
+          row.evaluate(
+            (el) => getComputedStyle(el).gridTemplateColumns.split(' ')[2],
+          ),
+        )
+        .toBe(track);
     });
   }
 

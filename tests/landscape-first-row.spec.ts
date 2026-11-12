@@ -218,23 +218,26 @@ for (const size of UNCHANGED) {
     await firstRow(page, '#pr-rows > .row');
     await page.waitForLoadState('networkidle');
     await settle(page);
-    const m = await page.evaluate(() => {
-      const h = (s: string) =>
-        Math.round(
-          document.querySelector(s)?.getBoundingClientRect().height ?? -1,
-        );
-      return {
-        activityPosition: getComputedStyle(
-          document.querySelector('.activity-bar') as Element,
-        ).position,
-        header: h('header'),
-        toolbar: h('.dashboard-toolbar'),
-        filterBar: h('.filter-bar'),
-        updatesBar: h('.updates-bar'),
-      };
-    });
-    expect(m).toMatchObject({ activityPosition: 'sticky' });
-    expect(m).toEqual(EXPECTED[`${size.width}x${size.height}`]);
+    const measure = () =>
+      page.evaluate(() => {
+        const h = (s: string) =>
+          Math.round(
+            document.querySelector(s)?.getBoundingClientRect().height ?? -1,
+          );
+        return {
+          activityPosition: getComputedStyle(
+            document.querySelector('.activity-bar') as Element,
+          ).position,
+          header: h('header'),
+          toolbar: h('.dashboard-toolbar'),
+          filterBar: h('.filter-bar'),
+          updatesBar: h('.updates-bar'),
+        };
+      });
+    await expect.poll(measure).toMatchObject({ activityPosition: 'sticky' });
+    await expect
+      .poll(measure)
+      .toEqual(EXPECTED[`${size.width}x${size.height}`]);
   });
 }
 

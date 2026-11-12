@@ -66,21 +66,27 @@ for (const n of NAVS) {
     const other = links.and(page.locator(':not([aria-current])')).first();
     await expect(current).toHaveCount(1);
     await expect(other).toBeVisible();
-    expect(await shape(current)).not.toBe(await shape(other));
+    await expect
+      .poll(async () => (await shape(current)) !== (await shape(other)))
+      .toBe(true);
 
     // Focused, the current link still differs from a focused other link.
     await page.keyboard.press('Shift');
-    await current.focus();
-    const focusedCurrent = await shape(current);
-    await other.focus();
-    expect(await shape(other)).not.toBe(focusedCurrent);
+    await expect
+      .poll(async () => {
+        await current.focus();
+        const focusedCurrent = await shape(current);
+        await other.focus();
+        return (await shape(other)) !== focusedCurrent;
+      })
+      .toBe(true);
 
     // The mark takes no room.
     const withMark = await box(current);
     const otherBox = await box(other);
     await page.emulateMedia({ forcedColors: 'none' });
-    expect(await box(current)).toEqual(withMark);
-    expect(await box(other)).toEqual(otherBox);
+    await expect.poll(() => box(current)).toEqual(withMark);
+    await expect.poll(() => box(other)).toEqual(otherBox);
   });
 
   test(`${n.name}: axe finds nothing in light and dark`, async ({ page }) => {

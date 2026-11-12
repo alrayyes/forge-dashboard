@@ -34,7 +34,6 @@ test.describe('settings page', () => {
         }),
       }),
     );
-    const small: string[] = [];
     for (const group of [
       'display',
       'connections',
@@ -44,9 +43,10 @@ test.describe('settings page', () => {
       await page.goto(`/settings.html#${group}`);
       await expect(page.locator('.app-nav .nav-pills').first()).toBeVisible();
       await expect(page.locator(`#${group}`)).toBeVisible();
-      small.push(...(await smallTextOnPage(page)));
+      await expect
+        .poll(() => smallTextOnPage(page), { message: group })
+        .toEqual([]);
     }
-    expect(small).toEqual([]);
   });
 
   async function smallTextOnPage(page: Page): Promise<string[]> {
