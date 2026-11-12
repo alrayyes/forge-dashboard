@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.34.1](https://github.com/alrayyes/forge-dashboard/compare/v9.34.0...v9.34.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** draw Update branch on the row of a behind pull request ([#3695](https://github.com/alrayyes/forge-dashboard/issues/3695)) ([71dc570](https://github.com/alrayyes/forge-dashboard/commit/71dc5703fa0baf50dc78c64c99191b6e88a6d3ae))
+
 ## [9.34.0](https://github.com/alrayyes/forge-dashboard/compare/v9.33.1...v9.34.0) (2026-11-12)
 
 
