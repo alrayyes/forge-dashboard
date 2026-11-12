@@ -76,11 +76,25 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.goto(`${path}${hash}`);
         const control = page.locator(selector);
         await expect(control, selector).toBeVisible();
-        const { border, fill, behind } = await edge(control);
-        expect
-          .soft(contrast(border, behind), selector)
+        const soft = expect.configure({ soft: true });
+        await soft
+          .poll(
+            async () => {
+              const { border, behind } = await edge(control);
+              return contrast(border, behind);
+            },
+            { message: selector },
+          )
           .toBeGreaterThanOrEqual(3);
-        expect.soft(contrast(border, fill), selector).toBeGreaterThanOrEqual(3);
+        await soft
+          .poll(
+            async () => {
+              const { border, fill } = await edge(control);
+              return contrast(border, fill);
+            },
+            { message: selector },
+          )
+          .toBeGreaterThanOrEqual(3);
       }
     });
   }
@@ -93,9 +107,6 @@ test('a focused Settings field still shows the 2px accent outline', async ({
   const field = page.locator('#github-token');
   await field.focus();
   await expect(field).toBeFocused();
-  const outline = await field.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { width: s.outlineWidth, style: s.outlineStyle };
-  });
-  expect(outline).toEqual({ width: '2px', style: 'solid' });
+  await expect(field).toHaveCSS('outline-width', '2px');
+  await expect(field).toHaveCSS('outline-style', 'solid');
 });

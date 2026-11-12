@@ -168,9 +168,15 @@ for (const scheme of ['light', 'dark'] as const) {
       for (const selector of selectors) {
         const control = page.locator(selector).first();
         await expect(control, selector).toBeVisible();
-        const { border, behind } = await edge(control);
-        expect
-          .soft(contrast(border, behind), selector)
+        await expect
+          .configure({ soft: true })
+          .poll(
+            async () => {
+              const { border, behind } = await edge(control);
+              return contrast(border, behind);
+            },
+            { message: selector },
+          )
           .toBeGreaterThanOrEqual(3);
       }
     });
@@ -186,9 +192,6 @@ test('a focused filter field still shows the 2px accent outline', async ({
   await page.keyboard.press('Shift+Tab');
   await page.keyboard.press('Tab');
   await expect(title).toBeFocused();
-  const outline = await title.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { width: s.outlineWidth, style: s.outlineStyle };
-  });
-  expect(outline).toEqual({ width: '2px', style: 'solid' });
+  await expect(title).toHaveCSS('outline-width', '2px');
+  await expect(title).toHaveCSS('outline-style', 'solid');
 });
