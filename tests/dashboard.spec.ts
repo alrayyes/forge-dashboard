@@ -74,6 +74,12 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-count')).not.toHaveText('–');
     // Issues have their own page (#827).
     await expect(page.locator('.board')).toHaveCount(1);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+
+    expect(results.violations).toEqual([]);
   });
 
   test('a user with no background refresh running yet still sees the dashboard, with no error banner', async ({
@@ -513,18 +519,7 @@ test.describe('dashboard page', () => {
     });
   });
 
-  test('has no axe-core violations at desktop width', async ({ page }) => {
-    await landOnPullRequests(page);
-    await expect(page.locator('#pr-count')).not.toHaveText('–');
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
-  });
-
-  test('has no axe-core violations and no horizontal scroll at phone width', async ({
+  test('has no axe-core violations and no horizontal scroll at phone width, in light and dark', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -543,20 +538,16 @@ test.describe('dashboard page', () => {
       () => document.documentElement.clientWidth,
     );
     expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
-  });
 
-  test('has no axe-core violations in the dark scheme at phone width', async ({
-    page,
-  }) => {
+    // The dark scheme at the same width, loaded fresh with it emulated.
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.setViewportSize({ width: 390, height: 844 });
-    await landOnPullRequests(page);
+    await page.reload();
     await expect(page.locator('#pr-count')).not.toHaveText('–');
 
-    const results = await new AxeBuilder({ page })
+    const dark = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
-    expect(results.violations).toEqual([]);
+    expect(dark.violations).toEqual([]);
   });
 
   test('a long title with several label chips wraps as a block instead of collapsing to single-word lines', async ({
@@ -2444,6 +2435,12 @@ test.describe('dashboard page', () => {
     test('clicking a label chip filters to that label, marks the chip active, and clicking it again clears the filter', async ({
       page,
     }) => {
+      // The real label chips, as rendered before any is clicked.
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+
       const bugChip = page
         .locator('#issue-rows .row', { hasText: 'A bug report' })
         .locator('.label-chip', { hasText: 'kind/bug' });
@@ -2562,15 +2559,6 @@ test.describe('dashboard page', () => {
       await expect(page.locator('#pr-rows > .row')).toContainText(
         'A PR fixing a bug',
       );
-    });
-
-    test('has no axe-core violations with real label chips rendered', async ({
-      page,
-    }) => {
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
     });
 
     test('the label select lists labels actually on screen, and picking one filters and marks the matching chip active', async ({
@@ -2929,6 +2917,11 @@ test.describe('dashboard page', () => {
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
       await expect(button).toBeEnabled();
 
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+
       await page.fill('.filter-bar .col-filter[data-col="title"]', '');
       await expect(button).toBeDisabled();
 
@@ -2993,39 +2986,22 @@ test.describe('dashboard page', () => {
         page.locator('.filter-bar .col-filter[data-col="title"]'),
       ).toHaveValue('');
     });
-
-    test('has no axe-core violations with the button enabled', async ({
-      page,
-    }) => {
-      await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
-      await expect(
-        page.getByRole('button', { name: 'Clear filters' }),
-      ).toBeEnabled();
-
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
-    });
   });
 });
 
 test.describe('login page', () => {
-  test('has no axe-core violations at desktop width', async ({ page }) => {
-    await page.goto('/login.html');
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
-  });
-
-  test('has no axe-core violations and no horizontal scroll at phone width', async ({
+  test('has no axe-core violations at desktop width, and none and no horizontal scroll at phone width', async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/login.html');
+
+    const desktop = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(desktop.violations).toEqual([]);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -3446,6 +3422,29 @@ test.describe('repo group headers: host and sync status (#679)', () => {
     await expect(fj.locator('.forge-badge')).toHaveText('Forgejo');
     await expect(fj.locator('.group-host')).toHaveText('git.internal.homelab');
     await expect(fj.locator('.group-sync')).toHaveText('Polling');
+
+    // The grouped headers, in light and dark theme.
+    for (const theme of ['light', 'dark']) {
+      await test.step(`${theme}`, async () => {
+        await setTheme(page, theme);
+
+        await page.reload();
+
+        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
+
+        await page.selectOption('#shared-group-select', 'repo');
+
+        await expect(
+          header(page, 'ryan/infra').locator('.group-sync'),
+        ).toBeVisible();
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+
+        expect(results.violations).toEqual([]);
+      });
+    }
   });
 
   test('a repo missing from repos[] gets no host or status guess', async ({
@@ -3480,32 +3479,6 @@ test.describe('repo group headers: host and sync status (#679)', () => {
       'Group by repository',
       'Group by forge',
     ]);
-  });
-
-  test(`has no axe-core violations with grouped headers, light and dark theme`, async ({
-    page,
-  }) => {
-    for (const theme of ['light', 'dark']) {
-      await test.step(`${theme}`, async () => {
-        await setTheme(page, theme);
-
-        await page.reload();
-
-        await expect(page.locator('html')).toHaveAttribute('data-theme', theme);
-
-        await page.selectOption('#shared-group-select', 'repo');
-
-        await expect(
-          header(page, 'ryan/infra').locator('.group-sync'),
-        ).toBeVisible();
-
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-
-        expect(results.violations).toEqual([]);
-      });
-    }
   });
 });
 
