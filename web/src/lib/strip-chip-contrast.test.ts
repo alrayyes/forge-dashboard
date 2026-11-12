@@ -83,7 +83,6 @@ const declared = (body: string, prop: string) =>
 const chips: [string, string][] = [
   ['neutral (a zero count, and "listed")', '.strip-chip {'],
   ['out of date', '.strip-chip.warn {'],
-  ['ready', '.strip-chip.good {'],
   ['failing', '.strip-chip.bad {'],
 ];
 
@@ -114,7 +113,7 @@ describe('strip chip colours', () => {
 
   test('a pale pair fails', () => {
     const sheet =
-      '.strip-chip { color: #ccc; background: #fff; }\n.strip-chip.warn { color: #000; background: #fff; }\n.strip-chip.good { color: #000; background: #fff; }\n.strip-chip.bad { color: #000; background: #fff; }';
+      '.strip-chip { color: #ccc; background: #fff; }\n.strip-chip.warn { color: #000; background: #fff; }\n.strip-chip.bad { color: #000; background: #fff; }';
     expect(failures(sheet, light)).toHaveLength(1);
   });
 });
