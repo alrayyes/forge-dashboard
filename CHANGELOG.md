@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.25.2](https://github.com/alrayyes/forge-dashboard/compare/v9.25.1...v9.25.2) (2026-11-12)
+
+
+### Bug Fixes
+
+* **web:** name the page's own subject in the first-refresh loading line ([#3605](https://github.com/alrayyes/forge-dashboard/issues/3605)) ([886d9ac](https://github.com/alrayyes/forge-dashboard/commit/886d9acc33c7647f1365c7938ad33f6f53f168af))
+
 ## [9.25.1](https://github.com/alrayyes/forge-dashboard/compare/v9.25.0...v9.25.1) (2026-11-12)
 
 
