@@ -27,6 +27,10 @@ var (
 	// ErrHostNotAllowed is a URL outside the configured set, malformed, or
 	// pointing at a non-public address the proxy was not trusted to reach.
 	ErrHostNotAllowed = errors.New("imageproxy: host not allowed")
+	// ErrHostNotListed is the plain case of ErrHostNotAllowed: a well-formed
+	// URL, on the right scheme and without user info, whose host just isn't
+	// on the list. It is routine, unlike the other refusals.
+	ErrHostNotListed = fmt.Errorf("%w: not on the list", ErrHostNotAllowed)
 	// ErrNotFound is a 404 from the forge.
 	ErrNotFound = errors.New("imageproxy: image not found")
 	// ErrForbidden is a 401 or 403: the token cannot see the image.
@@ -134,8 +138,11 @@ var specialPurpose = []netip.Prefix{
 // check validates one hop's URL against the configured set.
 func (p *Proxy) check(raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != p.cfg.Scheme || u.User != nil || u.Host == "" || !p.hosts[strings.ToLower(u.Host)] {
+	if err != nil || u.Scheme != p.cfg.Scheme || u.User != nil || u.Host == "" {
 		return nil, ErrHostNotAllowed
+	}
+	if !p.hosts[strings.ToLower(u.Host)] {
+		return nil, ErrHostNotListed
 	}
 
 	return u, nil

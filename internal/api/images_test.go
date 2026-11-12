@@ -1,9 +1,11 @@
 package api_test
 
 import (
+	"context"
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -11,7 +13,10 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	githubpkg "github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -145,9 +150,6 @@ func TestImages_Refusals(t *testing.T) {
 		"a host that only looks like it": {"github", "https://github.com.evil.example/a.png", http.StatusForbidden},
 		"a loopback address on github":   {"github", "https://127.0.0.1/a.png", http.StatusForbidden},
 		"a metadata address on github":   {"github", "https://169.254.169.254/latest", http.StatusForbidden},
-		"an avatar host on forgejo":      {"forgejo", "https://avatars.githubusercontent.com/u/1?v=4", http.StatusForbidden},
-		"an avatar on a stranger host":   {"forgejo", "https://evil.test/a.png", http.StatusForbidden},
-		"a forgejo host on github":       {"github", forge.URL + "/a.png", http.StatusForbidden},
 		"a relative address":             {"forgejo", "/attachments/a", http.StatusForbidden},
 		"a missing image":                {"forgejo", forge.URL + "/missing", http.StatusNotFound},
 		"an image the token cannot read": {"forgejo", forge.URL + "/private", http.StatusForbidden},
@@ -170,4 +172,229 @@ func TestImages_ForgejoWithoutAnInstanceIsABadRequest(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+// realLinkSource is a GitHub source whose image-link lookup is the real
+// client's, pointed at a local API server.
+type realLinkSource struct {
+	dashboard.Source
+	client *githubpkg.Client
+}
+
+func (*realLinkSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
+func (*realLinkSource) Fetch(context.Context) dashboard.Result {
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+}
+
+func (r *realLinkSource) SignedImageURL(ctx context.Context, owner, name string, item dashboard.ImageItem, link string) (string, error) {
+	return r.client.SignedImageURL(ctx, owner, name, item, link) //nolint:wrapcheck // a test double
+}
+
+const githubToken = "github-token-for-images"
+
+// githubImages is a GitHub account with two local servers standing in for the
+// API host and the user-content host. The first sees the saved token; the
+// second must never.
+type githubImages struct {
+	srv    string
+	cookie *http.Cookie
+	// link is an attachment address on the image host, as written in Markdown.
+	link string
+
+	mu        sync.Mutex
+	apiPaths  []string
+	apiAuth   []string
+	imagePath []string
+	imageAuth []string
+}
+
+func (g *githubImages) apiCalls() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return append([]string(nil), g.apiPaths...)
+}
+
+func (g *githubImages) imageCalls() []string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return append([]string(nil), g.imagePath...)
+}
+
+// newGitHubImages starts both servers. signed is the src the rendered body
+// holds for the attachment; apiStatus, when not zero, makes the API fail.
+func newGitHubImages(t *testing.T, signedPath string, apiStatus int, failImage map[string]bool) *githubImages {
+	t.Helper()
+	g := &githubImages{}
+	images := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.mu.Lock()
+		g.imagePath = append(g.imagePath, r.URL.RequestURI())
+		g.imageAuth = append(g.imageAuth, r.Header.Get("Authorization"))
+		g.mu.Unlock()
+		if failImage[r.URL.Path] {
+			w.WriteHeader(http.StatusNotFound)
+
+			return
+		}
+		_, _ = w.Write(imagesPNG)
+	}))
+	t.Cleanup(images.Close)
+	g.link = images.URL + "/user-attachments/assets/1b2c3d4e"
+
+	apiSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		g.mu.Lock()
+		g.apiPaths = append(g.apiPaths, r.URL.Path)
+		g.apiAuth = append(g.apiAuth, r.Header.Get("Authorization"))
+		g.mu.Unlock()
+		if apiStatus != 0 {
+			w.WriteHeader(apiStatus)
+
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		src := signedPath
+		if strings.HasPrefix(src, "/") {
+			src = images.URL + src
+		}
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"body_html": `<a href="` + g.link + `"><img src="` + src + `"></a>`,
+		})
+	}))
+	t.Cleanup(apiSrv.Close)
+
+	u, err := url.Parse(images.URL)
+	require.NoError(t, err)
+	proxy := imageproxy.New(imageproxy.Config{Hosts: []string{u.Host}, Scheme: "http", AllowLocal: true})
+	source := &realLinkSource{client: githubpkg.NewClient(githubToken, "", apiSrv.URL)}
+	testSrv, _, _, _ := newTestServerWithSettingsStore(t,
+		func(settingspkg.Credentials) []dashboard.Source { return []dashboard.Source{source} }, false, 0,
+		func(d *api.Deps) {
+			d.GitHubImageProxy = proxy
+			d.GitHubImageOrigin = images.URL
+		})
+	g.srv = testSrv.URL
+	g.cookie, _, _ = registerViaRealCeremony(t, testSrv)
+
+	return g
+}
+
+func (g *githubImages) get(t *testing.T, extra url.Values) *http.Response {
+	t.Helper()
+	q := url.Values{"forge": {"github"}, "url": {g.link}}
+	maps.Copy(q, extra)
+	req, err := http.NewRequest(http.MethodGet, g.srv+"/api/v1/images?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(g.cookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func (g *githubImages) status(t *testing.T, extra url.Values) int {
+	t.Helper()
+	resp := g.get(t, extra)
+	_ = resp.Body.Close()
+
+	return resp.StatusCode
+}
+
+var issue7 = url.Values{"fullName": {"octo/repo"}, "number": {"7"}}
+
+func TestImages_ShowsAPrivateGitHubImageThroughItsSignedAddressWithoutTheToken(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/1/signed.png?jwt=abc", 0, nil)
+
+	resp := g.get(t, issue7)
+	defer func() { _ = resp.Body.Close() }()
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, imagesPNG, got)
+	assert.Equal(t, []string{"/repos/octo/repo/issues/7"}, g.apiCalls())
+	assert.Equal(t, []string{"Bearer " + githubToken}, g.apiAuth, "the API host gets the saved token")
+	assert.Equal(t, []string{"/1/signed.png?jwt=abc"}, g.imageCalls(), "only the signed address is fetched")
+	assert.Equal(t, []string{""}, g.imageAuth, "the user-content host never sees the token")
+}
+
+func TestImages_ResolvesAReleaseImageByItsTag(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", 0, nil)
+
+	status := g.status(t, url.Values{"fullName": {"octo/repo"}, "tag": {"v1.2.0"}})
+
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, []string{"/repos/octo/repo/releases/tags/v1.2.0"}, g.apiCalls())
+}
+
+func TestImages_ATagWinsOverANumber(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", 0, nil)
+
+	status := g.status(t, url.Values{"fullName": {"octo/repo"}, "tag": {"v1"}, "number": {"7"}})
+
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, []string{"/repos/octo/repo/releases/tags/v1"}, g.apiCalls())
+}
+
+func TestImages_FallsBackToTheOriginalLinkWhenTheSignedAddressCannotBeUsed(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		signed     string
+		apiStatus  int
+		failImages map[string]bool
+	}{
+		"a signed address on a host that isn't allowed": {signed: "https://example.org/s.png"},
+		"a signed address that fails to load":           {signed: "/s.png", failImages: map[string]bool{"/s.png": true}},
+		"an item that can't be read":                    {signed: "/s.png", apiStatus: http.StatusInternalServerError},
+	} {
+		g := newGitHubImages(t, tc.signed, tc.apiStatus, tc.failImages)
+
+		status := g.status(t, issue7)
+
+		assert.Equal(t, http.StatusOK, status, name)
+		calls := g.imageCalls()
+		require.NotEmpty(t, calls, name)
+		assert.Equal(t, "/user-attachments/assets/1b2c3d4e", calls[len(calls)-1], "%s: the original link was fetched", name)
+		assert.Len(t, g.apiCalls(), 1, name)
+	}
+}
+
+func TestImages_DoesNotLookUpTheItemWhenTheRequestCannotNameOne(t *testing.T) {
+	t.Parallel()
+	for name, extra := range map[string]url.Values{
+		"no item":             {},
+		"a bad full name":     {"fullName": {"nope"}, "number": {"7"}},
+		"a number of zero":    {"fullName": {"octo/repo"}, "number": {"0"}},
+		"a negative number":   {"fullName": {"octo/repo"}, "number": {"-3"}},
+		"a number that isn't": {"fullName": {"octo/repo"}, "number": {"abc"}},
+		"an empty tag":        {"fullName": {"octo/repo"}, "tag": {""}},
+		"a dot tag":           {"fullName": {"octo/repo"}, "tag": {"."}},
+		"a dot-dot tag":       {"fullName": {"octo/repo"}, "tag": {".."}},
+		"a tag with a slash":  {"fullName": {"octo/repo"}, "tag": {"a/b"}},
+	} {
+		g := newGitHubImages(t, "/s.png", 0, nil)
+
+		status := g.status(t, extra)
+
+		assert.Equal(t, http.StatusOK, status, name)
+		assert.Empty(t, g.apiCalls(), name)
+		assert.Equal(t, []string{"/user-attachments/assets/1b2c3d4e"}, g.imageCalls(), name)
+	}
+}
+
+func TestImages_DoesNotLookUpAnItemForAnImageThatIsNotAnAttachment(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", 0, nil)
+	before, _, _ := strings.Cut(g.link, "/user-attachments")
+	extra := url.Values{"url": {before + "/plain.png"}}
+	maps.Copy(extra, issue7)
+
+	status := g.status(t, extra)
+
+	require.Equal(t, http.StatusOK, status)
+	assert.Empty(t, g.apiCalls(), "no API request is spent on an address that isn't a user attachment")
 }

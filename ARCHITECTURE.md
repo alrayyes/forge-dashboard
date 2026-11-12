@@ -315,8 +315,17 @@ can't fire a tracking pixel when the dialog opens.
   host and port, and its token goes there and nowhere else. GitHub: `github.com`,
   `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`,
   `raw.githubusercontent.com`, `avatars.githubusercontent.com` and
-  `repository-images.githubusercontent.com`, with no token (its attachment
-  links carry their own signature).
+  `repository-images.githubusercontent.com`, fetched with no token (its
+  attachment links carry their own signature).
+- A `github.com/user-attachments/...` link in a private repository isn't served
+  unsigned. When the page names the item it sits in, the server reads that
+  item's rendered HTML from the GitHub API, where the saved token is sent to
+  the API host and nowhere else, and fetches the signed
+  `private-user-images.githubusercontent.com` address found there. That
+  second fetch carries no token and goes through the same host list. If the
+  lookup finds nothing or fails, or the signed address is refused or doesn't
+  load, the link is fetched as written. The lookup is one API request per
+  image and skips the ETag cache, since the signature expires.
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public
