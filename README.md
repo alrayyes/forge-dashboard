@@ -68,6 +68,9 @@ page open. Any other image shows as a link.
   has to run before `go build` picks up its output (see
   [Architecture](ARCHITECTURE.md#design)). Not needed to run a pre-built release
   binary or the Docker image, both of which already have that step baked in.
+- **256 MiB of memory** for the container (`--memory=256m`). 64 MiB was too
+  little for 53 repos. See [Memory](docs/running.md#memory) for why this is a
+  recommendation and how to measure your own peak.
 - **A passkey-capable browser** to sign in at all — any current Chrome,
   Safari, Firefox or Edge; a phone counts too. Nothing else to install.
 - **Somewhere writable for the database** (`DB_PATH`, default
