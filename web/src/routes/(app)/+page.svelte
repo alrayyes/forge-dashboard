@@ -942,7 +942,7 @@
 
   <!-- Always mounted, so it is empty before it speaks and a screen reader
        announces the change (#1672). -->
-  <FirstRefreshStatus {pending} />
+  <FirstRefreshStatus {pending} subject="branches" />
   <!-- Always mounted, so it is empty before it speaks and is announced when
        filled. -->
   <p

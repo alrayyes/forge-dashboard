@@ -52,6 +52,7 @@ async function holdRead(page: Page, answer: Answer) {
 const PAGES = [
   {
     name: 'Insights',
+    line: 'Loading your insights…',
     url: '/insights.html',
     emptyTexts: [
       '0 repositories tracked',
@@ -68,6 +69,7 @@ const PAGES = [
   },
   {
     name: 'Webhooks',
+    line: 'Loading your webhooks…',
     url: '/webhooks.html',
     emptyTexts: ['Nothing tracked yet'],
     failedHides: ['Nothing tracked yet'],
@@ -91,9 +93,7 @@ for (const p of PAGES) {
 
       await expect(page.getByTestId('list-skeleton')).toHaveCount(p.skeletons);
       await expect(busy(page)).toHaveCount(p.busyRegions);
-      await expect(page.getByTestId('first-refresh-status')).toHaveText(
-        'Loading your repositories…',
-      );
+      await expect(page.getByTestId('first-refresh-status')).toHaveText(p.line);
       await expect(page.getByTestId('first-refresh-status')).toHaveAttribute(
         'aria-live',
         'polite',
@@ -101,7 +101,7 @@ for (const p of PAGES) {
       // One live region, outside every busy region, and not drawn: the
       // neutral label and the skeleton are the only visible loading text.
       const live = page.locator('[aria-live="polite"]', {
-        hasText: 'Loading your repositories…',
+        hasText: p.line,
       });
       await expect(live).toHaveCount(1);
       await expect(

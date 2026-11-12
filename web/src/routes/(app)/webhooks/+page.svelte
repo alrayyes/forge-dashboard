@@ -1089,7 +1089,7 @@
   </div>
 
   <ReadFailureAlert />
-  <FirstRefreshStatus pending={showSkeleton} srOnly />
+  <FirstRefreshStatus pending={showSkeleton} subject="webhooks" srOnly />
 
   <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <p class="hint" id="webhooks-hint">

@@ -81,6 +81,7 @@ const navPills = (page: Page) =>
 const LISTS = [
   {
     name: 'Pull requests',
+    line: 'Loading your pull requests…',
     url: '/pull-requests.html',
     empty: '#pr-empty',
     noResults: '#pr-no-results',
@@ -89,6 +90,7 @@ const LISTS = [
   },
   {
     name: 'Releases',
+    line: 'Loading your release pull requests…',
     url: '/releases.html',
     empty: '#pr-empty',
     noResults: '#pr-no-results',
@@ -97,6 +99,7 @@ const LISTS = [
   },
   {
     name: 'Bots',
+    line: 'Loading your bot pull requests…',
     url: '/bots.html',
     empty: '#pr-empty',
     noResults: '#pr-no-results',
@@ -105,6 +108,7 @@ const LISTS = [
   },
   {
     name: 'Issues',
+    line: 'Loading your issues…',
     url: '/issues.html',
     empty: '#issue-empty',
     noResults: '#issue-no-results',
@@ -126,7 +130,7 @@ test.describe('first refresh loading state (#1672)', () => {
       await expect(region).toHaveAttribute('aria-busy', 'true');
       await expect(region.getByTestId('list-skeleton')).toBeVisible();
       await expect(page.getByTestId('first-refresh-status')).toHaveText(
-        'Loading your repositories…',
+        list.line,
       );
       // Neither empty text is drawn, nor the filtered-out one.
       await expect(page.locator(list.empty)).toBeHidden();
@@ -222,7 +226,7 @@ test.describe('first refresh loading state (#1672)', () => {
     await page.goto('/pull-requests.html');
 
     const status = page.getByTestId('first-refresh-status');
-    await expect(status).toHaveText('Loading your repositories…');
+    await expect(status).toHaveText('Loading your pull requests…');
     await page.clock.fastForward(11_000);
     await expect(status).toHaveText(
       'Still loading. The first refresh can take a while after a restart.',
@@ -264,7 +268,7 @@ test.describe('first refresh loading state (#1672)', () => {
         await expect(page.getByTestId('list-skeleton')).toBeVisible();
 
         await expect(page.getByTestId('first-refresh-status')).toHaveText(
-          'Loading your repositories…',
+          'Loading your pull requests…',
         );
 
         const overflow = await page.evaluate(
@@ -304,8 +308,12 @@ test.describe('first refresh loading state (#1672)', () => {
   });
 
   for (const target of [
-    { name: 'Branches', url: '/' },
-    { name: 'Pull requests', url: '/pull-requests.html' },
+    { name: 'Branches', line: 'Loading your branches…', url: '/' },
+    {
+      name: 'Pull requests',
+      line: 'Loading your pull requests…',
+      url: '/pull-requests.html',
+    },
   ]) {
     test(`${target.name}: the status live region is in the page before it has text`, async ({
       page,
@@ -331,14 +339,14 @@ test.describe('first refresh loading state (#1672)', () => {
       await holdDashboard(page, mode);
       await page.goto(target.url);
       await expect(page.getByTestId('first-refresh-status')).toHaveText(
-        'Loading your repositories…',
+        target.line,
       );
       const seen = await page.evaluate(
         () => (window as unknown as { __statusSeen: string[] }).__statusSeen,
       );
       // First sighting is empty; the text arrives as a change to it.
       expect(seen[0]).toBe('');
-      expect(seen).toContain('Loading your repositories…');
+      expect(seen).toContain(target.line);
     });
   }
 
@@ -461,9 +469,6 @@ test.describe('first refresh loading state (#1672)', () => {
       () => (window as unknown as { __statusSeen: string[] }).__statusSeen,
     );
     const spoken = seen.filter((t) => t !== '');
-    expect(spoken).toEqual([
-      'Loading your repositories…',
-      'Loading your repositories…',
-    ]);
+    expect(spoken).toEqual(['Loading your issues…', 'Loading your issues…']);
   });
 });

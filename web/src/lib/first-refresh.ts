@@ -47,14 +47,26 @@ export function firstRefreshPending(done: boolean | null | undefined): boolean {
   return done === false;
 }
 
+// What a page lists, so the line names it (#3602). The server says the same
+// thing for every page; the page picks the words.
+export type FirstRefreshSubject =
+  | 'issues'
+  | 'pull requests'
+  | 'bot pull requests'
+  | 'release pull requests'
+  | 'branches'
+  | 'insights'
+  | 'webhooks';
+
 export function firstRefreshStatus(
   pending: boolean,
   elapsedMs: number,
+  subject: FirstRefreshSubject,
 ): string {
   if (!pending) return '';
   return elapsedMs >= FIRST_REFRESH_SLOW_MS
     ? 'Still loading. The first refresh can take a while after a restart.'
-    : 'Loading your repositories…';
+    : `Loading your ${subject}…`;
 }
 
 // Branches reads its list from its own endpoint and the flag from the layout's

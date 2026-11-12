@@ -33,21 +33,33 @@ describe('firstRefreshPending', () => {
 
 describe('firstRefreshStatus', () => {
   test('says nothing when not pending', () => {
-    expect(firstRefreshStatus(false, 0)).toBe('');
-    expect(firstRefreshStatus(false, FIRST_REFRESH_SLOW_MS * 3)).toBe('');
-  });
-
-  test('says it is loading at first', () => {
-    expect(firstRefreshStatus(true, 0)).toBe('Loading your repositories…');
-    expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS - 1)).toBe(
-      'Loading your repositories…',
+    expect(firstRefreshStatus(false, 0, 'issues')).toBe('');
+    expect(firstRefreshStatus(false, FIRST_REFRESH_SLOW_MS * 3, 'issues')).toBe(
+      '',
     );
   });
 
-  test('says it can take a while after about ten seconds', () => {
-    expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS)).toBe(
-      'Still loading. The first refresh can take a while after a restart.',
+  test.each([
+    ['issues', 'Loading your issues…'],
+    ['pull requests', 'Loading your pull requests…'],
+    ['bot pull requests', 'Loading your bot pull requests…'],
+    ['release pull requests', 'Loading your release pull requests…'],
+    ['branches', 'Loading your branches…'],
+    ['insights', 'Loading your insights…'],
+    ['webhooks', 'Loading your webhooks…'],
+  ] as const)('names %s while it is loading', (subject, line) => {
+    expect(firstRefreshStatus(true, 0, subject)).toBe(line);
+    expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS - 1, subject)).toBe(
+      line,
     );
+  });
+
+  test('says it can take a while after about ten seconds, on every subject', () => {
+    for (const subject of ['issues', 'pull requests', 'branches'] as const) {
+      expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS, subject)).toBe(
+        'Still loading. The first refresh can take a while after a restart.',
+      );
+    }
   });
 });
 
