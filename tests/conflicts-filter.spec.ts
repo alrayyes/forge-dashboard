@@ -63,7 +63,7 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
-  test('lists only the conflicting pull requests, a draft that conflicts included', async ({
+  test('lists only the conflicting pull requests, a draft that conflicts included, with no axe-core violations', async ({
     page,
   }) => {
     await mockDashboard(page, MIXED);
@@ -89,6 +89,11 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await expect(page.locator('#pr-rows')).not.toContainText(
       'Status not known yet',
     );
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('choosing another pill replaces it, and All clears it', async ({
@@ -175,17 +180,5 @@ test.describe('Conflicts quick filter (#1215)', () => {
 
     await expect(pill(page, 'Conflicts')).toBeHidden();
     await expect(pill(page, 'All')).toBeVisible();
-  });
-
-  test('has no axe-core violations with the pill active', async ({ page }) => {
-    await mockDashboard(page, MIXED);
-    await page.goto('/pull-requests.html');
-    await pill(page, 'Conflicts').click();
-    await expect(rows(page)).toHaveCount(2);
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
   });
 });

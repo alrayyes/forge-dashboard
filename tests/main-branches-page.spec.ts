@@ -419,9 +419,10 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page)).toHaveCount(2);
   });
 
-  test('the status pill opens the pipeline panel with the run jobs, and nothing navigates away', async ({
+  test('the status pill opens the pipeline panel with the run jobs, nothing navigates away, and the open panel has no axe violations in light and dark, desktop and 390px', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
     await mock(page, snapshot(MIXED));
     const asked = await mockChecks(page);
     await page.goto('/');
@@ -469,6 +470,35 @@ test.describe('Main branches page (#1224, #1279)', () => {
         exact: true,
       }),
     ).toHaveCount(0);
+
+    // The panel is already open in light at 1280px; scan it, then the phone
+    // width, then reload in dark and scan both again.
+    for (const theme of ['light', 'dark']) {
+      if (theme === 'dark') {
+        await setTheme(page, theme);
+        await page.reload();
+        await rows(page)
+          .first()
+          .getByRole('button', { name: /open pipeline/i })
+          .click();
+        await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
+      }
+      for (const size of [
+        { width: 1280, height: 900 },
+        { width: 390, height: 844 },
+      ]) {
+        await page.setViewportSize(size);
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+        const box = await dialog(page).boundingBox();
+        expect((box?.x ?? -1) + (box?.width ?? 0)).toBeLessThanOrEqual(
+          size.width,
+        );
+      }
+    }
+    await setTheme(page, 'light');
   });
 
   // The row's live pill is only as good as the stream behind it. While the
@@ -950,39 +980,6 @@ test.describe('Main branches page (#1224, #1279)', () => {
         );
         expect(overflow).toBeLessThanOrEqual(0);
       }
-    }
-    await setTheme(page, 'light');
-  });
-
-  test('the open pipeline panel has no axe violations in light and dark, desktop and 390px', async ({
-    page,
-  }) => {
-    await mock(page, snapshot(MIXED));
-    await mockChecks(page);
-    await page.goto('/');
-    for (const theme of ['light', 'dark']) {
-      await setTheme(page, theme);
-      await page.reload();
-      await rows(page)
-        .first()
-        .getByRole('button', { name: /open pipeline/i })
-        .click();
-      await expect(dialog(page).getByRole('listitem')).toHaveCount(3);
-      for (const size of [
-        { width: 1280, height: 900 },
-        { width: 390, height: 844 },
-      ]) {
-        await page.setViewportSize(size);
-        expect(
-          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
-            .violations,
-        ).toEqual([]);
-        const box = await dialog(page).boundingBox();
-        expect((box?.x ?? -1) + (box?.width ?? 0)).toBeLessThanOrEqual(
-          size.width,
-        );
-      }
-      await page.keyboard.press('Escape');
     }
     await setTheme(page, 'light');
   });

@@ -299,7 +299,7 @@ test.describe('webhooks page', () => {
     await expect(button).toHaveText('Add a webhook');
   });
 
-  test('a forge whose rate limit is already exhausted shows a disabled button with the reset time, not a clickable one', async ({
+  test('a forge whose rate limit is already exhausted shows a disabled button with the reset time, is reachable by keyboard and has no axe-core violations', async ({
     page,
   }) => {
     const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
@@ -328,6 +328,14 @@ test.describe('webhooks page', () => {
     const button = row.getByRole('button', { name: 'Add a webhook' });
     await expect(button).toHaveAttribute('aria-disabled', 'true');
     await expect(row).toContainText('resets');
+
+    await button.focus();
+    await expect(button).toBeFocused();
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
 
     // The row's own click handler never fires for a disabled control — no
     // request should go out even if something did click it.
@@ -534,44 +542,6 @@ test.describe('webhooks page', () => {
       "Couldn't add a webhook for alrayyes/a",
     );
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
-
-  test('a locked button is reachable by keyboard and has no axe-core violations', async ({
-    page,
-  }) => {
-    const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
-    await mockDashboard(
-      page,
-      [
-        {
-          forge: 'github',
-          fullName: 'alrayyes/a',
-          hasWebhook: false,
-          canManageWebhooks: true,
-        },
-      ],
-      [
-        {
-          forge: 'github',
-          reachable: true,
-          repoCount: 1,
-          rateLimitREST: rateLimit(5000, 0, resetsAt),
-        },
-      ],
-    );
-    await page.goto('/webhooks.html');
-
-    const button = page
-      .locator('#webhooks-rows tr')
-      .first()
-      .getByRole('button', { name: 'Add a webhook' });
-    await button.focus();
-    await expect(button).toBeFocused();
-
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
