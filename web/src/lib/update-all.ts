@@ -5,7 +5,6 @@
 
 import { type AllowedAction, findAction } from './allowed-actions';
 import type { AutoUpdate } from './auto-update';
-import type { StripChip } from './strip-chip';
 
 export type UpdateRow = {
   allowedActions?: AllowedAction[];
@@ -67,21 +66,6 @@ export function showUpdateAll<T extends UpdateRow>(
 
 export function updateAllLabel(count: number): string {
   return count > 0 ? `Update all (${count})` : 'Update all';
-}
-
-// The count chips on the strip (#3277), from what the plan already holds. The
-// ready chip is green above zero and neutral at zero, as during a run. It reads
-// alone, count and words together. The rows listed aren't a chip: the page
-// header counts them (#3490).
-export function updateAllChips<T extends UpdateRow>(
-  plan: UpdatePlan<T>,
-): StripChip[] {
-  const ready = plan.eligible.length;
-  return [
-    ready > 0
-      ? { text: `${ready} ready to update`, tone: 'good' }
-      : { text: `${ready} ready to update` },
-  ];
 }
 
 export function progressLabel(done: number, count: number): string {

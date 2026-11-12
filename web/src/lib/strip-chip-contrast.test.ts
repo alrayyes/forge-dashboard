@@ -2,7 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
-// The count chips on the Rebase all and Update all strips (#3276, #3277): each
+// The count chips on the Rebase all strip (#3276): each
 // chip's text against its own fill, in both themes, read from the stylesheet.
 // 4.5:1 is WCAG 2.2 1.4.3. The zero state of every chip is the neutral one,
 // so "0 failing" is measured too, and --neutral is not used as text: it is

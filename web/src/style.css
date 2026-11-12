@@ -5243,7 +5243,7 @@ footer a[aria-current="page"] {
     margin-left: 0;
   }
 }
-/* The count chips of the Rebase all and Update all strips (#3276, #3277).
+/* The count chips of the Rebase all strip (#3276).
    Neutral by default, which is also the state of a zero count; a tint says
    more than zero. web/src/lib/strip-chip-contrast.test.ts holds each text
    and fill pair to 4.5:1 in both themes. The words carry the meaning. */
