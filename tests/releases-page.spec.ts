@@ -110,15 +110,17 @@ test.describe('Releases page (#1107)', () => {
     await expect(waiting).toContainText('Waiting for CI to finish');
   });
 
-  test('a release that is behind offers Update branch and says why nothing else will update it', async ({
+  test('a release that is behind offers Update branch and says why nothing else will update it, and the page has no axe violations at desktop and phone width', async ({
     page,
   }) => {
     await mockDashboard(page, [
-      release(10, '0.18.4', { behind: true, mergeStatus: 'blocked' }),
+      release(10, '0.74.2'),
+      release(11, '0.18.4', { behind: true, mergeStatus: 'blocked' }),
     ]);
     await page.goto('/releases.html');
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    const row = page.locator('#pr-rows > .row').first();
+    const row = page.locator('#pr-rows > .row', { hasText: 'v0.18.4' });
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toBeVisible();
@@ -127,6 +129,21 @@ test.describe('Releases page (#1107)', () => {
     );
     // Every behind row carries the badge, in the same place.
     await expect(row.locator('.attr-chip.behind')).toHaveText('Out of date');
+
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   test('says nothing is waiting to ship when no release pull request is open', async ({
@@ -153,30 +170,5 @@ test.describe('Releases page (#1107)', () => {
     await expect(
       page.locator('header').getByRole('link', { name: 'Releases' }),
     ).toHaveAttribute('aria-current', 'page');
-  });
-
-  test('has no axe-core violations at desktop and phone width', async ({
-    page,
-  }) => {
-    await mockDashboard(page, [
-      release(10, '0.74.2'),
-      release(11, '0.18.4', { behind: true, mergeStatus: 'blocked' }),
-    ]);
-    await page.goto('/releases.html');
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    expect(
-      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
-    ).toEqual([]);
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(
-      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
-    ).toEqual([]);
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

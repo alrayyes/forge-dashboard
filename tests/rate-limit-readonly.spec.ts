@@ -111,7 +111,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     }
   });
 
-  test('one banner for the forge says it is read-only until the reset, and what still works', async ({
+  test('one banner for the forge says it is read-only until the reset, and what still works, with no axe violations or sideways scroll at desktop and 375px', async ({
     page,
   }) => {
     await mockDashboard(
@@ -130,6 +130,21 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await still.click();
     await expect(banner).toContainText('View pipeline');
     await expect(banner).toContainText('Open a pull request on the forge');
+
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+
+    await page.setViewportSize({ width: 375, height: 800 });
+    expect(
+      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
+    ).toEqual([]);
+    const overflow = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
   });
 
   // #735: a rate-limit message says what the limit is, so it isn't taken for
@@ -305,35 +320,5 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       'Rate limit reset, actions available again',
     );
     await expect(page.locator('#rate-limit-banner')).toHaveCount(0);
-  });
-
-  test('has no axe-core violations and no horizontal scroll at desktop and 375px', async ({
-    page,
-  }) => {
-    await mockDashboard(
-      page,
-      [github({ rateLimitREST: spent(), rateLimitGraphQL: spent() })],
-      [makePR()],
-    );
-    await page.goto('/pull-requests.html');
-    await page
-      .locator('#rate-limit-banner')
-      .getByText('What still works')
-      .click();
-    const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
-    expect(
-      (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-    ).toEqual([]);
-
-    await page.setViewportSize({ width: 375, height: 800 });
-    expect(
-      (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
-    ).toEqual([]);
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
   });
 });

@@ -81,9 +81,10 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
-  test('with nothing to show, the Pull requests link is gone too, from the header and the tab bar (#1415)', async ({
+  test('with nothing to show, the Pull requests link is gone too, from the header and the tab bar (#1415), with no axe violations at 390px', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
     await page.goto('/settings.html');
     // Not loaded counts keep the link, so its going is the sign they arrived.
@@ -94,9 +95,12 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       await expect(header(page, href)).toHaveCount(1);
       await expect(tab(page, href)).toHaveCount(1);
     }
+    expect(
+      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+    ).toEqual([]);
   });
 
-  test('with nothing to show, the three links are gone from the header and the tab bar, and Pull requests stays while it has one', async ({
+  test('with nothing to show, the three links are gone from the header and the tab bar, and Pull requests stays while it has one, with no axe violations and a tab bar that fits at 390px', async ({
     page,
   }) => {
     await mockDashboard(page, { pullRequests: [makePR(1)], openIssueCount: 0 });
@@ -121,6 +125,27 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       await expect(header(page, href)).toHaveCount(1);
       await expect(tab(page, href)).toHaveCount(1);
     }
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(
+      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+    ).toEqual([]);
+
+    const state: Snapshot = {
+      pullRequests: [makePR(1), release, bot],
+      openIssueCount: 2,
+    };
+    await mockDashboard(page, state);
+    await page.goto('/settings.html');
+    await expect(tab(page, '/bots.html')).toBeVisible();
+    expect(
+      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
+    ).toEqual([]);
+    const inside = await page
+      .locator('.bottom-nav .bottom-nav-link')
+      .evaluateAll((els) =>
+        els.every((el) => el.getBoundingClientRect().right <= innerWidth + 1),
+      );
+    expect(inside).toBe(true);
   });
 
   test('each link shows on its own count', async ({ page }) => {
@@ -252,40 +277,5 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(page.locator('#pr-empty')).toContainText(
       'No open pull requests.',
     );
-  });
-
-  test('has no axe-core violations with and without the links, and the tab bar fits at 390px', async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width: 390, height: 844 });
-    await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
-    await page.goto('/settings.html');
-    await expect(header(page, PULLS)).toHaveCount(0);
-    expect(
-      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-    ).toEqual([]);
-
-    const state: Snapshot = { pullRequests: [makePR(1)], openIssueCount: 0 };
-    await mockDashboard(page, state);
-    await page.goto('/settings.html');
-    await expect(header(page, PULLS).locator('.nav-pills')).toHaveText('1');
-    expect(
-      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-    ).toEqual([]);
-
-    state.pullRequests = [makePR(1), release, bot];
-    state.openIssueCount = 2;
-    await mockDashboard(page, state);
-    await page.goto('/settings.html');
-    await expect(tab(page, '/bots.html')).toBeVisible();
-    expect(
-      (await new AxeBuilder({ page }).withTags(TAGS).analyze()).violations,
-    ).toEqual([]);
-    const inside = await page
-      .locator('.bottom-nav .bottom-nav-link')
-      .evaluateAll((els) =>
-        els.every((el) => el.getBoundingClientRect().right <= innerWidth + 1),
-      );
-    expect(inside).toBe(true);
   });
 });
