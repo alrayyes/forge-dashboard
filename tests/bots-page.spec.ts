@@ -151,6 +151,7 @@ test.describe('Bots page (#1192)', () => {
   }) => {
     for (const scheme of ['light', 'dark'] as const) {
       await test.step(`${scheme}`, async () => {
+        await page.setViewportSize({ width: 1280, height: 720 });
         await page.emulateMedia({ colorScheme: scheme });
 
         await mockDashboard(page, SNAPSHOT);
