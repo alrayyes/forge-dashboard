@@ -208,7 +208,6 @@
     type Probe as RerunProbe,
     rerunAllLabel,
     rerunAllPlan,
-    rerunNoneLine,
     rerunProgressLabel,
     showRerunAll,
   } from "#lib/rerun-all.js";
@@ -6360,7 +6359,10 @@
       const ready = plan.eligible.length + plan.checking.length;
       const block = button.parentElement;
       if (block) {
-        const show = showRerunAll(plan, rerunAllRun !== null);
+        const show = showRerunAll(
+          plan,
+          rerunAllRun !== null || rerunAllDialog()?.open === true,
+        );
         // A button that vanishes under focus would drop it to the body.
         if (!show && !block.hidden && block.contains(document.activeElement))
           document
@@ -6374,16 +6376,6 @@
         ? rerunProgressLabel(rerunAllRun.done, rerunAllRun.total)
         : rerunAllLabel(ready);
       markPending(button, rerunAllRun !== null);
-      const none = document.getElementById("rerun-all-none");
-      if (none) {
-        const nothing = !rerunAllRun && ready === 0 && plan.failing > 0;
-        const reasons = [...new Set(plan.leftOut.map((l) => l.reason))];
-        none.textContent = nothing
-          ? [rerunNoneLine(plan.failing), ...reasons].join(" ")
-          : "";
-        none.hidden = !nothing;
-        button.title = nothing ? (none.textContent ?? "") : "";
-      }
     }
 
     function rerunAllDialog(): HTMLDialogElement | null {
@@ -10754,13 +10746,11 @@
         <div class="board-head-controls">
           {#if view === "bots" || view === "pulls"}
             <div class="rerun-all" hidden>
-              <p class="sr-only" id="rerun-all-none" hidden></p>
               <button
                 type="button"
                 class="rerun-all-button"
                 id="rerun-all-button"
-                aria-haspopup="dialog"
-                aria-describedby="rerun-all-none">Rerun failed checks</button
+                aria-haspopup="dialog">Rerun failed checks</button
               >
             </div>
           {/if}
