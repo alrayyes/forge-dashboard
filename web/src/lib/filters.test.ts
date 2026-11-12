@@ -17,7 +17,9 @@ import {
   matchesFilters,
   matchesQuickFilter,
   matchesRefs,
+  offerClosing,
   offerPills,
+  offerRefs,
   optionPool,
   QUICK_FILTERS,
   refsChoiceLabel,
@@ -506,6 +508,93 @@ describe('matchesRefs', () => {
       failingFilters(refs, true, {}, { refs: 'yes', closes: 'yes' }),
     ).toEqual(['closes']);
   });
+});
+
+// The closes and refs segments offer a Yes or No only while something in the
+// pool matches it (#3624); the picked one stays, and the segment goes when
+// neither is offered. The wiring is in closing-link-filter.spec.ts and
+// refs-issues-filter.spec.ts.
+type FakeButton = { hidden: boolean };
+function fakeSegment(attr: string) {
+  const buttons: Record<string, FakeButton> = {
+    yes: { hidden: false },
+    no: { hidden: false },
+  };
+  const group = {
+    hidden: false,
+    querySelector: (selector: string) => {
+      const value = new RegExp(`\\[data-${attr}="(\\w+)"\\]`).exec(
+        selector,
+      )?.[1];
+      return value ? (buttons[value] ?? null) : null;
+    },
+  };
+  return { group: group as unknown as HTMLElement, buttons, state: group };
+}
+
+describe.each([
+  {
+    name: 'offerClosing',
+    attr: 'link',
+    offer: offerClosing,
+    yes: (isPR: boolean) =>
+      isPR
+        ? { closesIssues: [{ repo: 'a/b', number: 1 }] }
+        : { linkedPullRequests: [{ repo: 'a/b', number: 1 }] },
+  },
+  {
+    name: 'offerRefs',
+    attr: 'ref',
+    offer: offerRefs,
+    yes: (isPR: boolean) =>
+      isPR
+        ? { refsIssues: [{ repo: 'a/b', number: 1 }] }
+        : { referencedByPullRequests: [{ repo: 'a/b', number: 1 }] },
+  },
+])('$name', ({ attr, offer, yes }) => {
+  for (const isPR of [true, false]) {
+    const page = isPR ? 'pull requests' : 'issues';
+    const matching = choiceItem(yes(isPR));
+    const plain = choiceItem({});
+
+    test(`${page}: offers only Yes when every item matches it`, () => {
+      const { group, buttons } = fakeSegment(attr);
+      offer([group], [matching], isPR, '');
+      expect(buttons.yes.hidden).toBe(false);
+      expect(buttons.no.hidden).toBe(true);
+    });
+
+    test(`${page}: offers only No when nothing matches Yes`, () => {
+      const { group, buttons } = fakeSegment(attr);
+      offer([group], [plain], isPR, '');
+      expect(buttons.yes.hidden).toBe(true);
+      expect(buttons.no.hidden).toBe(false);
+    });
+
+    test(`${page}: offers both when the pool has both kinds`, () => {
+      const { group, buttons, state } = fakeSegment(attr);
+      offer([group], [matching, plain], isPR, '');
+      expect(buttons.yes.hidden).toBe(false);
+      expect(buttons.no.hidden).toBe(false);
+      expect(state.hidden).toBe(false);
+    });
+
+    test(`${page}: hides the segment when there are no items`, () => {
+      const { group, buttons, state } = fakeSegment(attr);
+      offer([group], [], isPR, '');
+      expect(buttons.yes.hidden).toBe(true);
+      expect(buttons.no.hidden).toBe(true);
+      expect(state.hidden).toBe(true);
+    });
+
+    test(`${page}: keeps the picked choice even when nothing matches it`, () => {
+      const { group, buttons, state } = fakeSegment(attr);
+      offer([group], [plain], isPR, 'yes');
+      expect(buttons.yes.hidden).toBe(false);
+      expect(buttons.no.hidden).toBe(false);
+      expect(state.hidden).toBe(false);
+    });
+  }
 });
 
 // A saved author pick is lowercase, but the item's author keeps its capitals
