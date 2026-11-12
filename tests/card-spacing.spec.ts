@@ -16,32 +16,37 @@ test.describe('settings cards have no tall empty space (#1109)', () => {
       await expect(page.locator('.card').first()).toBeVisible();
       await page.waitForLoadState('networkidle');
 
-      const gaps = await page.$$eval('.card', (cards) =>
-        cards.map((card) => {
-          const box = card.getBoundingClientRect();
-          const padding = Number.parseFloat(
-            getComputedStyle(card).paddingBottom,
-          );
-          let bottom = box.top;
-          for (const el of card.querySelectorAll('*')) {
-            const rect = el.getBoundingClientRect();
-            if (rect.height === 0 || rect.width === 0) continue;
-            // An empty state's own padding is the space under its text.
-            const style = getComputedStyle(el);
-            const inner = el.classList.contains('empty-state')
-              ? rect.bottom - Number.parseFloat(style.paddingBottom)
-              : rect.bottom;
-            bottom = Math.max(bottom, inner);
-          }
-          return {
-            heading: `${card.querySelector('h2')?.textContent ?? card.textContent?.trim().slice(0, 30)} (${card.className})`,
-            gap: Math.round(box.bottom - padding - bottom),
-          };
-        }),
-      );
-      for (const { heading, gap } of gaps) {
-        expect(gap, heading).toBeLessThanOrEqual(MAX_TRAILING_GAP);
-      }
+      const measure = () =>
+        page.$$eval('.card', (cards) =>
+          cards.map((card) => {
+            const box = card.getBoundingClientRect();
+            const padding = Number.parseFloat(
+              getComputedStyle(card).paddingBottom,
+            );
+            let bottom = box.top;
+            for (const el of card.querySelectorAll('*')) {
+              const rect = el.getBoundingClientRect();
+              if (rect.height === 0 || rect.width === 0) continue;
+              // An empty state's own padding is the space under its text.
+              const style = getComputedStyle(el);
+              const inner = el.classList.contains('empty-state')
+                ? rect.bottom - Number.parseFloat(style.paddingBottom)
+                : rect.bottom;
+              bottom = Math.max(bottom, inner);
+            }
+            return {
+              heading: `${card.querySelector('h2')?.textContent ?? card.textContent?.trim().slice(0, 30)} (${card.className})`,
+              gap: Math.round(box.bottom - padding - bottom),
+            };
+          }),
+        );
+      await expect
+        .poll(async () =>
+          (await measure())
+            .filter(({ gap }) => gap > MAX_TRAILING_GAP)
+            .map(({ heading, gap }) => `${heading}: ${gap}px`),
+        )
+        .toEqual([]);
     });
   }
 });

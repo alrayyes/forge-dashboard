@@ -43,50 +43,59 @@ for (const scheme of ['light', 'dark'] as const) {
         page,
       }) => {
         await open(page, width, scheme);
-        const m = await page.evaluate(() => {
-          const lum = (c: string) => {
-            const v = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
-            const [r, g, b] = v.map((x) => {
-              const s = x / 255;
-              return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-            });
-            return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-          };
-          const contrast = (a: string, b: string) => {
-            const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
-            return (hi + 0.05) / (lo + 0.05);
-          };
-          const word = (txt: string) => {
-            const rows = [...document.querySelectorAll('#webhooks-rows tr')];
-            const row = rows.find((r) => r.textContent?.includes(txt));
-            const cell = row?.querySelector('td[data-label="Webhook"]');
-            const el = cell?.querySelector('.status-word') as HTMLElement;
-            const cs = getComputedStyle(el);
-            const bg = getComputedStyle(cell as Element).backgroundColor;
-            return {
-              weight: Number(cs.fontWeight),
-              color: cs.color,
-              ink3: getComputedStyle(document.documentElement)
-                .getPropertyValue('--ink-3')
-                .trim(),
-              contrast: contrast(
-                cs.color,
-                bg === 'rgba(0, 0, 0, 0)'
-                  ? getComputedStyle(document.body).backgroundColor
-                  : bg,
-              ),
-              icon: el.querySelector('[aria-hidden="true"]') !== null,
-              text: el.textContent?.replace(/\s+/g, ' ').trim(),
+        const measure = () =>
+          page.evaluate(() => {
+            const lum = (c: string) => {
+              const v = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+              const [r, g, b] = v.map((x) => {
+                const s = x / 255;
+                return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+              });
+              return 0.2126 * r + 0.7152 * g + 0.0722 * b;
             };
-          };
-          return { done: word('done'), todo: word('todo') };
-        });
-        expect(m.todo.weight).toBeGreaterThanOrEqual(m.done.weight);
-        expect(m.todo.contrast).toBeGreaterThanOrEqual(4.5);
-        expect(m.todo.contrast).toBeGreaterThanOrEqual(m.done.contrast - 1);
-        expect(m.todo.icon).toBe(true);
-        expect(m.todo.text).toContain('Not yet');
-        expect(m.todo.weight).toBeGreaterThan(400);
+            const contrast = (a: string, b: string) => {
+              const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+              return (hi + 0.05) / (lo + 0.05);
+            };
+            const word = (txt: string) => {
+              const rows = [...document.querySelectorAll('#webhooks-rows tr')];
+              const row = rows.find((r) => r.textContent?.includes(txt));
+              const cell = row?.querySelector('td[data-label="Webhook"]');
+              const el = cell?.querySelector('.status-word') as HTMLElement;
+              const cs = getComputedStyle(el);
+              const bg = getComputedStyle(cell as Element).backgroundColor;
+              return {
+                weight: Number(cs.fontWeight),
+                color: cs.color,
+                ink3: getComputedStyle(document.documentElement)
+                  .getPropertyValue('--ink-3')
+                  .trim(),
+                contrast: contrast(
+                  cs.color,
+                  bg === 'rgba(0, 0, 0, 0)'
+                    ? getComputedStyle(document.body).backgroundColor
+                    : bg,
+                ),
+                icon: el.querySelector('[aria-hidden="true"]') !== null,
+                text: el.textContent?.replace(/\s+/g, ' ').trim(),
+              };
+            };
+            return { done: word('done'), todo: word('todo') };
+          });
+        // Style is read inside the poll: a re-render can swap the cells.
+        const failures = async () => {
+          const m = await measure();
+          const checks: [string, boolean][] = [
+            ['weight', m.todo.weight >= m.done.weight],
+            ['contrast', m.todo.contrast >= 4.5],
+            ['contrast vs done', m.todo.contrast >= m.done.contrast - 1],
+            ['icon', m.todo.icon === true],
+            ['text', (m.todo.text ?? '').includes('Not yet')],
+            ['bold', m.todo.weight > 400],
+          ];
+          return checks.filter(([, ok]) => !ok).map(([name]) => name);
+        };
+        await expect.poll(failures).toEqual([]);
       });
 
       test('nothing overflows and axe is clean', async ({ page }) => {

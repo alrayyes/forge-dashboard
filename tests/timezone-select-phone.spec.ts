@@ -65,7 +65,7 @@ for (const width of [320, 390]) {
     test('the default zone shows whole', async ({ page }) => {
       await page.emulateMedia({ colorScheme: 'light' });
       await open(page, width, '');
-      expect(await textOverflow(page)).toBeLessThanOrEqual(0);
+      await expect.poll(() => textOverflow(page)).toBeLessThanOrEqual(0);
     });
 
     test('a long zone shows whole below the select and does not overflow', async ({

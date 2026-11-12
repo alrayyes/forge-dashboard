@@ -150,16 +150,22 @@ for (const width of [390, 1280]) {
       const open = pills.and(page.locator('[aria-pressed="false"]')).first();
       await expect(pressed).toBeVisible();
       await expect(open).toBeVisible();
-      expect(await shape(pressed)).not.toBe(await shape(open));
+      await expect
+        .poll(async () => (await shape(pressed)) !== (await shape(open)))
+        .toBe(true);
 
       // Focused, a pressed pill still differs from an open one, and the
       // ring keeps its offset.
       await page.keyboard.press('Shift');
       await pressed.focus();
-      const focusedPressed = await shape(pressed);
-      await open.focus();
-      const focusedOpen = await shape(open);
-      expect(focusedPressed).not.toBe(focusedOpen);
+      await expect
+        .poll(async () => {
+          await pressed.focus();
+          const focusedPressed = await shape(pressed);
+          await open.focus();
+          return focusedPressed !== (await shape(open));
+        })
+        .toBe(true);
       await pressed.focus();
       await expect(pressed).toHaveCSS('outline-offset', '2px');
       await page.locator('body').click({ position: { x: 1, y: 1 } });
@@ -167,7 +173,7 @@ for (const width of [390, 1280]) {
       // The mark takes no room: no pill moves or resizes, none overlaps.
       const withMark = await boxes(pills);
       await page.emulateMedia({ forcedColors: 'none' });
-      expect(withMark).toEqual(await boxes(pills));
+      await expect.poll(() => boxes(pills)).toEqual(withMark);
       for (const [i, a] of withMark.entries()) {
         for (const b of withMark.slice(i + 1)) {
           const apart =

@@ -126,16 +126,21 @@ test.describe('Out of date badge and quick filter', () => {
     const badge = rows(page)
       .filter({ hasText: 'Alpha behind' })
       .locator('.attr-chip.behind');
-    const warning = await page.evaluate(() => {
-      const probe = document.createElement('span');
-      probe.style.color = 'var(--warning)';
-      document.body.appendChild(probe);
-      const c = getComputedStyle(probe).color;
-      probe.remove();
-      return c;
-    });
-    await expect(badge).toHaveCSS('color', warning);
-    await expect(badge).toHaveCSS('border-top-color', warning);
+    // The token is resolved in the same read as the badge, so a re-render
+    // between the two cannot leave them out of step.
+    await expect
+      .poll(() =>
+        badge.evaluate((el) => {
+          const probe = document.createElement('span');
+          probe.style.color = 'var(--warning)';
+          document.body.appendChild(probe);
+          const warning = getComputedStyle(probe).color;
+          probe.remove();
+          const s = getComputedStyle(el);
+          return [s.color === warning, s.borderTopColor === warning];
+        }),
+      )
+      .toEqual([true, true]);
     // The icon is decoration; the words are the one thing announced.
     await expect(badge.locator('svg')).toHaveAttribute('aria-hidden', 'true');
     await expect(
