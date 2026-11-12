@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.35.0](https://github.com/alrayyes/forge-dashboard/compare/v9.34.1...v9.35.0) (2026-11-12)
+
+
+### Features
+
+* **web:** hide Show drafts when there is no draft pull request ([#3703](https://github.com/alrayyes/forge-dashboard/issues/3703)) ([854fee6](https://github.com/alrayyes/forge-dashboard/commit/854fee6933bbf8fe75ecec6c80ce86bc6da95251))
+
 ## [9.34.1](https://github.com/alrayyes/forge-dashboard/compare/v9.34.0...v9.34.1) (2026-11-12)
 
 
