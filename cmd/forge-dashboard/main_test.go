@@ -262,3 +262,32 @@ func TestResolveRefreshInterval_Explicit_IsTheLowerBoundOfTheStretch(t *testing.
 	}
 	assert.Equal(t, 3*time.Hour, dashboard.StretchedInterval(resolveRefreshInterval("3h")))
 }
+
+func TestResolveWebhookMinInterval_Unset_UsesTheDebouncersDefault(t *testing.T) {
+	got, err := resolveWebhookMinInterval("")
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.DefaultWebhookMinInterval, got)
+}
+
+func TestResolveWebhookMinInterval_ValidValues_AreUsed(t *testing.T) {
+	for v, want := range map[string]time.Duration{"10s": 10 * time.Second, "2m": 2 * time.Minute, "0s": 0, "0": 0} {
+		t.Run(v, func(t *testing.T) {
+			got, err := resolveWebhookMinInterval(v)
+			require.NoError(t, err)
+			assert.Equal(t, want, got)
+		})
+	}
+}
+
+// An unusable value stops the start with a message naming the variable, not a
+// silent fallback to a different throttle than the operator asked for.
+func TestResolveWebhookMinInterval_Invalid_FailsNamingTheVariable(t *testing.T) {
+	for _, v := range []string{"soon", "30", "-5s", "1x"} {
+		t.Run(v, func(t *testing.T) {
+			_, err := resolveWebhookMinInterval(v)
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "WEBHOOK_MIN_INTERVAL")
+			assert.Contains(t, err.Error(), v)
+		})
+	}
+}

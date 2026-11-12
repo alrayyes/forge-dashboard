@@ -194,6 +194,27 @@ func resolveCIPollInterval(v string) time.Duration {
 	return d
 }
 
+// resolveWebhookMinInterval reads WEBHOOK_MIN_INTERVAL, the least time between
+// two webhook-driven refreshes of one repo. Empty means the default and "0s" is
+// a real zero that turns the throttle off. Unlike the intervals above, a value
+// that does not parse, or is negative, is an error that stops the start: a
+// throttle quietly set to something else than the operator asked for is the
+// kind of mistake that only shows up as a forge under load.
+func resolveWebhookMinInterval(v string) (time.Duration, error) {
+	if v == "" {
+		return dashboard.DefaultWebhookMinInterval, nil
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		return 0, fmt.Errorf("invalid WEBHOOK_MIN_INTERVAL %q (want a duration such as 30s, or 0s to turn it off): %w", v, err)
+	}
+	if d < 0 {
+		return 0, fmt.Errorf("%w: WEBHOOK_MIN_INTERVAL %q (use 0s to turn the throttle off)", errNegativeInterval, v)
+	}
+
+	return d, nil
+}
+
 // resolveIdleAfter reads IDLE_AFTER, how long nothing may have used the
 // dashboard before its scheduled refresh rests. Empty means the default and
 // "0s" is a real zero that turns idle mode off. A value that does not parse,
@@ -252,6 +273,7 @@ func main() {
 
 // Startup errors, named so err113 sees static ones and a caller can match them.
 var (
+	errNegativeInterval      = errors.New("interval must not be negative")
 	errEncryptionKeyRequired = errors.New("ENCRYPTION_KEY is required (generate one with `openssl rand -base64 32`)")
 	errAppPrivateKeyRequired = errors.New("GITHUB_APP_PRIVATE_KEY_BASE64 is required when GITHUB_APP_ID is set")
 )
@@ -308,6 +330,10 @@ func runHealthcheck() error {
 func run() error {
 	addr := envOr("ADDR", ":8080")
 	refreshInterval, ciPollInterval := resolveIntervals()
+	webhookMinInterval, err := resolveWebhookMinInterval(os.Getenv("WEBHOOK_MIN_INTERVAL"))
+	if err != nil {
+		return err
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -337,6 +363,7 @@ func run() error {
 	}
 
 	service := newService(settingsStore, refreshInterval, ciPollInterval)
+	service.SetWebhookMinInterval(webhookMinInterval)
 	defer service.Stop()
 
 	// One writer for every request-log row (#902). On the way out it flushes
