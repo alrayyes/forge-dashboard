@@ -206,6 +206,7 @@ const singleUserSpecs = [
   '**/main-branch-advisories.spec.ts',
   '**/main-branch-advisories-dialog.spec.ts',
   '**/advisories-dialog-close-position.spec.ts',
+  '**/advisory-detail-scroll-share.spec.ts',
   '**/main-branch-advisories-forgejo-dialog.spec.ts',
   '**/main-branches-advisory-filter.spec.ts',
   '**/ci-status-pulldown-gone.spec.ts',

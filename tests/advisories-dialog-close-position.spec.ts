@@ -150,15 +150,18 @@ for (const width of [320, 390, 820, 1280]) {
 
       await page.getByTestId('advisory-row').first().click();
       await expect(page.getByTestId('advisory-detail')).toBeVisible();
-      await expectTopRight(page, 'detail');
-      await expect(dialog.getByTestId('advisory-back')).toBeFocused();
-      // The long title wraps inside its column and does not push the X away.
-      const title = await dialog.locator('.adv-title').boundingBox();
+      // The title scrolls with the body now (#3390), so the X sits level with
+      // the Back button in the header instead.
       const x = await dialog.locator('.adv-close').boundingBox();
-      expect((title?.x ?? 0) + (title?.width ?? 0)).toBeLessThanOrEqual(
-        x?.x ?? 0,
-      );
-      await expect(link).toBeVisible();
+      const back = await dialog.getByTestId('advisory-back').boundingBox();
+      const frame = await dialog.boundingBox();
+      expect(
+        (frame?.x ?? 0) + (frame?.width ?? 0) - ((x?.x ?? 0) + (x?.width ?? 0)),
+      ).toBeLessThan(24);
+      expect(Math.abs((x?.y ?? 0) - (back?.y ?? 99))).toBeLessThan(20);
+      await expect(dialog.getByTestId('advisory-back')).toBeFocused();
+      await expect(dialog.locator('.adv-body .adv-title')).toBeVisible();
+      await expect(dialog.getByTestId('advisory-open-on-forge')).toBeVisible();
     });
   });
 }
