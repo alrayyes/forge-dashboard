@@ -72,7 +72,7 @@ func TestFetch_MainBranch_AHeldAnswerIsRememberedBetweenPolls(t *testing.T) {
 	var requests atomic.Int32
 	srv := heldBranchServer(t, &requests, func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{
-			"id": 1, "name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1",
+			"id": 1, "name": "ci", "workflow_id": 7, "conclusion": "action_required", "html_url": "https://github.com/alrayyes/a/actions/runs/1",
 		}}})
 	})
 	client := github.NewClient("test-token", "", srv.URL)

@@ -2,7 +2,6 @@ package github
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -56,6 +55,11 @@ type heldAnswer struct {
 	// runs (the panel's and the branch's do; the pull request pill's reads
 	// only a count). A branch row links it (#2024).
 	runURL string
+	// checks are the head commit's held workflows and failed the ones whose run
+	// ended in startup_failure, which created no jobs. Both come from the one
+	// workflow-runs read (#3305).
+	checks []dashboard.Check
+	failed []dashboard.Check
 }
 
 func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
@@ -69,8 +73,12 @@ func (r *requiredChecks) cachedHeld(sha string) (heldAnswer, bool) {
 	return a, true
 }
 
-func (r *requiredChecks) storeHeld(sha string, held bool, runURL string) {
-	r.storeAnswer(sha, heldAnswer{held: held, runURL: runURL, fetched: time.Now()})
+func (r *requiredChecks) storeRuns(sha string, held, failed []dashboard.Check) {
+	answer := heldAnswer{held: len(held) > 0, checks: held, failed: failed, fetched: time.Now()}
+	if len(held) > 0 {
+		answer.runURL = held[0].URL
+	}
+	r.storeAnswer(sha, answer)
 }
 
 // storeUnknownHeld remembers that the lookup failed.
@@ -205,49 +213,22 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 // unless workflow runs held for approval are why: those finished as
 // action_required and create no check runs, so nothing is coming until a
 // maintainer approves them (#1929). It then reads like any other held run
-// (#1280): failing, and awaiting approval.
+// (#1280): failing, and awaiting approval. A workflow run that ended in
+// startup_failure is the other reason nothing is coming: it created no jobs,
+// so it reads as failing, with the run counted as failed (#3305).
 func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullRequest, cand missingRequiredCheck) {
-	if c.hasRunsAwaitingApproval(ctx, cand) {
+	runs := c.headWorkflowRuns(ctx, cand.owner, cand.name, cand.headOid, true)
+	switch {
+	case runs.held:
 		prs[cand.prIndex].CI = dashboard.CIFailure
 		prs[cand.prIndex].AwaitingWorkflowApproval = true
 		prs[cand.prIndex].FailingOnlyForApproval = true
-
-		return
+	case len(runs.failed) > 0:
+		prs[cand.prIndex].CI = dashboard.CIFailure
+		prs[cand.prIndex].Checks.Failed += len(runs.failed)
+	default:
+		prs[cand.prIndex].CI = dashboard.CIPending
 	}
-	prs[cand.prIndex].CI = dashboard.CIPending
-}
-
-// hasRunsAwaitingApproval reports whether the head commit has a workflow run
-// held as action_required. A failed lookup says no, so the pull request stays
-// pending as before; a token that can't read Actions is expected and only
-// logged at debug level, since it would repeat on every poll.
-func (c *Client) hasRunsAwaitingApproval(ctx context.Context, cand missingRequiredCheck) bool {
-	if answer, ok := c.requiredChecks.cachedHeld(cand.headOid); ok {
-		return answer.held
-	}
-	path := fmt.Sprintf("/repos/%s/%s/actions/runs", cand.owner, cand.name)
-	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: cand.headOid, Status: "action_required"}
-	opts.PerPage = 1
-	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, cand.owner, cand.name, opts)
-	if err != nil {
-		level := slog.LevelWarn
-		if clientErr, ok := errors.AsType[*dashboard.ClientError](asClientError(c.restError(ctx, http.MethodGet, path, err))); ok && clientErr.Kind == dashboard.ForgeErrorUnauthorized {
-			level = slog.LevelDebug
-		}
-		slog.Log(ctx, level, "github awaiting-approval lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
-		// Remembered as unknown for the TTL, which reads as no here, so a token
-		// that can't read Actions or a rate-limited poll isn't asked again for
-		// every pull request.
-		c.requiredChecks.storeUnknownHeld(cand.headOid)
-
-		return false
-	}
-	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
-	held := runs.GetTotalCount() > 0
-	c.requiredChecks.storeHeld(cand.headOid, held, "")
-
-	return held
 }
 
 // hasUnreportedRequired judges the head commit's required contexts. A missing

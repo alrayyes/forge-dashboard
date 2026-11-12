@@ -179,6 +179,11 @@ type Check struct {
 	// step is never set, and the excerpt costs one log read per failed job.
 	FailedStep string `json:"failedStep,omitempty"`
 	Excerpt    string `json:"excerpt,omitempty"`
+	// NotReported marks a required check the base branch names that no job or
+	// status on the head commit has reported (#3305). It is not a job: it has
+	// no page and no log, its status is queued, and it is in no count. The page
+	// words it.
+	NotReported bool `json:"notReported,omitempty"`
 }
 
 // ReviewDecision is where a pull request stands on code review. Matches

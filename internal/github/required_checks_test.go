@@ -133,7 +133,7 @@ func heldRunsServer(t *testing.T, held int) *httptest.Server {
 		[]map[string]any{completedRun("check")}, &lookups)
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		runs := []map[string]any{}
-		if r.URL.Query().Get("status") == "action_required" && r.URL.Query().Get("head_sha") == "cafef00d" {
+		if r.URL.Query().Get("head_sha") == "cafef00d" {
 			for range held {
 				runs = append(runs, map[string]any{"name": "ci", "status": "completed", "conclusion": "action_required"})
 			}
@@ -216,7 +216,7 @@ func TestFetch_HeldRunAnswer_IsNotAskedAgainOnTheNextPoll(t *testing.T) {
 		[]map[string]any{completedRun("check")}, &lookups)
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		asked.Add(1)
-		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"name": "ci"}}})
+		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{"name": "ci", "conclusion": "action_required"}}})
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
