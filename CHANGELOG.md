@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.26.0](https://github.com/alrayyes/forge-dashboard/compare/v9.25.3...v9.26.0) (2026-11-12)
+
+
+### Features
+
+* **web:** show a refs pill on a pull request row for the tickets it references ([#3618](https://github.com/alrayyes/forge-dashboard/issues/3618)) ([ae8c6cf](https://github.com/alrayyes/forge-dashboard/commit/ae8c6cf5177d71e77b1a1b8af991da73aae3c74c))
+
 ## [9.25.3](https://github.com/alrayyes/forge-dashboard/compare/v9.25.2...v9.25.3) (2026-11-12)
 
 
