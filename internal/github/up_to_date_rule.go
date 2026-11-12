@@ -49,6 +49,9 @@ func (c *Client) requiresUpToDate(ctx context.Context, owner, name, base string)
 	default:
 		slog.Debug("github branch protection unreadable, up-to-date rule stays unknown", "repo", owner+"/"+name, "branch", base, "error", err)
 	}
+	if ctx.Err() != nil {
+		return nil
+	}
 	c.upToDate.Store(key, required)
 
 	return required

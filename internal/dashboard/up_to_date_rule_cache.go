@@ -17,7 +17,8 @@ const unknownUpToDateRuleTTL = time.Minute
 // UpToDateRuleCache remembers each branch's answer to "must a pull request be
 // up to date to merge" (#3428), so a refresh reads the forge's protection once
 // per branch instead of once per pull request. The zero value is ready to use.
-// It is bounded by the repo and base-branch pairs seen, and never evicts.
+// Store drops the entries that have expired, so it holds only the pairs seen
+// within the last few minutes.
 type UpToDateRuleCache struct {
 	mu      sync.Mutex
 	answers map[string]upToDateAnswer
@@ -45,18 +46,20 @@ func (c *UpToDateRuleCache) Cached(key string) (*bool, bool) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	a, found := c.answers[key]
-	if !found {
-		return nil, false
-	}
-	ttl := upToDateRuleTTL
-	if a.required == nil {
-		ttl = unknownUpToDateRuleTTL
-	}
-	if c.clock().Sub(a.fetched) > ttl {
+	if !found || a.expired(c.clock()) {
 		return nil, false
 	}
 
 	return a.required, true
+}
+
+func (a upToDateAnswer) expired(now time.Time) bool {
+	ttl := upToDateRuleTTL
+	if a.required == nil {
+		ttl = unknownUpToDateRuleTTL
+	}
+
+	return now.Sub(a.fetched) > ttl
 }
 
 // Store remembers required for key; nil means the rule couldn't be read.
@@ -66,5 +69,11 @@ func (c *UpToDateRuleCache) Store(key string, required *bool) {
 	if c.answers == nil {
 		c.answers = map[string]upToDateAnswer{}
 	}
-	c.answers[key] = upToDateAnswer{required: required, fetched: c.clock()}
+	now := c.clock()
+	for k, a := range c.answers {
+		if a.expired(now) {
+			delete(c.answers, k)
+		}
+	}
+	c.answers[key] = upToDateAnswer{required: required, fetched: now}
 }

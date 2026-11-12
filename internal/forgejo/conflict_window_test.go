@@ -259,6 +259,20 @@ func TestConflictMemory_ARefusedUpdateNamingAConflictIsConfirmedToo(t *testing.T
 	assert.Equal(t, []string{"a.txt"}, pr.ConflictFiles)
 }
 
+func TestConflictMemory_ARefusedUpdateSayingConflictInPlainWordsIsConfirmed(t *testing.T) {
+	t.Parallel()
+
+	s := newConflictServer(t)
+	s.pull(t)
+	s.refuseWith(http.StatusConflict, `{"message":"merge conflict"}`)
+	_, err := s.client.UpdateBranch(t.Context(), "o", "r", 7)
+	require.Error(t, err)
+
+	pr := s.pull(t)
+	assert.Equal(t, dashboard.MergeConflicting, pr.MergeStatus)
+	assert.Equal(t, "confirmed", confirmed(pr))
+}
+
 func TestConflictMemory_AConflictWithNoFilesIsStillConfirmed(t *testing.T) {
 	t.Parallel()
 

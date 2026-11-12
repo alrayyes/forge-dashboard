@@ -35,3 +35,19 @@ func TestUpToDateRuleCache_KeepsAKnownAnswerFiveMinutesAndAnUnknownOneMinute(t *
 	_, ok = cache.Cached("o/r@main")
 	assert.False(t, ok, "a known answer expires after five minutes")
 }
+
+func TestUpToDateRuleCache_StoreDropsEntriesThatHaveExpired(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 12, 10, 0, 0, 0, time.UTC)
+	cache := &UpToDateRuleCache{now: func() time.Time { return now }}
+	cache.Store("o/r@old-known", new(true))
+	cache.Store("o/r@old-unknown", nil)
+
+	now = now.Add(time.Minute + time.Second)
+	cache.Store("o/r@new", nil)
+	assert.Len(t, cache.answers, 2, "the unknown answer expired, the known one has not")
+
+	now = now.Add(5 * time.Minute)
+	cache.Store("o/r@newer", nil)
+	assert.Len(t, cache.answers, 1)
+}

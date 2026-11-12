@@ -535,7 +535,8 @@ instead, as it would be on a branch that isn't behind. A conflict still stops
 it, with the armed state kept. The rule is a fact about the branch, sent as
 `baseRequiresUpToDate` on a behind pull request. It is read from the forge's
 branch protection once per branch and kept for five minutes (one when it could
-not be read), so a refresh costs no call per pull request. On GitHub only
+not be read) and then dropped, so a refresh costs no call per pull request. A
+read cut short by a cancelled request is not kept. On GitHub only
 classic branch protection is read, with admin rights on the repo; a branch that
 only a ruleset protects reads as unknown.
 

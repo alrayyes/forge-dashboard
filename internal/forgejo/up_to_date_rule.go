@@ -46,6 +46,9 @@ func (c *Client) requiresUpToDate(ctx context.Context, owner, name, base string)
 		rule := protectionForBranch(rules, base)
 		required = new(rule != nil && rule.BlockOnOutdatedBranch)
 	}
+	if ctx.Err() != nil {
+		return nil
+	}
 	c.upToDate.Store(key, required)
 
 	return required

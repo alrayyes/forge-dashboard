@@ -2246,7 +2246,6 @@ a.ci-pill:hover {
   border: none;
   font-family: inherit;
   cursor: pointer;
-  min-height: 24px;
 }
 .merge-pill.unconfirmed .dot {
   background: var(--warning);
