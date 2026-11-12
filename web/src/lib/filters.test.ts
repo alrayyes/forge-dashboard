@@ -594,6 +594,22 @@ describe.each([
       expect(buttons.no.hidden).toBe(false);
       expect(state.hidden).toBe(false);
     });
+
+    test(`${page}: keeps a picked Yes and its segment when the pool is empty`, () => {
+      const { group, buttons, state } = fakeSegment(attr);
+      offer([group], [], isPR, 'yes');
+      expect(buttons.yes.hidden).toBe(false);
+      expect(buttons.no.hidden).toBe(true);
+      expect(state.hidden).toBe(false);
+    });
+
+    test(`${page}: keeps a picked No and its segment when only Yes is backed`, () => {
+      const { group, buttons, state } = fakeSegment(attr);
+      offer([group], [matching], isPR, 'no');
+      expect(buttons.yes.hidden).toBe(false);
+      expect(buttons.no.hidden).toBe(false);
+      expect(state.hidden).toBe(false);
+    });
   }
 });
 
