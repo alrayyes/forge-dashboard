@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.30.0](https://github.com/alrayyes/forge-dashboard/compare/v9.29.0...v9.30.0) (2026-11-12)
+
+
+### Features
+
+* **web:** drop the ready chip from the Rebase all strip ([#3644](https://github.com/alrayyes/forge-dashboard/issues/3644)) ([bb1c71d](https://github.com/alrayyes/forge-dashboard/commit/bb1c71d5243af9023818a92ad6c5050374c51bc5))
+
 ## [9.29.0](https://github.com/alrayyes/forge-dashboard/compare/v9.28.0...v9.29.0) (2026-11-12)
 
 
