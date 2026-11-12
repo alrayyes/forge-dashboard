@@ -514,16 +514,17 @@ the server says Forgejo itself holds the merge (it merges when checks pass),
 and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
 merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
 Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
+
 An armed pull request that is behind says whether that is what holds it. Where
 the base branch needs the branch to be current before a merge (GitHub's `strict`
 branch protection setting, Forgejo's "Block merge if the pull request is
-outdated"), the forge waits until someone updates the branch, so the
-chip reads `Waiting for update` and its explanation says the branch has to be
-updated first. Update branch is offered as usual. Where the rule is off, or
-can't be read, being behind isn't blamed: a pending, cancelled, or failing check
-is named instead, as it would be on a branch that isn't behind. A conflict still
-stops it, with the armed state kept. The rule is a fact about the branch, sent
-as `baseRequiresUpToDate` on a behind pull request. It is read from the forge's
+outdated"), the forge waits until someone updates the branch, so the chip reads
+`Waiting for update` and its explanation says the branch has to be updated
+first. Update branch is offered as usual. Where the rule is off, or can't be
+read, being behind isn't blamed: a pending, cancelled, or failing check is named
+instead, as it would be on a branch that isn't behind. A conflict still stops
+it, with the armed state kept. The rule is a fact about the branch, sent as
+`baseRequiresUpToDate` on a behind pull request. It is read from the forge's
 branch protection once per branch and kept for five minutes (one when it could
 not be read), so a refresh costs no call per pull request. On GitHub only
 classic branch protection is read, with admin rights on the repo; a branch that

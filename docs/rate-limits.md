@@ -355,10 +355,10 @@ a new read can't skip the question of whether it can be conditional.
 
 The rule that a branch must be current before it merges (GitHub's `strict`
 branch protection setting, Forgejo's "Block merge if the pull request is
-outdated") is read only for a branch that
-has a behind pull request, and kept per branch for five minutes, or one minute
-when it could not be read. A refresh therefore costs no call per pull request,
-and none at all while nothing is behind.
+outdated") is read only for a branch that has a behind pull request, and kept
+per branch for five minutes, or one minute when it could not be read. A refresh
+therefore costs no call per pull request, and none at all while nothing is
+behind.
 
 One Forgejo read sits outside the table: the instance's version, read in the
 background on the first refresh for every Forgejo, to know whether it has a

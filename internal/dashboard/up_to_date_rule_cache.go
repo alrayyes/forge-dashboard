@@ -17,9 +17,20 @@ const unknownUpToDateRuleTTL = time.Minute
 // UpToDateRuleCache remembers each branch's answer to "must a pull request be
 // up to date to merge" (#3428), so a refresh reads the forge's protection once
 // per branch instead of once per pull request. The zero value is ready to use.
+// It is bounded by the repo and base-branch pairs seen, and never evicts.
 type UpToDateRuleCache struct {
 	mu      sync.Mutex
 	answers map[string]upToDateAnswer
+	// now is the clock; nil means time.Now. A test sets it to pin the TTLs.
+	now func() time.Time
+}
+
+func (c *UpToDateRuleCache) clock() time.Time {
+	if c.now != nil {
+		return c.now()
+	}
+
+	return time.Now()
 }
 
 type upToDateAnswer struct {
@@ -41,7 +52,7 @@ func (c *UpToDateRuleCache) Cached(key string) (*bool, bool) {
 	if a.required == nil {
 		ttl = unknownUpToDateRuleTTL
 	}
-	if time.Since(a.fetched) > ttl {
+	if c.clock().Sub(a.fetched) > ttl {
 		return nil, false
 	}
 
@@ -55,5 +66,5 @@ func (c *UpToDateRuleCache) Store(key string, required *bool) {
 	if c.answers == nil {
 		c.answers = map[string]upToDateAnswer{}
 	}
-	c.answers[key] = upToDateAnswer{required: required, fetched: time.Now()}
+	c.answers[key] = upToDateAnswer{required: required, fetched: c.clock()}
 }
