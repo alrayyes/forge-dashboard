@@ -30,6 +30,9 @@ type Service struct {
 	// debounceTimer is nil until SetWebhookDebounceTimer is called, which
 	// leaves every Aggregator on the real clock.
 	debounceTimer AfterFunc
+	// webhookMinInterval is the least time between two webhook refreshes of a
+	// repo; zero turns the throttle off.
+	webhookMinInterval time.Duration
 	// ciPollInterval is zero until SetCIPollInterval is called — every
 	// Aggregator this Service builds before that point, or ever, if
 	// it's never called, skips the CI-poll fallback (#177) entirely.
@@ -91,6 +94,8 @@ func NewService(refreshInterval time.Duration) *Service {
 		firstRefreshGrace: defaultFirstRefreshGrace,
 		now:               time.Now,
 
+		webhookMinInterval: DefaultWebhookMinInterval,
+
 		forceRefreshCooldown: DefaultForceRefreshCooldown,
 	}
 }
@@ -116,6 +121,15 @@ func (s *Service) SetWebhookDebounceTimer(after AfterFunc) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.debounceTimer = after
+}
+
+// SetWebhookMinInterval sets the least time between two webhook-driven
+// refreshes of one repo, for every Aggregator this Service builds from here on.
+// Zero turns the throttle off. Call once, before the first Ensure.
+func (s *Service) SetWebhookMinInterval(d time.Duration) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.webhookMinInterval = d
 }
 
 // SetSnapshotCache keeps every Aggregator this Service builds from here on
@@ -292,7 +306,7 @@ func (s *Service) StartAtBoot(ctx context.Context, sources []Source) {
 // Service has been given, and starts its background loops. The caller holds s.mu.
 func (s *Service) startLocked(ctx context.Context, sources []Source) {
 	runCtx, cancel := context.WithCancel(ctx)
-	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(s.activity)}
+	opts := []AggregatorOption{WithDebounceOwner(runCtx), WithActivity(s.activity), WithWebhookMinInterval(s.webhookMinInterval)}
 	if s.debounceTimer != nil {
 		opts = append(opts, WithDebounceTimer(s.debounceTimer))
 	}

@@ -216,12 +216,16 @@ dashboard waits for the repo's deliveries to go quiet and refreshes once. The
 refresh runs 2 seconds after the latest delivery. A repo that never goes quiet,
 a busy CI for example, is still refreshed 5 seconds after its first delivery,
 so a burst waits at most 5 seconds and a lone delivery waits 2. A repo is also
-refreshed at most once every 30 seconds, the browser tab's own poll period: a
-delivery inside that interval waits for it to pass, and the one refresh then
-reads everything that arrived meanwhile. A push's check runs send deliveries
-over tens of seconds, and refreshing for each would multiply the load on a
-forge that may already be struggling. After a rerun, a check change can
-therefore show up to 30 seconds late. Two repos are held back independently of
+refreshed at most once every 30 seconds by default, the browser tab's own poll
+period: a delivery inside that interval waits for it to pass, and the one
+refresh then reads everything that arrived meanwhile. A push's check runs send
+deliveries over tens of seconds, and refreshing for each would multiply the
+load on a forge that may already be struggling. After a rerun, a check change
+can therefore show up to 30 seconds late. Set `WEBHOOK_MIN_INTERVAL` (a Go
+duration such as `10s`; see [Configuration](configuration.md)) to change that
+interval. `WEBHOOK_MIN_INTERVAL=0s` turns it off, so only the 2-second quiet
+window and the 5-second cap apply, at the price of a refresh per burst of
+deliveries. Two repos are held back independently of
 each other. Only deliveries wait: the periodic
 refresh, the CI-status poll, the refresh button and anything you do on a pull
 request run at once. A delivery that arrives while a refresh of the same repo

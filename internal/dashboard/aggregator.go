@@ -120,6 +120,8 @@ type Aggregator struct {
 	debounce    *debouncer
 	// debounceOwner, when set, ends the debouncer with the Aggregator's run.
 	debounceOwner context.Context
+	// webhookMinInterval is the least time between two webhook refreshes of a repo.
+	webhookMinInterval time.Duration
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
 	// every source answered or reported itself unreachable. Readiness
@@ -295,12 +297,14 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		writeBudget:       defaultWriteBudget,
 		writeAfter:        realAfterFunc,
 		firstRefreshedCh:  make(chan struct{}),
+
+		webhookMinInterval: DefaultWebhookMinInterval,
 	}
 	for _, opt := range opts {
 		opt(a)
 	}
 	a.fetching = make([]atomic.Bool, len(a.sources))
-	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold, webhookMinInterval)
+	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold, a.webhookMinInterval)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
 	}
