@@ -251,9 +251,10 @@ nothing is waiting to ship.
 
 The quick filter pills ahead of the list include **Failing CI**, **Running CI**,
 **Passing CI** and **No checks**, each offered only when it would show
-something. They are the only CI filter: the board header has no separate CI
-status dropdown, on this page, Releases, and Bots. The **No checks** pill shows
-the pull requests that have no CI configured. A CI status saved from when the
+something and not when it matches every pull request. They are the only CI
+filter: the board header has no separate CI status dropdown, on this page,
+Releases, and Bots. The **No checks** pill shows the pull requests that have no
+CI configured. A CI status saved from when the
 dropdown existed becomes the matching pill when the page loads, unless a pill or
 a forge is already picked, in which case it is dropped, so nothing stays
 filtered out of sight. The **Out of date** pill, on this page and on Bots,
@@ -270,7 +271,12 @@ close or reference at least one ticket (the ones with a "Closes" or a "Refs"
 pill), since a close is the strong form of a ref, and **References no issue**
 the rest. There is no separate closing control. Like Auto-merge it is saved with
 your other filters, comes back after a reload, is emptied by **Clear filters**,
-and offers a choice only when something in the list is that way. On a phone it
+and offers a choice only while it would change the list: one every row has
+shows what Any shows, and one no row has shows nothing, so a control with no
+choice left is hidden in both the bar and the Filters sheet. A choice that is the
+active pick stays so it can be cleared. The same goes for Auto-merge, the forge
+pills and the quick pills such as Running CI; a pill group left with only All
+is hidden, and All is never hidden on its own. On a phone it
 is in the Filters sheet with 44px choices. The pick is shared with the Bots and
 Releases pages, which filter by it too, so a pick made here can leave those
 lists empty; the control shows it there, and Any or **Clear filters** brings the

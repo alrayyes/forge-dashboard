@@ -91,10 +91,12 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    for (const name of ['All', 'GitHub', 'Failing CI', 'Ready to Merge']) {
+    for (const name of ['All', 'Failing CI', 'Ready to Merge']) {
       await expect(pill(page, name)).toBeVisible();
     }
+    // Every row is on GitHub, so that pill would show what All shows (#3669).
     for (const name of [
+      'GitHub',
       'Forgejo',
       'Conflicts',
       'Out of date',
@@ -109,6 +111,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     await open(page, '/pull-requests.html', [
       pr(1, { ci: 'success', readyToMerge: true }),
       pr(2, { ci: 'failure', author: 'dana' }),
+      pr(3, { ci: 'success' }),
     ]);
     await expect(pill(page, 'Failing CI')).toBeVisible();
 
@@ -145,14 +148,24 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     await expect(pill(page, 'All')).toBeVisible();
   });
 
-  test('the Issues page offers only the forges its issues are on', async ({
+  test('the Issues page offers a forge only when its issues are on both', async ({
     page,
   }) => {
-    await open(page, '/issues.html', [], [issue(1)]);
+    await open(page, '/issues.html', [], [issue(1), issue(2)]);
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+    await expect(pill(page, 'GitHub')).toBeHidden();
+    await expect(pill(page, 'Forgejo')).toBeHidden();
 
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(
+      page,
+      '/issues.html',
+      [],
+      [issue(1), issue(2, { forge: 'forgejo' })],
+    );
     await expect(pill(page, 'All')).toBeVisible();
     await expect(pill(page, 'GitHub')).toBeVisible();
-    await expect(pill(page, 'Forgejo')).toBeHidden();
+    await expect(pill(page, 'Forgejo')).toBeVisible();
   });
 
   test('the forge pills in the Filters sheet follow the same rule on a phone', async ({
@@ -168,8 +181,20 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     await page.getByRole('button', { name: /^Filters/ }).click();
     const sheet = page.locator('dialog#filter-sheet');
 
-    await expect(sheet.getByRole('button', { name: 'GitHub' })).toBeVisible();
+    // Every row is on GitHub: neither forge changes the list.
+    await expect(sheet.getByRole('button', { name: 'GitHub' })).toBeHidden();
     await expect(sheet.getByRole('button', { name: 'Forgejo' })).toBeHidden();
+
+    await page.keyboard.press('Escape');
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'success' }),
+      pr(2, { ci: 'success', forge: 'forgejo', repo: 'h/x' }),
+    ]);
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    await page.getByRole('button', { name: /^Filters/ }).click();
+    await expect(sheet.getByRole('button', { name: 'GitHub' })).toBeVisible();
+    await expect(sheet.getByRole('button', { name: 'Forgejo' })).toBeVisible();
   });
 
   test('a pill that becomes useful once a pick clears is offered at once', async ({
@@ -194,7 +219,10 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
   });
 
   test('has no axe-core violations with pills hidden', async ({ page }) => {
-    await open(page, '/pull-requests.html', [pr(1, { ci: 'failure' })]);
+    await open(page, '/pull-requests.html', [
+      pr(1, { ci: 'failure' }),
+      pr(2, { ci: 'success' }),
+    ]);
     await expect(pill(page, 'Failing CI')).toBeVisible();
 
     const results = await new AxeBuilder({ page })

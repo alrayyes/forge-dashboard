@@ -117,7 +117,11 @@ function prsFor(base: number, kind: string | undefined) {
       author: 'erin',
       labels: [{ name: 'bug', color: 'd73a4a' }],
     }),
-    ...Array.from({ length: 25 }, (_, i) => pr(base + 8 + i, kind)),
+    // One filler row has auto-merge off too, so the pill paired with Off still
+    // matches only some of that pool and stays offered (#3669).
+    ...Array.from({ length: 25 }, (_, i) =>
+      pr(base + 8 + i, kind, i === 0 ? { autoMergeEnabled: false } : {}),
+    ),
   ];
 }
 

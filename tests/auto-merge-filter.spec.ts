@@ -130,20 +130,28 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     );
   });
 
-  test('a pill or an option nothing matches is not offered, and the segment goes when neither is', async ({
+  test('a pill or an option that would change nothing is not offered, and the segment goes with it', async ({
     page,
   }) => {
-    await open(page, [pr(1, 'Only passing', 'success', true)]);
+    await open(page, [
+      pr(1, 'Passing on', 'success', true),
+      pr(2, 'Running off', 'pending', false),
+    ]);
 
     await expect(pill(page, 'Passing CI')).toBeVisible();
-    await expect(pill(page, 'Running CI')).toBeHidden();
+    await expect(pill(page, 'Running CI')).toBeVisible();
     await expect(pill(page, 'Failing CI')).toBeHidden();
     await expect(am(page, 'on')).toBeVisible();
-    await expect(am(page, 'off')).toBeHidden();
+    await expect(am(page, 'off')).toBeVisible();
 
-    current = [pr(2, 'Unknown', 'success')];
+    // Every row is passing and armed: those choices show what Any shows.
+    current = [
+      pr(3, 'Armed', 'success', true),
+      pr(4, 'Also armed', 'success', true),
+    ];
     await page.reload();
     await expect(page.locator('.filter-bar > .am-group')).toBeHidden();
+    await expect(pill(page, 'Passing CI')).toBeHidden();
   });
 
   test('the choice survives a reload, stays offered when nothing matches it, and Clear filters resets it', async ({

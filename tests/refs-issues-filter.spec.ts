@@ -470,19 +470,25 @@ test.describe('Issues: has a referencing pull request', () => {
     await expect(prTitles(page)).toHaveCount(4);
   });
 
-  test('a choice nothing matches is not offered, and the segment goes when neither is', async ({
+  test('a control with one real choice is hidden, and shown once both are backed', async ({
     page,
   }) => {
     await open(page, '/issues.html', [issue(24, 'Nobody on it')]);
-    await expect(choice(page, 'no')).toBeVisible();
-    await expect(choice(page, 'yes')).toBeHidden();
+    await expect(page.locator('.filter-bar > .refs-group')).toBeHidden();
 
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await open(page, '/issues.html', [
       issue(22, 'Referenced', [], [prLink(2)]),
     ]);
+    await expect(page.locator('.filter-bar > .refs-group')).toBeHidden();
+
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await open(page, '/issues.html', [
+      issue(22, 'Referenced', [], [prLink(2)]),
+      issue(24, 'Nobody on it'),
+    ]);
     await expect(choice(page, 'yes')).toBeVisible();
-    await expect(choice(page, 'no')).toBeHidden();
+    await expect(choice(page, 'no')).toBeVisible();
   });
 });
 

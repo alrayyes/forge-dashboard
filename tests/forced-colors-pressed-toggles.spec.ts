@@ -68,7 +68,9 @@ async function openPulls(page: Page, width: number) {
   await page.setViewportSize({ width, height: 800 });
   await seedPulls(page);
   await page.goto('/pull-requests.html');
-  await expect(page.locator('.quick-pill:visible').first()).toBeVisible();
+  // Rows are the ready signal: the quick pills are hidden when no pill has a
+  // choice to offer (#3669), and these controls don't depend on them.
+  await expect(page.locator('#pr-rows .row').first()).toBeVisible();
 }
 
 // A phone keeps the segments in the Filters sheet.

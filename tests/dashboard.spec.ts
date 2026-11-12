@@ -2932,9 +2932,11 @@ test.describe('dashboard page', () => {
     test('clicking resets every shared filter, group-by and the CI pill in one action, re-renders the board, resets pagination, and disables itself again', async ({
       page,
     }) => {
+      // The pill goes first: once the title leaves only failing rows, the pill
+      // would show what All shows and is no longer offered (#3669).
+      await page.locator('.quick-pills [data-pill="failing"]').click();
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
       await page.selectOption('#shared-group-select', 'repo');
-      await page.locator('.quick-pills [data-pill="failing"]').click();
       // Title and the pill together leave the failing "Fix build" PR (#1427:
       // a combination that matched nothing is no longer offered).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
@@ -3276,21 +3278,23 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
   });
 
-  test('quick filters leave the issues page alone, forge pills do not', async ({
+  test('quick filters leave the issues page alone, and a single forge offers no pill', async ({
     page,
   }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await pill(page, 'Failing CI').click();
     await page.goto('/issues.html');
-    // The pull-request-only pill is not on the issues page, and All is what
-    // is in effect there (#827).
+    // The pull-request-only pill is not on the issues page, and the held pick
+    // filters nothing there: the one issue is listed (#827).
     await expect(pill(page, 'Failing CI')).toHaveCount(0);
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
-    // No issue is on Forgejo, so that pill isn't offered (#1427); GitHub is.
+    // The one issue is on GitHub, so neither forge pill changes the list and
+    // neither is offered, and a group left with only All is hidden whole
+    // (#1427, #3669).
+    await expect(page.locator('.quick-pills')).toBeHidden();
+    await expect(pill(page, 'All')).toBeHidden();
     await expect(pill(page, 'Forgejo')).toBeHidden();
-    await pill(page, 'GitHub').click();
-    await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+    await expect(pill(page, 'GitHub')).toBeHidden();
   });
 
   test('the active pill survives a reload', async ({ page }) => {
