@@ -5273,11 +5273,6 @@ footer a[aria-current="page"] {
   background: var(--warning-bg);
   border-color: var(--warning);
 }
-.strip-chip.good {
-  color: var(--good);
-  background: var(--good-bg);
-  border-color: var(--good);
-}
 .strip-chip.bad {
   color: var(--critical);
   background: var(--critical-bg);
