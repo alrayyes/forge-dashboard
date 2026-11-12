@@ -29,6 +29,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/memlimit"
 	"github.com/alrayyes/forge-dashboard/internal/osv"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -41,6 +42,10 @@ import (
 // what a plain `go build` reports, which is the honest answer for a binary
 // built off an unknown tree.
 var version = "dev"
+
+// processStart is when this process began, reported to clients so they can
+// word a forge that has not answered yet as starting up (#3554).
+var processStart = time.Now()
 
 // defaultRefreshInterval was 5 minutes, sized around polling being the
 // only way an update ever arrived. Every tracked repo gets a real webhook
@@ -254,6 +259,9 @@ func main() {
 	}
 
 	configureLogging()
+	// First line of the log: an OOM loop shows up here, in `docker logs`, and
+	// not only in the kernel log (#3554).
+	slog.Info("memory", memlimit.Apply().Attrs()...)
 
 	// Operator recovery: runs against the database and exits, no server.
 	if len(os.Args) > 1 && os.Args[1] == "reset-passkeys" {
@@ -391,6 +399,7 @@ func run() error {
 		Dashboard:      service,
 		APIStats:       apistats.New(),
 		AppContext:     ctx,
+		StartedAt:      processStart,
 		// The env var buildAuth already requires for WebAuthn's RPOrigins; see
 		// Deps.PublicOrigin.
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
