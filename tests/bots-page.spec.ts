@@ -146,7 +146,7 @@ test.describe('Bots page (#1192)', () => {
     ).toHaveCount(1);
   });
 
-  test(`rows without the pill have no axe violations in light and dark and fit at 390px`, async ({
+  test(`rows without the pill have no axe violations in light and dark, desktop and 390px, and fit there`, async ({
     page,
   }) => {
     for (const scheme of ['light', 'dark'] as const) {
@@ -168,6 +168,11 @@ test.describe('Bots page (#1192)', () => {
 
         await page.setViewportSize({ width: 390, height: 844 });
 
+        expect(
+          (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+            .violations,
+        ).toEqual([]);
+
         const fits = await page
           .locator('#pr-rows .row')
           .evaluateAll((els) =>
@@ -183,36 +188,17 @@ test.describe('Bots page (#1192)', () => {
         );
 
         expect(overflow).toBeLessThanOrEqual(0);
+
+        // Seven tabs have to fit in one row of the bar.
+        const tabs = await page
+          .locator('.bottom-nav .bottom-nav-link')
+          .evaluateAll((els) =>
+            els.map((el) => el.getBoundingClientRect().right <= innerWidth + 1),
+          );
+
+        expect(tabs.every(Boolean)).toBe(true);
       });
     }
-  });
-
-  // The desktop light scan of these rows is the one in the scheme loop above,
-  // so this test scans only the 390px layout.
-  test('has no axe-core violations and no horizontal scroll at 390px', async ({
-    page,
-  }) => {
-    await mockDashboard(page, SNAPSHOT);
-    await page.goto('/bots.html');
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(4);
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    expect(
-      (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,
-    ).toEqual([]);
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
-    // Seven tabs have to fit in one row of the bar.
-    const tabs = await page
-      .locator('.bottom-nav .bottom-nav-link')
-      .evaluateAll((els) =>
-        els.map((el) => el.getBoundingClientRect().right <= innerWidth + 1),
-      );
-    expect(tabs.every(Boolean)).toBe(true);
   });
 
   test('has no horizontal overflow at 761 px (#1899)', async ({ page }) => {

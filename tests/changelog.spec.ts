@@ -134,6 +134,11 @@ test.describe('release history page', () => {
     await page.goto('/changelog.html');
     await waitForReleasesToSettle(page);
 
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
     const elements = await page.evaluate(
       () => document.querySelectorAll('*').length,
     );
@@ -580,17 +585,6 @@ test.describe('release history page', () => {
         'Release history',
       );
     });
-  });
-
-  test('has no axe-core violations at desktop width', async ({ page }) => {
-    await page.goto('/changelog.html');
-    await waitForReleasesToSettle(page);
-
-    const results = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-
-    expect(results.violations).toEqual([]);
   });
 
   test('has no axe-core violations and no horizontal scroll at phone width', async ({

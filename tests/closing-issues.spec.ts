@@ -205,12 +205,20 @@ test.describe('the address of an issue', () => {
 
     await page.goto(address(12));
     await expect(issueDialog(page)).toBeVisible();
+    const open = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(open.violations, 'pop-up open').toEqual([]);
     await page.keyboard.press('Escape');
 
     await expect(issueDialog(page)).toBeHidden();
     await expect(
       page.getByRole('button', { name: '#12 Issue 12' }),
     ).toBeFocused();
+    const closed = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(closed.violations, 'pop-up closed').toEqual([]);
   });
 
   test('closing it when the filters leave the row out puts focus on the first filter, not the page', async ({
@@ -258,26 +266,6 @@ test.describe('the address of an issue', () => {
     await page.keyboard.press('Escape');
 
     await expect(title).toBeFocused();
-  });
-
-  test('has no axe violations with the pop-up open from the address, or after it closes', async ({
-    page,
-  }) => {
-    await mockBoard(page, { issues: [issue(12)] });
-
-    await page.goto(address(12));
-    await expect(issueDialog(page)).toBeVisible();
-    const open = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(open.violations).toEqual([]);
-
-    await page.keyboard.press('Escape');
-    await expect(issueDialog(page)).toBeHidden();
-    const closed = await new AxeBuilder({ page })
-      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-      .analyze();
-    expect(closed.violations).toEqual([]);
   });
 
   test('says plainly when the issue is not on the board', async ({ page }) => {
