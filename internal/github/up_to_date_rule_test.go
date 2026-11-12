@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -16,6 +17,12 @@ import (
 // refuses it when protection is nil (a token without admin on the repo). It
 // counts those reads so a test can assert on caching.
 func upToDateServer(t *testing.T, mergeState string, protection map[string]any, reads *atomic.Int32) *httptest.Server {
+	t.Helper()
+
+	return upToDateServerWith(t, mergeState, protection, reads, nil)
+}
+
+func upToDateServerWith(t *testing.T, mergeState string, protection map[string]any, reads *atomic.Int32, onProtection func(*http.Request)) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -47,8 +54,11 @@ func upToDateServer(t *testing.T, mergeState string, protection map[string]any, 
 			},
 		})
 	})
-	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/repos/alrayyes/a/branches/main/protection/required_status_checks", func(w http.ResponseWriter, r *http.Request) {
 		reads.Add(1)
+		if onProtection != nil {
+			onProtection(r)
+		}
 		if protection == nil {
 			http.Error(w, `{"message":"Resource not accessible by personal access token"}`, http.StatusForbidden)
 
@@ -119,4 +129,26 @@ func TestFetch_PullRequestThatIsNotBehind_DoesNotReadTheRule(t *testing.T) {
 	require.Len(t, result.PullRequests, 1)
 	assert.Nil(t, result.PullRequests[0].BaseRequiresUpToDate)
 	assert.Zero(t, reads.Load())
+}
+
+func TestFetch_UpToDateRule_ACancelledReadIsNotCachedAsUnknown(t *testing.T) {
+	t.Parallel()
+	var reads atomic.Int32
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	srv := upToDateServerWith(t, "BEHIND", map[string]any{"strict": true}, &reads, func(r *http.Request) {
+		if reads.Load() == 1 {
+			cancel()
+			<-r.Context().Done()
+		}
+	})
+	client := github.NewClient("test-token", "", srv.URL)
+
+	client.Fetch(ctx)
+	result := client.Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	require.NotNil(t, result.PullRequests[0].BaseRequiresUpToDate)
+	assert.True(t, *result.PullRequests[0].BaseRequiresUpToDate)
+	assert.Equal(t, int32(2), reads.Load())
 }

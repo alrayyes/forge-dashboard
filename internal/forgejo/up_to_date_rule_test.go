@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -16,6 +17,12 @@ import (
 // behind is true, and answers the branch protection list with status and
 // rules. It counts the protection reads so a test can assert on caching.
 func upToDateForge(t *testing.T, behind bool, status int, rules []map[string]any, reads *atomic.Int32) *forgejo.Client {
+	t.Helper()
+
+	return upToDateForgeWith(t, behind, status, rules, reads, nil)
+}
+
+func upToDateForgeWith(t *testing.T, behind bool, status int, rules []map[string]any, reads *atomic.Int32, onProtection func(*http.Request)) *forgejo.Client {
 	t.Helper()
 	mergeBase := "oldbase"
 	if !behind {
@@ -40,8 +47,11 @@ func upToDateForge(t *testing.T, behind bool, status int, rules []map[string]any
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"state": "success", "statuses": []map[string]any{}})
 	})
-	mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, r *http.Request) {
 		reads.Add(1)
+		if onProtection != nil {
+			onProtection(r)
+		}
 		w.WriteHeader(status)
 		writeJSON(t, w, rules)
 	})
@@ -120,4 +130,24 @@ func TestListOpenPullRequests_NotBehind_DoesNotReadTheRule(t *testing.T) {
 
 	assert.Nil(t, pr.BaseRequiresUpToDate)
 	assert.Zero(t, reads.Load())
+}
+
+func TestListOpenPullRequests_UpToDateRule_ACancelledReadIsNotCachedAsUnknown(t *testing.T) {
+	t.Parallel()
+	var reads atomic.Int32
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	client := upToDateForgeWith(t, true, http.StatusOK, []map[string]any{{"rule_name": "main", "block_on_outdated_branch": true}}, &reads, func(r *http.Request) {
+		if reads.Load() == 1 {
+			cancel()
+			<-r.Context().Done()
+		}
+	})
+
+	_, _ = client.ListOpenPullRequests(ctx, "alrayyes", "a", "alrayyes/a")
+	pr := listOnly(t, client)
+
+	require.NotNil(t, pr.BaseRequiresUpToDate)
+	assert.True(t, *pr.BaseRequiresUpToDate)
+	assert.Equal(t, int32(2), reads.Load())
 }
