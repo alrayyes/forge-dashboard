@@ -10,8 +10,9 @@
   });
 </script>
 
-<!-- avatarSrc only loads https. The screenshot script answers requests to
-     logos.example.test with a small SVG, so this story needs no network. -->
+<!-- avatarSrc only loads https, through the image proxy. The screenshot script
+     answers a proxy request for logos.example.test with a small SVG, so this
+     story needs no network. -->
 <Story
   name="With a logo"
   args={{ url: "https://logos.example.test/forge-dashboard.svg" }}

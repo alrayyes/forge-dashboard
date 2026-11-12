@@ -195,9 +195,11 @@ references with a keyword is a "Refs" pill instead, not a mention.
 
 ## Author on a row
 
-A row shows the author's avatar to the left of their name. It is the forge's
-own HTTPS image, fetched by this server and passed on, so your browser never
-contacts the forge for it. When the forge sends none, the URL isn't HTTPS, or
+A row shows the author's avatar to the left of their name. It is the forge's own
+HTTPS image, fetched by this server and passed on, so your browser never
+contacts the forge for it. On Forgejo that works only when the image is on the
+same host and scheme as the saved instance; a Gravatar or Libravatar avatar
+shows the initial instead. When the forge sends none, the URL isn't HTTPS, or
 the image can't load, the row shows the name alone. The narrow layout drops the
 author column, avatar included.
 
@@ -215,10 +217,12 @@ its name when it has one. On Forgejo, that is the avatar set on the repository.
 On GitHub, it is the custom social preview image uploaded in the repository's
 settings, which is a wide banner, so it is cropped to a small square. The
 generated card GitHub makes for a repository with no image is never shown, and
-neither is the owner's avatar. The image is the forge's own HTTPS image,
-fetched by this server and passed on. A repository with no logo, an image
-that isn't HTTPS or one that can't load shows the name alone. The unauthenticated
-username-only listing carries no images, so it shows none.
+neither is the owner's avatar. The image is the forge's own HTTPS image, which
+this server fetches and passes on. On Forgejo that works only when the image is
+on the same host and scheme as the saved instance, so a Gravatar or Libravatar
+avatar shows the initial instead. A repository with no logo, an image that isn't
+HTTPS or one that can't load shows the name alone. The unauthenticated username-
+only listing carries no images, so it shows none.
 
 ## Long repository names
 

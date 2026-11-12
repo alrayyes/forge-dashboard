@@ -304,7 +304,7 @@ There is no allowlist: a blob host on a private network is refused, by design.
 
 ### Which hosts an embedded image may come from
 
-A pull request, issue or release body can embed an image, and a row or dialog
+A pull request, issue, or release body can embed an image, and a row or dialog
 shows an avatar or a repository logo. The page never loads any of them from the
 forge or a third party: it asks `GET /api/v1/images`, which fetches it in
 `internal/imageproxy` and passes the bytes on. A private
@@ -328,10 +328,10 @@ can't fire a tracking pixel when the dialog opens.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route
-  by `web/src/lib/avatar.ts`: a GitHub avatar host goes to the GitHub list,
-  any other host to the saved Forgejo instance, which refuses a host that
-  isn't its own. A Forgejo avatar on a third-party host therefore shows the
-  initial instead.
+  by `web/src/lib/avatar.ts`: a GitHub avatar host goes to the GitHub list, any
+  other host to the saved Forgejo instance, which refuses a host that isn't its
+  own. A Forgejo avatar on a third-party host, Gravatar and Libravatar included,
+  therefore shows the initial instead.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
