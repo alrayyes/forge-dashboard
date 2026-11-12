@@ -109,22 +109,43 @@ test.describe('pipeline check states (#1473)', () => {
     const dialog = await open(page);
     const color = (state: string) =>
       status(dialog, state).evaluate((el) => getComputedStyle(el).color);
-    expect(await color('queued')).not.toBe(await color('running'));
-    expect(await color('queued')).not.toBe(await color('skipped'));
     const root = await page.evaluate(() =>
       getComputedStyle(document.documentElement).getPropertyValue('--warning'),
     );
     expect(root.trim()).not.toBe('');
-    const running = await color('running');
-    const warning = await page.evaluate(() => {
-      const p = document.createElement('i');
-      p.style.color = 'var(--warning)';
-      document.body.appendChild(p);
-      const c = getComputedStyle(p).color;
-      p.remove();
-      return c;
-    });
-    expect(running).toBe(warning);
+    const warning = () =>
+      page.evaluate(() => {
+        const p = document.createElement('i');
+        p.style.color = 'var(--warning)';
+        document.body.appendChild(p);
+        const c = getComputedStyle(p).color;
+        p.remove();
+        return c;
+      });
+    // Re-read together until the three pills settle: queued apart from
+    // running and skipped, running on the warning colour. An unset colour
+    // can't pass.
+    await expect
+      .poll(async () => {
+        const [queued, running, skipped, amber] = [
+          await color('queued'),
+          await color('running'),
+          await color('skipped'),
+          await warning(),
+        ];
+        return {
+          queuedNotRunning: queued !== running,
+          queuedNotSkipped: queued !== skipped,
+          runningIsWarning: running === amber,
+          read: [queued, running, skipped, amber].every((c) => c !== ''),
+        };
+      })
+      .toEqual({
+        queuedNotRunning: true,
+        queuedNotSkipped: true,
+        runningIsWarning: true,
+        read: true,
+      });
   });
 
   test('running shows a still clock under reduced motion', async ({ page }) => {
@@ -290,32 +311,39 @@ test.describe('pipeline check states (#1473)', () => {
         // label to 4.5:1 (1.4.3) against its own pill, skipped included.
         for (const { state } of STATES) {
           const pill = status(dialog, state);
-          const m = await pill.evaluate((el) => {
-            const g = [...el.querySelectorAll('svg')].find(
-              (n) => getComputedStyle(n).display !== 'none',
-            ) as Element;
-            return {
-              bg: (() => {
-                // Skipped has no fill: use what actually sits behind it.
-                for (let n: Element | null = el; n; n = n.parentElement) {
-                  const c = getComputedStyle(n).backgroundColor;
-                  if (!/rgba\(.*, 0\)$/.test(c) && c !== 'transparent')
-                    return c;
-                }
-                return 'rgb(255, 255, 255)';
-              })(),
-              text: getComputedStyle(el).color,
-              glyph: getComputedStyle(g).color,
-            };
-          });
-          expect(
-            contrast(m.text, m.bg),
-            `${state} label`,
-          ).toBeGreaterThanOrEqual(4.5);
-          expect(
-            contrast(m.glyph, m.bg),
-            `${state} glyph`,
-          ).toBeGreaterThanOrEqual(3);
+          const measure = () =>
+            pill.evaluate((el) => {
+              const g = [...el.querySelectorAll('svg')].find(
+                (n) => getComputedStyle(n).display !== 'none',
+              ) as Element;
+              return {
+                bg: (() => {
+                  // Skipped has no fill: use what actually sits behind it.
+                  for (let n: Element | null = el; n; n = n.parentElement) {
+                    const c = getComputedStyle(n).backgroundColor;
+                    if (!/rgba\(.*, 0\)$/.test(c) && c !== 'transparent')
+                      return c;
+                  }
+                  return 'rgb(255, 255, 255)';
+                })(),
+                text: getComputedStyle(el).color,
+                glyph: getComputedStyle(g).color,
+              };
+            });
+          // Re-measured until both ratios clear, so a pill still taking its
+          // colour doesn't fail it.
+          await expect
+            .poll(
+              async () => {
+                const m = await measure();
+                return {
+                  label: contrast(m.text, m.bg) >= 4.5,
+                  glyph: contrast(m.glyph, m.bg) >= 3,
+                };
+              },
+              { message: `${state} label and glyph contrast` },
+            )
+            .toEqual({ label: true, glyph: true });
         }
       });
     }

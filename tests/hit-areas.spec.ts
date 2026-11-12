@@ -193,6 +193,33 @@ function sweepInPage([target, overlap, within]: readonly [
   return { checked, offenders };
 }
 
+const sidewaysOverflow = (page: Page) =>
+  page.evaluate(() => ({
+    overflow:
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+    laidOut: document.documentElement.clientWidth > 0,
+  }));
+
+// Re-reads the sideways overflow until the page fits, so a layout still
+// settling doesn't count against it. A page that never fits returns the last
+// overflow; one with no width at all never counts as fitting.
+async function settledOverflow(page: Page): Promise<number> {
+  let last = Number.POSITIVE_INFINITY;
+  await expect
+    .poll(
+      async () => {
+        const read = await sidewaysOverflow(page);
+        last = read.laidOut ? read.overflow : Number.POSITIVE_INFINITY;
+        return last <= 0;
+      },
+      { timeout: 3_000 },
+    )
+    .toBe(true)
+    .catch(() => {});
+  return last;
+}
+
 // Measures the open page at every size and adds what is too small to
 // `problems`, so a test that visits several pages reports all of them.
 async function sweepAll(
@@ -219,11 +246,7 @@ async function sweepAll(
           requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
         ),
     );
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
+    const overflow = await settledOverflow(page);
     if (overflow > 0)
       problems.push(
         `${label} @${size.width}: scrolls sideways by ${overflow}px`,
@@ -492,12 +515,10 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     // 320px with many pages still fits without sideways scroll.
     await page.setViewportSize({ width: 320, height: 800 });
     await page.getByLabel('Results per page').selectOption({ index: 0 });
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow, 'pager @320 scrolls sideways').toBeLessThanOrEqual(0);
+    expect(
+      await settledOverflow(page),
+      'pager @320 scrolls sideways',
+    ).toBeLessThanOrEqual(0);
     expectNone(problems);
   });
 
@@ -637,15 +658,34 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
 
     for (const size of [TABLET, DESKTOP]) {
       await page.setViewportSize({ width: size.width, height: size.height });
-      const close = await dialog
-        .getByRole('button', { name: 'Close pipeline checks' })
-        .boundingBox();
-      expect(close?.width, `close @${size.width}`).toBeCloseTo(30, 0);
-      expect(close?.height, `close @${size.width}`).toBeCloseTo(30, 0);
-      const link = await dialog
-        .getByRole('button', { name: 'Copy output: test' })
-        .boundingBox();
-      expect(link?.height, `copy output @${size.width}`).toBeLessThan(20);
+      const closeButton = dialog.getByRole('button', {
+        name: 'Close pipeline checks',
+      });
+      await expect
+        .poll(
+          async () => {
+            const box = await closeButton.boundingBox();
+            return (
+              box !== null &&
+              Math.abs(box.width - 30) < 0.5 &&
+              Math.abs(box.height - 30) < 0.5
+            );
+          },
+          { message: `close @${size.width} is 30 by 30` },
+        )
+        .toBe(true);
+      const copyLink = dialog.getByRole('button', {
+        name: 'Copy output: test',
+      });
+      await expect
+        .poll(
+          async () => {
+            const box = await copyLink.boundingBox();
+            return box !== null && box.height > 0 && box.height < 20;
+          },
+          { message: `copy output @${size.width} is under 20 tall` },
+        )
+        .toBe(true);
     }
   });
 
@@ -694,9 +734,12 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
       .click();
     const retry = page.locator('.details-retry');
     await expect(retry).toBeVisible();
-    const box = await retry.boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(44);
-    expect(box?.width).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => {
+        const box = await retry.boundingBox();
+        return box !== null && box.height >= 44 && box.width >= 44;
+      })
+      .toBe(true);
     await sweepAll(page, 'details dialog, error', problems, {
       sizes: [NARROW],
     });
@@ -771,14 +814,20 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     await page.goto('/');
     const pill = page.locator('.mb-row .ci-pill').first();
     await expect(pill).toBeVisible();
-    const box = await pill.boundingBox();
-    if (!box) throw new Error('no CI pill');
     // The pill's lowest pixel row, straight above the repo link's extension.
-    const owner = await page.evaluate(
-      ([x, y]) => document.elementFromPoint(x, y)?.closest('.ci-pill') !== null,
-      [box.x + box.width / 2, box.y + box.height - 0.5],
-    );
-    expect(owner).toBe(true);
+    // Measured and hit-tested together, so a layout still moving can't pair
+    // an old box with a new page.
+    await expect
+      .poll(async () => {
+        const box = await pill.boundingBox();
+        if (!box || box.width <= 0 || box.height <= 0) return false;
+        return page.evaluate(
+          ([x, y]) =>
+            document.elementFromPoint(x, y)?.closest('.ci-pill') != null,
+          [box.x + box.width / 2, box.y + box.height - 0.5],
+        );
+      })
+      .toBe(true);
   });
 });
 

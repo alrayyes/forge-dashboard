@@ -140,17 +140,26 @@ for (const [scheme, width] of [
     await expect(dialog).toBeVisible();
     await expect(page.locator('#rebase-all-cancel')).toBeFocused();
     await expectNoAxeViolations(page);
-    expect(
-      await page.evaluate(
-        () =>
-          document.documentElement.scrollWidth <=
-          document.documentElement.clientWidth,
-      ),
-    ).toBe(true);
+    // Retried, so a layout still settling can't fail it; a page with no
+    // width can't pass.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.clientWidth > 0 &&
+            document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+        ),
+      )
+      .toBe(true);
     if (width < 640) {
       for (const id of ['rebase-all-cancel', 'rebase-all-confirm']) {
-        const box = await page.locator(`#${id}`).boundingBox();
-        expect(box?.height).toBeGreaterThanOrEqual(44);
+        const button = page.locator(`#${id}`);
+        await expect
+          .poll(async () => ((await button.boundingBox())?.height ?? 0) >= 44, {
+            message: `${id} is at least 44 tall`,
+          })
+          .toBe(true);
       }
     }
     await page.keyboard.press('Escape');
