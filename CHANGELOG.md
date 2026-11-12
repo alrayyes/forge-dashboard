@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.21.0](https://github.com/alrayyes/forge-dashboard/compare/v9.20.2...v9.21.0) (2026-11-12)
+
+
+### Features
+
+* **config:** make the webhook minimum refresh interval configurable ([#3559](https://github.com/alrayyes/forge-dashboard/issues/3559)) ([43ef800](https://github.com/alrayyes/forge-dashboard/commit/43ef800221c7f4450492ccffd524a0c160caee74)), closes [#3541](https://github.com/alrayyes/forge-dashboard/issues/3541)
+
 ## [9.20.2](https://github.com/alrayyes/forge-dashboard/compare/v9.20.1...v9.20.2) (2026-11-12)
 
 
