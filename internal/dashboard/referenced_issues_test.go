@@ -47,6 +47,14 @@ func TestReferencedIssueRefs_ReadsAListAfterOneKeyword(t *testing.T) {
 	assert.Equal(t, []int{3, 4, 5}, issueNumbers(got), "in order, without repeats")
 }
 
+func TestReferencedIssueRefs_ReadsAListWithAnOxfordComma(t *testing.T) {
+	t.Parallel()
+
+	got := referenced(dashboard.ForgeGitHub, "", "Refs #1, #2, and #3")
+
+	assert.Equal(t, []int{1, 2, 3}, issueNumbers(got))
+}
+
 func TestReferencedIssueRefs_CodeAndCommentsAreIgnored(t *testing.T) {
 	t.Parallel()
 

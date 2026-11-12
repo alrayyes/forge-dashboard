@@ -8,7 +8,7 @@ import "regexp"
 // It is anchored to the line, so a keyword on the line above doesn't count.
 var refKeywordBefore = regexp.MustCompile(
 	`(?i)(?:^|[^\pL\pN_])(?:refs?|related to|see)(?:[ \t]*:)?[ \t]*` +
-		`(?:(?:[0-9A-Za-z._-]+/[0-9A-Za-z._-]+)?(?:#|GH-)[0-9]+[ \t]*(?:,|;|&|and)?[ \t]*)*$`)
+		`(?:(?:[0-9A-Za-z._-]+/[0-9A-Za-z._-]+)?(?:#|GH-)[0-9]+[ \t]*(?:,[ \t]*and|,|;|&|and)?[ \t]*)*$`)
 
 // ReferencedIssueRefs lists the issues a pull request's title and body
 // reference with Refs, Ref, Related to or See ("Refs #12", "See owner/repo#3"),
