@@ -77,6 +77,16 @@ for (const scheme of ['light', 'dark'] as const) {
                     : bg,
                 ),
                 icon: el.querySelector('[aria-hidden="true"]') !== null,
+                iconText:
+                  el.querySelector('[aria-hidden="true"]')?.textContent ?? '',
+                warning: (() => {
+                  const probe = document.createElement('span');
+                  probe.style.color = 'var(--warning)';
+                  document.body.append(probe);
+                  const resolved = getComputedStyle(probe).color;
+                  probe.remove();
+                  return resolved;
+                })(),
                 text: el.textContent?.replace(/\s+/g, ' ').trim(),
               };
             };
@@ -92,6 +102,9 @@ for (const scheme of ['light', 'dark'] as const) {
             ['icon', m.todo.icon === true],
             ['text', (m.todo.text ?? '').includes('Not yet')],
             ['bold', m.todo.weight > 400],
+            ['glyph character', m.todo.iconText.replace(/\uFE0E/g, '') !== ''],
+            ['text presentation', m.todo.iconText.endsWith('\uFE0E')],
+            ['warning colour', m.todo.color === m.todo.warning],
           ];
           return checks.filter(([, ok]) => !ok).map(([name]) => name);
         };

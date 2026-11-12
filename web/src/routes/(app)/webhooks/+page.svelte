@@ -844,9 +844,6 @@
     .data-table td.status-confirmed {
       color: var(--good);
     }
-    .data-table td.status-pending {
-      color: var(--ink-3);
-    }
     /* "Not yet" is the state that needs action, so it takes the warning
        colour, a heavier weight and a decorative glyph. The words carry the
        meaning; the glyph is aria-hidden. */
@@ -1465,7 +1462,7 @@
                   <span class="status-word"
                     >{#if !repo.hasWebhook}<span
                         class="status-icon"
-                        aria-hidden="true">&#9888;</span
+                        aria-hidden="true">&#9888;&#xFE0E;</span
                       >
                     {/if}{repo.hasWebhook ? "Confirmed" : "Not yet"}</span
                   >
