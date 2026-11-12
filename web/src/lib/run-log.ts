@@ -243,10 +243,19 @@ export function checkControl(
 // the gap doesn't read as a broken dialog. The first rule that matches wins.
 // A skipped check says nothing: its status chip already does.
 export function checkHint(
-  check: Pick<Check, 'status' | 'conclusion' | 'jobId'> & { url?: string },
+  check: Pick<Check, 'status' | 'conclusion' | 'jobId' | 'notReported'> & {
+    url?: string;
+    name?: string;
+  },
   repo: RepoRef | undefined,
 ): string | null {
   const state = checkState(check);
+  if (state === 'not_reported') {
+    return `Required check ${check.name ?? ''} hasn't reported.`;
+  }
+  if (check.conclusion === 'startup_failure') {
+    return "The workflow didn't start, so it ran no jobs.";
+  }
   if (state === 'skipped') return null;
   if (state === 'queued') return 'Not started yet.';
   if (!check.url) return 'No page for this check.';

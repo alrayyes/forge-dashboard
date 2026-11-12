@@ -1721,3 +1721,106 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
     await expect(reopened).toBeFocused();
   });
 });
+
+// #3305: a workflow run that failed to start creates no job, so the pipeline
+// dialog says so in words, and a required check nothing reported is named.
+test.describe('pipeline dialog, workflow that failed to start', () => {
+  const viewports = [
+    { name: '390px', width: 390, height: 800 },
+    { name: '820px', width: 820, height: 900 },
+    { name: '1280px', width: 1280, height: 900 },
+  ];
+
+  for (const theme of ['light', 'dark'] as const) {
+    for (const viewport of viewports) {
+      test(`says what failed to start and what never reported at ${viewport.name}, ${theme}`, async ({
+        page,
+      }) => {
+        await page.route('**/api/v1/dashboard/stream*', (route) =>
+          route.abort(),
+        );
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize({
+          width: viewport.width,
+          height: viewport.height,
+        });
+        await mockDashboard(
+          page,
+          'github',
+          makePR({ ci: 'failure', mergeStatus: 'blocked' }),
+        );
+        await mockChecks(page, {
+          checks: [
+            {
+              name: 'lint',
+              status: 'completed',
+              conclusion: 'success',
+              url: 'https://github.com/alrayyes/forge-dashboard/runs/1',
+              required: true,
+            },
+            {
+              name: 'pr-title',
+              status: 'completed',
+              conclusion: 'startup_failure',
+              url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/42',
+              required: true,
+            },
+            {
+              name: 'check',
+              status: 'queued',
+              url: '',
+              required: true,
+              notReported: true,
+            },
+          ],
+        });
+        await page.goto('/pull-requests.html');
+        await page
+          .locator('#pr-rows .row')
+          .first()
+          .getByRole('button', { name: 'Open pipeline' })
+          .click();
+
+        const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+        const failed = dialog.locator('.pipeline-check', {
+          hasText: 'pr-title',
+        });
+        await expect(failed).toContainText('Failed');
+        await expect(failed).toContainText("The workflow didn't start");
+        await expect(
+          failed.getByRole('link', {
+            name: checkLinkName('Open check page', 'pr-title'),
+          }),
+        ).toHaveAttribute(
+          'href',
+          'https://github.com/alrayyes/forge-dashboard/actions/runs/42',
+        );
+
+        const missing = dialog.locator('.pipeline-check', {
+          hasText: 'Not reported',
+        });
+        await expect(missing).toContainText(
+          "Required check check hasn't reported.",
+        );
+        await expect(missing).toContainText('Blocking');
+
+        const link = failed.getByRole('link');
+        const box = await link.boundingBox();
+        if (viewport.width <= 390) {
+          expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+        }
+        const overflow = await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        );
+        expect(overflow).toBe(false);
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
+});

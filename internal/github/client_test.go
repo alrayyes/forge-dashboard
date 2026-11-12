@@ -4679,7 +4679,6 @@ func TestListChecks_ListsWorkflowRunsHeldForApprovalNextToTheCheckRuns(t *testin
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
-		assert.Equal(t, "action_required", r.URL.Query().Get("status"))
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
 			{"name": "ci", "status": "completed", "conclusion": "action_required", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
 		}})
@@ -4751,7 +4750,7 @@ func TestListChecks_ATransientHeldLookupErrorIsNotRememberedAsNothingHeld(t *tes
 			return
 		}
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
-			{"name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
+			{"conclusion": "action_required", "name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
 		}})
 	})
 	srv := httptest.NewServer(mux)
@@ -4791,7 +4790,7 @@ func TestListChecks_HeldWorkflowIsNotMarkedAdvisory(t *testing.T) {
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
-			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+			{"conclusion": "action_required", "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
 		}})
 	})
 	srv := httptest.NewServer(mux)
@@ -4832,7 +4831,7 @@ func TestListChecks_HeldWorkflowIsRequiredWhenARequiredCheckNeverReported(t *tes
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
-			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+			{"conclusion": "action_required", "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
 		}})
 	})
 	srv := httptest.NewServer(mux)
@@ -4841,7 +4840,7 @@ func TestListChecks_HeldWorkflowIsRequiredWhenARequiredCheckNeverReported(t *tes
 	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
 
 	require.NoError(t, err)
-	require.Len(t, checks, 2)
+	require.Len(t, checks, 3) // lint, the held workflow, and the required "test" that never reported
 	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[1].State)
 	require.NotNil(t, checks[1].Required)
 	assert.True(t, *checks[1].Required)
@@ -4871,7 +4870,7 @@ func TestListChecks_HeldWorkflowIsRequiredWhenNothingElseReported(t *testing.T) 
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
-			{"name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
+			{"conclusion": "action_required", "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/9"},
 		}})
 	})
 	srv := httptest.NewServer(mux)
@@ -4880,7 +4879,7 @@ func TestListChecks_HeldWorkflowIsRequiredWhenNothingElseReported(t *testing.T) 
 	checks, err := github.NewClient("test-token", "", srv.URL).ListChecks(t.Context(), "alrayyes", "a", 5)
 
 	require.NoError(t, err)
-	require.Len(t, checks, 1)
+	require.Len(t, checks, 2) // the held workflow, and the required check it stands in for
 	assert.Equal(t, dashboard.CheckAwaitingApproval, checks[0].State)
 	require.NotNil(t, checks[0].Required)
 	assert.True(t, *checks[0].Required)
@@ -4904,9 +4903,9 @@ func TestListChecks_HeldRunsOfOneWorkflowAreListedOnce(t *testing.T) {
 	})
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"total_count": 3, "workflow_runs": []map[string]any{
-			{"id": 12, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/12"},
-			{"id": 11, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/11"},
-			{"id": 10, "workflow_id": 8, "name": "docs", "html_url": "https://github.com/alrayyes/a/actions/runs/10"},
+			{"conclusion": "action_required", "id": 12, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/12"},
+			{"conclusion": "action_required", "id": 11, "workflow_id": 7, "name": "ci", "html_url": "https://github.com/alrayyes/a/actions/runs/11"},
+			{"conclusion": "action_required", "id": 10, "workflow_id": 8, "name": "docs", "html_url": "https://github.com/alrayyes/a/actions/runs/10"},
 		}})
 	})
 	srv := httptest.NewServer(mux)
@@ -5019,7 +5018,7 @@ func TestListDefaultBranchChecks_NewestCommitHeldForApproval_ListsTheHeldWorkflo
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "cafef00d", r.URL.Query().Get("head_sha"))
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{
-			{"id": 1, "name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
+			{"conclusion": "action_required", "id": 1, "name": "ci", "workflow_id": 7, "html_url": "https://github.com/alrayyes/a/actions/runs/1"},
 		}})
 	})
 	mux.HandleFunc("/repos/alrayyes/a/commits/deadbeef/check-runs", func(w http.ResponseWriter, _ *http.Request) {

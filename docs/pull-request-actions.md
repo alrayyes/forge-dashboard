@@ -115,6 +115,17 @@ Failed number in the menu pill follow one answer from the server, `failingCi`,
 which leaves these pull requests out when held runs are the only failure:
 nothing failed, someone has to approve.
 
+On GitHub, a workflow run that ends in `startup_failure` creates no jobs, so
+GitHub lists no check for it. The pipeline panel lists it anyway as a failed
+row named for the workflow, with the line "The workflow didn't start, so it ran
+no jobs." and a link to the run, and the row's Failed number counts it. A run
+counts only while it is the newest run of its workflow on the head commit, so a
+rerun that started clears it. A required check that nothing on the head
+reported is listed as "Not reported" with "Required check {name} hasn't
+reported." The panel and the pull request row share one workflow-runs read per
+head commit, kept for a minute. A `failure` or `cancelled` run with no jobs is
+not listed, since telling it from a normal one takes a request per run.
+
 A job that really failed beside a held run still counts as failed. With
 auto-merge armed, the status line says it is waiting for workflow approval, not
 that a check failed.

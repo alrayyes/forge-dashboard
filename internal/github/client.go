@@ -4058,24 +4058,36 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
-	// Held runs are read first so that a pull request with nothing but held
-	// workflows (no check run reported) still asks which checks are required.
-	held := c.heldWorkflowChecks(ctx, owner, name, sha)
-	unreported := false
-	if len(checks)+len(held) > 0 {
-		unreported = c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
+	// The head's workflow runs are read first so that a pull request with
+	// nothing but held or unstarted workflows (no check run reported) still asks
+	// which checks are required.
+	runs := c.headWorkflowRuns(ctx, owner, name, sha, false)
+	held := slices.Clone(runs.checks)
+	failed := slices.Clone(runs.failed)
+	var missing []string
+	if len(checks)+len(held)+len(failed) > 0 {
+		missing = c.markRequired(ctx, owner, name, pr.GetBase().GetRef(), checks)
 	}
 	// Appended after markRequired on purpose: a held run is named after its
 	// workflow, which protection never lists (it lists job names), so marking
 	// it would file it under Advisory when it is what blocks the merge. It is
 	// required when a required check never reported, since the held run is why
-	// (#1946), and unknown otherwise.
-	if unreported {
+	// (#1946), and unknown otherwise. A workflow that failed to start is the
+	// same: its jobs never existed, so the required check it provides never
+	// reported (#3305).
+	if len(missing) > 0 {
 		for i := range held {
 			held[i].Required = new(true)
 		}
+		for i := range failed {
+			failed[i].Required = new(true)
+		}
 	}
 	checks = append(checks, held...)
+	checks = append(checks, failed...)
+	for _, n := range missing {
+		checks = append(checks, dashboard.Check{Name: n, State: dashboard.CheckQueued, Required: new(true), NotReported: true})
+	}
 
 	return checks, nil
 }
@@ -4150,13 +4162,24 @@ func (c *Client) defaultBranchChecks(ctx context.Context, owner, name string) (s
 // One page is read, not paged through: a commit with more than a page of held
 // workflows is not a case worth another request per open.
 func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string) []dashboard.Check {
+	return slices.Clone(c.headWorkflowRuns(ctx, owner, name, sha, false).checks)
+}
+
+// headWorkflowRuns is the one workflow-runs read for a head commit, kept per
+// commit for heldRunsTTL and shared by the row, the panel and the branch row.
+// It sorts the runs into the two kinds that create no check run: the held ones
+// and the ones that failed to start (#3305). trustUnknown says how a failed
+// earlier read is taken: the row reads it as nothing found, so a token that
+// can't read Actions isn't asked again for every pull request, and the panel
+// asks again (#1966).
+func (c *Client) headWorkflowRuns(ctx context.Context, owner, name, sha string, trustUnknown bool) heldAnswer {
 	previous, cached := c.requiredChecks.cachedHeld(sha)
-	if cached && !previous.held && !previous.unknown {
-		return nil
+	if cached && (!previous.unknown || trustUnknown) {
+		return previous
 	}
 	path := fmt.Sprintf("/repos/%s/%s/actions/runs", owner, name)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha, Status: "action_required"}
+	opts := &ghsdk.ListWorkflowRunsOptions{HeadSHA: sha}
 	opts.PerPage = perPage
 	runs, resp, err := c.restClient.Actions.ListRepositoryWorkflowRuns(ctx, owner, name, opts)
 	if err != nil {
@@ -4165,38 +4188,55 @@ func (c *Client) heldWorkflowChecks(ctx context.Context, owner, name, sha string
 		// Logged once per head commit while the failure is remembered, not on
 		// every panel open.
 		if !cached || !previous.unknown {
-			slog.Debug("github held workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
+			slog.Debug("github workflow runs unreadable", "forge", dashboard.ForgeGitHub, "repo", owner+"/"+name, "error", clientErr)
 		}
 		c.requiredChecks.storeUnknownHeld(sha)
 
-		return nil
+		return heldAnswer{unknown: true}
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
-	firstURL := ""
-	if len(runs.WorkflowRuns) > 0 {
-		firstURL = runs.WorkflowRuns[0].GetHTMLURL()
-	}
-	c.requiredChecks.storeHeld(sha, len(runs.WorkflowRuns) > 0, firstURL)
-	checks := make([]dashboard.Check, 0, len(runs.WorkflowRuns))
-	// Newest first, so the first run of a workflow is the one to show: a rerun,
-	// or the pull_request and pull_request_target triggers, leave several held
-	// runs of one workflow (#1946).
-	seen := map[int64]bool{}
-	for _, r := range runs.WorkflowRuns {
-		if id := r.GetWorkflowID(); id != 0 {
-			if seen[id] {
-				continue
+	held, failed := sortWorkflowRuns(runs.WorkflowRuns)
+	c.requiredChecks.storeRuns(sha, held, failed)
+
+	return heldAnswer{held: len(held) > 0, checks: held, failed: failed}
+}
+
+// sortWorkflowRuns picks the held runs and the runs that failed to start out
+// of a head commit's workflow runs, newest first. A rerun, or the
+// pull_request and pull_request_target triggers, leave several runs of one
+// workflow (#1946): a held workflow is listed once, and a workflow is failed
+// only when its newest run is the one that did not start, so a rerun that went
+// through clears it.
+func sortWorkflowRuns(runs []*ghsdk.WorkflowRun) (held, failed []dashboard.Check) {
+	seenHeld := map[int64]bool{}
+	seenWorkflow := map[int64]bool{}
+	for _, r := range runs {
+		id := r.GetWorkflowID()
+		newest := id == 0 || !seenWorkflow[id]
+		seenWorkflow[id] = true
+		if r.GetStatus() == "action_required" || r.GetConclusion() == "action_required" {
+			if id == 0 || !seenHeld[id] {
+				seenHeld[id] = true
+				held = append(held, dashboard.Check{
+					Name:  r.GetName(),
+					State: dashboard.CheckAwaitingApproval,
+					URL:   r.GetHTMLURL(),
+				})
 			}
-			seen[id] = true
+
+			continue
 		}
-		checks = append(checks, dashboard.Check{
-			Name:  r.GetName(),
-			State: dashboard.CheckAwaitingApproval,
-			URL:   r.GetHTMLURL(),
-		})
+		if newest && r.GetConclusion() == "startup_failure" {
+			failed = append(failed, dashboard.Check{
+				Name:               r.GetName(),
+				State:              dashboard.CheckFailure,
+				ReportedConclusion: "startup_failure",
+				URL:                r.GetHTMLURL(),
+			})
+		}
 	}
 
-	return checks
+	return held, failed
 }
 
 // listChecksForSHA is ListChecks' per-commit half: the check runs, or the
@@ -4262,12 +4302,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 // active rulesets' required_status_checks rule (readable with read
 // access). A listed check is required. An unlisted one is advisory only
 // when both lookups answered; otherwise it stays unknown (nil), because
-// the unreadable source might be the one that requires it. It reports whether
-// a required check never reported. Failures here never fail the checks list
+// the unreadable source might be the one that requires it. It returns the
+// names of the required checks that never reported. Failures here never fail the checks list
 // itself.
-func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) (unreported bool) {
+func (c *Client) markRequired(ctx context.Context, owner, name, base string, checks []dashboard.Check) (unreported []string) {
 	if base == "" {
-		return false
+		return nil
 	}
 	required := map[string]bool{}
 	protKnown := c.protectionContexts(ctx, owner, name, base, required)
@@ -4289,11 +4329,12 @@ func (c *Client) markRequired(ctx context.Context, owner, name, base string, che
 	}
 	for context := range required {
 		if !reported[context] {
-			return true
+			unreported = append(unreported, context)
 		}
 	}
+	slices.Sort(unreported)
 
-	return false
+	return unreported
 }
 
 // protectionContexts adds the classic branch protection rule's required

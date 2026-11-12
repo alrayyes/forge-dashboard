@@ -141,6 +141,24 @@ describe('checkLinkText', () => {
 // The muted line under a row that has no output or no page to open. The first
 // rule that matches wins.
 describe('checkHint', () => {
+  test('a workflow that never started says it ran no jobs', () => {
+    expect(
+      checkHint(
+        { status: 'completed', conclusion: 'startup_failure', url },
+        repo,
+      ),
+    ).toBe("The workflow didn't start, so it ran no jobs.");
+  });
+
+  test('a required check nothing reported names itself', () => {
+    expect(
+      checkHint(
+        { status: 'queued', notReported: true, name: 'check', url: '' },
+        repo,
+      ),
+    ).toBe("Required check check hasn't reported.");
+  });
+
   test('a skipped check says nothing, its chip already does', () => {
     expect(
       checkHint({ status: 'completed', conclusion: 'skipped', url }, repo),

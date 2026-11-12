@@ -368,7 +368,6 @@ func TestFetch_MainBranch_ANewestCommitWithHeldRunsAwaitsApproval(t *testing.T) 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/alrayyes/a/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		heldAsked = true
-		assert.Equal(t, "action_required", r.URL.Query().Get("status"))
 		assert.Equal(t, "d77a71648ce53adf4e77dc02ce7c434f55538953", r.URL.Query().Get("head_sha"))
 		writeJSON(t, w, map[string]any{"total_count": 1, "workflow_runs": []map[string]any{{
 			"id": 1, "name": "ci", "workflow_id": 7, "conclusion": "action_required",
