@@ -55,14 +55,14 @@
   }
   .label {
     display: block;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
   a.current .label {
     font-weight: 700;
   }
   .caption {
     display: block;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ink-3);
   }
   @media (max-width: 760px) {

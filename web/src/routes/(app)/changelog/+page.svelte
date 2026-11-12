@@ -135,11 +135,11 @@
       margin-bottom: 22px;
     }
     .changelog-header h1 {
-      font-size: 19px;
+      font-size: 1.1875rem;
       margin: 0;
     }
     .status {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       min-height: 1.4em;
       margin: 0 0 16px;
     }
@@ -167,7 +167,7 @@
       margin-bottom: 10px;
     }
     .release-head h2 {
-      font-size: 15px;
+      font-size: 0.9375rem;
       margin: 0;
     }
     .release-head h2 a {
@@ -178,17 +178,17 @@
       color: var(--accent);
     }
     .release-date {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
     }
     .release-notes {
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       color: var(--ink-2);
       line-height: 1.55;
       overflow-wrap: anywhere;
     }
     .release-notes h3 {
-      font-size: 11px;
+      font-size: 0.6875rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--ink-3);
@@ -204,7 +204,7 @@
       white-space: pre-wrap;
     }
     .release-notes code {
-      font-size: 12px;
+      font-size: 0.75rem;
     }
     .release-notes ul,
     .release-notes ol {
@@ -224,7 +224,7 @@
       outline-offset: 2px;
     }
     .release-notes pre code {
-      font-size: 12px;
+      font-size: 0.75rem;
     }
     .release-notes blockquote {
       margin: 0 0 8px;
@@ -239,7 +239,7 @@
       color: var(--accent);
     }
     .release-notes .mono {
-      font-size: 12px;
+      font-size: 0.75rem;
     }
     .more-releases {
       display: block;
@@ -247,7 +247,7 @@
       min-height: 44px;
       padding: 0 16px;
       font-family: inherit;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink);
       background: var(--surface);
       border: 1px solid var(--border-strong);
@@ -262,7 +262,7 @@
       outline-offset: 2px;
     }
     .empty-state {
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink-3);
       padding: 8px 0;
     }

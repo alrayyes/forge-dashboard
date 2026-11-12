@@ -1129,7 +1129,7 @@
       }
     }
     .settings-header h1 {
-      font-size: 19px;
+      font-size: 1.1875rem;
       margin: 0;
     }
     .card {
@@ -1141,14 +1141,14 @@
       margin-bottom: 18px;
     }
     .card h2 {
-      font-size: 13px;
+      font-size: 0.8125rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--ink-2);
       margin: 0 0 4px;
     }
     .card .hint {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0 0 16px;
     }
@@ -1192,7 +1192,7 @@
       align-items: center;
       padding: 5px 12px;
       border-radius: 999px;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-2);
       cursor: pointer;
     }
@@ -1215,12 +1215,12 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
       margin-bottom: 5px;
     }
     .field label .configured {
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 500;
       color: var(--good);
       background: var(--good-bg);
@@ -1230,7 +1230,7 @@
     .field input {
       width: 100%;
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       padding: 9px 11px;
       border-radius: 8px;
       border: 1px solid var(--control-border);
@@ -1271,7 +1271,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 500;
       padding: 5px 9px;
       border-radius: 6px;
@@ -1290,17 +1290,17 @@
     /* A card's intro paragraphs sit outside any .field and run to several
        lines, so 13px rather than the 12px of a one-line hint. */
     .card > .field-hint {
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink-3);
     }
     .field .field-hint {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
       margin-top: 4px;
     }
     .field .field-hint code {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12px;
+      font-size: 0.75rem;
       background: var(--surface-sunken);
       border: 1px solid var(--border);
       border-radius: 4px;
@@ -1336,7 +1336,7 @@
     }
     .btn {
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       font-weight: 500;
       padding: 10px 16px;
       border-radius: 8px;
@@ -1355,7 +1355,7 @@
       cursor: not-allowed;
     }
     .status {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       min-height: 1.4em;
     }
     /* The live region stays in the page for screen readers, but an empty one
@@ -1383,7 +1383,7 @@
       flex: 1;
       min-width: 140px;
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       padding: 9px 11px;
       border-radius: 8px;
       border: 1px solid var(--control-border);
@@ -1397,7 +1397,7 @@
     #token-form select,
     #timezone-select {
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       padding: 9px 11px;
       border-radius: 8px;
       border: 1px solid var(--control-border);
@@ -1412,7 +1412,7 @@
       margin-top: 16px;
     }
     .timezone-row label {
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       color: var(--ink-2);
     }
     #timezone-select {
@@ -1432,12 +1432,12 @@
       }
       #timezone-select {
         width: 100%;
-        font-size: 12px;
+        font-size: 0.75rem;
         padding: 9px 3px 9px 6px;
       }
     }
     .timezone-preview {
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink-3);
       overflow-wrap: anywhere;
     }
@@ -1445,12 +1445,12 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       color: var(--ink);
       margin: 12px 0 4px;
     }
     #issue-settings h3 {
-      font-size: 14px;
+      font-size: 0.875rem;
       margin: 18px 0 4px;
     }
     #issue-settings .entry-list li {
@@ -1469,7 +1469,7 @@
       min-width: 0;
     }
     #issue-settings .pattern-count {
-      font-size: 12px;
+      font-size: 0.75rem;
       line-height: 1.4;
       padding: 1px 8px;
       border-radius: 6px;
@@ -1505,7 +1505,7 @@
     }
     .pattern-error {
       color: var(--critical);
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       margin: 6px 0 0;
     }
     .pattern-error[hidden] {
@@ -1527,7 +1527,7 @@
       padding: 8px 0;
       gap: 8px;
       border-bottom: 1px solid var(--border);
-      font-size: 13.5px;
+      font-size: 0.84375rem;
     }
     .entry-list li > :first-child {
       min-width: 0;
@@ -1540,7 +1540,7 @@
     .entry-list .btn-small,
     .rename-form .btn-small {
       font-family: inherit;
-      font-size: 12px;
+      font-size: 0.75rem;
       padding: 4px 10px;
       border-radius: 6px;
       border: 1px solid var(--border-strong);
@@ -1566,7 +1566,7 @@
     }
     .rename-form label {
       display: block;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
       margin-bottom: 4px;
     }
@@ -1579,7 +1579,7 @@
       flex: 1;
       min-width: 140px;
       font-family: inherit;
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       padding: 7px 10px;
       border-radius: 8px;
       border: 1px solid var(--control-border);
@@ -1587,7 +1587,7 @@
       color: var(--ink);
     }
     .empty-state {
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-3);
       margin: 0;
       padding: 4px 0;
@@ -1600,7 +1600,7 @@
       top: 50%;
       transform: translateY(-50%);
       font-family: inherit;
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 500;
       padding: 5px 9px;
       border-radius: 6px;
@@ -1619,7 +1619,7 @@
       outline-offset: 1px;
     }
     .api-token-meta {
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-3);
     }
   </style>

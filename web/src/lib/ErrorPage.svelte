@@ -39,7 +39,7 @@
       color: inherit;
       text-decoration: none;
       font-weight: 600;
-      font-size: 19px;
+      font-size: 1.1875rem;
       border-radius: 8px;
       margin-bottom: 28px;
     }
@@ -57,7 +57,7 @@
     .error-status {
       display: inline-block;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       font-weight: 600;
       color: var(--ink-2);
       background: var(--neutral-bg);
@@ -66,13 +66,13 @@
       margin: 0 0 14px;
     }
     .error-card h1 {
-      font-size: 24px;
+      font-size: 1.5rem;
       margin: 0 0 10px;
       letter-spacing: -0.01em;
     }
     .error-card .error-sentence {
       margin: 0 0 22px;
-      font-size: 14.5px;
+      font-size: 0.90625rem;
       color: var(--ink-2);
       line-height: 1.5;
     }
@@ -90,7 +90,7 @@
       padding: 0 16px;
       border-radius: 8px;
       font-family: inherit;
-      font-size: 14px;
+      font-size: 0.875rem;
       font-weight: 500;
       text-decoration: none;
       cursor: pointer;
@@ -115,7 +115,7 @@
       outline-offset: 2px;
     }
     .error-links h2 {
-      font-size: 12px;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.06em;
       color: var(--ink-2);
@@ -134,7 +134,7 @@
       padding: 6px 0;
       min-height: 24px;
       color: var(--accent);
-      font-size: 14px;
+      font-size: 0.875rem;
     }
   </style>
 </svelte:head>

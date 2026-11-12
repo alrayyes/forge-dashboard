@@ -505,11 +505,11 @@
       padding: 24px 0 64px;
     }
     .mb-header h1 {
-      font-size: 22px;
+      font-size: 1.375rem;
       margin: 0 0 4px;
     }
     .mb-loading {
-      font-size: 13.5px;
+      font-size: 0.84375rem;
       color: var(--ink-2);
       margin: 0 0 16px;
     }
@@ -524,7 +524,7 @@
       border-left-width: 4px;
       border-radius: var(--radius);
       background: var(--surface);
-      font-size: 13.5px;
+      font-size: 0.84375rem;
     }
     .mb-banner {
       border-left-color: var(--warning);
@@ -556,6 +556,8 @@
       display: flex;
       flex-wrap: wrap;
       gap: 6px;
+      min-width: 0;
+      max-width: 100%;
     }
     .mb-pill {
       display: inline-flex;
@@ -564,7 +566,7 @@
       min-height: 36px;
       padding: 0 12px;
       font: inherit;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink);
       background: var(--surface-sunken);
       border: 1px solid var(--border);
@@ -598,11 +600,11 @@
     }
     .mb-left-out {
       align-self: center;
-      font-size: 12px;
+      font-size: 0.75rem;
       color: var(--ink-muted);
     }
     .mb-count {
-      font-size: 12px;
+      font-size: 0.75rem;
       font-variant-numeric: tabular-nums;
       opacity: 0.85;
     }
@@ -612,7 +614,7 @@
       min-height: 36px;
       padding: 0 12px;
       font: inherit;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink);
       background: var(--surface-sunken);
       border: 1px solid var(--control-border);
@@ -672,7 +674,7 @@
     }
     .mb-repo {
       font-weight: 600;
-      font-size: 15px;
+      font-size: 0.9375rem;
       color: var(--ink);
       overflow-wrap: anywhere;
       /* The line is about 19px tall. An invisible ::after reaches the hit
@@ -702,7 +704,7 @@
       align-items: center;
       gap: 5px;
       padding: 1px 8px;
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 600;
       border-radius: 999px;
       background: var(--neutral-bg);
@@ -725,7 +727,7 @@
       min-width: 0;
       max-width: 100%;
       font-family: "IBM Plex Mono", ui-monospace, monospace;
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 600;
       color: var(--ink);
       text-decoration: underline;
@@ -752,7 +754,7 @@
       min-height: 24px;
       box-sizing: border-box;
       padding: 1px 8px;
-      font-size: 12px;
+      font-size: 0.75rem;
       font-weight: 600;
       border-radius: 999px;
       white-space: nowrap;
@@ -770,7 +772,7 @@
     }
     .mb-advisory-cue {
       color: var(--ink-2);
-      font-size: 12px;
+      font-size: 0.75rem;
       padding: 0 4px;
     }
     a.mb-advisory,
@@ -797,7 +799,7 @@
     .mb-failing,
     .mb-none {
       margin: 0;
-      font-size: 12.5px;
+      font-size: 0.78125rem;
       color: var(--ink-2);
       overflow-wrap: anywhere;
     }
@@ -805,7 +807,7 @@
     .mb-branch {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       font-variant-numeric: tabular-nums;
-      font-size: 12px;
+      font-size: 0.75rem;
     }
     .mb-failing {
       color: var(--critical);
@@ -818,7 +820,7 @@
       min-height: 36px;
       padding: 0 12px;
       font: inherit;
-      font-size: 13px;
+      font-size: 0.8125rem;
       color: var(--ink);
       background: var(--surface-sunken);
       border: 1px solid var(--border-strong);
@@ -863,7 +865,7 @@
       justify-content: center;
       min-height: 32px;
       padding: 6px 14px;
-      font-size: 13px;
+      font-size: 0.8125rem;
     }
     .mb-row .ci-pill .check-glyph {
       width: 14px;
@@ -910,6 +912,8 @@
       }
       .mb-search {
         flex: none;
+        box-sizing: border-box;
+        width: 100%;
       }
       /* The capsule is about 200px wide. Beside the name it leaves the name
          102px and breaks it inside a word, so on a phone it sits above. */

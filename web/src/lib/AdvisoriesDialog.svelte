@@ -490,13 +490,13 @@
   }
   .adv-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     overflow-wrap: anywhere;
   }
   .adv-subtitle {
     margin: 4px 0 0;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
     font-family: "IBM Plex Mono", ui-monospace, monospace;
     overflow-wrap: anywhere;
@@ -532,7 +532,7 @@
     background: var(--surface-sunken);
     color: var(--ink);
     font: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
     cursor: pointer;
   }
   .adv-close,
@@ -563,7 +563,7 @@
     background: var(--surface);
     color: var(--ink);
     font: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
     text-decoration: none;
   }
   .adv-close:focus-visible,
@@ -591,7 +591,7 @@
   .adv-status {
     margin: 0 0 12px;
     color: var(--ink-2);
-    font-size: 13.5px;
+    font-size: 0.84375rem;
   }
   .adv-error {
     color: var(--critical);
@@ -611,7 +611,7 @@
     background: var(--surface);
     color: var(--ink);
     font: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
   .adv-filter[aria-pressed="true"] {
     background: var(--ink);
@@ -631,7 +631,7 @@
   }
   .adv-sorted {
     margin-left: auto;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
   }
   .adv-list {
@@ -676,11 +676,11 @@
   }
   .adv-row-title {
     font-weight: 600;
-    font-size: 14px;
+    font-size: 0.875rem;
     overflow-wrap: anywhere;
   }
   .adv-row-meta {
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
     overflow-wrap: anywhere;
   }
@@ -699,7 +699,7 @@
     align-items: center;
     padding: 1px 8px;
     border-radius: 999px;
-    font-size: 12px;
+    font-size: 0.75rem;
     font-weight: 600;
     background: var(--neutral-bg);
     color: var(--ink-2);
@@ -732,22 +732,22 @@
     gap: 12px 20px;
   }
   .adv-fields dt {
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ink-2);
   }
   .adv-fields dd {
     margin: 2px 0 0;
-    font-size: 13.5px;
+    font-size: 0.84375rem;
     overflow-wrap: anywhere;
   }
   .adv-vector {
     display: block;
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ink-2);
   }
   .adv-h3 {
     margin: 18px 0 8px;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
   .adv-description {
     border: 1px solid var(--border);
@@ -773,7 +773,7 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
   .adv-refs a {
     overflow-wrap: anywhere;

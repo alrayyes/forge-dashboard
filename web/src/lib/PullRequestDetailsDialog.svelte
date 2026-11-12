@@ -845,13 +845,13 @@
     flex-wrap: wrap;
     gap: 8px;
     margin: 0 0 6px;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
     overflow-wrap: anywhere;
   }
   .details-title {
     margin: 0;
-    font-size: 16px;
+    font-size: 1rem;
     font-weight: 600;
     overflow-wrap: anywhere;
   }
@@ -870,7 +870,7 @@
     align-items: center;
     gap: 6px;
     margin: 4px 0 0;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
   }
   .filer-name {
@@ -940,13 +940,13 @@
   }
   .details-section h3 {
     margin: 0 0 8px;
-    font-size: 13px;
+    font-size: 0.8125rem;
     font-weight: 600;
     color: var(--ink-2);
   }
   .details-note {
     margin: 8px 0 0;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     color: var(--ink-2);
   }
   .details-note a,
@@ -995,7 +995,7 @@
     align-items: flex-start;
     gap: 10px;
     color: var(--critical);
-    font-size: 13px;
+    font-size: 0.8125rem;
   }
   .details-error p {
     margin: 0;
@@ -1012,7 +1012,7 @@
     background: var(--surface-sunken);
     color: var(--ink);
     font: inherit;
-    font-size: 13px;
+    font-size: 0.8125rem;
     text-decoration: none;
     cursor: pointer;
   }
@@ -1051,7 +1051,7 @@
     padding: 10px 18px 0;
   }
   .markdown {
-    font-size: 13.5px;
+    font-size: 0.84375rem;
     line-height: 1.5;
     overflow-wrap: anywhere;
     min-width: 0;
@@ -1066,7 +1066,7 @@
   .markdown :global(h2),
   .markdown :global(h3),
   .markdown :global(h4) {
-    font-size: 14px;
+    font-size: 0.875rem;
     margin: 14px 0 6px;
   }
   .markdown :global(pre) {
@@ -1082,7 +1082,7 @@
   }
   .markdown :global(code) {
     font-family: "IBM Plex Mono", ui-monospace, monospace;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
   }
   .markdown :global(table) {
     display: block;
@@ -1158,7 +1158,7 @@
   }
   .details-collapsed summary {
     cursor: pointer;
-    font-size: 13px;
+    font-size: 0.8125rem;
     color: var(--ink-2);
     margin-bottom: 8px;
   }
@@ -1182,7 +1182,7 @@
     flex-wrap: wrap;
     gap: 8px;
     margin-bottom: 8px;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
   }
   .avatar {
     flex: none;
@@ -1196,7 +1196,7 @@
     background: var(--neutral-bg);
     color: var(--ink-2);
     font-weight: 600;
-    font-size: 14px;
+    font-size: 0.875rem;
   }
   .comment-login {
     font-weight: 600;
@@ -1268,7 +1268,7 @@
     background: var(--surface-sunken);
     color: var(--ink);
     font: inherit;
-    font-size: 12.5px;
+    font-size: 0.78125rem;
     cursor: default;
   }
   .reaction-people {
@@ -1285,7 +1285,7 @@
     border: 1px solid var(--border-strong);
     background: var(--surface);
     box-shadow: var(--shadow);
-    font-size: 12px;
+    font-size: 0.75rem;
     color: var(--ink);
   }
   .visually-hidden {
