@@ -4432,15 +4432,17 @@ button.pipeline-check-link:disabled {
     display: none;
   }
   /* The Refs segment is one row of short choices that share the width (#3693). */
-  .filter-sheet .segment.sheet-only:not([hidden]) {
+  .filter-sheet .segment.refs-group:not([hidden]) {
     display: flex;
     flex-wrap: nowrap;
     margin-left: 0;
   }
   .filter-sheet .segment button {
-    flex: 1 1 0;
     min-height: 44px;
     min-width: 44px;
+  }
+  .filter-sheet .segment.refs-group button {
+    flex: 1 1 0;
     padding: 4px 8px;
   }
   .filter-sheet .drafts-toggle {
