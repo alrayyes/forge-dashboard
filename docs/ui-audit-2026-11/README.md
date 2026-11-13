@@ -25,12 +25,12 @@ when it only repeats the one count beside it (2 running of 2 draws "2 running").
 
 `before-forced-colors-toggles/` and `after-forced-colors-toggles/` show the
 auto-merge segment (in the phone Filters sheet at 390px, inline at 1280px) and
-the severity filters in the advisories dialog, under Chromium's forced colours emulation,
-before and after the pressed-state fix for ticket 3388. These are emulation
-shots: Chromium doesn't repaint system colours the way Windows High Contrast
-does, so they show the non-colour mark (the thicker border on the pressed
-control), not the real palette. Pause live updates is covered by the Playwright
-spec, not by a screenshot.
+the severity filters in the Dependency advisories dialog, under Chromium's
+forced colours emulation, before and after the pressed-state fix for ticket 3388.
+These are emulation shots: Chromium doesn't repaint system colours the
+way Windows High Contrast does, so they show the non-colour mark (the thicker
+border on the pressed control), not the real palette. Pause live updates is
+covered by the Playwright spec, not by a screenshot.
 
 `before-pill-count/` and `after-pill-count/` show the Main branches filter bar
 (`All 2` active) at 390px, 820px and 1280px, light and dark, on the code before
