@@ -337,3 +337,84 @@ test('/ has no sideways scroll at 200% and 320px', async ({ page }) => {
   ]);
   expect(scroll, 'page scrolls sideways').toBeLessThanOrEqual(client);
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/3816
+//
+// The seven-plus tabs keep their width while the labels grow, so at 200% on a
+// 320px phone the words ran into each other and the active one was clipped.
+// The bar wraps onto more rows instead, and the page keeps clear of it.
+test('the bottom tab labels stay apart and inside the viewport at 200% and 320px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await routeRich(page);
+  await page.goto('/');
+  await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
+  await expect(page.locator('.bottom-nav-label').first()).toBeVisible();
+
+  await expect
+    .poll(async () =>
+      page.evaluate(() => {
+        const vw = document.documentElement.clientWidth;
+        const boxes = [...document.querySelectorAll('.bottom-nav-label')].map(
+          (el) => {
+            const r = el.getBoundingClientRect();
+            return {
+              text: el.textContent ?? '',
+              l: r.left,
+              r: r.right,
+              t: r.top,
+              b: r.bottom,
+              clipped: el.scrollWidth > el.clientWidth + 1,
+            };
+          },
+        );
+        const problems: string[] = [];
+        for (const a of boxes) {
+          if (a.l < -0.5 || a.r > vw + 0.5) problems.push(`${a.text} outside`);
+          if (a.clipped) problems.push(`${a.text} clipped`);
+        }
+        for (let i = 0; i < boxes.length; i++) {
+          for (let j = i + 1; j < boxes.length; j++) {
+            const a = boxes[i];
+            const c = boxes[j];
+            if (a.l < c.r - 0.5 && c.l < a.r - 0.5 && a.t < c.b && c.t < a.b)
+              problems.push(`${a.text} overlaps ${c.text}`);
+          }
+        }
+        return problems;
+      }),
+    )
+    .toEqual([]);
+
+  // The page's last content is not hidden behind the taller bar.
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const [barTop, footBottom] = await page.evaluate(() => [
+    document.querySelector('.bottom-nav')?.getBoundingClientRect().top ?? 0,
+    document.querySelector('footer')?.getBoundingClientRect().bottom ?? 0,
+  ]);
+  expect(footBottom, 'footer sits under the bar').toBeLessThanOrEqual(
+    barTop + 0.5,
+  );
+
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('the page heading wraps inside the viewport at 400% and 320px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await routeRich(page);
+  await page.goto('/');
+  await page.addStyleTag({ content: 'html { font-size: 400% !important; }' });
+  await expect(page.locator('h1').first()).toBeVisible();
+  const [left, right, vw] = await page.evaluate(() => {
+    const r = document.querySelector('h1')!.getBoundingClientRect();
+    return [r.left, r.right, document.documentElement.clientWidth];
+  });
+  expect(left).toBeGreaterThanOrEqual(-0.5);
+  expect(right).toBeLessThanOrEqual(vw + 0.5);
+});

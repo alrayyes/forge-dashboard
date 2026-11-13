@@ -615,40 +615,14 @@
   listener needed.
 -->
 <nav class="bottom-nav" aria-label="Mobile navigation">
-  <a
-    class="bottom-nav-link"
-    href="/"
-    aria-label={branchesTabLabel}
-    aria-current={isCurrentRoute("/") ? "page" : undefined}
-  >
-    <NavPills pending={navPending} count={branches} stacked />
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><rect width="8" height="8" x="3" y="3" rx="2" /><rect
-        width="8"
-        height="8"
-        x="13"
-        y="13"
-        rx="2"
-      /><path d="M7 11v4a2 2 0 0 0 2 2h4" /></svg
-    >
-    <span class="bottom-nav-label">Branches</span>
-  </a>
-  {#if showPulls}
+  <div class="bottom-nav-row">
     <a
       class="bottom-nav-link"
-      href="/pull-requests.html"
-      aria-label={pullsTabLabel}
-      aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
+      href="/"
+      aria-label={branchesTabLabel}
+      aria-current={isCurrentRoute("/") ? "page" : undefined}
     >
-      <NavPills pending={navPending} count={pulls} stacked />
+      <NavPills pending={navPending} count={branches} stacked />
       <svg
         width="16"
         height="16"
@@ -658,145 +632,178 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
-          d="M13 6h3a2 2 0 0 1 2 2v7"
-        /><line x1="6" x2="6" y1="9" y2="21" /></svg
-      >
-      <span class="bottom-nav-label">PRs</span>
-    </a>
-  {/if}
-  {#if showReleases}
-    <a
-      class="bottom-nav-link"
-      href="/releases.html"
-      aria-label={releasesTabLabel}
-      aria-current={isCurrentRoute("/releases") ? "page" : undefined}
-    >
-      <NavPills pending={navPending} count={releases} stacked />
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><path
-          d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-        /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-      >
-      <span class="bottom-nav-label">Releases</span>
-    </a>
-  {/if}
-  {#if showBots}
-    <a
-      class="bottom-nav-link"
-      href="/bots.html"
-      aria-label={botsTabLabel}
-      aria-current={isCurrentRoute("/bots") ? "page" : undefined}
-    >
-      <NavPills pending={navPending} count={bots} stacked />
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><path d="M12 8V4H8" /><rect
-          width="16"
-          height="12"
-          x="4"
-          y="8"
+        ><rect width="8" height="8" x="3" y="3" rx="2" /><rect
+          width="8"
+          height="8"
+          x="13"
+          y="13"
           rx="2"
-        /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
-          d="M9 13v2"
+        /><path d="M7 11v4a2 2 0 0 0 2 2h4" /></svg
+      >
+      <span class="bottom-nav-label">Branches</span>
+    </a>
+    {#if showPulls}
+      <a
+        class="bottom-nav-link"
+        href="/pull-requests.html"
+        aria-label={pullsTabLabel}
+        aria-current={isCurrentRoute("/pull-requests") ? "page" : undefined}
+      >
+        <NavPills pending={navPending} count={pulls} stacked />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
+            d="M13 6h3a2 2 0 0 1 2 2v7"
+          /><line x1="6" x2="6" y1="9" y2="21" /></svg
+        >
+        <span class="bottom-nav-label">PRs</span>
+      </a>
+    {/if}
+    {#if showReleases}
+      <a
+        class="bottom-nav-link"
+        href="/releases.html"
+        aria-label={releasesTabLabel}
+        aria-current={isCurrentRoute("/releases") ? "page" : undefined}
+      >
+        <NavPills pending={navPending} count={releases} stacked />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><path
+            d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+          /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
+        >
+        <span class="bottom-nav-label">Releases</span>
+      </a>
+    {/if}
+    {#if showBots}
+      <a
+        class="bottom-nav-link"
+        href="/bots.html"
+        aria-label={botsTabLabel}
+        aria-current={isCurrentRoute("/bots") ? "page" : undefined}
+      >
+        <NavPills pending={navPending} count={bots} stacked />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><path d="M12 8V4H8" /><rect
+            width="16"
+            height="12"
+            x="4"
+            y="8"
+            rx="2"
+          /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
+            d="M9 13v2"
+          /></svg
+        >
+        <span class="bottom-nav-label">Bots</span>
+      </a>
+    {/if}
+    {#if showIssues}
+      <a
+        class="bottom-nav-link"
+        href="/issues.html"
+        aria-label={issuesTabLabel}
+        aria-current={isCurrentRoute("/issues") ? "page" : undefined}
+      >
+        <NavPills pending={navPending} count={issues} stacked />
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><circle cx="12" cy="12" r="10" /><circle
+            cx="12"
+            cy="12"
+            r="1"
+          /></svg
+        >
+        <span class="bottom-nav-label">Issues</span>
+      </a>
+    {/if}
+    <a
+      class="bottom-nav-link"
+      href="/insights.html"
+      aria-label="Insights"
+      aria-current={isCurrentRoute("/insights") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" /></svg
+      >
+      <span class="bottom-nav-label">Insights</span>
+    </a>
+    <a
+      class="bottom-nav-link"
+      href="/webhooks.html"
+      aria-label="Webhooks"
+      aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
+      >
+      <span class="bottom-nav-label">Webhooks</span>
+    </a>
+    <a
+      class="bottom-nav-link"
+      href="/settings.html"
+      aria-label="Settings"
+      aria-current={isCurrentRoute("/settings") ? "page" : undefined}
+    >
+      <svg
+        width="16"
+        height="16"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><circle cx="12" cy="12" r="3" /><path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
         /></svg
       >
-      <span class="bottom-nav-label">Bots</span>
+      <span class="bottom-nav-label">Settings</span>
     </a>
-  {/if}
-  {#if showIssues}
-    <a
-      class="bottom-nav-link"
-      href="/issues.html"
-      aria-label={issuesTabLabel}
-      aria-current={isCurrentRoute("/issues") ? "page" : undefined}
-    >
-      <NavPills pending={navPending} count={issues} stacked />
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" /></svg
-      >
-      <span class="bottom-nav-label">Issues</span>
-    </a>
-  {/if}
-  <a
-    class="bottom-nav-link"
-    href="/insights.html"
-    aria-label="Insights"
-    aria-current={isCurrentRoute("/insights") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" /></svg
-    >
-    <span class="bottom-nav-label">Insights</span>
-  </a>
-  <a
-    class="bottom-nav-link"
-    href="/webhooks.html"
-    aria-label="Webhooks"
-    aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
-    >
-    <span class="bottom-nav-label">Webhooks</span>
-  </a>
-  <a
-    class="bottom-nav-link"
-    href="/settings.html"
-    aria-label="Settings"
-    aria-current={isCurrentRoute("/settings") ? "page" : undefined}
-  >
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="2"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-      ><circle cx="12" cy="12" r="3" /><path
-        d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-      /></svg
-    >
-    <span class="bottom-nav-label">Settings</span>
-  </a>
+  </div>
 </nav>
