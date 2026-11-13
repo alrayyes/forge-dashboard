@@ -913,8 +913,17 @@ section.board {
      max-width: 760px, so everything from 761px up to 1103px overflows or
      squeezes the title. Drop the
      author, created and updated columns across that range so the 1fr
-     title and the status cell stay on screen. */
-  grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
+     title and the status cell stay on screen.
+     #3829: the created and updated tracks grow with the root font size
+     (max(82px, 3.1rem) is 82px up to a 26px root and about the width of the
+     uppercase label above that), because their text follows it and at 200% a
+     fixed 82px track let "Created" run into "Updated". They grow by the width
+     the label needs and no more, so the title keeps most of what it had. The
+     title track is minmax(0, 1fr) so a long title cannot widen the row. When
+     the list is too narrow for the tracks (see the @container rule below) the
+     compact layout takes over. */
+  grid-template-columns: 280px minmax(0, 1fr) 96px var(--dt) var(--dt) 280px 22px;
+  --dt: max(82px, 3.1rem);
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
@@ -972,7 +981,7 @@ section.board {
    The phone layout (max-width: 760px) is its own stacked grid and is left alone. */
 @media (min-width: 761px) {
   .row.issue-row {
-    grid-template-columns: 280px minmax(0, 1fr) 96px 82px 82px 22px;
+    grid-template-columns: 280px minmax(0, 1fr) 96px var(--dt) var(--dt) 22px;
   }
   .row.issue-row .empty-cell {
     display: none;
@@ -984,6 +993,42 @@ section.board {
   }
   .row.issue-row .go {
     grid-column: 3;
+  }
+}
+
+/* #3829: a media query is in px and does not follow a larger root font size,
+   but a container query's rem does. Once the list is under 37.5rem wide (a 400%
+   root font size at 1280px is about 19rem, and a 200% one at 1200px or
+   under is about 36rem), the created and updated tracks no longer fit beside
+   the title, so use the compact layout the 761-1103px range already has:
+   the author, created and updated cells are dropped and the title keeps its
+   width. At 200% and 1280px the list is about 38rem wide, so all the
+   columns stay; a pull request title is 200px or more from there up. This
+   also keeps the row from scrolling sideways. */
+@media (min-width: 761px) {
+  @container (max-width: 37.5rem) {
+    .row {
+      grid-template-columns: 240px minmax(0, 1fr) 280px 22px;
+    }
+    .row.issue-row {
+      grid-template-columns: 240px minmax(0, 1fr) 22px;
+    }
+    .row .author,
+    .row .author.has-avatar,
+    .row .created,
+    .row .updated {
+      display: none;
+    }
+    .row .status-cell,
+    .row .empty-cell {
+      grid-column: 3;
+    }
+    .row .go {
+      grid-column: 4;
+    }
+    .row.issue-row .go {
+      grid-column: 3;
+    }
   }
 }
 
@@ -5229,6 +5274,9 @@ footer a[aria-current="page"] {
 #pr-rows,
 #issue-rows {
   overflow-anchor: none;
+  /* The list's own width is what the rem-based @container rule on .row
+     measures (#3829). */
+  container-type: inline-size;
 }
 
 /* Dependabot's split button on a bot row: Rebase stays the main button and a
