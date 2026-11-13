@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.42.0](https://github.com/alrayyes/forge-dashboard/compare/v9.41.0...v9.42.0) (2026-11-13)
+
+
+### Features
+
+* **web:** redesign the checks dialog output and controls ([#3743](https://github.com/alrayyes/forge-dashboard/issues/3743)) ([8e4fe12](https://github.com/alrayyes/forge-dashboard/commit/8e4fe1221e719a2a9ff5da3f58455a1709bc63bf))
+
 ## [9.41.0](https://github.com/alrayyes/forge-dashboard/compare/v9.40.0...v9.41.0) (2026-11-13)
 
 
