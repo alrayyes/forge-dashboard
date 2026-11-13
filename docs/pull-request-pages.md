@@ -57,7 +57,7 @@ request was updated fetches the details again and swaps them in place, without
 the loading skeleton. It shows the first 50 comments and says so when there are
 more. The header draws the row's three tiers as they were when it opened: the CI
 slot first (Running, Failed or Passed, the row's glyphs and words) with a
-Conflicting, Checking for conflicts, Conflict not confirmed or Blocked pill
+Conflicting, Checking for conflicts, Conflict not confirmed, or Blocked pill
 beside it when the row has one, then the title, then the attributes as quiet
 outlined chips (auto-merge, draft, bot, out of date, labels, and the version on
 the Releases page). Each comment carries the
@@ -83,14 +83,20 @@ draw them; they become plain Unicode characters, never images, and code stays
 as written. Emoticons like `:)` aren't touched. The library and its emoji
 table load the first time a pop-up opens.
 
-The header's repository name and number are two links, to the repository and
-to the pull request on the forge. In the description, release notes and
-comments, `#12` and `owner/repo#12` become links to that issue or pull request
-on the same forge, as the forges themselves draw them; the forge sends you on
-to the pull request when the number is one. Code, a word like `abc#12` and
-text already inside a link stay as written. The page builds these addresses
-from the pull request's own address, so they follow whichever forge it came
-from.
+The header's repository name links to the repository on the forge. The number
+is plain text: the pop-up is already that item's, and the Open on button in its
+footer is the way to the forge. In the description, release notes and
+comments, `#12` and `owner/repo#12` open that item's pop-up in place when the
+dashboard tracks the repository. They stay real links to the dashboard's own
+address, so a middle click or copy-link still works, and closing the new pop-up
+puts focus back where the first one was opened from. A reference to a
+repository the dashboard doesn't track has no pop-up, so it links to the forge
+in a new tab, and its accessible name says so. Code, a word like `abc#12` and
+text already inside a link stay as written.
+
+The review comments pill on a row opens the pull request's pop-up, not the
+forge. Only buttons named for the forge, such as Open on GitHub, leave the
+dashboard.
 
 ## Finding a pull request by its number
 
@@ -101,6 +107,16 @@ requests whose number starts with it, one per repo that has it, and `25` lists
 too, so `2024` finds a pull request with 2024 in its title. It is the same box
 as the title search, so it is remembered with the other filters and **Clear
 filters** empties it.
+
+## Short lists
+
+A page with one row, or none, has nothing to search or sort, so the filter bar,
+the phone **Filters** button and the sort control are not drawn. The count is
+the list before any filter, so a filter that narrows a longer list to one row
+keeps the bar and **Clear filters**. A single row also keeps the bar while a
+filter is picked, since that pick may be what hides the others, and while **Show
+drafts** has drafts to reveal. The same holds for the
+Issues, Releases, and Bots pages. The bar comes back when a second row arrives.
 
 ## Issues a pull request closes
 
@@ -130,7 +146,7 @@ in its title or description: `Refs #12`, `Ref #12`, `Related to #12` or
 `owner/repo#12` names another repo). Several may follow one keyword, as in
 `Refs #3, #4 and #5`. The server reads both forges the same way and lists what
 it finds in `GET /api/v1/dashboard` as `refsIssues`, always present. Code, HTML
-comments and link text are skipped, as for mentions, and a ticket the pull
+comments, and link text are skipped, as for mentions, and a ticket the pull
 request also closes appears only under closing.
 
 Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
@@ -174,7 +190,7 @@ space before its number, as Forgejo reads it; a no-break or other Unicode space
 there closes nothing and the number is listed as a mention. A ticket the pull
 request does close is never repeated, and neither is the pull request itself.
 The list holds at most 20, counted after the closed ones are taken off.
-Comments, reviews and commit messages are not read. Without a GitHub token the
+Comments, reviews, and commit messages are not read. Without a GitHub token the
 server reads the same text from GitHub's public listing, so the lists are the
 same.
 

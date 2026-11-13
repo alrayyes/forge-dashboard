@@ -113,8 +113,8 @@ same scroll position, and focus on the row that was opened. Escape and the
 close button close the whole dialog and give focus back to the pill. The title,
 the repository line and **Open on GitHub** scroll with the detail, so a long
 title leaves most of a small phone to the description, and the detail has no
-footer: Back and the close button stay in the header. **Open on GitHub** goes to
-the alert, or to the alerts page from the list.
+footer, since Back and the close button stay in the header. **Open on GitHub**
+goes to the alert, or to the alerts page from the list.
 
 The dialog reads the repository when it opens and not on a timer, so it costs
 one live read per open (the `advisories` kind in [Rate limits](rate-limits.md)).

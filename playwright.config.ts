@@ -234,6 +234,7 @@ const singleUserSpecs = [
   '**/skipped-pill-counts.spec.ts',
   '**/closing-issues.spec.ts',
   '**/refs-pills.spec.ts',
+  '**/reference-links-open-dialog.spec.ts',
   '**/refs-issues-filter.spec.ts',
   '**/segment-single-choice.spec.ts',
   '**/mentioned-tickets.spec.ts',
@@ -258,6 +259,7 @@ const singleUserSpecs = [
   '**/settings-hint-size.spec.ts',
   '**/csp-img-src.spec.ts',
   '**/settings-avatar-skipped.spec.ts',
+  '**/filter-bar-short-list.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

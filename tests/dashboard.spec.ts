@@ -2627,12 +2627,24 @@ test.describe('dashboard page', () => {
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString(),
               },
+              // A second row, so the filter bar is drawn (#3670).
+              {
+                forge: 'github',
+                repo: 'alrayyes/forge-dashboard',
+                number: 2,
+                title: 'Another issue',
+                url: 'https://example.com/2',
+                author: 'claude',
+                labels: [{ name: 'a', color: 'd73a4a' }],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              },
             ],
           }),
         }),
       );
       await page.goto('/issues.html');
-      await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
+      await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 
       await toggleLabels(page, 'kind/buried');
       await expect(page.locator('#issue-rows > .row')).toHaveCount(1);

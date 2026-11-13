@@ -363,7 +363,7 @@ refuses a longer one. A page that does not offer a saved repo or author leaves
 it saved and says so. The Insights page shows the same two controls.
 
 A pick filter that offers only one value, with nothing picked, can't narrow the
-list, so it leaves the bar. That goes for the repo, author and label filters
+list, so it leaves the bar. That goes for the repo, author, and label filters
 alike. It comes back as soon as a second value turns up, and it stays while it
 holds a pick, even a pick that is the only option, so you can still clear it.
 If it was in focus when it went, focus moves to the control before it. The

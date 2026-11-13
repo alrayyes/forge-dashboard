@@ -37,16 +37,16 @@ const issues = [1, 2, 3].map((n) => ({
       : [],
   mentionedByPullRequests: [],
 }));
-const prs = [1, 2, 3, 4, 5].map((n) => ({
+const prs = [1, 2, 3, 4, 5, 6, 7].map((n) => ({
   forge: 'github',
   repo: `acme/app${n % 2}`,
   number: n,
   title: `Pull request ${n}`,
   url: `https://example.com/pull/${n}`,
   author:
-    n === 4
+    n === 4 || n === 6
       ? 'dependabot'
-      : n === 5
+      : n === 5 || n === 7
         ? 'release-please[bot]'
         : n % 2
           ? 'alrayyes'
@@ -60,7 +60,12 @@ const prs = [1, 2, 3, 4, 5].map((n) => ({
   behind: false,
   // Some armed and some not, so the Auto-merge segment has a choice to offer.
   autoMergeEnabled: n === 1,
-  kind: n === 4 ? 'dependency' : n === 5 ? 'release' : 'regular',
+  kind:
+    n === 4 || n === 6
+      ? 'dependency'
+      : n === 5 || n === 7
+        ? 'release'
+        : 'regular',
   closesIssues: [],
   refsIssues:
     n === 2

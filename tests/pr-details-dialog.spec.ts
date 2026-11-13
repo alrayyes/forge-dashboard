@@ -238,22 +238,23 @@ test.describe('pull request details dialog', () => {
           'https://github.com/alrayyes/forge-dashboard',
         );
 
-        await expect(
-          header.getByRole('link', { name: /^#42/ }),
-        ).toHaveAttribute(
-          'href',
-          'https://github.com/alrayyes/forge-dashboard/pull/42',
-        );
+        // The number is plain text, not a forge link (#3744): "Open on
+        // <forge>" in the footer is the way there.
+        await expect(header.getByRole('link')).toHaveCount(1);
+        await expect(header).toContainText('#42');
 
         const text = dialog(page).locator('.markdown').first();
 
+        // A repository the dashboard tracks opens in place: a real link to
+        // the dashboard's own address (#3744). One it doesn't track goes to
+        // the forge.
         await expect(text.getByRole('link', { name: '#1859' })).toHaveAttribute(
           'href',
-          'https://github.com/alrayyes/forge-dashboard/issues/1859',
+          '/issues.html?issue=github/alrayyes/forge-dashboard/1859',
         );
 
         await expect(
-          text.getByRole('link', { name: 'other/repo#12' }),
+          text.getByRole('link', { name: /^other\/repo#12/ }),
         ).toHaveAttribute('href', 'https://github.com/other/repo/issues/12');
 
         await expect(text.getByRole('link')).toHaveCount(2);
@@ -301,25 +302,12 @@ test.describe('pull request details dialog', () => {
 
         const links = d.locator('.details-ref').getByRole('link');
 
-        await expect(links).toHaveCount(2);
+        await expect(links).toHaveCount(1);
 
-        const boxes = [];
-
-        for (const link of await links.all()) {
-          const b = await link.boundingBox();
-          expect(b?.height).toBeGreaterThanOrEqual(44);
-          expect(b?.width).toBeGreaterThanOrEqual(44);
-          expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
-          boxes.push(b);
-        }
-
-        const [first, second] = boxes;
-
-        const apart =
-          (first?.x ?? 0) + (first?.width ?? 0) <= (second?.x ?? 0) ||
-          (first?.y ?? 0) + (first?.height ?? 0) <= (second?.y ?? 0);
-
-        expect(apart).toBe(true);
+        const b = await links.first().boundingBox();
+        expect(b?.height).toBeGreaterThanOrEqual(44);
+        expect(b?.width).toBeGreaterThanOrEqual(44);
+        expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
 
         await expect(links.first()).toHaveCSS(
           'text-decoration-line',
@@ -360,7 +348,7 @@ test.describe('pull request details dialog', () => {
     ).toHaveAttribute('href', 'https://git.example.org/me/app');
     await expect(
       dialog(page).getByRole('link', { name: '#7' }),
-    ).toHaveAttribute('href', 'https://git.example.org/me/app/issues/7');
+    ).toHaveAttribute('href', '/issues.html?issue=forgejo/me/app/7');
   });
 
   test('opens with Enter, Escape closes it and focus returns to the trigger', async ({

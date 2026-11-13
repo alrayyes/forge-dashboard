@@ -155,23 +155,15 @@ test.describe('the review comments pill (#1335)', () => {
 
     await expect(shown(page, 'Mixed')).toHaveText('3');
     await expect(pill(page, 'Mixed')).toHaveAccessibleName('3 comments');
-    await expect(pill(page, 'Mixed')).toHaveAttribute(
-      'href',
-      'https://example.com/pull/10/files',
-    );
   });
 
-  test('a pull request with only conversation comments shows them and opens the conversation (#1953)', async ({
+  test('a pull request with only conversation comments shows them (#1953)', async ({
     page,
   }) => {
     await open(page);
 
     await expect(shown(page, 'Talk only')).toHaveText('2');
     await expect(pill(page, 'Talk only')).toHaveAccessibleName('2 comments');
-    await expect(pill(page, 'Talk only')).toHaveAttribute(
-      'href',
-      'https://example.com/pull/11',
-    );
   });
 
   test('a forge that cannot say which threads are open shows the count and no amber', async ({
@@ -185,24 +177,30 @@ test.describe('the review comments pill (#1335)', () => {
     await expect(p).not.toHaveClass(/\bopen\b/);
   });
 
-  test('opens the files and review view on the forge in a new tab', async ({
+  // https://github.com/alrayyes/forge-dashboard/issues/3744
+  test('opens the pull request dialog in place, not the forge, and focus returns to the pill', async ({
     page,
   }) => {
     await open(page);
 
-    const github = pill(page, 'Open');
-    await expect(github).toHaveAttribute(
-      'href',
-      'https://example.com/pull/5/files',
-    );
-    await expect(github).toHaveAttribute('target', '_blank');
-    await expect(github).toHaveAttribute('rel', /noopener/);
-    await expect(pill(page, 'Forgejo')).toHaveAttribute(
-      'href',
-      'https://git.example.com/ryan/infra/pulls/3/files',
-    );
+    for (const title of ['Open', 'Forgejo', 'Talk only']) {
+      const p = pill(page, title);
+      await expect(p).toHaveJSProperty('tagName', 'BUTTON');
+      await expect(p).not.toHaveAttribute('href', /.*/);
+    }
 
+    const github = pill(page, 'Open');
     await github.focus();
+    const url = page.url();
+    await github.click();
+    const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('#5');
+    expect(page.url()).toBe(url);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(github).toBeFocused();
     await expect(github).not.toHaveCSS('outline-style', 'none');
   });
 
