@@ -22,3 +22,19 @@ the rows.
 `before-nav-pill/` and `after-nav-pill/` show the navigation pills in the header
 and on the phone tab bar, light and dark, before and after the total is left out
 when it only repeats the one count beside it (2 running of 2 draws "2 running").
+
+Stitch designs for moving the bulk actions into the card header (ticket 3755):
+
+- `stitch/bulk-actions-header-desktop-1280.png`: Update all as an outlined
+  button in the header's right-hand group, between the live control and the
+  count, nothing under the header.
+- `stitch/bulk-actions-header-phone-390-two-actions.png`: Update all and
+  Rerun failed checks as two stacked full-width 44px outlined buttons under
+  the live control and count row.
+- `stitch/bulk-actions-header-phone-390-one-action.png`: the same header with
+  Update all only.
+- `stitch/bulk-actions-header-in-progress-desktop-1280.png`: the in-progress
+  label "Updating 2 of 4" in the same slot (the slot is a little wider than
+  in the idle design; build it at the idle width).
+- `stitch/bulk-actions-dialog-desktop-1280.png`: the confirmation dialog with
+  the scope in its title, "Update 2 pull requests?".
