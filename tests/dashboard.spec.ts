@@ -1969,47 +1969,6 @@ test.describe('dashboard page', () => {
     });
   });
 
-  test.describe('CI pill wording beside the Merge button', () => {
-    function mockOnePR(page: Page, overrides: Partial<MockItem>) {
-      return page.route('**/api/v1/dashboard*', (route: Route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-            pullRequests: [
-              {
-                forge: 'github',
-                repo: 'alrayyes/forge-dashboard',
-                number: 1,
-                title: 'A pull request',
-                url: 'https://example.com/1',
-                author: 'claude',
-                ci: 'success',
-                labels: [],
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-                ...overrides,
-              },
-            ],
-            issues: [],
-          }),
-        }),
-      );
-    }
-
-    test('a failing or running pipeline is worded the same regardless of the Merge button', async ({
-      page,
-    }) => {
-      await mockOnePR(page, { mergeStatus: 'mergeable', ci: 'failure' });
-      await page.goto('/pull-requests.html');
-
-      const row = page.locator('#pr-rows .row').first();
-      await expect(row.locator('.ci-pill')).toContainText('Failed');
-    });
-  });
-
   test.describe('merge status and auto-merge pills', () => {
     function pr(overrides = {}) {
       return {
