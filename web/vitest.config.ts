@@ -19,6 +19,9 @@ export default mergeConfig(
     plugins: [storybookTest({ configDir: path.join(dirname, '.storybook') })],
     test: {
       name: 'storybook',
+      // One story file at a time: a busy machine starved parallel iframes of
+      // CPU until they missed Vitest's 60 s ready timeout.
+      fileParallelism: false,
       browser: {
         enabled: true,
         headless: true,
