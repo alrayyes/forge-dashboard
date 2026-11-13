@@ -7,8 +7,9 @@ the button that does it, stretched over the row; the CI pill, the labels, and
 the row's own buttons stay clickable on top of it. On a phone the row's buttons
 (Merge, and Update branch when the pull request is behind) are the last tier of
 the card: after a divider, in a row that wraps, each as wide as its label and 44
-pixels tall. A locked Merge stays there greyed; the status block directly on top
-of it says why, and the button is described by it. The pop-up has the pull
+pixels tall. A locked Merge stays there greyed, except on a confirmed conflict,
+which shows its warning alone; the status block directly on top of it says why,
+and the button is described by it. The pop-up has the pull
 request's description, its comments and the thumbs up and thumbs down reactions
 on each, and an **Open on GitHub** (or Forgejo) link. On the Releases page the
 pop-up shows the release notes in place of the description. A Dependabot or

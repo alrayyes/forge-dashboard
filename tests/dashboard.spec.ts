@@ -2214,19 +2214,20 @@ test.describe('dashboard page', () => {
       await expect(pill).toContainText('Out of date');
     });
 
-    // Every behind pull request is badged, not only a bot-managed one, so a
-    // stale hand-written pull request stands out the same way. The Update
-    // branch action still lives in the pop-up.
-    test('a behind, non-bot-managed pull request shows the Out of date pill and offers Update branch in its pop-up', async ({
+    // A behind pull request with a live Update branch button on its row has
+    // no Out of date chip: the button is the signal (#3770). The pop-up's
+    // footer offers Update branch as well.
+    test('a behind, non-bot-managed pull request offers a live Update branch on its row and in its pop-up, with no Out of date pill', async ({
       page,
     }) => {
       await mockDashboard(page, [pr({ behind: true })]);
       await page.goto('/pull-requests.html');
 
-      // Merge stays the primary action while only behind, so the row draws
-      // no Update branch; the pop-up's footer offers it.
       const row = page.locator('#pr-rows .row').first();
-      await expect(row.locator('.attr-chip.behind')).toHaveText('Out of date');
+      await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
+      await expect(
+        row.getByRole('button', { name: 'Update branch' }),
+      ).toBeEnabled();
       const dialog = await openActionsDialog(row);
       await expect(
         actionsFooter(dialog).getByRole('button', { name: 'Update branch' }),

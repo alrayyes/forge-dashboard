@@ -29,7 +29,12 @@ function pr(number: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function open(page: Page, width: number, prs: unknown[]) {
+async function open(
+  page: Page,
+  width: number,
+  prs: unknown[],
+  path = '/pull-requests.html',
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -48,7 +53,7 @@ async function open(page: Page, width: number, prs: unknown[]) {
       }),
     }),
   );
-  await page.goto('/pull-requests.html');
+  await page.goto(path);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
@@ -136,6 +141,48 @@ for (const width of [360, 390, 1280]) {
     });
   });
 }
+
+test('a confirmed conflict on an empty pull request keeps its Close', async ({
+  page,
+}) => {
+  await open(page, 390, [
+    pr(7, { title: 'Empty conflict', mergeStatus: 'conflicting', empty: true }),
+  ]);
+  await expect(
+    row(page, 'Empty conflict').getByRole('button', {
+      name: 'Close pull request',
+    }),
+  ).toHaveCount(1);
+});
+
+test('a confirmed conflict on a Renovate pull request keeps the cancel of a pending rebase', async ({
+  page,
+}) => {
+  await open(
+    page,
+    390,
+    [
+      pr(8, {
+        title: 'Renovate conflict',
+        author: 'renovate[bot]',
+        kind: 'dependency',
+        mergeStatus: 'conflicting',
+        conflictConfirmed: true,
+        allowedActions: [
+          { action: 'cancel_renovate_rebase' },
+          { action: 'close' },
+        ],
+        status: null,
+      }),
+    ],
+    '/bots.html',
+  );
+  await expect(
+    row(page, 'Renovate conflict').getByRole('button', {
+      name: 'Cancel Renovate rebase',
+    }),
+  ).toHaveCount(1);
+});
 
 test('AC4: a conflicting pull request pop-up footer still lists Merge and Update branch locked with reasons', async ({
   page,

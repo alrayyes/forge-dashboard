@@ -1161,6 +1161,22 @@
       );
     }
 
+    // The conflict's warning stands in for the row's button: the primary is
+    // Merge, Update branch or none. A Close, a pending rebase's cancel and a
+    // Merge already confirming or running keep their place (#3770).
+    function conflictWarnsAlone(item: PullRequestItem): boolean {
+      if (!conflictShown(item)) return false;
+      const phase = mergeState[prKey(item)]?.phase;
+      if (phase === "confirming" || phase === "merging") return false;
+      if (findAction(item, "cancel_renovate_rebase")) return false;
+      const primary = primaryAction(item)?.action;
+      return (
+        primary === undefined ||
+        primary === "merge" ||
+        primary === "update_branch"
+      );
+    }
+
     // The server lists Update branch and it is open to press.
     function liveUpdateBranch(item: PullRequestItem): boolean {
       const update = findAction(item, "update_branch");
@@ -2799,7 +2815,7 @@
         // other action is in the details pop-up's footer, built by the same
         // functions (#943).
         const rowAction =
-          conflictShown(pr) && !settledRow
+          !settledRow && conflictWarnsAlone(pr)
             ? null
             : rowActionCell(pr, settledRow, mergeAction);
         // In a bar of its own: on a phone it is the card's last tier, after a

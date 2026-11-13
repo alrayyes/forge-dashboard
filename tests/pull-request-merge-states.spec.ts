@@ -135,10 +135,7 @@ test.describe('Merge states on a pull request row', () => {
 
   // The page prints the reason it is given, whatever the state. These render
   // the two other locked states once each, with CI not pending.
-  for (const [mergeStatus, reason] of [
-    ['conflicting', /merge conflict/i],
-    ['blocked', /blocked/i],
-  ] as const) {
+  for (const [mergeStatus, reason] of [['blocked', /blocked/i]] as const) {
     test(`a ${mergeStatus} pull request shows a locked Merge with the reason in its description`, async ({
       page,
     }) => {
@@ -153,6 +150,31 @@ test.describe('Merge states on a pull request row', () => {
       await expect(merge).toHaveAccessibleDescription(reason);
     });
   }
+
+  // A confirmed conflict shows its warning alone on the row (#3770); the
+  // locked Merge and its reason are in the pop-up's footer.
+  test('a conflicting pull request shows the warning, no Merge on the row, and a locked Merge with the reason in the dialog', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'conflicting', ci: 'success' }),
+    );
+    await page.goto('/pull-requests.html');
+
+    const row = rowOf(page);
+    await expect(row.locator('.merge-pill')).toHaveText('Conflicting');
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveCount(0);
+    const dialog = await openActionsDialog(row);
+    const merge = actionsFooter(dialog).getByRole('button', {
+      name: 'Merge',
+      exact: true,
+    });
+    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    await expect(merge).toHaveAccessibleDescription(/merge conflict/i);
+  });
 
   test('ready: Merge is clickable with no reason shown, and Close is in the dialog beside the Hide items', async ({
     page,
