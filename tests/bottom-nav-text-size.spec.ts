@@ -104,6 +104,23 @@ test.describe('bottom nav at larger text sizes (#3830)', () => {
     });
   }
 
+  // 384px is 24em at the default size, so a cut-off written "max-width: 24em"
+  // wrapped the bar to two rows at 381 to 384px.
+  for (const width of [381, 382, 383, 384, 385]) {
+    test(`the bar stays one row at 100% and ${width}px`, async ({ page }) => {
+      await open(page, width, 100);
+      await expect.poll(async () => (await measure(page)).rows).toBe(1);
+      expect((await measure(page)).problems).toEqual([]);
+    });
+  }
+
+  test('labels stay apart and inside the viewport at 125% and 360px', async ({
+    page,
+  }) => {
+    await open(page, 360, 125);
+    await expect.poll(async () => (await measure(page)).problems).toEqual([]);
+  });
+
   for (const scheme of ['light', 'dark'] as const) {
     test(`axe finds nothing at 125% and 390px in ${scheme}`, async ({
       page,

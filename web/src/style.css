@@ -474,7 +474,8 @@ header,
    another row when a word no longer fits.
    Two cut-offs, because the label is a size larger above 380px (see below):
    up to 380px the row is full at 20 text sizes (320px at the default size),
-   and over it at 24 (384px). At 125% a 390px phone is 19.5 of them, which
+   and over it at 23.5 (376px at the default size, so every width over
+   380px stays on one row there). At 125% a 390px phone is 19.5 of them, which
    one cut-off for both left on a single row (#3830). */
 @container (max-width: 19.9em) {
   .bottom-nav-row {
@@ -485,7 +486,7 @@ header,
   }
 }
 @media (min-width: 381px) {
-  @container (max-width: 24em) {
+  @container (max-width: 23.5em) {
     .bottom-nav-row {
       flex-wrap: wrap;
     }
