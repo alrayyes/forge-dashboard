@@ -11,7 +11,7 @@ HTML shell has a matching `<meta name="robots">` tag, and `robots.txt` allows
 crawling on purpose: a crawler that can't fetch a page never reads its
 `noindex`. The real barrier is the passkey login below.
 
-Every response also carries `Content-Security-Policy: img-src 'self' data:`.
+Every response also carries `Content-Security-Policy: img-src 'self'`.
 Avatars, repository logos and images in descriptions all come through this
 server, so your browser refuses to load an image from anywhere else.
 

@@ -324,8 +324,13 @@ can't fire a tracking pixel when the dialog opens.
   `private-user-images.githubusercontent.com` address found there. That
   second fetch carries no token and goes through the same host list. If the
   lookup finds nothing or fails, or the signed address is refused or doesn't
-  load, the link is fetched as written. The lookup is one API request per
-  image and skips the ETag cache, since the signature expires.
+  load, the link is fetched as written. The lookup skips the ETag cache, since
+  the signature expires. Instead the item's rendered body is kept in memory for
+  two minutes, well under the signature's five. One cache outlives the
+  per-request clients, is keyed by credential and item, holds at most 256
+  items (the one closest to expiring makes room) and never keeps a failed
+  read, so every image in one description shares one API request. An expired
+  body is read again, never served.
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public
@@ -344,14 +349,13 @@ can't fire a tracking pixel when the dialog opens.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
-- Every response carries `Content-Security-Policy: img-src 'self' data:`
+- Every response carries `Content-Security-Policy: img-src 'self'`
   (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
   refuses a direct image load from any other host. None of the hosts above
   appears in it, because the server fetches them and the browser never does.
-  `data:` is for the inline check mark on a ticked box. The image route sends
-  its own stricter policy over it. A Go test checks the policy against the
-  proxy's host list, and against the hosts `web/src/lib/image-source.ts` and
-  `web/src/lib/avatar.ts` send through it.
+  The image route sends its own stricter policy over it. A Go test checks the
+  policy against the proxy's host list, and against the hosts
+  `web/src/lib/image-source.ts` and `web/src/lib/avatar.ts` send through it.
 
 ### What the passkey login covers
 

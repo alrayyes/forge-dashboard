@@ -33,8 +33,8 @@ func TestContentSecurityPolicy_ImgSrcNamesNoHostTheProxyReaches(t *testing.T) {
 	sources := imgSrcSources(t)
 	require.NotEmpty(t, sources)
 	for _, source := range sources {
-		assert.Contains(t, []string{"'self'", "data:"}, source,
-			"img-src allows this server and inline data only: a host belongs on the proxy's list, not here")
+		assert.Equal(t, "'self'", source,
+			"img-src allows this server alone: a host belongs on the proxy's list, not here")
 	}
 	for _, host := range githubImageHosts {
 		assert.NotContains(t, contentSecurityPolicy, host, "the proxy fetches %s, the browser never does", host)

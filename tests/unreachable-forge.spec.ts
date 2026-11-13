@@ -318,3 +318,84 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     expect(box?.y ?? 999).toBeLessThan(40);
   });
 });
+
+// #3720: the pinned controls must not draw over the banner's text or buttons
+// once the page is scrolled until the banner sits under them.
+test.describe('the pinned controls stay clear of the unreachable banner (#3720)', () => {
+  for (const width of [360, 390, 1280]) {
+    test(`at ${width}px, scrolled`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      const prs = Array.from({ length: 40 }, (_, i) => makePR(i + 1));
+      // The Activity control shows once something was done in this tab; the
+      // action runs while the forge answers, then the forge goes down.
+      const state = { current: { forges: [up()] as unknown[] } };
+      await mockDashboard(page, [up()], prs, state);
+      await page.route('**/api/v1/pull-requests/update-branch', (route) =>
+        route.fulfill({
+          status: 502,
+          contentType: 'application/json',
+          body: JSON.stringify({ error: 'x', message: 'upstream broke' }),
+        }),
+      );
+      await page.goto('/pull-requests.html');
+      await page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: 'Update branch' })
+        .click();
+      await expect(page.locator('.row-feedback').first()).toContainText(
+        'Failed',
+      );
+      state.current.forges = [down()];
+      await page.reload();
+      await expect(page.locator('#activity-toggle')).toBeVisible();
+      const banner = page.locator('#unreachable-banner');
+      await expect(banner).toBeVisible();
+      const parts = banner.locator('p, button, a');
+      await expect(parts.first()).toBeVisible();
+
+      // Scroll until the banner would sit under the top of the viewport.
+      await page.evaluate(() => {
+        const b = document.getElementById('unreachable-banner');
+        if (b) window.scrollBy(0, b.getBoundingClientRect().top + 30);
+      });
+      await page.waitForTimeout(100);
+
+      const boxes = async (loc: ReturnType<Page['locator']>) => {
+        const out: { x: number; y: number; width: number; height: number }[] =
+          [];
+        for (const el of await loc.all()) {
+          if (!(await el.isVisible())) continue;
+          const b = await el.boundingBox();
+          if (b) out.push(b);
+        }
+        return out;
+      };
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+      for (const b of await boxes(
+        banner.locator('button, a').filter({ visible: true }),
+      )) {
+        expect(b.height).toBeGreaterThanOrEqual(24);
+        expect(b.width).toBeGreaterThanOrEqual(24);
+      }
+
+      const pinned = await boxes(
+        page.locator('#force-refresh-button, .activity-toggle'),
+      );
+      const content = await boxes(parts);
+      expect(content.length).toBeGreaterThan(0);
+      for (const p of pinned)
+        for (const c of content) {
+          const overlap =
+            p.x < c.x + c.width &&
+            c.x < p.x + p.width &&
+            p.y < c.y + c.height &&
+            c.y < p.y + p.height;
+          expect(overlap, JSON.stringify({ p, c })).toBe(false);
+        }
+    });
+  }
+});

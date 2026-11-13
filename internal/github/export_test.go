@@ -150,3 +150,18 @@ func SetRetryWaitForTest(c *Client, record func(time.Duration)) {
 		return done
 	}
 }
+
+// SetRenderedBodyClockForTest makes the rendered-body cache read now instead
+// of the wall clock.
+func (c *Client) SetRenderedBodyClockForTest(now func() time.Time) { c.renderedBodies.now = now }
+
+// SetRenderedBodyMaxForTest caps the client's rendered-body cache.
+func (c *Client) SetRenderedBodyMaxForTest(n int) { c.renderedBodies.max = n }
+
+// RenderedBodyCountForTest is how many entries the rendered-body cache holds.
+func (c *Client) RenderedBodyCountForTest() int {
+	c.renderedBodies.mu.Lock()
+	defer c.renderedBodies.mu.Unlock()
+
+	return len(c.renderedBodies.entries)
+}

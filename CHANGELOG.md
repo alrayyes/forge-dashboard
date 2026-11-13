@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.38.1](https://github.com/alrayyes/forge-dashboard/compare/v9.38.0...v9.38.1) (2026-11-13)
+
+
+### Performance Improvements
+
+* **api:** cache GitHub rendered item bodies for two minutes ([#3726](https://github.com/alrayyes/forge-dashboard/issues/3726)) ([686a3c6](https://github.com/alrayyes/forge-dashboard/commit/686a3c663295d578202200869421579ffbba780e))
+
+## [9.38.0](https://github.com/alrayyes/forge-dashboard/compare/v9.37.1...v9.38.0) (2026-11-13)
+
+
+### Features
+
+* **csp:** drop data: from the img-src policy ([#3725](https://github.com/alrayyes/forge-dashboard/issues/3725)) ([ee47c5e](https://github.com/alrayyes/forge-dashboard/commit/ee47c5e594ac57a8a3b96e9c6b886f95926865cd)), closes [#3679](https://github.com/alrayyes/forge-dashboard/issues/3679)
+
+## [9.37.1](https://github.com/alrayyes/forge-dashboard/compare/v9.37.0...v9.37.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** keep a stuck unreachable or rate-limit banner below the pinned Activity control ([#3721](https://github.com/alrayyes/forge-dashboard/issues/3721)) ([21073d9](https://github.com/alrayyes/forge-dashboard/commit/21073d90cac238532ea6c7614e9eef25651be4e0)), closes [#3720](https://github.com/alrayyes/forge-dashboard/issues/3720)
+
 ## [9.37.0](https://github.com/alrayyes/forge-dashboard/compare/v9.36.2...v9.37.0) (2026-11-12)
 
 
