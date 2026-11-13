@@ -250,7 +250,43 @@ test.describe('the address of an issue', () => {
     await page.keyboard.press('Escape');
 
     await expect(issueDialog(page)).toBeHidden();
-    await expect(page.getByLabel('Filter by title')).toBeFocused();
+    // The cookie's pick leaves one row, so the title box is hidden (#3823):
+    // focus lands on the first control still drawn (the sort box here, since
+    // the issues bar has no pills), not the page.
+    await expect(page.getByLabel('Filter by title')).toBeHidden();
+    await expect(page.getByLabel('Sort issues by')).toBeFocused();
+    await context.clearCookies({ name: 'forge-board-filters' });
+  });
+
+  test('closing it onto a hidden title box on a phone puts focus on the Filters button', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mockBoard(page, {
+      issues: [issue(12), { ...issue(13), author: 'someone-else' }],
+    });
+    await context.addCookies([
+      {
+        name: 'forge-board-filters',
+        value: encodeURIComponent(
+          JSON.stringify({
+            rev: 2_000_000_000,
+            shared: { author: 'github:someone-else' },
+          }),
+        ),
+        url: baseURL,
+      },
+    ]);
+
+    await page.goto(address(12));
+    await expect(issueDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(page.getByLabel('Filter by title')).toBeHidden();
+    await expect(page.locator('#filters-button')).toBeFocused();
     await context.clearCookies({ name: 'forge-board-filters' });
   });
 

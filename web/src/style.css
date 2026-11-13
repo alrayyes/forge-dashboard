@@ -4291,6 +4291,9 @@ button.pipeline-check-link:disabled {
   flex: 4 1 260px;
   min-width: 160px;
 }
+.filter-bar .search-wrap[hidden] {
+  display: none;
+}
 .filter-bar .search-wrap .col-filter {
   flex: 1 1 auto;
   min-width: 0;

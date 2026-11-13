@@ -520,9 +520,18 @@
     returnFocusId = "";
     returnFocusFallbackId = "";
     onClosed?.();
+    const drawn = (el: Element | null): el is HTMLElement =>
+      el instanceof HTMLElement && el.getClientRects().length > 0;
+    // The title box hides over one row (#3823), and a hidden control can't
+    // take focus, so the first drawn control in the filter bar stands in.
     const back =
-      (id ? document.getElementById(id) : null) ??
-      (fallbackId ? document.getElementById(fallbackId) : null);
+      [
+        id ? document.getElementById(id) : null,
+        fallbackId ? document.getElementById(fallbackId) : null,
+        ...document.querySelectorAll(
+          ".filter-bar :is(button, select, input):not(:disabled)",
+        ),
+      ].find(drawn) ?? null;
     back?.focus();
   }
 
