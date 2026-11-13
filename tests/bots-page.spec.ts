@@ -124,7 +124,7 @@ test.describe('Bots page (#1192)', () => {
     await expect(page.locator('#pr-rows')).not.toContainText('package-20');
     await expect(
       page
-        .locator('.quick-pills')
+        .locator('.filter-bar .quick-pills')
         .getByRole('button', { name: 'Bot PRs', exact: true }),
     ).toHaveCount(0);
   });

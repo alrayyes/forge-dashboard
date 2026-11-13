@@ -265,23 +265,29 @@ a releasable change lands, and its row carries the Out of date badge like any
 other behind pull request. With no release pull requests open the page says
 nothing is waiting to ship.
 
-The quick filter pills ahead of the list include **Failing CI**, **Running CI**,
-**Passing CI** and **No checks**, each offered only when it would show
-something and not when it matches every pull request. They are the only CI
+The pills ahead of the list are four labelled groups, **Forge** (GitHub,
+Forgejo), **CI** (Failing, Running, Passing, No checks), **Merge** (Conflicting,
+Out of date) and **Review** (Ready, Needs review, Review requested). Each group
+is single choice with its own **All**, and the groups combine: Forgejo with
+Failing shows the failing Forgejo pull requests. A chip removes one value, and
+**Clear filters** resets every group. A pill is offered only when it would show
+something and not when it matches every pull request. A single pill saved before
+the groups existed (`pr.quick`) moves, by its name, into whichever group holds
+it, once, unless that group already has a pick. The pills are the only CI
 filter: the board header has no separate CI status dropdown, on this page,
 Releases, and Bots. The **No checks** pill shows the pull requests that have no
-CI configured. A CI status saved from when the
-dropdown existed becomes the matching pill when the page loads, unless a pill or
-a forge is already picked, in which case it is dropped, so nothing stays
-filtered out of sight. The **Out of date** pill, on this page and on Bots,
-keeps the pull requests whose base branch has moved on, the same ones that
-carry the row's Out of date badge. An empty pull request is left out. The
-choice is saved like the other pills. Next to them an **Auto-merge** control
-has Any, On, and Off. On shows only pull requests that have auto-merge armed, Off
-only those without. It combines with a pill, so Failing CI with Auto-merge On
-finds armed pull requests whose checks have since failed. In the phone Filters
-sheet its choices are 44px targets at their own width, and a pressed choice
-keeps its size when high-contrast mode swaps the fill for a border.
+CI configured. A CI status saved from when the dropdown existed becomes the
+matching CI pill when the page loads, unless a CI pill is already picked, in
+which case it is dropped, so nothing stays filtered out of sight. The **Out of
+date** pill, on this page and on Bots, keeps the pull requests whose base branch
+has moved on, the same ones that carry the row's Out of date badge. An empty
+pull request is left out. The choice is saved like the other pills. Next to them
+an **Auto-merge** control has Any, On, and Off. On shows only pull requests that
+have auto-merge armed, Off only those without. It combines with the pill groups,
+so Failing with Auto-merge On finds armed pull requests whose checks have since
+failed. In the phone Filters sheet its choices are 44px targets at their own
+width, and a pressed choice keeps its size when high-contrast mode swaps the
+fill for a border.
 
 A **Refs issue** control beside it has Any, **Has issue**, and **No issue** (the
 full wording, "References an issue" and "References no issue", is each button's
@@ -293,14 +299,14 @@ saved with your other filters, comes back after a reload, is emptied by **Clear
 filters**, and offers a choice only while it would change the list: one every
 row has shows what Any shows, and one no row has shows nothing, so a control
 with no choice left is hidden in both the bar and the Filters sheet. A choice
-that is the active pick stays so it can be cleared. The same goes for
-Auto-merge, the forge pills and the quick pills such as Running CI; a pill group
-left with only All is hidden, and All is never hidden on its own. On a phone it
-is in the Filters sheet with 44px choices. The pick is shared with the Bots and
-Releases pages, which filter by it too, so a pick made here can leave those
-lists empty; the control shows it there, and Any or **Clear filters** brings the
-rows back. A pick that is not yes or no is dropped on load, and so is a closing
-choice saved before the two controls were merged.
+that is the active pick stays so it can be cleared. The same goes for Auto-merge
+and the pill groups; a pill group left with only All is hidden, and All is never
+hidden on its own. On a phone it is in the Filters sheet with 44px choices. The
+pick is shared with the Bots and Releases pages, which filter by it too, so a
+pick made here can leave those lists empty; the control shows it there, and Any
+or **Clear filters** brings the rows back. A pick that is not yes or no is
+dropped on load, and so is a closing choice saved before the two controls were
+merged.
 
 ## Bots
 

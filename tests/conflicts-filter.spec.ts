@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // #1215: a Conflicts quick filter lists only the pull requests whose
@@ -57,8 +58,8 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
   );
 }
 
-const pill = (page: Page, name: string) =>
-  page.locator('.quick-pills').getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 const rows = (page: Page) => page.locator('#pr-rows > .row');
 
 test.describe('Conflicts quick filter (#1215)', () => {
@@ -75,15 +76,18 @@ test.describe('Conflicts quick filter (#1215)', () => {
     await page.goto('/pull-requests.html');
     await expect(rows(page)).toHaveCount(4);
 
-    await pill(page, 'Conflicts').click();
+    await pill(page, 'Conflicting').click();
 
-    await expect(pill(page, 'Conflicts')).toHaveAttribute(
+    await expect(pill(page, 'Conflicting')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'false');
+    await expect(pill(page, 'All', 'merge')).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    );
     await expect(
-      page.locator('.quick-pills [aria-pressed="true"]'),
+      page.locator('.quick-pills[data-group="merge"] [aria-pressed="true"]'),
     ).toHaveCount(1);
     await expect(rows(page)).toHaveCount(2);
     await expect(page.locator('#pr-rows')).toContainText('Conflicts with main');
@@ -101,20 +105,21 @@ test.describe('Conflicts quick filter (#1215)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('choosing another pill replaces it, and All clears it', async ({
+  test('choosing a pill, then All in its group, clears it', async ({
     page,
   }) => {
     await mockDashboard(page, MIXED);
     await page.goto('/pull-requests.html');
-    await pill(page, 'Conflicts').click();
-    // Another pill (the forge ones count as pills too) replaces it.
-    await pill(page, 'GitHub').click();
-    await expect(pill(page, 'Conflicts')).toHaveAttribute(
+    await pill(page, 'Conflicting').click();
+    await expect(pill(page, 'Conflicting')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await pill(page, 'All', 'merge').click();
+    await expect(pill(page, 'Conflicting')).toHaveAttribute(
       'aria-pressed',
       'false',
     );
-    await pill(page, 'Conflicts').click();
-    await pill(page, 'All').click();
     await expect(rows(page)).toHaveCount(4);
   });
 
@@ -123,18 +128,18 @@ test.describe('Conflicts quick filter (#1215)', () => {
   }) => {
     await mockDashboard(page, MIXED);
     await page.goto('/pull-requests.html');
-    await pill(page, 'Conflicts').click();
+    await pill(page, 'Conflicting').click();
     // The click saves in the background; a reload before it lands would load
     // the older copy (#900).
     await expect
       .poll(async () => {
         const resp = await page.request.get('/api/v1/settings/filter-state');
-        return (await resp.json())?.pr?.quick;
+        return (await resp.json())?.pr?.merge;
       })
       .toBe('conflicting');
 
     await page.reload();
-    await expect(pill(page, 'Conflicts')).toHaveAttribute(
+    await expect(pill(page, 'Conflicting')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -146,13 +151,13 @@ test.describe('Conflicts quick filter (#1215)', () => {
   }) => {
     await mockDashboard(page, MIXED);
     await page.goto('/pull-requests.html');
-    await pill(page, 'Conflicts').click();
+    await pill(page, 'Conflicting').click();
     await expect(rows(page)).toHaveCount(2);
     // The click saves in the background; wait for it before the data changes.
     await expect
       .poll(async () => {
         const resp = await page.request.get('/api/v1/settings/filter-state');
-        return (await resp.json())?.pr?.quick;
+        return (await resp.json())?.pr?.merge;
       })
       .toBe('conflicting');
 
@@ -165,14 +170,14 @@ test.describe('Conflicts quick filter (#1215)', () => {
     ]);
     await page.reload();
 
-    await expect(pill(page, 'Conflicts')).toBeVisible();
-    await expect(pill(page, 'Conflicts')).toHaveAttribute(
+    await expect(pill(page, 'Conflicting')).toBeVisible();
+    await expect(pill(page, 'Conflicting')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
     await expect(rows(page)).toHaveCount(0);
     await expect(page.locator('#pr-no-results')).toBeVisible();
-    await pill(page, 'All').click();
+    await pill(page, 'All', 'merge').click();
     await expect(rows(page)).toHaveCount(2);
   });
 
@@ -183,9 +188,11 @@ test.describe('Conflicts quick filter (#1215)', () => {
     ]);
     await page.goto('/pull-requests.html');
 
-    await expect(pill(page, 'Conflicts')).toBeHidden();
+    await expect(pill(page, 'Conflicting')).toBeHidden();
     // Every row is on one forge and no other pill backs any, so only All is
     // left, and a group with only All is hidden whole (#3669).
-    await expect(page.locator('.filter-bar .quick-pills')).toBeHidden();
+    await expect(page.locator('.filter-bar .quick-pills:visible')).toHaveCount(
+      0,
+    );
   });
 });

@@ -112,7 +112,7 @@ test.describe('Show row clears the filter that hides the row', () => {
     await showRow(page);
 
     await expect(
-      page.locator('.quick-pills [data-pill="all"]'),
+      page.locator('.quick-pills[data-group="ci"] [data-pill="all"]'),
     ).toHaveAttribute('aria-pressed', 'true');
     await expect(titles(page)).toHaveCount(2);
     // Only what hid the row is cleared.
@@ -121,8 +121,8 @@ test.describe('Show row clears the filter that hides the row', () => {
       .toEqual(['github:claude']);
     await expect(async () => {
       const { cookie, server } = await savedCopies(page);
-      expect(cookie?.pr?.quick || '').toBe('');
-      expect(server?.pr?.quick || '').toBe('');
+      expect(cookie?.pr?.ci || '').toBe('');
+      expect(server?.pr?.ci || '').toBe('');
       expect(cookie?.shared?.author).toBe('github:claude');
       expect(server?.shared?.author).toBe('github:claude');
     }).toPass();
