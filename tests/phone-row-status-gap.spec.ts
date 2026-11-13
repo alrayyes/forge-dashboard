@@ -106,11 +106,11 @@ const gapOf = (row: Locator) =>
     const bar = r.querySelector('.row-action-bar')?.getBoundingClientRect();
     const slot = r.querySelector('.wait-slot')?.getBoundingClientRect();
     const chip = r.querySelector('.wait-chip')?.getBoundingClientRect();
-    if (!ci || !bar || !slot || ci.height <= 0 || bar.height <= 0) return null;
+    if (!ci || !slot || ci.height <= 0) return null;
     return {
-      total: bar.top - ci.bottom,
+      // The action bar gives way to the chip while auto-merge waits.
+      total: bar ? bar.top - ci.bottom : null,
       slot: slot.height,
-      slotToBar: bar.top - slot.bottom,
       chipInside:
         chip === undefined ||
         (chip.top >= slot.top - 0.5 && chip.bottom <= slot.bottom + 0.5),
@@ -147,7 +147,7 @@ test.describe('phone row status gap (#3834)', () => {
           ).toBeVisible();
         }
         const g = await settled(row);
-        expect(g.total - g.slot, JSON.stringify(g)).toBeLessThanOrEqual(
+        expect(g.total! - g.slot, JSON.stringify(g)).toBeLessThanOrEqual(
           MAX_GAP,
         );
       });
@@ -155,7 +155,7 @@ test.describe('phone row status gap (#3834)', () => {
   }
 
   for (const width of [320, 360, 390]) {
-    test(`${width}px: the wait chip appearing in the same row keeps its slot and does not move the bar off it`, async ({
+    test(`${width}px: the wait chip appearing in the same row fills the slot it already reserved`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
@@ -168,7 +168,7 @@ test.describe('phone row status gap (#3834)', () => {
       const after = await settled(row);
 
       expect(after.slot).toBe(before.slot);
-      expect(after.slotToBar).toBe(before.slotToBar);
+      expect(before.slot).toBeGreaterThan(0);
       expect(after.chipInside).toBe(true);
     });
   }
