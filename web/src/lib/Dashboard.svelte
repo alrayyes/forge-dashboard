@@ -181,7 +181,7 @@
     spentLimit,
   } from "#lib/forge-lock.js";
   import { LockRedraw } from "#lib/lock-redraw.js";
-  import { bannerCopy } from "#lib/unreachable-banner.js";
+  import { bannerCopy, type ProviderStatus } from "#lib/unreachable-banner.js";
   import {
     chipClass,
     chipLabel,
@@ -395,6 +395,8 @@
     // Set with reachable: false when the rows shown are the last good ones
     // (#933): when that data was fetched.
     staleSince?: string;
+    // What the forge's status page reports while it is unreachable (#3633).
+    providerStatus?: ProviderStatus;
   };
   type DashboardSnapshot = {
     generatedAt: string;
@@ -9154,7 +9156,7 @@
         effectiveZone(),
         ...down.map(
           (f) =>
-            `${f.forge}|${f.errorKind}|${f.staleSince}|${isStartupGap(f, recentlyStarted)}`,
+            `${f.forge}|${f.errorKind}|${f.staleSince}|${isStartupGap(f, recentlyStarted)}|${JSON.stringify(f.providerStatus ?? null)}`,
         ),
       ].join(";");
       if (existing && existing.dataset.signature === signature) return;
@@ -9170,6 +9172,7 @@
           errorKind: f.errorKind,
           staleSince: f.staleSince,
           startupGap: isStartupGap(f, recentlyStarted),
+          providerStatus: f.providerStatus,
           // A forge that answered with a 5xx is not unreachable, so it says
           // what it answered (#3527).
           upstreamError:
@@ -9183,6 +9186,13 @@
       const text = el("p", "unreachable-banner-text");
       text.appendChild(el("strong", "", copy.headline));
       text.appendChild(document.createTextNode(` ${copy.detail}`));
+      // GitHub's own report, a second line of the same banner (#3633).
+      if (copy.incident) {
+        text.appendChild(document.createTextNode(" "));
+        text.appendChild(
+          el("span", "unreachable-banner-incident", copy.incident),
+        );
+      }
       row.appendChild(text);
       // GitHub's own status page says whether the fault is theirs. A
       // Forgejo instance is self-hosted, so it has none to link (#1301).

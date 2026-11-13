@@ -3419,6 +3419,12 @@ a.ci-pill:hover {
   color: var(--ink);
 }
 
+/* GitHub's own report sits under the sentence, on its own line (#3633). */
+.unreachable-banner-incident {
+  display: block;
+  margin-top: 4px;
+}
+
 .unreachable-banner-retry {
   min-height: 44px;
   padding: 0 16px;
