@@ -29,7 +29,7 @@ const (
 	// cacheFor is how long an answer, or a failure to get one, is reused, so a
 	// burst of failing calls makes one request.
 	cacheFor       = time.Minute
-	requestTimeout = 5 * time.Second
+	requestTimeout = 5 * time.Second // the default for WithRequestTimeout
 	maxBody        = 1 << 20
 )
 
@@ -45,6 +45,7 @@ type Client struct {
 	http    *http.Client
 	now     func() time.Time
 	log     *slog.Logger
+	timeout time.Duration
 
 	mu       sync.Mutex
 	fetched  time.Time
@@ -60,6 +61,9 @@ type Option func(*Client)
 // WithClock sets the time the cache runs by.
 func WithClock(now func() time.Time) Option { return func(c *Client) { c.now = now } }
 
+// WithRequestTimeout sets how long one fetch may take; the default is 5s.
+func WithRequestTimeout(d time.Duration) Option { return func(c *Client) { c.timeout = d } }
+
 // WithLogger sets where a feed failure is logged.
 func WithLogger(l *slog.Logger) Option { return func(c *Client) { c.log = l } }
 
@@ -70,7 +74,7 @@ func New(baseURL string, hc *http.Client, opts ...Option) *Client {
 	if hc == nil {
 		hc = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
-	c := &Client{baseURL: strings.TrimRight(baseURL, "/"), http: hc, now: time.Now, log: slog.Default()}
+	c := &Client{baseURL: strings.TrimRight(baseURL, "/"), http: hc, now: time.Now, log: slog.Default(), timeout: requestTimeout}
 	for _, o := range opts {
 		o(c)
 	}
@@ -117,7 +121,7 @@ func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
 
 // run fetches once, records the outcome and wakes everyone waiting on f.
 func (c *Client) run(detached context.Context, f *flight) {
-	ctx, cancel := context.WithTimeout(detached, requestTimeout)
+	ctx, cancel := context.WithTimeout(detached, c.timeout)
 	defer cancel()
 	status, err := c.fetch(ctx)
 

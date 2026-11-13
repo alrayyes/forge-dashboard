@@ -290,3 +290,31 @@ func TestStatus_AHungFetchBlocksOnlyThoseWaitingOnIt(t *testing.T) {
 	require.NotNil(t, got)
 	assert.EqualValues(t, 1, requests.Load())
 }
+
+func TestStatus_AHangingFeedIsGivenUpOnAtTheRequestTimeout(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		select {
+		case <-release:
+		case <-r.Context().Done():
+		}
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	var logs bytes.Buffer
+	c := githubstatus.New(srv.URL, srv.Client(),
+		githubstatus.WithRequestTimeout(100*time.Millisecond),
+		githubstatus.WithLogger(slog.New(slog.NewTextHandler(&logs, nil))))
+
+	// The caller's own deadline only keeps a regression from hanging the run.
+	caller, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	start := time.Now()
+	got := c.ProviderStatus(caller)
+
+	assert.Nil(t, got)
+	assert.Less(t, time.Since(start), 2*time.Second)
+	assert.Contains(t, logs.String(), "unreadable")
+}
