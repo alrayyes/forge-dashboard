@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.50.0](https://github.com/alrayyes/forge-dashboard/compare/v9.49.0...v9.50.0) (2026-11-13)
+
+
+### Features
+
+* **web:** say a changelog reference opens on the forge ([#3789](https://github.com/alrayyes/forge-dashboard/issues/3789)) ([0366639](https://github.com/alrayyes/forge-dashboard/commit/0366639fb0ae7c807efa1dde3eba6b1e743f41b7))
+
 ## [9.49.0](https://github.com/alrayyes/forge-dashboard/compare/v9.48.0...v9.49.0) (2026-11-13)
 
 

@@ -359,10 +359,24 @@ function create(
       MONO_LABEL.test(tokens[idx + 1]?.content ?? '')
     ) {
       tokens[idx].attrSet('class', 'mono');
+      // A pull request or issue number there has no dialog to open (#3764),
+      // so it says where it goes.
+      if (/^#\d+$/.test(tokens[idx + 1]?.content ?? '')) {
+        tokens[idx].meta = { opensOnForge: true };
+      }
     }
     tokens[idx].attrSet('target', '_blank');
     tokens[idx].attrSet('rel', 'noopener noreferrer');
     return self.renderToken(tokens, idx, options);
+  };
+  md.renderer.rules.link_close = (tokens, idx, options, _env, self) => {
+    let open = idx - 1;
+    while (open >= 0 && tokens[open].type !== 'link_open') open--;
+    const note = (tokens[open]?.meta as { opensOnForge?: boolean } | null)
+      ?.opensOnForge
+      ? '<span class="sr-only"> (opens on the forge in a new tab)</span>'
+      : '';
+    return note + self.renderToken(tokens, idx, options);
   };
   return md;
 }
