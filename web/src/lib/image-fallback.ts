@@ -72,13 +72,20 @@ export function imageFallback(node: HTMLElement): { destroy(): void } {
 export const EXPAND_CLASS = 'md-expand';
 
 function isCapped(img: HTMLImageElement): boolean {
-  // The height the width alone would give; shorter than that means the cap
-  // bit. (A computed max-height is a math function, not a number.)
-  const room = img.parentElement?.parentElement?.clientWidth ?? 0;
-  if (room <= 0 || img.naturalWidth <= 0) return false;
-  const byWidth =
-    (img.naturalHeight * Math.min(img.naturalWidth, room)) / img.naturalWidth;
-  return img.clientHeight > 0 && img.clientHeight < byWidth - 1;
+  // The cap is `min(480px, 70vh)`, which a computed style keeps as a math
+  // function, so give it to a probe as its height and measure that.
+  const probe = document.createElement('div');
+  probe.style.cssText = `position:absolute;visibility:hidden;height:${getComputedStyle(img).maxHeight}`;
+  document.body.append(probe); // outside the observed container
+  const cap = probe.getBoundingClientRect().height;
+  probe.remove();
+  // Capped means the image sits at the cap (within rounding) and would have
+  // been taller. Scaled down by width alone, it sits below the cap.
+  return (
+    cap > 0 &&
+    img.getBoundingClientRect().height >= cap - 2 &&
+    img.naturalHeight > cap + 2
+  );
 }
 
 function syncExpandControl(img: HTMLImageElement): void {

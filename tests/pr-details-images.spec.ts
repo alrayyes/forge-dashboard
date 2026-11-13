@@ -50,6 +50,8 @@ function png(width: number, height: number): Buffer {
 const FORGE_IMAGE = 'https://github.com/user-attachments/assets/wide';
 const BROKEN_IMAGE = 'https://github.com/user-attachments/assets/gone';
 const TALL_IMAGE = 'https://github.com/user-attachments/assets/tall';
+const NEAR_UNDER = 'https://github.com/user-attachments/assets/under';
+const NEAR_OVER = 'https://github.com/user-attachments/assets/over';
 const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
@@ -126,7 +128,14 @@ async function openDialog(
     return route.fulfill({
       status: 200,
       contentType: 'image/png',
-      body: target === TALL_IMAGE ? png(400, 1600) : png(2000, 600),
+      body:
+        target === TALL_IMAGE
+          ? png(400, 1600)
+          : target === NEAR_UNDER
+            ? png(1000, 700)
+            : target === NEAR_OVER
+              ? png(400, 900)
+              : png(2000, 600),
     });
   });
   const stranger: string[] = [];
@@ -510,7 +519,7 @@ for (const [width, height] of [
       expect(results.violations).toEqual([]);
     }
     await page.emulateMedia({ forcedColors: 'active' });
-    // Scoped to the new control: axe misreads other buttons' system colours.
+    // Scoped to the new control: axe flags the row's Merge button here (#3848).
     const forced = await new AxeBuilder({ page })
       .include('button.md-expand')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -545,3 +554,32 @@ test('the page behind the viewer does not scroll (#3835)', async ({ page }) => {
   await page.waitForTimeout(200);
   expect(await body.evaluate((el) => el.scrollTop)).toBe(top);
 });
+
+// Just under and just over the cap, where rounding and the parent's width used
+// to decide wrongly (#3835).
+for (const width of [360, 390]) {
+  test(`the control follows the cap exactly (${width}px, #3835)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const { dialog } = await openDialog(
+      page,
+      `![under](${NEAR_UNDER})\n\n![over](${NEAR_OVER})`,
+    );
+    const body = dialog.locator('.details-body');
+    for (const name of ['under', 'over'])
+      await expect(body.getByRole('img', { name })).toHaveClass(
+        /md-image-loaded/,
+      );
+    // 1000 x 700 shrinks by width to well under the cap: no button.
+    expect(
+      (await body.getByRole('img', { name: 'under' }).boundingBox())?.height,
+    ).toBeLessThan(480);
+    await expect(
+      body.getByRole('button', { name: /^View larger/ }),
+    ).toHaveCount(1);
+    await expect(
+      body.getByRole('button', { name: 'View larger over' }),
+    ).toHaveCount(1);
+  });
+}
