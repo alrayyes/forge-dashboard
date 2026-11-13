@@ -114,8 +114,9 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		if k := q.Get("kind"); k != "" && k != string(imageAvatar) {
-			writeJSON(w, http.StatusBadRequest, errorBody("kind must be avatar or absent"))
+		width, bad := imageOptionsOf(q)
+		if bad != "" {
+			writeJSON(w, http.StatusBadRequest, errorBody(bad))
 
 			return
 		}
@@ -132,7 +133,9 @@ func handleImage(deps Deps) http.HandlerFunc {
 			return
 		}
 		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
-			return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
+			return fetchSized(width, func() (imageproxy.Image, error) {
+				return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
+			})
 		})
 		if errors.Is(err, errImageBusy) {
 			w.Header().Set("Retry-After", "1")
@@ -156,6 +159,45 @@ func handleImage(deps Deps) http.HandlerFunc {
 		h.Set("Cache-Control", "private, max-age=3600")
 		_, _ = w.Write(img.Data)
 	}
+}
+
+// fetchSized runs fetch and, when width is set, scales what it returned.
+func fetchSized(width int, fetch func() (imageproxy.Image, error)) (imageproxy.Image, error) {
+	img, err := fetch()
+	if err != nil || width == 0 {
+		return img, err
+	}
+
+	return imageproxy.Resize(img, width) //nolint:wrapcheck // the kinds are mapped by imageFailure
+}
+
+// imageOptionsOf checks the optional kind and width, returning the width (0
+// when absent) or the sentence to refuse with.
+func imageOptionsOf(q url.Values) (int, string) {
+	if k := q.Get("kind"); k != "" && k != string(imageAvatar) {
+		return 0, "kind must be avatar or absent"
+	}
+	width, ok := imageWidthOf(q)
+	if !ok {
+		return 0, "width must be 320, 640, 960 or 1280"
+	}
+
+	return width, ""
+}
+
+// imageWidthOf reads the optional width: 0 when absent, else one of the sizes
+// imageproxy.AllowedWidth lists. Anything else is refused, not snapped, so a
+// caller learns its request was wrong and the cache holds only a few sizes.
+func imageWidthOf(q url.Values) (int, bool) {
+	if !q.Has("width") {
+		return 0, true
+	}
+	n, err := strconv.Atoi(q.Get("width"))
+	if err != nil || !imageproxy.AllowedWidth(n) {
+		return 0, false
+	}
+
+	return n, true
 }
 
 // fetchImage reads raw through the proxy. A GitHub user-attachment link is
