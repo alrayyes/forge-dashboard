@@ -150,3 +150,7 @@ func SetRetryWaitForTest(c *Client, record func(time.Duration)) {
 		return done
 	}
 }
+
+// SetRenderedBodyClockForTest makes the rendered-body cache read now instead
+// of the wall clock.
+func (c *Client) SetRenderedBodyClockForTest(now func() time.Time) { c.renderedBodies.now = now }

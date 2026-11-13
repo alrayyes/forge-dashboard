@@ -40,6 +40,24 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	default:
 		return "", fmt.Errorf("%w: %q", errImageItemKind, item.Kind)
 	}
+	bodyHTML, err := c.renderedBodies.get(ctx, c.statsCredential+" "+path, func(ctx context.Context) (string, error) {
+		return c.readRenderedBody(ctx, path)
+	})
+	if err != nil {
+		return "", err
+	}
+
+	for _, m := range renderedAnchor.FindAllStringSubmatch(bodyHTML, -1) {
+		if html.UnescapeString(m[1]) == link {
+			return html.UnescapeString(m[2]), nil
+		}
+	}
+
+	return "", nil
+}
+
+// readRenderedBody asks the API for the item at path with its HTML body.
+func (c *Client) readRenderedBody(ctx context.Context, path string) (string, error) {
 	req, err := c.restClient.NewRequest(http.MethodGet, path, nil)
 	if err != nil {
 		return "", fmt.Errorf("read rendered body: %w", err)
@@ -52,11 +70,5 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, "/"+path, resp)
 
-	for _, m := range renderedAnchor.FindAllStringSubmatch(body.BodyHTML, -1) {
-		if html.UnescapeString(m[1]) == link {
-			return html.UnescapeString(m[2]), nil
-		}
-	}
-
-	return "", nil
+	return body.BodyHTML, nil
 }

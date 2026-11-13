@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
@@ -72,6 +75,7 @@ func TestSignedImageURL_AnswersEmptyWhenTheItemDoesNotEmbedTheLink(t *testing.T)
 
 func TestSignedImageURL_NeverReplaysAnExpiredSignatureFromTheETagCache(t *testing.T) {
 	t.Parallel()
+	now := time.Now()
 	var calls int
 	mux := http.NewServeMux()
 	mux.HandleFunc("/repos/octo/repo/issues/7", func(w http.ResponseWriter, r *http.Request) {
@@ -84,13 +88,104 @@ func TestSignedImageURL_NeverReplaysAnExpiredSignatureFromTheETagCache(t *testin
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 	client := github.NewClient("test-token", "", srv.URL)
+	client.SetRenderedBodyClockForTest(func() time.Time { return now })
 	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
 
 	first, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
 	require.NoError(t, err)
+	now = now.Add(time.Hour)
 	second, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
 	require.NoError(t, err)
 
 	assert.Contains(t, first, "jwt1")
 	assert.Contains(t, second, "jwt2")
+}
+
+func countingClient(t *testing.T, calls *atomic.Int32) *github.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octo/repo/issues/7", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return github.NewClient("test-token", "", srv.URL)
+}
+
+func TestSignedImageURL_TwoImagesInOneItemCostOneRequest(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	client := countingClient(t, &calls)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	first, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+	other, err := client.SignedImageURL(t.Context(), "octo", "repo", item, "https://github.com/user-attachments/assets/other")
+	require.NoError(t, err)
+
+	assert.Contains(t, first, "signed.png")
+	assert.Contains(t, other, "other.png")
+	assert.EqualValues(t, 1, calls.Load())
+}
+
+func TestSignedImageURL_ConcurrentImagesShareOneRequest(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	client := countingClient(t, &calls)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	var wg sync.WaitGroup
+	for range 5 {
+		wg.Go(func() {
+			_, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+			assert.NoError(t, err)
+		})
+	}
+	wg.Wait()
+
+	assert.EqualValues(t, 1, calls.Load())
+}
+
+func TestSignedImageURL_NeverServesTheBodyPastItsLifetime(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	client := countingClient(t, &calls)
+	now := time.Now()
+	client.SetRenderedBodyClockForTest(func() time.Time { return now })
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	_, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+	now = now.Add(time.Minute)
+	_, err = client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, calls.Load(), "still fresh a minute on")
+
+	now = now.Add(time.Minute + time.Second)
+	_, err = client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, calls.Load(), "read again once the lifetime is up")
+}
+
+func TestSignedImageURL_KeepsItemsApart(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octo/repo/issues/", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+
+	for _, n := range []int{7, 8} {
+		_, err := client.SignedImageURL(t.Context(), "octo", "repo",
+			dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: n}, attachment)
+		require.NoError(t, err)
+	}
+
+	assert.EqualValues(t, 2, calls.Load())
 }

@@ -92,6 +92,9 @@ type Client struct {
 	logBlob     *http.Client
 	webhookPath string
 
+	// renderedBodies holds items' rendered HTML for a few minutes (#3682).
+	renderedBodies renderedBodyCache
+
 	// hooks* remember a webhook check GitHub refused for lack of permission
 	// (#894), so refreshes don't ask 50 repos the same question every time.
 	// hooksDeniedAll is when an app-wide denial was learned (the whole
