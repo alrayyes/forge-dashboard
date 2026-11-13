@@ -5,6 +5,9 @@ import { test } from './server-fixture';
 // #1458: the Branches item shows the total and how many default branches are
 // failing, running and passing, as the pull request items do (#1439). The
 // page counts the rows of `mainBranchPage` (#2886) and draws the tally.
+// The pill's own markup (glyphs, order, the approval count, a zero not drawn,
+// no pill when empty) is asserted in the NavPills stories' play functions
+// (#3626). What stays here needs the real bottom nav's layout.
 // https://github.com/alrayyes/forge-dashboard/issues/1458
 
 type Counts = {
@@ -65,44 +68,11 @@ const header = (page: Page) => page.locator(`header nav a[href="${BRANCHES}"]`);
 const tab = (page: Page) => page.locator(`.bottom-nav a[href="${BRANCHES}"]`);
 
 test.describe('the Branches nav pill shows failing, running and passing (#1458)', () => {
-  test('shows the total, then failed, passed and running, each with its glyph', async ({
+  test('a branch held for workflow approval is named in the header link (#2024)', async ({
     page,
   }) => {
-    await open(page, MIXED);
-    const pill = header(page).locator('.nav-pills');
-
-    await expect(pill).toHaveAttribute('aria-hidden', 'true');
-    await expect(pill.locator('.nav-total')).toHaveText('7');
-    await expect(pill.locator('.nav-failed')).toHaveText('2');
-    await expect(pill.locator('.nav-running')).toHaveText('1');
-    await expect(pill.locator('.nav-passed')).toHaveText('3');
-    await expect(pill.locator('.nav-none')).toHaveText('1');
-    for (const kind of ['failed', 'running', 'passed', 'none']) {
-      await expect(pill.locator(`.nav-${kind} svg`).first()).toBeAttached();
-    }
-    // Outcomes, the divider, the state, then the branches with no pipeline,
-    // which are neither (#1563).
-    const order = await pill.evaluate((el) =>
-      [...el.children].map(
-        (c) => c.className.split(' ').find((n) => n !== 'nav-count') ?? '',
-      ),
-    );
-    expect(order).toEqual([
-      'nav-total',
-      'nav-failed',
-      'nav-passed',
-      'nav-divider',
-      'nav-running',
-      'nav-none',
-    ]);
-  });
-
-  test('a branch held for workflow approval is drawn, so the parts add up to the total (#2024)', async ({
-    page,
-  }) => {
-    // 8 branches: 3 passed, 4 running, and one waiting for someone to approve
-    // its workflow runs. The pill used to show 8 with 3 and 4 and nothing for
-    // the eighth.
+    // The pill itself is asserted in the NavPills stories; the wording is
+    // unit-tested in nav-labels.test.ts. This pins that the link carries it.
     await open(page, {
       total: 8,
       failed: 0,
@@ -111,38 +81,10 @@ test.describe('the Branches nav pill shows failing, running and passing (#1458)'
       none: 0,
       awaitingApproval: 1,
     });
-    const pill = header(page).locator('.nav-pills');
-
-    await expect(pill.locator('.nav-total')).toHaveText('8');
-    await expect(pill.locator('.nav-passed')).toHaveText('3');
-    await expect(pill.locator('.nav-running')).toHaveText('4');
-    await expect(pill.locator('.nav-awaiting')).toHaveText('1');
-    await expect(pill.locator('.nav-awaiting svg').first()).toBeAttached();
-    const shown = await pill
-      .locator('.nav-count')
-      .evaluateAll((els) =>
-        els.reduce((n, el) => n + Number(el.textContent?.trim()), 0),
-      );
-    expect(shown).toBe(8);
-    // The link's own name says it in words as well as numbers.
     await expect(header(page)).toHaveAttribute(
       'aria-label',
       /1 waiting for approval/,
     );
-  });
-
-  test('a count of zero is not drawn, and no branches means no pill', async ({
-    page,
-  }) => {
-    await open(page, { total: 5, failed: 0, running: 0, passed: 5, none: 0 });
-    const pill = header(page).locator('.nav-pills');
-    await expect(pill.locator('.nav-passed')).toHaveText('5');
-    await expect(pill.locator('.nav-none')).toHaveCount(0);
-    await expect(pill.locator('.nav-failed')).toHaveCount(0);
-    await expect(pill.locator('.nav-running')).toHaveCount(0);
-
-    await open(page, { total: 0, failed: 0, running: 0, passed: 0, none: 0 });
-    await expect(header(page).locator('.nav-pills')).toHaveCount(0);
   });
 
   test('on a 360px phone every tab fits and the pill stays inside its tab', async ({

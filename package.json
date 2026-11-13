@@ -23,6 +23,7 @@
     "lint:specs": "bun scripts/check-spec-api-routes.ts",
     "prepare": "lefthook install",
     "storybook:screenshots": "bun scripts/storybook-screenshots.ts",
+    "test:components": "bun run --filter web test:components",
     "test:e2e": "playwright test",
     "test:lighthouse": "lhci autorun",
     "test:storybook": "bun test ./scripts/storybook-smoke.ts",
