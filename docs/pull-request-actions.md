@@ -1141,19 +1141,43 @@ motion), Queued an hourglass in a dashed blue ring, Waiting for approval a pause
 sign in a ring (the row's pill draws the same one), Skipped a slashed circle in
 the quietest weight, and Cancelled a stop square in a circle.
 
+## Where the bulk actions sit
+
+`Update all`, `Rerun failed checks` and `Rebase all` follow one rule. Each is a
+secondary button (white fill, accent border and accent text) inside the card
+header's controls block, after the live control and before the count, with a
+divider between the buttons and the count. There is no strip under the header.
+The count is in each label, so the accessible name is the visible text. While a
+run is under way the same button reads `Updating 2 of 4` (or `Rerunning`,
+`Rebasing`) with a spinner, at the idle width and in full-contrast text. On a
+phone or small screen (760px and narrower) the live control and the count come
+first, then each button runs full width and 44px high, one per line, so a label
+never has to be shortened. A button that appears there adds its line to the
+header. A phone held sideways (440px high or less) is the exception: the
+buttons sit side by side on the controls' line at 30px, so a list row still
+shows on the first screen. The Hidden toggle comes before the buttons in the
+page and on the screen, so Tab walks the header in the order you read it. On a
+desktop the buttons are 30px high and the header keeps its height whether they
+show or not.
+Only `Rebase all` can be shown yet unavailable: bots are behind but none can be
+asked. It then goes grey with a dashed border, still readable (text 4.5:1,
+border 3:1), and the dialog won't open. A run in progress keeps the accent and
+full contrast. The confirm dialog carries the scope in the title, such as
+`Update 2 pull requests?`, and the confirm button repeats it.
+
 ## Asking every out-of-date bot to catch up
 
 The Bots page header has a `Rebase all` button for the whole list. It counts
 the pull requests the filters leave that are behind their base and offer a
 rebase, so `Rebase all (6)` means six, and a filter that narrows the list
-narrows the count. A headline beside it says how many of the listed pull
-requests are out of date, for example `6 of 9 are out of date.`, and two chips
-count what the strip is about: `6 out of date` and `1 failing`. The count of
-pull requests it can ask is the button's label, so no chip repeats it. The
-failing chip counts every listed pull request the Failing pill counts, up to
-date or not, so one whose workflow waits for approval isn't in it. A chip with
-a zero count is grey. On a phone the headline, the chips and a full-width
-button stack, with the same chip words.
+narrows the count. A headline says how many of the listed pull requests are
+out of date, for example `6 of 9 are out of date.`, and two chips count what the
+button is about: `6 out of date` and `1 failing`. They are visually hidden and
+the button reads them through `aria-describedby`, so a screen reader hears them
+and the header stays one line. The count of pull requests it can ask is the
+button's label, so no chip repeats it. The failing chip counts every listed pull
+request the Failing pill counts, up to date or not, so one whose workflow
+waits for approval isn't in it. A chip with a zero count is grey.
 
 Pressing it opens a confirm dialog that lists each pull request with its forge.
 `Rebase` then asks the bots one pull request after another, through the same
@@ -1172,10 +1196,10 @@ confirm dialog lists the pull requests it rebases, then a `Left out` group
 with each one's reason. With nothing left out the group isn't there. When no
 pull request can be asked, the button is unavailable.
 
-The strip shows only while a listed pull request is out of date. When none is,
+The button shows only while a listed pull request is out of date. When none is,
 because they're all current or a filter hides the ones that aren't, all of it
 goes away, chips included, and focus moves to the `All` quick filter if the
-button had it. A run that's under way keeps the strip until it ends, the button
+button had it. A run that's under way keeps the button until it ends, the button
 shows its progress, and the chips keep counting as rows are rebased.
 
 ## Updating every out-of-date pull request
@@ -1184,10 +1208,10 @@ The Pull requests page header has the `Update all` button, where the Bots page
 has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
 four, and a filter that narrows the list narrows the count. The button is the
-whole strip, with no chip repeating the count. How many pull requests are
+whole control, with no chip repeating the count. How many pull requests are
 listed is the board header's job, as `6 open` or, under a filter, `Showing 4 of
-6`. On a phone the button runs full width, as on the Bots page. Bots have their
-own page and aren't listed here.
+6`. On a phone the button runs full width, as every bulk action does. Bots have
+their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
@@ -1206,21 +1230,20 @@ requested for 3 of 4. 1 failed.`
 
 Escape, or `Close`, before `Update` updates nothing.
 
-The strip shows only while a listed pull request can be updated. When none can,
-because they're all current or a filter hides the ones that aren't, the strip
+The button shows only while a listed pull request can be updated. When none can,
+because they're all current or a filter hides the ones that aren't, it
 goes away, and focus moves to the `All` quick filter if the button had it. A
-run that's under way keeps the strip until it ends, and the button shows its
+run that's under way keeps the button until it ends, and the button shows its
 progress.
 
 ## Rerunning every failing pull request
 
 Both the Pull requests and the Bots page header have a `Rerun failed checks`
-button for the failing pull requests the filters leave, beside the count. It
-sits in the header row and adds no height, so a row turning red doesn't move
-the list. On a phone or narrow screen (600px and narrower) the header's controls
-take a row of their own, with or without the button, for the same reason. The
-button counts the failing pull requests it may still rerun, so `Rerun failed
-checks (3)` means three, and a filter that narrows the list narrows the count.
+button for the failing pull requests the filters leave, in the header's
+controls block (see Where the bulk actions sit). On a desktop it adds no height,
+so a row turning red doesn't move the list. The button counts the failing pull
+requests it may still rerun, so `Rerun failed checks (3)` means three, and a
+filter that narrows the list narrows the count.
 The count is a ceiling: the server hasn't looked yet.
 
 The page doesn't guess which failing pull requests have a job to restart: the

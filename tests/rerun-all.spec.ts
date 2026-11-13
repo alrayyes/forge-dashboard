@@ -442,15 +442,16 @@ for (const [scheme, width] of [
   });
 }
 
-// The header is as tall with the button as without it, so a row turning red
-// moves nothing below it (#3236). Phones are where the button used to wrap,
-// and the Hidden toggle is what takes the room beside it.
+// On a desktop the header is as tall with the button as without it, so a row
+// turning red moves nothing below it (#3236). At 760px and narrower the bulk
+// actions stack under the controls by design (#3755), so a button appearing
+// adds its line there; bulk-actions-header.spec.ts pins that layout.
 for (const [name, path] of [
   ['Pull requests', '/pull-requests.html'],
   ['Bots', '/bots.html'],
 ] as const) {
   for (const hidden of [0, 2, 12]) {
-    for (const width of [320, 390, 480, 481, 500, 523, 560, 820]) {
+    for (const width of [820, 1280]) {
       test(`${name}: the header keeps its height when the button appears at ${width}px${hidden ? ` with the Hidden toggle (${hidden} hidden)` : ''}`, async ({
         page,
       }) => {
@@ -568,34 +569,4 @@ test('an answer that lands after the dialog closed updates the count', async ({
   await page.keyboard.press('Escape');
   release();
   await expect(button).toBeHidden();
-});
-
-// With the Hidden toggle on a 320px row the label wraps instead of spilling
-// over the toggle or past the edge.
-test('the button wraps its label beside the Hidden toggle at 320px', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 320, height: 800 });
-  await open(page, '/pull-requests.html', [pr(1), pr(2)], {}, { hidden: 2 });
-  const button = page.locator('#rerun-all-button');
-  await expect(button).toBeVisible();
-  const toggle = page.locator('#hidden-prs-toggle');
-  await expect(toggle).toBeVisible();
-  const t = await toggle.boundingBox();
-  const b = await button.boundingBox();
-  expect(t && b && (t.x + t.width <= b.x || b.x + b.width <= t.x)).toBe(true);
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth <=
-        document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
-  const lines = await button.evaluate((node) => {
-    const range = document.createRange();
-    range.selectNodeContents(node);
-    return new Set([...range.getClientRects()].map((r) => Math.round(r.top)))
-      .size;
-  });
-  expect(lines).toBeGreaterThan(1);
 });

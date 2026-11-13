@@ -5360,52 +5360,129 @@ footer a[aria-current="page"] {
   overflow-wrap: anywhere;
 }
 
-/* Rebase all, on the Bots page (#2859). */
-.rebase-all,
-.update-all {
+/* Bulk actions (#3755): Update all, Rerun failed checks and Rebase all share
+   one place, inside the header's controls block after the live control and
+   before the count. No strip under the header. The headline, reason and chips
+   of Rebase all are visually hidden and read through aria-describedby. */
+.bulk-actions {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px 16px;
-  padding: 12px 18px;
+  gap: 8px;
 }
-.rebase-all[hidden],
-.update-all[hidden] {
+.bulk-action {
+  display: inline-flex;
+}
+.bulk-action[hidden] {
   display: none;
-}
-/* The headline and the reason are the sentence the button's aria-describedby
-   reads; the chips beside them are for scanning (#3276). */
-.rebase-all-summary {
-  min-width: 0;
-}
-.rebase-all-headline {
-  margin: 0;
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--ink);
-}
-.rebase-all-reason {
-  margin: 2px 0 0;
-  font-size: 0.8125rem;
-  color: var(--ink-2);
-  overflow-wrap: anywhere;
 }
 .rebase-all-reason[hidden] {
   display: none;
 }
-.rebase-all-button,
-.update-all-button {
-  margin-left: auto;
+/* The divider between the actions and the count. */
+.bulk-actions:has(> .bulk-action:not([hidden])) ~ .count {
+  padding-left: 12px;
+  border-left: 1px solid var(--border-strong);
 }
-@media (max-width: 640px) {
-  .rebase-all,
-  .update-all {
+/* Secondary weight: white fill, accent border and text. The idle and the
+   in-progress state are one box, so "Updating 2 of 4" doesn't move anything. */
+.rebase-all-button,
+.update-all-button,
+.rerun-all-button {
+  min-height: 30px;
+  min-width: 7.75rem;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--accent);
+  background: var(--surface);
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  cursor: pointer;
+}
+/* Running keeps the accent and full contrast. Unavailable (Rebase all with
+   nothing it can ask) goes quiet: grey text and a dashed grey border, both
+   still clear of 4.5:1 and 3:1. */
+.rebase-all-button[aria-disabled="true"],
+.update-all-button[aria-disabled="true"],
+.rerun-all-button[aria-disabled="true"] {
+  cursor: default;
+}
+.rebase-all-button[aria-disabled="true"]:not([data-busy]),
+.update-all-button[aria-disabled="true"]:not([data-busy]),
+.rerun-all-button[aria-disabled="true"]:not([data-busy]) {
+  color: var(--ink-2);
+  border-color: var(--ink-3);
+  border-style: dashed;
+}
+.rebase-all-button[data-busy]::before,
+.update-all-button[data-busy]::before,
+.rerun-all-button[data-busy]::before {
+  content: "";
+  display: inline-block;
+  width: 0.8em;
+  height: 0.8em;
+  margin-right: 6px;
+  vertical-align: -0.1em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .rebase-all-button[data-busy]::before,
+  .update-all-button[data-busy]::before,
+  .rerun-all-button[data-busy]::before {
+    animation: nav-spin 0.8s linear infinite;
+  }
+}
+/* A phone or small screen (760px and narrower): the live control and the count share the first
+   line and each action is a full-width 44px button below, one per line. */
+@media (max-width: 760px) {
+  .board-head-controls {
+    flex: 1 1 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .board-head-controls .live-control {
+    order: 1;
+    margin-right: auto;
+  }
+  .board-head-controls .hidden-prs-toggle {
+    order: 2;
+  }
+  .board-head-controls .count {
+    order: 3;
+  }
+  /* The buttons come last in the DOM order of the focusable items too, so the
+     tab order is the reading order. */
+  .bulk-actions {
+    order: 4;
+    flex: 1 1 100%;
     flex-direction: column;
     align-items: stretch;
   }
-  .rebase-all-button,
-  .update-all-button {
-    margin-left: 0;
+  .bulk-actions:has(> .bulk-action:not([hidden])) ~ .count {
+    padding-left: 0;
+    border-left: 0;
+  }
+  .bulk-action > button {
+    flex: 1 1 auto;
+    min-height: 44px;
+    font-size: 0.8125rem;
+  }
+}
+/* A phone held sideways is about 375px tall, and stacked buttons would push
+   the first list row off the screen (#3406). The buttons sit on the controls'
+   line when they fit, side by side, at their desktop 30px, which clears the 24px minimum of WCAG 2.5.8. */
+@media (max-width: 760px) and (max-height: 440px) and (orientation: landscape) {
+  .bulk-actions {
+    flex: 0 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .bulk-action > button {
+    min-height: 30px;
   }
 }
 /* The count chips of the Rebase all strip (#3276).
@@ -5448,7 +5525,6 @@ footer a[aria-current="page"] {
   height: 13px;
   stroke-width: 2;
 }
-.rebase-all-button,
 .rebase-all-actions button {
   min-height: 44px;
   padding: 6px 14px;
@@ -5461,16 +5537,11 @@ footer a[aria-current="page"] {
   border-radius: 6px;
   cursor: pointer;
 }
-.rebase-all-button:not([aria-disabled="true"]),
 #rebase-all-confirm,
 #rerun-all-confirm {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
-}
-.rebase-all-button[aria-disabled="true"] {
-  cursor: default;
-  opacity: 0.7;
 }
 .rebase-all-dialog::backdrop {
   background: var(--backdrop);
@@ -5532,89 +5603,7 @@ footer a[aria-current="page"] {
   color: var(--ink-3);
 }
 
-/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). The
-   button sits in the board header beside the count, so a failing row turning
-   up or clearing doesn't move the list. The dialog shares the Rebase all
-   rules above. */
-.rerun-all {
-  display: inline-flex;
-  /* The 44px target spills into the header's padding, so the header is as
-     tall with the button as without it. */
-  margin-block: -14px;
-}
-.rerun-all[hidden] {
-  display: none;
-}
-/* On a phone or small tablet (600px and narrower) the heading and the count
-   don't leave room for the button, so the controls take a row of their own
-   whether or not the button is there. The header is then the same height
-   either way. */
-@media (max-width: 600px) {
-  /* The live control (#3699) is wide, so it takes the first line and the
-     count, the Hidden toggle and the button share the second. */
-  .board-head:has(.rerun-all) .board-head-controls {
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    gap: 8px;
-  }
-  .board-head:has(.rerun-all) .board-head-controls .live-control {
-    flex: 1 1 100%;
-  }
-  .board-head:has(.rerun-all) .board-head-controls .live-updated {
-    margin-right: auto;
-  }
-  .board-head:has(.rerun-all) .board-head-controls .count {
-    margin-left: auto;
-    /* The second line is as tall as the button whether or not it shows, so
-       the button needs no negative margin and never lands on the heading. */
-    display: inline-flex;
-    align-items: center;
-    min-height: 44px;
-  }
-  .rerun-all {
-    margin-block: 0;
-    min-width: 0;
-    /* Takes what the Hidden toggle and the count leave, so the second line
-       never breaks in two; the label wraps instead. */
-    flex: 1 1 0;
-  }
-  /* The label wraps in two lines when the Hidden toggle shares the row. */
-  .rerun-all-button {
-    padding: 4px 8px;
-    font-size: 0.6875rem;
-    line-height: 1.2;
-  }
-}
-.rerun-all-button {
-  min-height: 44px;
-  padding: 4px 12px;
-  font-family: inherit;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--ink);
-  background: var(--surface);
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  cursor: pointer;
-}
-@media (min-width: 701px) {
-  .rerun-all {
-    margin-block: -7px;
-  }
-  .rerun-all-button {
-    min-height: 30px;
-  }
-}
-.rerun-all-button:not([aria-disabled="true"]) {
-  color: var(--accent-ink);
-  background: var(--accent);
-  border-color: var(--accent);
-}
-.rerun-all-button[aria-disabled="true"] {
-  cursor: default;
-  opacity: 0.7;
-}
+/* Rerun failed checks (all), on the Pull requests and Bots pages (#3236). */
 .rerun-all-result {
   margin: 0 0 12px;
   padding: 0;
@@ -5629,7 +5618,6 @@ footer a[aria-current="page"] {
 
 /* Update all, on the Pull requests page (#3011). Its strip, headline, chips
    and button layout are the Rebase all rules above (#3277). */
-.update-all-button,
 .update-all-actions button {
   min-height: 44px;
   padding: 6px 14px;
@@ -5642,13 +5630,11 @@ footer a[aria-current="page"] {
   border-radius: 6px;
   cursor: pointer;
 }
-.update-all-button:not([aria-disabled="true"]),
 #update-all-confirm {
   color: var(--accent-ink);
   background: var(--accent);
   border-color: var(--accent);
 }
-.update-all-button[aria-disabled="true"],
 #update-all-confirm:disabled {
   cursor: default;
   opacity: 0.7;

@@ -6165,6 +6165,7 @@
         ? progressLabel(rebaseAllRun.done, rebaseAllRun.total)
         : rebaseAllLabel(asking);
       markPending(button, rebaseAllRun !== null || asking === 0);
+      button.toggleAttribute("data-busy", rebaseAllRun !== null);
       const headline = summary.querySelector(".rebase-all-headline");
       const reason = summary.querySelector<HTMLElement>(".rebase-all-reason");
       const chips = document.querySelector(".rebase-all-chips");
@@ -6342,6 +6343,7 @@
         ? updateProgressLabel(updateAllRun.done, updateAllRun.total)
         : updateAllLabel(ready);
       markPending(button, updateAllRun !== null);
+      button.toggleAttribute("data-busy", updateAllRun !== null);
     }
 
     function updateAllDialog(): HTMLDialogElement | null {
@@ -6522,6 +6524,7 @@
         ? rerunProgressLabel(rerunAllRun.done, rerunAllRun.total)
         : rerunAllLabel(ready);
       markPending(button, rerunAllRun !== null);
+      button.toggleAttribute("data-busy", rerunAllRun !== null);
     }
 
     function rerunAllDialog(): HTMLDialogElement | null {
@@ -10800,16 +10803,6 @@
             updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
             onpause={() => togglePause()}
           />
-          {#if view === "bots" || view === "pulls"}
-            <div class="rerun-all" hidden>
-              <button
-                type="button"
-                class="rerun-all-button"
-                id="rerun-all-button"
-                aria-haspopup="dialog">Rerun failed checks</button
-              >
-            </div>
-          {/if}
           <button
             type="button"
             class="hidden-prs-toggle"
@@ -10818,25 +10811,49 @@
             aria-controls="hidden-prs-panel"
             hidden>Hidden (0)</button
           >
+          <div class="bulk-actions">
+            {#if view === "pulls"}
+              <div class="update-all bulk-action" hidden>
+                <button
+                  type="button"
+                  class="update-all-button"
+                  id="update-all-button"
+                  aria-haspopup="dialog">Update all</button
+                >
+              </div>
+            {/if}
+            {#if view === "bots"}
+              <div class="rebase-all bulk-action" hidden>
+                <div class="rebase-all-summary sr-only" id="rebase-all-summary">
+                  <p class="rebase-all-headline"></p>
+                  <p class="rebase-all-reason" hidden></p>
+                </div>
+                <ul class="strip-chips rebase-all-chips sr-only"></ul>
+                <button
+                  type="button"
+                  class="rebase-all-button"
+                  id="rebase-all-button"
+                  aria-haspopup="dialog"
+                  aria-describedby="rebase-all-summary">Rebase all</button
+                >
+              </div>
+            {/if}
+            {#if view === "bots" || view === "pulls"}
+              <div class="rerun-all bulk-action" hidden>
+                <button
+                  type="button"
+                  class="rerun-all-button"
+                  id="rerun-all-button"
+                  aria-haspopup="dialog">Rerun failed checks</button
+                >
+              </div>
+            {/if}
+          </div>
           <span class="count" id="pr-count">&ndash;</span>
         </div>
       </div>
 
       {#if view === "bots"}
-        <div class="rebase-all" hidden>
-          <div class="rebase-all-summary" id="rebase-all-summary">
-            <p class="rebase-all-headline"></p>
-            <p class="rebase-all-reason" hidden></p>
-          </div>
-          <ul class="strip-chips rebase-all-chips"></ul>
-          <button
-            type="button"
-            class="rebase-all-button"
-            id="rebase-all-button"
-            aria-haspopup="dialog"
-            aria-describedby="rebase-all-summary">Rebase all</button
-          >
-        </div>
         <span class="sr-only" id="rebase-all-status" role="status"></span>
         <dialog
           id="rebase-all-dialog"
@@ -10863,14 +10880,6 @@
           <p class="rebase-all-hint">Esc closes this.</p>
         </dialog>
       {:else if view === "pulls"}
-        <div class="update-all" hidden>
-          <button
-            type="button"
-            class="update-all-button"
-            id="update-all-button"
-            aria-haspopup="dialog">Update all</button
-          >
-        </div>
         <span class="sr-only" id="update-all-status" role="status"></span>
         <dialog
           id="update-all-dialog"
