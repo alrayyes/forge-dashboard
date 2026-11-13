@@ -840,7 +840,7 @@ test('the tab stop follows the root font size while open', async ({ page }) => {
 test('focus moves to the All quick filter when the strip hides under it', async ({
   page,
 }) => {
-  const rows = [pr(1)];
+  const rows = [pr(1), pr(2, { behind: false })];
   await open(page, rows);
   const button = page.locator('#rebase-all-button');
   await expect(button).toBeVisible();
@@ -855,9 +855,9 @@ test('focus moves to the All quick filter when the strip hides under it', async 
     .locator('#force-refresh-button')
     .evaluate((el) => (el as HTMLElement).click());
   await expect(page.locator('.rebase-all')).toBeHidden();
-  // One row on one forge: the pill group has nothing to offer and is hidden
-  // (#3669), so focus goes to the next control of the bar.
+  // Two rows, since the bar is not drawn over one (#3670). The pill group is
+  // drawn over two rows, so focus lands on its All pill.
   await expect(
-    page.locator('.filter-bar .col-filter[data-col="title"]'),
+    page.locator('.quick-pills .quick-pill[data-pill="all"]'),
   ).toBeFocused();
 });

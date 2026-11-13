@@ -293,8 +293,8 @@ test.describe('the address of a pull request', () => {
   }) => {
     const draft = pullRequest(14, { draft: true });
     await mockBoard(page, {
-      shown: [pullRequest(12)],
-      everything: [pullRequest(12), draft],
+      shown: [pullRequest(12), pullRequest(13)],
+      everything: [pullRequest(12), pullRequest(13), draft],
     });
 
     await page.goto(address(14));
