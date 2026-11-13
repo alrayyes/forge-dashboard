@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.48.0](https://github.com/alrayyes/forge-dashboard/compare/v9.47.0...v9.48.0) (2026-11-13)
+
+
+### Features
+
+* **web:** put the three bulk actions in the header controls ([#3777](https://github.com/alrayyes/forge-dashboard/issues/3777)) ([5c4deed](https://github.com/alrayyes/forge-dashboard/commit/5c4deeddb4e6233fcee4c9dfaf40ca4cdfaaf9d5)), closes [#3755](https://github.com/alrayyes/forge-dashboard/issues/3755)
+
 ## [9.47.0](https://github.com/alrayyes/forge-dashboard/compare/v9.46.0...v9.47.0) (2026-11-13)
 
 
