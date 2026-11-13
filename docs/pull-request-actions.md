@@ -920,7 +920,7 @@ A row's controls sit in one row at its right edge: the text `Show output` or
 `Hide output` with a chevron, then `Copy` and `Open job` as 44-pixel icon buttons.
 Their accessible names start with their words ("Copy output: {check}", "Open
 job on {forge} (opens in a new tab): {check}"). In the open output each line
-is read for its level and carries a cue beside colour: an `Error` or `Warning`
+is read for its level and carries a cue beside colour: the `Error` or `Warning`
 label with a solid or dashed left border, a rule under a step header
 (`##[group]`, `---`, `+++`), and its time of day dimmed when it starts with an
 ISO timestamp. Colour escape codes are removed. Copy still copies the log as
