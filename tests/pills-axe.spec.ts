@@ -16,6 +16,8 @@ type Size = { width: number; height: number };
 
 const WIDE = { width: 1280, height: 800 };
 const PHONE = { width: 390, height: 800 };
+// The tablet width the filter groups switch layout around (#3780).
+const TABLET = { width: 820, height: 900 };
 // The Cancelled pill (#3395) is checked down to the narrowest phone.
 const NARROW = { width: 320, height: 800 };
 // The nav pills (#1439, #1458) are checked on a 360px phone.
@@ -186,7 +188,7 @@ test(`pull request pills in every state have no axe violations in both themes`, 
 
       await expect(page.locator('#pr-rows > .row').first()).toBeVisible();
 
-      await expectAccessible(page, [WIDE, PHONE, NARROW], () =>
+      await expectAccessible(page, [WIDE, TABLET, PHONE, NARROW], () =>
         expect(page.locator('#pr-rows > .row .ci-pill')).toHaveCount(
           PRS.length,
         ),

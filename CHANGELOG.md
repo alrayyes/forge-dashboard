@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.46.0](https://github.com/alrayyes/forge-dashboard/compare/v9.45.0...v9.46.0) (2026-11-13)
+
+
+### Features
+
+* say when a Forgejo avatar is skipped for another host ([#3773](https://github.com/alrayyes/forge-dashboard/issues/3773)) ([51d7e40](https://github.com/alrayyes/forge-dashboard/commit/51d7e40aa68aba0015e668157cef4b37d02b3d7d))
+
+
+### Bug Fixes
+
+* **web:** make the pull request pills four independent groups ([#3756](https://github.com/alrayyes/forge-dashboard/issues/3756)) ([9288cb5](https://github.com/alrayyes/forge-dashboard/commit/9288cb5e7ef343dd2203a5ef8c695ca2a33f7237))
+
 ## [9.45.0](https://github.com/alrayyes/forge-dashboard/compare/v9.44.0...v9.45.0) (2026-11-13)
 
 
