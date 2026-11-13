@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.50.3](https://github.com/alrayyes/forge-dashboard/compare/v9.50.2...v9.50.3) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** wrap the bottom tab bar at larger text sizes ([#3828](https://github.com/alrayyes/forge-dashboard/issues/3828)) ([437dfcb](https://github.com/alrayyes/forge-dashboard/commit/437dfcbee0bb0acef056638263e81082174fc090)), closes [#3816](https://github.com/alrayyes/forge-dashboard/issues/3816)
+
 ## [9.50.2](https://github.com/alrayyes/forge-dashboard/compare/v9.50.1...v9.50.2) (2026-11-13)
 
 
