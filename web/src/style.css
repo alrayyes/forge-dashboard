@@ -466,18 +466,33 @@ header,
   }
 }
 
-/* Larger text (#3816). The width is in text sizes (em), so it follows the
-   browser's font size: under 19 of them is 304px at the default size and 608px
-   at 200%. The eight tabs fit one row down to 320px at the default size, but
-   their words grow with the text and the tabs don't, so at 200% the labels ran
-   into each other. Here the tabs size by their word and drop to another row
-   when a word no longer fits. */
-@container (max-width: 19em) {
+/* Larger text (#3816, #3830). The width is in text sizes (em), so it follows
+   the browser's font size: 304px at the default size and 608px at 200% for
+   19 of them. The eight tabs fit one row down to 320px at the default size,
+   but their words grow with the text and the tabs don't, so at larger sizes
+   the labels ran into each other. Here the tabs size by their word and drop to
+   another row when a word no longer fits.
+   Two cut-offs, because the label is a size larger above 380px (see below):
+   up to 380px the row is full at 20 text sizes (320px at the default size),
+   and over it at 23.5 (376px at the default size, so every width over
+   380px stays on one row there). At 125% a 390px phone is 19.5 of them, which
+   one cut-off for both left on a single row (#3830). */
+@container (max-width: 19.9em) {
   .bottom-nav-row {
     flex-wrap: wrap;
   }
   .bottom-nav-link {
     flex-basis: min-content;
+  }
+}
+@media (min-width: 381px) {
+  @container (max-width: 23.5em) {
+    .bottom-nav-row {
+      flex-wrap: wrap;
+    }
+    .bottom-nav-link {
+      flex-basis: min-content;
+    }
   }
 }
 
