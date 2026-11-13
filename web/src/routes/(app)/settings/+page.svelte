@@ -21,6 +21,10 @@
     MAX_PATTERN_LENGTH,
   } from "#lib/issue-settings.js";
   import {
+    skippedAvatarHosts,
+    skippedAvatarLead,
+  } from "#lib/avatar-skipped.js";
+  import {
     applyTheme,
     clearThemeSavePending,
     getThemeCookie,
@@ -58,6 +62,9 @@
     // Optional until the server sends it (#1676): per ignored title, in the
     // same order, how many open issues it hides; null is unknown.
     ignoredTitleCounts?: (number | null)[];
+    // Optional until the server sends it (#3683): the other hosts a Forgejo
+    // avatar was skipped for. Missing reads as none.
+    forgejoSkippedAvatarHosts?: string[];
   };
   type ApiToken = {
     id: string;
@@ -148,6 +155,7 @@
   let forgejoTokenShown = $state(false);
   let forgejoUsername = $state("");
   let forgejoTokenSet = $state(false);
+  let skippedAvatarHostList = $state<string[]>([]);
 
   let renovateRebaseLabel = $state("");
 
@@ -484,6 +492,7 @@
           : "";
         githubAppConfigured = data.githubAppConfigured;
         forgejoTokenSet = data.forgejoTokenSet;
+        skippedAvatarHostList = skippedAvatarHosts(data);
         // The token fields never get pre-filled with a real value, so
         // they're cleared after a successful save rather than left
         // showing whatever was just typed — the "Configured" badge is
@@ -1035,6 +1044,7 @@
         githubTokenSet = data.githubTokenSet;
         githubAppConfigured = data.githubAppConfigured;
         forgejoTokenSet = data.forgejoTokenSet;
+        skippedAvatarHostList = skippedAvatarHosts(data);
         webhookUrlGithub = `${window.location.origin}/api/webhooks/github/${data.webhookToken}`;
         webhookUrlForgejo = `${window.location.origin}/api/webhooks/forgejo/${data.webhookToken}`;
         webhookSecret = data.webhookSecret;
@@ -1297,6 +1307,28 @@
       font-size: 0.75rem;
       color: var(--ink-3);
       margin-top: 4px;
+    }
+    .avatar-skipped {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin: 4px 0 0;
+      padding: 12px 14px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      color: var(--warning);
+      background: var(--warning-bg);
+      border: 1px solid var(--warning);
+      border-radius: 8px;
+    }
+    .avatar-skipped svg {
+      flex: none;
+      margin-top: 1px;
+    }
+    .avatar-skipped code {
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.8125rem;
+      overflow-wrap: anywhere;
     }
     .field .field-hint code {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
@@ -1912,7 +1944,9 @@
                 autocomplete="off"
                 placeholder="https://git.example.com"
                 aria-invalid={fieldErrors.forgejoUrl ? "true" : undefined}
-                aria-describedby={describedBy("forgejoUrl", "forgejo-url")}
+                aria-describedby={skippedAvatarHostList.length
+                  ? `${describedBy("forgejoUrl", "forgejo-url")} forgejo-avatar-skipped`
+                  : describedBy("forgejoUrl", "forgejo-url")}
                 bind:value={forgejoUrl}
               />
               <p
@@ -2046,6 +2080,31 @@
                 {fieldErrors.forgejoUsername}
               </p>
             </div>
+            {#if skippedAvatarHostList.length}
+              <p class="avatar-skipped" id="forgejo-avatar-skipped">
+                <svg
+                  aria-hidden="true"
+                  focusable="false"
+                  viewBox="0 0 24 24"
+                  width="20"
+                  height="20"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                >
+                  <circle cx="12" cy="12" r="9" />
+                  <path d="M12 11v5M12 8h.01" />
+                </svg>
+                <span
+                  >{skippedAvatarLead(skippedAvatarHostList)}
+                  {#each skippedAvatarHostList as host, i (host)}<code
+                      >{host}</code
+                    >{i < skippedAvatarHostList.length - 1 ? ", " : ""}{/each}.
+                  Initials are shown instead.</span
+                >
+              </p>
+            {/if}
           </div>
           <div class="actions">
             <button

@@ -259,6 +259,7 @@ const singleUserSpecs = [
   '**/author-link-focus-ring.spec.ts',
   '**/settings-hint-size.spec.ts',
   '**/csp-img-src.spec.ts',
+  '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
 ];
 
