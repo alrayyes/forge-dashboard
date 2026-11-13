@@ -61,10 +61,10 @@ for (const [width, scheme] of [
       'Avatars from another host were skipped: gravatar.example. Initials are shown instead.',
     );
     await expect(page.locator(`${note} code`)).toHaveText('gravatar.example');
-    const family = await page
-      .locator(`${note} code`)
-      .evaluate((el) => getComputedStyle(el).fontFamily);
-    expect(family).toMatch(/mono/i);
+    await expect(page.locator(`${note} code`)).toHaveCSS(
+      'font-family',
+      /mono/i,
+    );
     await expect(urlInput).toHaveAttribute(
       'aria-describedby',
       /(^|\s)forgejo-avatar-skipped(\s|$)/,

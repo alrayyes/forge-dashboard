@@ -115,8 +115,8 @@ for (const scheme of ['light', 'dark'] as const) {
     );
     await page.goto('/');
     await expect(page.locator('input.mb-search')).toBeVisible();
-    expect(
-      await placeholderContrast(page, 'input.mb-search'),
-    ).toBeGreaterThanOrEqual(4.5);
+    await expect
+      .poll(() => placeholderContrast(page, 'input.mb-search'))
+      .toBeGreaterThanOrEqual(4.5);
   });
 }

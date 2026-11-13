@@ -89,7 +89,8 @@ test('at the default size computed font sizes are unchanged', async ({
 }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await open(page);
-  expect(await sizes(page, PROBES)).toEqual(BASELINE);
+  // Retries until the stylesheet has applied to every probe.
+  await expect.poll(() => sizes(page, PROBES)).toEqual(BASELINE);
 });
 
 test('a 200% root font size doubles the text without sideways scroll', async ({
@@ -100,14 +101,21 @@ test('a 200% root font size doubles the text without sideways scroll', async ({
   const before = await sizes(page, PROBES);
 
   await page.addStyleTag({ content: 'html { font-size: 200% !important; }' });
-  const after = await sizes(page, PROBES);
-  for (const sel of PROBES) {
-    const was = parseFloat(before[sel]);
-    expect(parseFloat(after[sel]), `${sel} grows from ${was}px`).toBeCloseTo(
-      was * 2,
-      1,
-    );
-  }
+  // Retries until the injected rule has been applied to every probe, then
+  // names the probes that did not double.
+  await expect
+    .poll(async () => {
+      const after = await sizes(page, PROBES);
+      return PROBES.filter(
+        (sel) =>
+          // NaN (a missing probe) is kept: only a proven doubling drops out.
+          !(
+            Math.abs(parseFloat(after[sel]) - parseFloat(before[sel]) * 2) <=
+            0.05
+          ),
+      );
+    })
+    .toEqual([]);
 
   const [scroll, client] = await page.evaluate(() => [
     document.documentElement.scrollWidth,
