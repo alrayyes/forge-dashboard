@@ -499,6 +499,13 @@
   // Draws an issue dialog's header status once its details say whether the
   // forge has the issue closed. Set once the board exists below.
   let issueStateShown: (closed: boolean) => void = () => {};
+  // A reference in the dialog's text was clicked (#3744), and whether the
+  // dashboard tracks a repository. Set once the board exists below.
+  let referenceFollowed: (
+    ref: { forge: string; repo: string; number: number; url: string },
+    triggerId: string,
+  ) => void = () => {};
+  let repoTracked: (forge: string, repo: string) => boolean = () => false;
 
   // The Issues settings (#1630). The server applies them to what it sends, so
   // this page only stops drawing the two fields they replace and says how many
@@ -888,7 +895,7 @@
       item: FilterableItem & { number: number; url: string; draft?: boolean },
       onLabelClick: (name: string) => void,
       activeLabel: string,
-      onOpen?: (triggerId: string) => void,
+      onOpen: (triggerId: string) => void,
     ): HTMLElement {
       const wrap = el("div", "title-cell");
       // The real, keyboard-focusable link — a "stretched link" (see
@@ -899,25 +906,18 @@
       // https://css-tricks.com/block-links-the-search-for-a-perfect-solution/
       //
       // A row's title is a button that opens its dialog (the dialog links on
-      // to the forge); a row with nothing to open still links to the forge.
-      const title = document.createElement(onOpen ? "button" : "a");
+      // to the forge, #3744).
+      const title = document.createElement("button");
       title.className = "title";
-      if (title instanceof HTMLAnchorElement) {
-        title.href = item.url;
-        title.target = "_blank";
-        title.rel = "noopener noreferrer";
-      } else if (onOpen) {
-        const button = title as HTMLButtonElement;
-        button.type = "button";
-        button.setAttribute("aria-label", `#${item.number} ${item.title}`);
-        // Stable, so the dialog can hand focus back after a re-render.
-        button.id = `details-trigger-${domSafeId(prKey(item as PullRequestItem))}`;
-        const wasDrag = dragGuard(button);
-        button.addEventListener("click", (event) => {
-          if (wasDrag(event)) return;
-          onOpen(button.id);
-        });
-      }
+      title.type = "button";
+      title.setAttribute("aria-label", `#${item.number} ${item.title}`);
+      // Stable, so the dialog can hand focus back after a re-render.
+      title.id = `details-trigger-${domSafeId(prKey(item as PullRequestItem))}`;
+      const wasDrag = dragGuard(title);
+      title.addEventListener("click", (event) => {
+        if (wasDrag(event)) return;
+        onOpen(title.id);
+      });
       // The ellipsis truncation lives on this inner span, not .title
       // itself — overflow:hidden on .title would clip its own ::after
       // stretched overlay down to .title's box instead of letting it
@@ -1144,9 +1144,13 @@
     // The review activity pill (#1335): how many review comments there are
     // and, where the forge can say, how many threads are still open. Nothing
     // at zero. The words are in the accessible name, the numbers on screen,
-    // and the open state is a dot and "open" as well as amber. It links to
-    // the files-and-review view on the forge.
-    function reviewPill(item: PullRequestItem): HTMLElement | null {
+    // and the open state is a dot and "open" as well as amber. It opens the
+    // pull request's dialog, where the comments are (#3744); the dialog links
+    // on to the forge.
+    function reviewPill(
+      item: PullRequestItem,
+      onOpen: (triggerId: string) => void,
+    ): HTMLElement | null {
       const review = item.reviewComments ?? 0;
       const conversation = item.conversationComments ?? 0;
       const comments = review + conversation;
@@ -1158,12 +1162,12 @@
       const plural = (n: number, word: string) =>
         `${n} ${word}${n === 1 ? "" : "s"}`;
       const pill = el(
-        "a",
+        "button",
         open > 0 ? "review-pill open" : "review-pill",
-      ) as HTMLAnchorElement;
-      pill.href = review > 0 ? `${item.url}/files` : item.url;
-      pill.target = "_blank";
-      pill.rel = "noopener noreferrer";
+      ) as HTMLButtonElement;
+      pill.type = "button";
+      pill.id = `review-pill-${domSafeId(prKey(item))}`;
+      pill.addEventListener("click", () => onOpen(pill.id));
       pill.appendChild(reviewIcon());
       if (open > 0) pill.appendChild(el("span", "dot"));
       const shown = el(
@@ -2291,6 +2295,47 @@
       );
     }
 
+    // A `#12` or `owner/repo#12` in the dialog's text (#3744): the open dialog
+    // closes, then the item's opens, with focus going back to what opened the
+    // first. A pull request this page lists opens as one; anything else opens
+    // as an issue, and the dialog says plainly if the forge cannot show it.
+    function followReference(
+      ref: { forge: string; repo: string; number: number; url: string },
+      triggerId: string,
+    ) {
+      const wanted = { forge: ref.forge, repo: ref.repo, number: ref.number };
+      afterDetailsClosed = () => {
+        const pr = pullsView
+          ? allPRs.find((p) => sameAddress(wanted, p))
+          : undefined;
+        if (pr) {
+          openDetailsDialog(pr, triggerId, "title-filter");
+          return;
+        }
+        openIssueDialog(
+          findAddressedIssue(allIssues, wanted) ?? {
+            ...wanted,
+            title: `Issue #${ref.number}`,
+            url: ref.url,
+          },
+          triggerId,
+          "title-filter",
+        );
+      };
+      detailsDialog?.close();
+    }
+
+    // Whether the dashboard tracks a repository: the forge's snapshot lists it,
+    // or it has an item on this page.
+    function trackedRepo(forge: string, repo: string): boolean {
+      const key = Filters.repoKey(forge, repo).toLowerCase();
+      for (const k of reposByKey.keys())
+        if (k.toLowerCase() === key) return true;
+      const here = (i: { forge: string; repo: string }) =>
+        i.forge === forge && i.repo.toLowerCase() === repo.toLowerCase();
+      return allPRs.some(here) || allIssues.some(here);
+    }
+
     // One dialog at a time: the pull request's closes, then the issue's opens
     // once its close has run, with focus returning to the pull request's title.
     function followIssueFromDialog(pr: PullRequestItem, issue: ClosingIssue) {
@@ -2499,6 +2544,8 @@
     // An armed confirm in the footer ends on the first Escape, and goes
     // with the dialog when it closes.
     escapeDetails = () => confirmArm.disarm("escape") || issueActions.escape();
+    referenceFollowed = followReference;
+    repoTracked = trackedRepo;
     detailsClosed = () => {
       const next = afterDetailsClosed;
       afterDetailsClosed = null;
@@ -2695,7 +2742,9 @@
           conflictFacts(pr),
         );
         if (conflictPill) statusCell.appendChild(conflictPill);
-        const reviewActivity = reviewPill(pr);
+        const reviewActivity = reviewPill(pr, (triggerId) =>
+          openDetailsDialog(pr, triggerId),
+        );
         if (reviewActivity) statusCell.appendChild(reviewActivity);
         const mergeStatusLine = autoMergeStatusLine(pr);
         if (mergeStatusLine) statusCell.appendChild(mergeStatusLine);
@@ -10991,6 +11040,8 @@
   onEscape={() => escapeDetails()}
   onClosed={() => detailsClosed()}
   onIssueState={(closed) => issueStateShown(closed)}
+  onReference={(ref, triggerId) => referenceFollowed(ref, triggerId)}
+  trackedRepo={(forge, repo) => repoTracked(forge, repo)}
 />
 
 {#if pullsView}

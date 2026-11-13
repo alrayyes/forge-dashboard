@@ -83,14 +83,20 @@ draw them; they become plain Unicode characters, never images, and code stays
 as written. Emoticons like `:)` aren't touched. The library and its emoji
 table load the first time a pop-up opens.
 
-The header's repository name and number are two links, to the repository and
-to the pull request on the forge. In the description, release notes and
-comments, `#12` and `owner/repo#12` become links to that issue or pull request
-on the same forge, as the forges themselves draw them; the forge sends you on
-to the pull request when the number is one. Code, a word like `abc#12` and
-text already inside a link stay as written. The page builds these addresses
-from the pull request's own address, so they follow whichever forge it came
-from.
+The header's repository name links to the repository on the forge. The number
+is plain text: the pop-up is already that item's, and the Open on button in its
+footer is the way to the forge. In the description, release notes and
+comments, `#12` and `owner/repo#12` open that item's pop-up in place when the
+dashboard tracks the repository. They stay real links to the dashboard's own
+address, so a middle click or copy-link still works, and closing the new pop-up
+puts focus back where the first one was opened from. A reference to a
+repository the dashboard doesn't track has no pop-up, so it links to the forge
+in a new tab, and its accessible name says so. Code, a word like `abc#12` and
+text already inside a link stay as written.
+
+The review comments pill on a row opens the pull request's pop-up, not the
+forge. Only buttons named for the forge, such as Open on GitHub, leave the
+dashboard.
 
 ## Finding a pull request by its number
 

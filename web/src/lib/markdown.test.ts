@@ -111,14 +111,14 @@ describe('ticket references', () => {
   test('link #N to the item in the same repository', async () => {
     const html = await renderMarkdown('Closes #1859 today', { repoUrl });
     expect(html).toContain(
-      'Closes <a href="https://github.com/alrayyes/forge-dashboard/issues/1859" target="_blank" rel="noopener noreferrer">#1859</a> today',
+      'Closes <a href="https://github.com/alrayyes/forge-dashboard/issues/1859" target="_blank" rel="noopener noreferrer">#1859<span class="sr-only"> (opens on the forge in a new tab)</span></a> today',
     );
   });
 
   test('link owner/repo#N against the same forge host', async () => {
     const html = await renderMarkdown('See other/repo#12.', { repoUrl });
     expect(html).toContain(
-      '<a href="https://github.com/other/repo/issues/12" target="_blank" rel="noopener noreferrer">other/repo#12</a>.',
+      '<a href="https://github.com/other/repo/issues/12" target="_blank" rel="noopener noreferrer">other/repo#12<span class="sr-only"> (opens on the forge in a new tab)</span></a>.',
     );
   });
 
@@ -171,6 +171,59 @@ describe('ticket references', () => {
   test('leave a reference that continues into a word as text', async () => {
     const html = await renderMarkdown('#12abc', { repoUrl });
     expect(html).not.toContain('<a ');
+  });
+});
+
+// https://github.com/alrayyes/forge-dashboard/issues/3744
+// A reference to a repository the dashboard tracks opens that item's dialog
+// in place: it keeps a real link (the dashboard's own address, so a middle
+// click and copy-link work) and carries the repository and number for the
+// dialog host. One it does not track is a forge link, marked as external.
+describe('ticket references the dashboard tracks', () => {
+  const repoUrl = 'https://github.com/alrayyes/forge-dashboard';
+  const references = {
+    forge: 'github',
+    tracked: (repo: string) => repo !== 'stranger/elsewhere',
+  };
+
+  test('point #N at the dashboard, not the forge', async () => {
+    const html = await renderMarkdown('Closes #12', { repoUrl, references });
+    expect(html).toContain(
+      '<a href="/issues.html?issue=github/alrayyes/forge-dashboard/12" data-ref-repo="alrayyes/forge-dashboard" data-ref-number="12" data-ref-url="https://github.com/alrayyes/forge-dashboard/issues/12">#12</a>',
+    );
+    expect(html).not.toContain('target=');
+  });
+
+  test('point owner/repo#N at the dashboard for a tracked repository', async () => {
+    const html = await renderMarkdown('See other/repo#3.', {
+      repoUrl,
+      references,
+    });
+    expect(html).toContain('href="/issues.html?issue=github/other/repo/3"');
+    expect(html).toContain('data-ref-repo="other/repo"');
+    expect(html).not.toContain('target=');
+  });
+
+  test('link an untracked repository to the forge, named as external', async () => {
+    const html = await renderMarkdown('See stranger/elsewhere#9', {
+      repoUrl,
+      references,
+    });
+    expect(html).toContain(
+      '<a href="https://github.com/stranger/elsewhere/issues/9" target="_blank" rel="noopener noreferrer">stranger/elsewhere#9<span class="sr-only"> (opens on the forge in a new tab)</span></a>',
+    );
+    expect(html).not.toContain('data-ref-');
+  });
+
+  test('read a Forgejo repository from the item address', async () => {
+    const html = await renderMarkdown('Fixes #7', {
+      repoUrl: 'https://git.example.org/me/app',
+      references: { forge: 'forgejo', tracked: () => true },
+    });
+    expect(html).toContain('href="/issues.html?issue=forgejo/me/app/7"');
+    expect(html).toContain(
+      'data-ref-url="https://git.example.org/me/app/issues/7"',
+    );
   });
 });
 
