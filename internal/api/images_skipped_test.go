@@ -83,7 +83,7 @@ func TestSettings_SkippedAvatarHosts_IgnoresWhatIsNotAForgejoAvatar(t *testing.T
 
 func TestSettings_SkippedAvatarHosts_ClearsOnceNothingIsSkippedForAWhile(t *testing.T) {
 	t.Parallel()
-	srv, cookie := skippedServer(t, func(d *api.Deps) { d.SkippedAvatarTTL = 50 * time.Millisecond })
+	srv, cookie := skippedServer(t, func(d *api.Deps) { d.SkippedAvatarTTL = 3 * time.Second })
 
 	refuseAvatar(t, srv, cookie, "forgejo", "http://gravatar.example/a.png", "avatar")
 	require.NotEmpty(t, getSettings(t, srv, cookie).ForgejoSkippedAvatarHosts)
@@ -91,4 +91,22 @@ func TestSettings_SkippedAvatarHosts_ClearsOnceNothingIsSkippedForAWhile(t *test
 	require.Eventually(t, func() bool {
 		return len(getSettings(t, srv, cookie).ForgejoSkippedAvatarHosts) == 0
 	}, pollBudget, 10*time.Millisecond)
+}
+
+// Every way of reading the settings carries the list, the PUT response the
+// Settings page reads after a save included, and they agree.
+func TestSettings_SkippedAvatarHosts_EveryReadOfTheSettingsAgrees(t *testing.T) {
+	t.Parallel()
+	srv, cookie := skippedServer(t)
+	refuseAvatar(t, srv, cookie, "forgejo", "http://gravatar.example/a.png", "avatar")
+	want := []any{"gravatar.example"}
+
+	status, saved := putSettings(t, srv, `{"forgejoUrl":"`+getSettings(t, srv, cookie).ForgejoURL+`","forgejoUsername":"someone"}`, cookie)
+	require.Equal(t, http.StatusOK, status)
+	_, _, summary := getSettingsSummary(t, srv, cookie)
+
+	assert.Equal(t, want, saved["forgejoSkippedAvatarHosts"], "PUT response")
+	assert.Equal(t, want, summary["forgejoSkippedAvatarHosts"], "summary")
+	assert.Equal(t, want, settingsContent(t, callSettingsTool(t, srv, cookie))["forgejoSkippedAvatarHosts"], "MCP get_settings")
+	assert.Equal(t, []string{"gravatar.example"}, getSettings(t, srv, cookie).ForgejoSkippedAvatarHosts, "GET")
 }
