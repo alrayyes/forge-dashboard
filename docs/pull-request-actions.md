@@ -327,9 +327,9 @@ When GitHub can't be reached or answers with a 5xx, the dashboard also asks
 GitHub's status page whether it reports an incident, and the banner adds a
 second line: "GitHub reports an incident: Degraded performance. Affects: Pull
 Requests." Only the components the dashboard uses count (API Requests, Pull
-Requests, Actions and Webhooks), so an outage of Codespaces adds nothing. The
-page is read only after a call has failed, never while GitHub works, and the
-answer is reused for a minute, so a burst of failures makes one request. The
+Requests, Actions and Webhooks), so an outage elsewhere on GitHub adds nothing.
+The page is read only after a call has failed, never while GitHub works, and
+the answer is reused for a minute, so a burst of failures makes one request. The
 request carries nothing about you, your account or your repos. If the page can't
 be read, or reports nothing on those components, the banner is as it was, and
 the failure is logged once. The API carries the facts as `providerStatus` on
