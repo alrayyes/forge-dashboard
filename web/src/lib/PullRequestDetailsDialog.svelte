@@ -441,7 +441,71 @@
     shownReaction = null;
   }
 
+  // The in-dialog image viewer (#3414). An embedded image is a link to the
+  // proxied file; a plain click opens it here instead, and a modified click
+  // (new tab, new window, download) keeps the link's own behaviour.
+  let lightboxEl = $state<HTMLDialogElement>();
+  let lightbox = $state<{ src: string; alt: string } | null>(null);
+  let lightboxOpener: HTMLElement | null = null;
+
+  function imageOpener(event: MouseEvent): HTMLAnchorElement | null {
+    if (
+      event.button !== 0 ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.shiftKey ||
+      event.altKey ||
+      !(event.target instanceof Element)
+    ) {
+      return null;
+    }
+    const link = event.target.closest("a");
+    const img = link?.firstElementChild;
+    return link &&
+      img instanceof HTMLImageElement &&
+      img.classList.contains("md-image") &&
+      link.childNodes.length === 1
+      ? link
+      : null;
+  }
+
+  function openLightbox(link: HTMLAnchorElement) {
+    const img = link.firstElementChild as HTMLImageElement;
+    lightbox = { src: link.getAttribute("href") ?? img.src, alt: img.alt };
+    lightboxOpener = link;
+    lightboxEl?.showModal();
+    lightboxEl?.querySelector<HTMLElement>(".lightbox-close")?.focus();
+  }
+
+  // A modal <dialog> inerts the page, but Tab off its last control still
+  // leaves for the browser's own chrome; wrap it round instead.
+  function onLightboxKeydown(event: KeyboardEvent) {
+    if (event.key !== "Tab" || !lightboxEl) return;
+    const stops = [
+      ...lightboxEl.querySelectorAll<HTMLElement>("a[href], button"),
+    ];
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (!first || !last) return;
+    const at = document.activeElement;
+    if (event.shiftKey && (at === first || at === lightboxEl)) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && at === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function onLightboxClose() {
+    lightbox = null;
+    const back = lightboxOpener;
+    lightboxOpener = null;
+    if (back?.isConnected) back.focus();
+  }
+
   function onClose() {
+    lightboxEl?.close();
     shownReaction = null;
     // Nothing said inside the dialog is still true once it is gone.
     if (liveHost) liveHost.textContent = "";
@@ -462,6 +526,12 @@
   function onBackdrop(event: MouseEvent) {
     if (event.target === dialogEl) {
       dialogEl?.close();
+      return;
+    }
+    const opener = imageOpener(event);
+    if (opener) {
+      event.preventDefault();
+      openLightbox(opener);
       return;
     }
     const reference = onReference ? referenceFromClick(event) : null;
@@ -850,6 +920,41 @@
   </div>
 </dialog>
 
+<dialog
+  bind:this={lightboxEl}
+  class="image-lightbox"
+  aria-label={lightbox?.alt || "Image"}
+  onclose={onLightboxClose}
+  onkeydown={onLightboxKeydown}
+  onclick={(event) => {
+    if (event.target === lightboxEl) lightboxEl?.close();
+  }}
+>
+  {#if lightbox}
+    <h2 class="lightbox-title">{lightbox.alt || "Image"}</h2>
+    <button
+      type="button"
+      class="lightbox-close"
+      onclick={() => lightboxEl?.close()}>Close</button
+    >
+    <div class="lightbox-stage">
+      <img
+        src={lightbox.src}
+        alt={lightbox.alt}
+        referrerpolicy="no-referrer"
+        decoding="async"
+      />
+    </div>
+    <a
+      class="lightbox-original"
+      href={lightbox.src}
+      target="_blank"
+      rel="noopener noreferrer"
+      >Open original in new tab<span aria-hidden="true"> &#8599;</span></a
+    >
+  {/if}
+</dialog>
+
 <style>
   .details-dialog {
     width: min(720px, calc(100vw - 32px));
@@ -1000,9 +1105,40 @@
   .markdown :global(img.md-image) {
     display: block;
     max-width: 100%;
+    /* A tall image is capped; opening it in the viewer is the way to see
+       the rest (#3468). */
+    max-height: min(480px, 70vh);
+    width: auto;
     height: auto;
+    object-fit: contain;
     border: 1px solid var(--border);
     border-radius: 6px;
+  }
+  /* Holds the space until the bytes arrive, so the text doesn't jump. */
+  .markdown :global(img.md-image:not(.md-image-loaded)) {
+    min-height: 160px;
+    min-width: 160px;
+    background: linear-gradient(
+      90deg,
+      var(--border) 25%,
+      var(--surface-2, var(--border)) 50%,
+      var(--border) 75%
+    );
+    background-size: 200% 100%;
+    animation: md-image-skeleton 1.4s linear infinite;
+  }
+  @keyframes md-image-skeleton {
+    to {
+      background-position: -200% 0;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .markdown :global(img.md-image:not(.md-image-loaded)) {
+      animation: none;
+    }
+  }
+  .markdown :global(a:has(> img.md-image)) {
+    cursor: zoom-in;
   }
   .markdown :global(.md-image-missing) {
     color: var(--ink-2);
@@ -1421,6 +1557,97 @@
       flex-direction: column;
       align-items: stretch;
       padding-bottom: max(12px, env(safe-area-inset-bottom));
+    }
+  }
+
+  /* The image viewer (#3414): one grid, so "Open original" sits in the top
+     bar on a wide screen and under the image on a phone. */
+  .image-lightbox {
+    width: min(1100px, calc(100vw - 32px));
+    max-width: 100vw;
+    max-height: calc(100dvh - 32px);
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+  .image-lightbox[open] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "title close" "stage stage" "original original";
+  }
+  .image-lightbox::backdrop {
+    background: var(--backdrop);
+  }
+  .lightbox-title {
+    grid-area: title;
+    margin: 0;
+    padding: 12px 16px;
+    align-self: center;
+    font-size: 1rem;
+    font-weight: 600;
+    overflow-wrap: anywhere;
+  }
+  .lightbox-close {
+    grid-area: close;
+    min-width: 48px;
+    min-height: 48px;
+    margin: 8px 12px 8px 0;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    font: inherit;
+    cursor: pointer;
+  }
+  .lightbox-close:hover {
+    background: var(--surface-2, var(--border));
+  }
+  .lightbox-close:focus-visible,
+  .lightbox-original:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .lightbox-stage {
+    grid-area: stage;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 0;
+    padding: 12px;
+    overflow: auto;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2, var(--surface));
+  }
+  .lightbox-stage img {
+    display: block;
+    max-width: 100%;
+    max-height: calc(100dvh - 200px);
+    object-fit: contain;
+  }
+  .lightbox-original {
+    grid-area: original;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 48px;
+    padding: 0 16px;
+    border-top: 1px solid var(--border);
+    color: var(--accent);
+  }
+  @media (min-width: 720px) {
+    .image-lightbox[open] {
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-areas: "title original close" "stage stage stage";
+    }
+    .lightbox-original {
+      border-top: 0;
+      padding: 0 16px;
     }
   }
 </style>

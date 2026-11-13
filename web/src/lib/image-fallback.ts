@@ -24,6 +24,21 @@ export function imageFallback(node: HTMLElement): { destroy(): void } {
       : img
     ).replaceWith(note);
   };
+  // A loaded image drops its skeleton (#3468). `load` doesn't bubble either.
+  const onLoad = (event: Event) => {
+    if (
+      event.target instanceof HTMLImageElement &&
+      event.target.classList.contains('md-image')
+    ) {
+      event.target.classList.add('md-image-loaded');
+    }
+  };
   node.addEventListener('error', onError, true);
-  return { destroy: () => node.removeEventListener('error', onError, true) };
+  node.addEventListener('load', onLoad, true);
+  return {
+    destroy: () => {
+      node.removeEventListener('error', onError, true);
+      node.removeEventListener('load', onLoad, true);
+    },
+  };
 }
