@@ -3527,8 +3527,9 @@ paths:
         The cost is bounded. At most 8 fetches run upstream at once; another
         request waits up to 5 seconds for a slot, then answers 503 with
         `Retry-After`. A fetched image is served again from a server-side cache
-        for 5 minutes, without a new upstream fetch. The answer carries `nosniff` and a sandboxing
-        `Content-Security-Policy`, and is cacheable by the browser for an hour.
+        for 5 minutes, without a new upstream fetch. The answer carries
+        `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+        by the browser for an hour.
       tags: [dashboard]
       x-mcp-excluded: Returns image bytes for a browser to draw; an MCP tool has no use for them.
       security: [{ bearerAuth: [] }]
@@ -3586,7 +3587,7 @@ paths:
             image/webp:
               schema: { type: string, format: binary }
         "400":
-          description: "`url` is missing, `forge` is not github or forgejo, or no credentials are saved for that forge."
+          description: "`url` is missing, `forge` is not github or forgejo, `kind` is set to something other than `avatar`, or no credentials are saved for that forge."
           content:
             application/json:
               schema:

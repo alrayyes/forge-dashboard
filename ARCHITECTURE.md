@@ -338,7 +338,9 @@ can't fire a tracking pixel when the dialog opens.
 - The cost is bounded. At most 8 upstream fetches run at once; another
   request waits up to 5 seconds for a slot, then gets a 503 with `Retry-After`.
   A fetched image is kept in memory for 5 minutes (at most 512 images and
-  32 MiB), so a repeat request costs no upstream fetch. Failures aren't cached.
+  32 MiB), so a repeat request costs no upstream fetch. Failures aren't
+  cached. The cache is keyed by address, not token, so after a token change an
+  image can be served stale for up to 5 minutes.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route

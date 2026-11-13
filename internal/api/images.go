@@ -103,6 +103,11 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		if k := q.Get("kind"); k != "" && k != string(imageAvatar) {
+			writeJSON(w, http.StatusBadRequest, errorBody("kind must be avatar or absent"))
+
+			return
+		}
 		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))

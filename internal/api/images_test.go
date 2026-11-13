@@ -165,6 +165,25 @@ func TestImages_Refusals(t *testing.T) {
 	}
 }
 
+func TestImages_AnUnknownKindIsABadRequest(t *testing.T) {
+	t.Parallel()
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(imagesPNG)
+	}))
+	t.Cleanup(forge.Close)
+	srv, cookie := imagesServer(t, forge)
+
+	q := url.Values{"forge": {"forgejo"}, "url": {forge.URL + "/a"}, "kind": {"banner"}}
+	req, err := http.NewRequest(http.MethodGet, srv+"/api/v1/images?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
 func TestImages_ForgejoWithoutAnInstanceIsABadRequest(t *testing.T) {
 	t.Parallel()
 	testSrv, _, _, _ := newTestServerWithSettingsStore(t, func(settingspkg.Credentials) []dashboard.Source { return nil }, false, 0)
