@@ -61,8 +61,9 @@ server, from the item's own forge only. The server holds the token for a
 private repository, so the browser never gets it, and no third party sees the
 page open. Any other image shows as a link. Clicking an image opens it larger
 in a viewer over the dialog, with a Close button, Escape, and a link to open the
-original in a new tab; a tall image is capped in height in the text and holds
-its space with a placeholder while it loads.
+original in a new tab; a tall image is capped in height in the text, with a
+"View larger" button under it that opens the same viewer, and holds its space
+with a placeholder while it loads.
 
 ## Requirements
 

@@ -459,7 +459,12 @@
     ) {
       return null;
     }
-    const link = event.target.closest("a");
+    // The "View larger" button after a capped image acts as the image's link.
+    const expand = event.target.closest("button.md-expand");
+    const link =
+      expand?.previousElementSibling instanceof HTMLAnchorElement
+        ? expand.previousElementSibling
+        : event.target.closest("a");
     const img = link?.firstElementChild;
     return link &&
       img instanceof HTMLImageElement &&
@@ -469,10 +474,10 @@
       : null;
   }
 
-  function openLightbox(link: HTMLAnchorElement) {
+  function openLightbox(link: HTMLAnchorElement, from: HTMLElement = link) {
     const img = link.firstElementChild as HTMLImageElement;
     lightbox = { src: link.getAttribute("href") ?? img.src, alt: img.alt };
-    lightboxOpener = link;
+    lightboxOpener = from;
     lightboxEl?.showModal();
     lightboxEl?.querySelector<HTMLElement>(".lightbox-close")?.focus();
   }
@@ -540,7 +545,11 @@
     const opener = imageOpener(event);
     if (opener) {
       event.preventDefault();
-      openLightbox(opener);
+      openLightbox(
+        opener,
+        (event.target as Element).closest<HTMLElement>("button.md-expand") ??
+          opener,
+      );
       return;
     }
     const reference = onReference ? referenceFromClick(event) : null;
@@ -1148,6 +1157,36 @@
   }
   .markdown :global(a:has(> img.md-image)) {
     cursor: zoom-in;
+  }
+  /* A capped image needs a visible way to open it: touch has no cursor. */
+  .markdown :global(button.md-expand) {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    min-width: 44px;
+    margin: 6px 0 12px;
+    padding: 0 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--accent);
+    font: inherit;
+    cursor: pointer;
+  }
+  .markdown :global(button.md-expand:hover) {
+    background: var(--surface-2, var(--border));
+  }
+  .markdown :global(button.md-expand:focus-visible) {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+  .markdown :global(.md-expand-alt) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .markdown :global(.md-image-missing) {
     color: var(--ink-2);
