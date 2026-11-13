@@ -60,7 +60,7 @@ each job runs when its area is set:
 | `web`      | `web/`, `tests/`, `.semgrep/`, `package.json`, `biome.json`                    | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
 | `image`    | Go, web, or Docker changes                                                     | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
-| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`                                                                  |
+| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`, `prose-tiers` (style and mechanics)                             |
 | `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                       | `api`, `api-security`                                                    |
 | `release`  | `.goreleaser.yml`                                                              | `goreleaser`                                                             |
 
