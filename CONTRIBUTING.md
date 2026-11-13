@@ -12,9 +12,10 @@
   the hook passes and the pipeline fails, and the reason isn't obvious
   from the failure.
 - **[Vale](https://vale.sh)**, for the style tier of the prose lint. Nothing to
-  install: `scripts/vale.sh` runs the `vale` on your `PATH` if there is one,
-  and otherwise the pinned `jdkato/vale` image through Docker, the same one
-  CI uses.
+  install: `scripts/vale.sh` runs the `vale` on your `PATH` only when it is
+  the version CI pins, and otherwise the pinned `jdkato/vale` image through
+  Docker. A newer binary misses errors the pinned one reports, so with a
+  different version and no Docker the script fails and says so.
 
   `ltex-cli-plus` needs nothing installed: the hook fetches and caches it
   on first use. The pre-push hook runs it only when the push contains
@@ -60,7 +61,7 @@ each job runs when its area is set:
 | `web`      | `web/`, `tests/`, `.semgrep/`, `package.json`, `biome.json`                    | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
 | `image`    | Go, web, or Docker changes                                                     | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
-| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`                                                                  |
+| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`, `prose-tiers` (style and mechanics)                             |
 | `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                       | `api`, `api-security`                                                    |
 | `release`  | `.goreleaser.yml`                                                              | `goreleaser`                                                             |
 
