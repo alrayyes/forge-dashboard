@@ -44,6 +44,20 @@ and after the active pill's count was made readable (ticket 3317). In light the
 count went from 4.04:1 (white at .85 opacity on `#0e7c86`) to 6.4:1 (opaque
 white on `#0c6972`); dark is unchanged.
 
+`before-root-font-size/` and `after-root-font-size/` show Pull requests, Issues,
+Settings and Branches at a 200% root font size (the largest common browser text
+setting) at 1280px, and Branches with no repositories at 320px (ticket 3398).
+Both sets come from the same current main, so the layout is identical and only
+the text sizing differs. "After" is main as it is. "Before" is main with the two
+rem commits (tickets 3592 and 3611) reverted; the revert conflicted in
+`style.css`, so it was finished by hand, converting the remaining text sizes
+back to pixels. Before, text stays at its pixel size while only native controls
+grow; after, body, row and label text is twice its size. The icon buttons in the
+header stay fixed on purpose. The shots use a fixed date and UTC, with demo data
+only. The phone shot is at 200% because at 400% the page heading is also
+clipped, and at both sizes the bottom tab bar labels overlap; both are tracked
+in ticket 3816.
+
 Stitch designs for moving the bulk actions into the card header (ticket 3755):
 
 - `stitch/bulk-actions-header-desktop-1280.png`: Update all as an outlined
