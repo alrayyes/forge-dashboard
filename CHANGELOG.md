@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.39.0](https://github.com/alrayyes/forge-dashboard/compare/v9.38.1...v9.39.0) (2026-11-13)
+
+
+### Features
+
+* **web:** one live control in every list card header ([#3722](https://github.com/alrayyes/forge-dashboard/issues/3722)) ([a5d1c5e](https://github.com/alrayyes/forge-dashboard/commit/a5d1c5e88c2b19413ddcc647d770737889053a54)), closes [#3699](https://github.com/alrayyes/forge-dashboard/issues/3699)
+
 ## [9.38.1](https://github.com/alrayyes/forge-dashboard/compare/v9.38.0...v9.38.1) (2026-11-13)
 
 
