@@ -29,6 +29,27 @@ describe('bannerCopy', () => {
     expect(c.statusLink).toBe(true);
   });
 
+  test('the age is split out so the page can tick it alone (#3745)', () => {
+    const c = bannerCopy([gh], fmt);
+    expect(c.age).toEqual({
+      since: '2026-01-01T06:28:00Z',
+      before: 'Showing data from T(2026-01-01T06:28:00Z), ',
+      text: 'A(2026-01-01T06:28:00Z)',
+      after: '. Retrying automatically.',
+    });
+    expect(c.age!.before + c.age!.text + c.age!.after).toBe(c.detail);
+  });
+
+  test('both down: the age is the oldest data', () => {
+    expect(bannerCopy([fj, gh], fmt).age?.since).toBe('2026-01-01T06:28:00Z');
+  });
+
+  test('no staleSince: no age to tick', () => {
+    expect(
+      bannerCopy([{ ...gh, staleSince: undefined }], fmt).age,
+    ).toBeUndefined();
+  });
+
   test('Forgejo alone has no status link', () => {
     expect(bannerCopy([fj], fmt).statusLink).toBe(false);
   });

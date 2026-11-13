@@ -9284,6 +9284,16 @@
     // forge. A forge held back by its rate limit has that banner instead.
     const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
 
+    // Keeps the banner's relative age counting between redraws (#3745).
+    function tickUnreachableBannerAge() {
+      const age = document.querySelector<HTMLElement>(
+        "#unreachable-banner .unreachable-banner-age",
+      );
+      if (!age?.dataset.since) return;
+      const next = relativeTime(age.dataset.since);
+      if (age.textContent !== next) age.textContent = next;
+    }
+
     function renderUnreachableBanner() {
       const existing = document.getElementById("unreachable-banner");
       const readOnlyByLimit = new Set(
@@ -9333,7 +9343,18 @@
       const row = el("div", "unreachable-banner-row");
       const text = el("p", "unreachable-banner-text");
       text.appendChild(el("strong", "", copy.headline));
-      text.appendChild(document.createTextNode(` ${copy.detail}`));
+      if (copy.age) {
+        // The age ticks (#3745). It sits in its own live=off span, so a
+        // screen reader hears the banner only when its signature changes.
+        const age = el("span", "unreachable-banner-age", copy.age.text);
+        age.setAttribute("aria-live", "off");
+        age.dataset.since = copy.age.since;
+        text.appendChild(document.createTextNode(` ${copy.age.before}`));
+        text.appendChild(age);
+        text.appendChild(document.createTextNode(copy.age.after));
+      } else {
+        text.appendChild(document.createTextNode(` ${copy.detail}`));
+      }
       // GitHub's own report, a second line of the same banner (#3633).
       if (copy.incident) {
         text.appendChild(document.createTextNode(" "));
@@ -9593,6 +9614,7 @@
       // Cheap to call unconditionally — it removes and, only if there's
       // still something exhausted, redraws a handful of rows.
       renderRateLimitBanner();
+      tickUnreachableBannerAge();
     }, 1000);
 
     function showError(message: string, onRetry?: () => void) {
