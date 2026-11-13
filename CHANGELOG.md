@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.53.0](https://github.com/alrayyes/forge-dashboard/compare/v9.52.0...v9.53.0) (2026-11-13)
+
+
+### Features
+
+* **pr-details:** show a View larger button on capped images ([#3847](https://github.com/alrayyes/forge-dashboard/issues/3847)) ([9df38bd](https://github.com/alrayyes/forge-dashboard/commit/9df38bd59700bfc7c2649f01ee2266989340a6b5)), closes [#3835](https://github.com/alrayyes/forge-dashboard/issues/3835)
+
+
+### Bug Fixes
+
+* **web:** keep Created and Updated apart at a large root font size ([#3840](https://github.com/alrayyes/forge-dashboard/issues/3840)) ([e017db4](https://github.com/alrayyes/forge-dashboard/commit/e017db4f5e676fb247b80524c54388a3568ae675)), closes [#3829](https://github.com/alrayyes/forge-dashboard/issues/3829)
+
 ## [9.52.0](https://github.com/alrayyes/forge-dashboard/compare/v9.51.1...v9.52.0) (2026-11-13)
 
 
