@@ -110,7 +110,7 @@ the list before any filter, so a filter that narrows a longer list to one row
 keeps the bar and **Clear filters**. A single row also keeps the bar while a
 filter is picked, since that pick may be what hides the others, and while **Show
 drafts** has drafts to reveal. The same holds for the
-Issues, Releases and Bots pages. The bar comes back when a second row arrives.
+Issues, Releases, and Bots pages. The bar comes back when a second row arrives.
 
 ## Issues a pull request closes
 
