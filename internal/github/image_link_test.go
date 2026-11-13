@@ -80,7 +80,7 @@ func TestSignedImageURL_ACommentIsKeptApartFromAnIssueOfTheSameNumber(t *testing
 	t.Parallel()
 	var hits atomic.Int32
 	mux := http.NewServeMux()
-	mux.HandleFunc("/repos/octo/repo/", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/repos/octo/repo/", func(w http.ResponseWriter, _ *http.Request) {
 		hits.Add(1)
 		writeJSON(t, w, map[string]any{"body_html": renderedBody})
 	})
