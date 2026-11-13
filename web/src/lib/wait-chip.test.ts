@@ -7,6 +7,7 @@ import {
   SETTLED_MS,
   STILL_WAITING_MS,
   settledChip,
+  settlesOnRow,
   type WaitInput,
   type WaitKind,
   waitChip,
@@ -119,6 +120,19 @@ describe('waitChip wording', () => {
     expect(chip.detail).toBe('Branch updated');
     expect(chip.action).toBeUndefined();
     expect(SETTLED_MS).toBeGreaterThan(0);
+  });
+});
+
+describe('settlesOnRow', () => {
+  // A bot rebase, a bot recreate and an Update branch leave the row in place,
+  // so they end on Settled. Everything else takes the row off the board or has
+  // nothing to settle.
+  test('lists exactly the kinds that leave the row in place', () => {
+    expect(kinds.filter(settlesOnRow)).toEqual([
+      'bot-rebase',
+      'bot-recreate',
+      'update-branch',
+    ]);
   });
 });
 
