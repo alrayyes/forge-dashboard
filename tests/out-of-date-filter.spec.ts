@@ -90,21 +90,41 @@ test.describe('Out of date badge and quick filter', () => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
-  test('the overview badges every behind pull request, not only a bot one', async ({
+  test('the overview leaves the badge off a behind pull request whose Update branch is live, and off one that is not behind (#3770)', async ({
     page,
   }) => {
     await mockDashboard(page, PULLS);
     await page.goto('/pull-requests.html');
     await expect(rows(page)).toHaveCount(4);
 
-    const badge = (title: string) =>
-      rows(page).filter({ hasText: title }).locator('.attr-chip.behind');
-    await expect(badge('Alpha behind')).toHaveCount(1);
-    await expect(badge('Alpha behind')).toHaveText('Out of date');
-    await expect(badge('Alpha behind').locator('svg')).toHaveCount(1);
-    await expect(badge('Delta draft behind')).toHaveCount(1);
-    await expect(badge('Bravo current')).toHaveCount(0);
-    await expect(badge('Charlie empty behind')).toHaveCount(0);
+    const row = (title: string) => rows(page).filter({ hasText: title });
+    await expect(
+      row('Alpha behind').getByRole('button', { name: 'Update branch' }),
+    ).toBeEnabled();
+    for (const title of [
+      'Alpha behind',
+      'Bravo current',
+      'Charlie empty behind',
+      'Delta draft behind',
+    ])
+      await expect(row(title).locator('.attr-chip.behind')).toHaveCount(0);
+  });
+
+  test('the overview badges a behind pull request that has no live Update branch', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      makePR(1, {
+        title: 'Alpha behind',
+        behind: true,
+        allowedActions: [{ action: 'close' }],
+        status: null,
+      }),
+    ]);
+    await page.goto('/pull-requests.html');
+    const badge = rows(page).locator('.attr-chip.behind');
+    await expect(badge).toHaveText('Out of date');
+    await expect(badge.locator('svg')).toHaveCount(1);
   });
 
   test('the bots view badges Dependabot and Renovate with or without a rebase action', async ({
@@ -122,10 +142,10 @@ test.describe('Out of date badge and quick filter', () => {
   test('the badge is the warning colour and a screen reader hears it once', async ({
     page,
   }) => {
-    await mockDashboard(page, PULLS);
-    await page.goto('/pull-requests.html');
+    await mockDashboard(page, BOTS);
+    await page.goto('/bots.html');
     const badge = rows(page)
-      .filter({ hasText: 'Alpha behind' })
+      .filter({ hasText: 'Bot behind without a rebase' })
       .locator('.attr-chip.behind');
     // The token is resolved in the same read as the badge, so a re-render
     // between the two cannot leave them out of step.
@@ -145,7 +165,9 @@ test.describe('Out of date badge and quick filter', () => {
     // The icon is decoration; the words are the one thing announced.
     await expect(badge.locator('svg')).toHaveAttribute('aria-hidden', 'true');
     await expect(
-      rows(page).filter({ hasText: 'Alpha behind' }).getByText('Out of date'),
+      rows(page)
+        .filter({ hasText: 'Bot behind without a rebase' })
+        .getByText('Out of date'),
     ).toHaveCount(1);
   });
 

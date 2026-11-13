@@ -1138,10 +1138,49 @@
     // warning colour with an icon and the words, so a stale pull request
     // stands out without a person reading each row for a quiet chip, and the
     // Out of date quick filter reads the same two fields. Empty ones get
-    // none: there is nothing to update.
-    function behindPill(item: PullRequestItem): HTMLElement | null {
+    // none: there is nothing to update. On a row the chip stays out while the
+    // row already says it another way: a live Update branch button is the
+    // signal, and a confirmed conflict shows its warning alone (#3770). The
+    // pop-up keeps the chip.
+    function behindPill(
+      item: PullRequestItem,
+      onRow = false,
+    ): HTMLElement | null {
       if (!item.behind || item.empty) return null;
+      if (onRow && (conflictShown(item) || liveUpdateBranch(item))) return null;
       return attrChip("behind", "Out of date");
+    }
+
+    // A conflict a person has to fix by hand: the forge says conflicting and,
+    // on Forgejo, a refusal named it (or the flag was never in doubt). The
+    // same test as the server's conflictKnown. The row then shows the warning
+    // and no control it contradicts (#3770).
+    function conflictShown(item: PullRequestItem): boolean {
+      return (
+        item.mergeStatus === "conflicting" && item.conflictConfirmed !== false
+      );
+    }
+
+    // The conflict's warning stands in for the row's button: the primary is
+    // Merge, Update branch or none. A Close, a pending rebase's cancel and a
+    // Merge already confirming or running keep their place (#3770).
+    function conflictWarnsAlone(item: PullRequestItem): boolean {
+      if (!conflictShown(item)) return false;
+      const phase = mergeState[prKey(item)]?.phase;
+      if (phase === "confirming" || phase === "merging") return false;
+      if (findAction(item, "cancel_renovate_rebase")) return false;
+      const primary = primaryAction(item)?.action;
+      return (
+        primary === undefined ||
+        primary === "merge" ||
+        primary === "update_branch"
+      );
+    }
+
+    // The server lists Update branch and it is open to press.
+    function liveUpdateBranch(item: PullRequestItem): boolean {
+      const update = findAction(item, "update_branch");
+      return !!update && !update.blocked;
     }
 
     // The review activity pill (#1335): how many review comments there are
@@ -1334,13 +1373,14 @@
     function attributeCluster(
       pr: PullRequestItem,
       showBot = true,
+      onRow = false,
     ): HTMLElement {
       const cluster = el("div", "attr-cluster");
       const chips = [
         autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
         showBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
-        behindPill(pr),
+        behindPill(pr, onRow),
         autoUpdateChip(pr),
       ];
       for (const chip of chips) if (chip) cluster.appendChild(chip);
@@ -2735,7 +2775,7 @@
         const ciSlot = el("div", "ci-slot");
         ciSlot.appendChild(ciPill(pr));
         stateGroup.appendChild(ciSlot);
-        stateGroup.appendChild(attributeCluster(pr, view !== "bots"));
+        stateGroup.appendChild(attributeCluster(pr, view !== "bots", true));
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
@@ -2774,7 +2814,10 @@
         // or, while Merge is locked, the greyed Merge with its reason. Every
         // other action is in the details pop-up's footer, built by the same
         // functions (#943).
-        const rowAction = rowActionCell(pr, settledRow, mergeAction);
+        const rowAction =
+          !settledRow && conflictWarnsAlone(pr)
+            ? null
+            : rowActionCell(pr, settledRow, mergeAction);
         // In a bar of its own: on a phone it is the card's last tier, after a
         // divider; on a wider screen the bar adds no box of its own.
         const rebase =
@@ -2876,6 +2919,7 @@
       pr: PullRequestItem,
     ): HTMLElement | null {
       if (!pr.behind || !findAction(pr, "update_branch")) return null;
+      if (conflictShown(pr)) return null;
       if (primaryAction(pr)?.action === "update_branch") return null;
       if (statusFixName(pr) === "update_branch") return null;
       const phase = mergeState[prKey(pr)]?.phase;

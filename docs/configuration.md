@@ -106,8 +106,10 @@ holds no rule of its own. A draft that conflicts is listed too.
 
 The **Out of date** pill keeps the pull requests whose base branch has
 moved on, so they can be updated in one pass. It reads the `behind` and `empty`
-fields of each pull request, the same ones behind the row's Out of date badge,
-and leaves out an empty pull request, which has nothing to update.
+fields of each pull request, the same ones the row's Out of date badge reads
+(the badge itself is left off a row with a live Update branch button or a
+confirmed conflict), and leaves out an empty pull request, which has nothing
+to update.
 
 Draft pull requests are left out of `/api/v1/dashboard` by default, since
 nothing can be merged or updated on one. The response says how many it left out

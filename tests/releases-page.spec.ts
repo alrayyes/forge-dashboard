@@ -127,8 +127,8 @@ test.describe('Releases page (#1107)', () => {
     await expect(row).toContainText(
       "release-please won't update this pull request",
     );
-    // Every behind row carries the badge, in the same place.
-    await expect(row.locator('.attr-chip.behind')).toHaveText('Out of date');
+    // The live Update branch is the signal, so the row has no badge too.
+    await expect(row.locator('.attr-chip.behind')).toHaveCount(0);
 
     expect(
       (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()).violations,

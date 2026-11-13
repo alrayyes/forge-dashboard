@@ -75,13 +75,17 @@ for (const theme of ['light', 'dark'] as const) {
         );
       });
 
-      test('keeps the row the same height as a conflict row', async ({
+      test('draws the pill as tall as the conflict pill, on one line', async ({
         page,
       }) => {
-        const a = await row(page, 'check running').boundingBox();
-        const b = await row(page, 'Base moved, conflict').boundingBox();
-        // Sub-pixel rounding can move a row by one pixel; a wrapped pill
-        // would move it by a line.
+        // The conflict row no longer draws a locked Merge (#3770), so the rows
+        // differ in height; what matters is that the longer words don't wrap.
+        const a = await row(page, 'check running')
+          .locator('.merge-pill')
+          .boundingBox();
+        const b = await row(page, 'Base moved, conflict')
+          .locator('.merge-pill')
+          .boundingBox();
         expect(
           Math.abs((a?.height ?? 0) - (b?.height ?? 0)),
         ).toBeLessThanOrEqual(1);
