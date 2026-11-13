@@ -348,16 +348,21 @@ can't fire a tracking pixel when the dialog opens.
   32 MiB), so a repeat request costs no upstream fetch. Failures aren't
   cached. The cache is keyed by address, not token, so after a token change an
   image can be served stale for up to 5 minutes.
-- An optional `width` (320, 640, 960 or 1280, anything else is a 400) scales
-  the image down in-process with `golang.org/x/image/draw`, keeping the aspect
-  ratio. It runs after the type and size checks, inside the same fetch slot.
-  The pixel count is read from the header first, and a source over 24 million
-  pixels is refused with a 413 before anything is decoded. The original comes
-  back unchanged when it is already narrow enough, is a GIF (it may be
-  animated), fails to decode (an animated WebP) or would not get smaller. A
-  JPEG stays a JPEG, and a PNG or WebP comes back as a PNG. Without `width`
-  the bytes are the original, so a viewer can show the full image. The cache
-  is keyed by width too.
+- An optional `width` (320, 640, 960 or 1280, written plainly: `0320` or
+  `+320` is a 400, as is anything else) scales the image down in-process with
+  `golang.org/x/image/draw`, keeping the aspect ratio. It runs after the type
+  and size checks, inside the same fetch slot. The pixel count is read from the
+  header first, and a source over 16 million pixels is refused with a 413
+  before anything is decoded. Decoding costs up to about ten bytes a pixel (a
+  16-bit PNG measured 232 MB at 24 million pixels), so one resize stays near
+  160 MB, and at most 2 run at once, which holds the worst case near 320 MB
+  however many fetch slots are busy. The original comes back unchanged when it
+  is already narrow enough, is a GIF (it may be animated), fails to decode (an
+  animated WebP), would not get smaller, or is a JPEG whose EXIF orientation
+  is not upright (a resize would drop the tag and turn the picture). A JPEG
+  stays a JPEG, and a PNG or WebP comes back as a PNG. Without `width` the
+  bytes are the original, so a viewer can show the full image. The cache is
+  keyed by width too.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route

@@ -193,7 +193,8 @@ func imageWidthOf(q url.Values) (int, bool) {
 		return 0, true
 	}
 	n, err := strconv.Atoi(q.Get("width"))
-	if err != nil || !imageproxy.AllowedWidth(n) {
+	// The cache keys on the text, so "0320" or "+320" must not pass as 320.
+	if err != nil || !imageproxy.AllowedWidth(n) || strconv.Itoa(n) != q.Get("width") {
 		return 0, false
 	}
 

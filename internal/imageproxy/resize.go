@@ -13,9 +13,17 @@ import (
 )
 
 // MaxPixels is the most a source may hold before the proxy refuses to resize
-// it. A decoded image costs four bytes a pixel, so this caps one decode near
-// 96 MiB. It is read from the header, before anything is allocated.
-const MaxPixels = 24_000_000
+// it, read from the header before anything is allocated. Decoding costs up to
+// about ten bytes a pixel (a 16-bit PNG measured 232 MB at 24 million pixels),
+// so one resize stays near 160 MB at this limit.
+const MaxPixels = 16_000_000
+
+// maxConcurrentResizes bounds how many decodes are in memory at once, below the
+// fetch concurrency, so the worst case is a few hundred megabytes, not the
+// product of every fetch slot and the largest image.
+const maxConcurrentResizes = 2
+
+var resizeSlots = make(chan struct{}, maxConcurrentResizes)
 
 const jpegQuality = 85
 
@@ -29,7 +37,9 @@ func AllowedWidth(width int) bool { return slices.Contains(widths, width) }
 // Resize returns img scaled down to width pixels wide, keeping the aspect
 // ratio. The original comes back unchanged when it is no wider than width,
 // when it is a GIF (which may be animated, and a still frame would lose that),
-// when it cannot be decoded, or when the result would not be smaller. A source
+// when it cannot be decoded, when it is a JPEG with an EXIF orientation other
+// than upright (scaling would drop the tag and turn the picture), or when the
+// result would not be smaller. A source
 // over MaxPixels is refused with ErrTooLarge, judged from its header alone.
 func Resize(img Image, width int) (Image, error) {
 	if img.ContentType == "image/gif" {
@@ -45,6 +55,11 @@ func Resize(img Image, width int) (Image, error) {
 	if cfg.Width <= width {
 		return img, nil
 	}
+	if img.ContentType == "image/jpeg" && jpegOrientation(img.Data) > 1 {
+		return img, nil
+	}
+	resizeSlots <- struct{}{}
+	defer func() { <-resizeSlots }()
 	src, _, err := image.Decode(bytes.NewReader(img.Data))
 	if err != nil {
 		return img, nil //nolint:nilerr // truncated or unsupported (animated WebP): pass it on

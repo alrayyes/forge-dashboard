@@ -139,30 +139,11 @@ func TestResize_RefusesAnImageOverThePixelLimitBeforeDecoding(t *testing.T) {
 	// A PNG header declaring 40000x40000 followed by nothing: if Resize tried
 	// to decode it, the fallback would hide it, so the refusal proves the
 	// dimensions were read from the header alone.
-	var b bytes.Buffer
-	b.Write([]byte("\x89PNG\r\n\x1a\n"))
-	b.Write([]byte{0, 0, 0, 13})
-	hdr := []byte("IHDR\x00\x00\x9c\x40\x00\x00\x9c\x40\x08\x02\x00\x00\x00")
-	b.Write(hdr)
-	crc := pngCRC(hdr)
-	b.Write(crc)
-	src := imageproxy.Image{ContentType: "image/png", Data: b.Bytes()}
+	src := headerOnlyPNG(40000, 40000)
 
 	_, err := imageproxy.Resize(src, 320)
 
 	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
-}
-
-func TestResize_AcceptsAnImageAtThePixelLimit(t *testing.T) {
-	t.Parallel()
-	// 4000x4000 is 16 MP, well inside the limit.
-	src := encodePNG(t, image.NewGray(image.Rect(0, 0, 4000, 4000)))
-
-	out, err := imageproxy.Resize(src, 320)
-
-	require.NoError(t, err)
-	w, _ := dims(t, out)
-	assert.Equal(t, 320, w)
 }
 
 func TestAllowedWidth(t *testing.T) {
@@ -170,7 +151,7 @@ func TestAllowedWidth(t *testing.T) {
 	for _, w := range []int{320, 640, 960, 1280} {
 		assert.True(t, imageproxy.AllowedWidth(w), w)
 	}
-	for _, w := range []int{-1, 0, 1, 321, 641, 100000} {
+	for _, w := range []int{-1, 0, 1, 160, 321, 480, 641, 1920, 2560, 100000} {
 		assert.False(t, imageproxy.AllowedWidth(w), w)
 	}
 }
@@ -190,6 +171,152 @@ func TestResize_KeepsTheOriginalWhenScalingWouldNotMakeItSmaller(t *testing.T) {
 	src := imageproxy.Image{ContentType: "image/jpeg", Data: b.Bytes()}
 
 	out, err := imageproxy.Resize(src, 960)
+
+	require.NoError(t, err)
+	assert.Equal(t, src, out)
+}
+
+// headerOnlyPNG is a PNG signature and IHDR declaring w by h and nothing
+// after, so a decode would fail and only the header can have been judged.
+func headerOnlyPNG(w, h uint32) imageproxy.Image {
+	var b bytes.Buffer
+	b.WriteString("\x89PNG\r\n\x1a\n")
+	b.Write([]byte{0, 0, 0, 13})
+	hdr := []byte("IHDR")
+	hdr = binary.BigEndian.AppendUint32(hdr, w)
+	hdr = binary.BigEndian.AppendUint32(hdr, h)
+	hdr = append(hdr, 8, 2, 0, 0, 0)
+	b.Write(hdr)
+	b.Write(pngCRC(hdr))
+
+	return imageproxy.Image{ContentType: "image/png", Data: b.Bytes()}
+}
+
+func TestResize_PixelLimitBoundary(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, 16_000_000, imageproxy.MaxPixels)
+
+	atLimit, err := imageproxy.Resize(headerOnlyPNG(4000, 4000), 320)
+	require.NoError(t, err, "exactly MaxPixels is accepted")
+	assert.NotEmpty(t, atLimit.Data)
+	_, err = imageproxy.Resize(headerOnlyPNG(16_000_000, 1), 320)
+	require.NoError(t, err, "a wide, short image at the limit is accepted")
+
+	_, err = imageproxy.Resize(headerOnlyPNG(16_000_001, 1), 320)
+	require.ErrorIs(t, err, imageproxy.ErrTooLarge, "one pixel over is refused")
+	_, err = imageproxy.Resize(headerOnlyPNG(4001, 4000), 320)
+	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
+	_, err = imageproxy.Resize(headerOnlyPNG(1, 16_000_001), 320)
+	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
+}
+
+func TestResize_AZeroSizedHeaderIsPassedOnNotRefusedOrCrashed(t *testing.T) {
+	t.Parallel()
+	src := headerOnlyPNG(0, 0)
+
+	out, err := imageproxy.Resize(src, 320)
+
+	require.NoError(t, err)
+	assert.Equal(t, src, out)
+}
+
+func TestResize_NeverUpscales(t *testing.T) {
+	t.Parallel()
+	src := encodePNG(t, noisy(200, 100))
+
+	out, err := imageproxy.Resize(src, 320)
+
+	require.NoError(t, err)
+	assert.Equal(t, src, out)
+}
+
+func TestResize_AVeryWideImageKeepsAtLeastOnePixelOfHeight(t *testing.T) {
+	t.Parallel()
+	src := encodePNG(t, noisy(2000, 1))
+
+	out, err := imageproxy.Resize(src, 320)
+
+	require.NoError(t, err)
+	w, h := dims(t, out)
+	assert.Equal(t, 320, w)
+	assert.Equal(t, 1, h)
+}
+
+func TestResize_AveragesInsteadOfPickingPixels(t *testing.T) {
+	t.Parallel()
+	// A one-pixel checkerboard four times too wide. Nearest neighbour keeps
+	// pure black or white; a real kernel lands on grey.
+	img := image.NewGray(image.Rect(0, 0, 1280, 1280))
+	for y := range 1280 {
+		for x := range 1280 {
+			if (x+y)%2 == 0 {
+				img.SetGray(x, y, color.Gray{Y: 255})
+			}
+		}
+	}
+	src := encodePNG(t, img)
+
+	out, err := imageproxy.Resize(src, 320)
+
+	require.NoError(t, err)
+	got, err := imgpng.Decode(bytes.NewReader(out.Data))
+	require.NoError(t, err)
+	r, _, _, _ := got.At(100, 100).RGBA()
+	grey := r >> 8
+	assert.Greater(t, grey, uint32(90))
+	assert.Less(t, grey, uint32(165))
+}
+
+// withOrientation inserts an EXIF APP1 segment holding one orientation tag
+// right after the JPEG's start marker.
+func withOrientation(t *testing.T, jpg imageproxy.Image, orientation uint16) imageproxy.Image {
+	t.Helper()
+	exif := []byte("Exif\x00\x00MM\x00\x2a\x00\x00\x00\x08\x00\x01\x01\x12\x00\x03\x00\x00\x00\x01")
+	exif = binary.BigEndian.AppendUint16(exif, orientation)
+	exif = append(exif, 0, 0, 0, 0, 0, 0)
+	seg := []byte{0xFF, 0xE1}
+	seg = binary.BigEndian.AppendUint16(seg, uint16(len(exif)+2)) //nolint:gosec // a few bytes
+	seg = append(seg, exif...)
+	data := append([]byte{}, jpg.Data[:2]...)
+	data = append(data, seg...)
+	data = append(data, jpg.Data[2:]...)
+
+	return imageproxy.Image{ContentType: "image/jpeg", Data: data}
+}
+
+func TestResize_ReturnsTheOriginalForARotatedJPEG(t *testing.T) {
+	t.Parallel()
+	plain := encodeJPEG(t, noisy(1200, 900))
+
+	for _, o := range []uint16{2, 3, 6, 8} {
+		src := withOrientation(t, plain, o)
+		out, err := imageproxy.Resize(src, 320)
+
+		require.NoError(t, err)
+		assert.Equal(t, src, out, "orientation %d", o)
+	}
+}
+
+func TestResize_ScalesAnUprightJPEGEvenWithAnEXIFTag(t *testing.T) {
+	t.Parallel()
+	src := withOrientation(t, encodeJPEG(t, noisy(1200, 900)), 1)
+
+	out, err := imageproxy.Resize(src, 320)
+
+	require.NoError(t, err)
+	w, _ := dims(t, out)
+	assert.Equal(t, 320, w)
+}
+
+func TestResize_AnImageExactlyTheRequestedWidthIsNotRescaled(t *testing.T) {
+	t.Parallel()
+	// Re-encoding this at the proxy's quality would be smaller, so only the
+	// width comparison keeps it as it was.
+	var b bytes.Buffer
+	require.NoError(t, jpeg.Encode(&b, noisy(320, 240), &jpeg.Options{Quality: 100}))
+	src := imageproxy.Image{ContentType: "image/jpeg", Data: b.Bytes()}
+
+	out, err := imageproxy.Resize(src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)

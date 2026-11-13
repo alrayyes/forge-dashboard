@@ -3597,12 +3597,14 @@ paths:
           description: |
             Scale the image down to this many pixels wide, keeping its aspect
             ratio, for a thumbnail slot. Absent, the original bytes are
-            returned, so a viewer can show the full image. Any other value
-            answers 400; it is refused, not snapped. The original is returned
+            returned, so a viewer can show the full image. Any other value,
+            or one not written plainly (`0320`, `+320`), answers 400; it is
+            refused, not snapped. The original is returned
             unchanged when it is no wider, when it is a GIF (which may be
-            animated), when it cannot be decoded (an animated WebP, say), or
+            animated), when it cannot be decoded (an animated WebP, say), when it is
+            a JPEG with an EXIF orientation other than upright, or
             when scaling would not make it smaller. A JPEG stays a JPEG; a PNG
-            or WebP comes back as a PNG. A source over 24 million pixels,
+            or WebP comes back as a PNG. A source over 16 million pixels,
             judged from its header before anything is decoded, answers 413.
       responses:
         "200":
@@ -3641,7 +3643,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "413":
-          description: The image is over 8 MiB, or over 512 KiB for `kind=avatar`, or over 24 million pixels when `width` asks for a resize.
+          description: The image is over 8 MiB, or over 512 KiB for `kind=avatar`, or over 16 million pixels when `width` asks for a resize.
           content:
             application/json:
               schema:

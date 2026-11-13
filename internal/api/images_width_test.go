@@ -2,6 +2,8 @@ package api_test
 
 import (
 	"bytes"
+	"encoding/binary"
+	"hash/crc32"
 	"image"
 	"image/color"
 	"image/png"
@@ -99,7 +101,7 @@ func TestImages_AWidthOutsideTheAllowedSetIsABadRequest(t *testing.T) {
 	forge, _, hits := bigImageForge(t)
 	srv, cookie := imagesServer(t, forge)
 
-	for _, w := range []string{"0", "-5", "321", "abc", "99999999999", "640.5", ""} {
+	for _, w := range []string{"0", "-5", "321", "abc", "99999999999", "640.5", "", "0320", "+320", "000320", "320 ", "0x140"} {
 		resp := getImageWidth(t, srv, cookie, forge.URL+"/a/big", w)
 		_ = resp.Body.Close()
 
@@ -140,4 +142,26 @@ func TestImages_WidthAndNoWidthAreCachedSeparately(t *testing.T) {
 
 	assert.Less(t, len(smallBody), len(fullBody), "a cached thumbnail must not answer for the full image")
 	assert.Equal(t, original, fullBody)
+}
+
+func TestImages_AnImageOverThePixelLimitIsTooLargeToResizeButServedWhole(t *testing.T) {
+	t.Parallel()
+	// A PNG header declaring 20000x20000 (400 million pixels) and nothing else.
+	hdr := []byte("IHDR\x00\x00\x4e\x20\x00\x00\x4e\x20\x08\x02\x00\x00\x00")
+	body := append([]byte("\x89PNG\r\n\x1a\n\x00\x00\x00\x0d"), hdr...)
+	body = binary.BigEndian.AppendUint32(body, crc32.ChecksumIEEE(hdr))
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(body)
+	}))
+	t.Cleanup(forge.Close)
+	srv, cookie := imagesServer(t, forge)
+
+	resized := getImageWidth(t, srv, cookie, forge.URL+"/a/huge", "640")
+	_ = resized.Body.Close()
+	whole := getImage(t, srv, cookie, "forgejo", forge.URL+"/a/huge")
+	_ = whole.Body.Close()
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, resized.StatusCode)
+	assert.Equal(t, http.StatusOK, whole.StatusCode, "without width the bytes pass as before")
 }
