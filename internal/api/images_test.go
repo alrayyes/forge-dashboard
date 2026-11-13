@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -29,9 +31,9 @@ const imagesToken = "forgejo-token-for-images" //nolint:gosec // a fixture, not 
 
 // imagesServer signs in and saves a Forgejo account whose instance is forge, so
 // the proxy's allowed host is that test server.
-func imagesServer(t *testing.T, forge *httptest.Server) (srv string, cookie *http.Cookie) {
+func imagesServer(t *testing.T, forge *httptest.Server, opts ...func(*api.Deps)) (srv string, cookie *http.Cookie) {
 	t.Helper()
-	testSrv, _, _, _ := newTestServerWithSettingsStore(t, func(settingspkg.Credentials) []dashboard.Source { return nil }, false, 0)
+	testSrv, _, _, _ := newTestServerWithSettingsStore(t, func(settingspkg.Credentials) []dashboard.Source { return nil }, false, 0, opts...)
 	cookie, _, _ = registerViaRealCeremony(t, testSrv)
 
 	body, err := json.Marshal(map[string]string{"forgejoUrl": forge.URL, "forgejoToken": imagesToken})
@@ -397,4 +399,195 @@ func TestImages_DoesNotLookUpAnItemForAnImageThatIsNotAnAttachment(t *testing.T)
 
 	require.Equal(t, http.StatusOK, status)
 	assert.Empty(t, g.apiCalls(), "no API request is spent on an address that isn't a user attachment")
+}
+
+// pngOf pads the one-pixel PNG to n bytes. The proxy sniffs the leading bytes
+// only, so the padding still reads as a PNG.
+func pngOf(n int) []byte {
+	return append(append([]byte{}, imagesPNG...), make([]byte, n-len(imagesPNG))...)
+}
+
+func getAvatar(t *testing.T, srv string, cookie *http.Cookie, raw string) *http.Response {
+	t.Helper()
+	q := url.Values{"forge": {"forgejo"}, "url": {raw}, "kind": {"avatar"}}
+	req, err := http.NewRequest(http.MethodGet, srv+"/api/v1/images?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(cookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+// avatarStatus is safe to call off the test goroutine: it asserts nothing.
+func avatarStatus(tb testing.TB, srv string, cookie *http.Cookie, raw string) int {
+	tb.Helper()
+	q := url.Values{"forge": {"forgejo"}, "url": {raw}, "kind": {"avatar"}}
+	req, err := http.NewRequest(http.MethodGet, srv+"/api/v1/images?"+q.Encode(), nil)
+	if err != nil {
+		return 0
+	}
+	req.AddCookie(cookie)
+	resp, err := testClient(tb).Do(req)
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	return resp.StatusCode
+}
+
+func TestImages_AnAvatarHasASmallerSizeCapThanAnEmbeddedImage(t *testing.T) {
+	t.Parallel()
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(pngOf(imageproxy.MaxAvatarBytes + 1))
+	}))
+	t.Cleanup(forge.Close)
+	srv, cookie := imagesServer(t, forge)
+
+	avatar := getAvatar(t, srv, cookie, forge.URL+"/avatar")
+	defer func() { _ = avatar.Body.Close() }()
+	embedded := getImage(t, srv, cookie, "forgejo", forge.URL+"/embedded")
+	defer func() { _ = embedded.Body.Close() }()
+
+	assert.Equal(t, http.StatusRequestEntityTooLarge, avatar.StatusCode)
+	assert.Equal(t, http.StatusOK, embedded.StatusCode, "the same bytes pass as an embedded image")
+}
+
+func TestImages_ServesARepeatedRequestFromTheServerSideCache(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	hits := map[string]int{}
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		hits[r.URL.Path]++
+		mu.Unlock()
+		_, _ = w.Write(imagesPNG)
+	}))
+	t.Cleanup(forge.Close)
+	srv, cookie := imagesServer(t, forge)
+
+	for range 3 {
+		resp := getAvatar(t, srv, cookie, forge.URL+"/a")
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, imagesPNG, body)
+	}
+	resp := getAvatar(t, srv, cookie, forge.URL+"/b")
+	_ = resp.Body.Close()
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 1, hits["/a"], "one upstream fetch for three requests")
+	assert.Equal(t, 1, hits["/b"], "a different image is its own fetch")
+}
+
+func TestImages_DoesNotServeACachedImageAfterItsTimeIsUp(t *testing.T) {
+	t.Parallel()
+	var mu sync.Mutex
+	var hits int
+	forge := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		hits++
+		mu.Unlock()
+		_, _ = w.Write(imagesPNG)
+	}))
+	t.Cleanup(forge.Close)
+	srv, cookie := imagesServer(t, forge, func(d *api.Deps) { d.ImageCacheTTL = 20 * time.Millisecond })
+
+	for range 2 {
+		resp := getAvatar(t, srv, cookie, forge.URL+"/a")
+		_ = resp.Body.Close()
+		time.Sleep(60 * time.Millisecond)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, 2, hits)
+}
+
+// blockingForge answers every image request only once release is closed, and
+// reports the most requests it held at the same moment.
+type blockingForge struct {
+	*httptest.Server
+	release chan struct{}
+	mu      sync.Mutex
+	current int
+	peak    int
+}
+
+func newBlockingForge(t *testing.T) *blockingForge {
+	t.Helper()
+	b := &blockingForge{release: make(chan struct{})}
+	b.Server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b.mu.Lock()
+		b.current++
+		b.peak = max(b.peak, b.current)
+		b.mu.Unlock()
+		select {
+		case <-b.release:
+		case <-r.Context().Done():
+		}
+		b.mu.Lock()
+		b.current--
+		b.mu.Unlock()
+		_, _ = w.Write(imagesPNG)
+	}))
+	t.Cleanup(b.Close)
+
+	return b
+}
+
+func (b *blockingForge) peakSeen() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.peak
+}
+
+func TestImages_BoundsHowManyUpstreamFetchesRunAtOnce(t *testing.T) {
+	t.Parallel()
+	const limit, requests = 2, 6
+	forge := newBlockingForge(t)
+	srv, cookie := imagesServer(t, forge.Server, func(d *api.Deps) {
+		d.ImageConcurrency = limit
+		d.ImageQueueWait = 10 * time.Second
+	})
+
+	var wg sync.WaitGroup
+	codes := make([]int, requests)
+	for i := range requests {
+		wg.Go(func() { codes[i] = avatarStatus(t, srv, cookie, forge.URL+"/img"+strconv.Itoa(i)) })
+	}
+	require.Eventually(t, func() bool { return forge.peakSeen() == limit }, 5*time.Second, 10*time.Millisecond)
+	time.Sleep(100 * time.Millisecond) // room for an unbounded proxy to overshoot
+	assert.Equal(t, limit, forge.peakSeen(), "no more than the limit are in flight")
+	close(forge.release)
+	wg.Wait()
+
+	assert.LessOrEqual(t, forge.peakSeen(), limit)
+	for _, c := range codes {
+		assert.Equal(t, http.StatusOK, c, "the waiting requests are served in turn")
+	}
+}
+
+func TestImages_RefusesWithRetryAfterWhenTheQueueWaitRunsOut(t *testing.T) {
+	t.Parallel()
+	forge := newBlockingForge(t)
+	srv, cookie := imagesServer(t, forge.Server, func(d *api.Deps) {
+		d.ImageConcurrency = 1
+		d.ImageQueueWait = 50 * time.Millisecond
+	})
+	first := make(chan int, 1)
+	go func() { first <- avatarStatus(t, srv, cookie, forge.URL+"/first") }()
+	require.Eventually(t, func() bool { return forge.peakSeen() == 1 }, 5*time.Second, 10*time.Millisecond)
+
+	resp := getAvatar(t, srv, cookie, forge.URL+"/second")
+	defer func() { _ = resp.Body.Close() }()
+	close(forge.release)
+	<-first
+
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+	assert.NotEmpty(t, resp.Header.Get("Retry-After"))
 }

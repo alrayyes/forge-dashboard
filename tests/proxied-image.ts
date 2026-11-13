@@ -15,7 +15,7 @@ export function forgeFor(url: string): 'github' | 'forgejo' {
 
 export function proxiedImage(url: string): string {
   const forge = forgeFor(url);
-  return `/api/v1/images?forge=${forge}&url=${encodeURIComponent(url)}`;
+  return `/api/v1/images?forge=${forge}&url=${encodeURIComponent(url)}&kind=avatar`;
 }
 
 // Matches the proxy request for one image, or for every image whose address
