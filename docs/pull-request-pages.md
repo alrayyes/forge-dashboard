@@ -119,6 +119,12 @@ filter is picked, since that pick may be what hides the others, and while **Show
 drafts** has drafts to reveal. The same holds for the
 Issues, Releases, and Bots pages. The bar comes back when a second row arrives.
 
+The title box hides on its own when the other filters leave exactly one row,
+since it has nothing to narrow. It counts the rows before the box's own text
+applies, and it never hides while it holds text, so a query that leaves one
+row can still be edited or cleared. If it held focus, focus moves to the first
+control still drawn. It comes back when a second row arrives, with no reload.
+
 ## Issues a pull request closes
 
 A pull request that closes issues shows a "Closes" link for each, after

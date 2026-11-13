@@ -1568,6 +1568,7 @@ function titleRuleHides(pattern: unknown, title: string): boolean {
 // issue is Renovate's Dependency Dashboard isn't offered while it's hidden.
 export type PoolKey =
   | ''
+  | 'title'
   | 'repo'
   | 'author'
   | 'label'
@@ -1861,6 +1862,13 @@ export function offerFilterBar(
 ): void {
   if (!bar) return;
   bar.hidden = rows === 0 || (rows === 1 && nothingToUndo);
+}
+
+// The title search, only while it could narrow something: not over exactly one
+// row after the other filters, and never while it holds text, or a query that
+// leaves one row would hide the box with the query still in it (#3823).
+export function searchOffered(rows: number, text: string): boolean {
+  return !(rows === 1 && text === '');
 }
 
 // The refs segment's Yes and No.

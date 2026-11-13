@@ -56,6 +56,7 @@ const singleUserSpecs = [
   '**/bottom-nav-focus-order.spec.ts',
   '**/bottom-nav-focus-padding.spec.ts',
   '**/bottom-nav-labels.spec.ts',
+  '**/bottom-nav-text-size.spec.ts',
   '**/webhooks-status-line.spec.ts',
   '**/webhooks-rebase-bots.spec.ts',
   '**/webhooks-table-tablet.spec.ts',
@@ -266,6 +267,7 @@ const singleUserSpecs = [
   '**/csp-img-src.spec.ts',
   '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
+  '**/search-single-row.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

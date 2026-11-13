@@ -352,7 +352,24 @@ function combined(board: Board): Control[] {
         expect(page.locator('#issue-hide-title-regex')).toHaveValue('^zzz'),
     },
   ];
+  // The title goes first: the picks after it can leave one row, and the box
+  // is hidden over one row unless it holds text (#3823).
   return [
+    {
+      name: 'title text',
+      stored: [{ group: 'shared', key: 'title', value: title }],
+      // The rounds before this one leave a pill (and auto-merge) on, which can
+      // leave one row and hide the box. Widen first.
+      set: async (page) => {
+        await resetPills(page);
+        if (!issues)
+          await page
+            .locator('.am-group:not(.sheet-only) [data-am="any"]')
+            .click();
+        await page.locator(TITLE).fill(title);
+      },
+      show: (page) => expect(page.locator(TITLE)).toHaveValue(title),
+    },
     {
       name: 'repo filter',
       stored: [{ group: 'shared', key: 'repo', value: 'forgejo:acme/infra' }],
@@ -413,12 +430,6 @@ function combined(board: Board): Control[] {
       set: (page) => page.locator('#pause-updates-button').click(),
       show: (page) =>
         expect(page.locator('.live-control')).toContainText('Paused'),
-    },
-    {
-      name: 'title text',
-      stored: [{ group: 'shared', key: 'title', value: title }],
-      set: (page) => page.locator(TITLE).fill(title),
-      show: (page) => expect(page.locator(TITLE)).toHaveValue(title),
     },
     ...(issues ? issueOnly : []),
   ];
