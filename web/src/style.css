@@ -420,12 +420,18 @@ header,
    padding-bottom (below, same media query) reserves room for it instead. */
 .bottom-nav {
   display: none;
+  /* Lets the row below ask how many text sizes wide it is (#3816). */
+  container-type: inline-size;
   position: fixed;
   inset: auto 0 0 0;
   z-index: 20;
   background: var(--surface);
   border-top: 1px solid var(--border);
   box-shadow: var(--shadow);
+}
+
+.bottom-nav-row {
+  display: flex;
 }
 
 .bottom-nav-link {
@@ -457,6 +463,21 @@ header,
 @media (min-width: 360px) {
   .bottom-nav-link {
     min-width: 44px;
+  }
+}
+
+/* Larger text (#3816). The width is in text sizes (em), so it follows the
+   browser's font size: under 19 of them is 304px at the default size and 608px
+   at 200%. The eight tabs fit one row down to 320px at the default size, but
+   their words grow with the text and the tabs don't, so at 200% the labels ran
+   into each other. Here the tabs size by their word and drop to another row
+   when a word no longer fits. */
+@container (max-width: 19em) {
+  .bottom-nav-row {
+    flex-wrap: wrap;
+  }
+  .bottom-nav-link {
+    flex-basis: min-content;
   }
 }
 
@@ -3719,7 +3740,13 @@ footer a.mono:focus-visible {
     display: none;
   }
   .bottom-nav {
-    display: flex;
+    display: block;
+  }
+  /* Room for the rows the bar gains when the text is larger (#3816): ten px
+     per px the root font size is over 16, about a row of tabs per 100%, and
+     nothing at the default size. */
+  :root {
+    --text-grow: max(0px, (1rem - 16px) * 10);
   }
   /* Reserves room for the now-fixed .bottom-nav so it doesn't cover the
      last bit of page content — added on top of body's own base 64px
@@ -3728,13 +3755,24 @@ footer a.mono:focus-visible {
      only needed while the bar itself is shown, so it's scoped to this
      same media query. */
   body {
-    padding-bottom: calc(64px + 44px + 12px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(
+      64px +
+      44px +
+      12px +
+      env(safe-area-inset-bottom, 0px) +
+      var(--text-grow)
+    );
   }
   /* Tab scrolls a control in only until it is flush with the viewport
      bottom, which is where the fixed nav sits. Keep it clear: nav height,
      the gap above it, and the safe-area inset. WCAG 2.2 SC 2.4.11. */
   html {
-    scroll-padding-bottom: calc(46px + 12px + env(safe-area-inset-bottom, 0px));
+    scroll-padding-bottom: calc(
+      46px +
+      12px +
+      env(safe-area-inset-bottom, 0px) +
+      var(--text-grow)
+    );
   }
 }
 

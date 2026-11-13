@@ -27,7 +27,7 @@ describe('bottom nav scroll padding', () => {
     const m = phone.match(/(?:^|\s)html\s*\{([^}]*)\}/);
     expect(m).not.toBeNull();
     expect(m?.[1].replace(/\s+/g, ' ')).toContain(
-      'scroll-padding-bottom: calc(46px + 12px + env(safe-area-inset-bottom, 0px))',
+      'scroll-padding-bottom: calc( 46px + 12px + env(safe-area-inset-bottom, 0px) + var(--text-grow) )',
     );
   });
 
