@@ -23,6 +23,15 @@ the rows.
 and on the phone tab bar, light and dark, before and after the total is left out
 when it only repeats the one count beside it (2 running of 2 draws "2 running").
 
+`before-forced-colors-toggles/` and `after-forced-colors-toggles/` show the
+auto-merge segment (in the phone Filters sheet at 390px, inline at 1280px) and
+the advisories severity filters, under Chromium's forced-colors emulation,
+before and after the pressed-state fix for ticket 3388. These are emulation
+shots: Chromium doesn't repaint system colours the way Windows High Contrast
+does, so they show the non-colour mark (the thicker border on the pressed
+control), not the real palette. Pause live updates is covered by the Playwright
+spec, not by a screenshot.
+
 Stitch designs for moving the bulk actions into the card header (ticket 3755):
 
 - `stitch/bulk-actions-header-desktop-1280.png`: Update all as an outlined
