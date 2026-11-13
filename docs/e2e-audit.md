@@ -54,19 +54,22 @@ spec.
 Each mutation was applied to the code under test, the named lower test file was
 run, and the change was reverted.
 
-| Spec                    | Lower test                            | Mutation                                                     | Result                 |
-| ----------------------- | ------------------------------------- | ------------------------------------------------------------ | ---------------------- |
-| `first-refresh-loading` | `web/src/lib/first-refresh.test.ts`   | `firstRefreshLoading` returns false before the first settle  | 1 fail, red            |
-| `rerun-all`             | `web/src/lib/rerun-all.test.ts`       | `showRerunAll` returns false while busy                      | 2 fail, red            |
-| `cancel-run`            | `web/src/lib/cancel-run.test.ts`      | `cancelText` bare label changed                              | 1 fail, red            |
-| `settings-groups`       | `web/src/lib/settings-groups.test.ts` | `groupFromHash` fallback returns an anchor and the direct id | 1 fail, red            |
-| `wait-chip`             | `web/src/lib/wait-chip.test.ts`       | `settlesOnRow` stops listing `bot-rebase`                    | 0 fail, **not proven** |
+| Spec                    | Lower test                            | Mutation                                                     | Result      |
+| ----------------------- | ------------------------------------- | ------------------------------------------------------------ | ----------- |
+| `first-refresh-loading` | `web/src/lib/first-refresh.test.ts`   | `firstRefreshLoading` returns false before the first settle  | 1 fail, red |
+| `rerun-all`             | `web/src/lib/rerun-all.test.ts`       | `showRerunAll` returns false while busy                      | 2 fail, red |
+| `cancel-run`            | `web/src/lib/cancel-run.test.ts`      | `cancelText` bare label changed                              | 1 fail, red |
+| `settings-groups`       | `web/src/lib/settings-groups.test.ts` | `groupFromHash` fallback returns an anchor and the direct id | 1 fail, red |
+| `wait-chip`             | `web/src/lib/wait-chip.test.ts`       | `settlesOnRow` stops listing `bot-rebase`                    | 1 fail, red |
 
-The first four lower tests are sensitive to the logic they cover. Each spec
+The lower tests are sensitive to the logic they cover. Each spec
 keeps its layout, keyboard, axe and state-machine tests, so none becomes class
 D; only the tests that restate the same wording or predicate can go. The
-`wait-chip` lower test does not pin `settlesOnRow`, so nothing in that spec may
-be trimmed until it does.
+`wait-chip` lower test pins `settlesOnRow`: dropping any of
+the three kinds, or adding `merge`, turns it red. The only spec tests that
+restated its wording were the two that read a green GitHub and a green Forgejo
+auto-merge chip; they are gone, and changing either branch of `autoMergeChip`
+turns two lib tests red.
 
 ### UI over logic Go covers (class B)
 
@@ -97,7 +100,7 @@ Ranked by estimated movable seconds, class A excluded.
 | 3   | `cancel-run`                   | 25.4 s   | 24    | 7            | 18.0 s       | `cancel-run.test.ts` (proven); missing: dialog wording  |
 | 4   | `settings`                     | 21.2 s   | 49    | 11           | 16.4 s       | Go settings tests for server rules; missing: form state |
 | 5   | `settings-groups`              | 27.4 s   | 22    | 9            | 16.2 s       | `settings-groups.test.ts` (proven, hash routing only)   |
-| 6   | `wait-chip`                    | 22.8 s   | 20    | 6            | 16.0 s       | `wait-chip.test.ts` (not proven)                        |
+| 6   | `wait-chip`                    | 22.8 s   | 20    | 6            | 16.0 s       | `wait-chip.test.ts` (proven)                            |
 | 7   | `webhooks-page`                | 17.0 s   | 56    | 8            | 14.5 s       | Missing: page state tests                               |
 | 8   | `pipeline-run-output`          | 26.8 s   | 53    | 26           | 13.7 s       | Missing: log-view state tests                           |
 | 9   | `copy-failure`                 | 14.4 s   | 17    | 3            | 11.9 s       | Missing: clipboard failure message                      |
@@ -139,7 +142,10 @@ One ticket per group, each doing moves with its own mutation proof:
   a lib predicate or wording are gone, and the durations in
   `tests/e2e-durations.json` refresh the next time a green `main` run is
   recorded).
-- pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
+- pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip` (done: two
+  tests that only restated `autoMergeChip` wording are gone, and the duration
+  in `tests/e2e-durations.json` refreshes the next time a green `main` run is
+  recorded).
 - prove the class B specs with Go mutations, then trim them.
 - cut `filter-every-control` rounds and move its round-trip and cookie checks
   down.
