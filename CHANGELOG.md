@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.40.0](https://github.com/alrayyes/forge-dashboard/compare/v9.39.0...v9.40.0) (2026-11-13)
+
+
+### Features
+
+* **images:** bound the cost of proxied avatar and logo fetches ([#3727](https://github.com/alrayyes/forge-dashboard/issues/3727)) ([24e5949](https://github.com/alrayyes/forge-dashboard/commit/24e59496e5a61283e409fcc2ffdd23c9451abfc2))
+
 ## [9.39.0](https://github.com/alrayyes/forge-dashboard/compare/v9.38.1...v9.39.0) (2026-11-13)
 
 
