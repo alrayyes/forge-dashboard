@@ -134,4 +134,7 @@ One ticket per group, each doing moves with its own mutation proof:
 - prove the class B specs with Go mutations, then trim them.
 - cut `filter-every-control` rounds and move its round-trip and cookie checks
   down.
-- record a duration for the 17 specs that have none, so they rank.
+- record a duration for the 17 specs that have none, so they rank (done: the
+  file was refreshed from a green `main` run, which gave all of them and the
+  specs added since an entry. Only specs newer than that run are missing, and
+  the next refresh adds them).
