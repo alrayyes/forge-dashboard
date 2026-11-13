@@ -200,7 +200,7 @@ One ticket per group, each doing moves with its own mutation proof:
   pull request group not read back, the cookie value not URL-encoded, an off box
   read back as on, and the server returning empty values as `0` or dropping the
   webhooks group).
-- trim `dashboard` (partly done, #3545): the "CI pill wording beside the Merge
+- trim `dashboard` (partly done): the "CI pill wording beside the Merge
   button" test is gone. It only read the word `Failed` on a failing row, which
   `row-status-grammar.spec.ts` ("a run turns into its result in the same box")
   and `ci-pill-counts.spec.ts` (the failed-pill tests) read too. Changing the
