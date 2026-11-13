@@ -83,6 +83,7 @@
     setFirstRefresh,
     settleFirstRefresh,
   } from "#lib/first-refresh.svelte.js";
+  import ForgeHealth from "#lib/ForgeHealth.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
@@ -526,6 +527,19 @@
   let liveUpdatedAt = $state<string | null>(null);
   let heldUpdatedAt: string | null = null;
   let togglePause: () => void = () => {};
+  // How old a row is, in the page's own words.
+  function relativeTime(iso: string): string {
+    const mins = Filters.minutesAgo(iso);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.round(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.round(hours / 24);
+    return `${days}d ago`;
+  }
+
+  // What the toolbar's health chips draw; the live region is separate.
+  let healthForges = $state.raw<Forge[]>([]);
   const loadingFirst = $derived(firstRefreshLoading(firstRefresh));
   let issueSettingsKnown = $state(false);
   let settingsHideDependencyDashboard = $state(false);
@@ -661,10 +675,6 @@
       cancelled: "Cancelled",
       none: "No checks",
     };
-    const FORGE_SHORT_LABELS: Record<string, string> = {
-      github: "GH",
-      forgejo: "FJ",
-    };
 
     let lastGeneratedAt: string | null = null;
 
@@ -676,16 +686,6 @@
       cell.appendChild(el("span", "time-label", label));
       cell.appendChild(el("span", "time-value", relativeTime(iso)));
       return cell;
-    }
-
-    function relativeTime(iso: string): string {
-      const mins = Filters.minutesAgo(iso);
-      if (mins < 1) return "just now";
-      if (mins < 60) return `${mins}m ago`;
-      const hours = Math.round(mins / 60);
-      if (hours < 24) return `${hours}h ago`;
-      const days = Math.round(hours / 24);
-      return `${days}d ago`;
     }
 
     // No optional (`?`) parameters here on purpose: Svelte's own
@@ -9058,27 +9058,6 @@
     });
 
     // ---- forge health ----
-    // One friendly, actionable line per ForgeErrorKind, taking
-    // precedence over the raw error string as the primary visible text.
-    // "unreachable" names the refresh button as the way to retry now,
-    // not just "wait."
-    const ERROR_HEADLINES: Record<string, string> = {
-      unreachable:
-        "Temporarily unreachable — try the refresh button above, or it’ll retry automatically.",
-      upstream_error:
-        "The forge answered with a server error — it’ll retry automatically.",
-      unauthorized: "Check the token in Settings.",
-      not_found: "Check the instance URL in Settings.",
-      rate_limited: "Rate limit exceeded.",
-    };
-
-    function forgeErrorHeadline(f: Forge): string {
-      return (
-        (f.errorKind && ERROR_HEADLINES[f.errorKind]) ||
-        `Something went wrong talking to ${FORGE_LABELS[f.forge] || f.forge}.`
-      );
-    }
-
     // What the health live region says: each forge's reachability, and
     // whether a budget is spent or running low. The counts and times in the
     // visible pill change on every poll and are left out, so an unchanged
@@ -9123,83 +9102,8 @@
     }
 
     function renderForgeHealth(forges: Forge[]) {
-      const container = document.getElementById("forge-health");
-      if (!container) return;
       announceForgeHealth(forges);
-      container.innerHTML = "";
-      for (const f of forges) {
-        const item = el("div", "forge-health-item");
-        const limited =
-          isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
-        // An unreachable forge is the banner's to say (#3719): no chip, no
-        // age line, no cause line. A forge that is rate limited as well has
-        // no unreachable banner, so it keeps all three.
-        if (isOutage(f) && !limited) continue;
-        // A healthy forge draws no chip (#3681); the live region still
-        // announces it.
-        if (needsChip(f, limited)) {
-          const chip = el("span", chipClass(f));
-          chip.appendChild(el("span", "pulse-dot"));
-          chip.appendChild(
-            document.createTextNode(
-              chipLabel(FORGE_LABELS[f.forge] || f.forge, f),
-            ),
-          );
-          item.appendChild(chip);
-        }
-        // The rows of an unreachable forge are its last good ones, not
-        // current ones (#933). Plain text, for every error kind: the
-        // rate-limit banner doesn't say the data is old.
-        // While the app is starting the same line says so: no forge has
-        // been asked yet, so it is not an outage.
-        const note = f.staleSince
-          ? staleNote(f, relativeTime(f.staleSince))
-          : null;
-        if (note) item.appendChild(el("span", "forge-health-stale", note));
-        // The remaining budget and when it comes back, as text (#732). Kept
-        // out of the live region: the numbers change on every poll.
-        // Each budget the forge has, labelled, so this never describes a
-        // different one from the banner (#1433).
-        for (const [kind, budget] of [
-          ["GraphQL", f.rateLimitGraphQL],
-          ["REST", f.rateLimitREST],
-        ] as const) {
-          if (!budget || !showsOnOverview(budget)) continue;
-          const text = el(
-            "span",
-            "forge-health-budget",
-            budgetText(
-              `${FORGE_SHORT_LABELS[f.forge] || f.forge} ${kind}`,
-              budget,
-            ),
-          );
-          text.setAttribute("aria-live", "off");
-          item.appendChild(text);
-        }
-        // The reason has to be real text, not just chip.title — a hover
-        // tooltip never reaches a touch device and isn't reliably
-        // announced by a screen reader either. The raw technical string
-        // stays available in a native, keyboard-accessible <details>
-        // disclosure instead.
-        //
-        // Except rate_limited: the rate-limit banner (#361) already
-        // covers that case at the top of the page, per-budget and with a
-        // countdown — repeating "Rate limit exceeded." and a raw-error
-        // disclosure here is noise, not a second source of detail.
-        if (isUnreachable(f) && f.error && f.errorKind !== "rate_limited") {
-          item.appendChild(
-            el("span", "forge-health-error", forgeErrorHeadline(f)),
-          );
-          const details = document.createElement("details");
-          details.className = "forge-health-detail";
-          const summary = document.createElement("summary");
-          summary.textContent = "Show details";
-          details.appendChild(summary);
-          details.appendChild(document.createTextNode(f.error));
-          item.appendChild(details);
-        }
-        if (item.childNodes.length > 0) container.appendChild(item);
-      }
+      healthForges = forges;
     }
 
     // ---- rate-limit-exceeded banner (#361) ----
@@ -10604,7 +10508,9 @@
     </div>
   </div>
   <div class="dashboard-toolbar">
-    <div id="forge-health"></div>
+    <div id="forge-health">
+      <ForgeHealth forges={healthForges} ago={relativeTime} />
+    </div>
     <!-- The one polite live region for forge health. #forge-health is
          redrawn on every snapshot, so it can't be live itself: this text
          changes only when the state it states does (WCAG 4.1.3). It exists
