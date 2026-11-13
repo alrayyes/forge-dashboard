@@ -110,6 +110,10 @@ func New(cfg Config) *Proxy {
 	}
 }
 
+// Config is the setup the proxy was built with, so a caller's tests can check
+// what a builder really produced, token and all.
+func (p *Proxy) Config() Config { return p.cfg }
+
 func refuseNonPublic(_, address string, _ syscall.RawConn) error {
 	addr, err := netip.ParseAddrPort(address)
 	if err != nil {

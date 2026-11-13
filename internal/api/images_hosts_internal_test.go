@@ -79,14 +79,14 @@ func TestImageRefusalLevel(t *testing.T) {
 // GitHub's attachment links carry their own signature, so the default proxy is
 // built with no token and no token host. A token added here would be sent to
 // the image host.
-func TestGithubImageProxyConfig_CarriesNoToken(t *testing.T) {
+func TestImageProxyFor_GithubProxyCarriesNoToken(t *testing.T) {
 	t.Parallel()
-	cfg := githubImageProxyConfig()
+	creds := settings.Credentials{ForgejoURL: "https://git.example", ForgejoToken: "saved-token"}
+	proxy, serr := imageProxyFor(Deps{}, "github", creds)
+	require.Nil(t, serr)
+	cfg := proxy.Config()
 	assert.Empty(t, cfg.Token, "no token for the image host")
 	assert.Empty(t, cfg.TokenHost, "no host the token could go to")
 	assert.Equal(t, githubImageHosts, cfg.Hosts)
 	assert.False(t, cfg.AllowLocal)
-	proxy, serr := imageProxyFor(Deps{}, "github", settings.Credentials{ForgejoToken: "t"})
-	require.Nil(t, serr)
-	require.NotNil(t, proxy)
 }
