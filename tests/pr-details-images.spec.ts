@@ -50,6 +50,8 @@ function png(width: number, height: number): Buffer {
 const FORGE_IMAGE = 'https://github.com/user-attachments/assets/wide';
 const BROKEN_IMAGE = 'https://github.com/user-attachments/assets/gone';
 const TALL_IMAGE = 'https://github.com/user-attachments/assets/tall';
+const NEAR_UNDER = 'https://github.com/user-attachments/assets/under';
+const NEAR_OVER = 'https://github.com/user-attachments/assets/over';
 const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
@@ -126,7 +128,14 @@ async function openDialog(
     return route.fulfill({
       status: 200,
       contentType: 'image/png',
-      body: target === TALL_IMAGE ? png(400, 1600) : png(2000, 600),
+      body:
+        target === TALL_IMAGE
+          ? png(400, 1600)
+          : target === NEAR_UNDER
+            ? png(1000, 700)
+            : target === NEAR_OVER
+              ? png(400, 900)
+              : png(2000, 600),
     });
   });
   const stranger: string[] = [];
@@ -446,3 +455,131 @@ test('the skeleton holds until the image really loads (#3468)', async ({
   release();
   await expect(image).toHaveClass(/md-image-loaded/);
 });
+
+// A visible way to open a capped image, for people with no hover (#3835).
+for (const [width, height] of [
+  [360, 800],
+  [390, 800],
+  [1280, 800],
+] as const) {
+  test(`a capped image shows a View larger control, an uncapped one does not (${width}px, #3835)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    const { dialog } = await openDialog(
+      page,
+      `![tall](${TALL_IMAGE})\n\n![wide mockup](${FORGE_IMAGE})`,
+    );
+    const body = dialog.locator('.details-body');
+    await expect(body.getByRole('img', { name: 'tall' })).toHaveClass(
+      /md-image-loaded/,
+    );
+    await expect(body.getByRole('img', { name: 'wide mockup' })).toHaveClass(
+      /md-image-loaded/,
+    );
+
+    // Only the capped one gets a control; its name holds the visible text.
+    const expand = body.getByRole('button', { name: /^View larger/ });
+    await expect(expand).toHaveCount(1);
+    await expect(expand).toBeVisible();
+    await expect(expand).toContainText('View larger');
+    expect(await expand.getAttribute('aria-label')).toBeNull();
+    const name = await expand.evaluate((el) => el.textContent?.trim() ?? '');
+    expect(name.startsWith('View larger')).toBe(true);
+    const box = await expand.boundingBox();
+    expect(box && box.height >= 44).toBe(true);
+    if (width <= 390) expect(box && box.width >= 44).toBe(true);
+
+    // It follows its image in the DOM and on screen.
+    const order = await expand.evaluate((el) => {
+      const link = el.previousElementSibling;
+      return {
+        afterImage: !!link?.querySelector('img.md-image'),
+        below:
+          el.getBoundingClientRect().top >=
+          (link?.getBoundingClientRect().bottom ?? Infinity) - 1,
+      };
+    });
+    expect(order).toEqual({ afterImage: true, below: true });
+
+    // It opens the viewer, and Close puts focus back on the control.
+    await expand.focus();
+    await page.keyboard.press('Enter');
+    const lightbox = page.getByRole('dialog', { name: 'tall' });
+    await expect(lightbox).toBeVisible();
+    await lightbox.getByRole('button', { name: 'Close' }).click();
+    await expect(lightbox).toBeHidden();
+    await expect(expand).toBeFocused();
+
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    }
+    await page.emulateMedia({ forcedColors: 'active' });
+    // Scoped to the new control: axe flags the row's Merge button here (#3848).
+    const forced = await new AxeBuilder({ page })
+      .include('button.md-expand')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(forced.violations).toEqual([]);
+  });
+}
+
+test('the page behind the viewer does not scroll (#3835)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 600 });
+  const filler = Array.from({ length: 40 }, (_, i) => `Line ${i}.`).join(
+    '\n\n',
+  );
+  const { dialog } = await openDialog(
+    page,
+    `${filler}\n\n![tall](${TALL_IMAGE})\n\n${filler}`,
+  );
+  const body = dialog.locator('.details-body');
+  const image = body.getByRole('img', { name: 'tall' });
+  await image.scrollIntoViewIfNeeded();
+  await expect(image).toHaveClass(/md-image-loaded/);
+  await body.getByRole('button', { name: /^View larger/ }).click();
+  const lightbox = page.getByRole('dialog', { name: 'tall' });
+  await expect(lightbox).toBeVisible();
+
+  const top = await body.evaluate((el) => el.scrollTop);
+  expect(top).toBeGreaterThan(0);
+  // Wheel over the details body itself, the thing that would scroll.
+  const rect = await body.boundingBox();
+  await page.mouse.move((rect?.x ?? 0) + 6, (rect?.y ?? 0) + 6);
+  await page.mouse.wheel(0, 400);
+  await page.waitForTimeout(200);
+  expect(await body.evaluate((el) => el.scrollTop)).toBe(top);
+});
+
+// Just under and just over the cap, where rounding and the parent's width used
+// to decide wrongly (#3835).
+for (const width of [360, 390]) {
+  test(`the control follows the cap exactly (${width}px, #3835)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const { dialog } = await openDialog(
+      page,
+      `![under](${NEAR_UNDER})\n\n![over](${NEAR_OVER})`,
+    );
+    const body = dialog.locator('.details-body');
+    for (const name of ['under', 'over'])
+      await expect(body.getByRole('img', { name })).toHaveClass(
+        /md-image-loaded/,
+      );
+    // 1000 x 700 shrinks by width to well under the cap: no button.
+    expect(
+      (await body.getByRole('img', { name: 'under' }).boundingBox())?.height,
+    ).toBeLessThan(480);
+    await expect(
+      body.getByRole('button', { name: /^View larger/ }),
+    ).toHaveCount(1);
+    await expect(
+      body.getByRole('button', { name: 'View larger over' }),
+    ).toHaveCount(1);
+  });
+}
