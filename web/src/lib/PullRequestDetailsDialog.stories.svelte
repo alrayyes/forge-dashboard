@@ -334,7 +334,9 @@
       "beforeend",
       `<a href="${svg}" target="_blank" rel="noopener noreferrer"><img class="md-image md-image-loaded" alt="Failing check summary screenshot" src="${svg}"></a>`,
     );
-    await userEvent.click(host.querySelector("a:last-child") as HTMLElement);
+    await userEvent.click(
+      host.querySelector("a:has(> img.md-image)") as HTMLElement,
+    );
     await waitFor(() =>
       expect(
         document.querySelector("dialog.image-lightbox[open]"),
