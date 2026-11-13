@@ -39,25 +39,28 @@ async function open(page: Page, forges: unknown[]) {
   await page.goto('/pull-requests.html');
 }
 
-for (const width of [360, 390, 1280]) {
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`incident at ${width}px, ${scheme}: second sentence in the one banner, axe clean`, async ({
-      page,
-    }) => {
+// One test loops every width in both themes: the banner is the same code in
+// each, so six tests only paid for six page loads.
+test('incident: second sentence in the one banner, axe clean, in light and dark at 360, 390 and 1280px', async ({
+  page,
+}) => {
+  for (const width of [360, 390, 1280]) {
+    for (const scheme of ['light', 'dark'] as const) {
+      const where = `${width}px, ${scheme}`;
       await page.setViewportSize({ width, height: 800 });
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, [github(status), forgejo]);
 
       const banner = page.locator('#unreachable-banner');
-      await expect(page.locator('.unreachable-banner')).toHaveCount(1);
-      await expect(banner).toHaveText(
+      await expect(page.locator('.unreachable-banner'), where).toHaveCount(1);
+      await expect(banner, where).toHaveText(
         /^GitHub is unreachable\. Showing data from .+, 3h ago\. Retrying automatically\. GitHub reports an incident: Degraded performance\. Affects: Pull Requests\.\s*GitHub status\s*Retry$/,
       );
       // The incident is on its own line under the first sentence.
       const incident = banner.locator('.unreachable-banner-incident');
       const first = await banner.locator('strong').boundingBox();
       const second = await incident.boundingBox();
-      expect(second?.y ?? 0).toBeGreaterThan(
+      expect(second?.y ?? 0, where).toBeGreaterThan(
         (first?.y ?? 0) + (first?.height ?? 0) - 1,
       );
 
@@ -66,15 +69,15 @@ for (const width of [360, 390, 1280]) {
           document.documentElement.scrollWidth -
           document.documentElement.clientWidth,
       );
-      expect(overflow).toBeLessThanOrEqual(0);
+      expect(overflow, where).toBeLessThanOrEqual(0);
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
-      expect(results.violations).toEqual([]);
-    });
+      expect(results.violations, where).toEqual([]);
+    }
   }
-}
+});
 
 test('no incident reported: the banner is the same as before', async ({
   page,

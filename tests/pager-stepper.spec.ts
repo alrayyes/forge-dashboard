@@ -164,10 +164,11 @@ for (const b of boards) {
       ).toEqual(['Page 2 of 3']);
     });
 
-    for (const scheme of ['light', 'dark'] as const) {
-      test(`first and last page disable the end button and pass axe (${scheme})`, async ({
-        page,
-      }) => {
+    // One test loops both themes: the stepper is the same code in each.
+    test('first and last page disable the end button and pass axe (light and dark)', async ({
+      page,
+    }) => {
+      for (const scheme of ['light', 'dark'] as const) {
         await page.emulateMedia({ colorScheme: scheme });
         await page.setViewportSize({ width: 390, height: 800 });
         await mock(page);
@@ -186,7 +187,7 @@ for (const b of boards) {
         await expect(prev).toBeDisabled();
         await expect(next).toBeEnabled();
         const first = await new AxeBuilder({ page }).withTags(tags).analyze();
-        expect(first.violations).toEqual([]);
+        expect(first.violations, `first page, ${scheme}`).toEqual([]);
 
         await next.click();
         await expect(status).toHaveText('Page 2 of 3');
@@ -195,9 +196,9 @@ for (const b of boards) {
         await expect(next).toBeDisabled();
         await expect(prev).toBeEnabled();
         const last = await new AxeBuilder({ page }).withTags(tags).analyze();
-        expect(last.violations).toEqual([]);
-      });
-    }
+        expect(last.violations, `last page, ${scheme}`).toEqual([]);
+      }
+    });
 
     test('761px keeps the row of page numbers', async ({ page }) => {
       await page.setViewportSize({ width: 761, height: 800 });

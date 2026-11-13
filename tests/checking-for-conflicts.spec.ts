@@ -90,13 +90,24 @@ for (const theme of ['light', 'dark'] as const) {
           Math.abs((a?.height ?? 0) - (b?.height ?? 0)),
         ).toBeLessThanOrEqual(1);
       });
-
-      test('has no axe violations', async ({ page }) => {
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
     });
   }
 }
+
+// One test loops both themes and every width: the page is the same code in
+// each, so six separate tests only paid for six fixtures and six loads.
+test('has no axe violations in light and dark at 390, 820 and 1280px', async ({
+  page,
+}) => {
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [390, 820, 1280]) {
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: 900 });
+      await open(page);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, `${theme} at ${width}px`).toEqual([]);
+    }
+  }
+});
