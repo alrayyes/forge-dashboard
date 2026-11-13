@@ -11,6 +11,7 @@ import {
   logToCopy,
   logUrl,
   notePlaces,
+  parseLogLines,
 } from './run-log';
 
 describe('logUrl', () => {
@@ -553,5 +554,60 @@ describe('canCopyLog', () => {
     expect(
       canCopyLog({ status: 'completed', conclusion: 'failure' }, checks),
     ).toBe(false);
+  });
+});
+
+describe('parseLogLines', () => {
+  test('classifies plain, warning, error and step header lines', () => {
+    const lines = parseLogLines(
+      [
+        '##[group]Run tests',
+        'ok everything',
+        '##[warning]slow test',
+        '##[error]boom',
+        'error: bad thing',
+        'warning: careful',
+        '--- Build',
+        '+++ Test',
+      ].join('\n'),
+    );
+    expect(lines.map((l) => [l.kind, l.text])).toEqual([
+      ['step', 'Run tests'],
+      ['plain', 'ok everything'],
+      ['warning', 'slow test'],
+      ['error', 'boom'],
+      ['error', 'error: bad thing'],
+      ['warning', 'warning: careful'],
+      ['step', 'Build'],
+      ['step', 'Test'],
+    ]);
+  });
+
+  test('splits an ISO timestamp prefix off the line', () => {
+    const [line] = parseLogLines('2026-11-13T10:00:01.123Z hello');
+    expect(line).toEqual({
+      kind: 'plain',
+      time: '10:00:01.123',
+      text: 'hello',
+    });
+  });
+
+  test('strips ANSI codes and uses red and yellow as level hints', () => {
+    const lines = parseLogLines(
+      '\u001b[31mfailed\u001b[0m\n\u001b[33mhmm\u001b[0m\n\u001b[32mfine\u001b[0m',
+    );
+    expect(lines.map((l) => [l.kind, l.text])).toEqual([
+      ['error', 'failed'],
+      ['warning', 'hmm'],
+      ['plain', 'fine'],
+    ]);
+  });
+
+  test('keeps blank lines and ignores a trailing newline', () => {
+    expect(parseLogLines('a\n\nb\n').map((l) => l.text)).toEqual([
+      'a',
+      '',
+      'b',
+    ]);
   });
 });
