@@ -217,7 +217,7 @@ header,
 }
 
 /* The dashboard page's own toolbar (the owner-select, forge
-   health, the refreshed clock, the refresh button) — plain markup right
+   health) — plain markup right
    below the shared <header>, not part of it (see (app)/+page.svelte's own
    comment on why: a Svelte context "slot" into the layout's <header> broke
    under SSR). Shares header's own flex layout/spacing above, but as a
@@ -360,11 +360,6 @@ header,
   }
 }
 
-.refreshed {
-  font-size: 0.75rem;
-  color: var(--ink-3);
-}
-
 .theme-toggle {
   display: inline-flex;
   align-items: center;
@@ -410,14 +405,6 @@ header,
 }
 .theme-toggle svg {
   display: block;
-}
-/* The one .theme-toggle a script disables (mid-refresh, then for a short
-   cooldown after) — a real button, not a link, is the only one of these
-   that ever needs this state at all. */
-.theme-toggle:disabled,
-.theme-toggle[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
 }
 
 /* ---- mobile bottom tab bar (mobile-bottom-nav) ----
@@ -1286,55 +1273,84 @@ select.col-filter {
   outline-offset: 1px;
 }
 
-/* The bar holds the one Pause control for the page's live updates. It
-   draws its box only while paused, so it is not an empty grey strip. */
-.updates-bar {
-  display: flex;
+/* The one live control in a list card header (#3699): status, the time of
+   the snapshot on screen, Pause or Resume, and refresh, in one bordered group
+   that leads the card's right-hand controls. */
+.live-control {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 6px 12px;
-  margin-bottom: 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
+  gap: 4px 10px;
+  padding-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   font-size: 0.75rem;
   color: var(--ink-2);
+  flex: none;
 }
-.updates-bar:has(.updates-paused:not([hidden])) {
-  background: var(--surface-sunken);
-  border-color: var(--border);
+/* On Main branches, at a large root size on a narrow phone, the group wraps
+   instead of scrolling the page sideways. */
+.mb-header-controls .live-control {
+  flex-wrap: wrap;
+  max-width: 100%;
 }
-.updates-paused {
-  color: var(--ink-2);
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink);
 }
-.updates-bar button {
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok, #157347);
+}
+.live-control.paused .live-dot {
+  /* Amber as in the Stitch paused screen. --warning clears 3:1 against the
+     card in both themes; the word "Paused" carries the meaning, not the dot. */
+  background: var(--warning);
+}
+.live-updated {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.live-control button {
   font-family: inherit;
   font-size: 0.75rem;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
 }
-.updates-bar .updates-pause {
-  margin-left: auto;
+.live-control .live-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 0;
+  color: var(--ink-2);
+  border-radius: 0 999px 999px 0;
 }
-.updates-bar .updates-pause[aria-pressed="true"] {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+.live-control button:hover {
+  color: var(--accent);
 }
-.updates-bar button:focus-visible {
+.live-control button:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
-/* Forced colors drops the border colour and inset shadow that mark a paused
-   updates bar (#3388). A 3px system-colour border marks it, with the padding
-   cut by the 2px it gained so the button keeps its size. */
+.live-control .live-refresh[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 @media (forced-colors: active) {
-  .updates-bar .updates-pause[aria-pressed="true"] {
-    border: 3px solid Highlight;
-    padding: 3px 8px;
+  .live-control.paused .live-dot {
+    background: GrayText;
+    border: 1px solid GrayText;
   }
 }
 
@@ -4528,16 +4544,14 @@ button.pipeline-check-link:disabled {
   .wrap:has(> .activity-bar) > .filter-bar {
     grid-column: 1;
   }
-  .wrap:has(> .activity-bar) > .activity-bar,
-  .wrap:has(> .activity-bar) > .updates-bar {
+  .wrap:has(> .activity-bar) > .activity-bar {
     grid-column: 2;
   }
   .wrap:has(> .activity-bar) > .activity-bar,
   .wrap:has(> .activity-bar) > .dashboard-toolbar {
     grid-row: 1;
   }
-  .wrap:has(> .activity-bar) > .filter-bar,
-  .wrap:has(> .activity-bar) > .updates-bar {
+  .wrap:has(> .activity-bar) > .filter-bar {
     grid-row: 2;
   }
   .activity-bar {
@@ -4550,7 +4564,6 @@ button.pipeline-check-link:disabled {
     top: 0;
   }
   .dashboard-toolbar {
-    min-height: 44px;
     padding: 0;
     gap: 4px 12px;
   }
@@ -4572,11 +4585,6 @@ button.pipeline-check-link:disabled {
   }
   .active-filters {
     flex: 0 0 100%;
-  }
-  .updates-bar {
-    align-self: center;
-    padding: 0;
-    margin: 0 0 4px;
   }
   .board-head {
     padding: 6px 18px 4px;
@@ -5067,7 +5075,8 @@ footer a[aria-current="page"] {
       .error-links a,
       .theme-toggle,
       .activity-toggle,
-      .updates-pause,
+      .live-pause,
+      .live-refresh,
       .quick-pill,
       .segment button,
       .clear-filters,
@@ -5098,6 +5107,8 @@ footer a[aria-current="page"] {
     body
     :is(
       .theme-toggle,
+      .live-pause,
+      .live-refresh,
       .quick-pill,
       .token-toggle,
       .copy-button,
@@ -5432,21 +5443,34 @@ footer a[aria-current="page"] {
    whether or not the button is there. The header is then the same height
    either way. */
 @media (max-width: 600px) {
+  /* The live control (#3699) is wide, so it takes the first line and the
+     count, the Hidden toggle and the button share the second. */
   .board-head:has(.rerun-all) .board-head-controls {
     flex: 1 1 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
-    /* The row is as tall as the button whether or not it shows, so the
-       button needs no negative margin and never lands on the heading. */
-    min-height: 44px;
+  }
+  .board-head:has(.rerun-all) .board-head-controls .live-control {
+    flex: 1 1 100%;
+  }
+  .board-head:has(.rerun-all) .board-head-controls .live-updated {
+    margin-right: auto;
   }
   .board-head:has(.rerun-all) .board-head-controls .count {
     margin-left: auto;
+    /* The second line is as tall as the button whether or not it shows, so
+       the button needs no negative margin and never lands on the heading. */
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
   .rerun-all {
     margin-block: 0;
     min-width: 0;
+    /* Takes what the Hidden toggle and the count leave, so the second line
+       never breaks in two; the label wraps instead. */
+    flex: 1 1 0;
   }
   /* The label wraps in two lines when the Hidden toggle shares the row. */
   .rerun-all-button {

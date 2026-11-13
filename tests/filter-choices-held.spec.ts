@@ -115,10 +115,12 @@ test('choices stay with the list on screen while updates are paused', async ({
   page,
 }) => {
   await open(page);
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
 
   await page.evaluate((data) => window.__push(data), snapshot(NEWER));
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
   expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
@@ -126,7 +128,9 @@ test('choices stay with the list on screen while updates are paused', async ({
   expect(await choices(page, 'shared-label-filter')).toEqual(['bug']);
 
   // Resuming lands the new row, and its choices arrive with it.
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
@@ -142,9 +146,11 @@ test('choices follow the list when a held list lands by a sort change', async ({
     ...SHOWN,
     pr(3, 'alrayyes', 'alrayyes/app', 'bug'),
   ]);
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await page.evaluate((data) => window.__push(data), snapshot(NEWER));
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
 
   // Sorting applies what waited, and the choices describe it.
   await page.getByLabel('Sort pull requests by').selectOption('created');
@@ -159,18 +165,22 @@ test('the Issues page keeps its choices with the list while updates are paused',
   page,
 }) => {
   await open(page, '/issues.html');
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await page.evaluate(
     (data) => window.__push(data),
     snapshot([], ISSUES_NEWER),
   );
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
   expect(await choices(page, 'shared-author-filter')).toEqual(['alrayyes']);
   expect(await choices(page, 'shared-repo-filter')).toEqual(['alrayyes/app']);
 
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
   expect(await choices(page, 'shared-author-filter')).toEqual([
     'alrayyes',
@@ -201,9 +211,11 @@ test('a saved pick only the held list has is kept when the saved copy arrives', 
     });
   });
   await open(page);
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await page.evaluate((data) => window.__push(data), snapshot(NEWER));
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
 
   release();
 
@@ -238,12 +250,14 @@ test('the Issues list lands too when the saved copy meets a paused view', async 
     });
   });
   await open(page, '/issues.html');
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await page.evaluate(
     (data) => window.__push(data),
     snapshot([], ISSUES_NEWER),
   );
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
   await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
 
   release();
@@ -280,12 +294,14 @@ test('a saved pick the held Issues list lacks stays held when the saved copy arr
     });
   });
   await open(page, '/issues.html');
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await page.evaluate(
     (data) => window.__push(data),
     snapshot([], ISSUES_NEWER),
   );
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
 
   release();
 
@@ -306,11 +322,15 @@ test('a pick the landed list no longer offers is cleared and the list shows agai
   await open(page, '/pull-requests.html', NEWER);
   await pickOnly(page, 'author', 'github:claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
 
   await page.evaluate((data) => window.__push(data), snapshot(SHOWN));
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await expect(page.locator('.live-control')).toContainText('Paused');
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
 
   await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);

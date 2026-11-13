@@ -333,13 +333,17 @@ for (const p of PAGES) {
           ?.onmessage != null,
     );
 
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await page.evaluate((d) => window.__push(d), snap(2));
-    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator('.live-control')).toContainText('Paused');
     await expect(page.locator(p.rows)).toHaveCount(1);
     await expect(page.locator('.filter-bar')).toBeHidden();
 
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await expect(page.locator(p.rows)).toHaveCount(2);
     await expect(page.locator('.filter-bar')).toBeVisible();
   });

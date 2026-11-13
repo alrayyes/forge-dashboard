@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.40.0](https://github.com/alrayyes/forge-dashboard/compare/v9.39.0...v9.40.0) (2026-11-13)
+
+
+### Features
+
+* **images:** bound the cost of proxied avatar and logo fetches ([#3727](https://github.com/alrayyes/forge-dashboard/issues/3727)) ([24e5949](https://github.com/alrayyes/forge-dashboard/commit/24e59496e5a61283e409fcc2ffdd23c9451abfc2))
+
+## [9.39.0](https://github.com/alrayyes/forge-dashboard/compare/v9.38.1...v9.39.0) (2026-11-13)
+
+
+### Features
+
+* **web:** one live control in every list card header ([#3722](https://github.com/alrayyes/forge-dashboard/issues/3722)) ([a5d1c5e](https://github.com/alrayyes/forge-dashboard/commit/a5d1c5e88c2b19413ddcc647d770737889053a54)), closes [#3699](https://github.com/alrayyes/forge-dashboard/issues/3699)
+
 ## [9.38.1](https://github.com/alrayyes/forge-dashboard/compare/v9.38.0...v9.38.1) (2026-11-13)
 
 
