@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.37.1](https://github.com/alrayyes/forge-dashboard/compare/v9.37.0...v9.37.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** keep a stuck unreachable or rate-limit banner below the pinned Activity control ([#3721](https://github.com/alrayyes/forge-dashboard/issues/3721)) ([21073d9](https://github.com/alrayyes/forge-dashboard/commit/21073d90cac238532ea6c7614e9eef25651be4e0)), closes [#3720](https://github.com/alrayyes/forge-dashboard/issues/3720)
+
 ## [9.37.0](https://github.com/alrayyes/forge-dashboard/compare/v9.36.2...v9.37.0) (2026-11-12)
 
 
