@@ -380,3 +380,20 @@ func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
 		require.NotErrorIs(t, err, imageproxy.ErrHostNotListed, name)
 	}
 }
+
+func TestFetchMax_RefusesAnImageOverTheGivenLimit(t *testing.T) {
+	t.Parallel()
+	big := append(append([]byte{}, onePixelPNG...), make([]byte, 2048)...)
+	s := serve(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		_, _ = w.Write(big)
+	})
+	p := instance(s, "")
+
+	_, err := p.FetchMax(t.Context(), s.URL+"/a", 1024)
+	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
+
+	img, err := p.FetchMax(t.Context(), s.URL+"/a", len(big))
+	require.NoError(t, err)
+	assert.Len(t, img.Data, len(big))
+}

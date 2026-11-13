@@ -338,7 +338,14 @@ can't fire a tracking pixel when the dialog opens.
   NAT64 and 6to4 ranges) is refused on the resolved address. The exception is
   the configured Forgejo instance, which is often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
-  the host's header. SVG is refused. Up to 8 megabytes and 10 seconds.
+  the host's header. SVG is refused. Up to 8 MiB for an embedded image, 512 KiB
+  for an avatar or logo (the page adds `kind=avatar`), and 10 seconds.
+- The cost is bounded. At most 8 upstream fetches run at once; another
+  request waits up to 5 seconds for a slot, then gets a 503 with `Retry-After`.
+  A fetched image is kept in memory for 5 minutes (at most 512 images and
+  32 MiB), so a repeat request costs no upstream fetch. Failures aren't
+  cached. The cache is keyed by address, not token, so after a token change an
+  image can be served stale for up to 5 minutes.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route

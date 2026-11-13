@@ -58,6 +58,13 @@ type Deps struct {
 	// GitHubImageOrigin is where a user-attachment link lives. Empty means
 	// https://github.com; only tests set it.
 	GitHubImageOrigin string
+	// ImageConcurrency is how many image fetches may run upstream at once,
+	// ImageQueueWait how long another waits for a slot before a 503, and
+	// ImageCacheTTL how long a fetched image is reused. Zero means the
+	// defaults (8, 5s and 5m).
+	ImageConcurrency int
+	ImageQueueWait   time.Duration
+	ImageCacheTTL    time.Duration
 
 	// Database and Dashboard back GET /readyz. Either may be nil, in which
 	// case that check is skipped.
