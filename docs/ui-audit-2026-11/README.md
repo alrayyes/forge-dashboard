@@ -73,3 +73,20 @@ Stitch designs for moving the bulk actions into the card header (ticket 3755):
   in the idle design; build it at the idle width).
 - `stitch/bulk-actions-dialog-desktop-1280.png`: the confirmation dialog with
   the scope in its title, "Update 2 pull requests?".
+
+Stitch designs for the image viewer in the pull request dialog (ticket 3414), light
+theme only:
+
+- `stitch/image-lightbox-desktop-1280.png`: a dialog over a full-height scrim
+  with the alt text as the title, an "Open original in new tab" link and a Close
+  button of at least 44px in the top bar, and the image scaled to fit, uncropped.
+- `stitch/image-lightbox-phone-390.png`: the same on a phone, with the title
+  allowed to wrap to two lines and the link as its own 48px row at the bottom.
+  Stitch drew the phone column inside a wider canvas, so the image is cropped
+  to the column.
+
+Adopted: the top bar contents, the contained image, the full-height scrim.
+Rejected: nothing. The sample content in the stills is placeholder only, and the
+viewer chrome adds no invented features. Not designed: a height cap and loading
+skeleton (ticket 3468), the dark theme, and focus trap, inert page and scroll
+lock (to be shown in the spec, not a still).
