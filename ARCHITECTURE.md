@@ -324,8 +324,13 @@ can't fire a tracking pixel when the dialog opens.
   `private-user-images.githubusercontent.com` address found there. That
   second fetch carries no token and goes through the same host list. If the
   lookup finds nothing or fails, or the signed address is refused or doesn't
-  load, the link is fetched as written. The lookup is one API request per
-  image and skips the ETag cache, since the signature expires.
+  load, the link is fetched as written. The lookup skips the ETag cache, since
+  the signature expires. Instead the item's rendered body is kept in memory for
+  two minutes, well under the signature's five. One cache outlives the
+  per-request clients, is keyed by credential and item, holds at most 256
+  items (the one closest to expiring makes room) and never keeps a failed
+  read, so every image in one description shares one API request. An expired
+  body is read again, never served.
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public

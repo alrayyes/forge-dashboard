@@ -14,11 +14,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/auth"
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
+	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,7 +99,7 @@ func TestBuildGitHubSource_BothAppInstallationAndToken_AppWins(t *testing.T) {
 
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, testGitHubAppPrivateKeyPEM, srv.URL, nil, nil,
+		1, testGitHubAppPrivateKeyPEM, srv.URL, nil, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -115,7 +118,7 @@ func TestBuildGitHubSource_AppConstructionFails_FallsBackToToken(t *testing.T) {
 	// up being used.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), srv.URL, nil, nil,
+		1, []byte("not a pem"), srv.URL, nil, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -135,7 +138,7 @@ func TestBuildGitHubSource_InstallationIdSetButNoServerApp_FallsBackToToken(t *t
 	// the existing PAT from working.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		0, nil, srv.URL, nil, nil,
+		0, nil, srv.URL, nil, nil, nil,
 	)
 	require.NotNil(t, source)
 
@@ -151,11 +154,61 @@ func TestBuildGitHubSource_AppFailsWithNoFallback_ReportsHealthError(t *testing.
 	// the (deliberately broken) App branch fails.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), "", nil, nil,
+		1, []byte("not a pem"), "", nil, nil, nil,
 	)
 	require.NotNil(t, source)
 
 	result := source.Fetch(t.Context())
 
 	assert.False(t, result.Health.Reachable)
+}
+
+func TestBuildGitHubSource_ClientsOnOneCacheShareAnItemsRenderedBody(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"body_html":"<a href=\"https://github.com/user-attachments/assets/a\"><img src=\"https://private-user-images.githubusercontent.com/s.png\"></a>"}`))
+	}))
+	t.Cleanup(srv.Close)
+	cache := github.NewRenderedBodyCache()
+	creds := settings.Credentials{GitHubToken: "pat-value"}
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	// A request builds its own client, as buildSources does.
+	for range 2 {
+		source := buildGitHubSource(creds, 0, nil, srv.URL, nil, nil, cache)
+		resolver, ok := source.(dashboard.ImageLinkResolver)
+		require.True(t, ok)
+		_, err := resolver.SignedImageURL(t.Context(), "octo", "repo", item, "https://github.com/user-attachments/assets/a")
+		require.NoError(t, err)
+	}
+
+	assert.EqualValues(t, 1, calls.Load())
+}
+
+// Not parallel: it points the package's GitHub API address at a local server.
+func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"body_html":"<a href=\"https://github.com/user-attachments/assets/a\"><img src=\"https://private-user-images.githubusercontent.com/a.png\"></a><a href=\"https://github.com/user-attachments/assets/b\"><img src=\"https://private-user-images.githubusercontent.com/b.png\"></a>"}`))
+	}))
+	t.Cleanup(srv.Close)
+	githubAPIBaseURL = srv.URL
+	t.Cleanup(func() { githubAPIBaseURL = "" })
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	for _, link := range []string{"https://github.com/user-attachments/assets/a", "https://github.com/user-attachments/assets/b"} {
+		sources := build(settings.Credentials{GitHubToken: "pat-value"})
+		require.Len(t, sources, 1)
+		resolver, ok := sources[0].(dashboard.ImageLinkResolver)
+		require.True(t, ok)
+		got, err := resolver.SignedImageURL(t.Context(), "octo", "repo", item, link)
+		require.NoError(t, err)
+		assert.NotEmpty(t, got)
+	}
+
+	assert.EqualValues(t, 1, calls.Load())
 }
