@@ -58,6 +58,15 @@ only. The phone shot is at 200% because at 400% the page heading is also
 clipped, and at both sizes the bottom tab bar labels overlap; both are tracked
 in ticket 3816.
 
+`before-trigger-arrow/` and `after-trigger-arrow/` show the Pull requests filter
+bar at 1280px in forced colours (Chromium's `forcedColors: 'active'` emulation,
+not a real Windows High Contrast session), light and dark. "Before" is the
+current code with the forced-colours block from PR 3553 removed by hand; "after"
+is the current code. The repo, Authors and Labels pick triggers gain the arrow
+the selects already had (ticket 3442). The 390px filter sheet is not covered:
+its controls have no arrow in forced colours, selects included, because the
+rules only match `.filter-bar` (ticket 3821).
+
 Stitch designs for moving the bulk actions into the card header (ticket 3755):
 
 - `stitch/bulk-actions-header-desktop-1280.png`: Update all as an outlined
