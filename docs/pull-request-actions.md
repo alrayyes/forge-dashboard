@@ -311,28 +311,34 @@ queue button is not offered while any host of the kind is unreachable.
 A forge that can't be reached gets the same treatment. Its controls are not
 drawn either, and no row carries a Retry or a pointer to a status line. One
 banner that stays in view while you scroll, on a phone too, says "GitHub is
-unreachable. Showing the last data from 14:32.", gives the cause in plain words,
-and has the one Retry, which forces a refresh. GitHub's row also links to
-githubstatus.com in a new tab, so you can see whether GitHub is reporting an
-incident; a Forgejo instance is self-hosted and has no such page.
+unreachable. Showing data from 14:32, `3h ago`. Retrying automatically." and has
+the one Retry, which forces a refresh for the forge that failed. The toolbar
+refresh button stays as it is: it updates the whole list. The banner is the one
+place that says a forge is down: the toolbar draws no chip, age line or
+cause line for it, and a healthy forge's pill is untouched. When both forges
+are down it is still one banner, "GitHub and Forgejo are unreachable.", with
+the age of the oldest data. When the cause is a wrong token or instance URL it
+says what to check in Settings instead of "Retrying automatically.". GitHub's
+status link, shown whenever GitHub is down (also in the combined banner),
+opens githubstatus.com in a new tab, so you can see whether GitHub is
+reporting an incident; a Forgejo instance is self-hosted and has no such page.
 
 A forge that answers but fails is not unreachable. If GitHub replies 502, 503 or
 504 (a gateway timeout on a heavy query, say), the banner reads "GitHub returned
-504 Gateway Timeout. Showing the last data from 14:32.", and the API and MCP
-output carry the same text with `errorKind: "upstream_error"` and
-`upstreamStatus: 504`. The dashboard tries the request three times, waiting
-about 0.2 and then 0.4 seconds (randomised) between tries so a burst of
-failures does not retry in step. It also waits for three failed refreshes in a
-row, whatever the cause, before it shows the forge down, as long as the latest
-failure is a 5xx. While a failure is held, the page keeps the last good data
-and shows nothing for up to about two polls. One failure among healthy
-refreshes changes nothing on the page, and the first good refresh clears the
-count. A request that gets no answer at all still shows as unreachable at
-once. When
-the forge answers again the
-controls return without a reload, with a polite "GitHub is reachable again,
-actions available" toast, and the banner clears. A row's own reason for Merge
-(stacked, waiting for CI) shows whenever its forge can be reached.
+504 Gateway Timeout. Showing data from 14:32, `3h ago`. Retrying
+automatically.", and the API and MCP output carry the same text with
+`errorKind: "upstream_error"` and `upstreamStatus: 504`. The dashboard tries
+the request three times, waiting about 0.2 and then 0.4 seconds (randomised)
+between tries so a burst of failures does not retry in step. It also waits for
+three failed refreshes in a row, whatever the cause, before it shows the forge
+down, as long as the latest failure is a 5xx. While a failure is held, the page
+keeps the last good data and shows nothing for up to about two polls. One
+failure among healthy refreshes changes nothing on the page, and the first good
+refresh clears the count. A request that gets no answer at all still shows as
+unreachable at once. When the forge answers again the controls return without a
+reload, with a polite "GitHub is reachable again, actions available" toast, and
+the banner clears. A row's own reason for Merge (stacked, waiting for CI) shows
+whenever its forge can be reached.
 
 A missing token permission locks that action on that pull request, with no Retry
 either, and the reason points to Settings. Other pull requests and other actions
@@ -915,6 +921,16 @@ button are hidden, since the output panel has the whole text and one `Copy`
 button of its own (named "Copy output: {check}"). The `Failed step` line stays.
 While the output is loading or failed to load, the panel has no Copy button and
 the excerpt and its button stay.
+
+A row's controls sit in one row at its right edge: the text `Show output` or
+`Hide output` with a chevron, then `Copy` and `Open job` as 44-pixel icon buttons.
+Their accessible names start with their words ("Copy output: {check}", "Open
+job on {forge} (opens in a new tab): {check}"). In the open output each line
+is read for its level and carries a cue beside colour: the `Error` or `Warning`
+label with a solid or dashed left border, a rule under a step header
+(`##[group]`, `---`, `+++`), and its time of day dimmed when it starts with an
+ISO timestamp. Colour escape codes are removed. Copy still copies the log as
+the forge sent it.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with

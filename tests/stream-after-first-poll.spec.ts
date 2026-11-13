@@ -96,8 +96,8 @@ test.describe('live stream start (#1569)', () => {
     });
     await page.goto('/pull-requests.html');
 
-    await expect(page.locator('#forge-health')).toContainText(
-      'Showing data from 3m ago',
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      /Showing data from .*, 3m ago/,
       { timeout: 15_000 },
     );
     expect(streamRequests).toBeGreaterThan(1);

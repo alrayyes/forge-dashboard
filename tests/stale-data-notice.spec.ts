@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
 // #933: a forge that failed its last refresh keeps its rows (backend #922) and
@@ -30,7 +31,7 @@ const MINUTES_AGO = (n: number) =>
   new Date(Date.now() - n * 60_000).toISOString();
 
 test.describe('stale data notice (#933)', () => {
-  test('an unreachable forge with staleSince says how old its data is', async ({
+  test('an unreachable forge with staleSince says how old its data is, in the banner', async ({
     page,
   }) => {
     await open(page, {
@@ -39,8 +40,12 @@ test.describe('stale data notice (#933)', () => {
       error: 'dial tcp: timeout',
       staleSince: MINUTES_AGO(3),
     });
-    await expect(page.locator('#forge-health')).toContainText(
-      'Showing data from 3m ago',
+    // The banner says it once; the chip line does not repeat it (#3719).
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      /Showing data from .*, 3m ago\./,
+    );
+    await expect(page.locator('#forge-health')).not.toContainText(
+      'Showing data',
     );
   });
 
@@ -49,6 +54,11 @@ test.describe('stale data notice (#933)', () => {
       reachable: false,
       errorKind: 'rate_limited',
       error: 'rate limited',
+      rateLimitREST: rateLimit(
+        5000,
+        0,
+        new Date(Date.now() + 600_000).toISOString(),
+      ),
       staleSince: MINUTES_AGO(12),
     });
     await expect(page.locator('#forge-health')).toContainText(
@@ -74,8 +84,8 @@ test.describe('stale data notice (#933)', () => {
       error: 'dial tcp: timeout',
       staleSince: MINUTES_AGO(3),
     });
-    await expect(page.locator('#forge-health')).toContainText(
-      'Showing data from 3m ago',
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      /Showing data from .*, 3m ago\./,
     );
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

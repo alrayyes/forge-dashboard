@@ -11,6 +11,7 @@
     loadRunLog,
     logUrl,
     notePlaces,
+    parseLogLines,
     type RepoRef,
   } from "#lib/run-log.js";
 
@@ -40,6 +41,7 @@
   let shown = $state(false);
   let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");
+  const lines = $derived(parseLogLines(text));
   let truncated = $state(false);
   let message = $state("");
   // Whether the failure gets a link to the job beside its sentence.
@@ -124,40 +126,69 @@
     aria-label={checkLinkLabel(label, name)}>{label}<ExternalLinkIcon /></a
   >
 {/snippet}
-<button
-  type="button"
-  class="pipeline-check-link"
-  aria-expanded={shown}
-  aria-controls={panelId}
-  disabled={!url}
-  onclick={toggle}
-  aria-label="{shown ? 'Hide output' : 'Show output'}: {name}"
-  >{shown ? "Hide output" : "Show output"}</button
->
-<a
-  class="pipeline-check-link"
-  href={runUrl}
-  target="_blank"
-  rel="noopener"
-  aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
-  >Open job on {forgeName}<ExternalLinkIcon /></a
->
+<div class="run-actions">
+  <button
+    type="button"
+    class="run-toggle"
+    aria-expanded={shown}
+    aria-controls={panelId}
+    disabled={!url}
+    onclick={toggle}
+    aria-label="{shown ? 'Hide output' : 'Show output'}: {name}"
+    >{shown ? "Hide output" : "Show output"}<svg
+      class="run-chevron"
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      aria-hidden="true"
+      focusable="false"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      ><path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} /></svg
+    ></button
+  >
+  {#if shown && phase === "ready"}
+    <button
+      bind:this={flow.button}
+      type="button"
+      class="run-icon-btn"
+      aria-disabled={flow.busy ? "true" : undefined}
+      aria-busy={flow.busy ? "true" : undefined}
+      onclick={copy}
+      title="Copy output"
+      aria-label="Copy output: {name}"
+      ><svg
+        viewBox="0 0 16 16"
+        width="16"
+        height="16"
+        aria-hidden="true"
+        focusable="false"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        ><rect x="5" y="5" width="9" height="9" rx="1.5" /><path
+          d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
+        /></svg
+      ></button
+    >
+  {/if}
+  <a
+    class="run-icon-btn"
+    href={runUrl}
+    target="_blank"
+    rel="noopener"
+    title="Open job on {forgeName}"
+    aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
+    ><ExternalLinkIcon /></a
+  >
+</div>
 <div id={panelId} class="run-output" hidden={!shown} bind:this={panel}>
   {#if shown}
-    <div class="run-output-bar">
-      <span class="run-output-title">Output</span>
-      {#if phase === "ready"}
-        <button
-          bind:this={flow.button}
-          type="button"
-          class="pipeline-check-link"
-          aria-disabled={flow.busy ? "true" : undefined}
-          aria-busy={flow.busy ? "true" : undefined}
-          onclick={copy}
-          aria-label="Copy output: {name}">Copy</button
-        >
-      {/if}
-    </div>
     <p class="run-output-status" aria-live="polite">
       {statusLine}
     </p>
@@ -180,7 +211,15 @@
         bind:this={output}
         tabindex="0"
         role="region"
-        aria-label="Output: {name}">{text || "This job wrote no output."}</pre>
+        aria-label="Output: {name}">{#if text}{#each lines as line}<span
+              class="run-line run-line-{line.kind}"
+              >{#if line.time}<span class="run-line-time">{line.time}</span
+                >{/if}{#if line.kind === "error"}<span class="run-line-tag"
+                  >Error</span
+                >{:else if line.kind === "warning"}<span class="run-line-tag"
+                  >Warning</span
+                >{/if}<span class="run-line-text">{line.text}</span></span
+            >{/each}{:else}This job wrote no output.{/if}</pre>
     {/if}
     {#if flow.manual}
       <textarea
