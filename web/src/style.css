@@ -1012,6 +1012,9 @@ select.col-filter {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
+.filter-bar[hidden] {
+  display: none;
+}
 .filter-bar .col-filter,
 .filter-bar .group-select {
   width: auto;
@@ -2164,8 +2167,8 @@ a.ci-pill:hover {
   justify-content: flex-end;
 }
 
-/* Review activity (#1335): a link, not a plain badge, since it opens the
-   files-and-review view. Neutral while every thread is resolved; amber with a
+/* Review activity (#1335): a button, not a plain badge, since it opens the
+   pull request's dialog (#3744), where the comments are. Neutral while every thread is resolved; amber with a
    dot and the word "open" when some aren't, so it never rests on colour. */
 .review-pill {
   display: inline-flex;
@@ -2179,6 +2182,13 @@ a.ci-pill:hover {
   background: var(--neutral-bg);
   color: var(--ink-3);
   text-decoration: none;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  /* Above .title::after's stretched-link overlay, or the row's own click
+     would take it. */
+  position: relative;
+  z-index: 1;
 }
 .review-pill.open {
   background: var(--warning-bg);

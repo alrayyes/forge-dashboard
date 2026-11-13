@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.43.0](https://github.com/alrayyes/forge-dashboard/compare/v9.42.0...v9.43.0) (2026-11-13)
+
+
+### Features
+
+* **web:** hide the filter bar and sort when a list has one row or none ([#3731](https://github.com/alrayyes/forge-dashboard/issues/3731)) ([3335798](https://github.com/alrayyes/forge-dashboard/commit/333579880cd854bf6e10e416b52c896b5692d115))
+* **web:** issue and pull request references open the in-app dialog ([#3761](https://github.com/alrayyes/forge-dashboard/issues/3761)) ([3a2b71b](https://github.com/alrayyes/forge-dashboard/commit/3a2b71b19ac080e93b4bd36be08f9ed460d21734)), closes [#3744](https://github.com/alrayyes/forge-dashboard/issues/3744)
+
+## [9.42.0](https://github.com/alrayyes/forge-dashboard/compare/v9.41.0...v9.42.0) (2026-11-13)
+
+
+### Features
+
+* **web:** redesign the checks dialog output and controls ([#3743](https://github.com/alrayyes/forge-dashboard/issues/3743)) ([8e4fe12](https://github.com/alrayyes/forge-dashboard/commit/8e4fe1221e719a2a9ff5da3f58455a1709bc63bf))
+
 ## [9.41.0](https://github.com/alrayyes/forge-dashboard/compare/v9.40.0...v9.41.0) (2026-11-13)
 
 

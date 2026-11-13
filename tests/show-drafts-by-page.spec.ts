@@ -24,9 +24,10 @@ function makePR(number: number, draft: boolean, kind: string) {
   };
 }
 
-// The board: one ready release pull request, one ready bot pull request, and
+// The board: two ready release pull requests, one ready bot pull request, and
 // a single draft, a dependency one.
 const RELEASE = makePR(1, false, 'release');
+const RELEASE_2 = makePR(4, false, 'release');
 const BOT = makePR(2, false, 'dependency');
 const BOT_DRAFT = makePR(3, true, 'dependency');
 
@@ -39,7 +40,9 @@ function answer(route: Route) {
     body: JSON.stringify({
       generatedAt: new Date().toISOString(),
       forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-      pullRequests: include ? [RELEASE, BOT, BOT_DRAFT] : [RELEASE, BOT],
+      pullRequests: include
+        ? [RELEASE, RELEASE_2, BOT, BOT_DRAFT]
+        : [RELEASE, RELEASE_2, BOT],
       issues: [],
       repos: [],
       hiddenDrafts: include ? 0 : 1,
@@ -73,7 +76,7 @@ test.describe('show drafts per page (#3704)', () => {
       page,
     }) => {
       await open(page, '/releases.html', width);
-      await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+      await expect(page.locator('#pr-rows .row')).toHaveCount(2);
       // Open the phone sheet first, or the button is out of sight whatever the
       // page offers. Another control proves the sheet is open.
       if (width < 700)

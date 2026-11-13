@@ -75,6 +75,10 @@
   import { imageFallback } from "#lib/image-fallback.js";
   import { imageSourceFor } from "#lib/image-source.js";
   import { renderMarkdown } from "#lib/markdown.js";
+  import {
+    type ClickedReference,
+    referenceFromClick,
+  } from "#lib/reference-links.js";
   import { titleSegments } from "#lib/title-code.js";
   import { repoUrlOf } from "#lib/repo-url.js";
 
@@ -121,11 +125,23 @@
     onEscape,
     onClosed,
     onIssueState,
+    onReference,
+    trackedRepo,
   }: {
     onEscape?: () => boolean;
     onClosed?: () => void;
     // An issue's details arrived: whether the forge has it closed.
     onIssueState?: (closed: boolean) => void;
+    // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
+    // swaps this dialog for that item's. Without it, references are forge
+    // links.
+    onReference?: (
+      reference: ClickedReference & { forge: string },
+      triggerId: string,
+    ) => void;
+    // Whether the dashboard tracks this repository (`owner/name`) on a forge,
+    // which decides if a reference opens a dialog or goes to the forge.
+    trackedRepo?: (forge: string, repo: string) => boolean;
   } = $props();
 
   let dialogEl = $state<HTMLDialogElement>();
@@ -342,6 +358,13 @@
         jobs.push(
           renderMarkdown(text, {
             repoUrl: repoUrlOf(current.url),
+            references: onReference
+              ? {
+                  forge: current.forge,
+                  tracked: (repo) =>
+                    trackedRepo?.(current.forge, repo) ?? false,
+                }
+              : undefined,
             imageSource: imageSourceFor(
               current.forge,
               repoUrlOf(current.url),
@@ -437,7 +460,15 @@
   // A click that lands on the <dialog> itself, not on something inside it,
   // is a click on the backdrop.
   function onBackdrop(event: MouseEvent) {
-    if (event.target === dialogEl) dialogEl?.close();
+    if (event.target === dialogEl) {
+      dialogEl?.close();
+      return;
+    }
+    const reference = onReference ? referenceFromClick(event) : null;
+    if (!reference) return;
+    event.preventDefault();
+    if (target)
+      onReference?.({ ...reference, forge: target.forge }, returnFocusId);
   }
 
   function relativeTime(iso: string): string {
@@ -534,10 +565,11 @@
           <span class="forge-badge {FORGE_CLASSES[target.forge] ?? ''}"
             ><span class="dot"></span>{forgeLabel}</span
           >
-          <!-- The repository and the number are two links, each named by its
-            own text, to the repository and to the item on the forge. Without
-            a repository address (an item address of an unknown shape) they
-            stay plain text. -->
+          <!-- The repository is a link to it on the forge, named by its own
+            text. A pull request's or issue's number is plain text (#3744): the dialog is already
+            this item's, and "Open on <forge>" in the footer is the way to
+            the forge. Without a repository address (an item address of an
+            unknown shape) both stay plain text. -->
           <span class="mono">
             {#if repoUrlOf(target.url)}
               <a
@@ -549,15 +581,19 @@
                   (opens in a new tab)</span
                 ></a
               >
-              <a
-                class="ref-link"
-                href={target.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                >{refText}<span class="visually-hidden">
-                  (opens in a new tab)</span
-                ></a
-              >
+              {#if releaseTarget}
+                <a
+                  class="ref-link"
+                  href={target.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  >{refText}<span class="visually-hidden">
+                    (opens in a new tab)</span
+                  ></a
+                >
+              {:else}
+                {refText}
+              {/if}
             {:else}
               {target.repo}
               {refText}

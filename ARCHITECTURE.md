@@ -360,7 +360,7 @@ can't fire a tracking pixel when the dialog opens.
   enforces it.
 - Every response carries `Content-Security-Policy: img-src 'self'`
   (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
-  refuses a direct image load from any other host. None of the hosts above
+  refuses a direct image load from any other host. None of the hosts listed earlier
   appears in it, because the server fetches them and the browser never does.
   The image route sends its own stricter policy over it. A Go test checks the
   policy against the proxy's host list, and against the hosts
