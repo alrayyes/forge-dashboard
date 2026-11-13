@@ -51,9 +51,18 @@ async function edge(control: Locator): Promise<{ border: Rgb; behind: Rgb }> {
 // The Webhooks and Branches pages draw their filters only once the server
 // has repos or branches to list, so those two get one of each.
 async function seed(page: Page, path: string) {
-  // The Repositories button is hidden until the list holds two repositories.
-  if (path === '/pull-requests.html') {
+  // The Repositories button is hidden until the list holds two repositories,
+  // and the filter bar until the list holds two rows (#3670).
+  const lists = ['/pull-requests.html', '/releases.html', '/bots.html'];
+  if (lists.includes(path) || path === '/issues.html') {
+    const kind = (
+      { '/releases.html': 'release', '/bots.html': 'dependency' } as Record<
+        string,
+        string
+      >
+    )[path];
     const pr = (number: number, repo: string) => ({
+      ...(kind ? { kind } : {}),
       forge: 'github',
       repo,
       number,
@@ -75,8 +84,24 @@ async function seed(page: Page, path: string) {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
-          pullRequests: [pr(1, 'acme/a'), pr(2, 'acme/b')],
-          issues: [],
+          pullRequests:
+            path === '/issues.html' ? [] : [pr(1, 'acme/a'), pr(2, 'acme/b')],
+          issues:
+            path === '/issues.html'
+              ? [pr(1, 'acme/a'), pr(2, 'acme/b')].map(
+                  ({ number, repo, title, url, author, createdAt }) => ({
+                    forge: 'github',
+                    repo,
+                    number,
+                    title,
+                    url,
+                    author,
+                    labels: [],
+                    createdAt,
+                    updatedAt: createdAt,
+                  }),
+                )
+              : [],
           repos: [],
           hiddenDrafts: 0,
           firstRefreshDone: true,
@@ -188,6 +213,8 @@ test('a focused filter field still shows the 2px accent outline', async ({
 }) => {
   await seed(page, '/pull-requests.html');
   await page.goto('/pull-requests.html');
+  // Let the list land first, so a render doesn't move focus mid-test.
+  await expect(page.locator('#pr-rows .row')).toHaveCount(2);
   const title = page.locator('input.col-filter[data-col="title"]').first();
   await title.focus();
   await page.keyboard.press('Shift+Tab');
