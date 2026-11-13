@@ -62,6 +62,41 @@ func TestSignedImageURL_ReadsTheRenderedReleaseBody(t *testing.T) {
 	assert.Contains(t, got, "signed.png")
 }
 
+func TestSignedImageURL_ReadsTheRenderedCommentBody(t *testing.T) {
+	t.Parallel()
+	var seen http.Request
+	client := imageLinkClient(t, "/repos/octo/repo/issues/comments/4242", &seen)
+
+	got, err := client.SignedImageURL(t.Context(), "octo", "repo",
+		dashboard.ImageItem{Kind: dashboard.ImageItemComment, CommentID: 4242}, attachment)
+
+	require.NoError(t, err)
+	assert.Equal(t, "https://private-user-images.githubusercontent.com/1/signed.png?jwt=abc&x=1", got)
+	assert.Equal(t, "application/vnd.github.full+json", seen.Header.Get("Accept"))
+	assert.Equal(t, "Bearer test-token", seen.Header.Get("Authorization"))
+}
+
+func TestSignedImageURL_ACommentIsKeptApartFromAnIssueOfTheSameNumber(t *testing.T) {
+	t.Parallel()
+	var hits atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octo/repo/", func(w http.ResponseWriter, r *http.Request) {
+		hits.Add(1)
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+	client.ShareRenderedBodyCache(github.NewRenderedBodyCache())
+
+	_, err := client.SignedImageURL(t.Context(), "octo", "repo", dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}, attachment)
+	require.NoError(t, err)
+	_, err = client.SignedImageURL(t.Context(), "octo", "repo", dashboard.ImageItem{Kind: dashboard.ImageItemComment, CommentID: 7}, attachment)
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 2, hits.Load(), "issue 7 and comment 7 are two bodies")
+}
+
 func TestSignedImageURL_AnswersEmptyWhenTheItemDoesNotEmbedTheLink(t *testing.T) {
 	t.Parallel()
 	client := imageLinkClient(t, "/repos/octo/repo/issues/7", nil)

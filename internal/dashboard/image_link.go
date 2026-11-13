@@ -11,13 +11,18 @@ const (
 	ImageItemIssue ImageItemKind = "issue"
 	// ImageItemRelease is a release, found by its tag.
 	ImageItemRelease ImageItemKind = "release"
+	// ImageItemComment is one comment on an issue or pull request, found by its
+	// number. Its body is a different object from the item's (#3676).
+	ImageItemComment ImageItemKind = "comment"
 )
 
-// ImageItem names the issue, pull request or release whose text embeds an image.
+// ImageItem names the issue, pull request, comment or release whose text embeds an image.
 type ImageItem struct {
 	Kind   ImageItemKind
 	Number int    // for ImageItemIssue
 	Tag    string // for ImageItemRelease
+	// CommentID is the comment's number, for ImageItemComment.
+	CommentID int64
 }
 
 // ImageLinkResolver is implemented by a Source that can turn an attachment

@@ -318,19 +318,21 @@ can't fire a tracking pixel when the dialog opens.
   `repository-images.githubusercontent.com`, fetched with no token (its
   attachment links carry their own signature).
 - A `github.com/user-attachments/...` link in a private repository isn't served
-  unsigned. When the page names the item it sits in, the server reads that
-  item's rendered HTML from the GitHub API, where the saved token is sent to
-  the API host and nowhere else, and fetches the signed
+  unsigned. When the page names the item it sits in, or the comment, the
+  server reads that rendered HTML from the GitHub API. A comment's body is a
+  different object, read from `/repos/{owner}/{repo}/issues/comments/{id}`;
+  the page sends its numeric id, which wins over the item. The saved token is
+  sent to the API host and nowhere else, and the server fetches the signed
   `private-user-images.githubusercontent.com` address found there. That
   second fetch carries no token and goes through the same host list. If the
   lookup finds nothing or fails, or the signed address is refused or doesn't
   load, the link is fetched as written. The lookup skips the ETag cache, since
-  the signature expires. Instead the item's rendered body is kept in memory for
-  two minutes, well under the signature's five. One cache outlives the
-  per-request clients, is keyed by credential and item, holds at most 256
-  items (the one closest to expiring makes room) and never keeps a failed
-  read, so every image in one description shares one API request. An expired
-  body is read again, never served.
+  the signature expires. Instead the rendered body is kept in memory for two
+  minutes, well under the signature's five. One cache outlives the
+  per-request clients, is keyed by credential and item or comment, holds at
+  most 256 entries (the one closest to expiring makes room) and never keeps a
+  failed read, so every image in one description or comment shares one API
+  request. An expired body is read again, never served.
 - The scheme must match, user info is refused, and every redirect hop is
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public

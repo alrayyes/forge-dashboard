@@ -426,6 +426,92 @@ func TestImages_DoesNotLookUpTheItemWhenTheRequestCannotNameOne(t *testing.T) {
 	}
 }
 
+func TestImages_ShowsAPrivateGitHubImageInACommentThroughItsSignedAddressWithoutTheToken(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/1/signed.png?jwt=abc", 0, nil)
+
+	resp := g.get(t, url.Values{"fullName": {"octo/repo"}, "number": {"7"}, "comment": {"4242"}})
+	defer func() { _ = resp.Body.Close() }()
+	got, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, imagesPNG, got)
+	assert.Equal(t, []string{"/repos/octo/repo/issues/comments/4242"}, g.apiCalls(),
+		"the comment's own body is read, not the item's")
+	assert.Equal(t, []string{"Bearer " + githubToken}, g.apiAuth, "the API host gets the saved token")
+	assert.Equal(t, []string{"/1/signed.png?jwt=abc"}, g.imageCalls(), "only the signed address is fetched")
+	assert.Equal(t, []string{""}, g.imageAuth, "the user-content host never sees the token")
+}
+
+func TestImages_ACommentWinsOverATagAndANumber(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", 0, nil)
+
+	status := g.status(t, url.Values{"fullName": {"octo/repo"}, "tag": {"v1"}, "number": {"7"}, "comment": {"9"}})
+
+	require.Equal(t, http.StatusOK, status)
+	assert.Equal(t, []string{"/repos/octo/repo/issues/comments/9"}, g.apiCalls())
+}
+
+func TestImages_FallsBackToTheLinkWhenTheCommentCannotBeRead(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", http.StatusNotFound, nil)
+
+	status := g.status(t, url.Values{"fullName": {"octo/repo"}, "comment": {"9"}})
+
+	assert.Equal(t, http.StatusOK, status)
+	assert.Equal(t, []string{"/user-attachments/assets/1b2c3d4e"}, g.imageCalls())
+	assert.Equal(t, []string{""}, g.imageAuth, "the fallback fetch carries no token either")
+}
+
+func TestImages_DoesNotLookUpACommentTheRequestCannotNameSafely(t *testing.T) {
+	t.Parallel()
+	for name, extra := range map[string]url.Values{
+		"a comment of zero":             {"fullName": {"octo/repo"}, "comment": {"0"}},
+		"a negative comment":            {"fullName": {"octo/repo"}, "comment": {"-5"}},
+		"a comment that isn't":          {"fullName": {"octo/repo"}, "comment": {"abc"}},
+		"an empty comment":              {"fullName": {"octo/repo"}, "comment": {""}},
+		"a bad comment beside a number": {"fullName": {"octo/repo"}, "number": {"7"}, "comment": {""}},
+		"a bad comment beside a tag":    {"fullName": {"octo/repo"}, "tag": {"v1"}, "comment": {"x"}},
+		"a path in the comment":         {"fullName": {"octo/repo"}, "comment": {"1/../../x"}},
+		"a query in the comment":        {"fullName": {"octo/repo"}, "comment": {"1?a=b"}},
+		"a signed comment":              {"fullName": {"octo/repo"}, "comment": {"+5"}},
+		"a bad full name":               {"fullName": {"nope"}, "comment": {"9"}},
+		"a path in the full name":       {"fullName": {"octo/../repo"}, "comment": {"9"}},
+	} {
+		g := newGitHubImages(t, "/s.png", 0, nil)
+
+		status := g.status(t, extra)
+
+		assert.Equal(t, http.StatusOK, status, name)
+		assert.Empty(t, g.apiCalls(), name)
+		assert.Equal(t, []string{"/user-attachments/assets/1b2c3d4e"}, g.imageCalls(), name)
+	}
+}
+
+func TestImages_NeverSpendsACommentLookupOnAnAddressThatIsNotAnAttachment(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "/s.png", 0, nil)
+	before, _, _ := strings.Cut(g.link, "/user-attachments")
+
+	status := g.status(t, url.Values{"url": {before + "/plain.png"}, "fullName": {"octo/repo"}, "comment": {"9"}})
+
+	require.Equal(t, http.StatusOK, status)
+	assert.Empty(t, g.apiCalls(), "the allowlist and the attachment check still gate the lookup")
+}
+
+func TestImages_ACommentSignedAddressOnAnotherHostIsStillRefused(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImages(t, "https://example.org/s.png", 0, nil)
+
+	status := g.status(t, url.Values{"fullName": {"octo/repo"}, "comment": {"9"}})
+
+	assert.Equal(t, http.StatusOK, status, "falls back to the link as written")
+	assert.Equal(t, []string{"/user-attachments/assets/1b2c3d4e"}, g.imageCalls(), "nothing was sent to example.org")
+	assert.Equal(t, []string{""}, g.imageAuth)
+}
+
 func TestImages_DoesNotLookUpAnItemForAnImageThatIsNotAnAttachment(t *testing.T) {
 	t.Parallel()
 	g := newGitHubImages(t, "/s.png", 0, nil)
