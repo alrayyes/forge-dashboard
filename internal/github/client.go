@@ -91,6 +91,8 @@ type Client struct {
 	logBlobMu   sync.Mutex
 	logBlob     *http.Client
 	webhookPath string
+	// status is GitHub's status page; nil asks nothing (#3633).
+	status dashboard.ProviderStatusSource
 
 	// renderedBodies holds items' rendered HTML for a few minutes (#3682).
 	renderedBodies *RenderedBodyCache
@@ -263,6 +265,20 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 // shared cache none of them would ever hit (#3682).
 func (c *Client) ShareRenderedBodyCache(cache *RenderedBodyCache) {
 	c.renderedBodies = cache
+}
+
+// SetStatusChecker gives this Client GitHub's status page to ask after a failed
+// call (#3633). Without one it reports nothing.
+func (c *Client) SetStatusChecker(s dashboard.ProviderStatusSource) { c.status = s }
+
+// ProviderStatus is what GitHub's status page reports about the parts the
+// dashboard uses. The Aggregator asks only after this Client failed.
+func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
+	if c.status == nil {
+		return nil
+	}
+
+	return c.status.ProviderStatus(ctx)
 }
 
 // ValidateAppPrivateKey confirms privateKeyPEM parses as a usable GitHub

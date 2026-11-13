@@ -68,7 +68,8 @@ export interface FilterableItem {
   referencedByPullRequests?: unknown[];
 }
 
-// The pull-request-only quick filter pills (#678). Stored as pr.quick.
+// The pull-request-only quick filter pills (#678). Each belongs to one of the
+// PILL_GROUPS below and is stored under that group's key (#3734).
 export const QUICK_FILTERS = [
   'failing',
   'running',
@@ -81,6 +82,48 @@ export const QUICK_FILTERS = [
   'out-of-date',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
+
+// The pill groups (#3734): independent single-choice groups, each with an
+// "All", combined with AND. Forge lives in shared.forge, the others under
+// their own pr key. Review is apart from Merge because Ready and the review
+// states overlap with merge state, so one group would bring back the choice of
+// only one.
+export const PILL_GROUPS = {
+  forge: ['github', 'forgejo'],
+  ci: ['failing', 'running', 'passing', 'no-checks'],
+  merge: ['conflicting', 'out-of-date'],
+  review: ['ready', 'needs-review', 'review-requested'],
+} as const;
+export type PillGroup = keyof typeof PILL_GROUPS;
+export const PILL_GROUP_NAMES = Object.keys(PILL_GROUPS) as PillGroup[];
+export const PILL_GROUP_LABELS: Record<PillGroup, string> = {
+  forge: 'Forge',
+  ci: 'CI',
+  merge: 'Merge',
+  review: 'Review',
+};
+// The text on a pill, and after the group name in its active-filter chip.
+export const PILL_LABELS: Record<string, string> = {
+  github: 'GitHub',
+  forgejo: 'Forgejo',
+  failing: 'Failing',
+  running: 'Running',
+  passing: 'Passing',
+  'no-checks': 'No checks',
+  conflicting: 'Conflicting',
+  'out-of-date': 'Out of date',
+  ready: 'Ready',
+  'needs-review': 'Needs review',
+  'review-requested': 'Review requested',
+};
+
+// The group a pill is in; 'all' and unknown names have none, read as forge
+// for a lookup that must return something.
+export function pillGroupOf(pill: string): PillGroup {
+  for (const group of PILL_GROUP_NAMES)
+    if ((PILL_GROUPS[group] as readonly string[]).includes(pill)) return group;
+  return 'forge';
+}
 
 // Whether a row shows the Blocked chip. Not while CI is pending (#418: the
 // forge reports blocked until checks finish) and not while it is failing
@@ -188,43 +231,47 @@ export function refsChoiceShort(isPR: boolean, value: 'yes' | 'no'): string {
   return value === 'yes' ? 'Has PR' : 'No PR';
 }
 
-// The pill that's active for a state: a quick filter wins, then a forge,
-// else "all". Exactly one pill is ever active.
-export function activePill(state: SharedFilterState): string {
-  // A pill saved before it was removed (Bot PRs, #1192) no longer matches
-  // anything, so it doesn't count as active either.
-  if (
-    state.pr.quick &&
-    (QUICK_FILTERS as readonly string[]).includes(state.pr.quick)
-  )
-    return state.pr.quick;
-  if (state.shared.forge) return state.shared.forge;
+// The pick of one group, or '' for none. Forge is shared with the other pages;
+// the rest are this board's own.
+function pillStore(state: SharedFilterState, group: PillGroup) {
+  return group === 'forge' ? state.shared : state.pr;
+}
+
+// The pill that's active in a group, else "all". A value saved for a pill that
+// is gone (Bot PRs, #1192) or that belongs to another group matches nothing,
+// so it doesn't count as active either.
+export function activePill(state: SharedFilterState, group: PillGroup): string {
+  const value = pillStore(state, group)[group];
+  if (value && (PILL_GROUPS[group] as readonly string[]).includes(value))
+    return value;
   return 'all';
 }
 
 // The pill in effect on a page. The issues page ignores the pull-request-only
-// quick pills (#827), so a forge pick held next to one is what filters there.
+// groups (#827), so only the forge group is in effect there.
 export function effectivePill(
   state: SharedFilterState,
+  group: PillGroup,
   isIssues: boolean,
 ): string {
-  const active = activePill(state);
-  if (isIssues && (QUICK_FILTERS as readonly string[]).includes(active))
-    return state.shared.forge || 'all';
-  return active;
+  if (isIssues && group !== 'forge') return 'all';
+  return activePill(state, group);
 }
 
-// Activates one pill in place: clears the other pill's effect first, so
-// choosing one always deselects the rest. Mutated, not replaced — board
-// closures hold these exact objects.
-export function setPill(state: SharedFilterState, pill: string): void {
-  // Set to '' rather than deleted, so a merge of the server's copy
-  // over a stale cookie still clears the old pill.
-  state.shared.forge = '';
-  state.pr.quick = '';
-  if (pill === 'github' || pill === 'forgejo') state.shared.forge = pill;
-  else if ((QUICK_FILTERS as readonly string[]).includes(pill))
-    state.pr.quick = pill;
+// Activates one pill in its group, or 'all' to clear the group; the other
+// groups are left as they are. Mutated, not replaced: board closures hold
+// these exact objects. Set to '' rather than deleted, so a merge of the
+// server's copy over a stale cookie still clears the old pick.
+export function setPill(
+  state: SharedFilterState,
+  group: PillGroup,
+  pill: string,
+): void {
+  pillStore(state, group)[group] = (
+    PILL_GROUPS[group] as readonly string[]
+  ).includes(pill)
+    ? pill
+    : '';
 }
 
 import { FORGE_LABELS } from './forges';
@@ -493,6 +540,7 @@ export function readCookieState(): SharedFilterState {
   dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
+  migrateQuickPill(state);
   trimPicks(state);
   return state;
 }
@@ -521,11 +569,11 @@ function dropUnknownClosing(state: SharedFilterState): void {
   }
 }
 
-// The pull request board used to have a CI status pulldown; the quick pills
-// do the same job. A status saved from then becomes the pill it matches, so it
-// still filters and can be seen and cleared. A pill or a forge already picked
-// stays (the pills are one choice), and the old status is dropped rather than
-// left as a filter nothing on the page shows (#2084).
+// The pull request board used to have a CI status pulldown; the CI pills do
+// the same job. A status saved from then becomes the pill it matches, so it
+// still filters and can be seen and cleared. A CI pill already picked stays,
+// and the old status is dropped rather than left as a filter nothing on the
+// page shows (#2084).
 const CI_STATUS_PILLS: Record<string, string> = {
   success: 'passing',
   failure: 'failing',
@@ -533,8 +581,8 @@ const CI_STATUS_PILLS: Record<string, string> = {
   none: 'no-checks',
 };
 
-// Set when a saved status was read, so the page saves the migrated state once
-// and the old key leaves the cookie and the server copy.
+// Set when a saved key of an older shape was read, so the page saves the
+// migrated state once and the old key leaves the cookie and the server copy.
 let statusMigrated = false;
 
 export function takeMigratedStatus(): boolean {
@@ -543,20 +591,34 @@ export function takeMigratedStatus(): boolean {
   return was;
 }
 
+// A pill picked for a group, unless something already holds the group: a value
+// there, or an edit made since the page loaded.
+function migratePill(state: SharedFilterState, pill: string | undefined): void {
+  if (!pill || !(QUICK_FILTERS as readonly string[]).includes(pill)) return;
+  const group = pillGroupOf(pill);
+  if (activePill(state, group) !== 'all' || isTouched('pr', group)) return;
+  state.pr[group] = pill;
+}
+
 function migrateCiStatus(state: SharedFilterState): void {
   const status = state.pr.status;
   if (status === undefined) return;
   delete state.pr.status;
   statusMigrated = true;
-  const pill = CI_STATUS_PILLS[status];
-  // Only a pill that still exists counts as picked: a saved one that was
-  // removed since shows as no pill, so it must not block the migration.
-  const pickedPill = (QUICK_FILTERS as readonly string[]).includes(
-    state.pr.quick ?? '',
-  );
-  if (!pill || pickedPill || state.shared.forge) return;
-  if (isTouched('pr', 'quick') || isTouched('shared', 'forge')) return;
-  state.pr.quick = pill;
+  migratePill(state, CI_STATUS_PILLS[status]);
+}
+
+// The one quick pill (pr.quick) is now four groups, each under its own key
+// (#3734). A saved pick moves to the key of the group it belongs to; one that
+// no longer exists is dropped.
+function migrateQuickPill(state: SharedFilterState): void {
+  const quick = state.pr.quick;
+  if (quick === undefined) return;
+  delete state.pr.quick;
+  // An emptied pick had nothing to move, and leaves nothing to save.
+  if (quick === '') return;
+  statusMigrated = true;
+  migratePill(state, quick);
 }
 
 // A saved title pattern is a string; anything else is a stale or hand-edited
@@ -1258,6 +1320,7 @@ export function applyServerState(
   dropUnknownClosing(state);
   dropNonStringTitleRule(state);
   migrateCiStatus(state);
+  migrateQuickPill(state);
   trimPicks(state);
 }
 
@@ -1295,7 +1358,7 @@ export function matchesFilters(
 }
 
 // Which active filters exclude an item, by the key each is stored under
-// (shared.repo, pr.quick, ...). Empty when it matches. Show row
+// (shared.repo, pr.ci, ...). Empty when it matches. Show row
 // (#723) uses it to say what hides a row and to clear exactly those.
 export function failingFilters(
   item: FilterableItem,
@@ -1317,7 +1380,8 @@ export function failingFilters(
     failing.push('updated');
   // Any of the picked labels (shared.label holds one or several).
   if (!carriesAny(item.labels, shared.label)) failing.push('label');
-  if (isPR && !matchesQuickFilter(item, extra?.quick)) failing.push('quick');
+  for (const group of ['ci', 'merge', 'review'] as const)
+    if (isPR && !matchesQuickFilter(item, extra?.[group])) failing.push(group);
   if (isPR && !matchesAutoMerge(item, extra?.autoMerge))
     failing.push('autoMerge');
   if (isPR && !matchesRefs(item, true, extra?.refs)) failing.push('refs');
@@ -1532,7 +1596,9 @@ export const FILTER_NAMES: Record<string, string> = {
   created: 'Created',
   updated: 'Updated',
   label: 'Label',
-  quick: 'quick',
+  ci: 'CI',
+  merge: 'Merge',
+  review: 'Review',
   autoMerge: 'Auto-merge',
   refs: 'Referencing issue',
   refBy: 'Referencing pull request',
@@ -1650,54 +1716,40 @@ export function offerForges(
   }
 }
 
-// Shows a quick pill only when clicking it would change the list, or it is the
+// Shows a pill only when clicking it would change the list, or it is the
 // active one, so it can be seen and cleared (#1427, #3669). A forge pill
 // matches the items on that forge, any other pill its own rule. A pill that
 // matches nothing shows nothing, and one that matches every item in its pool
 // shows what no filter shows, so both are hidden. A pill group left with only
 // "All" is hidden whole; "All" itself is never hidden on its own, and a group
-// holding the active pill stays so the pick can be cleared.
-// Choosing a forge clears the repo, author, label and age picks it leaves
-// nothing for, so the forge pills count the items those picks would not hide
-// (forgePool); a quick pill keeps them, so it counts what they leave
-// (quickPool). Both leave out the pills themselves, since choosing one
-// replaces the one that was active.
+// holding the active pill stays so the pick can be cleared (#3685).
+// The groups combine (#3734), so each counts the items the other groups leave:
+// `pools` has one list per group, built with that group's own pick left out
+// since choosing a pill replaces it. The forge pool also leaves out the repo,
+// author, label and age picks, which choosing a forge clears. The bar and the
+// Filters sheet each hold a copy of every group; `active` is each group's pick.
 export function offerPills(
   pills: Iterable<HTMLElement>,
-  forgePool: FilterableItem[],
-  quickPool: FilterableItem[],
-  active: string,
+  pools: Record<PillGroup, FilterableItem[]>,
+  active: Record<PillGroup, string>,
 ): void {
   const groups = new Map<HTMLElement, boolean>();
-  const quickShown = new Set<HTMLElement>();
   for (const button of pills) {
     const pill = button.dataset.pill ?? '';
-    const group = button.parentElement;
-    if (group && !groups.has(group)) groups.set(group, false);
+    const parent = button.parentElement;
+    if (parent && !groups.has(parent)) groups.set(parent, false);
     if (!pill || pill === 'all') continue;
-    // The bar and the Filters sheet each have a copy, and only the bar's
-    // forge pills carry a class, so a pill is a quick one when it names one
-    // of the quick filters and a forge one otherwise.
-    const isQuick = (QUICK_FILTERS as readonly string[]).includes(pill);
-    const pool = isQuick ? quickPool : forgePool;
+    const group = pillGroupOf(pill);
+    const pool = pools[group];
     const matches = (item: FilterableItem) =>
-      isQuick ? matchesQuickFilter(item, pill) : item.forge === pill;
+      group === 'forge' ? item.forge === pill : matchesQuickFilter(item, pill);
     button.hidden = !(
-      pill === active ||
+      pill === active[group] ||
       (pool.some(matches) && !pool.every(matches))
     );
-    if (group && !button.hidden) {
-      groups.set(group, true);
-      if (isQuick) quickShown.add(group);
-    }
+    if (parent && !button.hidden) groups.set(parent, true);
   }
-  for (const [group, anyOffered] of groups) {
-    group.hidden = !anyOffered;
-    // On a phone the forge pills live in the Filters sheet, so a bar group
-    // with no quick pill to offer would show a lone "All". CSS keys on this.
-    if (quickShown.has(group)) group.dataset.quickOffered = '';
-    else delete group.dataset.quickOffered;
-  }
+  for (const [parent, anyOffered] of groups) parent.hidden = !anyOffered;
 }
 
 // Which page's refs pick counts: a pull request's `refs` or an issue's
@@ -1714,7 +1766,7 @@ export function pickGroup(
 }
 
 // True once nothing this page offers differs from the defaults: shared is
-// empty, no quick pill, no title pattern, and hideDependencyDashboard is back
+// empty, no CI, merge or review pill, no title pattern, and hideDependencyDashboard is back
 // at its default-checked '1'. The refs pick counts only on its own page.
 export function filtersAreDefault(
   state: SharedFilterState,
@@ -1726,7 +1778,9 @@ export function filtersAreDefault(
 ): boolean {
   return (
     Object.keys(state.shared).every((k) => !state.shared[k]) &&
-    !state.pr.quick &&
+    !state.pr.ci &&
+    !state.pr.merge &&
+    !state.pr.review &&
     !state.pr.autoMerge &&
     !pickGroup(state, page.pullsView)[refsKey(page.pullsView)] &&
     // A saved pick this page does not offer is still a filter (#1620).

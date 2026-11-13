@@ -15,6 +15,16 @@ Every response also carries `Content-Security-Policy: img-src 'self'`.
 Avatars, repository logos and images in descriptions all come through this
 server, so your browser refuses to load an image from anywhere else.
 
+A Forgejo avatar on any host but your saved instance (Gravatar and Libravatar
+included) is refused, and the author shows an initial. Settings says so inside
+the Forgejo card: an amber note, "Avatars from another host were skipped:
+`host`. Initials are shown instead.", with every skipped host listed in
+a code font (up to eight, "other hosts" when there are several), never one line
+per avatar. The server remembers a host while its avatars keep being asked for
+and forgets it about ten minutes after the last one, so the note clears on its
+own once nothing is skipped. A restart clears it too. It's in
+`forgejoSkippedAvatarHosts` on `GET /api/v1/settings`.
+
 The first visit registers a passkey and becomes the instance's only user —
 no password anywhere, and no separate account system. Neither registering nor
 signing in asks for a username: the server names the account, and the sign-in

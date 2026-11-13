@@ -79,4 +79,76 @@ describe('bannerCopy', () => {
     expect(c.detail).toContain('Check the instance URL in Settings.');
     expect(c.detail.match(/Retrying automatically/g)?.length).toBe(1);
   });
+
+  describe('incident reported by the forge status page (#3633)', () => {
+    const status = {
+      indicator: 'minor',
+      incidents: ['Degraded performance'],
+      components: ['Pull Requests'],
+    };
+
+    test('names the incident and what it affects, as a second sentence', () => {
+      const c = bannerCopy([{ ...gh, providerStatus: status }], fmt);
+      expect(c.incident).toBe(
+        'GitHub reports an incident: Degraded performance. Affects: Pull Requests.',
+      );
+      // The first line is untouched.
+      expect(c.headline).toBe('GitHub is unreachable.');
+    });
+
+    test('several incidents and components are all listed', () => {
+      const c = bannerCopy(
+        [
+          {
+            ...gh,
+            providerStatus: {
+              indicator: 'major',
+              incidents: ['Slow Actions', 'Webhook delays'],
+              components: ['Actions', 'Webhooks'],
+            },
+          },
+        ],
+        fmt,
+      );
+      expect(c.incident).toBe(
+        'GitHub reports an incident: Slow Actions; Webhook delays. Affects: Actions, Webhooks.',
+      );
+    });
+
+    test('a degraded component with no incident title still says so', () => {
+      const c = bannerCopy(
+        [
+          {
+            ...gh,
+            providerStatus: { indicator: 'minor', components: ['Actions'] },
+          },
+        ],
+        fmt,
+      );
+      expect(c.incident).toBe('GitHub reports trouble with: Actions.');
+    });
+
+    test('nothing reported, nothing added', () => {
+      expect(bannerCopy([gh], fmt).incident).toBeUndefined();
+      expect(
+        bannerCopy([{ ...gh, providerStatus: { indicator: 'none' } }], fmt)
+          .incident,
+      ).toBeUndefined();
+    });
+
+    test('with both forges down it is still GitHub that reports', () => {
+      const c = bannerCopy([fj, { ...gh, providerStatus: status }], fmt);
+      expect(c.incident).toBe(
+        'GitHub reports an incident: Degraded performance. Affects: Pull Requests.',
+      );
+    });
+
+    test('a starting-up forge is not blamed on GitHub', () => {
+      const c = bannerCopy(
+        [{ ...gh, startupGap: true, providerStatus: status }],
+        fmt,
+      );
+      expect(c.incident).toBeUndefined();
+    });
+  });
 });

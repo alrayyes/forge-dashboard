@@ -107,7 +107,7 @@ for (const size of [
       expect(bar?.height ?? 9999).toBeLessThanOrEqual(150);
     });
 
-    test('closed, it is a search row and one scrolling row of quick filters, with no forge pills', async ({
+    test('closed, it is a search row and the Filters button, with no pill groups in the bar (#3734)', async ({
       page,
     }) => {
       const bar = page.locator('.filter-bar');
@@ -119,17 +119,37 @@ for (const size of [
         'aria-expanded',
         'false',
       );
-
-      const pills = page.locator('.quick-pills');
-      const box = await pills.boundingBox();
-      expect(box?.height ?? 9999).toBeLessThanOrEqual(48);
       await expect(
-        bar.getByRole('button', { name: 'Failing CI' }),
-      ).toBeVisible();
-      // The forge control moved into the sheet.
-      await expect(
-        page.locator('.quick-pills').getByRole('button', { name: 'GitHub' }),
+        page
+          .locator('.filter-bar .quick-pills')
+          .getByRole('button', { name: 'GitHub' }),
       ).toBeHidden();
+      await expect(
+        page
+          .locator('.filter-bar .quick-pills')
+          .getByRole('button', { name: 'Failing' }),
+      ).toBeHidden();
+    });
+
+    test('the sheet holds the labelled groups, and the button counts the active ones (#3734)', async ({
+      page,
+    }) => {
+      await filtersButton(page).click();
+      for (const label of ['Forge', 'CI']) {
+        await expect(
+          sheet(page).getByRole('group', { name: label, exact: true }),
+        ).toBeVisible();
+      }
+      await sheet(page)
+        .locator('.sheet-pills[data-group="forge"]')
+        .getByRole('button', { name: 'Forgejo' })
+        .click();
+      await sheet(page)
+        .locator('.sheet-pills[data-group="ci"]')
+        .getByRole('button', { name: 'Failing' })
+        .click();
+      await page.keyboard.press('Escape');
+      await expect(filtersButton(page)).toHaveText(/Filters \(2\)/);
     });
 
     test('Filters opens a bottom sheet with the other controls, and Escape closes it and returns focus', async ({

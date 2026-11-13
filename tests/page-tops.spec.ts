@@ -180,7 +180,9 @@ test.describe('one line says how many are shown (#1325)', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(page.locator('#pr-rows')).toContainText('Pull request 2');
 
-    await page.locator('.quick-pills .quick-pill[data-pill="all"]').click();
+    await page
+      .locator('.quick-pills[data-group="ci"] .quick-pill[data-pill="all"]')
+      .click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   });
 

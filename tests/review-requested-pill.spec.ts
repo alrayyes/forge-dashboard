@@ -65,8 +65,8 @@ async function open(page: Page) {
 
 const pill = (page: Page) =>
   page
-    .getByRole('group', { name: 'Quick filters' })
-    .getByRole('button', { name: 'Review requested from me' });
+    .locator('.filter-bar .quick-pills')
+    .getByRole('button', { name: 'Review requested' });
 const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');
 
 test.describe('the Review requested from me pill (#695)', () => {
@@ -89,7 +89,7 @@ test.describe('the Review requested from me pill (#695)', () => {
     await expect(titles(page)).toHaveCount(2);
 
     await page
-      .getByRole('group', { name: 'Quick filters' })
+      .locator('.filter-bar .quick-pills[data-group="review"]')
       .getByRole('button', { name: 'All', exact: true })
       .click();
     await expect(titles(page)).toHaveCount(PRS.length);

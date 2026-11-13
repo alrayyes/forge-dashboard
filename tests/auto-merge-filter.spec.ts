@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // #1455: filter pull requests by CI passing and running (quick pills next to
@@ -71,10 +72,8 @@ async function open(page: Page, prs: unknown[] = PRS) {
   await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
-const pill = (page: Page, name: string) =>
-  page
-    .getByRole('group', { name: 'Quick filters' })
-    .getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 const am = (page: Page, value: 'any' | 'on' | 'off') =>
   page.locator(`.filter-bar > .am-group [data-am="${value}"]`);
 const titles = (page: Page) => page.locator('#pr-rows > .row .title-text');
@@ -85,14 +84,14 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
   }) => {
     await open(page);
 
-    await pill(page, 'Passing CI').click();
+    await pill(page, 'Passing').click();
     await expect(titles(page)).toHaveCount(2);
     await expect(page.locator('#pr-rows')).not.toContainText('Running off');
 
-    await pill(page, 'Running CI').click();
+    await pill(page, 'Running').click();
     await expect(titles(page)).toHaveCount(1);
     await expect(titles(page).first()).toContainText('Running off');
-    await expect(pill(page, 'Passing CI')).toHaveAttribute(
+    await expect(pill(page, 'Passing')).toHaveAttribute(
       'aria-pressed',
       'false',
     );
@@ -119,15 +118,12 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
   test('a CI pill and Auto-merge Off combine', async ({ page }) => {
     await open(page);
 
-    await pill(page, 'Passing CI').click();
+    await pill(page, 'Passing').click();
     await am(page, 'off').click();
 
     await expect(titles(page)).toHaveCount(1);
     await expect(titles(page).first()).toContainText('Passing off');
-    await expect(pill(page, 'Passing CI')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(pill(page, 'Passing')).toHaveAttribute('aria-pressed', 'true');
   });
 
   test('a pill or an option that would change nothing is not offered, and the segment goes with it', async ({
@@ -138,9 +134,9 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
       pr(2, 'Running off', 'pending', false),
     ]);
 
-    await expect(pill(page, 'Passing CI')).toBeVisible();
-    await expect(pill(page, 'Running CI')).toBeVisible();
-    await expect(pill(page, 'Failing CI')).toBeHidden();
+    await expect(pill(page, 'Passing')).toBeVisible();
+    await expect(pill(page, 'Running')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeHidden();
     await expect(am(page, 'on')).toBeVisible();
     await expect(am(page, 'off')).toBeVisible();
 
@@ -151,7 +147,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     ];
     await page.reload();
     await expect(page.locator('.filter-bar > .am-group')).toBeHidden();
-    await expect(pill(page, 'Passing CI')).toBeHidden();
+    await expect(pill(page, 'Passing')).toBeHidden();
   });
 
   test('the choice survives a reload, stays offered when nothing matches it, and Clear filters resets it', async ({
@@ -178,13 +174,13 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     await expect(titles(page)).toHaveCount(1);
   });
 
-  test('on a 360px phone the segment is in the Filters sheet and the CI pills stay in the row', async ({
+  test('on a 360px phone the segment and the pill groups are in the Filters sheet (#3734)', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
     await open(page);
 
-    await expect(pill(page, 'Passing CI')).toBeVisible();
+    await expect(pill(page, 'Passing')).toBeHidden();
     await expect(page.locator('.filter-bar > .am-group')).toBeHidden();
 
     await page.getByRole('button', { name: /^Filters/ }).click();
@@ -273,7 +269,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
       await test.step(scheme, async () => {
         await page.emulateMedia({ colorScheme: scheme });
         await open(page);
-        await pill(page, 'Passing CI').click();
+        await pill(page, 'Passing').click();
         await am(page, 'off').click();
         await expect(titles(page)).toHaveCount(1);
 
@@ -283,7 +279,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
         expect(results.violations).toEqual([]);
 
         // The choice is saved: put it back so the next theme starts clean.
-        await pill(page, 'All').click();
+        await pill(page, 'All', 'ci').click();
         await am(page, 'any').click();
         await expect(titles(page)).toHaveCount(PRS.length);
       });

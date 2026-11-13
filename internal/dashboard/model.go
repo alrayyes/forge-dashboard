@@ -3,7 +3,10 @@
 // depends on the other; both only depend on this package's types.
 package dashboard
 
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Forge names one of the two forges this service talks to. Matches
 // components.schemas.Forge in api/openapi.yaml.
@@ -527,6 +530,27 @@ type ForgeHealth struct {
 	// Rerun failed checks buttons are not drawn, and the page shows this
 	// text where they would be.
 	RerunChecksBlocked string `json:"rerunChecksBlocked,omitempty"`
+	// ProviderStatus is what the forge's own status page reports, set only
+	// while the forge is unreachable and the page names an incident on
+	// something the dashboard uses (#3633). Absent otherwise.
+	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
+}
+
+// ProviderStatus matches components.schemas.ProviderStatus: facts from a
+// forge's status page. The client decides the wording.
+type ProviderStatus struct {
+	// Indicator is the page's overall level: none, minor, major or critical.
+	Indicator string `json:"indicator"`
+	// Components are the affected parts the dashboard uses, as the page names them.
+	Components []string `json:"components,omitempty"`
+	// Incidents are the titles of the open incidents on those parts.
+	Incidents []string `json:"incidents,omitempty"`
+}
+
+// ProviderStatusSource is a Source that can ask its forge's status page. The
+// Aggregator asks only after the forge failed, never while it works.
+type ProviderStatusSource interface {
+	ProviderStatus(ctx context.Context) *ProviderStatus
 }
 
 // ClientError carries a ForgeErrorKind classification alongside the

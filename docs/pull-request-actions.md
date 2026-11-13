@@ -118,7 +118,7 @@ The pipeline panel lists each held workflow as "Waiting for approval", with an
 "Approve on {forge}" link (the forge's name) to that run's page, once per
 workflow even when a rerun left several held runs. Where a required check
 never reported, the held workflow is what holds the merge back, so it sits with
-the required checks and says "Blocking". The Failing CI quick filter and the
+the required checks and says "Blocking". The Failing pill and the
 Failed number in the menu pill follow one answer from the server, `failingCi`,
 which leaves these pull requests out when held runs are the only failure:
 nothing failed, someone has to approve.
@@ -188,7 +188,7 @@ window and no refusal named a conflict, the row says "Conflict not confirmed",
 since the flag is false for a stuck check too. That pill is a button: a tap
 shows the reason, and Update branch stays available on it, because a refused
 update is how it gets confirmed. Either way the status is `conflicting` for the
-Conflicts filter, and the server sends `conflictConfirmed` and `conflictFiles`
+Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
@@ -327,8 +327,21 @@ are down it is still one banner, "GitHub and Forgejo are unreachable.", with
 the age of the oldest data. When the cause is a wrong token or instance URL it
 says what to check in Settings instead of "Retrying automatically.". GitHub's
 status link, shown whenever GitHub is down (also in the combined banner),
-opens githubstatus.com in a new tab, so you can see whether GitHub is
-reporting an incident; a Forgejo instance is self-hosted and has no such page.
+opens githubstatus.com in a new tab; a Forgejo instance is self-hosted and has
+no such page.
+
+When GitHub can't be reached or answers with a 5xx, the dashboard also asks
+GitHub's status page whether it reports an incident, and the banner adds a
+second line, for example
+`GitHub reports an incident: Degraded performance. Affects: Pull Requests.`
+Only the components the dashboard uses count (API Requests, Pull
+Requests, Actions and Webhooks), so an outage elsewhere on GitHub adds nothing.
+The page is read only after a call has failed, never while GitHub works, and
+the answer is reused for a minute, so a burst of failures makes one request. The
+request carries nothing about you, your account, or your repos. If the page can't
+be read, or reports nothing on those components, the banner is as it was, and
+the failure is logged once. The API carries the facts as `providerStatus` on
+the forge's health (`indicator`, `components` and `incidents`).
 
 A forge that answers but fails is not unreachable. If GitHub replies 502, 503 or
 504 (a gateway timeout on a heavy query, say), the banner reads "GitHub returned
@@ -866,7 +879,7 @@ says how far the run got: `Cancelled · 4 passed, 9 cancelled` (`Cancelled · 13
 cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
 Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
 of 13 checks.` The branch pill stays the word alone; the count is in
-`checks.cancelled`. A Cancelled row is not in the Failing CI filter or the
+`checks.cancelled`. A Cancelled row is not in the Failing pill or the
 Failed number of the menu pill, and it is not a pass either, so Ready, Merge and
 auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
 failure status, and the server leaves those out of the failed count. When that
@@ -1136,7 +1149,7 @@ narrows the count. A headline beside it says how many of the listed pull
 requests are out of date, for example `6 of 9 are out of date.`, and two chips
 count what the strip is about: `6 out of date` and `1 failing`. The count of
 pull requests it can ask is the button's label, so no chip repeats it. The
-failing chip counts every listed pull request the Failing CI pill counts, up to
+failing chip counts every listed pull request the Failing pill counts, up to
 date or not, so one whose workflow waits for approval isn't in it. A chip with
 a zero count is grey. On a phone the headline, the chips and a full-width
 button stack, with the same chip words.

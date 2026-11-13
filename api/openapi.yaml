@@ -4307,6 +4307,7 @@ components:
           renovateRebaseLabel,
           renovateAuthors,
           ignoredTitleCounts,
+          forgejoSkippedAvatarHosts,
           theme,
         ]
       properties:
@@ -4380,6 +4381,18 @@ components:
             the user lists it here. A pull request by one of these gets
             Renovate's own rebase, not Update branch, and is a `dependency`.
             Matched case-insensitively. Empty means only the GitHub slugs.
+        forgejoSkippedAvatarHosts:
+          type: array
+          items:
+            type: string
+          description: |
+            Other hosts a Forgejo avatar was refused for lately: the image
+            proxy only fetches from the saved instance, so an avatar on
+            Gravatar or Libravatar is skipped and the page shows an initial.
+            Lowercase, sorted, at most eight, and never the instance's own
+            host. A host is listed while its avatars keep being asked for and
+            drops off after about ten minutes without one, so the list is
+            empty when nothing is skipped. Held in memory: a restart empties it.
         theme:
           type: string
           enum: ["", light, dark]
@@ -4459,6 +4472,7 @@ components:
           hideDependencyDashboard,
           ignoredTitles,
           ignoredTitleCounts,
+          forgejoSkippedAvatarHosts,
           theme,
           timezone,
         ]
@@ -4502,6 +4516,18 @@ components:
           items:
             type: [integer, "null"]
             minimum: 0
+        forgejoSkippedAvatarHosts:
+          type: array
+          items:
+            type: string
+          description: |
+            Other hosts a Forgejo avatar was refused for lately: the image
+            proxy only fetches from the saved instance, so an avatar on
+            Gravatar or Libravatar is skipped and the page shows an initial.
+            Lowercase, sorted, at most eight, and never the instance's own
+            host. A host is listed while its avatars keep being asked for and
+            drops off after about ten minutes without one, so the list is
+            empty when nothing is skipped. Held in memory: a restart empties it.
         theme:
           type: string
           enum: ["", light, dark]
@@ -5829,6 +5855,44 @@ components:
             read fails. Rerun failed checks is not offered for the forge, and
             the page shows this text where the button would be. Omitted when
             rerunning works or the version could not be read.
+        providerStatus:
+          allOf:
+            - $ref: "#/components/schemas/ProviderStatus"
+          description: >-
+            What the forge's own status page reports, set only for GitHub, only
+            while it is unreachable (reachable is false, errorKind
+            unreachable, upstream_error or unknown), and only when the page
+            names an incident or a degraded component the dashboard uses (API
+            Requests, Pull Requests, Actions or Webhooks). The page is read
+            only after a failed call, at most once a minute, with a request
+            that carries nothing about the user. Omitted when the page reports
+            nothing there, when it can't be read, and for Forgejo, which has no
+            such page. A client says "GitHub reports an incident" and leaves
+            the cause of a failure with no incident to the forge's own error.
+
+    ProviderStatus:
+      type: object
+      required: [indicator]
+      properties:
+        indicator:
+          type: string
+          enum: [none, minor, major, critical]
+          description: >-
+            The status page's overall level. It covers every GitHub component,
+            including ones the dashboard doesn't use, so read incidents and
+            components for what concerns this service.
+        components:
+          type: array
+          items:
+            type: string
+          description: >-
+            The affected components the dashboard uses, as the page names them
+            ("Pull Requests").
+        incidents:
+          type: array
+          items:
+            type: string
+          description: Titles of the open incidents on those components.
 
     ForgeApiStats:
       type: object
