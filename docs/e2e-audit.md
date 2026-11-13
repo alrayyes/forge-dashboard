@@ -113,10 +113,10 @@ would cut most of its 29.8 s.
 One ticket per group, each doing moves with its own mutation proof:
 
 - Component test harness, so class C has somewhere to go (already #3626).
-- Trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
+- #3749: trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups`.
-- Pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
-- Prove the class B specs with Go mutations, then trim them.
-- Cut `filter-every-control` rounds and move its round-trip and cookie checks
-  down.
-- Record a duration for the 17 specs that have none, so they rank.
+- #3750: pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
+- #3751: prove the class B specs with Go mutations, then trim them.
+- #3752: cut `filter-every-control` rounds and move its round-trip and cookie
+  checks down.
+- #3753: record a duration for the 17 specs that have none, so they rank.
