@@ -5472,6 +5472,19 @@ footer a[aria-current="page"] {
     font-size: 0.8125rem;
   }
 }
+/* A phone held sideways is about 375px tall, and stacked buttons would push
+   the first list row off the screen (#3406). The buttons sit on the controls'
+   line when they fit, side by side, at their desktop 30px, which clears the 24px minimum of WCAG 2.5.8. */
+@media (max-width: 760px) and (max-height: 440px) and (orientation: landscape) {
+  .bulk-actions {
+    flex: 0 1 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .bulk-action > button {
+    min-height: 30px;
+  }
+}
 /* The count chips of the Rebase all strip (#3276).
    Neutral by default, which is also the state of a zero count; a tint says
    more than zero. web/src/lib/strip-chip-contrast.test.ts holds each text

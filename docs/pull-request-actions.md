@@ -1145,9 +1145,12 @@ run is under way the same button reads `Updating 2 of 4` (or `Rerunning`,
 phone or small screen (760px and narrower) the live control and the count come
 first, then each button runs full width and 44px high, one per line, so a label
 never has to be shortened. A button that appears there adds its line to the
-header. The Hidden toggle comes before the buttons in the page and on the
-screen, so Tab walks the header in the order you read it. On a desktop the
-buttons are 30px high and the header keeps its height whether they show or not.
+header. A phone held sideways (440px high or less) is the exception: the
+buttons sit side by side on the controls' line at 30px, so a list row still
+shows on the first screen. The Hidden toggle comes before the buttons in the
+page and on the screen, so Tab walks the header in the order you read it. On a
+desktop the buttons are 30px high and the header keeps its height whether they
+show or not.
 Only `Rebase all` can be shown yet unavailable: bots are behind but none can be
 asked. It then goes grey with a dashed border, still readable (text 4.5:1,
 border 3:1), and the dialog won't open. A run in progress keeps the accent and

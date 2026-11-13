@@ -307,9 +307,23 @@ for (const scheme of ['light', 'dark'] as const) {
         accent: getComputedStyle(document.documentElement)
           .getPropertyValue('--accent')
           .trim(),
+        // The tokens, resolved, so the test names the colours and not only
+        // a ratio any grey could pass.
+        ink2: resolve('--ink-2'),
+        ink3: resolve('--ink-3'),
       };
+      function resolve(token: string) {
+        const probe = document.createElement('i');
+        probe.style.color = `var(${token})`;
+        document.body.append(probe);
+        const value = getComputedStyle(probe).color;
+        probe.remove();
+        return value;
+      }
     });
     expect(m.style).toBe('dashed');
+    expect(m.color).toBe(m.ink2);
+    expect(m.border).toBe(m.ink3);
     expect(ratio(m.color, m.bg)).toBeGreaterThanOrEqual(4.5);
     expect(ratio(m.border, m.bg)).toBeGreaterThanOrEqual(3);
     // Not the accent of an available button.
@@ -391,3 +405,27 @@ test('forced colors keep the buttons visible with a border', async ({
     expect(m.color).not.toBe(m.bg);
   }
 });
+
+// A phone held sideways is 375px tall: stacked 44px buttons would push the
+// first list row off the screen (#3406). In a short landscape viewport the
+// buttons share one line.
+for (const size of [
+  { width: 667, height: 375 },
+  { width: 844, height: 390 },
+]) {
+  test(`both actions share one line and a row shows at ${size.width}x${size.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(size);
+    await open(page, '/pull-requests.html', [pr(1), pr(2)]);
+    const update = page.locator('#update-all-button');
+    const rerun = page.locator('#rerun-all-button');
+    await expect(update).toBeVisible();
+    await expect(rerun).toBeVisible();
+    const u = (await update.boundingBox())!;
+    const r = (await rerun.boundingBox())!;
+    expect(Math.abs(u.y - r.y)).toBeLessThan(2);
+    const row = (await page.locator('#pr-rows > .row').first().boundingBox())!;
+    expect(row.y + 24).toBeLessThanOrEqual(size.height);
+  });
+}
