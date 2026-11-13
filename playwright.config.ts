@@ -266,6 +266,7 @@ const singleUserSpecs = [
   '**/csp-img-src.spec.ts',
   '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
+  '**/list-date-columns-root-font-size.spec.ts',
   '**/search-single-row.spec.ts',
 ];
 
