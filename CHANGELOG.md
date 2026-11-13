@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.50.2](https://github.com/alrayyes/forge-dashboard/compare/v9.50.1...v9.50.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **filter-sheet:** keep dropdown arrows in forced colors ([#3824](https://github.com/alrayyes/forge-dashboard/issues/3824)) ([4538e0a](https://github.com/alrayyes/forge-dashboard/commit/4538e0aa0667d7ccd68925bd1be3221c6c1800b3)), closes [#3821](https://github.com/alrayyes/forge-dashboard/issues/3821)
+
 ## [9.50.1](https://github.com/alrayyes/forge-dashboard/compare/v9.50.0...v9.50.1) (2026-11-13)
 
 
