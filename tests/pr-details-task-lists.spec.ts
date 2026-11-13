@@ -103,12 +103,13 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(open).toBeDisabled();
 
     // The tick is drawn by CSS: no image, so no data: URL for the policy.
-    const drawn = await done.evaluate((el) => ({
-      image: getComputedStyle(el).backgroundImage,
-      tick: getComputedStyle(el, '::before').content,
-    }));
-    expect(drawn.image).toBe('none');
-    expect(drawn.tick).not.toBe('none');
+    await expect(done).toHaveCSS('background-image', 'none');
+    // Retries until the stylesheet has drawn the tick.
+    await expect
+      .poll(() =>
+        done.evaluate((el) => getComputedStyle(el, '::before').content),
+      )
+      .not.toBe('none');
 
     // A click changes nothing.
     await done.click({ force: true });

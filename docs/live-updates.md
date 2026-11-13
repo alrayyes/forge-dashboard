@@ -144,8 +144,9 @@ behind one waiting for auto-update needs it
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
-shows those rows at once. Their forge reads as unreachable with a stale time
-until the first refresh succeeds, then the mark clears. The rest of this section
+shows those rows at once. Their forge reads as starting up, with a stale time,
+until the first refresh answers; one that then fails is shown in the
+unreachable banner. The rest of this section
 covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one

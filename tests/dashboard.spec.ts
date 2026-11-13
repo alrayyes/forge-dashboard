@@ -160,19 +160,15 @@ test.describe('dashboard page', () => {
 
     await landOnPullRequests(page);
 
-    const forgeHealth = page.locator('#forge-health');
-    await expect(forgeHealth).toContainText('Check the token in Settings.');
-
-    // The raw string is present in the DOM either way (a <details>'s
-    // collapsed content is still in textContent, just not rendered), so
-    // "not shown by default" is asserted on the disclosure's own open
-    // state, not by searching for the text's absence.
-    const details = forgeHealth.locator('details.forge-health-detail');
-    await expect(details).not.toHaveAttribute('open');
-
-    await details.locator('summary').click();
-    await expect(details).toHaveAttribute('open');
-    await expect(forgeHealth).toContainText('401 Bad credentials');
+    // #3719: the outage is said once, in the banner, with the actionable
+    // cause. The raw string and its disclosure are gone.
+    const banner = page.locator('#unreachable-banner');
+    await expect(banner).toContainText('GitHub is unreachable.');
+    await expect(banner).toContainText('Check the token in Settings.');
+    await expect(page.locator('#forge-health')).not.toContainText(
+      '401 Bad credentials',
+    );
+    await expect(page.locator('details.forge-health-detail')).toHaveCount(0);
   });
 
   test('a rate-limited forge does not repeat the exceeded-budget banner underneath its own chip', async ({
@@ -211,7 +207,9 @@ test.describe('dashboard page', () => {
     await landOnPullRequests(page);
 
     const forgeHealth = page.locator('#forge-health');
-    await expect(forgeHealth).toContainText('GitHub unreachable');
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      'GitHub is unreachable.',
+    );
     await expect(forgeHealth).not.toContainText('Rate limit exceeded');
     await expect(
       forgeHealth.locator('details.forge-health-detail'),
@@ -244,13 +242,10 @@ test.describe('dashboard page', () => {
 
     await landOnPullRequests(page);
 
-    const forgeHealth = page.locator('#forge-health');
-    await expect(forgeHealth).toContainText(
-      'Something went wrong talking to Forgejo.',
-    );
-    await expect(
-      forgeHealth.locator('details.forge-health-detail'),
-    ).not.toHaveAttribute('open');
+    const banner = page.locator('#unreachable-banner');
+    await expect(banner).toContainText('Forgejo is unreachable.');
+    await expect(banner).toContainText('Something went wrong talking to it.');
+    await expect(page.locator('details.forge-health-detail')).toHaveCount(0);
   });
 
   test('a forge reporting a healthy rate-limit budget does not show the numeric gauge here — that lives on Insights — nor the exceeded banner', async ({

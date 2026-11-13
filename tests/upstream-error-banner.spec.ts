@@ -42,7 +42,7 @@ test.describe('an upstream error banner (#3527)', () => {
 
     const banner = page.locator('#unreachable-banner');
     await expect(banner).toContainText('GitHub returned 504 Gateway Timeout');
-    await expect(banner).toContainText('Showing the last data from');
+    await expect(banner).toContainText('Showing data from');
     await expect(banner).not.toContainText('unreachable');
     await expect(banner).not.toContainText('isn’t answering');
     await expect(banner.getByRole('button', { name: 'Retry' })).toBeVisible();

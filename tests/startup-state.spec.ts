@@ -92,7 +92,10 @@ test.describe('start-up state', () => {
     await expect(page.locator('#forge-health')).not.toContainText(
       'GitHub reachable',
     );
-    await expect(page.locator('#forge-health')).toContainText(
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      'Forgejo is unreachable',
+    );
+    await expect(page.locator('#forge-health')).not.toContainText(
       'Forgejo unreachable',
     );
     await expect(page.locator('#forge-health')).not.toContainText(
