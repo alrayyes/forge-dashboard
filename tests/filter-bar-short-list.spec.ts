@@ -41,20 +41,30 @@ function makeIssue(number: number) {
   };
 }
 
-async function serve(page: Page, pullRequests: unknown[], issues: unknown[]) {
-  const answer = (route: Route) =>
-    route.fulfill({
+async function serve(
+  page: Page,
+  pullRequests: unknown[],
+  issues: unknown[],
+  live?: () => { prs: unknown[]; issues: unknown[] },
+) {
+  const answer = (route: Route) => {
+    const now = live?.() ?? { prs: pullRequests, issues };
+    return route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests,
-        issues,
-        openIssueCount: issues.length,
-        navCounts: navCountsFor(pullRequests, issues.length),
+        forges: [
+          { forge: 'github', reachable: true, repoCount: 1 },
+          { forge: 'forgejo', reachable: true, repoCount: 1 },
+        ],
+        pullRequests: now.prs,
+        issues: now.issues,
+        openIssueCount: now.issues.length,
+        navCounts: navCountsFor(now.prs, now.issues.length),
       }),
     });
+  };
   await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
   await page.route('**/api/v1/dashboard*', answer);
   await page.route('**/api/v1/dashboard/refresh*', answer);
@@ -63,16 +73,19 @@ async function serve(page: Page, pullRequests: unknown[], issues: unknown[]) {
 const PAGES = [
   {
     path: '/pull-requests.html',
+    emptyText: /No open pull requests/,
     rows: '#pr-rows .row',
     make: (n: number) => ({ pr: makePR(n), issue: null }),
   },
   {
     path: '/releases.html',
+    emptyText: /No release pull requests are open/,
     rows: '#pr-rows .row',
     make: (n: number) => ({ pr: makePR(n, { kind: 'release' }), issue: null }),
   },
   {
     path: '/bots.html',
+    emptyText: /No bot pull requests are open/,
     rows: '#pr-rows .row',
     make: (n: number) => ({
       pr: makePR(n, { kind: 'dependency' }),
@@ -81,6 +94,7 @@ const PAGES = [
   },
   {
     path: '/issues.html',
+    emptyText: /No open issues/,
     rows: '#issue-rows .row',
     make: (n: number) => ({ pr: null, issue: makeIssue(n) }),
   },
@@ -151,7 +165,96 @@ for (const p of PAGES) {
 
       await expect(page.locator(p.rows)).toHaveCount(0);
       await expect(page.locator('.filter-bar')).toBeHidden();
+      await expect(page.getByText(p.emptyText)).toBeVisible();
     });
+
+    // The list changes under an open page: the bar follows the count without
+    // a reload, both ways across the threshold.
+    test('the bar follows a live snapshot across one row and two', async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      let count = 2;
+      await serve(page, [], [], () => data(p, count));
+      await page.goto(p.path);
+      await expect(page.locator(p.rows)).toHaveCount(2);
+      await expect(page.locator('.filter-bar')).toBeVisible();
+
+      const refresh = () =>
+        page
+          .locator('#force-refresh-button')
+          .evaluate((el) => (el as HTMLElement).click());
+
+      count = 1;
+      await refresh();
+      await expect(page.locator(p.rows)).toHaveCount(1);
+      await expect(page.locator('.filter-bar')).toBeHidden();
+
+      count = 2;
+      await refresh();
+      await expect(page.locator(p.rows)).toHaveCount(2);
+      await expect(page.locator('.filter-bar')).toBeVisible();
+
+      count = 0;
+      await refresh();
+      await expect(page.locator(p.rows)).toHaveCount(0);
+      await expect(page.locator('.filter-bar')).toBeHidden();
+    });
+  });
+}
+
+// A picked filter keeps the bar over a single row, because the bar is the
+// only place to undo it. Each pick is made on a longer list; the list then
+// shrinks to the one row that matches it.
+const PICKS = [
+  {
+    name: 'a title search',
+    pick: (page: Page) =>
+      page
+        .locator('.filter-bar input[data-col="title"]')
+        .fill('Pull request 1'),
+  },
+  {
+    name: 'the Failing pill',
+    pick: (page: Page) =>
+      page.locator('.quick-pills .quick-pill[data-pill="failing"]').click(),
+  },
+  {
+    name: 'a forge pill',
+    pick: (page: Page) =>
+      page.locator('.quick-pills .quick-pill[data-pill="github"]').click(),
+  },
+];
+
+for (const pick of PICKS) {
+  test(`${pick.name} over a single row keeps the bar and Clear filters`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const all = [
+      makePR(1, { ci: 'failure' }),
+      makePR(2, { forge: 'forgejo' }),
+      makePR(3, { ci: 'failure' }),
+    ];
+    let rows: unknown[] = all;
+    await serve(page, [], [], () => ({ prs: rows, issues: [] }));
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('#pr-rows .row')).toHaveCount(3);
+
+    await pick.pick(page);
+    rows = [all[0]];
+    await page
+      .locator('#force-refresh-button')
+      .evaluate((el) => (el as HTMLElement).click());
+
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(page.locator('.filter-bar')).toBeVisible();
+    await expect(page.locator('#pr-sort-select')).toBeVisible();
+    await expect(page.locator('#clear-filters-button')).toBeEnabled();
+
+    await page.locator('#clear-filters-button').click();
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(page.locator('.filter-bar')).toBeHidden();
   });
 }
 
@@ -173,3 +276,71 @@ test('a filter that narrows a longer list to one row keeps the bar', async ({
   await page.locator('#clear-filters-button').click();
   await expect(page.locator('#pr-rows .row')).toHaveCount(3);
 });
+
+// A list that waited lands later (updates paused, #1427): the bar follows the
+// list that lands, not the newest snapshot that arrived while it waited.
+declare global {
+  interface Window {
+    __push: (data: unknown) => void;
+  }
+}
+
+for (const p of PAGES) {
+  test(`${p.path}: a held list brings the bar back when it lands with two rows (#3670)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.addInitScript(() => {
+      class StubEventSource {
+        onmessage: ((e: { data: string }) => void) | null = null;
+        constructor() {
+          (window as unknown as { __es: StubEventSource }).__es = this;
+        }
+        close() {}
+        addEventListener() {}
+      }
+      (window as unknown as { EventSource: unknown }).EventSource =
+        StubEventSource;
+      window.__push = (d) =>
+        (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
+          data: JSON.stringify(d),
+        });
+    });
+    const snap = (n: number) => {
+      const { prs, issues } = data(p, n);
+      return {
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: prs,
+        issues,
+        openIssueCount: issues.length,
+        navCounts: navCountsFor(prs, issues.length),
+      };
+    };
+    await page.route('**/api/v1/dashboard', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(snap(1)),
+      }),
+    );
+    await page.goto(p.path);
+    await expect(page.locator(p.rows)).toHaveCount(1);
+    await expect(page.locator('.filter-bar')).toBeHidden();
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __es?: { onmessage: unknown } }).__es
+          ?.onmessage != null,
+    );
+
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page.evaluate((d) => window.__push(d), snap(2));
+    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator(p.rows)).toHaveCount(1);
+    await expect(page.locator('.filter-bar')).toBeHidden();
+
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await expect(page.locator(p.rows)).toHaveCount(2);
+    await expect(page.locator('.filter-bar')).toBeVisible();
+  });
+}

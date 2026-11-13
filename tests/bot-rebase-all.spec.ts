@@ -855,7 +855,9 @@ test('focus moves to the All quick filter when the strip hides under it', async 
     .locator('#force-refresh-button')
     .evaluate((el) => (el as HTMLElement).click());
   await expect(page.locator('.rebase-all')).toBeHidden();
-  // Focus stays in the bar rather than dropping to the page. Two rows, since
-  // the bar is not drawn over one (#3670).
-  await expect(page.locator('.filter-bar :focus')).toHaveCount(1);
+  // Two rows, since the bar is not drawn over one (#3670). The pill group is
+  // drawn over two rows, so focus lands on its All pill.
+  await expect(
+    page.locator('.quick-pills .quick-pill[data-pill="all"]'),
+  ).toBeFocused();
 });
