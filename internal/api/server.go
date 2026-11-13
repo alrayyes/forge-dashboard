@@ -263,7 +263,7 @@ func NewMux(deps Deps) http.Handler {
 // contentSecurityPolicy lets the browser load an image from this server and
 // nowhere else (#3467). Avatars, logos and embedded images all come through
 // GET /api/v1/images, which fetches them from the hosts it allows, so none of
-// those hosts belongs here. `data:` is the inline check mark on a ticked box.
+// those hosts belongs here.
 const contentSecurityPolicy = "img-src 'self'"
 
 // contentSecurityPolicyHeader sends the policy on every response. A handler
