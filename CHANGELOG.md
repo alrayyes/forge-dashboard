@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.51.0](https://github.com/alrayyes/forge-dashboard/compare/v9.50.3...v9.51.0) (2026-11-13)
+
+
+### Features
+
+* **web:** open embedded images in a lightbox and cap their height ([#3831](https://github.com/alrayyes/forge-dashboard/issues/3831)) ([8b67ae9](https://github.com/alrayyes/forge-dashboard/commit/8b67ae91683bb7ec5c276c314c921c53d02ae00d)), closes [#3414](https://github.com/alrayyes/forge-dashboard/issues/3414) [#3468](https://github.com/alrayyes/forge-dashboard/issues/3468)
+
 ## [9.50.3](https://github.com/alrayyes/forge-dashboard/compare/v9.50.2...v9.50.3) (2026-11-13)
 
 
