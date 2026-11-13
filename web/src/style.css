@@ -3461,6 +3461,11 @@ a.ci-pill:hover {
     flex-direction: column;
     align-items: stretch;
   }
+  /* In a column the 260px flex-basis is a height, so the sentence would
+     keep 260px of empty space under it (#3802). */
+  .unreachable-banner-text {
+    flex: 0 0 auto;
+  }
   .unreachable-banner-row .unreachable-banner-retry {
     justify-content: center;
     text-align: center;
