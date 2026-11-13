@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Runs Vale at the version CI runs: the binary on PATH when it is that version
 # (the CI job runs inside the pinned image below, where it is), otherwise the
-# same image through Docker. A different version on PATH is never used. rules/markdown.md, "Running Vale", has the reasoning.
+# same image through Docker. A different version on PATH is never used.
+# rules/markdown.md, "Running Vale", has the reasoning.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."

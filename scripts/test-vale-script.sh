@@ -53,7 +53,7 @@ out=$(run "$(stubs - yes)")
 case "$out" in *ran-docker*) ;; *) fail "no vale with Docker should run the pinned image: $out" ;; esac
 
 out=$(run "$(stubs - no)")
-if ! { has "$out" "exit=[1-9]" && has "$out" "Docker"; }; then
+if ! { has "$out" "exit=127" && has "$out" "Docker"; }; then
   fail "neither should fail and say what to install: $out"
 fi
 
