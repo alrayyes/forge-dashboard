@@ -11,8 +11,8 @@ table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
   sums to about 1,472 s over 235 specs. Seventeen specs have no recorded
   duration and count as 0; the CSV leaves the cell empty.
 - Classes: **A** browser-only (layout, CSS, focus, keyboard, axe, viewport);
-  **B** UI over logic a Go test covers; **C** UI over wording or state a
-  Vitest-style test could cover; **D** fully covered below. A spec takes A when
+  **B** UI over logic a Go test covers; **C** UI over wording or state a unit or
+  component test could cover; **D** fully covered below. A spec takes A when
   half or more of its tests touch a browser-only API, else B or C. Mixed specs
   get their dominant class.
 - "Est. movable" is an upper bound: spec duration times the share of its tests
@@ -21,8 +21,8 @@ table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 - Most specs mock `/api/v1/dashboard` with `page.route`, so they check the UI
   over canned state. `web/` has 137 unit test files, all in `web/src/lib` (pure
   functions or fake DOM), and no Svelte component harness. Class C is therefore
-  blocked on one, tracked in #3626, except where a lib function already carries
-  the logic.
+  blocked on one, tracked as its own ticket, except where a lib function already
+  carries the logic.
 - A class D claim needs a mutation of the code under test that turns the lower
   test red. Name matching alone never earns D.
 
@@ -36,7 +36,7 @@ table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 | D fully covered below           | 0     | 0 s             |
 
 D is empty today. The two specs that qualified (`filter-save-order`,
-`filter-mixed-case`) were deleted in #3595 with their own mutation proof. The
+`filter-mixed-case`) were deleted earlier with their own mutation proof. The
 upper bound over classes B and C is about 670 s of the 1,472 s run, and almost
 none of it is safe to cut until the lower test exists. The order that keeps
 coverage is: write the lower test, prove it red under a mutation, then trim the
@@ -112,11 +112,11 @@ would cut most of its 29.8 s.
 
 One ticket per group, each doing moves with its own mutation proof:
 
-- Component test harness, so class C has somewhere to go (already #3626).
-- #3749: trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
+- Component test harness, so class C has somewhere to go (already filed).
+- trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups`.
-- #3750: pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
-- #3751: prove the class B specs with Go mutations, then trim them.
-- #3752: cut `filter-every-control` rounds and move its round-trip and cookie
-  checks down.
-- #3753: record a duration for the 17 specs that have none, so they rank.
+- pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
+- prove the class B specs with Go mutations, then trim them.
+- cut `filter-every-control` rounds and move its round-trip and cookie checks
+  down.
+- record a duration for the 17 specs that have none, so they rank.
