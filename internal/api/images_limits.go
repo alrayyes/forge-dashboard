@@ -78,6 +78,10 @@ func (l *imageLimits) load(ctx context.Context, q url.Values, raw string, fetch 
 		return imageproxy.Image{}, errImageBusy
 	}
 	defer l.release()
+	// A request that queued behind the same address finds it cached now.
+	if img, ok := l.get(key); ok {
+		return img, nil
+	}
 	img, err := fetch(ctx, kind)
 	if err != nil {
 		return imageproxy.Image{}, err
