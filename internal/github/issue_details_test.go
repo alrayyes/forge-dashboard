@@ -3,6 +3,7 @@ package github_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -79,6 +80,28 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	assert.True(t, got.Comments[1].Edited)
 	assert.Equal(t, 2, got.CommentCount)
 	assert.False(t, got.CommentsTruncated)
+}
+
+// The comments route takes the REST number, which GraphQL calls databaseId. A
+// query that asked for the node id instead would leave every comment id at 0,
+// and the mocked response can't tell, so the request text is checked.
+func TestGetIssueDetails_AsksForTheDatabaseIDOnComments(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := issueDetailsServer(t, map[string]any{
+		"body": "x", "lastEditedAt": nil, "reactionGroups": []map[string]any{},
+		"comments": map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+	}, &queries)
+
+	_, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, queries, 1)
+	block := regexp.MustCompile(`(?s)comments\(first: 50\) \{.*?nodes \{(.*?)author`).FindStringSubmatch(queries[0].Query)
+	require.Len(t, block, 2, "the comment nodes selection")
+	assert.Regexp(t, `\bdatabaseId\b`, block[1])
+	assert.NotRegexp(t, `\bid\b`, block[1], "the node id is not the comment number")
 }
 
 func TestGetIssueDetails_AnIssueWithNoCommentsHasAnEmptyList(t *testing.T) {
