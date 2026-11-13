@@ -409,3 +409,58 @@ export async function copyPending(
 
   return { outcome, prepared };
 }
+
+// How a line of output reads: plain text, a warning, an error, or the header
+// of a step. The dialog gives each a cue that isn't colour (WCAG 1.4.1).
+export type LogLineKind = 'plain' | 'warning' | 'error' | 'step';
+
+export type LogLine = {
+  kind: LogLineKind;
+  text: string;
+  // The time of day of an ISO timestamp the line started with.
+  time?: string;
+};
+
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ESC is the point
+const ANSI = /\u001b\[([0-9;]*)m/g;
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching ESC is the point
+const ANSI_ANY = /\u001b\[[0-9;?]*[A-Za-z]/g;
+const STAMP = /^\d{4}-\d{2}-\d{2}T(\d{2}:\d{2}:\d{2}(?:\.\d+)?)Z?\s?/;
+const STEP = /^(?:##\[group\]|---\s|\+\+\+\s)/;
+const ERROR_WORD = /^(?:##\[error\]|error:|fatal:|FAIL\b|ERROR\b)/i;
+const WARNING_WORD = /^(?:##\[warning\]|warning:|WARN\b)/i;
+
+// Splits output into lines with a level. Pure text in, text out: nothing is
+// markup, and colour escapes are dropped so none show as boxes. A red or
+// yellow colour code counts as an error or warning when the words don't say.
+export function parseLogLines(text: string): LogLine[] {
+  const raw = text.split(/\r?\n/);
+  if (raw.length > 1 && raw[raw.length - 1] === '') raw.pop();
+
+  return raw.map((full) => {
+    let hint: LogLineKind = 'plain';
+    for (const m of full.matchAll(ANSI)) {
+      const codes = (m[1] ?? '').split(';');
+      if (codes.some((c) => c === '31' || c === '91')) hint = 'error';
+      else if (hint === 'plain' && codes.some((c) => c === '33' || c === '93'))
+        hint = 'warning';
+    }
+    let rest = full.replace(ANSI_ANY, '');
+    const stamp = STAMP.exec(rest);
+    if (stamp) rest = rest.slice(stamp[0].length);
+    const out: LogLine = { kind: hint, text: rest };
+    if (stamp) out.time = stamp[1];
+    if (STEP.test(rest)) {
+      out.kind = 'step';
+      out.text = rest.replace(/^(?:##\[group\]|---\s+|\+\+\+\s+)/, '');
+    } else if (ERROR_WORD.test(rest)) {
+      out.kind = 'error';
+      out.text = rest.replace(/^##\[error\]/, '');
+    } else if (WARNING_WORD.test(rest)) {
+      out.kind = 'warning';
+      out.text = rest.replace(/^##\[warning\]/, '');
+    }
+
+    return out;
+  });
+}

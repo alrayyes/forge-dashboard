@@ -681,9 +681,9 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
         .poll(
           async () => {
             const box = await copyLink.boundingBox();
-            return box !== null && box.height > 0 && box.height < 20;
+            return box !== null && Math.abs(box.height - 44) < 0.5;
           },
-          { message: `copy output @${size.width} is under 20 tall` },
+          { message: `copy output @${size.width} is a 44px icon button` },
         )
         .toBe(true);
     }

@@ -346,7 +346,9 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveText('Copy output');
-    await expect(dialog.locator('.run-output-bar button')).toHaveCount(0);
+    await expect(
+      dialog.locator('.run-actions button.run-icon-btn'),
+    ).toHaveCount(0);
   });
 
   // Which control each state gets is proved by checkControl's unit test; this
@@ -1258,7 +1260,7 @@ test.describe('a failed row has one Copy button', () => {
     await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await expect(copy).toHaveCount(1);
-    await expect(copy).toHaveText('Copy');
+    await expect(copy).toHaveAttribute('title', 'Copy output');
     await expect(dialog.getByRole('button', { name: /^Copy log/ })).toHaveCount(
       0,
     );
@@ -1296,7 +1298,7 @@ test.describe('a failed row has one Copy button', () => {
     release();
 
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
-    await expect(copy).toHaveText('Copy');
+    await expect(copy).toHaveAttribute('title', 'Copy output');
     await expect(copy).toBeFocused();
   });
 
@@ -1560,4 +1562,81 @@ test.describe('a copy pressed while the output loads', () => {
     );
     await expect(dialog.locator('.run-output-status')).toHaveText('Copied');
   });
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [360, 390, 1280]) {
+      test(`output lines carry non-colour cues and the controls fit one row at ${width}px (${scheme})`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 900 });
+        await setup(page, {
+          status: 200,
+          body: {
+            text: [
+              '##[group]Run tests',
+              '2026-11-13T10:00:01.123Z ok all fine',
+              '2026-11-13T10:00:02.000Z ##[warning]slow test',
+              '2026-11-13T10:00:03.000Z ##[error]boom: exit 1',
+              '\u001b[31mred\u001b[0m line',
+            ].join('\n'),
+            truncated: false,
+          },
+        });
+        const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+        const show = dialog.getByRole('button', {
+          name: 'Show output: build',
+        });
+        await expect(show).toBeVisible();
+        await show.click();
+
+        const output = dialog.getByRole('region', { name: 'Output: build' });
+        await expect(output.locator('.run-line-step')).toHaveText('Run tests');
+        await expect(output.locator('.run-line-warning')).toContainText(
+          'Warning',
+        );
+        await expect(output.locator('.run-line-error').first()).toContainText(
+          'Error',
+        );
+        await expect(output.locator('.run-line-time').first()).toHaveText(
+          '10:00:01.123',
+        );
+        await expect(output).not.toContainText('[31m');
+        // Dashed vs solid border: shape, not hue.
+        const style = (sel: string) =>
+          output
+            .locator(sel)
+            .first()
+            .evaluate((el) => getComputedStyle(el).borderLeftStyle);
+        expect(await style('.run-line-warning')).toBe('dashed');
+        expect(await style('.run-line-error')).toBe('solid');
+
+        const hide = dialog.getByRole('button', { name: 'Hide output: build' });
+        const copy = dialog.getByRole('button', { name: 'Copy output: build' });
+        const open = dialog.getByRole('link', {
+          name: /^Open job on GitHub \(opens in a new tab\): build$/,
+        });
+        await expect(hide).toHaveText(/Hide output/);
+        const boxes = await Promise.all(
+          [hide, copy, open].map((l) => l.boundingBox()),
+        );
+        for (const b of boxes) {
+          expect(b?.height).toBeGreaterThanOrEqual(44);
+          expect(b?.x).toBeGreaterThanOrEqual(0);
+          expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(width);
+        }
+        for (const b of [boxes[1], boxes[2]]) {
+          expect(b?.width).toBeGreaterThanOrEqual(44);
+        }
+        const tops = boxes.map((b) => Math.round(b?.y ?? 0));
+        expect(Math.max(...tops) - Math.min(...tops)).toBeLessThanOrEqual(2);
+        // Open job is an icon: its visible text is gone, so no stray words.
+        await expect(open).toHaveText('');
+
+        const results = await new AxeBuilder({ page })
+          .include('#pipeline-dialog')
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
 });
