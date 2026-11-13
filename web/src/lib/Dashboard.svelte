@@ -10781,6 +10781,14 @@
             updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
             onpause={() => togglePause()}
           />
+          <button
+            type="button"
+            class="hidden-prs-toggle"
+            id="hidden-prs-toggle"
+            aria-expanded="false"
+            aria-controls="hidden-prs-panel"
+            hidden>Hidden (0)</button
+          >
           <div class="bulk-actions">
             {#if view === "pulls"}
               <div class="update-all bulk-action" hidden>
@@ -10819,14 +10827,6 @@
               </div>
             {/if}
           </div>
-          <button
-            type="button"
-            class="hidden-prs-toggle"
-            id="hidden-prs-toggle"
-            aria-expanded="false"
-            aria-controls="hidden-prs-panel"
-            hidden>Hidden (0)</button
-          >
           <span class="count" id="pr-count">&ndash;</span>
         </div>
       </div>

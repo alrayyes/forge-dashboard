@@ -32,6 +32,7 @@ async function open(
   path: '/pull-requests.html' | '/bots.html',
   rows: ReturnType<typeof pr>[],
   hold?: Promise<void>,
+  hidden = 0,
 ) {
   const snapshot = () =>
     JSON.stringify({
@@ -41,6 +42,7 @@ async function open(
       issues: [],
       repos: [],
       hiddenDrafts: 0,
+      hiddenPullRequests: hidden,
     });
   await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
   await page.route(/\/api\/v1\/dashboard(\/refresh)?(\?.*)?$/, (r: Route) =>
@@ -189,6 +191,7 @@ test('Updating 2 of 2 keeps the idle width and full-contrast text', async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await open(page, '/pull-requests.html', [pr(1), pr(2)], hold);
   const button = page.locator('#update-all-button');
+  await expect(button).toBeVisible();
   const idle = (await button.boundingBox())!;
   await button.click();
   await page.getByRole('button', { name: 'Update', exact: true }).click();
@@ -199,4 +202,192 @@ test('Updating 2 of 2 keeps the idle width and full-contrast text', async ({
   const opacity = await button.evaluate((el) => getComputedStyle(el).opacity);
   expect(opacity).toBe('1');
   release();
+});
+
+// The tab order is the reading order (WCAG 2.4.3, 1.3.2): the focusable
+// controls of the header, in DOM order, are also in visual order (top to
+// bottom, then left to right).
+for (const width of [390, 1280]) {
+  test(`the header's tab order is its visual order at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await open(page, '/pull-requests.html', [pr(1), pr(2)], undefined, 2);
+    await expect(page.locator('#hidden-prs-toggle')).toBeVisible();
+    await expect(page.locator('#update-all-button')).toBeVisible();
+    const order = await page.evaluate(() => {
+      const items = [
+        ...document.querySelectorAll<HTMLElement>(
+          '.board-head-controls button, .board-head-controls a',
+        ),
+      ].filter((el) => el.getClientRects().length > 0);
+      const dom = items.map((el) => el.id || el.textContent?.trim() || '?');
+      const visual = [...items]
+        .sort((a, b) => {
+          const ra = a.getBoundingClientRect();
+          const rb = b.getBoundingClientRect();
+          // Same line within a few pixels counts as one row.
+          return Math.abs(ra.top - rb.top) > 8
+            ? ra.top - rb.top
+            : ra.left - rb.left;
+        })
+        .map((el) => el.id || el.textContent?.trim() || '?');
+      return { dom, visual };
+    });
+    expect(order.dom).toContain('update-all-button');
+    expect(order.dom).toContain('hidden-prs-toggle');
+    expect(order.dom).toEqual(order.visual);
+    // And Tab really walks it.
+    await page.locator('.live-control button').first().focus();
+    const walked: string[] = [];
+    for (let i = 0; i < order.dom.length; i++) {
+      walked.push(
+        await page.evaluate(
+          () =>
+            document.activeElement?.id ||
+            document.activeElement?.textContent?.trim() ||
+            '?',
+        ),
+      );
+      await page.keyboard.press('Tab');
+    }
+    expect(walked.join('|')).toBe(order.dom.slice(0, walked.length).join('|'));
+  });
+}
+
+// A header with the buttons is as tall as one without them, on a desktop, so
+// a row turning failing or behind moves nothing below it.
+for (const width of [820, 1280]) {
+  test(`the header height doesn't change when the buttons appear at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const quiet = pr(1, { ci: 'success', behind: false, allowedActions: [] });
+    await open(page, '/pull-requests.html', [quiet, { ...quiet, number: 2 }]);
+    await expect(page.locator('#pr-count')).toHaveText(/open/);
+    await expect(page.locator('.bulk-action:not([hidden])')).toHaveCount(0);
+    const without = (await page.locator('.board-head').boundingBox())?.height;
+    const rowTop = (await page.locator('.row').first().boundingBox())?.y;
+
+    const other = await page.context().newPage();
+    await other.setViewportSize({ width, height: 900 });
+    await open(other, '/pull-requests.html', [pr(1), pr(2)]);
+    await expect(other.locator('#update-all-button')).toBeVisible();
+    await expect(other.locator('#rerun-all-button')).toBeVisible();
+    const withIt = (await other.locator('.board-head').boundingBox())?.height;
+    expect(withIt).toBe(without);
+    expect((await other.locator('.row').first().boundingBox())?.y).toBe(rowTop);
+    await other.close();
+  });
+}
+
+for (const scheme of ['light', 'dark'] as const) {
+  test(`an unavailable Rebase all looks unavailable and stays readable, ${scheme}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    // Out of date, but no rebase is offered: shown and unavailable.
+    await open(page, '/bots.html', [
+      pr(1, {
+        author: 'dependabot[bot]',
+        allowedActions: [{ action: 'rerun_checks' }],
+      }),
+    ]);
+    const button = page.locator('#rebase-all-button');
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAttribute('aria-disabled', 'true');
+    const m = await button.evaluate((el) => {
+      const c = getComputedStyle(el);
+      return {
+        color: c.color,
+        bg: c.backgroundColor,
+        border: c.borderTopColor,
+        style: c.borderTopStyle,
+        accent: getComputedStyle(document.documentElement)
+          .getPropertyValue('--accent')
+          .trim(),
+      };
+    });
+    expect(m.style).toBe('dashed');
+    expect(ratio(m.color, m.bg)).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(m.border, m.bg)).toBeGreaterThanOrEqual(3);
+    // Not the accent of an available button.
+    const live = page.locator('#rerun-all-button');
+    await expect(live).toBeVisible();
+    const accent = await live.evaluate((el) => getComputedStyle(el).color);
+    expect(m.color).not.toBe(accent);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+}
+
+test('both actions and the Hidden toggle fit 320px without overlap', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await open(page, '/pull-requests.html', [pr(1), pr(2)], undefined, 2);
+  const boxes = await page.evaluate(() =>
+    [
+      '.live-control',
+      '#hidden-prs-toggle',
+      '#pr-count',
+      '#update-all-button',
+      '#rerun-all-button',
+    ].map((s) => {
+      const r = document.querySelector(s)?.getBoundingClientRect();
+      return {
+        s,
+        l: r?.left ?? 0,
+        r: r?.right ?? 0,
+        t: r?.top ?? 0,
+        b: r?.bottom ?? 0,
+      };
+    }),
+  );
+  for (const [i, a] of boxes.entries())
+    for (const b of boxes.slice(i + 1))
+      expect(
+        a.r <= b.l + 0.5 ||
+          b.r <= a.l + 0.5 ||
+          a.b <= b.t + 0.5 ||
+          b.b <= a.t + 0.5,
+        `${a.s} overlaps ${b.s}`,
+      ).toBe(true);
+  expect(
+    await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth <=
+        document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+});
+
+test('forced colors keep the buttons visible with a border', async ({
+  page,
+}) => {
+  await page.emulateMedia({ forcedColors: 'active' });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await open(page, '/pull-requests.html', [pr(1), pr(2)]);
+  for (const id of ['#update-all-button', '#rerun-all-button']) {
+    const m = await page.locator(id).evaluate((el) => {
+      const c = getComputedStyle(el);
+      return {
+        width: Number.parseFloat(c.borderTopWidth),
+        style: c.borderTopStyle,
+        color: c.color,
+        bg: c.backgroundColor,
+      };
+    });
+    expect(m.width).toBeGreaterThanOrEqual(1);
+    expect(m.style).not.toBe('none');
+    // Forced colors map text and fill to different system colors.
+    expect(m.color).not.toBe(m.bg);
+  }
 });

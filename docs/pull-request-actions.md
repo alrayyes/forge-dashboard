@@ -1145,8 +1145,14 @@ run is under way the same button reads `Updating 2 of 4` (or `Rerunning`,
 phone or small screen (760px and narrower) the live control and the count come
 first, then each button runs full width and 44px high, one per line, so a label
 never has to be shortened. A button that appears there adds its line to the
-header. The confirm dialog carries the scope in the title, such as `Update 2 pull
-requests?`, and the confirm button repeats it.
+header. The Hidden toggle comes before the buttons in the page and on the
+screen, so Tab walks the header in the order you read it. On a desktop the
+buttons are 30px high and the header keeps its height whether they show or not.
+Only `Rebase all` can be shown yet unavailable: bots are behind but none can be
+asked. It then goes grey with a dashed border, still readable (text 4.5:1,
+border 3:1), and the dialog won't open. A run in progress keeps the accent and
+full contrast. The confirm dialog carries the scope in the title, such as
+`Update 2 pull requests?`, and the confirm button repeats it.
 
 ## Asking every out-of-date bot to catch up
 

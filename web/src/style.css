@@ -5381,9 +5381,6 @@ footer a[aria-current="page"] {
 }
 .bulk-action {
   display: inline-flex;
-  /* The button's own box spills into the header's padding, so the header is as
-     tall with it as without it. */
-  margin-block: -7px;
 }
 .bulk-action[hidden] {
   display: none;
@@ -5402,8 +5399,8 @@ footer a[aria-current="page"] {
 .update-all-button,
 .rerun-all-button {
   min-height: 30px;
-  min-width: 10.5rem;
-  padding: 4px 14px;
+  min-width: 7.75rem;
+  padding: 4px 8px;
   font-family: inherit;
   font-size: 0.75rem;
   font-weight: 600;
@@ -5414,11 +5411,20 @@ footer a[aria-current="page"] {
   border-radius: 6px;
   cursor: pointer;
 }
-/* Unavailable or running: the text keeps full contrast. */
+/* Running keeps the accent and full contrast. Unavailable (Rebase all with
+   nothing it can ask) goes quiet: grey text and a dashed grey border, both
+   still clear of 4.5:1 and 3:1. */
 .rebase-all-button[aria-disabled="true"],
 .update-all-button[aria-disabled="true"],
 .rerun-all-button[aria-disabled="true"] {
   cursor: default;
+}
+.rebase-all-button[aria-disabled="true"]:not([data-busy]),
+.update-all-button[aria-disabled="true"]:not([data-busy]),
+.rerun-all-button[aria-disabled="true"]:not([data-busy]) {
+  color: var(--ink-2);
+  border-color: var(--ink-3);
+  border-style: dashed;
 }
 .rebase-all-button[data-busy]::before,
 .update-all-button[data-busy]::before,
@@ -5456,10 +5462,12 @@ footer a[aria-current="page"] {
     order: 2;
   }
   .board-head-controls .count {
-    order: 2;
-  }
-  .bulk-actions {
     order: 3;
+  }
+  /* The buttons come last in the DOM order of the focusable items too, so the
+     tab order is the reading order. */
+  .bulk-actions {
+    order: 4;
     flex: 1 1 100%;
     flex-direction: column;
     align-items: stretch;
@@ -5467,9 +5475,6 @@ footer a[aria-current="page"] {
   .bulk-actions:has(> .bulk-action:not([hidden])) ~ .count {
     padding-left: 0;
     border-left: 0;
-  }
-  .bulk-action {
-    margin-block: 0;
   }
   .bulk-action > button {
     flex: 1 1 auto;
