@@ -122,7 +122,7 @@ Ranked by estimated movable seconds, class A excluded.
 
 | #   | Spec                           | Duration | Tests | Browser-only | Est. movable | Lower test, or the missing one                          |
 | --- | ------------------------------ | -------- | ----- | ------------ | ------------ | ------------------------------------------------------- |
-| 1   | `dashboard`                    | 51.2 s   | 101   | 15           | 43.6 s       | `dashboard-read` partly; missing: row and state tests   |
+| 1   | `dashboard`                    | 51.2 s   | 100   | 15           | 43.6 s       | `dashboard-read` partly; missing: row and state tests   |
 | 2   | `filter-every-control`         | 29.8 s   | 3     | 0            | 29.8 s       | Missing: see below                                      |
 | 3   | `cancel-run`                   | 25.4 s   | 24    | 7            | 18.0 s       | `cancel-run.test.ts` (proven); missing: dialog wording  |
 | 4   | `settings`                     | 21.2 s   | 49    | 11           | 16.4 s       | Go settings tests for server rules; missing: form state |
@@ -200,6 +200,14 @@ One ticket per group, each doing moves with its own mutation proof:
   pull request group not read back, the cookie value not URL-encoded, an off box
   read back as on, and the server returning empty values as `0` or dropping the
   webhooks group).
+- trim `dashboard` (partly done): the "CI pill wording beside the Merge
+  button" test is gone. It only read the word `Failed` on a failing row, which
+  `row-status-grammar.spec.ts` ("a run turns into its result in the same box")
+  and `ci-pill-counts.spec.ts` (the failed-pill tests) read too. Changing the
+  word in `Dashboard.svelte` turns all three red. The durations in
+  `tests/e2e-durations.json` refresh the next time a green `main` run is
+  recorded. Still open on `dashboard`: the presence-only test and the two axe
+  scans.
 - record a duration for the 17 specs that have none, so they rank (done: the
   file was refreshed from a green `main` run, which gave all of them and the
   specs added since an entry. Only specs newer than that run are missing, and

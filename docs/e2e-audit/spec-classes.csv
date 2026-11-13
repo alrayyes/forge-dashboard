@@ -46,7 +46,7 @@ conflicts-filter.spec.ts,2.812,5,1,C,,2.2
 copy-failure.spec.ts,14.431,17,3,C,,11.9
 csp-img-src.spec.ts,,3,1,C,,0.0
 dashboard-error-banner.spec.ts,0.93,3,1,C,,0.6
-dashboard.spec.ts,51.2,101,15,C,web/src/lib/dashboard-read.test.ts;web/src/lib/dashboard-read-error.test.ts,43.6
+dashboard.spec.ts,51.2,100,15,C,web/src/lib/dashboard-read.test.ts;web/src/lib/dashboard-read-error.test.ts,43.6
 dependabot-ack.spec.ts,3.583,6,1,C,,3.0
 dependabot-recreate-menu.spec.ts,6.658,11,5,C,,3.6
 error-pages.spec.ts,3.441,6,2,C,,2.3
