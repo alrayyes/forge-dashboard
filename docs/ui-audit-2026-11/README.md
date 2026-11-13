@@ -45,7 +45,7 @@ Stitch designs for moving the bulk actions into the card header (ticket 3755):
 - `stitch/bulk-actions-dialog-desktop-1280.png`: the confirmation dialog with
   the scope in its title, "Update 2 pull requests?".
 
-Stitch designs for the image viewer in the details dialog (ticket 3414), light
+Stitch designs for the image viewer in the pull request dialog (ticket 3414), light
 theme only:
 
 - `stitch/image-lightbox-desktop-1280.png`: a dialog over a full-height scrim
