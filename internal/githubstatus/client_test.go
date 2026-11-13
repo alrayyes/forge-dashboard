@@ -230,8 +230,9 @@ func TestStatus_ARedirectIsNotFollowed(t *testing.T) {
 	t.Parallel()
 
 	other := newFeed(t, feedWithIncident)
-	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, other.srv.URL+r.URL.Path, http.StatusFound)
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", other.srv.URL+"/api/v2/summary.json")
+		w.WriteHeader(http.StatusFound)
 	}))
 	t.Cleanup(redirector.Close)
 	c := githubstatus.New(redirector.URL, nil,

@@ -103,7 +103,7 @@ func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
 	if f == nil {
 		f = &flight{done: make(chan struct{})}
 		c.inflight = f
-		go c.run(f)
+		go c.run(context.WithoutCancel(ctx), f)
 	}
 	c.mu.Unlock()
 
@@ -116,8 +116,8 @@ func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
 }
 
 // run fetches once, records the outcome and wakes everyone waiting on f.
-func (c *Client) run(f *flight) {
-	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+func (c *Client) run(detached context.Context, f *flight) {
+	ctx, cancel := context.WithTimeout(detached, requestTimeout)
 	defer cancel()
 	status, err := c.fetch(ctx)
 
