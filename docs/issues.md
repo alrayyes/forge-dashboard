@@ -284,5 +284,7 @@ count: a change to one the filters or the hidden Dependency Dashboard keep out
 of sight waits for nothing, and neither does a change to pull requests. When
 rows do land, one polite line tells a screen reader ("List updated: 1 added").
 A row whose own content changed updates where it stands, and a refresh with no
-change leaves every row alone. Sort works as it does for pull requests. The
-pause setting is shared with the pull request page.
+change leaves every row alone. Sort works as it does for pull requests, and
+like them the filter bar and sort control are hidden while the list has one row
+or none (see Short lists in the pull request pages doc). The pause setting is
+shared with the pull request page.

@@ -213,7 +213,7 @@ test.describe('CI pills and the auto-merge filter (#1455)', () => {
     expect(results.violations).toEqual([]);
 
     await page.keyboard.press('Escape');
-    current = [pr(1, 'Unknown', 'success')];
+    current = [pr(1, 'Unknown', 'success'), pr(2, 'Unknown', 'success')];
     await page.reload();
     await page.getByRole('button', { name: /^Filters/ }).click();
     await expect(sheet.locator('.am-group')).toBeHidden();

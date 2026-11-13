@@ -203,6 +203,15 @@ function taskLists(state: StateCore): void {
 // digits is read as a fraction (`1/2#3`), not a repository. A mention
 // (`@user/team#5`) is left to the forge. `and/or#3` still links: telling it
 // from a real repository would take a lookup the page can't make.
+/**
+ * Which references open a dialog on the dashboard: the forge the text came
+ * from, and whether a repository (`owner/name`) is one the dashboard tracks.
+ */
+export type ReferenceOptions = {
+  forge: string;
+  tracked: (repo: string) => boolean;
+};
+
 const REFERENCE =
   /(?<![\w/&#.@-])([A-Za-z0-9][\w.-]*\/(?!\d+#)[\w.-]+)?#(\d+)(?![\w-])/g;
 
@@ -211,9 +220,15 @@ const REFERENCE =
 // text inside a link (an explicit one or a linkified URL) is skipped.
 // Without a repository address the text stays as it is.
 function references(state: StateCore): void {
-  const repoUrl = (state.env as { repoUrl?: string } | undefined)?.repoUrl;
+  const env = state.env as
+    | { repoUrl?: string; dashboardRefs?: ReferenceOptions }
+    | undefined;
+  const repoUrl = env?.repoUrl;
   if (!repoUrl) return;
-  const host = new URL(repoUrl).origin;
+  const url = new URL(repoUrl);
+  const host = url.origin;
+  const ownRepo = url.pathname.replace(/^\/+|\/+$/g, '');
+  const dashboard = env?.dashboardRefs;
   const { Token } = state;
   for (const block of state.tokens) {
     if (block.type !== 'inline' || !block.children) continue;
@@ -230,15 +245,33 @@ function references(state: StateCore): void {
       for (const m of child.content.matchAll(REFERENCE)) {
         const text = new Token('text', '', 0);
         text.content = child.content.slice(last, m.index);
-        const open = new Token('link_open', 'a', 1);
-        open.attrSet(
-          'href',
-          m[1] ? `${host}/${m[1]}/issues/${m[2]}` : `${repoUrl}/issues/${m[2]}`,
-        );
-        const label = new Token('text', '', 0);
-        label.content = m[0];
-        const close = new Token('link_close', 'a', -1);
-        out.push(text, open, label, close);
+        const repo = m[1] || ownRepo;
+        const forgeUrl = `${host}/${repo}/issues/${m[2]}`;
+        if (
+          dashboard &&
+          /^[a-z]+$/.test(dashboard.forge) &&
+          dashboard.tracked(repo)
+        ) {
+          // The dashboard opens it in place; the address keeps middle-click
+          // and copy-link working. Built here, not as a link token: the link
+          // rule below turns an address that is not absolute http(s) into
+          // text. Every part is a number or the characters REFERENCE allows.
+          const link = new Token('html_inline', '', 0);
+          link.content = `<a href="/issues.html?issue=${dashboard.forge}/${repo}/${m[2]}" data-ref-repo="${repo}" data-ref-number="${m[2]}" data-ref-url="${forgeUrl}">${m[0]}</a>`;
+          out.push(text, link);
+        } else {
+          // Nothing to open here: a repository the dashboard does not track
+          // goes to the forge, and says so.
+          const open = new Token('link_open', 'a', 1);
+          open.attrSet('href', forgeUrl);
+          const label = new Token('text', '', 0);
+          label.content = m[0];
+          const note = new Token('html_inline', '', 0);
+          note.content =
+            '<span class="sr-only"> (opens on the forge in a new tab)</span>';
+          const close = new Token('link_close', 'a', -1);
+          out.push(text, open, label, note, close);
+        }
         last = m.index + m[0].length;
       }
       if (last === 0) {
@@ -357,6 +390,7 @@ export async function renderMarkdown(
   text: string,
   options: {
     repoUrl?: string | null;
+    references?: ReferenceOptions;
     monoReferences?: boolean;
     imageSource?: ImageSource;
   } = {},
@@ -364,6 +398,7 @@ export async function renderMarkdown(
   const repoUrl = options.repoUrl ?? undefined;
   return (await load()).render(text, {
     repoUrl,
+    dashboardRefs: options.references,
     monoReferences: options.monoReferences,
     imageSource: options.imageSource,
   });

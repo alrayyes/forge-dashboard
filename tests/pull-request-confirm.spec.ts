@@ -140,7 +140,7 @@ test.describe('confirm step: leaving it', () => {
   });
 
   test('a click on the page background disarms', async ({ page }) => {
-    await mockDashboard(page, [makePR(2)]);
+    await mockDashboard(page, [makePR(2), makePR(3)]);
     await page.goto('/pull-requests.html');
 
     await mergeButton(rowOf(page, 0)).click();

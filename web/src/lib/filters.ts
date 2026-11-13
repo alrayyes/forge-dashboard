@@ -1849,6 +1849,20 @@ export function offerDrafts(
   button.hidden = hiddenDrafts <= 0 && !pool.some((i) => i.draft === true);
 }
 
+// The filter bar, and the sort controls in it, only while the page has more
+// than one row (#3670). `rows` counts the list before filters, so a filter
+// that narrows a longer list keeps the bar. One row keeps the bar when
+// `nothingToUndo` is false: a pick may be what hides the others, and Show
+// drafts may have rows to reveal, and the bar is where both are changed.
+export function offerFilterBar(
+  bar: HTMLElement | null,
+  rows: number,
+  nothingToUndo: boolean,
+): void {
+  if (!bar) return;
+  bar.hidden = rows === 0 || (rows === 1 && nothingToUndo);
+}
+
 // The refs segment's Yes and No.
 export function offerRefs(
   groups: Iterable<HTMLElement>,
