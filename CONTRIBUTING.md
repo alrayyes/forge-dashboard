@@ -250,12 +250,18 @@ CSS, the font `<link rel="preload">` tags and `@font-face` files being
 served, no external loads, a distinct description on every page, and
 `noindex`.
 
+A component's markup, wording, focus or layout, with its API mocked, is
+asserted in the `play` function of its Storybook story and run by
+`bun run test:components` (Vitest in Chromium, no Go binary; see
+[the catalogue](docs/storybook.md)). Pick the lowest tier that can see the
+behaviour: `bun test`, then a story, then Playwright.
+
 Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
 helpers the e2e specs import), not `tests/`, because Playwright picks up any
 `tests/*.test.ts` and a bare `bun test` fails on Playwright specs. And
 `bun test` has no Svelte compiler, so it can't load a `.svelte.ts` rune module
-(`$state is not defined`) or render a component. When a test first needs one,
-add Vitest with `vite-plugin-svelte` for those files. `bun test` was picked
+(`$state is not defined`) or render a component; Vitest in the story tier
+does. `bun test` was picked
 for plain modules because it runs in about 0.01 s with nothing new to install,
 where Vitest takes 0.4 s or more and a dependency.
 

@@ -117,7 +117,13 @@ would cut most of its 29.8 s.
 
 One ticket per group, each doing moves with its own mutation proof:
 
-- Component test harness, so class C has somewhere to go (already filed).
+- Component test harness, so class C has somewhere to go. Done. Storybook
+  `play` functions run in Chromium under Vitest (`bun run test:components`,
+  see [the catalogue](storybook.md)). The first
+  move was three `nav-branches-pills` tests (the pill markup, the approval
+  count, a zero not drawn): about 0.80 s of e2e test time became about 0.08 s
+  of story time, and removing `aria-hidden` from the pill turns the story red.
+  The audit table is the state before that move.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups`.
 - pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.

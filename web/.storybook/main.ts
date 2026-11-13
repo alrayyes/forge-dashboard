@@ -4,7 +4,7 @@ import type { StorybookConfig } from '@storybook/sveltekit';
 // its component. Built and screenshotted by scripts/storybook-screenshots.ts.
 const config: StorybookConfig = {
   stories: ['../src/lib/**/*.stories.svelte'],
-  addons: ['@storybook/addon-svelte-csf'],
+  addons: ['@storybook/addon-svelte-csf', '@storybook/addon-vitest'],
   framework: '@storybook/sveltekit',
   core: { disableTelemetry: true },
 };

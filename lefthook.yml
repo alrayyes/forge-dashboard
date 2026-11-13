@@ -269,6 +269,15 @@ pre-push:
         - "bun.lock"
       run: bun run storybook:screenshots
 
+    # Runs the stories' play functions as component tests in Chromium (#3626).
+    # The same script CI's storybook job runs after the screenshots.
+    - name: component-tests
+      glob:
+        - "web/**"
+        - "package.json"
+        - "bun.lock"
+      run: bun run test:components
+
     # Proves the image still builds before anyone pushes, without publishing
     # anything. Here rather than at commit: it builds the tree, not the commit.
     - name: docker-build

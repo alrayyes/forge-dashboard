@@ -26,6 +26,30 @@ To browse the catalogue instead, run `bunx storybook dev` in `web/`.
 `bun run test:storybook` is the smoke test: the build succeeds and lists at
 least one story.
 
+## Stories as component tests
+
+```sh
+bun run test:components
+```
+
+Vitest and `@storybook/addon-vitest` open each story in Chromium and run its
+`play` function. An assertion that throws fails the run. It needs
+no Go binary, database or WebAuthn setup, only Playwright's Chromium, and it
+takes a few seconds. `web/vitest.config.ts` holds the setup. A story with no
+`play` function still counts: it fails if it throws on render.
+
+Where a new check goes:
+
+- A pure function or a rune-free module: `bun test` (`web/src/lib/*.test.ts`).
+- Markup, wording, focus or layout of one component, with its API mocked: a
+  `play` function on that component's story.
+- A page that needs the Go server, auth, the live stream or a navigation:
+  Playwright (`tests/*.spec.ts`).
+
+`NavPills.stories.svelte` is the worked example. Make a test fail on purpose
+(remove an attribute from the component) to see the story go red before you
+trust it.
+
 ## What a story mocks
 
 Stories run the real component. Only what Storybook can't run is replaced:
@@ -43,5 +67,6 @@ A dialog opens from a small button in the story, and a `play` function clicks it
 ## Where it runs
 
 The pre-push hook and the `storybook` CI job both run
-`bun run storybook:screenshots`, so they can't disagree. CI uploads the images as
+`bun run storybook:screenshots` and then `bun run test:components`, so they
+can't disagree. CI uploads the images as
 the `storybook-screenshots` artifact for a week.
