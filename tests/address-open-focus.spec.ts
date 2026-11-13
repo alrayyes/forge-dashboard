@@ -93,6 +93,14 @@ async function filterToOneRow(page: Page, baseURL: string | undefined) {
 const dialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Pull request details/ });
 
+// The id the dialog was given to fall back to must name a control that is
+// drawn. The dialog's own generic selector would hide a hidden id (#3844).
+async function expectFallbackDrawn(page: Page) {
+  const id = await dialog(page).getAttribute('data-return-focus-fallback');
+  expect(id, 'the dialog names a fallback').toBeTruthy();
+  await expect(page.locator(`#${id}`)).toBeVisible();
+}
+
 test.describe('closing a pull request opened from its address onto a hidden title box', () => {
   test.afterEach(async ({ context }) => {
     await context.clearCookies({ name: 'forge-board-filters' });
@@ -110,6 +118,7 @@ test.describe('closing a pull request opened from its address onto a hidden titl
     await expect(
       page.locator('#pr-rows .row', { hasText: 'Pull request 12' }),
     ).toHaveCount(0);
+    await expectFallbackDrawn(page);
     await page.keyboard.press('Escape');
 
     await expect(dialog(page)).toBeHidden();
@@ -129,6 +138,7 @@ test.describe('closing a pull request opened from its address onto a hidden titl
 
     await page.goto(address(12));
     await expect(dialog(page)).toBeVisible();
+    await expectFallbackDrawn(page);
     await page.keyboard.press('Escape');
 
     await expect(dialog(page)).toBeHidden();

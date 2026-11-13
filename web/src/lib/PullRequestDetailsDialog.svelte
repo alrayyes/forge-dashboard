@@ -154,7 +154,7 @@
   let actionsHost = $state<HTMLElement>();
   let target = $state<DetailsTarget | null>(null);
   let returnFocusId = "";
-  let returnFocusFallbackId = "";
+  let returnFocusFallbackId = $state("");
   let phase = $state<"loading" | "error" | "ready">("loading");
   let errorMessage = $state("");
   let details = $state<Details | null>(null);
@@ -633,6 +633,7 @@
 <dialog
   bind:this={dialogEl}
   class="details-dialog"
+  data-return-focus-fallback={returnFocusFallbackId || undefined}
   aria-label={target
     ? `${subjectName} details: ${target.repo} ${refText}`
     : "Pull request details"}

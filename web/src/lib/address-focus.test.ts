@@ -31,12 +31,18 @@ describe('addressFocusFallback', () => {
     );
   });
 
-  test('never names a control that is not drawn', () => {
-    for (const drawn of [
-      drawnIds('filters-button'),
-      drawnIds('pr-sort-select'),
-      drawnIds('title-filter'),
-    ])
-      expect(drawn(addressFocusFallback(drawn))).toBe(true);
+  test('prefers the title box, then the Filters button, then the sort box', () => {
+    expect(
+      addressFocusFallback(drawnIds('title-filter', 'pr-sort-select')),
+    ).toBe('title-filter');
+    expect(
+      addressFocusFallback(drawnIds('title-filter', 'filters-button')),
+    ).toBe('title-filter');
+    expect(
+      addressFocusFallback(drawnIds('filters-button', 'pr-sort-select')),
+    ).toBe('filters-button');
+    expect(addressFocusFallback(drawnIds('pr-sort-select'))).toBe(
+      'pr-sort-select',
+    );
   });
 });
