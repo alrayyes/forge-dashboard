@@ -109,7 +109,9 @@ The dashboard talks to your forges and to nothing else, with two exceptions.
 The first isn't optional but sends nothing about you: when GitHub can't be
 reached, it reads GitHub's public status page (`www.githubstatus.com`) to say
 whether GitHub reports an incident, at most once a minute and never while GitHub
-works. That request carries no token, account or repo name.
+works. That request carries no token, account, or repo name, but
+githubstatus.com still sees the server's IP address and the `User-Agent` of the
+request, and there is no setting to turn it off.
 
 The second is opt-in. Forgejo has no dependency alerts, so the dashboard can
 match a repo's lock files against the public [OSV](https://osv.dev) database
