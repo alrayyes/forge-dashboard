@@ -25,11 +25,12 @@ Issues, Releases and Main branches): a status dot reading "Live" or "Paused",
 "updated 12 seconds ago", **Pause** (**Resume** while paused) and a refresh button.
 Pause is your own control: it stops every automatic update until you resume,
 which applies what waited (Refresh now still works). The time is the snapshot's
-own, so a refresh that fails leaves it where it was. On Main branches the
+own: it holds still while paused and moves to the newest one on Resume, and a
+refresh that fails leaves it where it was. On Main branches the
 pause isn't saved with your filters and a reload goes back to live. The
 **Sort** control offers Last activity (the default, the server's order: most
 recently updated first, whether or not a pull request is ready to merge),
-Created and Repository. Pause and sort are saved with your other filters.
+Created, and Repository. Pause and sort are saved with your other filters.
 
 The pull requests page also watches the rows you can see, in the order it
 draws them, so their CI pills fold from the live jobs without a dialog open.

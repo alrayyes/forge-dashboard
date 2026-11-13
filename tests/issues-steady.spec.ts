@@ -177,9 +177,11 @@ test.describe('steady issues refresh', () => {
   test('the same holds while updates are paused', async ({ page }) => {
     await open(page, BASE, [makePR(1)]);
     await page.locator('#pause-updates-button').click();
+    // Pausing says so, politely; the held change adds nothing to it.
+    await expect(bar(page)).toHaveText('Live updates paused');
 
     await push(page, BASE, [makePR(1), makePR(2)]);
-    await expect(bar(page)).toHaveText('');
+    await expect(bar(page)).toHaveText('Live updates paused');
     await noShowUpdates(page);
   });
 

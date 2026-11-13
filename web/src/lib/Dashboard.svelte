@@ -514,6 +514,7 @@
   // failed refresh leaves it where it was.
   let livePaused = $state(false);
   let liveUpdatedAt = $state<string | null>(null);
+  let heldUpdatedAt: string | null = null;
   let togglePause: () => void = () => {};
   const loadingFirst = $derived(firstRefreshLoading(firstRefresh));
   let issueSettingsKnown = $state(false);
@@ -5015,6 +5016,15 @@
     // row changed in place.
     const listUpdates = document.getElementById("list-updates-status");
     let listUpdatesTimer: ReturnType<typeof setTimeout> | undefined;
+    function announceText(text: string) {
+      if (!listUpdates) return;
+      listUpdates.replaceChildren(document.createTextNode(text));
+      clearTimeout(listUpdatesTimer);
+      listUpdatesTimer = setTimeout(
+        () => listUpdates.replaceChildren(),
+        10_000,
+      );
+    }
     function announceListUpdate(diff: {
       added: number;
       removed: number;
@@ -8272,6 +8282,13 @@
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
+      announceText(
+        updatesPaused() ? "Live updates paused" : "Live updates resumed",
+      );
+      if (!updatesPaused() && heldUpdatedAt) {
+        liveUpdatedAt = heldUpdatedAt;
+        heldUpdatedAt = null;
+      }
       if (!updatesPaused()) pipelineDialog?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
@@ -9903,7 +9920,14 @@
       refreshedKnown = hasTimestamp(data.generatedAt);
       if (refreshedKnown) {
         lastGeneratedAt = data.generatedAt;
-        liveUpdatedAt = data.generatedAt;
+        // The time is when the rows on screen were read: while updates are
+        // held it stays put, and Resume moves it to the newest snapshot.
+        if (liveUpdatedAt && updatesPaused() && !userAsked)
+          heldUpdatedAt = data.generatedAt;
+        else {
+          liveUpdatedAt = data.generatedAt;
+          heldUpdatedAt = null;
+        }
       }
       followReadInterval(data.readIntervalSeconds);
 

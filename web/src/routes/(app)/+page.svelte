@@ -346,6 +346,10 @@
   // While the page is paused (#3699) a page that arrives is held, the newest
   // one, and drawn on Resume. A refresh the user asked for is drawn at once.
   let paused = $state(false);
+  // A refresh the user asked for is running, or failed (#3699).
+  let pauseNote = $state("");
+  let refreshing = $state(false);
+  let refreshError = $state<string | null>(null);
   let held: MainBranches | null = null;
   function apply(next: MainBranches, asked = false) {
     if (paused && !asked) {
@@ -356,6 +360,7 @@
     if (!supersedes(next, data)) return;
     data = next;
     failure = null;
+    if (asked) refreshError = null;
     redrawOpenControl();
   }
 
@@ -372,6 +377,10 @@
   // The one read of GET /api/v1/main-branches: the first draw, and the fallback
   // when the stream is down. Every update after that comes from the stream.
   async function load(initial = false, asked = false) {
+    if (asked) {
+      refreshing = true;
+      refreshError = null;
+    }
     try {
       const res = await fetch("/api/v1/main-branches", {
         headers: { Accept: "application/json" },
@@ -379,7 +388,10 @@
       if (!res.ok) throw new BackendStatusError(res.status);
       apply((await res.json()) as MainBranches, asked);
     } catch (err) {
-      // A refresh that fails keeps the rows already on screen.
+      // A refresh that fails keeps the rows already on screen, and says so.
+      if (asked) {
+        refreshError = `Could not refresh: ${err instanceof Error ? err.message : String(err)}`;
+      }
       if (initial || !data) {
         failure = dashboardReadFailureMessage(
           err instanceof Error ? err : new Error(String(err)),
@@ -389,11 +401,13 @@
       redrawOpenControl();
     } finally {
       loading = false;
+      refreshing = false;
     }
   }
 
   function togglePause() {
     paused = !paused;
+    pauseNote = paused ? "Live updates paused" : "Live updates resumed";
     if (!paused && held) apply(held);
   }
 
@@ -970,10 +984,27 @@
         updatedAt={pending ? null : (data?.generatedAt ?? null)}
         onpause={togglePause}
         onrefresh={() => load(false, true)}
+        {refreshing}
       />
     </div>
   </div>
 
+  <!-- Always mounted, so it is empty before it speaks and is announced when
+       filled. -->
+  <span
+    class="sr-only"
+    id="list-updates-status"
+    role="status"
+    aria-live="polite">{pauseNote}</span
+  >
+  <p
+    class="mb-banner"
+    role="alert"
+    data-testid="refresh-error"
+    hidden={!refreshError}
+  >
+    {refreshError ?? ""}
+  </p>
   <!-- Always mounted, so it is empty before it speaks and a screen reader
        announces the change (#1672). -->
   <FirstRefreshStatus {pending} subject="branches" />

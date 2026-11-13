@@ -11,11 +11,15 @@
     updatedAt,
     onpause,
     onrefresh,
+    refreshing = false,
   }: {
     paused: boolean;
     updatedAt: string | null;
     onpause: () => void;
     onrefresh?: () => void;
+    // True while a refresh the user asked for runs. aria-disabled, not
+    // disabled, so the button keeps keyboard focus; a press is ignored.
+    refreshing?: boolean;
   } = $props();
 
   let now = $state(Date.now());
@@ -43,10 +47,14 @@
   <button
     type="button"
     class="live-refresh"
+    class:is-refreshing={refreshing}
     id="force-refresh-button"
     aria-label="Refresh now"
+    aria-disabled={refreshing ? "true" : undefined}
     title="Refresh now"
-    onclick={onrefresh}
+    onclick={() => {
+      if (!refreshing) onrefresh?.();
+    }}
   >
     <svg
       width="16"

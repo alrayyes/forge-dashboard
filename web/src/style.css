@@ -406,14 +406,6 @@ header,
 .theme-toggle svg {
   display: block;
 }
-/* The one .theme-toggle a script disables (mid-refresh, then for a short
-   cooldown after) — a real button, not a link, is the only one of these
-   that ever needs this state at all. */
-.theme-toggle:disabled,
-.theme-toggle[aria-disabled="true"] {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
 
 /* ---- mobile bottom tab bar (mobile-bottom-nav) ----
    Hidden by default (desktop/tablet keeps the header's own .app-nav);
@@ -1307,7 +1299,9 @@ select.col-filter {
   background: var(--ok, #157347);
 }
 .live-control.paused .live-dot {
-  background: var(--ink-3);
+  /* Amber as in the Stitch paused screen. --warning clears 3:1 against the
+     card in both themes; the word "Paused" carries the meaning, not the dot. */
+  background: var(--warning);
 }
 .live-updated {
   color: var(--ink-3);

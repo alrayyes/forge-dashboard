@@ -166,3 +166,206 @@ test.describe('Branches live control (#3699)', () => {
     }
   });
 });
+
+// The time is when the rows on screen were read, so it holds still while
+// updates are held and moves to the newest snapshot on Resume (#3699).
+async function stubStream(page: Page) {
+  await page.addInitScript(() => {
+    class StubEventSource {
+      onmessage: ((e: { data: string }) => void) | null = null;
+      constructor() {
+        (window as unknown as { __es: StubEventSource }).__es = this;
+      }
+      close() {}
+      addEventListener() {}
+    }
+    (window as unknown as { EventSource: unknown }).EventSource =
+      StubEventSource;
+    (window as unknown as { __push: (d: unknown) => void }).__push = (data) =>
+      (window as unknown as { __es: StubEventSource }).__es.onmessage?.({
+        data: JSON.stringify(data),
+      });
+  });
+}
+
+const snap = (generatedAt: string) => ({
+  generatedAt,
+  readIntervalSeconds: 60,
+  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  pullRequests: [],
+  issues: [],
+  openIssueCount: 0,
+  repos: [],
+  hiddenDrafts: 0,
+  firstRefreshDone: true,
+});
+
+async function pushSnapshot(page: Page, generatedAt: string) {
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { __es?: { onmessage: unknown } }).__es
+        ?.onmessage != null,
+  );
+  await page.evaluate(
+    (d) => (window as unknown as { __push: (x: unknown) => void }).__push(d),
+    snap(generatedAt),
+  );
+}
+
+for (const c of CARDS) {
+  test.describe(`${c.name} updated time while paused (#3699)`, () => {
+    test('holds still while paused and moves on Resume', async ({ page }) => {
+      await stubStream(page);
+      await mockDashboard(page, ago(7200));
+      await page.goto(c.path);
+      const live = control(page);
+      await expect(live).toContainText('updated 2h ago');
+      await live.getByRole('button', { name: /Pause/ }).click();
+      await pushSnapshot(page, ago(5));
+      // Give a wrongly advanced time a moment to show.
+      await page.waitForTimeout(400);
+      await expect(live).toContainText('updated 2h ago');
+      await live.getByRole('button', { name: /Resume/ }).click();
+      await expect(live).toContainText(/updated \d+s ago/);
+    });
+
+    test('keeps counting from the old time when a refresh fails', async ({
+      page,
+    }) => {
+      await mockDashboard(page, ago(7200));
+      await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
+        route.fulfill({ status: 500, body: 'nope' }),
+      );
+      await page.goto(c.path);
+      const live = control(page);
+      await expect(live).toContainText('updated 2h ago');
+      await live.getByRole('button', { name: 'Refresh now' }).click();
+      await expect(page.getByText(/Could not refresh/).first()).toBeVisible();
+      await expect(live).toContainText('updated 2h ago');
+    });
+  });
+}
+
+// Main branches holds a page that arrives while paused, draws it on Resume,
+// and draws a refresh the user asked for at once (#3699).
+test.describe('Branches pause and refresh (#3699)', () => {
+  const rows = (page: Page) => page.locator('[data-testid="main-branch-row"]');
+  const pageOf = (statuses: string[], generatedAt: string) => ({
+    ...mainBranchPageOf(statuses),
+    generatedAt,
+  });
+
+  async function open(page: Page) {
+    await stubStream(page);
+    await mockDashboard(page);
+    let current = pageOf(['passed', 'failed'], ago(3600));
+    await page.route('**/api/v1/main-branches', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(current),
+      }),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(2);
+    return {
+      serve: (next: typeof current) => {
+        current = next;
+      },
+    };
+  }
+
+  const pushPage = async (page: Page, next: unknown) => {
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __es?: { onmessage: unknown } }).__es
+          ?.onmessage != null,
+    );
+    await page.evaluate(
+      (d) => (window as unknown as { __push: (x: unknown) => void }).__push(d),
+      { ...snap(ago(5)), mainBranchPage: next },
+    );
+  };
+
+  test('the control is first in the header', async ({ page }) => {
+    await open(page);
+    await expect(page.locator('.mb-header > :first-child')).toHaveText(
+      'Main branches',
+    );
+    await expect(
+      page.locator('.mb-header-controls > :first-child'),
+    ).toHaveClass(/live-control/);
+  });
+
+  test('a page that arrives while paused waits for Resume', async ({
+    page,
+  }) => {
+    await open(page);
+    const live = control(page);
+    await expect(live).toContainText('updated 1h ago');
+    await live.getByRole('button', { name: /Pause/ }).click();
+    await expect(page.locator('#list-updates-status')).toHaveText(
+      'Live updates paused',
+    );
+    await pushPage(page, pageOf(['passed', 'failed', 'running'], ago(5)));
+    await page.waitForTimeout(400);
+    await expect(rows(page)).toHaveCount(2);
+    await expect(live).toContainText('updated 1h ago');
+    await live.getByRole('button', { name: /Resume/ }).click();
+    await expect(rows(page)).toHaveCount(3);
+    await expect(live).toContainText(/updated \d+s ago/);
+  });
+
+  test('a refresh the user asks for draws at once, even paused', async ({
+    page,
+  }) => {
+    const server = await open(page);
+    await control(page).getByRole('button', { name: /Pause/ }).click();
+    server.serve(pageOf(['passed', 'failed', 'running'], ago(5)));
+    await control(page).getByRole('button', { name: 'Refresh now' }).click();
+    await expect(rows(page)).toHaveCount(3);
+  });
+
+  test('a press while refreshing is ignored and focus stays', async ({
+    page,
+  }) => {
+    await open(page);
+    let calls = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route('**/api/v1/main-branches', async (route: Route) => {
+      calls++;
+      await gate;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(pageOf(['passed', 'failed'], ago(2))),
+      });
+    });
+    const refresh = control(page).getByRole('button', { name: 'Refresh now' });
+    await refresh.focus();
+    await refresh.press('Enter');
+    await expect(refresh).toHaveAttribute('aria-disabled', 'true');
+    await expect(refresh).toHaveClass(/is-refreshing/);
+    await refresh.press('Enter');
+    await expect(refresh).toBeFocused();
+    release();
+    await expect(refresh).not.toHaveAttribute('aria-disabled', 'true');
+    expect(calls).toBe(1);
+  });
+
+  test('a failed refresh is announced and keeps the rows and the time', async ({
+    page,
+  }) => {
+    await open(page);
+    await page.route('**/api/v1/main-branches', (route: Route) =>
+      route.fulfill({ status: 500, body: 'nope' }),
+    );
+    await control(page).getByRole('button', { name: 'Refresh now' }).click();
+    await expect(
+      page.getByRole('alert').filter({ hasText: 'Could not refresh' }),
+    ).toBeVisible();
+    await expect(rows(page)).toHaveCount(2);
+    await expect(control(page)).toContainText('updated 1h ago');
+  });
+});
