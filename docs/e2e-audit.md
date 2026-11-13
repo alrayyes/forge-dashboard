@@ -101,7 +101,7 @@ Ranked by estimated movable seconds, class A excluded.
 | 7   | `webhooks-page`                | 17.0 s   | 56    | 8            | 14.5 s       | Missing: page state tests                               |
 | 8   | `pipeline-run-output`          | 26.8 s   | 53    | 26           | 13.7 s       | Missing: log-view state tests                           |
 | 9   | `copy-failure`                 | 14.4 s   | 17    | 3            | 11.9 s       | Missing: clipboard failure message                      |
-| 10  | `pr-dialog-actions`            | 21.6 s   | 30    | 14           | 11.5 s       | Missing: action enablement                              |
+| 10  | `pr-dialog-actions`            | 21.6 s   | 30    | 14           | 11.5 s       | Missing: actions enabled                                |
 | 11  | `first-refresh-loading`        | 21.1 s   | 13    | 6            | 11.4 s       | `first-refresh.test.ts` (proven); missing: banner state |
 | 12  | `label-multi-select`           | 13.9 s   | 26    | 5            | 11.2 s       | Missing: selection state                                |
 | 13  | `main-branches-page`           | 19.9 s   | 40    | 18           | 11.0 s       | `main-branch-snapshot-runs` partly; missing: page state |

@@ -57,7 +57,7 @@ request was updated fetches the details again and swaps them in place, without
 the loading skeleton. It shows the first 50 comments and says so when there are
 more. The header draws the row's three tiers as they were when it opened: the CI
 slot first (Running, Failed or Passed, the row's glyphs and words) with a
-Conflicting, Checking for conflicts, Conflict not confirmed or Blocked pill
+Conflicting, Checking for conflicts, Conflict not confirmed, or Blocked pill
 beside it when the row has one, then the title, then the attributes as quiet
 outlined chips (auto-merge, draft, bot, out of date, labels, and the version on
 the Releases page). Each comment carries the
@@ -146,7 +146,7 @@ in its title or description: `Refs #12`, `Ref #12`, `Related to #12` or
 `owner/repo#12` names another repo). Several may follow one keyword, as in
 `Refs #3, #4 and #5`. The server reads both forges the same way and lists what
 it finds in `GET /api/v1/dashboard` as `refsIssues`, always present. Code, HTML
-comments and link text are skipped, as for mentions, and a ticket the pull
+comments, and link text are skipped, as for mentions, and a ticket the pull
 request also closes appears only under closing.
 
 Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
@@ -190,7 +190,7 @@ space before its number, as Forgejo reads it; a no-break or other Unicode space
 there closes nothing and the number is listed as a mention. A ticket the pull
 request does close is never repeated, and neither is the pull request itself.
 The list holds at most 20, counted after the closed ones are taken off.
-Comments, reviews and commit messages are not read. Without a GitHub token the
+Comments, reviews, and commit messages are not read. Without a GitHub token the
 server reads the same text from GitHub's public listing, so the lists are the
 same.
 
