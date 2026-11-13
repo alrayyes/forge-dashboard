@@ -57,5 +57,7 @@ theme only:
   to the column.
 
 Adopted: the top bar contents, the contained image, the full-height scrim.
-Rejected: nothing invented this time. Not designed: a height cap and loading
-skeleton (ticket 3468), and the dark theme.
+Rejected: nothing. The sample content in the stills is placeholder only, and the
+viewer chrome adds no invented features. Not designed: a height cap and loading
+skeleton (ticket 3468), the dark theme, and focus trap, inert page and scroll
+lock (to be shown in the spec, not a still).
