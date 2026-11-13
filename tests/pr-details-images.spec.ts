@@ -55,6 +55,19 @@ const NEAR_OVER = 'https://github.com/user-attachments/assets/over';
 const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
+// WCAG contrast ratio of two opaque `rgb(r, g, b)` computed colors.
+function contrast(a: string, b: string): number {
+  const luminance = (rgb: string) => {
+    const [r, g, bl] = (rgb.match(/\d+/g) ?? []).map((n) => {
+      const c = Number(n) / 255;
+      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+  };
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
 async function openDialog(
   page: Page,
   description: string,
@@ -519,12 +532,29 @@ for (const [width, height] of [
       expect(results.violations).toEqual([]);
     }
     await page.emulateMedia({ forcedColors: 'active' });
-    // Scoped to the new control: axe flags the row's Merge button here (#3848).
     const forced = await new AxeBuilder({ page })
-      .include('button.md-expand')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
       .analyze();
-    expect(forced.violations).toEqual([]);
+    // The one finding left is axe misreading the Merge button, not a real
+    // mismatch. In forced colors Chromium paints the text in ButtonText on
+    // ButtonFace, but still reports the author's -webkit-text-fill-color as
+    // the computed fill, and axe reads that property before `color`. So it
+    // judges the button's own ink (#06181a) against the forced black. The
+    // check below asserts the colors the browser really uses instead.
+    const merge = '#dlg-merge-arm-github-alrayyes-forge-dashboard-42';
+    const misread = forced.violations.filter(
+      (v) =>
+        v.id === 'color-contrast' &&
+        v.nodes.length === 1 &&
+        v.nodes[0].target.join(' ') === merge,
+    );
+    expect(misread).toHaveLength(1);
+    expect(forced.violations.filter((v) => !misread.includes(v))).toEqual([]);
+    const painted = await page.locator(merge).evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [style.color, style.backgroundColor];
+    });
+    expect(contrast(painted[0], painted[1])).toBeGreaterThanOrEqual(4.5);
   });
 }
 
