@@ -860,8 +860,11 @@ test('focus moves to the All quick filter when the strip hides under it', async 
     .evaluate((el) => (el as HTMLElement).click());
   await expect(page.locator('.rebase-all')).toBeHidden();
   // Two rows, since the bar is not drawn over one (#3670). The pill group is
-  // drawn over two rows, so focus lands on its All pill.
+  // drawn over two rows, so focus lands on the All of the first group still
+  // drawn: these rows share a forge and a CI state, so that is Merge.
   await expect(
-    page.locator('.quick-pills .quick-pill[data-pill="all"]'),
+    page.locator(
+      '.filter-bar .quick-pills[data-group="merge"] .quick-pill[data-pill="all"]',
+    ),
   ).toBeFocused();
 });
