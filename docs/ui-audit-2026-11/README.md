@@ -23,6 +23,21 @@ the rows.
 and on the phone tab bar, light and dark, before and after the total is left out
 when it only repeats the one count beside it (2 running of 2 draws "2 running").
 
+`before-forced-colors-toggles/` and `after-forced-colors-toggles/` show the
+auto-merge segment (in the phone Filters sheet at 390px, inline at 1280px) and
+the severity filters in the Dependency advisories dialog, cropped to the
+control, with Chromium's forced colours emulation on. They show the fix that
+gave a pressed segment button and a pressed severity filter a thicker
+border, so the pressed one is no longer told apart by colour alone.
+
+The "after" side is current main. The "before" side is the same main build with
+only the two forced-colours rules for `.segment button[aria-pressed="true"]`
+and `.adv-filter[aria-pressed="true"]` deleted, so nothing else differs. These
+are emulation shots: Chromium doesn't repaint system colours the way Windows
+High Contrast does, so they show the non-colour mark, not the real palette.
+Pause live updates has no shot: it is no longer a pressed-state button, and
+swaps its label between Pause and Resume, which forced colours keep.
+
 `before-pill-count/` and `after-pill-count/` show the Main branches filter bar
 (`All 2` active) at 390px, 820px and 1280px, light and dark, on the code before
 and after the active pill's count was made readable (ticket 3317). In light the
