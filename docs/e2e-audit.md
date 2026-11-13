@@ -121,10 +121,19 @@ One ticket per group, each doing moves with its own mutation proof:
   `play` functions run in Chromium under Vitest (`bun run test:components`,
   see [the catalogue](storybook.md)). The first
   move was three `nav-branches-pills` tests (the pill markup, the approval
-  count, a zero not drawn): about 0.80 s of e2e test time became about 0.08 s
+  count, a zero not drawn): about 0.80 s of e2e test time became about 0.15 s
   of story time, and removing `aria-hidden` from the pill turns the story red.
   The table above is the state before that move; the CSV row for
   `nav-branches-pills` is updated.
+- The second move, from `first-refresh-loading`: four tests that checked the
+  status line's wording and live region and the nav pills' dash and plain link
+  name. They are now `play` functions on the `FirstRefreshStatus` and `NavPills`
+  stories (the ten-second wording, the empty line present before it has text
+  and then changing in place, the dash hidden from assistive tech). About 0.65 s
+  of e2e test time became about 0.03 s of story time. Each assertion was proven
+  red by breaking the component: the slow wording, the loading wording,
+  `aria-live`, the live region dropped while idle, `aria-hidden` on the dash, and
+  the dash replaced by a 0. The CSV row for `first-refresh-loading` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
