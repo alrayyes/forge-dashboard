@@ -248,6 +248,14 @@ func (g *githubImages) imageCalls() []string {
 // holds for the attachment; apiStatus, when not zero, makes the API fail.
 func newGitHubImages(t *testing.T, signedPath string, apiStatus int, failImage map[string]bool) *githubImages {
 	t.Helper()
+
+	return newGitHubImagesWith(t, signedPath, apiStatus, failImage, false)
+}
+
+// newGitHubImagesWith, with freshClients, builds a new client on every
+// BuildSources call, as production does, all sharing one rendered-body cache.
+func newGitHubImagesWith(t *testing.T, signedPath string, apiStatus int, failImage map[string]bool, freshClients bool) *githubImages {
+	t.Helper()
 	g := &githubImages{}
 	images := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		g.mu.Lock()
@@ -280,7 +288,8 @@ func newGitHubImages(t *testing.T, signedPath string, apiStatus int, failImage m
 			src = images.URL + src
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{
-			"body_html": `<a href="` + g.link + `"><img src="` + src + `"></a>`,
+			"body_html": `<a href="` + g.link + `"><img src="` + src + `"></a>` +
+				`<a href="` + g.link + `-2"><img src="` + images.URL + `/second.png"></a>`,
 		})
 	}))
 	t.Cleanup(apiSrv.Close)
@@ -288,9 +297,19 @@ func newGitHubImages(t *testing.T, signedPath string, apiStatus int, failImage m
 	u, err := url.Parse(images.URL)
 	require.NoError(t, err)
 	proxy := imageproxy.New(imageproxy.Config{Hosts: []string{u.Host}, Scheme: "http", AllowLocal: true})
-	source := &realLinkSource{client: githubpkg.NewClient(githubToken, "", apiSrv.URL)}
+	bodies := githubpkg.NewRenderedBodyCache()
+	build := func(settingspkg.Credentials) []dashboard.Source {
+		client := githubpkg.NewClient(githubToken, "", apiSrv.URL)
+		client.ShareRenderedBodyCache(bodies)
+
+		return []dashboard.Source{&realLinkSource{client: client}}
+	}
+	if !freshClients {
+		source := &realLinkSource{client: githubpkg.NewClient(githubToken, "", apiSrv.URL)}
+		build = func(settingspkg.Credentials) []dashboard.Source { return []dashboard.Source{source} }
+	}
 	testSrv, _, _, _ := newTestServerWithSettingsStore(t,
-		func(settingspkg.Credentials) []dashboard.Source { return []dashboard.Source{source} }, false, 0,
+		build, false, 0,
 		func(d *api.Deps) {
 			d.GitHubImageProxy = proxy
 			d.GitHubImageOrigin = images.URL
@@ -609,4 +628,18 @@ func TestImages_RefusesWithRetryAfterWhenTheQueueWaitRunsOut(t *testing.T) {
 
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	assert.NotEmpty(t, resp.Header.Get("Retry-After"))
+}
+
+func TestImages_TwoImagesOfOneItemCostOneAPIRequestEvenWithAClientPerRequest(t *testing.T) {
+	t.Parallel()
+	g := newGitHubImagesWith(t, "/1/signed.png", 0, nil, true)
+
+	first := g.status(t, issue7)
+	other := url.Values{"fullName": {"octo/repo"}, "number": {"7"}, "url": {g.link + "-2"}}
+	second := g.status(t, other)
+
+	require.Equal(t, http.StatusOK, first)
+	require.Equal(t, http.StatusOK, second)
+	assert.Equal(t, []string{"/repos/octo/repo/issues/7"}, g.apiCalls())
+	assert.Equal(t, []string{"/1/signed.png", "/second.png"}, g.imageCalls())
 }

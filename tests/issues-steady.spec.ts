@@ -177,9 +177,11 @@ test.describe('steady issues refresh', () => {
   test('the same holds while updates are paused', async ({ page }) => {
     await open(page, BASE, [makePR(1)]);
     await page.locator('#pause-updates-button').click();
+    // Pausing says so, politely; the held change adds nothing to it.
+    await expect(bar(page)).toHaveText('Live updates paused');
 
     await push(page, BASE, [makePR(1), makePR(2)]);
-    await expect(bar(page)).toHaveText('');
+    await expect(bar(page)).toHaveText('Live updates paused');
     await noShowUpdates(page);
   });
 
@@ -209,6 +211,8 @@ test.describe('steady issues refresh', () => {
   test('an issue the filters hide being added announces nothing', async ({
     page,
   }) => {
+    // The filter leaves a short list; a short window keeps it scrollable.
+    await page.setViewportSize({ width: 1280, height: 500 });
     await open(page);
     await page
       .locator('.filter-bar .col-filter[data-col="title"]')
@@ -223,6 +227,8 @@ test.describe('steady issues refresh', () => {
   test('an issue the filters show being added is held while scrolled, then announced when it lands', async ({
     page,
   }) => {
+    // The filter leaves a short list; a short window keeps it scrollable.
+    await page.setViewportSize({ width: 1280, height: 500 });
     await open(page);
     await page
       .locator('.filter-bar .col-filter[data-col="title"]')
@@ -355,15 +361,19 @@ test.describe('steady issues refresh', () => {
     page,
   }) => {
     await open(page);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
 
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
 
-    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator('.live-control')).toContainText('Paused');
     await expect(page.locator('#issue-rows')).not.toContainText('Brand new');
 
     // Resuming applies what waited.
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await expect(page.locator('#issue-rows')).toContainText('Brand new');
   });
 
@@ -453,9 +463,11 @@ test.describe('steady issues refresh', () => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await open(page);
     await scrollDown(page);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await push(page, [makeIssue(100, { title: 'Brand new' }), ...BASE]);
-    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator('.live-control')).toContainText('Paused');
 
     for (const [name, size] of [
       ['desktop', { width: 1280, height: 800 }],
@@ -463,7 +475,7 @@ test.describe('steady issues refresh', () => {
     ] as const) {
       await test.step(name, async () => {
         await page.setViewportSize(size);
-        await expect(page.locator('#updates-paused-hint')).toBeVisible();
+        await expect(page.locator('.live-control')).toContainText('Paused');
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();

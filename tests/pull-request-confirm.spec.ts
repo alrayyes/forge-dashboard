@@ -147,7 +147,7 @@ test.describe('confirm step: leaving it', () => {
     await expect(confirmMerge(rowOf(page, 0))).toBeVisible();
 
     // Not the h1: it is the brand link, and that now leaves the page (#1279).
-    await page.locator('body').click({ position: { x: 2, y: 600 } });
+    await page.locator('body').click({ position: { x: 2, y: 300 } });
 
     await expect(confirmMerge(rowOf(page, 0))).toHaveCount(0);
     await expect(mergeButton(rowOf(page, 0))).toBeVisible();
@@ -243,7 +243,7 @@ test.describe('confirm step: leaving it', () => {
       dialog.getByRole('button', { name: 'Confirm close pull request?' }),
     ).toBeVisible();
     // Not the h1: it is the brand link, and that now leaves the page (#1279).
-    await page.locator('body').click({ position: { x: 2, y: 600 } });
+    await page.locator('body').click({ position: { x: 2, y: 300 } });
 
     await expect(dialog).toBeHidden();
     // Reopened, the dialog finds a plain Close, not a confirm left armed.

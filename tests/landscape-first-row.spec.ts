@@ -252,7 +252,6 @@ for (const size of UNCHANGED) {
           header: h('header'),
           toolbar: h('.dashboard-toolbar'),
           filterBar: h('.filter-bar'),
-          updatesBar: h('.updates-bar'),
         };
       });
     await expect.poll(measure).toMatchObject({ activityPosition: 'sticky' });
@@ -269,32 +268,28 @@ const EXPECTED: Record<
     header: number;
     toolbar: number;
     filterBar: number;
-    updatesBar: number;
   }
 > = {
   '390x844': {
     activityPosition: 'sticky',
     header: 84,
-    toolbar: 68,
+    toolbar: 24,
     filterBar: 120,
-    updatesBar: 58,
   },
   // The header is one row here, not two: Releases and Bots draw 2 passing
   // without a repeated total (#3489), so the nav pills fit beside the brand.
   '820x1180': {
     activityPosition: 'sticky',
     header: 82,
-    toolbar: 54,
+    toolbar: 24,
     // One row shorter since the page offers no Show drafts when no draft
     // exists (#3680): the mock holds none.
     filterBar: 96,
-    updatesBar: 41,
   },
   '1280x800': {
     activityPosition: 'sticky',
     header: 82,
-    toolbar: 54,
+    toolbar: 24,
     filterBar: 96,
-    updatesBar: 41,
   },
 };

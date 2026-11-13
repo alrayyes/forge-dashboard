@@ -145,7 +145,7 @@ the reset, with a toast. See [Pull request actions](pull-request-actions.md) for
 the details.
 
 The data stays visible. The dashboard keeps the last pull requests, issues and
-repos it fetched, marked stale, and the header's Refreshed time says how old
+repos it fetched, marked stale, and the live control's updated time says how old
 they are. On GitHub, it also asks less:
 
 - Under 5% left but not at zero, the next scheduled refresh waits for the reset

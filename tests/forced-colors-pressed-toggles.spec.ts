@@ -176,13 +176,6 @@ const CASES: {
   open: (page: Page, width: number) => Promise<Locator>;
 }[] = [
   { name: 'auto-merge segment', open: openSegments },
-  {
-    name: 'Pause live updates',
-    open: async (page, width) => {
-      await openPulls(page, width);
-      return page.locator('#pause-updates-button');
-    },
-  },
   { name: 'advisories filters', open: openAdvisories },
 ];
 

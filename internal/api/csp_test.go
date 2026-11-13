@@ -35,7 +35,7 @@ func TestContentSecurityPolicy_EveryResponseNamesThisServerAsTheOnlyImageSource(
 			require.NoError(t, err)
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, "img-src 'self' data:", resp.Header.Get("Content-Security-Policy"))
+			assert.Equal(t, "img-src 'self'", resp.Header.Get("Content-Security-Policy"))
 		})
 	}
 }
