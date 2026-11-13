@@ -19,7 +19,7 @@ A Forgejo avatar on any host but your saved instance (Gravatar and Libravatar
 included) is refused, and the author shows an initial. Settings says so inside
 the Forgejo card: an amber note, "Avatars from another host were skipped:
 `host`. Initials are shown instead.", with every skipped host listed in
-monospace (up to eight, "other hosts" when there are several), never one line
+a code font (up to eight, "other hosts" when there are several), never one line
 per avatar. The server remembers a host while its avatars keep being asked for
 and forgets it about ten minutes after the last one, so the note clears on its
 own once nothing is skipped. A restart clears it too. It's in
