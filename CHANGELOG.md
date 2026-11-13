@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.50.1](https://github.com/alrayyes/forge-dashboard/compare/v9.50.0...v9.50.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** stop the unreachable banner's message holding 260px of empty height on a phone ([#3803](https://github.com/alrayyes/forge-dashboard/issues/3803)) ([63183ce](https://github.com/alrayyes/forge-dashboard/commit/63183ce93c956fc5fdf4b1cbd749e10f55b29ab7)), closes [#3802](https://github.com/alrayyes/forge-dashboard/issues/3802)
+
 ## [9.50.0](https://github.com/alrayyes/forge-dashboard/compare/v9.49.0...v9.50.0) (2026-11-13)
 
 
