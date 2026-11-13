@@ -587,27 +587,27 @@ test.describe('stable rows: choices the server saves', () => {
   test('Pause live updates stops everything from applying, and the choice persists', async ({
     page,
   }) => {
-    const pause = page.getByRole('button', { name: 'Pause live updates' });
-    await expect(pause).toHaveAttribute('aria-pressed', 'false');
-    await pause.click();
-    await expect(pause).toHaveAttribute('aria-pressed', 'true');
+    const live = page.locator('.live-control');
+    await expect(live).toContainText('Live');
+    await live.getByRole('button', { name: 'Pause live updates' }).click();
+    await expect(live).toContainText('Paused');
 
     await push(page, [makePR(3), makePR(1, { ci: 'failure' }), initial[1]]);
-    await expect(page.locator('#updates-paused-hint')).toBeVisible();
+    await expect(page.locator('.live-control')).toContainText('Paused');
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
     await expect(page.locator('#pr-rows .row').first()).not.toContainText(
       'Failed',
     );
 
     await page.reload();
-    await expect(
-      page.getByRole('button', { name: 'Pause live updates' }),
-    ).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.live-control')).toContainText('Paused');
 
     // Resuming applies what waited.
     await push(page, [makePR(3), makePR(1, { ci: 'failure' }), initial[1]]);
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await expect(page.locator('#pr-rows .row')).toHaveCount(3);
     await expect(
       page.locator('#pr-rows .row', { hasText: 'Pull request 1' }),
@@ -645,23 +645,12 @@ test.describe('stable rows: choices the server saves', () => {
   }) => {
     await push(page, [makePR(3), ...initial]);
     await expect(page.locator('#pr-rows .row')).toHaveCount(3);
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
-  });
-
-  test('the live-update bar draws no box until updates are paused', async ({
-    page,
-  }) => {
-    const box = () =>
-      page
-        .locator('#updates-bar')
-        .evaluate((el) => getComputedStyle(el).backgroundColor);
-    await expect.poll(box).toBe('rgba(0, 0, 0, 0)');
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
-    await expect.poll(box).not.toBe('rgba(0, 0, 0, 0)');
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
   });
 });

@@ -2876,10 +2876,10 @@ test.describe('dashboard page', () => {
 
     // The page ships its inputs in the served HTML and attaches their
     // handlers when the script mounts. A fill or click before that is lost,
-    // so the button never changes. "Refreshed" showing means the first
+    // so the button never changes. The live control's updated time showing means the first
     // load finished, which only happens once the script has mounted (#3472).
     async function boardReady(page: Page) {
-      await expect(page.locator('.refreshed')).toBeVisible();
+      await expect(page.locator('.live-updated')).toBeVisible();
     }
 
     function mockDashboard(page: Page) {

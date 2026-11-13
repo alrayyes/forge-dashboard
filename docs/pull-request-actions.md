@@ -299,7 +299,7 @@ rate limit rules. For the full explanation, see [Rate limits](rate-limits.md).
 Other forges are unaffected. The controls come back by themselves at the reset
 time, with a polite "Rate limit reset, actions available again" toast. While the
 forge is read-only the server stops refreshing it until the reset, so the rows
-are the last ones it saw. The header's Refreshed time shows how old they are.
+are the last ones it saw. The live control's updated time shows how old they are.
 
 A row names its forge kind, not the host. With several hosts of one kind,
 the controls are held back only when every one of them is unreachable or out

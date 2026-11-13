@@ -238,7 +238,7 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
     );
   });
 
-  test('the zero time shows no "Refreshed ... ago", a real one does', async ({
+  test('the zero time shows no "updated ... ago", a real one does', async ({
     page,
   }) => {
     const zero = '0001-01-01T00:00:00Z';
@@ -260,19 +260,19 @@ test.describe('first refresh loading from the first paint (#1672)', () => {
         : route.fallback(),
     );
     await page.goto('/pull-requests.html');
-    const refreshed = page.locator('.refreshed');
+    const refreshed = page.locator('.live-updated');
     await expect(page.getByTestId('list-skeleton')).toBeVisible();
-    await expect(refreshed).toBeHidden();
+    await expect(refreshed).toHaveCount(0);
 
     // Done, but still the zero time: still nothing to show.
     answer = { done: true, generatedAt: zero, readIntervalSeconds: 1 };
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-    await expect(refreshed).toBeHidden();
+    await expect(refreshed).toHaveCount(0);
     await expect(page.locator('body')).not.toContainText(/\d{4,}d ago/);
 
     answer = { done: true, readIntervalSeconds: 1 };
     await expect(refreshed).toBeVisible();
-    await expect(page.locator('#refreshed-at')).toHaveText('just now');
+    await expect(refreshed).toHaveText(/^updated \d+s ago$/);
   });
 
   test(`pending at 360px in the light and dark scheme passes axe after the content assertions`, async ({
