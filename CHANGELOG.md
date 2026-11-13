@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.51.1](https://github.com/alrayyes/forge-dashboard/compare/v9.51.0...v9.51.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** wrap the bottom tab bar before its labels collide at 125% text ([#3839](https://github.com/alrayyes/forge-dashboard/issues/3839)) ([f2d6213](https://github.com/alrayyes/forge-dashboard/commit/f2d6213ca31afaf7deca14bc935d1e2cc95ec5ac)), closes [#3830](https://github.com/alrayyes/forge-dashboard/issues/3830)
+
 ## [9.51.0](https://github.com/alrayyes/forge-dashboard/compare/v9.50.3...v9.51.0) (2026-11-13)
 
 
