@@ -261,7 +261,7 @@ test.describe('seeded saved picks (#1620)', () => {
       (page: Page) =>
         page.locator('.quick-pills [data-pill="passing"]').click(),
       'pr',
-      'quick',
+      'ci',
       'passing',
     ],
     [

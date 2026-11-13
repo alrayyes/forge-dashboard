@@ -82,7 +82,7 @@ test.describe('age choices on the pull request page (#1427)', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     expect(await values(page, CREATED)).toContain('60');
 
-    await page.getByRole('button', { name: 'Failing CI' }).click();
+    await page.getByRole('button', { name: 'Failing' }).click();
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     expect(await values(page, CREATED)).toEqual(['', '10080', '43200']);

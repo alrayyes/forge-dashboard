@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/cancelled-pill-counts.spec.ts',
   '**/pills-axe.spec.ts',
+  '**/pill-groups-combine.spec.ts',
   '**/live-control.spec.ts',
   '**/root-font-size.spec.ts',
   '**/pager-stepper.spec.ts',
@@ -260,6 +261,7 @@ const singleUserSpecs = [
   '**/author-link-focus-ring.spec.ts',
   '**/settings-hint-size.spec.ts',
   '**/csp-img-src.spec.ts',
+  '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
 ];
 

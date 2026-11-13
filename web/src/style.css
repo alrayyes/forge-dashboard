@@ -4101,15 +4101,24 @@ button.pipeline-check-link:disabled {
   }
 }
 
-/* Quick filter pills (#678): toggle buttons with aria-pressed, one active
-   at a time. Same pill look as .forge-segmented, which the other pages
-   still use for their own forge radio group. */
+/* Quick filter pills (#678): toggle buttons with aria-pressed. Four labelled
+   groups (Forge, CI, Merge, Review), one active per group and combined (#3734).
+   Same pill look as .forge-segmented, which the other pages still use for
+   their own forge radio group. */
 .quick-pills {
   display: inline-flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   flex: 0 1 auto;
   max-width: 100%;
+}
+.pill-group-label {
+  font-size: 0.6875rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  margin-inline-end: 2px;
 }
 .quick-pill {
   font-family: inherit;
@@ -4170,6 +4179,12 @@ button.pipeline-check-link:disabled {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
+}
+/* A check mark with the fill, so the pick never rests on colour alone
+   (WCAG 1.4.1). Not on All, where the fill is enough. */
+.quick-pill[aria-pressed="true"]:not([data-pill="all"])::before {
+  content: "\2713" / "";
+  margin-inline-end: 5px;
 }
 
 /* Forced colors drops the accent fill and border of a pressed pill, which
@@ -4274,7 +4289,8 @@ button.pipeline-check-link:disabled {
 }
 
 /* The phone filter bar also serves a short window held sideways (#3406): a
-   search row, one scrolling row of quick filters, and the rest in the sheet.
+   search row, the Filters button and the active chips, with the pill groups and
+   the rest in the sheet.
    The three rows of a desktop bar would fill a 390px-tall screen. */
 @media (max-width: 760px), (max-height: 440px) and (orientation: landscape) {
   .filter-bar {
@@ -4322,35 +4338,10 @@ button.pipeline-check-link:disabled {
     outline: 2px solid var(--accent);
     outline-offset: 2px;
   }
-  /* One line that scrolls sideways: the next chip peeks in at the edge. */
-  .quick-pills {
-    order: 1;
-    display: flex;
-    flex-wrap: nowrap;
-    overflow-x: auto;
-    padding-bottom: 2px;
-    scrollbar-width: none;
-    -webkit-mask-image: linear-gradient(to right, #000 92%, transparent);
-    mask-image: linear-gradient(to right, #000 92%, transparent);
-  }
-  .quick-pills::-webkit-scrollbar {
-    display: none;
-  }
-  .quick-pills .quick-pill {
-    flex: none;
-    min-height: 36px;
-    white-space: nowrap;
-  }
-  /* The forge control is in the sheet on a phone. */
+  /* Every pill group is in the Filters sheet on a phone; the bar keeps the
+     search, the Filters button with its count, and the chips (#3734). */
+  .quick-pills,
   .filter-bar > .segment {
-    display: none;
-  }
-  .quick-pills .forge-pill {
-    display: none;
-  }
-  /* With the forge pills gone, a group offering no quick pill is a lone All
-     (#3669). */
-  .quick-pills:not([data-quick-offered]) {
     display: none;
   }
   .active-filters {
@@ -4475,6 +4466,10 @@ button.pipeline-check-link:disabled {
   }
   .filter-sheet .quick-pill {
     min-height: 44px;
+  }
+  .filter-sheet .pill-group-label {
+    flex: 0 0 100%;
+    margin: 4px 0 0;
   }
   /* The sheet-only rule above ties with .segment[hidden] on specificity
      and comes later, so say hidden again here (#1455). */
@@ -4602,11 +4597,6 @@ button.pipeline-check-link:disabled {
   }
   .filter-bar-top {
     flex: 1 1 180px;
-    min-width: 0;
-  }
-  .quick-pills {
-    order: 1;
-    flex: 2 1 0;
     min-width: 0;
   }
   .active-filters {
@@ -5710,7 +5700,7 @@ footer a[aria-current="page"] {
 /* A pill group with nothing to offer is hidden (#3669). The flex and sheet
    rules above would otherwise beat the UA's [hidden]. */
 .quick-pills[hidden],
-.forge-group[hidden],
-.filter-sheet .forge-group[hidden] {
+.sheet-pills[hidden],
+.filter-sheet .sheet-pills[hidden] {
   display: none;
 }

@@ -246,18 +246,45 @@ function select(
   };
 }
 
+// The pill groups combine (#3734), so a round starts with every group but the
+// one it sets back on All, or an earlier round's pick could leave the next
+// pill nothing to show.
+async function resetPills(page: Page, except = '') {
+  for (const group of ['forge', 'ci', 'merge', 'review']) {
+    if (group === except) continue;
+    const all = page.locator(
+      `.quick-pills[data-group="${group}"] [data-pill="all"]`,
+    );
+    if (
+      (await all.isVisible()) &&
+      (await all.getAttribute('aria-pressed')) === 'false'
+    )
+      await all.click();
+  }
+}
+
 function pill(name: string, id: string): Control {
   const forge = id === 'github' || id === 'forgejo';
+  const group = forge
+    ? 'forge'
+    : ['failing', 'running', 'passing', 'no-checks'].includes(id)
+      ? 'ci'
+      : ['conflicting', 'out-of-date'].includes(id)
+        ? 'merge'
+        : 'review';
   return {
     name: `${name} pill`,
     stored: [
       {
         group: forge ? 'shared' : 'pr',
-        key: forge ? 'forge' : 'quick',
+        key: forge ? 'forge' : group,
         value: id,
       },
     ],
-    set: (page) => page.locator(`.quick-pills [data-pill="${id}"]`).click(),
+    set: async (page) => {
+      await resetPills(page, group);
+      await page.locator(`.quick-pills [data-pill="${id}"]`).click();
+    },
     show: (page) =>
       expect(page.locator(`.quick-pills [data-pill="${id}"]`)).toHaveAttribute(
         'aria-pressed',
@@ -275,7 +302,7 @@ function autoMerge(value: 'on' | 'off'): Control {
     // Off is only offered while it would show something, which an earlier
     // pill can rule out, so the pill goes back to All first.
     set: async (page) => {
-      await page.locator('.quick-pills [data-pill="all"]').click();
+      await resetPills(page);
       await button(page).click();
     },
     show: (page) =>
@@ -327,7 +354,7 @@ function combined(board: Board): Control[] {
       // The rounds before this one leave a pill (and auto-merge) on that
       // narrow the data to one repo, which hides the repo filter. Widen first.
       set: async (page) => {
-        await page.locator('.quick-pills [data-pill="all"]').click();
+        await resetPills(page);
         if (!issues)
           await page
             .locator('.am-group:not(.sheet-only) [data-am="any"]')
@@ -400,15 +427,15 @@ function combined(board: Board): Control[] {
 const PULLS_ROUNDS: Control[][] = [
   [pill('GitHub', 'github')],
   [pill('Forgejo', 'forgejo')],
-  [pill('Running CI', 'running')],
-  [pill('Passing CI', 'passing')],
+  [pill('Running', 'running')],
+  [pill('Passing', 'passing')],
   [pill('No checks', 'no-checks')],
-  [pill('Conflicts', 'conflicting')],
+  [pill('Conflicting', 'conflicting')],
   [pill('Out of date', 'out-of-date')],
-  [pill('Needs Review', 'needs-review')],
-  [pill('Review requested from me', 'review-requested')],
-  [autoMerge('on'), pill('Ready to Merge', 'ready')],
-  [autoMerge('off'), pill('Failing CI', 'failing')],
+  [pill('Needs review', 'needs-review')],
+  [pill('Review requested', 'review-requested')],
+  [autoMerge('on'), pill('Ready', 'ready')],
+  [autoMerge('off'), pill('Failing', 'failing')],
   combined('pulls'),
 ];
 
@@ -612,7 +639,7 @@ for (const board of ['releases', 'bots'] as const) {
   }) => {
     await open(page, board);
     await readBackRound(page, boardSurface(board), [
-      pill('Failing CI', 'failing'),
+      pill('Failing', 'failing'),
     ]);
   });
 }

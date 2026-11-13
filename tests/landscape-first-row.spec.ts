@@ -158,17 +158,13 @@ for (const size of LANDSCAPE) {
 
         const search = page.getByRole('combobox', { name: 'Filter by title' });
         await expect(search).toBeVisible();
-        if (size.width <= 760) {
+        if (size.width <= 760 || size.height <= 440) {
           // The rest of the controls live in the Filters sheet.
           const trigger = page.getByRole('button', { name: /^Filters/ });
           await expect(trigger).toBeVisible();
           await trigger.click();
           await expect(page.locator('dialog#filter-sheet')).toBeVisible();
           await page.keyboard.press('Escape');
-        } else if (path !== '/issues.html') {
-          await expect(
-            page.locator('.quick-pills').getByRole('button', { name: 'All' }),
-          ).toBeVisible();
         }
       });
 
@@ -274,7 +270,7 @@ const EXPECTED: Record<
     activityPosition: 'sticky',
     header: 84,
     toolbar: 24,
-    filterBar: 120,
+    filterBar: 66,
   },
   // The header is one row here, not two: Releases and Bots draw 2 passing
   // without a repeated total (#3489), so the nav pills fit beside the brand.

@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.45.0](https://github.com/alrayyes/forge-dashboard/compare/v9.44.0...v9.45.0) (2026-11-13)
+
+
+### Features
+
+* say when GitHub reports an incident in the unreachable banner ([#3765](https://github.com/alrayyes/forge-dashboard/issues/3765)) ([94fb051](https://github.com/alrayyes/forge-dashboard/commit/94fb051096fdd81757470eea98cfbc58bc902ca1))
+
 ## [9.44.0](https://github.com/alrayyes/forge-dashboard/compare/v9.43.0...v9.44.0) (2026-11-13)
 
 

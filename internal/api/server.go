@@ -65,6 +65,12 @@ type Deps struct {
 	ImageConcurrency int
 	ImageQueueWait   time.Duration
 	ImageCacheTTL    time.Duration
+	// SkippedAvatarTTL is how long a host a Forgejo avatar was refused for
+	// stays in the settings payload after the last refusal. Zero means 10m.
+	SkippedAvatarTTL time.Duration
+
+	// skipped is set by NewMux, shared by the image and settings handlers.
+	skipped *skippedAvatars
 
 	// Database and Dashboard back GET /readyz. Either may be nil, in which
 	// case that check is skipped.
@@ -123,6 +129,7 @@ type Deps struct {
 //
 //nolint:funlen // a route table: one statement per route, which splitting would only scatter
 func NewMux(deps Deps) http.Handler {
+	deps.skipped = newSkippedAvatars(deps.SkippedAvatarTTL, time.Now)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealth)

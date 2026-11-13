@@ -4307,6 +4307,7 @@ components:
           renovateRebaseLabel,
           renovateAuthors,
           ignoredTitleCounts,
+          forgejoSkippedAvatarHosts,
           theme,
         ]
       properties:
@@ -4380,6 +4381,18 @@ components:
             the user lists it here. A pull request by one of these gets
             Renovate's own rebase, not Update branch, and is a `dependency`.
             Matched case-insensitively. Empty means only the GitHub slugs.
+        forgejoSkippedAvatarHosts:
+          type: array
+          items:
+            type: string
+          description: |
+            Other hosts a Forgejo avatar was refused for lately: the image
+            proxy only fetches from the saved instance, so an avatar on
+            Gravatar or Libravatar is skipped and the page shows an initial.
+            Lowercase, sorted, at most eight, and never the instance's own
+            host. A host is listed while its avatars keep being asked for and
+            drops off after about ten minutes without one, so the list is
+            empty when nothing is skipped. Held in memory: a restart empties it.
         theme:
           type: string
           enum: ["", light, dark]
@@ -4459,6 +4472,7 @@ components:
           hideDependencyDashboard,
           ignoredTitles,
           ignoredTitleCounts,
+          forgejoSkippedAvatarHosts,
           theme,
           timezone,
         ]
@@ -4502,6 +4516,18 @@ components:
           items:
             type: [integer, "null"]
             minimum: 0
+        forgejoSkippedAvatarHosts:
+          type: array
+          items:
+            type: string
+          description: |
+            Other hosts a Forgejo avatar was refused for lately: the image
+            proxy only fetches from the saved instance, so an avatar on
+            Gravatar or Libravatar is skipped and the page shows an initial.
+            Lowercase, sorted, at most eight, and never the instance's own
+            host. A host is listed while its avatars keep being asked for and
+            drops off after about ten minutes without one, so the list is
+            empty when nothing is skipped. Held in memory: a restart empties it.
         theme:
           type: string
           enum: ["", light, dark]

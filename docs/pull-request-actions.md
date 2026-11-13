@@ -114,7 +114,7 @@ The pipeline panel lists each held workflow as "Waiting for approval", with an
 "Approve on {forge}" link (the forge's name) to that run's page, once per
 workflow even when a rerun left several held runs. Where a required check
 never reported, the held workflow is what holds the merge back, so it sits with
-the required checks and says "Blocking". The Failing CI quick filter and the
+the required checks and says "Blocking". The Failing pill and the
 Failed number in the menu pill follow one answer from the server, `failingCi`,
 which leaves these pull requests out when held runs are the only failure:
 nothing failed, someone has to approve.
@@ -181,7 +181,7 @@ window and no refusal named a conflict, the row says "Conflict not confirmed",
 since the flag is false for a stuck check too. That pill is a button: a tap
 shows the reason, and Update branch stays available on it, because a refused
 update is how it gets confirmed. Either way the status is `conflicting` for the
-Conflicts filter, and the server sends `conflictConfirmed` and `conflictFiles`
+Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
@@ -872,7 +872,7 @@ says how far the run got: `Cancelled · 4 passed, 9 cancelled` (`Cancelled · 13
 cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
 Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
 of 13 checks.` The branch pill stays the word alone; the count is in
-`checks.cancelled`. A Cancelled row is not in the Failing CI filter or the
+`checks.cancelled`. A Cancelled row is not in the Failing pill or the
 Failed number of the menu pill, and it is not a pass either, so Ready, Merge and
 auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
 failure status, and the server leaves those out of the failed count. When that
@@ -1165,7 +1165,7 @@ button is about: `6 out of date` and `1 failing`. They are visually hidden and
 the button reads them through `aria-describedby`, so a screen reader hears them
 and the header stays one line. The count of pull requests it can ask is the
 button's label, so no chip repeats it. The failing chip counts every listed pull
-request the Failing CI pill counts, up to date or not, so one whose workflow
+request the Failing pill counts, up to date or not, so one whose workflow
 waits for approval isn't in it. A chip with a zero count is grey.
 
 Pressing it opens a confirm dialog that lists each pull request with its forge.

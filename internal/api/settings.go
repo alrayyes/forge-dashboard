@@ -51,6 +51,10 @@ type SettingsResponse struct {
 	// same order, how many of the viewer's open issues that pattern matches on
 	// its own; nil (null on the wire) while that is unknown. Always a list.
 	IgnoredTitleCounts []*int `json:"ignoredTitleCounts"`
+	// ForgejoSkippedAvatarHosts (#3683) are the other hosts a Forgejo avatar
+	// was refused for lately, lowercase and sorted. Always a list, empty when
+	// nothing is skipped. The page decides what to say about it.
+	ForgejoSkippedAvatarHosts []string `json:"forgejoSkippedAvatarHosts"`
 	// Theme — see settings.Credentials' own doc comment. Round-tripped
 	// here too so the Settings page's own save confirms what it just set,
 	// even though the lightweight GET /api/v1/settings/theme below is what
@@ -64,22 +68,23 @@ type SettingsResponse struct {
 
 func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleCounts []*int) SettingsResponse {
 	return SettingsResponse{
-		GitHubUsername:          c.GitHubUsername,
-		GitHubTokenSet:          c.GitHubToken != "",
-		GitHubAppInstallationID: c.GitHubAppInstallationID,
-		GitHubAppConfigured:     githubAppConfigured,
-		ForgejoURL:              publicForgejoURL(c.ForgejoURL),
-		ForgejoUsername:         c.ForgejoUsername,
-		ForgejoTokenSet:         c.ForgejoToken != "",
-		WebhookToken:            c.WebhookToken,
-		WebhookSecret:           c.WebhookSecret,
-		RenovateRebaseLabel:     c.RenovateRebaseLabel,
-		RenovateAuthors:         append([]string{}, c.RenovateAuthors...),
-		HideDependencyDashboard: c.HideDependencyDashboard,
-		IgnoredTitles:           append([]string{}, c.IgnoredTitles...),
-		IgnoredTitleCounts:      titleCounts,
-		Theme:                   c.Theme,
-		Timezone:                c.Timezone,
+		GitHubUsername:            c.GitHubUsername,
+		GitHubTokenSet:            c.GitHubToken != "",
+		GitHubAppInstallationID:   c.GitHubAppInstallationID,
+		GitHubAppConfigured:       githubAppConfigured,
+		ForgejoURL:                publicForgejoURL(c.ForgejoURL),
+		ForgejoUsername:           c.ForgejoUsername,
+		ForgejoTokenSet:           c.ForgejoToken != "",
+		WebhookToken:              c.WebhookToken,
+		WebhookSecret:             c.WebhookSecret,
+		RenovateRebaseLabel:       c.RenovateRebaseLabel,
+		RenovateAuthors:           append([]string{}, c.RenovateAuthors...),
+		HideDependencyDashboard:   c.HideDependencyDashboard,
+		IgnoredTitles:             append([]string{}, c.IgnoredTitles...),
+		IgnoredTitleCounts:        titleCounts,
+		ForgejoSkippedAvatarHosts: []string{},
+		Theme:                     c.Theme,
+		Timezone:                  c.Timezone,
 	}
 }
 
@@ -172,7 +177,9 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 		}
 
 		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Service.Get())
-		writeJSON(w, http.StatusOK, settingsResponseOf(creds, deps.GitHubAppConfigured, counts))
+		resp := settingsResponseOf(creds, deps.GitHubAppConfigured, counts)
+		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, creds.ForgejoURL)
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
@@ -465,7 +472,9 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		deps.Service.Ensure(deps.AppContext, deps.BuildSources(merged))
 
 		counts := ignoredTitleCounts(r.Context(), deps, merged.IgnoredTitles, snap)
-		writeJSON(w, http.StatusOK, settingsResponseOf(merged, deps.GitHubAppConfigured, counts))
+		resp := settingsResponseOf(merged, deps.GitHubAppConfigured, counts)
+		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, merged.ForgejoURL)
+		writeJSON(w, http.StatusOK, resp)
 	}
 }
 
@@ -635,21 +644,22 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 // token and secret, which are never returned, plus whether they exist. Kept in
 // step with SettingsResponse by a test that compares the two.
 type SettingsSummary struct {
-	GitHubUsername          string   `json:"githubUsername"`
-	GitHubTokenSet          bool     `json:"githubTokenSet"`
-	GitHubAppInstallationID int64    `json:"githubAppInstallationId"`
-	GitHubAppConfigured     bool     `json:"githubAppConfigured"`
-	ForgejoURL              string   `json:"forgejoUrl"`
-	ForgejoUsername         string   `json:"forgejoUsername"`
-	ForgejoTokenSet         bool     `json:"forgejoTokenSet"`
-	WebhookConfigured       bool     `json:"webhookConfigured"`
-	RenovateRebaseLabel     string   `json:"renovateRebaseLabel"`
-	RenovateAuthors         []string `json:"renovateAuthors"`
-	HideDependencyDashboard bool     `json:"hideDependencyDashboard"`
-	IgnoredTitles           []string `json:"ignoredTitles"`
-	IgnoredTitleCounts      []*int   `json:"ignoredTitleCounts"`
-	Theme                   string   `json:"theme"`
-	Timezone                string   `json:"timezone"`
+	GitHubUsername            string   `json:"githubUsername"`
+	GitHubTokenSet            bool     `json:"githubTokenSet"`
+	GitHubAppInstallationID   int64    `json:"githubAppInstallationId"`
+	GitHubAppConfigured       bool     `json:"githubAppConfigured"`
+	ForgejoURL                string   `json:"forgejoUrl"`
+	ForgejoUsername           string   `json:"forgejoUsername"`
+	ForgejoTokenSet           bool     `json:"forgejoTokenSet"`
+	WebhookConfigured         bool     `json:"webhookConfigured"`
+	RenovateRebaseLabel       string   `json:"renovateRebaseLabel"`
+	RenovateAuthors           []string `json:"renovateAuthors"`
+	HideDependencyDashboard   bool     `json:"hideDependencyDashboard"`
+	IgnoredTitles             []string `json:"ignoredTitles"`
+	IgnoredTitleCounts        []*int   `json:"ignoredTitleCounts"`
+	ForgejoSkippedAvatarHosts []string `json:"forgejoSkippedAvatarHosts"`
+	Theme                     string   `json:"theme"`
+	Timezone                  string   `json:"timezone"`
 }
 
 var errCouldNotLoadSettings = errors.New("could not load settings")
@@ -664,22 +674,24 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 		return SettingsSummary{}, errCouldNotLoadSettings
 	}
 	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, creds.IgnoredTitles, deps.Service.Get()))
+	full.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, creds.ForgejoURL)
 
 	return SettingsSummary{
-		GitHubUsername:          full.GitHubUsername,
-		GitHubTokenSet:          full.GitHubTokenSet,
-		GitHubAppInstallationID: full.GitHubAppInstallationID,
-		GitHubAppConfigured:     full.GitHubAppConfigured,
-		ForgejoURL:              full.ForgejoURL,
-		ForgejoUsername:         full.ForgejoUsername,
-		ForgejoTokenSet:         full.ForgejoTokenSet,
-		WebhookConfigured:       creds.WebhookToken != "" && creds.WebhookSecret != "",
-		RenovateRebaseLabel:     full.RenovateRebaseLabel,
-		RenovateAuthors:         full.RenovateAuthors,
-		HideDependencyDashboard: full.HideDependencyDashboard,
-		IgnoredTitles:           full.IgnoredTitles,
-		IgnoredTitleCounts:      full.IgnoredTitleCounts,
-		Theme:                   full.Theme,
-		Timezone:                full.Timezone,
+		GitHubUsername:            full.GitHubUsername,
+		GitHubTokenSet:            full.GitHubTokenSet,
+		GitHubAppInstallationID:   full.GitHubAppInstallationID,
+		GitHubAppConfigured:       full.GitHubAppConfigured,
+		ForgejoURL:                full.ForgejoURL,
+		ForgejoUsername:           full.ForgejoUsername,
+		ForgejoTokenSet:           full.ForgejoTokenSet,
+		WebhookConfigured:         creds.WebhookToken != "" && creds.WebhookSecret != "",
+		RenovateRebaseLabel:       full.RenovateRebaseLabel,
+		RenovateAuthors:           full.RenovateAuthors,
+		HideDependencyDashboard:   full.HideDependencyDashboard,
+		IgnoredTitles:             full.IgnoredTitles,
+		IgnoredTitleCounts:        full.IgnoredTitleCounts,
+		ForgejoSkippedAvatarHosts: full.ForgejoSkippedAvatarHosts,
+		Theme:                     full.Theme,
+		Timezone:                  full.Timezone,
 	}, nil
 }

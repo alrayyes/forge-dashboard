@@ -375,7 +375,9 @@ test('a filter that hides a failing row takes it out of the count', async ({
   await expect(
     page.getByRole('button', { name: 'Rerun failed checks (2)' }),
   ).toBeVisible();
-  await page.locator('.quick-pill.forge-pill[data-pill="forgejo"]').click();
+  await page
+    .locator('.quick-pills[data-group="forge"] [data-pill="forgejo"]')
+    .click();
   await expect(
     page.getByRole('button', { name: 'Rerun failed checks (1)' }),
   ).toBeVisible();
