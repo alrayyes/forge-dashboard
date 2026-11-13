@@ -3521,9 +3521,15 @@ paths:
         refused at connect time if they resolve to a non-public address.
 
         The body must be a PNG, JPEG, GIF or WebP by its own bytes, not by the
-        host's `Content-Type`, and at most 8 MiB. SVG and anything else answers
-        415. The answer carries `nosniff` and a sandboxing
-        `Content-Security-Policy`, and is cacheable by the browser for an hour.
+        host's `Content-Type`, and at most 8 MiB (512 KiB with `kind=avatar`).
+        SVG and anything else answers 415.
+
+        The cost is bounded. At most 8 fetches run upstream at once; another
+        request waits up to 5 seconds for a slot, then answers 503 with
+        `Retry-After`. A fetched image is served again from a server-side cache
+        for 5 minutes, without a new upstream fetch. The answer carries
+        `nosniff` and a sandboxing `Content-Security-Policy`, and is cacheable
+        by the browser for an hour.
       tags: [dashboard]
       x-mcp-excluded: Returns image bytes for a browser to draw; an MCP tool has no use for them.
       security: [{ bearerAuth: [] }]
@@ -3561,6 +3567,13 @@ paths:
           schema:
             type: string
           description: GitHub only. The release the image is embedded in; wins over `number`.
+        - name: kind
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [avatar]
+          description: Set to `avatar` for an avatar or repository logo, which has a 512 KiB size cap instead of 8 MiB.
       responses:
         "200":
           description: The image.
@@ -3574,7 +3587,7 @@ paths:
             image/webp:
               schema: { type: string, format: binary }
         "400":
-          description: "`url` is missing, `forge` is not github or forgejo, or no credentials are saved for that forge."
+          description: "`url` is missing, `forge` is not github or forgejo, `kind` is set to something other than `avatar`, or no credentials are saved for that forge."
           content:
             application/json:
               schema:
@@ -3598,7 +3611,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
         "413":
-          description: The image is over 8 MiB.
+          description: The image is over 8 MiB, or over 512 KiB for `kind=avatar`.
           content:
             application/json:
               schema:
@@ -3611,6 +3624,15 @@ paths:
                 $ref: "#/components/schemas/Error"
         "502":
           description: The forge was unreachable or answered something this app could not use.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: Too many images are loading; no fetch slot freed within 5 seconds. Retry after the `Retry-After` delay.
+          headers:
+            Retry-After:
+              schema: { type: string }
           content:
             application/json:
               schema:

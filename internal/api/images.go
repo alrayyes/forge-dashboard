@@ -93,11 +93,18 @@ func imageRefusalLevel(err error) slog.Level {
 // Markdown, fetched here so the browser never contacts the forge or a third
 // party for it and a private repository's token stays on the server (#3405).
 func handleImage(deps Deps) http.HandlerFunc {
+	limits := newImageLimits(deps)
+
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query()
 		raw := q.Get("url")
 		if raw == "" {
 			writeJSON(w, http.StatusBadRequest, errorBody("url is required"))
+
+			return
+		}
+		if k := q.Get("kind"); k != "" && k != string(imageAvatar) {
+			writeJSON(w, http.StatusBadRequest, errorBody("kind must be avatar or absent"))
 
 			return
 		}
@@ -113,7 +120,15 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		img, err := fetchImage(r.Context(), deps, creds, proxy, q, raw)
+		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
+			return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
+		})
+		if errors.Is(err, errImageBusy) {
+			w.Header().Set("Retry-After", "1")
+			writeJSON(w, http.StatusServiceUnavailable, errorBody("too many images are loading, try again shortly"))
+
+			return
+		}
 		if err != nil {
 			slog.Log(r.Context(), imageRefusalLevel(err), "image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
 			imageFailure(err).write(w)
@@ -136,10 +151,10 @@ func handleImage(deps Deps) http.HandlerFunc {
 // serves; if that can't be found, isn't an allowed host or fails to load, the
 // link as written is fetched, so nothing that loaded before stops loading
 // (#3469).
-func fetchImage(ctx context.Context, deps Deps, creds settings.Credentials, proxy *imageproxy.Proxy, q url.Values, raw string) (imageproxy.Image, error) {
+func fetchImage(ctx context.Context, deps Deps, creds settings.Credentials, proxy *imageproxy.Proxy, q url.Values, raw string, limit int) (imageproxy.Image, error) {
 	if q.Get("forge") == "github" {
 		if signed := signedGitHubImage(ctx, deps, creds, q, raw); signed != "" {
-			img, err := proxy.Fetch(ctx, signed)
+			img, err := proxy.FetchMax(ctx, signed, limit)
 			if err == nil {
 				return img, nil
 			}
@@ -147,7 +162,7 @@ func fetchImage(ctx context.Context, deps Deps, creds settings.Credentials, prox
 		}
 	}
 
-	return proxy.Fetch(ctx, raw) //nolint:wrapcheck // the kinds are mapped by imageFailure
+	return proxy.FetchMax(ctx, raw, limit) //nolint:wrapcheck // the kinds are mapped by imageFailure
 }
 
 // signedGitHubImage returns the signed address the item's rendered HTML uses

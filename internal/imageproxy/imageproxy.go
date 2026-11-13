@@ -17,6 +17,10 @@ import (
 // MaxBytes is the largest image the proxy returns.
 const MaxBytes = 8 << 20
 
+// MaxAvatarBytes is the largest avatar or repository logo the proxy returns,
+// well under MaxBytes since neither is ever drawn large.
+const MaxAvatarBytes = 512 << 10
+
 const (
 	defaultTimeout = 10 * time.Second
 	maxRedirects   = 3
@@ -37,7 +41,7 @@ var (
 	ErrForbidden = errors.New("imageproxy: image not available to this account")
 	// ErrNotImage is a body that is not a PNG, JPEG, GIF or WebP.
 	ErrNotImage = errors.New("imageproxy: not a supported image")
-	// ErrTooLarge is a body over MaxBytes.
+	// ErrTooLarge is a body over the limit for its kind.
 	ErrTooLarge = errors.New("imageproxy: image too large")
 	// ErrUpstream is any other failure reaching the host.
 	ErrUpstream = errors.New("imageproxy: could not fetch the image")
@@ -148,8 +152,13 @@ func (p *Proxy) check(raw string) (*url.URL, error) {
 	return u, nil
 }
 
-// Fetch reads the image at raw.
+// Fetch reads the image at raw, up to MaxBytes.
 func (p *Proxy) Fetch(ctx context.Context, raw string) (Image, error) {
+	return p.FetchMax(ctx, raw, MaxBytes)
+}
+
+// FetchMax reads the image at raw, refusing one over limit bytes.
+func (p *Proxy) FetchMax(ctx context.Context, raw string, limit int) (Image, error) {
 	u, err := p.check(raw)
 	if err != nil {
 		return Image{}, err
@@ -162,7 +171,7 @@ func (p *Proxy) Fetch(ctx context.Context, raw string) (Image, error) {
 		if resp.StatusCode < 300 || resp.StatusCode >= 400 {
 			defer func() { _ = resp.Body.Close() }()
 
-			return p.read(resp)
+			return p.read(resp, limit)
 		}
 		loc, lerr := resp.Location()
 		_ = resp.Body.Close()
@@ -208,7 +217,7 @@ func (p *Proxy) get(ctx context.Context, u *url.URL) (*http.Response, error) {
 	return resp, nil
 }
 
-func (p *Proxy) read(resp *http.Response) (Image, error) {
+func (p *Proxy) read(resp *http.Response, limit int) (Image, error) {
 	switch {
 	case resp.StatusCode == http.StatusNotFound:
 		return Image{}, ErrNotFound
@@ -216,14 +225,14 @@ func (p *Proxy) read(resp *http.Response) (Image, error) {
 		return Image{}, ErrForbidden
 	case resp.StatusCode != http.StatusOK:
 		return Image{}, ErrUpstream
-	case resp.ContentLength > MaxBytes:
+	case resp.ContentLength > int64(limit):
 		return Image{}, ErrTooLarge
 	}
-	data, err := io.ReadAll(io.LimitReader(resp.Body, MaxBytes+1))
+	data, err := io.ReadAll(io.LimitReader(resp.Body, int64(limit)+1))
 	if err != nil {
 		return Image{}, ErrUpstream
 	}
-	if len(data) > MaxBytes {
+	if len(data) > limit {
 		return Image{}, ErrTooLarge
 	}
 	// The type comes from the bytes: the header is the host's word, and an
