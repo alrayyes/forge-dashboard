@@ -36,6 +36,8 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	switch item.Kind {
 	case dashboard.ImageItemIssue:
 		path += fmt.Sprintf("/issues/%d", item.Number)
+	case dashboard.ImageItemComment:
+		path += fmt.Sprintf("/issues/comments/%d", item.CommentID)
 	case dashboard.ImageItemRelease:
 		path += "/releases/tags/" + url.PathEscape(item.Tag)
 	default:

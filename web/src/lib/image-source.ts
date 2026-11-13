@@ -17,7 +17,14 @@ export type ImageSource = (src: string) => string | null;
 // repository serves an attachment only at a signed address that the server
 // finds in the item's rendered body, so it has to know which item that is
 // (#3469).
-export type ImageItem = { fullName: string; number?: number; tag?: string };
+export type ImageItem = {
+  fullName: string;
+  number?: number;
+  tag?: string;
+  // A comment's body is its own object with its own signed addresses, so the
+  // server reads that comment, not the item (#3676).
+  comment?: string;
+};
 
 function parse(raw: string): URL | null {
   try {
@@ -32,9 +39,11 @@ function proxied(forge: string, src: string, item?: ImageItem): string {
   const base = `/api/v1/images?forge=${forge}&url=${encodeURIComponent(src)}`;
   if (!item || forge !== 'github' || !isAttachment(src)) return base;
   const which =
-    item.tag !== undefined
-      ? `tag=${encodeURIComponent(item.tag)}`
-      : `number=${item.number}`;
+    item.comment !== undefined
+      ? `comment=${encodeURIComponent(item.comment)}`
+      : item.tag !== undefined
+        ? `tag=${encodeURIComponent(item.tag)}`
+        : `number=${item.number}`;
   return `${base}&fullName=${encodeURIComponent(item.fullName)}&${which}`;
 }
 

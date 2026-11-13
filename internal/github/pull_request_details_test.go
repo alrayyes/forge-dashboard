@@ -57,12 +57,12 @@ func TestGetPullRequestDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 			"totalCount": 2,
 			"nodes": []map[string]any{
 				{
-					"id": "IC_1", "createdAt": "2026-10-01T10:00:00Z", "lastEditedAt": nil, "body": "Looks good.",
+					"id": "IC_1", "databaseId": 101, "createdAt": "2026-10-01T10:00:00Z", "lastEditedAt": nil, "body": "Looks good.",
 					"author":         map[string]any{"login": "demo-a", "avatarUrl": "https://avatars.example.com/u/1"},
 					"reactionGroups": []map[string]any{reactionGroup("THUMBS_UP", 1, "demo-b")},
 				},
 				{
-					"id": "IC_2", "createdAt": "2026-10-01T11:00:00Z", "lastEditedAt": "2026-10-01T11:30:00Z", "body": "Deleted user's note.",
+					"id": "IC_2", "databaseId": 102, "createdAt": "2026-10-01T11:00:00Z", "lastEditedAt": "2026-10-01T11:30:00Z", "body": "Deleted user's note.",
 					"author":         nil,
 					"reactionGroups": []map[string]any{reactionGroup("THUMBS_DOWN", 3, "demo-a", "demo-b", "demo-c")},
 				},
@@ -90,7 +90,7 @@ func TestGetPullRequestDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	assert.False(t, got.CommentsTruncated)
 	require.Len(t, got.Comments, 2)
 	first, second := got.Comments[0], got.Comments[1]
-	assert.Equal(t, "IC_1", first.ID)
+	assert.Equal(t, "101", first.ID)
 	require.NotNil(t, first.Author)
 	assert.Equal(t, dashboard.Person{Login: "demo-a", AvatarURL: "https://avatars.example.com/u/1"}, *first.Author)
 	assert.Equal(t, "2026-10-01T10:00:00Z", first.CreatedAt)
