@@ -636,6 +636,9 @@ func TestListOpenIssues_UsesTypeIssuesFilter(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, issues, 1)
 	assert.Equal(t, 7, issues[0].Number)
+	assert.Equal(t, "a real issue", issues[0].Title)
+	assert.Equal(t, "https://x/7", issues[0].URL)
+	assert.Equal(t, "alrayyes/a", issues[0].Repo)
 }
 
 // An issue carries its poster's avatar as the forge reports it, so the row can

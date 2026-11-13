@@ -36,6 +36,8 @@ func TestSettingsPut_ForgejoURL_RefusesCredentialsAndOddURLsNamingTheField(t *te
 			status, body := putSettings(t, srv.URL, `{"forgejoUrl":"`+url+`"}`, cookie)
 			assert.Equal(t, http.StatusBadRequest, status)
 			assert.Equal(t, "forgejoUrl", body["field"])
+			// The settings page swaps this name for the field label in the message.
+			assert.Contains(t, body["error"], "forgejoUrl")
 			assert.NotContains(t, body["error"], "s3cret", "the error must not echo the URL")
 			assert.NotContains(t, body["error"], "token=abc")
 		})
