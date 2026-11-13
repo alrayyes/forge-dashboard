@@ -5208,17 +5208,64 @@ footer a[aria-current="page"] {
 .run-output[hidden] {
   display: none;
 }
-.run-output-bar {
+/* Show output, Copy and Open job: one row, pushed to the row's right edge. */
+.run-actions {
   display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
-  margin-top: 6px;
+  margin-left: auto;
 }
-.run-output-title {
+.run-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  font: inherit;
   font-size: 0.75rem;
-  font-weight: 600;
+  font-weight: 500;
+  color: var(--accent);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.run-toggle:disabled {
   color: var(--ink-2);
+  cursor: default;
+}
+.run-toggle:hover,
+.run-toggle:focus-visible {
+  text-decoration: underline;
+}
+.run-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  padding: 0;
+  box-sizing: border-box;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--accent);
+  cursor: pointer;
+}
+.run-icon-btn:hover {
+  background: var(--surface-sunken);
+}
+.run-icon-btn .external-icon {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  vertical-align: baseline;
+}
+.run-icon-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
 }
 .run-output-status {
   margin: 4px 0 0;
@@ -5247,6 +5294,50 @@ footer a[aria-current="page"] {
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
+}
+/* Four line classes. Each has a cue beside colour: a label, a border shape, a
+   rule. Timestamps stay --ink-2 (4.5:1 on the tints, checked by axe). */
+.run-line {
+  display: block;
+  padding: 1px 0;
+}
+.run-line-time {
+  margin-right: 8px;
+  color: var(--ink-2);
+}
+.run-line-tag {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.run-line-error,
+.run-line-warning {
+  padding: 4px 8px;
+  border-left: 3px solid;
+}
+.run-line-error {
+  border-left-style: solid;
+  color: var(--critical);
+  background: var(--critical-bg);
+}
+.run-line-warning {
+  border-left-style: dashed;
+  color: var(--warning);
+  background: var(--warning-bg);
+}
+.run-line-step {
+  margin-top: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 /* The Copy log button under a failed check's excerpt, and what a copy said. */

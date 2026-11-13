@@ -934,6 +934,16 @@ button of its own (named "Copy output: {check}"). The `Failed step` line stays.
 While the output is loading or failed to load, the panel has no Copy button and
 the excerpt and its button stay.
 
+A row's controls sit in one row at its right edge: the text `Show output` or
+`Hide output` with a chevron, then `Copy` and `Open job` as 44-pixel icon buttons.
+Their accessible names start with their words ("Copy output: {check}", "Open
+job on {forge} (opens in a new tab): {check}"). In the open output each line
+is read for its level and carries a cue beside colour: the `Error` or `Warning`
+label with a solid or dashed left border, a rule under a step header
+(`##[group]`, `---`, `+++`), and its time of day dimmed when it starts with an
+ISO timestamp. Colour escape codes are removed. Copy still copies the log as
+the forge sent it.
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
