@@ -46,11 +46,12 @@ type Client struct {
 	now     func() time.Time
 	log     *slog.Logger
 
-	mu      sync.Mutex
-	fetched time.Time
-	have    bool
-	status  *dashboard.ProviderStatus
-	failing bool
+	mu       sync.Mutex
+	fetched  time.Time
+	have     bool
+	status   *dashboard.ProviderStatus
+	failing  bool
+	inflight *flight
 }
 
 // Option tunes a Client; the package's tests use them.
@@ -63,10 +64,11 @@ func WithClock(now func() time.Time) Option { return func(c *Client) { c.now = n
 func WithLogger(l *slog.Logger) Option { return func(c *Client) { c.log = l } }
 
 // New returns a Client for the status page at baseURL; a nil hc uses a plain
-// client.
+// client that doesn't follow redirects, so the one request can't be sent on to
+// another host.
 func New(baseURL string, hc *http.Client, opts ...Option) *Client {
 	if hc == nil {
-		hc = &http.Client{}
+		hc = &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 	}
 	c := &Client{baseURL: strings.TrimRight(baseURL, "/"), http: hc, now: time.Now, log: slog.Default()}
 	for _, o := range opts {
@@ -76,17 +78,51 @@ func New(baseURL string, hc *http.Client, opts ...Option) *Client {
 	return c
 }
 
+// flight is one fetch in progress; callers that arrive meanwhile wait on it.
+type flight struct {
+	done   chan struct{}
+	status *dashboard.ProviderStatus
+}
+
 // ProviderStatus returns what the feed reports about the components in use, or
 // nil when it reports nothing there or can't be reached. The answer is reused
 // for a minute, a failure included.
+//
+// The fetch runs on its own context, so a caller that gives up (a closed tab,
+// a timeout) neither cancels it nor caches its own cancellation as a failure.
+// That caller gets nil; the fetch finishes and the next one finds the answer.
 func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	if c.have && c.now().Sub(c.fetched) < cacheFor {
-		return c.status
+		status := c.status
+		c.mu.Unlock()
+
+		return status
 	}
+	f := c.inflight
+	if f == nil {
+		f = &flight{done: make(chan struct{})}
+		c.inflight = f
+		go c.run(f)
+	}
+	c.mu.Unlock()
+
+	select {
+	case <-f.done:
+		return f.status
+	case <-ctx.Done():
+		return nil
+	}
+}
+
+// run fetches once, records the outcome and wakes everyone waiting on f.
+func (c *Client) run(f *flight) {
+	ctx, cancel := context.WithTimeout(context.Background(), requestTimeout)
+	defer cancel()
 	status, err := c.fetch(ctx)
+
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	if err != nil {
 		// Said once per run of failures, not once per minute.
 		if !c.failing {
@@ -98,8 +134,9 @@ func (c *Client) ProviderStatus(ctx context.Context) *dashboard.ProviderStatus {
 		c.failing = false
 	}
 	c.status, c.fetched, c.have = status, c.now(), true
-
-	return status
+	f.status = status
+	c.inflight = nil
+	close(f.done)
 }
 
 type summary struct {
@@ -119,9 +156,6 @@ type summary struct {
 }
 
 func (c *Client) fetch(ctx context.Context) (*dashboard.ProviderStatus, error) {
-	ctx, cancel := context.WithTimeout(ctx, requestTimeout)
-	defer cancel()
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/api/v2/summary.json", nil)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
