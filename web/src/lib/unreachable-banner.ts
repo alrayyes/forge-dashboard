@@ -28,6 +28,9 @@ export type BannerCopy = {
   statusLink: boolean;
   // A second sentence when GitHub itself reports an incident (#3633).
   incident?: string;
+  // The detail cut around the relative age, so the page can tick that part
+  // alone (#3745): before + text + after is the detail.
+  age?: { since: string; before: string; text: string; after: string };
 };
 
 type Format = {
@@ -96,13 +99,16 @@ export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
     .map((f) => f.staleSince)
     .filter((s): s is string => !!s)
     .sort((a, b) => new Date(a).getTime() - new Date(b).getTime())[0];
-  const parts: string[] = [];
-  if (oldest)
-    parts.push(`Showing data from ${fmt.time(oldest)}, ${fmt.ago(oldest)}.`);
-  for (const c of new Set(ordered.map(causeOf))) parts.push(c);
+  const causes = [...new Set(ordered.map(causeOf))];
+  const before = oldest ? `Showing data from ${fmt.time(oldest)}, ` : '';
+  const text = oldest ? fmt.ago(oldest) : '';
+  const after = [oldest ? '.' : '', ...causes.map((c) => ` ${c}`)]
+    .join('')
+    .replace(/^ /, '');
   return {
     headline,
-    detail: parts.join(' '),
+    detail: before + text + after,
+    age: oldest ? { since: oldest, before, text, after } : undefined,
     statusLink: ordered.some((f) => f.forge === 'github'),
     incident: incidentOf(ordered),
   };

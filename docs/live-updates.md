@@ -141,6 +141,15 @@ rests, and so does the schedule while a pull request armed for merge or a
 behind one waiting for auto-update needs it
 ([Rate limits](rate-limits.md) has the full list).
 
+## The unreachable banner's age
+
+The unreachable banner says how old the rows on screen are ("Showing data from
+14:32, 3 hours ago"). That age keeps counting once a second without a refresh, so
+you can tell how stale the data is during an outage. With both forges down it
+counts from the oldest data. A screen reader isn't told again as it counts: the
+banner's live region is rewritten only when the banner itself changes (a forge,
+its error, its stale time or the time zone).
+
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
