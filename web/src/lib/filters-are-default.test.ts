@@ -34,6 +34,15 @@ describe('filtersAreDefault', () => {
     expect(filtersAreDefault(state(), page(false))).toBe(true);
   });
 
+  test.each(['ci', 'merge', 'review'])('a %s pill is a filter', (group) => {
+    expect(filtersAreDefault(state({ pr: { [group]: 'x' } }), page(true))).toBe(
+      false,
+    );
+    expect(filtersAreDefault(state({ pr: { [group]: '' } }), page(true))).toBe(
+      true,
+    );
+  });
+
   test('a refs pick counts only on its own page', () => {
     const pr = state({ pr: { refs: 'yes' } });
     expect(filtersAreDefault(pr, page(false))).toBe(true);

@@ -501,6 +501,25 @@ describe('activePill and effectivePill', () => {
       'ci',
     ]);
   });
+
+  test('every group is named when its pick fails, and only then', () => {
+    const item = choiceItem({ ci: 'success', mergeStatus: 'blocked' });
+    expect(failingFilters(item, true, {}, { merge: 'conflicting' })).toEqual([
+      'merge',
+    ]);
+    expect(
+      failingFilters(item, true, {}, { review: 'review-requested' }),
+    ).toEqual(['review']);
+    expect(
+      failingFilters(
+        item,
+        true,
+        { forge: 'forgejo' },
+        { ci: 'failing', merge: 'conflicting', review: 'review-requested' },
+      ),
+    ).toEqual(['forge', 'ci', 'merge', 'review']);
+    expect(failingFilters(item, true, {}, { ci: 'passing' })).toEqual([]);
+  });
 });
 
 // The Out of date pill lists the pull requests whose base branch moved on. It

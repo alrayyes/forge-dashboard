@@ -35,12 +35,17 @@ function pr(
 // something, so each stays offered.
 const PRS = [
   pr(1, 'github', 'failure', 'conflicting'),
-  pr(2, 'github', 'success', 'blocked'),
-  pr(3, 'forgejo', 'failure', 'blocked'),
+  { ...pr(2, 'github', 'success', 'blocked'), readyToMerge: true },
+  { ...pr(3, 'forgejo', 'failure', 'blocked'), needsReview: true },
   pr(4, 'forgejo', 'success', 'conflicting'),
 ];
 
-async function open(page: Page, width = 1280, state?: object) {
+async function open(
+  page: Page,
+  width = 1280,
+  state?: object,
+  prs: object[] = PRS,
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -55,7 +60,7 @@ async function open(page: Page, width = 1280, state?: object) {
           { forge: 'github', reachable: true, repoCount: 1 },
           { forge: 'forgejo', reachable: true, repoCount: 1 },
         ],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -75,7 +80,7 @@ async function open(page: Page, width = 1280, state?: object) {
   }
   await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(
-    state ? 2 : PRS.length,
+    state ? 2 : prs.length,
   );
 }
 
@@ -177,7 +182,7 @@ test.describe('pill groups combine (#3734)', () => {
       if (width < 760) {
         await page.getByRole('button', { name: /^Filters/ }).click();
         const sheet = page.locator('dialog#filter-sheet');
-        for (const name of ['Forge', 'CI', 'Merge'])
+        for (const name of ['Forge', 'CI', 'Merge', 'Review'])
           await expect(
             sheet.getByRole('group', { name, exact: true }),
           ).toBeVisible();
@@ -195,7 +200,7 @@ test.describe('pill groups combine (#3734)', () => {
           /Filters \(2\)/,
         );
       } else {
-        for (const name of ['Forge', 'CI', 'Merge'])
+        for (const name of ['Forge', 'CI', 'Merge', 'Review'])
           await expect(
             page.getByRole('group', { name, exact: true }),
           ).toBeVisible();

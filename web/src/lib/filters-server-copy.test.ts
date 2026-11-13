@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   applyServerState,
   currentPage,
@@ -250,7 +250,38 @@ describe('the saved quick pill becomes a per-group pick', () => {
     const state = fresh();
     applyServerState(state, { pr: { quick: pill } });
     expect(state.pr[key]).toBe(pill);
-    expect(state.pr.quick).toBeUndefined();
+    expect('quick' in state.pr).toBe(false);
+  });
+
+  test('a saved failing lands as pr.ci failing and the old key is gone', () => {
+    const state = fresh();
+    applyServerState(state, { pr: { quick: 'failing' } });
+    expect(state.pr.ci).toBe('failing');
+    expect('quick' in state.pr).toBe(false);
+  });
+
+  describe('from the cookie alone', () => {
+    const realDocument = globalThis.document;
+    afterEach(() => {
+      Object.assign(globalThis, { document: realDocument });
+    });
+
+    test('loadState moves a saved pr.quick to its group', () => {
+      const saved = {
+        shared: {},
+        pr: { quick: 'failing' },
+        issue: {},
+        view: {},
+      };
+      Object.assign(globalThis, {
+        document: {
+          cookie: `forge-board-filters=${encodeURIComponent(JSON.stringify(saved))}`,
+        },
+      });
+      const state = loadState();
+      expect(state.pr.ci).toBe('failing');
+      expect('quick' in state.pr).toBe(false);
+    });
   });
 
   test('a pill that no longer exists is dropped', () => {

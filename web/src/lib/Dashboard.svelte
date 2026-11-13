@@ -6023,19 +6023,22 @@
     // filter. Focus lost inside the open Filters sheet stays in it, on the All
     // pill or else the close button, since the bar is behind the modal.
     function focusFilterBar(from: Element | null = null) {
-      const candidates = from?.closest("#filter-sheet")
-        ? ['#filter-sheet .quick-pill[data-pill="all"]', "#filter-sheet-close"]
-        : [
-            '.filter-bar .quick-pills .quick-pill[data-pill="all"]',
+      // The first All that is drawn: a group left with only All is hidden
+      // whole, and its All cannot take focus (#3734).
+      const visibleAll = (root: string) =>
+        [
+          ...document.querySelectorAll<HTMLElement>(
+            `${root} .quick-pill[data-pill="all"]`,
+          ),
+        ].find((el) => el.getClientRects().length > 0);
+      const target = from?.closest("#filter-sheet")
+        ? (visibleAll("#filter-sheet") ??
+          document.getElementById("filter-sheet-close"))
+        : (visibleAll(".filter-bar .quick-pills") ??
+          document.querySelector<HTMLElement>(
             '.filter-bar .col-filter[data-col="title"]',
-          ];
-      for (const selector of candidates) {
-        const target = document.querySelector<HTMLElement>(selector);
-        if (target && target.getClientRects().length > 0) {
-          target.focus();
-          return;
-        }
-      }
+          ));
+      if (target && target.getClientRects().length > 0) target.focus();
     }
 
     // After a filter group hides under focus, moves focus to a control that

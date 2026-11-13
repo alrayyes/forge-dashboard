@@ -158,7 +158,7 @@ for (const size of LANDSCAPE) {
 
         const search = page.getByRole('combobox', { name: 'Filter by title' });
         await expect(search).toBeVisible();
-        if (size.width <= 760) {
+        if (size.width <= 760 || size.height <= 440) {
           // The rest of the controls live in the Filters sheet.
           const trigger = page.getByRole('button', { name: /^Filters/ });
           await expect(trigger).toBeVisible();

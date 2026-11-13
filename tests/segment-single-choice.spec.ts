@@ -423,6 +423,33 @@ test.describe('Clearing the last pick of a group moves focus', () => {
     ).toBeFocused();
   });
 
+  test('Refs No active, one forge, Any pressed: focus skips the hidden Forge group to the CI All (#3734)', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      '/pull-requests.html',
+      {
+        prs: [
+          pr(1, 'regular', { ci: 'failure' }),
+          pr(2, 'regular', { ci: 'success' }),
+        ],
+      },
+      { pr: { refs: 'no' } },
+    );
+    await expect(
+      page.locator('.filter-bar .quick-pills[data-group="forge"]'),
+    ).toBeHidden();
+    const group = page.locator('.filter-bar > .refs-group');
+    await group.locator('[data-ref="any"]').click();
+    await expect(group).toBeHidden();
+    await expect(
+      page.locator(
+        '.filter-bar .quick-pills[data-group="ci"] [data-pill="all"]',
+      ),
+    ).toBeFocused();
+  });
+
   test('Auto-merge On active on rows that all have it, Any pressed: focus goes to the title filter', async ({
     page,
   }) => {

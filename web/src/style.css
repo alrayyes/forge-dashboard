@@ -4273,7 +4273,8 @@ button.pipeline-check-link:disabled {
 }
 
 /* The phone filter bar also serves a short window held sideways (#3406): a
-   search row, one scrolling row of quick filters, and the rest in the sheet.
+   search row, the Filters button and the active chips, with the pill groups and
+   the rest in the sheet.
    The three rows of a desktop bar would fill a 390px-tall screen. */
 @media (max-width: 760px), (max-height: 440px) and (orientation: landscape) {
   .filter-bar {

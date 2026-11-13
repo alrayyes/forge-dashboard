@@ -44,8 +44,8 @@ pull requests or issues of its own to poll, and its canonical home is
 whichever forge it's mirrored from.
 
 Each pull request also carries its review state (`review` in
-`/api/v1/dashboard`: decision, approvals, requested reviewers). The **Ready to
-Merge** and **Needs review** quick filters read the server's own answers,
+`/api/v1/dashboard`: decision, approvals, requested reviewers). The **Ready**
+and **Needs review** pills read the server's own answers,
 `readyToMerge` and `needsReview` on each pull request, so the page holds no
 definition of either. On GitHub that rides on fields of the same GraphQL query,
 so it costs no extra requests. On Forgejo the requested reviewers come with the
@@ -59,7 +59,7 @@ matches the filter. Needs review means a review is outstanding: the forge
 requires one, or a reviewer was asked and hasn't answered. A pull request nobody
 was asked to review doesn't count.
 
-The **Review requested from me** quick filter keeps the pull requests that ask
+The **Review requested** pill keeps the pull requests that ask
 you in particular: `reviewRequestedFromMe` on each pull request, which the
 server matches, ignoring case, against the username saved for that forge in
 Settings. It needs that username: with none saved for a forge, none of that
@@ -99,12 +99,12 @@ while `ci` is pending or failing for another reason. A third-party check that
 concludes `action_required` counts too. Forgejo and the unauthenticated fallback
 always report false.
 
-The **Conflicts** quick filter keeps the pull requests with a merge conflict, so
+The **Conflicting** pill keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
 `conflicting`, the same field behind the row's own Conflicting pill, so the page
 holds no rule of its own. A draft that conflicts is listed too.
 
-The **Out of date** quick filter keeps the pull requests whose base branch has
+The **Out of date** pill keeps the pull requests whose base branch has
 moved on, so they can be updated in one pass. It reads the `behind` and `empty`
 fields of each pull request, the same ones behind the row's Out of date badge,
 and leaves out an empty pull request, which has nothing to update.
