@@ -89,7 +89,7 @@ async function mock(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         description: {
-          text: `![shot](${EMBEDDED})\n\n![tracker](${STRANGER})`,
+          text: `![shot](${EMBEDDED})\n\n![tracker](${STRANGER})\n\n- [x] ticked item`,
           format: 'markdown',
           truncated: false,
           edited: false,
@@ -121,7 +121,7 @@ test('every response names this server as the only image source', async ({
   for (const path of ['/pull-requests.html', '/settings.html']) {
     const response = await page.goto(path);
     expect(response?.headers()['content-security-policy']).toBe(
-      "img-src 'self' data:",
+      "img-src 'self'",
     );
   }
 });
@@ -157,6 +157,10 @@ test('the dashboard, the details dialog and settings raise no violation', async 
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole('img', { name: 'shot' })).toBeVisible();
   await expect(dialog.locator('img').nth(1)).toBeVisible();
+  // A ticked task box draws its mark without an image.
+  await expect(
+    dialog.getByRole('checkbox', { name: 'ticked item' }),
+  ).toBeChecked();
   expect(await violations(page)).toEqual([]);
 
   await page.goto('/settings.html');

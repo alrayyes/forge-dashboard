@@ -344,14 +344,13 @@ can't fire a tracking pixel when the dialog opens.
 - The page repeats the list in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. The server is the one that
   enforces it.
-- Every response carries `Content-Security-Policy: img-src 'self' data:`
+- Every response carries `Content-Security-Policy: img-src 'self'`
   (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
   refuses a direct image load from any other host. None of the hosts above
   appears in it, because the server fetches them and the browser never does.
-  `data:` is for the inline check mark on a ticked box. The image route sends
-  its own stricter policy over it. A Go test checks the policy against the
-  proxy's host list, and against the hosts `web/src/lib/image-source.ts` and
-  `web/src/lib/avatar.ts` send through it.
+  The image route sends its own stricter policy over it. A Go test checks the
+  policy against the proxy's host list, and against the hosts
+  `web/src/lib/image-source.ts` and `web/src/lib/avatar.ts` send through it.
 
 ### What the passkey login covers
 
