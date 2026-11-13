@@ -58,7 +58,7 @@
   // the Main branches page. The page calls open() from a row's pill. The dialog
   // watches its row's job list on the dashboard stream, and the server sends a
   // new one whenever the row's CI changes.
-  import { tick, untrack } from "svelte";
+  import { onDestroy, tick, untrack } from "svelte";
   import {
     checkFeed,
     type CheckFeedMessage,
@@ -119,6 +119,9 @@
   let message = $state("");
   // Stops following the row's list.
   let unwatch: (() => void) | null = null;
+  // A dialog that is removed while open (a route change, a story torn down)
+  // stops listening, so a late answer does not land on a gone element.
+  onDestroy(() => unwatch?.());
   // The newest list that arrived while updates were paused, drawn on resume.
   let pending: CheckFeedMessage | null = null;
   // A list asked for on purpose (a retry, a cancel's re-read) is drawn even
