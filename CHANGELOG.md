@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.53.1](https://github.com/alrayyes/forge-dashboard/compare/v9.53.0...v9.53.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** drop the empty attribute line from a phone row's status cell ([#3841](https://github.com/alrayyes/forge-dashboard/issues/3841)) ([e3a5f03](https://github.com/alrayyes/forge-dashboard/commit/e3a5f0384fbcfe7a674e3c18bf39d3316c1d8a05)), closes [#3834](https://github.com/alrayyes/forge-dashboard/issues/3834)
+
 ## [9.53.0](https://github.com/alrayyes/forge-dashboard/compare/v9.52.0...v9.53.0) (2026-11-13)
 
 
