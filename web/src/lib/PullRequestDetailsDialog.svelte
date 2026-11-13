@@ -354,7 +354,7 @@
       }
       const rendered: Record<string, string> = {};
       const jobs: Promise<void>[] = [];
-      const add = (key: string, text: string) =>
+      const add = (key: string, text: string, comment?: string) =>
         jobs.push(
           renderMarkdown(text, {
             repoUrl: repoUrlOf(current.url),
@@ -370,7 +370,7 @@
               repoUrlOf(current.url),
               isReleaseTarget(current)
                 ? { fullName: current.repo, tag: current.tag }
-                : { fullName: current.repo, number: current.number },
+                : { fullName: current.repo, number: current.number, comment },
             ),
           }).then((out) => {
             rendered[key] = out;
@@ -379,7 +379,7 @@
       if (!isReleaseTarget(current))
         add("description", loaded.description.text);
       if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
-      for (const c of loaded.comments) add(c.id, c.text);
+      for (const c of loaded.comments) add(c.id, c.text, c.id);
       await Promise.all(jobs);
       if (mine !== token) return true;
       html = rendered;

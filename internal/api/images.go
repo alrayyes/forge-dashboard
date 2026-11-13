@@ -225,8 +225,19 @@ func isGitHubAttachment(deps Deps, raw string) bool {
 		strings.HasPrefix(u.Path, "/user-attachments/")
 }
 
-// imageItemOf reads which issue, pull request or release the image sits in.
+// imageItemOf reads which issue, pull request, comment or release the image sits in.
 func imageItemOf(q url.Values) (dashboard.ImageItem, bool) {
+	// A comment's body is its own object, so it wins: the item's HTML never
+	// holds the comment's attachments. Digits only, so nothing but a number
+	// reaches the API path (#3676).
+	if q.Has("comment") {
+		id, err := strconv.ParseInt(q.Get("comment"), 10, 64)
+		if err != nil || id <= 0 || strings.HasPrefix(q.Get("comment"), "+") {
+			return dashboard.ImageItem{}, false
+		}
+
+		return dashboard.ImageItem{Kind: dashboard.ImageItemComment, CommentID: id}, true
+	}
 	if q.Has("tag") {
 		tag := q.Get("tag")
 		if !safeRepoSegment(tag) || strings.Contains(tag, "/") {

@@ -51,7 +51,11 @@ const FORGE_IMAGE = 'https://github.com/user-attachments/assets/wide';
 const BROKEN_IMAGE = 'https://github.com/user-attachments/assets/gone';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
-async function openDialog(page: Page, description: string) {
+async function openDialog(
+  page: Page,
+  description: string,
+  comments: object[] = [],
+) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route) =>
     route.fulfill({
@@ -94,17 +98,20 @@ async function openDialog(page: Page, description: string) {
           edited: false,
           reactions,
         },
-        comments: [],
-        commentCount: 0,
+        comments,
+        commentCount: comments.length,
         commentsTruncated: false,
         releaseNotes: null,
       }),
     }),
   );
   const asked: string[] = [];
+  const askedFor: URLSearchParams[] = [];
   await page.route('**/api/v1/images*', (route) => {
-    const target = new URL(route.request().url()).searchParams.get('url') ?? '';
+    const params = new URL(route.request().url()).searchParams;
+    const target = params.get('url') ?? '';
     asked.push(target);
+    askedFor.push(params);
     if (target === BROKEN_IMAGE)
       return route.fulfill({ status: 404, body: '{}' });
     return route.fulfill({
@@ -126,7 +133,7 @@ async function openDialog(page: Page, description: string) {
     .click();
   const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
   await expect(dialog).toBeVisible();
-  return { dialog, asked, stranger };
+  return { dialog, asked, askedFor, stranger };
 }
 
 const DESCRIPTION = [
@@ -212,6 +219,48 @@ for (const [scheme, width] of [
       (el) => el.scrollWidth - el.clientWidth,
     );
     expect(overflow).toBe(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+}
+
+for (const width of [360, 390, 1280]) {
+  test(`an image in a comment names that comment to the server (${width}px, #3676)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const { dialog, askedFor } = await openDialog(
+      page,
+      `![in the description](${FORGE_IMAGE})`,
+      [
+        {
+          id: '4242',
+          author: { login: 'ryankes', avatarUrl: '' },
+          createdAt: '2026-10-01T10:00:00Z',
+          updatedAt: null,
+          edited: false,
+          text: `![in a comment](${FORGE_IMAGE}-2)`,
+          format: 'markdown',
+          truncated: false,
+          reactions,
+        },
+      ],
+    );
+
+    await expect(
+      dialog.getByRole('img', { name: 'in a comment' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('img', { name: 'in the description' }),
+    ).toBeVisible();
+    const byUrl = (url: string) =>
+      askedFor.find((p) => p.get('url') === url) as URLSearchParams;
+    expect(byUrl(`${FORGE_IMAGE}-2`).get('comment')).toBe('4242');
+    expect(byUrl(FORGE_IMAGE).has('comment')).toBe(false);
+    expect(byUrl(FORGE_IMAGE).get('number')).toBe('42');
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])

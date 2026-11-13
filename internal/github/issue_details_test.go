@@ -46,7 +46,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 			"totalCount": 2,
 			"nodes": []map[string]any{
 				{
-					"id": "IC_1", "createdAt": "2026-10-01T10:00:00Z", "lastEditedAt": nil, "body": "Seen it too.",
+					"id": "IC_1", "databaseId": 101, "createdAt": "2026-10-01T10:00:00Z", "lastEditedAt": nil, "body": "Seen it too.",
 					"author":         map[string]any{"login": "demo-a", "avatarUrl": "https://avatars.example.com/u/1"},
 					"reactionGroups": []map[string]any{reactionGroup("THUMBS_UP", 1, "demo-b")},
 				},
@@ -72,6 +72,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 	assert.Equal(t, 2, got.Description.Reactions.ThumbsUp.Count)
 	assert.Equal(t, []string{"demo-a", "demo-b"}, got.Description.Reactions.ThumbsUp.Logins)
 	require.Len(t, got.Comments, 2)
+	assert.Equal(t, "101", got.Comments[0].ID, "the number the comments route takes, not the GraphQL node id")
 	assert.Equal(t, "demo-a", got.Comments[0].Author.Login)
 	assert.Equal(t, "https://avatars.example.com/u/1", got.Comments[0].Author.AvatarURL, "the forge's own avatar, unchanged")
 	assert.Nil(t, got.Comments[1].Author, "a deleted account has no author")

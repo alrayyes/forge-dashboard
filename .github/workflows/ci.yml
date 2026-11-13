@@ -61,6 +61,8 @@ jobs:
         run: scripts/test-changed-areas.sh
       - name: test the release type check
         run: scripts/test-check-release-type.sh
+      - name: test the prose gate wiring
+        run: scripts/test-prose-gate.sh
       - name: test the Vale wrapper
         run: scripts/test-vale-script.sh
       - name: check the Vale pins agree
@@ -511,8 +513,8 @@ jobs:
           echo "e2e shards: ${{ needs.e2e-shard.result }}"
           exit 1
 
-  # Layout and structure. Style and mechanics are prose.yml — see its header
-  # comment for why they're split out.
+  # Layout and structure. Style and mechanics are prose.yml, called by
+  # `prose-tiers` below. See its header comment for why they are split out.
   prose:
     needs: changes
     if: needs.changes.outputs.prose == 'true'
@@ -535,6 +537,15 @@ jobs:
         run: bun run lint:refs
       - name: no broken links or anchors in public docs
         run: bun run lint:links
+
+  # Style (Vale) and mechanics (grammar and spelling). The jobs are in
+  # prose.yml, which has no triggers of its own, so `ci result` waits for them.
+  prose-tiers:
+    needs: changes
+    if: needs.changes.outputs.prose == 'true'
+    uses: ./.github/workflows/prose.yml
+    permissions:
+      contents: read
 
   # The API description is a contract. This proves the document is valid
   # OpenAPI. That the handlers still match it is the Go contract tests in
@@ -828,6 +839,7 @@ jobs:
         e2e,
         lighthouse,
         prose,
+        prose-tiers,
         api,
         semgrep,
         api-security,

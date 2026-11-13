@@ -77,6 +77,27 @@ describe('imageSourceFor with the item named', () => {
     );
   });
 
+  test('names the comment an attachment sits in, ahead of the item', () => {
+    const src = imageSourceFor('github', 'https://github.com/o/r', {
+      fullName: 'o/r',
+      number: 7,
+      comment: '4242',
+    });
+    expect(src(attachment)).toBe(
+      `/api/v1/images?forge=github&url=${enc}&fullName=o%2Fr&comment=4242`,
+    );
+  });
+
+  test('sends no comment for an address that is not an attachment', () => {
+    const src = imageSourceFor('github', 'https://github.com/o/r', {
+      fullName: 'o/r',
+      number: 7,
+      comment: '4242',
+    });
+    const other = 'https://user-images.githubusercontent.com/1/a.png';
+    expect(src(other)).toBe(proxied('github', other));
+  });
+
   test('adds a release by its tag', () => {
     const src = imageSourceFor('github', 'https://github.com/o/r', {
       fullName: 'o/r',

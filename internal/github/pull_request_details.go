@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -22,7 +23,7 @@ query($owner: String!, $name: String!, $number: Int!) {
       comments(first: 50) {
         totalCount
         nodes {
-          id
+          databaseId
           createdAt
           lastEditedAt
           body
@@ -60,7 +61,7 @@ type graphqlDetailsThread struct {
 	Comments       struct {
 		TotalCount int `json:"totalCount"`
 		Nodes      []struct {
-			ID             string                 `json:"id"`
+			DatabaseID     int64                  `json:"databaseId"`
 			CreatedAt      string                 `json:"createdAt"`
 			LastEditedAt   *string                `json:"lastEditedAt"`
 			Body           string                 `json:"body"`
@@ -112,7 +113,7 @@ func threadDetails(thread graphqlDetailsThread) dashboard.IssueDetails {
 		}
 		commentText, commentTruncated := dashboard.CapText(node.Body, dashboard.MaxDetailsBodyRunes)
 		comment := dashboard.DetailsComment{
-			ID: node.ID, CreatedAt: node.CreatedAt, UpdatedAt: node.LastEditedAt, Edited: node.LastEditedAt != nil,
+			ID: strconv.FormatInt(node.DatabaseID, 10), CreatedAt: node.CreatedAt, UpdatedAt: node.LastEditedAt, Edited: node.LastEditedAt != nil,
 			Text: commentText, Format: dashboard.FormatMarkdown, Truncated: commentTruncated,
 			Reactions: reactionsOf(node.ReactionGroups),
 		}

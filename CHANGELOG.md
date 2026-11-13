@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.44.0](https://github.com/alrayyes/forge-dashboard/compare/v9.43.0...v9.44.0) (2026-11-13)
+
+
+### Features
+
+* **api:** show private GitHub repository images posted in comments ([#3772](https://github.com/alrayyes/forge-dashboard/issues/3772)) ([ac0fea1](https://github.com/alrayyes/forge-dashboard/commit/ac0fea11845495bd5858d3579ea32ce26e7f645e)), closes [#3676](https://github.com/alrayyes/forge-dashboard/issues/3676)
+
 ## [9.43.0](https://github.com/alrayyes/forge-dashboard/compare/v9.42.0...v9.43.0) (2026-11-13)
 
 

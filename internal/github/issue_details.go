@@ -23,7 +23,7 @@ query($owner: String!, $name: String!, $number: Int!) {
       comments(first: 50) {
         totalCount
         nodes {
-          id
+          databaseId
           createdAt
           lastEditedAt
           body
