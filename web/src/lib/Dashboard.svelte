@@ -180,6 +180,7 @@
     spentLimit,
   } from "#lib/forge-lock.js";
   import { LockRedraw } from "#lib/lock-redraw.js";
+  import { bannerCopy } from "#lib/unreachable-banner.js";
   import {
     chipClass,
     chipLabel,
@@ -8960,14 +8961,15 @@
       container.innerHTML = "";
       for (const f of forges) {
         const item = el("div", "forge-health-item");
+        const limited =
+          isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
+        // An unreachable forge is the banner's to say (#3719): no chip, no
+        // age line, no cause line. A forge that is rate limited as well has
+        // no unreachable banner, so it keeps all three.
+        if (isOutage(f) && !limited) continue;
         // A healthy forge draws no chip (#3681); the live region still
         // announces it.
-        if (
-          needsChip(
-            f,
-            isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL),
-          )
-        ) {
+        if (needsChip(f, limited)) {
           const chip = el("span", chipClass(f));
           chip.appendChild(el("span", "pulse-dot"));
           chip.appendChild(
@@ -9114,46 +9116,12 @@
       return out;
     }
 
-    // ---- unreachable-forge banner (#1199) ----
-    // One row per forge that can't be reached, as a spent rate limit gets
-    // one: what is wrong in plain words, how old the rows on screen are, and
-    // a single Retry that forces a refresh. A forge held back by its rate
-    // limit has that banner instead.
-    function unreachableCause(f: Forge): string {
-      if (isStartupGap(f, recentlyStarted))
-        return "It hasn’t answered since the server restarted. This page tries again on its own.";
-      switch (f.errorKind) {
-        case "unreachable":
-          return "It isn’t answering. This page tries again on its own.";
-        case "upstream_error":
-          return "It answered, but with a server error. This page tries again on its own.";
-        case "unauthorized":
-          return "Check the token in Settings.";
-        case "not_found":
-          return "Check the instance URL in Settings.";
-        default:
-          return "Something went wrong talking to it.";
-      }
-    }
-
+    // ---- unreachable-forge banner (#1199, #3719) ----
+    // One banner for every forge that can't be reached: which forge, how old
+    // the rows on screen are and that the page retries on its own, once, with
+    // one Retry that forces a refresh. The toolbar draws no chip for the
+    // forge. A forge held back by its rate limit has that banner instead.
     const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
-
-    // What the banner leads with. A forge that answered with a 5xx is not
-    // unreachable, so it says what it answered (#3527).
-    function outageHeadline(f: Forge, label: string): string {
-      const upstream =
-        f.errorKind === "upstream_error" && f.upstreamStatus && f.error;
-      // Right after a restart the first refresh is still running, so a forge
-      // that has not answered is starting up, not down (#3554).
-      const what = isStartupGap(f, recentlyStarted)
-        ? `${label} is starting up.`
-        : upstream
-          ? `${f.error}.`
-          : `${label} is unreachable.`;
-      return f.staleSince
-        ? `${what} Showing the last data from ${formatTime(f.staleSince)}.`
-        : what;
-    }
 
     function renderUnreachableBanner() {
       const existing = document.getElementById("unreachable-banner");
@@ -9184,36 +9152,46 @@
       banner.id = "unreachable-banner";
       banner.dataset.signature = signature;
       banner.setAttribute("role", "status");
-      for (const f of down) {
-        const label = FORGE_LABELS[f.forge] || f.forge;
-        const row = el("div", "unreachable-banner-row");
-        const text = el("p", "unreachable-banner-text");
-        text.appendChild(el("strong", "", outageHeadline(f, label)));
-        text.appendChild(document.createTextNode(` ${unreachableCause(f)}`));
-        row.appendChild(text);
-        // GitHub's own status page says whether the fault is theirs. A
-        // Forgejo instance is self-hosted, so it has none to link (#1301).
-        if (f.forge === "github") {
-          const status = el(
-            "a",
-            "unreachable-banner-retry unreachable-banner-link",
-            "GitHub status",
-          ) as HTMLAnchorElement;
-          status.href = GITHUB_STATUS_PAGE;
-          status.target = "_blank";
-          status.rel = "noopener noreferrer";
-          status.setAttribute(
-            "aria-label",
-            "GitHub status (opens in a new tab)",
-          );
-          row.appendChild(status);
-        }
-        const retry = buttonEl("unreachable-banner-retry", "Retry");
-        retry.type = "button";
-        retry.addEventListener("click", () => forceRefreshButton?.click());
-        row.appendChild(retry);
-        banner.appendChild(row);
+      const copy = bannerCopy(
+        down.map((f) => ({
+          forge: f.forge,
+          label: FORGE_LABELS[f.forge] || f.forge,
+          errorKind: f.errorKind,
+          staleSince: f.staleSince,
+          startupGap: isStartupGap(f, recentlyStarted),
+          // A forge that answered with a 5xx is not unreachable, so it says
+          // what it answered (#3527).
+          upstreamError:
+            f.errorKind === "upstream_error" && f.upstreamStatus
+              ? f.error
+              : undefined,
+        })),
+        { time: (iso) => formatTime(iso), ago: relativeTime },
+      );
+      const row = el("div", "unreachable-banner-row");
+      const text = el("p", "unreachable-banner-text");
+      text.appendChild(el("strong", "", copy.headline));
+      text.appendChild(document.createTextNode(` ${copy.detail}`));
+      row.appendChild(text);
+      // GitHub's own status page says whether the fault is theirs. A
+      // Forgejo instance is self-hosted, so it has none to link (#1301).
+      if (copy.statusLink) {
+        const status = el(
+          "a",
+          "unreachable-banner-retry unreachable-banner-link",
+          "GitHub status",
+        ) as HTMLAnchorElement;
+        status.href = GITHUB_STATUS_PAGE;
+        status.target = "_blank";
+        status.rel = "noopener noreferrer";
+        status.setAttribute("aria-label", "GitHub status (opens in a new tab)");
+        row.appendChild(status);
       }
+      const retry = buttonEl("unreachable-banner-retry", "Retry");
+      retry.type = "button";
+      retry.addEventListener("click", () => forceRefreshButton?.click());
+      row.appendChild(retry);
+      banner.appendChild(row);
       // Above the filter bar, the first thing on the page after the
       // connection line (#1325: the stat tiles used to be the anchor).
       document

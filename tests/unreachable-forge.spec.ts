@@ -116,14 +116,38 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     const banner = page.locator('#unreachable-banner');
     await expect(banner).toHaveAttribute('role', 'status');
     await expect(banner).toContainText(
-      /GitHub is unreachable\. Showing the last data from \d{1,2}:\d{2}/,
+      /GitHub is unreachable\. Showing data from \d{1,2}:\d{2}.*, 5m ago\. Retrying automatically\./,
     );
-    await expect(banner).toContainText('isn’t answering');
     await expect(banner.getByRole('button', { name: 'Retry' })).toHaveCount(1);
+    // The button is its visible word: no glyph, no other name (WCAG 2.5.3).
+    await expect(banner.getByRole('button', { name: 'Retry' })).toHaveText(
+      'Retry',
+    );
+    await expect(banner.locator('button svg')).toHaveCount(0);
+    // The refresh control in the toolbar keeps its own name.
+    await expect(
+      page.locator('#force-refresh-button'),
+    ).not.toHaveAccessibleName(/Retry/);
+  });
+
+  // #3719: the banner is the one place that says it.
+  test('the forge draws no chip, no stale line and no repeated cause', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [down(), up('forgejo')], [makePR(1)]);
+    await page.goto('/pull-requests.html');
+    await expect(page.locator('#unreachable-banner')).toBeVisible();
+    const health = page.locator('#forge-health');
+    await expect(health).not.toContainText('unreachable');
+    await expect(health).not.toContainText('Showing data');
+    await expect(health).not.toContainText('Show details');
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
+    await expect(page.getByText('Retrying automatically')).toHaveCount(1);
+    await expect(page.getByText(/GitHub is unreachable/)).toHaveCount(1);
   });
 
   // #1301: GitHub's own status page says whether the fault is theirs.
-  test('the GitHub row links GitHub’s status page, in a new tab', async ({
+  test('the banner links GitHub’s status page, in a new tab', async ({
     page,
   }) => {
     await mockDashboard(page, [down()], [makePR(1)]);
@@ -143,7 +167,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
   });
 
-  test('Forgejo has no status page, so its row has no status link', async ({
+  test('Forgejo has no status page, so the banner has no status link', async ({
     page,
   }) => {
     await mockDashboard(
@@ -161,7 +185,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     ).toHaveCount(0);
   });
 
-  test('with both down, only the GitHub row has the status link', async ({
+  test('with both down, one banner names both and has the one GitHub status link', async ({
     page,
   }) => {
     await mockDashboard(
@@ -171,14 +195,15 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     );
     await page.goto('/pull-requests.html');
 
-    const rows = page.locator('.unreachable-banner-row');
-    await expect(rows).toHaveCount(2);
-    await expect(
-      rows.filter({ hasText: 'GitHub is unreachable' }).getByRole('link'),
-    ).toHaveCount(1);
-    await expect(
-      rows.filter({ hasText: 'Forgejo is unreachable' }).getByRole('link'),
-    ).toHaveCount(0);
+    const banner = page.locator('#unreachable-banner');
+    await expect(page.locator('.unreachable-banner')).toHaveCount(1);
+    await expect(banner).toContainText('GitHub and Forgejo are unreachable.');
+    await expect(banner.getByRole('link')).toHaveCount(1);
+    await expect(banner.getByRole('link')).toHaveAccessibleName(
+      'GitHub status (opens in a new tab)',
+    );
+    await expect(banner.getByRole('button', { name: 'Retry' })).toHaveCount(1);
+    await expect(page.getByText('Retrying automatically')).toHaveCount(1);
   });
 
   test('Retry forces a refresh, and when the forge answers the controls return with a toast and the banner clears', async ({
