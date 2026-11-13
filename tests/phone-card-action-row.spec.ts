@@ -111,14 +111,18 @@ test('a plain Merge is centred by the phone bar rule, content width', async ({
   await page.setViewportSize({ width: 390, height: 900 });
   const row = await open(page, pr());
   const button = row.locator('.row-action-bar .row-action');
-  const style = await button.evaluate((el) => {
-    const s = getComputedStyle(el);
-    return { justify: s.justifyContent, width: s.width, min: s.minHeight };
-  });
-  expect(style.justify).toBe('center');
-  expect(style.min).toBe('44px');
-  const barWidth = (await row.locator('.row-action-bar').boundingBox())?.width;
-  expect(Number.parseFloat(style.width)).toBeLessThan((barWidth ?? 0) * 0.6);
+  await expect(button).toHaveCSS('justify-content', 'center');
+  await expect(button).toHaveCSS('min-height', '44px');
+  // Retries until both boxes are laid out.
+  await expect
+    .poll(async () => {
+      const width = await button.evaluate(
+        (el) => Number.parseFloat(getComputedStyle(el).width) || 0,
+      );
+      const bar = (await row.locator('.row-action-bar').boundingBox())?.width;
+      return width > 0 && width < (bar ?? 0) * 0.6;
+    })
+    .toBe(true);
 });
 
 test(`axe finds nothing on the phone card in light and dark`, async ({

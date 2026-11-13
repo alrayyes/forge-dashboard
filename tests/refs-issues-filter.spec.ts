@@ -193,9 +193,14 @@ test.describe('the refs pill on an issue row', () => {
     await expect(refPills(page, 'Has a fix coming')).toHaveCount(0);
     const border = (locator: ReturnType<typeof refPills>) =>
       locator.first().evaluate((el) => getComputedStyle(el).borderTopStyle);
-    expect(await border(refPills(page, 'Only mentioned by work'))).not.toBe(
-      await border(closePills(page, 'Has a fix coming')),
-    );
+    // Retries until both pills are styled; an unstyled pill reads as ''.
+    await expect
+      .poll(async () => {
+        const a = await border(refPills(page, 'Only mentioned by work'));
+        const b = await border(closePills(page, 'Has a fix coming'));
+        return a !== '' && b !== '' && a !== b;
+      })
+      .toBe(true);
   });
 
   test('is not drawn like a draft pill', async ({ page }) => {
@@ -211,9 +216,14 @@ test.describe('the refs pill on an issue row', () => {
       .locator('.linked-pr.draft');
     await expect(draft).toHaveCount(1);
 
-    expect(await outline(refPills(page, 'Draft fix and a reference'))).not.toBe(
-      await outline(draft),
-    );
+    // Retries until both pills are styled.
+    await expect
+      .poll(async () => {
+        const a = await outline(refPills(page, 'Draft fix and a reference'));
+        const b = await outline(draft);
+        return !a.startsWith(' ') && !b.startsWith(' ') && a !== b;
+      })
+      .toBe(true);
   });
 
   test('keeps the pills behind a count, worded for references', async ({
@@ -289,15 +299,20 @@ test.describe('the refs pill on an issue row', () => {
       const pill = refPills(page, 'Fixed and referenced').first();
       await expect(pill).toBeVisible();
 
-      const area = await pill.evaluate((el) => {
-        const after = getComputedStyle(el, '::after');
-        return {
-          width: Number.parseFloat(after.width),
-          height: Number.parseFloat(after.height),
-        };
-      });
-      expect(area.height, scheme).toBeGreaterThanOrEqual(44);
-      expect(area.width, scheme).toBeGreaterThanOrEqual(44);
+      // Retries until the pseudo-element has a laid-out size of 44px or more.
+      await expect
+        .poll(
+          () =>
+            pill.evaluate((el) => {
+              const after = getComputedStyle(el, '::after');
+              return Math.min(
+                Number.parseFloat(after.width) || 0,
+                Number.parseFloat(after.height) || 0,
+              );
+            }),
+          { message: scheme },
+        )
+        .toBeGreaterThanOrEqual(44);
       const scrolls = await page.evaluate(
         () =>
           document.documentElement.scrollWidth >
