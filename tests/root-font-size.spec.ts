@@ -108,7 +108,11 @@ test('a 200% root font size doubles the text without sideways scroll', async ({
       const after = await sizes(page, PROBES);
       return PROBES.filter(
         (sel) =>
-          Math.abs(parseFloat(after[sel]) - parseFloat(before[sel]) * 2) > 0.05,
+          // NaN (a missing probe) is kept: only a proven doubling drops out.
+          !(
+            Math.abs(parseFloat(after[sel]) - parseFloat(before[sel]) * 2) <=
+            0.05
+          ),
       );
     })
     .toEqual([]);
