@@ -8676,6 +8676,7 @@
     function syncFilterBar() {
       // Until a snapshot has said how many rows there are, the bar stays.
       if (!listKnown) return;
+      syncSearch();
       Filters.offerFilterBar(
         document.querySelector<HTMLElement>(".filter-bar"),
         itemsOnScreen().length,
@@ -8683,6 +8684,31 @@
         // bar over one row: the bar is where they are undone.
         filtersAreDefault() && showDraftsButton?.hidden !== false,
       );
+    }
+
+    // The title search hides over one row left by the other filters, unless it
+    // holds text (#3823). Focus it held moves to the first control still drawn.
+    function syncSearch() {
+      const input = document.getElementById(
+        "title-filter",
+      ) as HTMLInputElement | null;
+      const wrap = input?.closest<HTMLElement>(".search-wrap");
+      if (!input || !wrap) return;
+      const offered = Filters.searchOffered(
+        sharedPoolExcluding("title").length,
+        input.value,
+      );
+      const hadFocus = document.activeElement === input;
+      wrap.hidden = !offered;
+      if (hadFocus && !offered) {
+        focusFilterBar();
+        // A phone draws no pills in the bar, so the Filters button takes it.
+        if (
+          document.activeElement === document.body ||
+          document.activeElement === input
+        )
+          document.getElementById("filters-button")?.focus();
+      }
     }
 
     // #354: Clear filters is disabled once nothing this page offers is picked.
