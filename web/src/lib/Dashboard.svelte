@@ -37,6 +37,7 @@
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import LiveControl from "#lib/LiveControl.svelte";
   import {
     checkFeed,
     type FeedSource,
@@ -506,9 +507,16 @@
   // field that is about to go never flashes in.
   // True until the server says this viewer's first refresh has finished
   // (#1672): the lists draw a skeleton instead of themselves or an empty state.
-  // False while the snapshot's time is the zero time, so no "Refreshed ... ago"
+  // False while the snapshot's time is the zero time, so no "updated ... ago"
   // is drawn for a moment that never was.
   let refreshedKnown = $state(false);
+  // The live control's two facts (#3699): whether updates are held, and the
+  // time of the snapshot on screen. The time moves only with a snapshot, so a
+  // failed refresh leaves it where it was.
+  let livePaused = $state(false);
+  let liveUpdatedAt = $state<string | null>(null);
+  let heldUpdatedAt: string | null = null;
+  let togglePause: () => void = () => {};
   const loadingFirst = $derived(firstRefreshLoading(firstRefresh));
   let issueSettingsKnown = $state(false);
   let settingsHideDependencyDashboard = $state(false);
@@ -5009,6 +5017,15 @@
     // row changed in place.
     const listUpdates = document.getElementById("list-updates-status");
     let listUpdatesTimer: ReturnType<typeof setTimeout> | undefined;
+    function announceText(text: string) {
+      if (!listUpdates) return;
+      listUpdates.replaceChildren(document.createTextNode(text));
+      clearTimeout(listUpdatesTimer);
+      listUpdatesTimer = setTimeout(
+        () => listUpdates.replaceChildren(),
+        10_000,
+      );
+    }
     function announceListUpdate(diff: {
       added: number;
       removed: number;
@@ -5029,11 +5046,6 @@
         10_000,
       );
     }
-
-    const pauseUpdatesButton = document.getElementById(
-      "pause-updates-button",
-    ) as HTMLButtonElement | null;
-    const pausedHint = document.getElementById("updates-paused-hint");
 
     function updatesPaused(): boolean {
       return sharedState.view.paused === "1";
@@ -5452,8 +5464,7 @@
     }
 
     function syncPauseControl() {
-      pauseUpdatesButton?.setAttribute("aria-pressed", String(updatesPaused()));
-      if (pausedHint) pausedHint.hidden = !updatesPaused();
+      livePaused = updatesPaused();
     }
 
     function markUpdated(keys: string[]) {
@@ -8267,15 +8278,22 @@
       applyPendingIssuesNow,
     );
 
-    pauseUpdatesButton?.addEventListener("click", () => {
+    togglePause = () => {
       sharedState.view.paused = updatesPaused() ? "" : "1";
       Filters.touchKey("view", "paused");
       Filters.saveState(sharedState);
       syncPauseControl();
+      announceText(
+        updatesPaused() ? "Live updates paused" : "Live updates resumed",
+      );
+      if (!updatesPaused() && heldUpdatedAt) {
+        liveUpdatedAt = heldUpdatedAt;
+        heldUpdatedAt = null;
+      }
       if (!updatesPaused()) pipelineDialog?.resume();
       if (view === "issues") reconcileIssues();
       else reconcilePRs();
-    });
+    };
     syncPauseControl();
     showDraftsButton?.addEventListener("click", () => {
       sharedState.view.drafts = draftsOn() ? "" : "1";
@@ -9034,13 +9052,6 @@
       }
     }
 
-    // ---- ticking "refreshed Xs ago" clock, independent of the poll interval ----
-    function tickRefreshedAt() {
-      const target = document.getElementById("refreshed-at");
-      if (!lastGeneratedAt || !target) return;
-      target.textContent = relativeTime(lastGeneratedAt);
-    }
-
     // ---- rate-limit-exceeded banner (#361) ----
     // An exhausted REST or GraphQL budget silently locks every proactive
     // action it drives (merge, update branch, Dependabot/Renovate
@@ -9357,7 +9368,7 @@
       for (const text of [
         "View pipeline: the CI pill on a row opens its checks.",
         "Open a pull request on the forge: the title links straight to it.",
-        "Browsing, search and filters, over the last data the dashboard has. Refreshed shows how old it is.",
+        "Browsing, search and filters, over the last data the dashboard has. The updated time shows how old it is.",
       ])
         list.appendChild(el("li", "", text));
       details.appendChild(list);
@@ -9418,7 +9429,6 @@
     }
 
     const tickTimer = setInterval(() => {
-      tickRefreshedAt();
       feedbackUI.tick();
       for (const el of document.querySelectorAll<HTMLElement>(".queued-resets"))
         el.textContent = resetsInText(el.dataset.runAt ?? "");
@@ -9884,11 +9894,20 @@
         return;
       clearError();
       // The zero time a snapshot carries before the first refresh is no
-      // moment: keep the last real one and show no "Refreshed ... ago" for it.
+      // moment: keep the last real one and show no "updated ... ago" for it.
       refreshedKnown = hasTimestamp(data.generatedAt);
-      if (refreshedKnown) lastGeneratedAt = data.generatedAt;
+      if (refreshedKnown) {
+        lastGeneratedAt = data.generatedAt;
+        // The time is when the rows on screen were read: while updates are
+        // held it stays put, and Resume moves it to the newest snapshot.
+        if (liveUpdatedAt && updatesPaused() && !userAsked)
+          heldUpdatedAt = data.generatedAt;
+        else {
+          liveUpdatedAt = data.generatedAt;
+          heldUpdatedAt = null;
+        }
+      }
       followReadInterval(data.readIntervalSeconds);
-      tickRefreshedAt();
 
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
@@ -10378,28 +10397,6 @@
       aria-live="polite"
       aria-atomic="true"
     ></span>
-    <span class="refreshed" hidden={!refreshedKnown || loadingFirst}
-      >Refreshed <span class="mono" id="refreshed-at">&mdash;</span></span
-    >
-    <button
-      class="theme-toggle"
-      id="force-refresh-button"
-      type="button"
-      aria-label="Refresh now"
-      title="Refresh now"
-    >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        ><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg
-      >
-    </button>
   </div>
   <div
     class="filter-bar"
@@ -10680,23 +10677,12 @@
     </div>
   </dialog>
 
-  <div class="updates-bar" id="updates-bar">
-    <span
-      class="sr-only"
-      id="list-updates-status"
-      role="status"
-      aria-live="polite"
-    ></span>
-    <span class="updates-paused" id="updates-paused-hint" hidden
-      >Live updates paused</span
-    >
-    <button
-      type="button"
-      class="updates-pause"
-      id="pause-updates-button"
-      aria-pressed="false">Pause live updates</button
-    >
-  </div>
+  <span
+    class="sr-only"
+    id="list-updates-status"
+    role="status"
+    aria-live="polite"
+  ></span>
 
   {#if pullsView}
     <section class="board" aria-label="Open pull requests">
@@ -10709,6 +10695,11 @@
               : "Pull requests"}
         </h2>
         <div class="board-head-controls">
+          <LiveControl
+            paused={livePaused}
+            updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
+            onpause={() => togglePause()}
+          />
           {#if view === "bots" || view === "pulls"}
             <div class="rerun-all" hidden>
               <button
@@ -10891,6 +10882,11 @@
       <div class="board-head">
         <h2>Issues</h2>
         <div class="board-head-controls">
+          <LiveControl
+            paused={livePaused}
+            updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
+            onpause={() => togglePause()}
+          />
           <label
             class="checkbox-filter"
             hidden={!issueSettingsKnown || settingsHideDependencyDashboard}

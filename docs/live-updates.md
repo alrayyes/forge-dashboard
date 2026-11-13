@@ -19,12 +19,18 @@ request pop-up itself doesn't hold the board: the list behind it keeps updating,
 and the pop-up follows its own pull request (including a merge result or a
 failure line). Keyboard focus on a row doesn't hold either, and stays on the row
 when the list redraws. When rows land, one polite line tells a screen reader
-what changed ("List updated: 1 added, 2 removed"). **Pause live updates** is
-your own control: it stops every automatic update until you turn it back on,
-which applies what waited (Refresh now still works). The **Sort** control offers
-Last activity (the default, the server's order: most recently updated first,
-whether or not a pull request is ready to merge), Created and Repository. Pause
-and sort are saved with your other filters.
+what changed ("List updated: 1 added, 2 removed"). One live control leads the
+right-hand controls in the header of every list card (Pull requests, Bots,
+Issues, Releases and Main branches): a status dot reading "Live" or "Paused",
+"updated 12 seconds ago", **Pause** (**Resume** while paused) and a refresh button.
+Pause is your own control: it stops every automatic update until you resume,
+which applies what waited (Refresh now still works). The time is the snapshot's
+own: it holds still while paused and moves to the newest one on Resume, and a
+refresh that fails leaves it where it was. On Main branches the
+pause isn't saved with your filters and a reload goes back to live. The
+**Sort** control offers Last activity (the default, the server's order: most
+recently updated first, whether or not a pull request is ready to merge),
+Created, and Repository. Pause and sort are saved with your other filters.
 
 The pull requests page also watches the rows you can see, in the order it
 draws them, so their CI pills fold from the live jobs without a dialog open.
@@ -98,7 +104,7 @@ and again on Retry, and doesn't follow changes. A change to any
 check's state is announced politely once
 ("Checks updated: test is now Passed.", or "Checks updated: 2 checks changed."
 when several moved), the same line again when the same thing happens twice, and
-the panel redraws nothing when no check differs. With **Pause live updates** on,
+the panel redraws nothing when no check differs. With updates paused,
 the panel holds the newest list and says "Live updates are paused. These
 checks may be out of date."; turning updates back on draws the held list.
 A redraw keeps keyboard focus on the same check's link or log, even
@@ -178,7 +184,7 @@ loading line and a dash in the navigation, and a warm
 server that answers inside that time shows none of it. A failed first request
 drops the placeholders. The "Still loading" text appears 10 seconds after the
 page opens, and the page reads again after the interval the server advises
-(`readIntervalSeconds`, between 1 and 300 seconds). The "Refreshed … ago" label
+(`readIntervalSeconds`, between 1 and 300 seconds). The "updated … ago" time
 stays hidden until a snapshot carries a real time.
 
 ## Navigation counts

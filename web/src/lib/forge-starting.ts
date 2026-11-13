@@ -44,7 +44,7 @@ export function isStartupGap(
 
 // Whether the forge gets a chip under the header (#3681). A reachable forge
 // with current rows and budget left has nothing to act on, so it draws none;
-// the page's own fresh rows and "Refreshed" line already show it answered.
+// the page's own fresh rows and "updated" time already show it answered.
 // An outage draws none either (#3719): the banner says it once. A forge that
 // is rate limited as well has no unreachable banner, so it keeps its chip.
 export function needsChip(h: StartingHealth, rateLimited: boolean): boolean {

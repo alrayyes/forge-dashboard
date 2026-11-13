@@ -553,7 +553,9 @@ test.describe('pipeline panel with live updates paused', () => {
       }),
     );
     await page.goto('/pull-requests.html');
-    await page.getByRole('button', { name: 'Pause live updates' }).click();
+    await page
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+      .click();
     await page
       .locator('#pr-rows .row')
       .first()
@@ -579,7 +581,7 @@ test.describe('pipeline panel with live updates paused', () => {
     // Turning updates back on draws the list that waited. The button sits
     // behind the modal panel, so the click is dispatched.
     await page
-      .getByRole('button', { name: 'Pause live updates' })
+      .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
       .dispatchEvent('click');
     await expect(dialog(page).locator('.pipeline-check').nth(1)).toContainText(
       'Passed',
