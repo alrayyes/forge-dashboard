@@ -165,10 +165,6 @@ for (const size of LANDSCAPE) {
           await trigger.click();
           await expect(page.locator('dialog#filter-sheet')).toBeVisible();
           await page.keyboard.press('Escape');
-        } else if (path !== '/issues.html') {
-          await expect(
-            page.locator('.quick-pills').getByRole('button', { name: 'All' }),
-          ).toBeVisible();
         }
       });
 
@@ -274,7 +270,7 @@ const EXPECTED: Record<
     activityPosition: 'sticky',
     header: 84,
     toolbar: 24,
-    filterBar: 120,
+    filterBar: 66,
   },
   // The header is one row here, not two: Releases and Bots draw 2 passing
   // without a repeated total (#3489), so the nav pills fit beside the brand.

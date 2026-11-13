@@ -106,6 +106,7 @@ describe('applyServerState with keys the user touched', () => {
     });
     expect(state.shared.repo).toBeUndefined();
     expect(state.pr.quick).toBeUndefined();
+    expect(state.pr.review).toBeUndefined();
     expect(state.issue.hideDependencyDashboard).toBe('1');
     expect(state.issue.hideTitleRegex).toBeUndefined();
     // How the list is shown is not a filter, Clear filters leaves it alone.
@@ -181,47 +182,40 @@ describe('a saved CI status after the pulldown went', () => {
   ])('%s from the server copy becomes the %s pill', (status, pill) => {
     const state = fresh();
     applyServerState(state, { pr: { status } });
-    expect(state.pr.quick).toBe(pill);
+    expect(state.pr.ci).toBe(pill);
     expect(state.pr.status).toBeUndefined();
   });
 
-  test('a pill already picked stays and the status is dropped', () => {
+  test('a CI pill already picked stays and the status is dropped', () => {
     const state = fresh();
-    state.pr.quick = 'ready';
+    state.pr.ci = 'running';
     applyServerState(state, { pr: { status: 'failure' } });
-    expect(state.pr.quick).toBe('ready');
+    expect(state.pr.ci).toBe('running');
     expect(state.pr.status).toBeUndefined();
   });
 
-  test('a forge already picked stays and the status is dropped', () => {
+  test('a forge already picked no longer blocks it, the groups combine', () => {
     const state = fresh();
     state.shared.forge = 'github';
     applyServerState(state, { pr: { status: 'failure' } });
-    expect(state.pr.quick ?? '').toBe('');
-    expect(state.pr.status).toBeUndefined();
+    expect(state.pr.ci).toBe('failing');
+    expect(state.shared.forge).toBe('github');
   });
 
   test('a status that is not a known one is dropped', () => {
     const state = fresh();
     applyServerState(state, { pr: { status: 'bogus' } });
-    expect(state.pr.quick ?? '').toBe('');
+    expect(state.pr.ci ?? '').toBe('');
     expect(state.pr.status).toBeUndefined();
   });
 
   test('a pill the user picked meanwhile wins over the copy', () => {
     const state = fresh();
-    state.pr.quick = '';
-    touchKey('pr', 'quick');
+    state.pr.ci = '';
+    touchKey('pr', 'ci');
     applyServerState(state, { pr: { status: 'failure' } });
-    expect(state.pr.quick).toBe('');
+    expect(state.pr.ci).toBe('');
     expect(state.pr.status).toBeUndefined();
-  });
-
-  test('a pill that no longer exists does not block the migration', () => {
-    const state = fresh();
-    state.pr.quick = 'bots';
-    applyServerState(state, { pr: { status: 'failure' } });
-    expect(state.pr.quick).toBe('failing');
   });
 
   test('says a saved status was read, once', () => {
@@ -230,6 +224,61 @@ describe('a saved CI status after the pulldown went', () => {
     expect(takeMigratedStatus()).toBe(true);
     expect(takeMigratedStatus()).toBe(false);
     applyServerState(fresh(), { pr: { autoMerge: 'on' } });
+    expect(takeMigratedStatus()).toBe(false);
+  });
+});
+
+// The single quick pill became four groups (#3734). A saved pr.quick moves to
+// the key of the group its value belongs to, once.
+describe('the saved quick pill becomes a per-group pick', () => {
+  const fresh = (): SharedFilterState => ({
+    shared: {},
+    pr: {},
+    issue: {},
+    view: {},
+  });
+
+  test.each([
+    ['failing', 'ci'],
+    ['no-checks', 'ci'],
+    ['conflicting', 'merge'],
+    ['out-of-date', 'merge'],
+    ['ready', 'review'],
+    ['needs-review', 'review'],
+    ['review-requested', 'review'],
+  ])('a saved %s lands in pr.%s', (pill, key) => {
+    const state = fresh();
+    applyServerState(state, { pr: { quick: pill } });
+    expect(state.pr[key]).toBe(pill);
+    expect(state.pr.quick).toBeUndefined();
+  });
+
+  test('a pill that no longer exists is dropped', () => {
+    const state = fresh();
+    applyServerState(state, { pr: { quick: 'bots' } });
+    expect(state.pr.quick).toBeUndefined();
+    expect(state.pr.ci ?? '').toBe('');
+  });
+
+  test('a group already picked keeps its value', () => {
+    const state = fresh();
+    state.pr.ci = 'running';
+    applyServerState(state, { pr: { quick: 'failing' } });
+    expect(state.pr.ci).toBe('running');
+  });
+
+  test('a group the user touched meanwhile wins over the copy', () => {
+    const state = fresh();
+    state.pr.ci = '';
+    touchKey('pr', 'ci');
+    applyServerState(state, { pr: { quick: 'failing' } });
+    expect(state.pr.ci).toBe('');
+  });
+
+  test('says a saved quick pill was read, once, so the page saves the new shape', () => {
+    takeMigratedStatus();
+    applyServerState(fresh(), { pr: { quick: 'ready' } });
+    expect(takeMigratedStatus()).toBe(true);
     expect(takeMigratedStatus()).toBe(false);
   });
 });

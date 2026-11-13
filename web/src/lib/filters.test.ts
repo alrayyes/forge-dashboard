@@ -22,11 +22,14 @@ import {
   offerPills,
   offerRefs,
   optionPool,
+  PILL_GROUPS,
+  pillGroupOf,
   QUICK_FILTERS,
   refsChoiceLabel,
   refsChoiceShort,
   refsKey,
   type SharedFilterState,
+  setPill,
   showBlockedChip,
 } from './filters';
 
@@ -302,7 +305,11 @@ describe('the No checks quick filter', () => {
   test('is offered only while a pull request has no checks, or is picked', () => {
     const noChecks = { dataset: { pill: 'no-checks' }, hidden: false };
     const offered = (pool: FilterableItem[], active: string) => {
-      offerPills([noChecks as unknown as HTMLElement], [], pool, active);
+      offerPills(
+        [noChecks as unknown as HTMLElement],
+        pools([], pool),
+        actives(active),
+      );
       return !noChecks.hidden;
     };
     expect(
@@ -322,6 +329,21 @@ describe('the No checks quick filter', () => {
       ),
     ).toBe(true);
   });
+});
+
+// Each group counts its own pool: forge takes `forgePool`, every other group
+// `pool`. `active` is the pick of the one group a test is about.
+const pools = (forgePool: FilterableItem[], pool: FilterableItem[]) => ({
+  forge: forgePool,
+  ci: pool,
+  merge: pool,
+  review: pool,
+});
+const actives = (pick: string) => ({
+  forge: pillGroupOf(pick) === 'forge' ? pick : 'all',
+  ci: pillGroupOf(pick) === 'ci' ? pick : 'all',
+  merge: pillGroupOf(pick) === 'merge' ? pick : 'all',
+  review: pillGroupOf(pick) === 'review' ? pick : 'all',
 });
 
 // A pill that matches the whole pool shows what no filter shows, so it is
@@ -346,87 +368,138 @@ describe('offerPills when a pill would change nothing', () => {
 
   test('hides a forge pill when every item is on that forge, keeps both when mixed', () => {
     const { pills, raw, group } = fakePills(['all', 'github', 'forgejo']);
-    offerPills(pills, [fj, fj], [fj, fj], 'all');
+    offerPills(pills, pools([fj, fj], [fj, fj]), actives('all'));
     expect(raw.map((p) => p.hidden)).toEqual([false, true, true]);
     expect(group.hidden).toBe(true);
 
-    offerPills(pills, [gh, fj], [gh, fj], 'all');
+    offerPills(pills, pools([gh, fj], [gh, fj]), actives('all'));
     expect(raw.map((p) => p.hidden)).toEqual([false, false, false]);
     expect(group.hidden).toBe(false);
   });
 
   test('hides Running CI when every item is running, keeps it when mixed', () => {
     const { pills, raw, group } = fakePills(['all', 'running']);
-    offerPills(pills, [], [running, running], 'all');
+    offerPills(pills, pools([], [running, running]), actives('all'));
     expect(raw[1].hidden).toBe(true);
     expect(group.hidden).toBe(true);
 
-    offerPills(pills, [], [running, gh], 'all');
+    offerPills(pills, pools([], [running, gh]), actives('all'));
     expect(raw[1].hidden).toBe(false);
     expect(group.hidden).toBe(false);
   });
 
   test('keeps the active pill, and its group, even when it matches everything', () => {
     const { pills, raw, group } = fakePills(['all', 'running']);
-    offerPills(pills, [], [running, running], 'running');
+    offerPills(pills, pools([], [running, running]), actives('running'));
     expect(raw[1].hidden).toBe(false);
     expect(group.hidden).toBe(false);
   });
 
-  test('marks a group that offers a quick pill, for the phone bar', () => {
-    const { pills, group } = fakePills(['all', 'github', 'running']);
-    offerPills(pills, [gh, fj], [running, gh], 'all');
-    expect('quickOffered' in group.dataset).toBe(true);
-    // Only forge pills are left: shown, but the phone bar hides them.
-    offerPills(pills, [gh, fj], [gh, gh], 'all');
-    expect(group.hidden).toBe(false);
-    expect('quickOffered' in group.dataset).toBe(false);
+  test('judges each group by its own pool', () => {
+    const ci = fakePills(['all', 'running']);
+    const forge = fakePills(['all', 'github', 'forgejo']);
+    const all = [...ci.pills, ...forge.pills];
+    // Forge pool is mixed, the CI pool is all running: only CI hides.
+    offerPills(all, pools([gh, fj], [running, running]), actives('all'));
+    expect(ci.group.hidden).toBe(true);
+    expect(forge.group.hidden).toBe(false);
+    // The CI pool offers a choice, the forge pool is one forge.
+    offerPills(all, pools([fj, fj], [running, gh]), actives('all'));
+    expect(ci.group.hidden).toBe(false);
+    expect(forge.group.hidden).toBe(true);
   });
 
   test('never hides All on its own', () => {
     const { pills, raw } = fakePills(['all', 'running']);
-    offerPills(pills, [], [gh, running], 'all');
+    offerPills(pills, pools([], [gh, running]), actives('all'));
     expect(raw[0].hidden).toBe(false);
   });
 });
 
-// The issues page ignores the pull-request-only quick pills, so a forge pick
-// held beside one is the pill in effect there (#3669). Passing the quick pick
-// instead would hide the forge pill that holds the filter.
-describe('effectivePill', () => {
-  const state = (shared: string, quick: string): SharedFilterState =>
+// The issues page ignores the pull-request-only groups, so only the forge pick
+// is in effect there (#3669, #3734).
+describe('activePill and effectivePill', () => {
+  const state = (
+    shared: string,
+    pr: Record<string, string>,
+  ): SharedFilterState =>
     ({
       shared: { forge: shared },
-      pr: { quick },
+      pr,
       issue: {},
       view: {},
     }) as SharedFilterState;
 
-  test('on the pull request pages a quick pick wins, as activePill says', () => {
-    expect(effectivePill(state('github', 'failing'), false)).toBe('failing');
-    expect(activePill(state('github', 'failing'))).toBe('failing');
+  test('each group reports its own pick, so a forge and a CI pick coexist', () => {
+    const s = state('github', { ci: 'failing', review: 'ready' });
+    expect(activePill(s, 'forge')).toBe('github');
+    expect(activePill(s, 'ci')).toBe('failing');
+    expect(activePill(s, 'merge')).toBe('all');
+    expect(activePill(s, 'review')).toBe('ready');
   });
 
-  test('on the issues page the forge pick is in effect next to a quick pick', () => {
-    expect(effectivePill(state('github', 'failing'), true)).toBe('github');
-    expect(effectivePill(state('', 'failing'), true)).toBe('all');
-  });
-
-  test('keeps the held forge pill visible on the issues page', () => {
-    const gh = choiceItem({ forge: 'github' });
-    const pill = { dataset: { pill: 'github' }, hidden: false };
-    const group = { hidden: false, dataset: {} as Record<string, string> };
-    const all = { dataset: { pill: 'all' }, hidden: false };
-    for (const p of [pill, all])
-      (p as unknown as { parentElement: unknown }).parentElement = group;
-    offerPills(
-      [all, pill] as unknown as HTMLElement[],
-      [gh, gh],
-      [gh, gh],
-      effectivePill(state('github', 'failing'), true),
+  test('a saved value the group does not offer reads as All', () => {
+    expect(activePill(state('', { ci: 'bots', merge: 'failing' }), 'ci')).toBe(
+      'all',
     );
-    expect(pill.hidden).toBe(false);
-    expect(group.hidden).toBe(false);
+    expect(activePill(state('', { merge: 'failing' }), 'merge')).toBe('all');
+  });
+
+  test('setPill changes one group and leaves the others', () => {
+    const s = state('github', { ci: 'failing' });
+    setPill(s, 'merge', 'conflicting');
+    expect(s.shared.forge).toBe('github');
+    expect(s.pr.ci).toBe('failing');
+    expect(s.pr.merge).toBe('conflicting');
+    setPill(s, 'ci', 'all');
+    expect(s.pr.ci).toBe('');
+    expect(s.pr.merge).toBe('conflicting');
+    setPill(s, 'forge', 'forgejo');
+    expect(s.shared.forge).toBe('forgejo');
+  });
+
+  test('setPill ignores a pill that is not in the group', () => {
+    const s = state('', { ci: 'failing' });
+    setPill(s, 'ci', 'conflicting');
+    expect(s.pr.ci).toBe('');
+  });
+
+  test('on the issues page only the forge group is in effect', () => {
+    const s = state('github', { ci: 'failing' });
+    expect(effectivePill(s, 'forge', true)).toBe('github');
+    expect(effectivePill(s, 'ci', true)).toBe('all');
+    expect(effectivePill(s, 'ci', false)).toBe('failing');
+  });
+
+  test('the groups partition the quick filters', () => {
+    const all = [
+      ...PILL_GROUPS.ci,
+      ...PILL_GROUPS.merge,
+      ...PILL_GROUPS.review,
+    ];
+    expect([...all].sort()).toEqual([...QUICK_FILTERS].sort());
+    expect(pillGroupOf('failing')).toBe('ci');
+    expect(pillGroupOf('out-of-date')).toBe('merge');
+    expect(pillGroupOf('ready')).toBe('review');
+    expect(pillGroupOf('github')).toBe('forge');
+  });
+
+  test('the filters AND across groups', () => {
+    const items = [
+      choiceItem({ forge: 'github', ci: 'failure', failingCi: true }),
+      choiceItem({ forge: 'forgejo', ci: 'failure', failingCi: true }),
+      choiceItem({ forge: 'github', ci: 'success' }),
+    ];
+    const kept = items.filter((i) =>
+      matchesFilters(i, true, { forge: 'github' }, { ci: 'failing' }),
+    );
+    expect(kept).toEqual([items[0]]);
+    expect(
+      failingFilters(items[1], true, { forge: 'github' }, { ci: 'failing' }),
+    ).toEqual(['forge']);
+    expect(failingFilters(items[2], true, {}, { ci: 'failing' })).toEqual([
+      'ci',
+    ]);
   });
 });
 

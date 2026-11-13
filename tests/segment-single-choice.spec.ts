@@ -258,7 +258,7 @@ for (const { name, path, kind } of PAGES) {
       await open(page, path, {
         prs: [pr(1, kind), pr(2, kind, { forge: 'forgejo' })],
       });
-      const bar = page.locator('.quick-pills');
+      const bar = page.locator('.quick-pills[data-group="forge"]');
       await expect(bar.locator('[data-pill="github"]')).toBeVisible();
       await expect(bar.locator('[data-pill="forgejo"]')).toBeVisible();
       expect((await axe(page)).violations).toEqual([]);
@@ -290,9 +290,11 @@ for (const { name, path, kind } of PAGES) {
         {
           prs: [pr(1, kind, { ci: 'pending' }), pr(2, kind, { ci: 'pending' })],
         },
-        { pr: { quick: 'running' } },
+        { pr: { ci: 'running' } },
       );
-      await expect(page.locator('.filter-bar .quick-pills')).toBeVisible();
+      await expect(
+        page.locator('.filter-bar .quick-pills[data-group="ci"]'),
+      ).toBeVisible();
       await expect(
         page.locator('.quick-pills [data-pill="running"]'),
       ).toBeVisible();
@@ -376,7 +378,7 @@ test.describe('Clearing the last pick of a group moves focus', () => {
       { prs: allGithub('regular') },
       { shared: { forge: 'github' } },
     );
-    const bar = page.locator('.filter-bar .quick-pills');
+    const bar = page.locator('.filter-bar .quick-pills[data-group="forge"]');
     await expect(bar.locator('[data-pill="github"]')).toBeVisible();
     await bar.locator('[data-pill="all"]').click();
     await expect(bar).toBeHidden();
@@ -417,7 +419,7 @@ test.describe('Clearing the last pick of a group moves focus', () => {
     await group.locator('[data-ref="any"]').click();
     await expect(group).toBeHidden();
     await expect(
-      page.locator('.filter-bar .quick-pills [data-pill="all"]'),
+      page.locator('.filter-bar .quick-pills [data-pill="all"]').first(),
     ).toBeFocused();
   });
 
@@ -445,9 +447,9 @@ test.describe('Clearing the last pick of a group moves focus', () => {
       page,
       '/pull-requests.html',
       { prs: allGithub('regular', { ci: 'pending' }) },
-      { pr: { quick: 'running' } },
+      { pr: { ci: 'running' } },
     );
-    const bar = page.locator('.filter-bar .quick-pills');
+    const bar = page.locator('.filter-bar .quick-pills[data-group="ci"]');
     await bar.locator('[data-pill="all"]').click();
     await expect(bar).toBeHidden();
     await expect(
@@ -477,7 +479,7 @@ test.describe('Clearing the last pick of a group moves focus', () => {
       prs: [pr(1, 'regular'), pr(2, 'regular', { forge: 'forgejo' })],
     });
     // Both forge pills are offered, but they live in the sheet on a phone.
-    await expect(page.locator('.filter-bar .quick-pills')).toBeHidden();
+    await expect(page.locator('.filter-bar .quick-pills').first()).toBeHidden();
     expect((await axe(page)).violations).toEqual([]);
   });
 });

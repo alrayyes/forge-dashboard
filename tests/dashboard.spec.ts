@@ -12,6 +12,7 @@ import {
   pickTexts,
   toggleLabels,
 } from './label-filter-helper';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { rateLimit } from './rate-limit-mock';
 import { landOnPullRequests, test } from './server-fixture';
 import { setTheme } from './theme-helper';
@@ -34,7 +35,7 @@ interface MockItem {
 function forgeRadio(page: Page, value: string) {
   const name = { '': 'All', github: 'GitHub', forgejo: 'Forgejo' }[value];
   return page
-    .locator('.quick-pills')
+    .locator('.quick-pills[data-group="forge"]')
     .getByRole('button', { name, exact: true });
 }
 
@@ -929,9 +930,16 @@ test.describe('dashboard page', () => {
       );
 
       // The CI pills have no equivalent on issues, so they stay scoped to the
-      // pull requests page only. A pill replaces the forge pick: they are one
-      // choice.
+      // pull requests page only. The groups are independent (#3734), so clear
+      // the forge pick first: with every row on GitHub, Failing is shown only
+      // when it narrows something.
       await page.goto('/pull-requests.html');
+      await page
+        .locator(
+          '.filter-bar .quick-pills[data-group="forge"] [data-pill="all"]',
+        )
+        .click();
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await page.locator('.quick-pills [data-pill="failing"]').click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       // Navigating before the save lands would race it against the next
@@ -939,7 +947,7 @@ test.describe('dashboard page', () => {
       await expect
         .poll(async () => {
           const resp = await page.request.get('/api/v1/settings/filter-state');
-          return (await resp.json())?.pr?.quick;
+          return (await resp.json())?.pr?.ci;
         })
         .toBe('failing');
       await page.goto('/issues.html');
@@ -1941,7 +1949,9 @@ test.describe('dashboard page', () => {
       );
       await expect(failing).toHaveAttribute('aria-pressed', 'true');
 
-      await page.locator('.quick-pills .quick-pill[data-pill="all"]').click();
+      await page
+        .locator('.quick-pills[data-group="ci"] .quick-pill[data-pill="all"]')
+        .click();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
       await expect(failing).toHaveAttribute('aria-pressed', 'false');
     });
@@ -2951,7 +2961,7 @@ test.describe('dashboard page', () => {
       ).toHaveValue('');
       await expect(page.locator('#shared-group-select')).toHaveValue('');
       await expect(
-        page.locator('.quick-pills [data-pill="all"]'),
+        page.locator('.quick-pills[data-group="ci"] [data-pill="all"]'),
       ).toHaveAttribute('aria-pressed', 'true');
       // Both PRs are back (no title/pill filter).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
@@ -3157,8 +3167,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     },
   ];
 
-  const pill = (page: Page, name: string) =>
-    page.locator('.quick-pills').getByRole('button', { name, exact: true });
+  const pill = (page: Page, name: string, group?: PillGroup) =>
+    quickPill(page, name, group);
   const rowTitles = (page: Page) => page.locator('#pr-rows > .row');
 
   test.beforeEach(async ({ page }) => {
@@ -3187,31 +3197,38 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('shows the pills something matches in a labelled group with exactly one active', async ({
     page,
   }) => {
-    const group = page.getByRole('group', { name: 'Quick filters' });
+    const groups = page.locator('.filter-bar .quick-pills');
     // A pill is offered only when clicking it would show something (#1427);
     // none of these pull requests asks the signed-in user for a review.
-    await expect(group.getByRole('button')).toHaveText([
+    await expect(groups.getByRole('button')).toHaveText([
       'All',
       'GitHub',
       'Forgejo',
-      'Failing CI',
-      'Running CI',
-      'Passing CI',
-      'Conflicts',
-      'Ready to Merge',
-      'Needs Review',
+      'All',
+      'Failing',
+      'Running',
+      'Passing',
+      'All',
+      'Conflicting',
+      'All',
+      'Ready',
+      'Needs review',
     ]);
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
-    await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
+    // Each group is a labelled group (#3734) with exactly its All active.
+    for (const name of ['Forge', 'CI', 'Merge', 'Review'])
+      await expect(
+        page.getByRole('group', { name, exact: true }),
+      ).toBeVisible();
+    await expect(groups.locator('[aria-pressed="true"]')).toHaveCount(4);
   });
 
   test('Failing CI keeps only ci=failure pull requests', async ({ page }) => {
-    await pill(page, 'Failing CI').click();
-    await expect(pill(page, 'Failing CI')).toHaveAttribute(
+    await pill(page, 'Failing').click();
+    await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill(page, 'All', 'ci')).toHaveAttribute(
       'aria-pressed',
-      'true',
+      'false',
     );
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'false');
     await expect(rowTitles(page)).toHaveCount(1);
     await expect(rowTitles(page)).toContainText('Broken build');
   });
@@ -3219,7 +3236,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('Ready to Merge keeps mergeable, passing, non-draft pull requests', async ({
     page,
   }) => {
-    await pill(page, 'Ready to Merge').click();
+    await pill(page, 'Ready').click();
     await expect(rowTitles(page)).toHaveCount(1);
     await expect(rowTitles(page).nth(0)).toContainText('Plain ready');
   });
@@ -3231,8 +3248,8 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   test('Needs Review keeps non-draft pull requests with a review outstanding', async ({
     page,
   }) => {
-    await pill(page, 'Needs Review').click();
-    await expect(pill(page, 'Needs Review')).toHaveAttribute(
+    await pill(page, 'Needs review').click();
+    await expect(pill(page, 'Needs review')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -3261,44 +3278,48 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect(page.locator('#pr-rows')).not.toContainText('Release 1.0');
   });
 
-  test('choosing a pill clears the previous one, All clears everything', async ({
-    page,
-  }) => {
+  test('All clears its own group (#3734)', async ({ page }) => {
     await pill(page, 'Forgejo').click();
     await expect(rowTitles(page)).toHaveCount(1);
-    await pill(page, 'Failing CI').click();
-    await expect(pill(page, 'Forgejo')).toHaveAttribute(
+    await expect(pill(page, 'Forgejo')).toHaveAttribute('aria-pressed', 'true');
+    await pill(page, 'All', 'forge').click();
+    await expect(rowTitles(page)).toHaveCount(LISTED);
+    await expect(pill(page, 'All', 'forge')).toHaveAttribute(
       'aria-pressed',
-      'false',
+      'true',
     );
+    await pill(page, 'Failing').click();
     await expect(rowTitles(page)).toHaveCount(1);
     await expect(rowTitles(page)).toContainText('Broken build');
-    await pill(page, 'All').click();
+    await pill(page, 'All', 'ci').click();
     await expect(rowTitles(page)).toHaveCount(LISTED);
-    await expect(pill(page, 'All')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill(page, 'All', 'ci')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   test('quick filters leave the issues page alone, and a single forge offers no pill', async ({
     page,
   }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
-    await pill(page, 'Failing CI').click();
+    await pill(page, 'Failing').click();
     await page.goto('/issues.html');
     // The pull-request-only pill is not on the issues page, and the held pick
     // filters nothing there: the one issue is listed (#827).
-    await expect(pill(page, 'Failing CI')).toHaveCount(0);
+    await expect(pill(page, 'Failing')).toHaveCount(0);
     await expect(page.locator('#issue-rows > .row')).toHaveCount(1);
     // The one issue is on GitHub, so neither forge pill changes the list and
     // neither is offered, and a group left with only All is hidden whole
     // (#1427, #3669).
     await expect(page.locator('.quick-pills')).toBeHidden();
-    await expect(pill(page, 'All')).toBeHidden();
+    await expect(pill(page, 'All', 'forge')).toBeHidden();
     await expect(pill(page, 'Forgejo')).toBeHidden();
     await expect(pill(page, 'GitHub')).toBeHidden();
   });
 
   test('the active pill survives a reload', async ({ page }) => {
-    await pill(page, 'Failing CI').click();
+    await pill(page, 'Failing').click();
     await expect(rowTitles(page)).toHaveCount(1);
     // The click sets the cookie at once and saves to the server in the
     // background. A reload before the save lands loads an older server copy
@@ -3306,14 +3327,11 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
     await expect
       .poll(async () => {
         const resp = await page.request.get('/api/v1/settings/filter-state');
-        return (await resp.json())?.pr?.quick;
+        return (await resp.json())?.pr?.ci;
       })
       .toBe('failing');
     await page.reload();
-    await expect(pill(page, 'Failing CI')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
     await expect(rowTitles(page)).toHaveCount(1);
   });
 

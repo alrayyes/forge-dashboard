@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // An Out of date badge on every pull request that is behind its base, and a
@@ -77,8 +78,8 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
   );
 }
 
-const pill = (page: Page, name: string) =>
-  page.locator('.quick-pills').getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 const rows = (page: Page) => page.locator('#pr-rows > .row');
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
@@ -160,7 +161,7 @@ test.describe('Out of date badge and quick filter', () => {
       'true',
     );
     await expect(
-      page.locator('.quick-pills [aria-pressed="true"]'),
+      page.locator('.quick-pills[data-group="merge"] [aria-pressed="true"]'),
     ).toHaveCount(1);
     await expect(rows(page)).toHaveCount(2);
     await expect(page.locator('#pr-count')).toHaveText('Showing 2 of 4');
@@ -171,7 +172,7 @@ test.describe('Out of date badge and quick filter', () => {
       'Charlie empty behind',
     );
 
-    await pill(page, 'All').click();
+    await pill(page, 'All', 'merge').click();
     await expect(rows(page)).toHaveCount(4);
   });
 
@@ -192,7 +193,7 @@ test.describe('Out of date badge and quick filter', () => {
     await expect
       .poll(async () => {
         const resp = await page.request.get('/api/v1/settings/filter-state');
-        return (await resp.json())?.pr?.quick;
+        return (await resp.json())?.pr?.merge;
       })
       .toBe('out-of-date');
 
@@ -213,7 +214,7 @@ test.describe('Out of date badge and quick filter', () => {
     await expect(pill(page, 'Out of date')).toBeHidden();
     // Left with only All, the group has nothing to offer and is hidden whole
     // (#3669).
-    await expect(pill(page, 'All')).toBeHidden();
+    await expect(pill(page, 'All', 'merge')).toBeHidden();
   });
 
   test('has no axe-core violations in both themes with the badge and the pill active', async ({
@@ -237,7 +238,7 @@ test.describe('Out of date badge and quick filter', () => {
             .violations,
         ).toEqual([]);
         // The choice is saved: put it back so the next theme starts from All.
-        await pill(page, 'All').click();
+        await pill(page, 'All', 'merge').click();
         await expect(rows(page)).toHaveCount(4);
       });
     }
@@ -264,7 +265,7 @@ test.describe('Out of date badge and quick filter', () => {
             .violations,
         ).toEqual([]);
         // The choice is saved: put it back so the next theme starts from All.
-        await pill(page, 'All').click();
+        await pill(page, 'All', 'merge').click();
         await expect(rows(page)).toHaveCount(4);
       });
     }

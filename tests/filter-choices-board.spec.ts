@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { choicesOf } from './label-filter-helper';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // #1427: the Repo, Author and Label choices on the Pull requests page offer
@@ -72,10 +73,8 @@ async function open(page: Page) {
 const choices = async (page: Page, id: string) =>
   (await choicesOf(page, id)).filter((text) => !text.startsWith('All'));
 
-const pill = (page: Page, name: string) =>
-  page
-    .getByRole('group', { name: 'Quick filters' })
-    .getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 
 test.describe('Repo, Author and Label choices follow the board filters (#1427)', () => {
   test('offer everything the list has while no board filter is on', async ({
@@ -95,7 +94,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
   }) => {
     await open(page);
 
-    await pill(page, 'Failing CI').click();
+    await pill(page, 'Failing').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-filter')).toEqual(['alice']);
@@ -108,7 +107,7 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
   }) => {
     await open(page);
 
-    await pill(page, 'Passing CI').click();
+    await pill(page, 'Passing').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
     expect(await choices(page, 'shared-author-filter')).toEqual(['bob']);
@@ -133,9 +132,9 @@ test.describe('Repo, Author and Label choices follow the board filters (#1427)',
   }) => {
     await open(page);
 
-    await pill(page, 'Failing CI').click();
+    await pill(page, 'Failing').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    await pill(page, 'All').click();
+    await pill(page, 'All', 'ci').click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
     expect(await choices(page, 'shared-author-filter')).toEqual([

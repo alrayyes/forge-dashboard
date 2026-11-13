@@ -156,19 +156,23 @@ test('Rebase all shows only while something is out of date', async ({
   // The filter hides the one row that is behind, while the button has focus.
   await button.focus();
   await page
-    .locator('.quick-pill.forge-pill[data-pill="github"]')
+    .locator('.quick-pills[data-group="forge"] [data-pill="github"]')
     .evaluate((el) => {
       (el as HTMLElement).click();
     });
   await expect(button).toBeHidden();
   await expect(page.locator('#rebase-all-summary')).toBeHidden();
   await expect(
-    page.locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]'),
+    page.locator(
+      '.filter-bar .quick-pills[data-group="forge"] .quick-pill[data-pill="all"]',
+    ),
   ).toBeFocused();
   await expectNoAxeViolations(page);
 
   await page
-    .locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]')
+    .locator(
+      '.filter-bar .quick-pills[data-group="forge"] .quick-pill[data-pill="all"]',
+    )
     .click();
   await expect(button).toBeVisible();
 });
@@ -473,7 +477,7 @@ test('the reason is its own line and a narrower view narrows the chips and the b
     page.getByRole('button', { name: 'Rebase all (1)' }),
   ).toBeVisible();
   await page
-    .locator('.quick-pill.forge-pill[data-pill="github"]')
+    .locator('.quick-pills[data-group="forge"] [data-pill="github"]')
     .evaluate((el) => {
       (el as HTMLElement).click();
     });

@@ -6042,7 +6042,7 @@
     function keepFocusInBar(focused: Element | null) {
       if (
         focused instanceof HTMLElement &&
-        focused.closest(".quick-pills, .forge-group, .am-group, .refs-group") &&
+        focused.closest(".quick-pills, .sheet-pills, .am-group, .refs-group") &&
         focused.getClientRects().length === 0
       )
         focusFilterBar(focused);
@@ -7506,11 +7506,8 @@
     // since a repo with nothing else has nothing to show.
     function sharedPoolExcluding(
       excludeKey: Filters.PoolKey,
-      board:
-        | "apply"
-        | "applyExceptQuick"
-        | "applyExceptAutoMerge"
-        | "applyExceptRefs" = "apply",
+      board: "apply" | "applyExceptAutoMerge" | "applyExceptRefs" = "apply",
+      exceptPill?: Filters.PillGroup,
     ): FilterableItem[] {
       // Only this page's own entity: a repo, author or label that exists
       // only on the other page would be an option that matches no row
@@ -7528,7 +7525,9 @@
           ? withBoard
             ? {
                 ...sharedState.pr,
-                ...(board === "applyExceptQuick" ? { quick: "" } : {}),
+                ...(exceptPill && exceptPill !== "forge"
+                  ? { [exceptPill]: "" }
+                  : {}),
                 ...(board === "applyExceptAutoMerge" ? { autoMerge: "" } : {}),
                 ...(board === "applyExceptRefs" ? { refs: "" } : {}),
               }
@@ -7540,9 +7539,21 @@
       );
     }
 
+    // What each pill group has picked on this page.
+    function pillPicks(): Record<Filters.PillGroup, string> {
+      const picks = {} as Record<Filters.PillGroup, string>;
+      for (const group of Filters.PILL_GROUP_NAMES)
+        picks[group] = Filters.effectivePill(
+          sharedState,
+          group,
+          view === "issues",
+        );
+      return picks;
+    }
+
     // The items a forge pill is worth clicking for (#1427): choosing a forge
     // clears the repo, author, label and age picks that no longer match, so
-    // only the title (which stays) and the board's own CI filter narrow it.
+    // only the title (which stays) and the board's own filters narrow it.
     function forgePillPool(): FilterableItem[] {
       const items = itemsOnScreen();
       return Filters.optionPool(
@@ -7550,9 +7561,7 @@
         pullsView,
         { title: sharedState.shared.title ?? "" },
         "",
-        pullsView
-          ? { ...sharedState.pr, quick: "" }
-          : withSettings(sharedState.issue),
+        pullsView ? sharedState.pr : withSettings(sharedState.issue),
       );
     }
 
@@ -7667,9 +7676,13 @@
       );
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
-        forgePillPool(),
-        sharedPoolExcluding("forge", "applyExceptQuick"),
-        Filters.effectivePill(sharedState, view === "issues"),
+        {
+          forge: forgePillPool(),
+          ci: sharedPoolExcluding("", "apply", "ci"),
+          merge: sharedPoolExcluding("", "apply", "merge"),
+          review: sharedPoolExcluding("", "apply", "review"),
+        },
+        pillPicks(),
       );
       keepFocusInBar(focused);
       return cleared;
@@ -8385,24 +8398,35 @@
       applyPicks,
     );
 
-    // ---- quick filter pills (#678) ----
-    // Toggle buttons with aria-pressed: exactly one is active at a time.
-    // The pill logic itself lives in #lib/filters (setPill/activePill).
+    // ---- quick filter pills (#678, #3734) ----
+    // Four groups (Forge, CI, Merge, Review) of toggle buttons with
+    // aria-pressed: one active per group, combined with AND. The pill logic
+    // itself lives in #lib/filters (setPill/activePill).
     const quickPills = Array.from(
       document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
     );
     function syncQuickPills() {
       // The issues page has no pull-request-only pills, and they don't
       // filter issues, so they are not what's in effect there (#827).
-      const active = Filters.effectivePill(sharedState, view === "issues");
+      const picks = pillPicks();
       for (const b of quickPills)
-        b.setAttribute("aria-pressed", String(b.dataset.pill === active));
+        b.setAttribute(
+          "aria-pressed",
+          String(
+            b.dataset.pill ===
+              picks[
+                b.closest<HTMLElement>("[data-group]")?.dataset
+                  .group as Filters.PillGroup
+              ],
+          ),
+        );
     }
     for (const b of quickPills) {
       b.addEventListener("click", () => {
-        Filters.setPill(sharedState, b.dataset.pill ?? "all");
-        Filters.touchKey("shared", "forge");
-        Filters.touchKey("pr", "quick");
+        const group = b.closest<HTMLElement>("[data-group]")?.dataset
+          .group as Filters.PillGroup;
+        Filters.setPill(sharedState, group, b.dataset.pill ?? "all");
+        Filters.touchKey(group === "forge" ? "shared" : "pr", group);
         prBoard.resetPage();
         issueBoard.resetPage();
         updateSharedFilterOptions();
@@ -8624,14 +8648,21 @@
     function activeFilterChips(): FilterChip[] {
       const chips: FilterChip[] = [];
       const shared = sharedState.shared;
-      if (shared.forge)
+      // One chip per active pill group, each clearing only its own group
+      // through the group's All, so the control's own handler applies it.
+      for (const group of Filters.PILL_GROUP_NAMES) {
+        const pick = Filters.effectivePill(sharedState, group, !pullsView);
+        if (pick === "all") continue;
         chips.push({
-          label: `Forge ${Filters.FORGE_LABELS[shared.forge] || shared.forge}`,
+          label: `${Filters.PILL_GROUP_LABELS[group]} ${Filters.PILL_LABELS[pick] ?? pick}`,
           clear: () =>
             document
-              .querySelector<HTMLButtonElement>('.quick-pill[data-pill="all"]')
+              .querySelector<HTMLButtonElement>(
+                `[data-group="${group}"] .quick-pill[data-pill="all"]`,
+              )
               ?.click(),
         });
+      }
       const pickChips = (
         key: "repo" | "author",
         noun: string,
@@ -8809,7 +8840,7 @@
       );
       // Each filter is cleared in the group the page keeps it in: the
       // pull-request ones live in sharedState.pr, the rest in shared.
-      const prKeys = ["status", "quick", "autoMerge", "refs"];
+      const prKeys = ["status", "ci", "merge", "review", "autoMerge", "refs"];
       for (const filter of failing) {
         if (filter === "label" || filter === "repo" || filter === "author") {
           // A pick control is cleared through the pick itself, so its ticks
@@ -10302,6 +10333,44 @@
   }
 </script>
 
+<!-- The pill groups (#3734): Forge, CI, Merge and Review, each a labelled
+     single-choice group with its own All, combined with AND. Once in the
+     filter bar (class quick-pills) and once in the phone Filters sheet (class
+     sheet-pills), so the two cannot drift apart. The issues page has only
+     Forge. -->
+{#snippet pillGroups(sheet: boolean)}
+  {#each Filters.PILL_GROUP_NAMES as group (group)}
+    {#if group === "forge" || pullsView}
+      <div
+        class={sheet ? "sheet-pills sheet-only" : "quick-pills"}
+        role="group"
+        aria-labelledby="pill-label-{sheet ? 'sheet' : 'bar'}-{group}"
+        data-group={group}
+      >
+        <span
+          class="pill-group-label"
+          id="pill-label-{sheet ? 'sheet' : 'bar'}-{group}"
+          >{Filters.PILL_GROUP_LABELS[group]}</span
+        >
+        <button
+          type="button"
+          class="quick-pill"
+          data-pill="all"
+          aria-pressed="true">All</button
+        >
+        {#each Filters.PILL_GROUPS[group] as pill (pill)}
+          <button
+            type="button"
+            class="quick-pill"
+            data-pill={pill}
+            aria-pressed="false">{Filters.PILL_LABELS[pill]}</button
+          >
+        {/each}
+      </div>
+    {/if}
+  {/each}
+{/snippet}
+
 <!-- The refs segment, once in the filter bar and once in the phone Filters
      sheet, so the two cannot drift apart. -->
 {#snippet refsSegment(sheet: boolean)}
@@ -10425,82 +10494,7 @@
     role="search"
     aria-label={view === "issues" ? "Filter issues" : "Filter pull requests"}
   >
-    <div class="quick-pills" role="group" aria-label="Quick filters">
-      <button
-        type="button"
-        class="quick-pill"
-        data-pill="all"
-        aria-pressed="true">All</button
-      >
-      <button
-        type="button"
-        class="quick-pill forge-pill"
-        data-pill="github"
-        aria-pressed="false">GitHub</button
-      >
-      <button
-        type="button"
-        class="quick-pill forge-pill"
-        data-pill="forgejo"
-        aria-pressed="false">Forgejo</button
-      >
-      {#if pullsView}
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="failing"
-          aria-pressed="false">Failing CI</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="running"
-          aria-pressed="false">Running CI</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="passing"
-          aria-pressed="false">Passing CI</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="no-checks"
-          aria-pressed="false">No checks</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="conflicting"
-          aria-pressed="false">Conflicts</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="out-of-date"
-          aria-pressed="false">Out of date</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="ready"
-          aria-pressed="false">Ready to Merge</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="needs-review"
-          aria-pressed="false">Needs Review</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="review-requested"
-          aria-pressed="false">Review requested from me</button
-        >
-      {/if}
-    </div>
+    {@render pillGroups(false)}
     {#if pullsView}
       <div class="segment am-group" role="group" aria-label="Auto-merge">
         <span class="am-label" aria-hidden="true">Auto-merge</span>
@@ -10555,26 +10549,7 @@
       hidden
     ></div>
     <div class="filter-controls" id="filter-controls">
-      <div class="forge-group sheet-only" role="group" aria-label="Forge">
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="all"
-          aria-pressed="true">All</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="github"
-          aria-pressed="false">GitHub</button
-        >
-        <button
-          type="button"
-          class="quick-pill"
-          data-pill="forgejo"
-          aria-pressed="false">Forgejo</button
-        >
-      </div>
+      {@render pillGroups(true)}
       {#if pullsView}
         <div
           class="segment am-group sheet-only"
