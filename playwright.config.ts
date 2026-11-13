@@ -234,6 +234,7 @@ const singleUserSpecs = [
   '**/skipped-pill-counts.spec.ts',
   '**/closing-issues.spec.ts',
   '**/refs-pills.spec.ts',
+  '**/reference-links-open-dialog.spec.ts',
   '**/refs-issues-filter.spec.ts',
   '**/segment-single-choice.spec.ts',
   '**/mentioned-tickets.spec.ts',
