@@ -34,6 +34,7 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
+  import { addressFocusFallback } from "#lib/address-focus.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
@@ -2257,10 +2258,18 @@
       return `details-trigger-${domSafeId(prKey(item))}`;
     }
 
+    // The control focus falls back to when the row is filtered out, one that
+    // is drawn (#3844): the title box hides over one row (#3823).
+    function drawnAddressFallback() {
+      return addressFocusFallback(
+        (id) => (document.getElementById(id)?.getClientRects().length ?? 0) > 0,
+      );
+    }
+
     function openPullRequestReadOnly(
       item: PullRequestItem,
       triggerId = addressFocus(item),
-      fallbackFocusId = "title-filter",
+      fallbackFocusId = drawnAddressFallback(),
     ) {
       dialogKey = null;
       dialogGone = false;
@@ -2453,7 +2462,11 @@
       const onBoard = listed.find((p) => sameAddress(wanted, p));
       if (onBoard) {
         dropFromAddress();
-        openDetailsDialog(onBoard, addressFocus(onBoard), "title-filter");
+        openDetailsDialog(
+          onBoard,
+          addressFocus(onBoard),
+          drawnAddressFallback(),
+        );
         return;
       }
       const looked = await lookUpPullRequest(wanted);

@@ -240,6 +240,7 @@ const singleUserSpecs = [
   '**/pr-auto-update.spec.ts',
   '**/skipped-pill-counts.spec.ts',
   '**/closing-issues.spec.ts',
+  '**/address-open-focus.spec.ts',
   '**/refs-pills.spec.ts',
   '**/reference-links-open-dialog.spec.ts',
   '**/refs-issues-filter.spec.ts',

@@ -221,7 +221,7 @@ test.describe('the address of an issue', () => {
     expect(closed.violations, 'pop-up closed').toEqual([]);
   });
 
-  test('closing it when the filters leave the row out puts focus on the first filter, not the page', async ({
+  test('closing it when the filters leave the row out puts focus on the first drawn control, not the page', async ({
     page,
     context,
     baseURL,
