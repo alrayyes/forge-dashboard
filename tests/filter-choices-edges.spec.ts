@@ -152,9 +152,11 @@ test('a pick the sort-landed list lacks is cleared once, and the rows agree', as
   await open(page, TWO);
   await pickOnly(page, 'author', 'github:claude');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  await page
+    .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
+    .click();
   await push(page, ONE);
-  await expect(page.locator('#updates-paused-hint')).toBeVisible();
+  await expect(page.locator('.live-control')).toContainText('Paused');
 
   await page.evaluate(() => {
     window.__titleRebuilds = 0;
