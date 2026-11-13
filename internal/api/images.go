@@ -89,6 +89,17 @@ func imageRefusalLevel(err error) slog.Level {
 	return slog.LevelWarn
 }
 
+// noteSkippedAvatar remembers the host of a Forgejo avatar the proxy refused
+// only because it isn't the saved instance's, so Settings can say so (#3683).
+func noteSkippedAvatar(deps Deps, q url.Values, raw string, err error) {
+	if deps.skipped == nil || q.Get("forge") != "forgejo" || q.Get("kind") != string(imageAvatar) {
+		return
+	}
+	if errors.Is(err, imageproxy.ErrHostNotListed) {
+		deps.skipped.noteURL(raw)
+	}
+}
+
 // handleImage serves GET /api/v1/images: an image embedded in a forge's
 // Markdown, fetched here so the browser never contacts the forge or a third
 // party for it and a private repository's token stays on the server (#3405).
@@ -130,6 +141,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 			return
 		}
 		if err != nil {
+			noteSkippedAvatar(deps, q, raw, err)
 			slog.Log(r.Context(), imageRefusalLevel(err), "image fetch refused or failed", "forge", q.Get("forge"), "kind", err)
 			imageFailure(err).write(w)
 
