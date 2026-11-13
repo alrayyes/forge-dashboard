@@ -180,6 +180,7 @@ const singleUserSpecs = [
   '**/forgejo-auto-merge.spec.ts',
   '**/hit-areas.spec.ts',
   '**/phone-row-gap.spec.ts',
+  '**/phone-row-status-gap.spec.ts',
   '**/auto-merge-focus.spec.ts',
   '**/refresh-queue-focus.spec.ts',
   '**/pagination-focus.spec.ts',

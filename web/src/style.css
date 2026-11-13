@@ -3710,6 +3710,12 @@ footer a.mono:focus-visible {
     flex: 1 1 100%;
     order: 1;
   }
+  /* A row with no attribute to show still builds the cluster. Empty, it is a
+     zero-height flex item that takes a whole wrapped line and the gap above
+     it (#3834). Phone only: on desktop the empty box is part of the layout. */
+  .attr-cluster:empty {
+    display: none;
+  }
   .wait-chip-action {
     min-width: 44px;
     min-height: 44px;
