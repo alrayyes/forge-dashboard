@@ -54,6 +54,10 @@ describe('firstRefreshStatus', () => {
     );
   });
 
+  test('the slow line starts at ten seconds', () => {
+    expect(FIRST_REFRESH_SLOW_MS).toBe(10_000);
+  });
+
   test('says it can take a while after about ten seconds, on every subject', () => {
     for (const subject of ['issues', 'pull requests', 'branches'] as const) {
       expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS, subject)).toBe(
