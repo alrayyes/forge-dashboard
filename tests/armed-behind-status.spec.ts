@@ -117,31 +117,34 @@ test.describe('an armed pull request that is behind (#3428)', () => {
     await expect(row(page)).toContainText('Auto-merge');
   });
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const [name, width, height] of [
-      ['phone', 390, 844],
-      ['tablet', 820, 1180],
-      ['desktop', 1280, 800],
-    ] as const) {
-      test(`the waiting chip fits and has no axe violations on a ${name} in ${scheme}`, async ({
-        page,
-      }) => {
+  // One test loops both themes and the phone, tablet and desktop widths: the
+  // page is the same code in each, so six tests only paid for six loads.
+  test('the waiting chip fits and has no axe violations in light and dark on a phone, a tablet and a desktop', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const [name, width, height] of [
+        ['phone', 390, 844],
+        ['tablet', 820, 1180],
+        ['desktop', 1280, 800],
+      ] as const) {
+        const where = `${name} in ${scheme}`;
         await page.emulateMedia({ colorScheme: scheme });
         await page.setViewportSize({ width, height });
         await open(page, armedBehind());
 
         const chip = row(page).locator('.wait-chip');
-        await expect(chip).toBeVisible();
+        await expect(chip, where).toBeVisible();
         const scrollWidth = await page.evaluate(
           () => document.documentElement.scrollWidth,
         );
-        expect(scrollWidth).toBeLessThanOrEqual(width);
+        expect(scrollWidth, where).toBeLessThanOrEqual(width);
 
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
-        expect(results.violations).toEqual([]);
-      });
+        expect(results.violations, where).toEqual([]);
+      }
     }
-  }
+  });
 });

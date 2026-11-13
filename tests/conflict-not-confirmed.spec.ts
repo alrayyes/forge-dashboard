@@ -107,19 +107,31 @@ for (const theme of ['light', 'dark'] as const) {
         await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
         await expect(r.locator('.merge-where')).toHaveCount(0);
       });
-
-      test('has no axe violations, collapsed and open', async ({ page }) => {
-        const scan = () =>
-          new AxeBuilder({ page })
-            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-            .analyze();
-        expect((await scan()).violations).toEqual([]);
-
-        await row(page, 'Flag only')
-          .getByRole('button', { name: 'Conflict not confirmed' })
-          .click();
-        expect((await scan()).violations).toEqual([]);
-      });
     });
   }
 }
+
+// One test loops both themes and every width: the page is the same code in
+// each, so six separate tests only paid for six fixtures and six loads.
+test('has no axe violations, collapsed and open, in light and dark at 390, 820 and 1280px', async ({
+  page,
+}) => {
+  const scan = () =>
+    new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+  for (const theme of ['light', 'dark'] as const) {
+    for (const width of [390, 820, 1280]) {
+      const where = `${theme} at ${width}px`;
+      await page.emulateMedia({ colorScheme: theme });
+      await page.setViewportSize({ width, height: 900 });
+      await open(page);
+      expect((await scan()).violations, `${where}, collapsed`).toEqual([]);
+
+      await row(page, 'Flag only')
+        .getByRole('button', { name: 'Conflict not confirmed' })
+        .click();
+      expect((await scan()).violations, `${where}, open`).toEqual([]);
+    }
+  }
+});

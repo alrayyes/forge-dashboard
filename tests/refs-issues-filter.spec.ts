@@ -507,12 +507,15 @@ test.describe('Issues: has a referencing pull request', () => {
   });
 });
 
-for (const width of [390, 1280]) {
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const path of ['/pull-requests.html', '/issues.html']) {
-      test(`${path} filter bar has no axe violations at ${width}px in ${scheme} with the pick on`, async ({
-        page,
-      }) => {
+// One test loops both pages, both themes and both widths: the filter bar is
+// the same code in each, so eight tests only paid for eight page loads.
+test('the pull request and issue filter bars have no axe violations in light and dark at 390 and 1280px with the pick on', async ({
+  page,
+}) => {
+  for (const width of [390, 1280]) {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const path of ['/pull-requests.html', '/issues.html']) {
+        const where = `${path} at ${width}px in ${scheme}`;
         await page.setViewportSize({ width, height: 800 });
         await page.emulateMedia({ colorScheme: scheme });
         await open(page, path);
@@ -524,11 +527,11 @@ for (const width of [390, 1280]) {
             const box = await sheet
               .locator(`[data-ref="${value}"]`)
               .boundingBox();
-            expect(box?.height).toBeGreaterThanOrEqual(44);
+            expect(box?.height, where).toBeGreaterThanOrEqual(44);
           }
         } else {
           await choice(page, 'yes').click();
-          await expect(choice(page, 'yes')).toHaveAttribute(
+          await expect(choice(page, 'yes'), where).toHaveAttribute(
             'aria-pressed',
             'true',
           );
@@ -536,11 +539,11 @@ for (const width of [390, 1280]) {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
           .analyze();
-        expect(results.violations).toEqual([]);
-      });
+        expect(results.violations, where).toEqual([]);
+      }
     }
   }
-}
+});
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 

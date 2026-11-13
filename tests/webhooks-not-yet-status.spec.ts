@@ -110,18 +110,27 @@ for (const scheme of ['light', 'dark'] as const) {
         };
         await expect.poll(failures).toEqual([]);
       });
-
-      test('nothing overflows and axe is clean', async ({ page }) => {
-        await open(page, width, scheme);
-        const fits = await page.evaluate(
-          () => document.documentElement.scrollWidth <= innerWidth,
-        );
-        expect(fits).toBe(true);
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
-      });
     });
   }
 }
+
+// One test loops both themes and every width: the page is the same code in
+// each, so six tests only paid for six page loads.
+test('nothing overflows and axe is clean in light and dark at 390, 820 and 1280px', async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [390, 820, 1280]) {
+      const where = `${scheme} ${width}px`;
+      await open(page, width, scheme);
+      const fits = await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      );
+      expect(fits, where).toBe(true);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, where).toEqual([]);
+    }
+  }
+});

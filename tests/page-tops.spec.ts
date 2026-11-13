@@ -298,13 +298,17 @@ test.describe('the repo count lives on Insights (#1325)', () => {
 test.describe('the pages without tiles are accessible (#1325)', () => {
   const tags = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
-  for (const scheme of ['light', 'dark'] as const) {
-    for (const path of [
-      '/pull-requests.html',
-      '/issues.html',
-      '/insights.html',
-    ]) {
-      test(`${path} has no axe violations (${scheme})`, async ({ page }) => {
+  // One test loops both themes and the three pages: six tests only paid for
+  // six page loads and six fixtures.
+  test('/pull-requests.html, /issues.html and /insights.html have no axe violations in light and dark', async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const path of [
+        '/pull-requests.html',
+        '/issues.html',
+        '/insights.html',
+      ]) {
         await page.emulateMedia({ colorScheme: scheme });
         await serve(page, [makePR(1), makePR(2, { ci: 'failure' })], [ISSUE]);
         await page.goto(path);
@@ -312,8 +316,9 @@ test.describe('the pages without tiles are accessible (#1325)', () => {
 
         expect(
           (await new AxeBuilder({ page }).withTags(tags).analyze()).violations,
+          `${path} (${scheme})`,
         ).toEqual([]);
-      });
+      }
     }
-  }
+  });
 });

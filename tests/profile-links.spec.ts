@@ -204,18 +204,18 @@ test.describe('Profile links (#1991)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(24);
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    test(`rows with profile links have no accessibility violations in ${theme} mode`, async ({
-      page,
-    }) => {
+  test('rows with profile links have no accessibility violations in light and dark mode', async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await openPulls(page);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+      expect(results.violations, theme).toEqual([]);
+    }
+  });
 
   test('an issue row links its author too, avatar and name as one link', async ({
     page,
@@ -282,11 +282,11 @@ test.describe('Profile links (#1991)', () => {
 
   // The existing issue dialog scans run on data with no profile address, so
   // they never see the link; these do.
-  for (const theme of ['light', 'dark'] as const) {
-    for (const width of [1280, 390]) {
-      test(`the issue dialog with a Filed by link has no accessibility violations in ${theme} mode at ${width}px`, async ({
-        page,
-      }) => {
+  test('the issue dialog with a Filed by link has no accessibility violations in light and dark mode at 1280px and 390px', async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
+      for (const width of [1280, 390]) {
         await page.emulateMedia({ colorScheme: theme });
         await page.setViewportSize({ width, height: 800 });
         await openIssueDialog(page);
@@ -296,10 +296,10 @@ test.describe('Profile links (#1991)', () => {
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();
-        expect(results.violations).toEqual([]);
-      });
+        expect(results.violations, `${theme} at ${width}px`).toEqual([]);
+      }
     }
-  }
+  });
 });
 
 async function openDialog(page: Page) {
@@ -399,17 +399,17 @@ test.describe('Profile links in the pull request dialog (#1991)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
   });
 
-  for (const theme of ['light', 'dark'] as const) {
-    test(`the dialog with profile links has no accessibility violations in ${theme} mode`, async ({
-      page,
-    }) => {
+  test('the dialog with profile links has no accessibility violations in light and dark mode', async ({
+    page,
+  }) => {
+    for (const theme of ['light', 'dark'] as const) {
       await page.emulateMedia({ colorScheme: theme });
       await page.setViewportSize({ width: 390, height: 800 });
       await openDialog(page);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
-      expect(results.violations).toEqual([]);
-    });
-  }
+      expect(results.violations, theme).toEqual([]);
+    }
+  });
 });
