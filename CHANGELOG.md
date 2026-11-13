@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.52.0](https://github.com/alrayyes/forge-dashboard/compare/v9.51.1...v9.52.0) (2026-11-13)
+
+
+### Features
+
+* **web:** hide the title search when the filters leave one row ([#3838](https://github.com/alrayyes/forge-dashboard/issues/3838)) ([7fdd8dd](https://github.com/alrayyes/forge-dashboard/commit/7fdd8dd5c53cecac9dfd63a1eb7f7c81e0668b99)), closes [#3823](https://github.com/alrayyes/forge-dashboard/issues/3823)
+
 ## [9.51.1](https://github.com/alrayyes/forge-dashboard/compare/v9.51.0...v9.51.1) (2026-11-13)
 
 
