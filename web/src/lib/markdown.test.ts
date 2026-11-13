@@ -264,6 +264,29 @@ describe('reference links', () => {
   });
 });
 
+// https://github.com/alrayyes/forge-dashboard/issues/3764
+// The changelog has no dialog host, so a pull request or issue number there is
+// a forge link that says it opens on the forge in a new tab.
+describe('changelog reference links say they open on the forge', () => {
+  const note =
+    '<span class="sr-only"> (opens on the forge in a new tab)</span>';
+
+  test('a link labelled #N gets the note when asked', async () => {
+    const html = await renderMarkdown('([#12](https://example.org/12))\n', {
+      monoReferences: true,
+    });
+    expect(html).toContain(`#12${note}</a>`);
+  });
+
+  test('a commit hash, prose link, or an unasked render does not', async () => {
+    const src =
+      '[6bf88c3](https://example.org/c) [docs](https://example.org/d) [#12](https://example.org/12)\n';
+    const html = await renderMarkdown(src, { monoReferences: true });
+    expect(html.match(/opens on the forge/g)).toHaveLength(1);
+    expect(await renderMarkdown(src)).not.toContain('opens on the forge');
+  });
+});
+
 // https://github.com/alrayyes/forge-dashboard/issues/3668
 // An HTML comment is the author's bookkeeping, not text: the forges hide it.
 describe('HTML comments', () => {
