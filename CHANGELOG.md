@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.47.0](https://github.com/alrayyes/forge-dashboard/compare/v9.46.0...v9.47.0) (2026-11-13)
+
+
+### Features
+
+* **web:** show only the conflict warning on a conflicting row ([#3785](https://github.com/alrayyes/forge-dashboard/issues/3785)) ([e728b47](https://github.com/alrayyes/forge-dashboard/commit/e728b47fe507d70c3e87771f9b36ee9671b1bc50))
+
 ## [9.46.0](https://github.com/alrayyes/forge-dashboard/compare/v9.45.0...v9.46.0) (2026-11-13)
 
 
