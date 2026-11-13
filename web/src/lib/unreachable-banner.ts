@@ -11,6 +11,14 @@ export type DownForge = {
   startupGap?: boolean;
   // What the forge answered, for a 5xx that is not an outage (#3527).
   upstreamError?: string;
+  // What the forge's own status page reports (#3633), GitHub only.
+  providerStatus?: ProviderStatus;
+};
+
+export type ProviderStatus = {
+  indicator: string;
+  components?: string[];
+  incidents?: string[];
 };
 
 export type BannerCopy = {
@@ -18,6 +26,8 @@ export type BannerCopy = {
   detail: string;
   // GitHub has a status page to link; a self-hosted Forgejo has none (#1301).
   statusLink: boolean;
+  // A second sentence when GitHub itself reports an incident (#3633).
+  incident?: string;
 };
 
 type Format = {
@@ -54,6 +64,22 @@ function joinLabels(labels: string[]): string {
     : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 }
 
+// GitHub's own report, said when it names something this page uses. A restart
+// still waiting for its first answer is not an outage to blame on GitHub.
+function incidentOf(down: DownForge[]): string | undefined {
+  const gh = down.find((f) => f.forge === 'github' && !f.startupGap);
+  const incidents = gh?.providerStatus?.incidents ?? [];
+  const components = gh?.providerStatus?.components ?? [];
+  if (incidents.length > 0) {
+    const affects =
+      components.length > 0 ? ` Affects: ${components.join(', ')}.` : '';
+    return `GitHub reports an incident: ${incidents.join('; ')}.${affects}`;
+  }
+  if (components.length > 0)
+    return `GitHub reports trouble with: ${components.join(', ')}.`;
+  return undefined;
+}
+
 export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
   // GitHub first, as the toolbar orders the forges.
   const ordered = [...down].sort(
@@ -78,5 +104,6 @@ export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
     headline,
     detail: parts.join(' '),
     statusLink: ordered.some((f) => f.forge === 'github'),
+    incident: incidentOf(ordered),
   };
 }

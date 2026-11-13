@@ -1134,6 +1134,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		forge := a.sources[i].Forge()
 		r = settleOrHold(r, sr.asked, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
+		noteProviderStatus(ctx, &r.Health, a.sources[i])
 		snap.add(r)
 	}
 	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
@@ -1703,4 +1704,20 @@ func clearStartingWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) []F
 func noteBlockedActions(h *ForgeHealth, src Source) {
 	h.DependabotCommandsBlocked = DependabotCommandsBlockedReason(src)
 	h.RerunChecksBlocked = RerunChecksBlockedReason(src)
+}
+
+// noteProviderStatus records what the forge's status page says, when the forge
+// has just failed for a reason its provider could be behind: it didn't answer,
+// or answered with a 5xx. A bad token, a spent rate limit and a restart that
+// hasn't asked yet are not the provider's incident, so they cost no request.
+func noteProviderStatus(ctx context.Context, h *ForgeHealth, src Source) {
+	if h.Reachable || h.Starting {
+		return
+	}
+	if h.ErrorKind != ForgeErrorUnreachable && h.ErrorKind != ForgeErrorUpstream && h.ErrorKind != ForgeErrorUnknown {
+		return
+	}
+	if ps, ok := src.(ProviderStatusSource); ok {
+		h.ProviderStatus = ps.ProviderStatus(ctx)
+	}
 }
