@@ -409,6 +409,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
   });
 });
 
+// Two rows, since the group control is not drawn over one (#3670).
 const CALLOUT =
   'Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.';
 
@@ -416,7 +417,10 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
   test('a grouped Forgejo repo says who handles auto-merge and links to Settings', async ({
     page,
   }) => {
-    await mockDashboard(page, snapshot(makePR()));
+    await mockDashboard(
+      page,
+      snapshot(makePR(), { pullRequests: [makePR(), makePR({ number: 8 })] }),
+    );
     await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
 
@@ -432,6 +436,14 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
       page,
       snapshot(makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }), {
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [
+          makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }),
+          makePR({
+            forge: 'github',
+            repo: 'alrayyes/forge-dashboard',
+            number: 8,
+          }),
+        ],
       }),
     );
     await page.goto('/pull-requests.html');
@@ -442,7 +454,10 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
   });
 
   test('the callout has no axe-core violations', async ({ page }) => {
-    await mockDashboard(page, snapshot(makePR()));
+    await mockDashboard(
+      page,
+      snapshot(makePR(), { pullRequests: [makePR(), makePR({ number: 8 })] }),
+    );
     await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
     await expect(page.locator('#pr-rows .group-callout')).toBeVisible();

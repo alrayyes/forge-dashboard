@@ -8,6 +8,23 @@ import { test } from './server-fixture';
 // Updated select grew as wide as the search box.
 // https://github.com/alrayyes/forge-dashboard/issues/2937
 
+// Two rows each, since a bar over one row or none is not drawn (#3670).
+const row = (n: number) => ({
+  forge: 'github',
+  repo: 'alrayyes/forge-dashboard',
+  number: n,
+  title: `Item ${n}`,
+  url: `https://example.com/${n}`,
+  author: 'claude',
+  draft: false,
+  ci: 'success',
+  labels: [],
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date(Date.now() - n * 1000).toISOString(),
+  mergeStatus: 'mergeable',
+});
+const ROWS = [row(1), row(2)];
+
 async function open(page: Page, path: string) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -19,11 +36,11 @@ async function open(page: Page, path: string) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
-        pullRequests: [],
-        issues: [],
+        pullRequests: ROWS,
+        issues: ROWS,
         repos: [],
         hiddenDrafts: 0,
-        navCounts: navCountsFor([], 0),
+        navCounts: navCountsFor(ROWS, ROWS.length),
       }),
     }),
   );

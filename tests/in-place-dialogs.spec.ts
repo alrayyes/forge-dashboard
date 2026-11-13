@@ -426,10 +426,13 @@ test.describe('pills inside the pull request dialog', () => {
   }) => {
     await mockBoard(page, {
       shown: [pullRequest(12, [closing(1)])],
-      issues: [issue(1, [linked(12)])],
+      // A second issue, since the filter bar is not drawn over one (#3670).
+      issues: [issue(1, [linked(12)]), issue(2)],
     });
     await page.goto('/issues.html');
-    await page.locator('#issue-rows .row button.title').first().click();
+    await page
+      .locator('#issue-rows .row button.title', { hasText: 'Issue 1' })
+      .click();
     await issueDialog(page).locator('.linked-pr').click();
     await expect(pullDialog(page)).toBeVisible();
 
