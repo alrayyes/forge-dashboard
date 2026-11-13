@@ -121,7 +121,7 @@ test('every response names this server as the only image source', async ({
   for (const path of ['/pull-requests.html', '/settings.html']) {
     const response = await page.goto(path);
     expect(response?.headers()['content-security-policy']).toBe(
-      "img-src 'self' data:",
+      "img-src 'self'",
     );
   }
 });
