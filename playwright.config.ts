@@ -144,6 +144,7 @@ const singleUserSpecs = [
   '**/title-hover-text.spec.ts',
   '**/unreachable-forge.spec.ts',
   '**/unreachable-age-tick.spec.ts',
+  '**/unreachable-banner-height.spec.ts',
   '**/unreachable-once.spec.ts',
   '**/unreachable-incident.spec.ts',
   '**/upstream-error-banner.spec.ts',
