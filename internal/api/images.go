@@ -27,6 +27,12 @@ var githubImageHosts = []string{
 	"repository-images.githubusercontent.com",
 }
 
+// githubImageProxyConfig is the default GitHub proxy's setup: fixed public
+// hosts and no token, so the saved one can't reach the image host.
+func githubImageProxyConfig() imageproxy.Config {
+	return imageproxy.Config{Hosts: githubImageHosts, Scheme: "https"}
+}
+
 // imageProxyFor builds the proxy for one forge. Forgejo's allowed host is the
 // saved instance, trusted to be on a private address, and the only place its
 // token goes. GitHub's are fixed public hosts, reached without the token: its
@@ -38,7 +44,7 @@ func imageProxyFor(deps Deps, forge string, creds settings.Credentials) (*imagep
 			return deps.GitHubImageProxy, nil
 		}
 
-		return imageproxy.New(imageproxy.Config{Hosts: githubImageHosts, Scheme: "https"}), nil
+		return imageproxy.New(githubImageProxyConfig()), nil
 	case "forgejo":
 		u, err := url.Parse(creds.ForgejoURL)
 		if err != nil || creds.ForgejoURL == "" || u.Host == "" {
