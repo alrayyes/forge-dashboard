@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.53.2](https://github.com/alrayyes/forge-dashboard/compare/v9.53.1...v9.53.2) (2026-11-13)
+
+
+### Bug Fixes
+
+* **web:** focus a drawn control after closing a pull request opened from its address ([#3854](https://github.com/alrayyes/forge-dashboard/issues/3854)) ([5c0d675](https://github.com/alrayyes/forge-dashboard/commit/5c0d675283c4f82adde371e5c239d6e9a5fd4dca)), closes [#3844](https://github.com/alrayyes/forge-dashboard/issues/3844)
+
 ## [9.53.1](https://github.com/alrayyes/forge-dashboard/compare/v9.53.0...v9.53.1) (2026-11-13)
 
 
