@@ -135,7 +135,14 @@ test.describe('the refs pill on a pull request row', () => {
     await expect(refs(page, 2)).toHaveCount(0);
     const border = (locator: ReturnType<typeof refs>) =>
       locator.evaluate((el) => getComputedStyle(el).borderTopStyle);
-    expect(await border(refs(page, 1))).not.toBe(await border(closes(page, 1)));
+    // Retries until both pills are styled; an unstyled pill reads as ''.
+    await expect
+      .poll(async () => {
+        const a = await border(refs(page, 1));
+        const b = await border(closes(page, 1));
+        return a !== '' && b !== '' && a !== b;
+      })
+      .toBe(true);
   });
 
   test('names the repository for a cross-repo reference', async ({ page }) => {
@@ -204,17 +211,22 @@ test.describe('the refs pill on a pull request row', () => {
       await page.goto('/pull-requests.html');
       await expect(refs(page, 1).first()).toBeVisible();
 
-      const area = await refs(page, 1)
-        .first()
-        .evaluate((el) => {
-          const after = getComputedStyle(el, '::after');
-          return {
-            width: Number.parseFloat(after.width),
-            height: Number.parseFloat(after.height),
-          };
-        });
-      expect(area.height, scheme).toBeGreaterThanOrEqual(44);
-      expect(area.width, scheme).toBeGreaterThanOrEqual(44);
+      // Retries until the pseudo-element has a laid-out size of 44px or more.
+      await expect
+        .poll(
+          () =>
+            refs(page, 1)
+              .first()
+              .evaluate((el) => {
+                const after = getComputedStyle(el, '::after');
+                return Math.min(
+                  Number.parseFloat(after.width) || 0,
+                  Number.parseFloat(after.height) || 0,
+                );
+              }),
+          { message: scheme },
+        )
+        .toBeGreaterThanOrEqual(44);
       const scrolls = await page.evaluate(
         () =>
           document.documentElement.scrollWidth >

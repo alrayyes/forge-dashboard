@@ -120,8 +120,7 @@ describe('needsChip', () => {
     expect(needsChip({ forge: 'github', reachable: true }, false)).toBe(false);
   });
 
-  test('unreachable, starting, stale and rate limited forges keep their chip', () => {
-    expect(needsChip({ forge: 'github', reachable: false }, false)).toBe(true);
+  test('starting, stale and rate limited forges keep their chip', () => {
     expect(
       needsChip({ forge: 'github', reachable: true, starting: true }, false),
     ).toBe(true);
@@ -136,5 +135,31 @@ describe('needsChip', () => {
       ),
     ).toBe(true);
     expect(needsChip({ forge: 'github', reachable: true }, true)).toBe(true);
+  });
+});
+
+describe('needsChip for an outage (#3719)', () => {
+  test('an unreachable forge draws no chip: the banner says it once', () => {
+    expect(needsChip({ forge: 'github', reachable: false }, false)).toBe(false);
+    expect(
+      needsChip(
+        {
+          forge: 'github',
+          reachable: false,
+          staleSince: '2030-01-01T00:00:00Z',
+        },
+        false,
+      ),
+    ).toBe(false);
+  });
+
+  test('a start-up gap still draws its loading chip', () => {
+    expect(
+      needsChip({ forge: 'github', reachable: false, starting: true }, false),
+    ).toBe(true);
+  });
+
+  test('an unreachable forge that is also rate limited keeps its chip: no unreachable banner covers it', () => {
+    expect(needsChip({ forge: 'github', reachable: false }, true)).toBe(true);
   });
 });
