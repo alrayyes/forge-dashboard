@@ -78,6 +78,9 @@ func overField(t *testing.T, resp *http.Response, field string) {
 	var body map[string]string
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	assert.Equal(t, field, body["field"])
+	// The settings page words its message by swapping this field name for the
+	// label on screen, so the message has to start with the name.
+	assert.True(t, strings.HasPrefix(body["error"], field+" is too "), "message was %q", body["error"])
 }
 
 func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T) {

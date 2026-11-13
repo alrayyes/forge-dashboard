@@ -168,6 +168,36 @@ func TestAggregator_RefreshRepo_OnlyRefetchesAndReplacesTheNamedRepo(t *testing.
 	}, snap.Repos, "a scoped refresh should leave the tracked-repo list as the last full refresh reported it")
 }
 
+// A webhook for a repo whose ticket was just opened must show the new issue
+// beside the ones the repo already had, and leave every other repo's issues
+// alone.
+func TestAggregator_RefreshRepo_ANewIssueJoinsTheReposOwnAndLeavesOtherReposAlone(t *testing.T) {
+	t.Parallel()
+
+	src := newFakeRepoRefresherSource()
+	existing := dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Title: "existing issue"}
+	other := dashboard.Issue{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/b", Number: 7, Title: "other repo issue"}
+	src.setRepo("alrayyes/a", nil)
+	src.setRepo("alrayyes/b", nil)
+	src.issues["alrayyes/a"] = []dashboard.Issue{existing}
+	src.issues["alrayyes/b"] = []dashboard.Issue{other}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	require.Len(t, agg.Get().Issues, 2)
+
+	src.issues["alrayyes/a"] = []dashboard.Issue{existing, {Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 2, Title: "a ticket just opened"}}
+	src.issues["alrayyes/b"] = nil // a scoped refresh of a must not look at b
+
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
+
+	var titles []string
+	for _, i := range agg.Get().Issues {
+		titles = append(titles, i.Title)
+	}
+	assert.ElementsMatch(t, []string{"existing issue", "a ticket just opened", "other repo issue"}, titles)
+}
+
 func TestAggregator_RefreshRepo_NoSourceForForge_ReturnsFalse(t *testing.T) {
 	t.Parallel()
 

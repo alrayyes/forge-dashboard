@@ -36,7 +36,7 @@ Read-only audit of every `tests/*.spec.ts` (252 files, 2,237 tests) against
 | Class                           | Specs | Summed duration |
 | ------------------------------- | ----- | --------------- |
 | A browser-only                  | 115   | 554 s           |
-| B Go covers the logic           | 6     | 20 s            |
+| B Go covers the logic           | 4     | 15 s            |
 | C needs a lib or component test | 131   | 898 s           |
 | D fully covered below           | 0     | 0 s             |
 
@@ -73,10 +73,37 @@ turns two lib tests red.
 
 ### UI over logic Go covers (class B)
 
-`webhooks`, `settings-field-errors`, `filter-persistence`,
-`main-branches-server-copy`, `filter-late-copy` and `filter-newer-wins` (20 s
-together). The class is hand-picked, and the CSV names no Go test for them. No
-Go mutation was run, so these stay unproven.
+Six specs started here: `webhooks`, `settings-field-errors`,
+`filter-persistence`, `main-branches-server-copy`, `filter-late-copy` and
+`filter-newer-wins`. Each Go test below was run red under a mutation of the
+server code it covers, and the change was reverted.
+
+| Server logic                                                                           | Go test                                                                                                 | Mutation                                                                   | Result            |
+| -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------- |
+| Webhook signature check                                                                | `TestGitHubWebhook_*_Refused`, `TestForgejoWebhook_*_Refused`                                           | check skipped                                                              | 6 fail, red       |
+| Webhook names a repo, so only that repo is refreshed                                   | `TestGitHubWebhook_PayloadNamesARepo_TriggersOnlyAScopedRefresh`                                        | scoped path never taken                                                    | 1 fail, red       |
+| Webhook triggers a refresh                                                             | `TestGitHubWebhook_ValidSignature_TriggersRefreshAndReturns204`, `TestForgejoWebhook_*_TriggersRefresh` | `RefreshNow` not called                                                    | 5 fail, red       |
+| Refresh reaches the open stream                                                        | `TestDashboardStream_PushesASnapshotWhenAWebhookTriggersARefresh`                                       | stream ends before writing the snapshot                                    | 1 fail, red       |
+| An unreachable forge stays in the snapshot                                             | `TestAggregator_Refresh_OneSourceUnreachable_OthersStillReported`                                       | unreachable health dropped                                                 | 1 fail, red       |
+| A scoped refresh adds the new issue, keeps the repo's others, leaves other repos alone | `TestAggregator_RefreshRepo_ANewIssueJoinsTheReposOwnAndLeavesOtherReposAlone` (new)                    | new issues not merged; old ones also kept; other repos dropped             | 1 fail each, red  |
+| Forgejo issue rows carry title, link, and repo                                         | `TestListOpenIssues_UsesTypeIssuesFilter` (asserts widened)                                             | title dropped; link dropped                                                | 1 fail each, red  |
+| A refused Forgejo URL names `forgejoUrl`                                               | `TestSettingsPut_ForgejoURL_RefusesCredentialsAndOddURLsNamingTheField` (message asserted)              | ftp scheme allowed; field name left out of the message                     | 1 fail each, red  |
+| An over-long field names itself in the message                                         | `TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError` (message asserted)                      | message loses the name; username bound dropped; rebase label bound dropped | 1 fail each, red  |
+| Filter state round-trips                                                               | `TestFilterStatePut_ThenGet_RoundTrips` and the rest of `TestFilterState*`                              | save not stored; read answers `{}`                                         | 7 and 6 fail, red |
+| A pick over the limits is refused                                                      | `TestFilterStatePut_Pick`                                                                               | validation off                                                             | 1 fail, red       |
+| An older revision does not replace a newer saved copy                                  | `TestFilterStatePut_OlderRevisionThanSaved_*`                                                           | every revision accepted                                                    | 2 fail, red       |
+| The page keeps a newer cookie over an older copy                                       | `web/src/lib/filters-newer-wins.test.ts`                                                                | cookie-newer rule dropped                                                  | 1 fail, red       |
+
+`webhooks` (both tests) and `filter-newer-wins` are fully covered by the table and,
+for the banner wording, by the existing banner tests. Both were deleted.
+Together they ran 4.3 s.
+
+The other four specs remain. Their server side is a store that keeps the filter
+state as written, covered in the table, and what each test asserts is the page's
+own behaviour: the cookie against the copy, a pick kept through a detour, an
+edit that beats a copy still loading, the error wired to its field. A server
+mutation does not turn those red, and no lower test pins them yet. They keep
+class B in the CSV until one does.
 
 ### UI over state a component test could cover (class C)
 
@@ -146,7 +173,9 @@ One ticket per group, each doing moves with its own mutation proof:
   tests that only restated `autoMergeChip` wording are gone, and the duration
   in `tests/e2e-durations.json` refreshes the next time a green `main` run is
   recorded).
-- prove the class B specs with Go mutations, then trim them.
+- prove the class B specs with Go mutations, then trim them (done: `webhooks`
+  and `filter-newer-wins` are deleted, the rest stay for the reason in the class
+  B section).
 - cut `filter-every-control` rounds and move its round-trip and cookie checks
   down (done: twelve pull request rounds and three on Issues and Webhooks became
   two, one and one, each read back by a client navigation, a cookie-only reload
