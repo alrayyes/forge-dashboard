@@ -582,6 +582,10 @@ func shareBodies(client *github.Client, bodies *github.RenderedBodyCache) {
 	}
 }
 
+// githubAPIBaseURL is "" (the real GitHub API) outside a test, which points it
+// at a local server so buildSources itself can be exercised.
+var githubAPIBaseURL = ""
+
 // buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
 // requests in the request log.
@@ -598,7 +602,7 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder, stats, renderedBodies); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, renderedBodies); src != nil {
 			sources = append(sources, src)
 		}
 

@@ -274,3 +274,31 @@ func TestSignedImageURL_TheCacheHoldsAtMostItsCap(t *testing.T) {
 	assert.EqualValues(t, 4, calls.Load(), "the evicted one is read again")
 	assert.LessOrEqual(t, client.RenderedBodyCountForTest(), 2)
 }
+
+func TestSignedImageURL_AClientWithNoIdentityCachesNothing(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/app/installations/1/access_tokens", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"token": "installation-token", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
+	})
+	mux.HandleFunc("/repos/octo/repo/issues/7", func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	// An App client no one gave a stats label to has nothing telling it from
+	// another installation, so a shared cache must not hold its entries.
+	client, err := github.NewAppClient(1, 1, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.ShareRenderedBodyCache(github.NewRenderedBodyCache())
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	for range 2 {
+		_, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+		require.NoError(t, err)
+	}
+
+	assert.EqualValues(t, 2, calls.Load())
+}

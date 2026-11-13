@@ -186,3 +186,29 @@ func TestBuildGitHubSource_ClientsOnOneCacheShareAnItemsRenderedBody(t *testing.
 
 	assert.EqualValues(t, 1, calls.Load())
 }
+
+// Not parallel: it points the package's GitHub API address at a local server.
+func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"body_html":"<a href=\"https://github.com/user-attachments/assets/a\"><img src=\"https://private-user-images.githubusercontent.com/a.png\"></a><a href=\"https://github.com/user-attachments/assets/b\"><img src=\"https://private-user-images.githubusercontent.com/b.png\"></a>"}`))
+	}))
+	t.Cleanup(srv.Close)
+	githubAPIBaseURL = srv.URL
+	t.Cleanup(func() { githubAPIBaseURL = "" })
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	for _, link := range []string{"https://github.com/user-attachments/assets/a", "https://github.com/user-attachments/assets/b"} {
+		sources := build(settings.Credentials{GitHubToken: "pat-value"})
+		require.Len(t, sources, 1)
+		resolver, ok := sources[0].(dashboard.ImageLinkResolver)
+		require.True(t, ok)
+		got, err := resolver.SignedImageURL(t.Context(), "octo", "repo", item, link)
+		require.NoError(t, err)
+		assert.NotEmpty(t, got)
+	}
+
+	assert.EqualValues(t, 1, calls.Load())
+}
