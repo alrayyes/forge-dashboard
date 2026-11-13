@@ -137,7 +137,7 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   `GET /api/v1/main-branches`.
 - [Live updates and filters](docs/live-updates.md): how the board refreshes, when
   rows wait before they land, the first load after a restart, the
-  navigation counts, and how filters are offered, remembered and folded on a
+  navigation counts, and how filters are offered, remembered, and folded on a
   phone.
 - [API](docs/api.md): the HTTP endpoints, the OpenAPI contract, and the MCP
   endpoint.
