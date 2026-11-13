@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.38.1](https://github.com/alrayyes/forge-dashboard/compare/v9.38.0...v9.38.1) (2026-11-13)
+
+
+### Performance Improvements
+
+* **api:** cache GitHub rendered item bodies for two minutes ([#3726](https://github.com/alrayyes/forge-dashboard/issues/3726)) ([686a3c6](https://github.com/alrayyes/forge-dashboard/commit/686a3c663295d578202200869421579ffbba780e))
+
 ## [9.38.0](https://github.com/alrayyes/forge-dashboard/compare/v9.37.1...v9.38.0) (2026-11-13)
 
 
