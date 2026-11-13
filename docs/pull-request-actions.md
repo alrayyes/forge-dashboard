@@ -320,8 +320,21 @@ are down it is still one banner, "GitHub and Forgejo are unreachable.", with
 the age of the oldest data. When the cause is a wrong token or instance URL it
 says what to check in Settings instead of "Retrying automatically.". GitHub's
 status link, shown whenever GitHub is down (also in the combined banner),
-opens githubstatus.com in a new tab, so you can see whether GitHub is
-reporting an incident; a Forgejo instance is self-hosted and has no such page.
+opens githubstatus.com in a new tab; a Forgejo instance is self-hosted and has
+no such page.
+
+When GitHub can't be reached or answers with a 5xx, the dashboard also asks
+GitHub's status page whether it reports an incident, and the banner adds a
+second line, for example
+`GitHub reports an incident: Degraded performance. Affects: Pull Requests.`
+Only the components the dashboard uses count (API Requests, Pull
+Requests, Actions and Webhooks), so an outage elsewhere on GitHub adds nothing.
+The page is read only after a call has failed, never while GitHub works, and
+the answer is reused for a minute, so a burst of failures makes one request. The
+request carries nothing about you, your account, or your repos. If the page can't
+be read, or reports nothing on those components, the banner is as it was, and
+the failure is logged once. The API carries the facts as `providerStatus` on
+the forge's health (`indicator`, `components` and `incidents`).
 
 A forge that answers but fails is not unreachable. If GitHub replies 502, 503 or
 504 (a gateway timeout on a heavy query, say), the banner reads "GitHub returned

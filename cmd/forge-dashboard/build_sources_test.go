@@ -22,6 +22,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/githubstatus"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -211,4 +212,31 @@ func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testi
 	}
 
 	assert.EqualValues(t, 1, calls.Load())
+}
+
+// Not parallel: it points the package's status page address at a local server.
+func TestBuildSources_GitHubSourceAsksTheStatusPageButForgejoDoesNot(t *testing.T) {
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		_, _ = w.Write([]byte(`{"status":{"indicator":"minor"},"components":[{"name":"Actions","status":"degraded_performance"}],"incidents":[{"name":"Slow runs","components":[{"name":"Actions"}]}]}`))
+	}))
+	t.Cleanup(srv.Close)
+	githubStatusURL = srv.URL
+	t.Cleanup(func() { githubStatusURL = githubstatus.BaseURL })
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil)
+
+	sources := build(settings.Credentials{GitHubToken: "pat-value", ForgejoURL: "https://forge.example", ForgejoToken: "t"})
+	require.Len(t, sources, 2)
+	for range 2 {
+		src, ok := sources[0].(dashboard.ProviderStatusSource)
+		require.True(t, ok)
+		got := src.ProviderStatus(t.Context())
+		require.NotNil(t, got)
+		assert.Equal(t, []string{"Slow runs"}, got.Incidents)
+	}
+	_, forgejoAsks := sources[1].(dashboard.ProviderStatusSource)
+
+	assert.False(t, forgejoAsks, "Forgejo has no status feed")
+	assert.EqualValues(t, 1, calls.Load(), "one cache across the clients")
 }
