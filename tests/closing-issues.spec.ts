@@ -227,7 +227,11 @@ test.describe('the address of an issue', () => {
     baseURL,
   }) => {
     await mockBoard(page, {
-      issues: [issue(12), { ...issue(13), author: 'someone-else' }],
+      issues: [
+        issue(12),
+        { ...issue(13), author: 'someone-else' },
+        { ...issue(14), author: 'someone-else' },
+      ],
     });
     await context.addCookies([
       {

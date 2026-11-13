@@ -2909,6 +2909,23 @@ test.describe('dashboard page', () => {
     test('clicking resets every shared filter, group-by and the CI pill in one action, re-renders the board, resets pagination, and disables itself again', async ({
       page,
     }) => {
+      // A second failing PR keeps two rows after the pill, so the title box is
+      // still offered (#3823).
+      const PR_THREE = { ...PR_TWO, number: 4, title: 'Fix lint' };
+      await page.route('**/api/v1/dashboard*', (route: Route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            pullRequests: [PR_ONE, PR_TWO, PR_THREE],
+            issues: [DEPENDENCY_DASHBOARD_ISSUE],
+          }),
+        }),
+      );
+      await page.reload();
+      await boardReady(page);
       // The pill goes first: once the title leaves only failing rows, the pill
       // would show what All shows and is no longer offered (#3669).
       await page.locator('.quick-pills [data-pill="failing"]').click();
@@ -2930,8 +2947,8 @@ test.describe('dashboard page', () => {
       await expect(
         page.locator('.quick-pills[data-group="ci"] [data-pill="all"]'),
       ).toHaveAttribute('aria-pressed', 'true');
-      // Both PRs are back (no title/pill filter).
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      // All three PRs are back (no title/pill filter).
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
     });
 
     test('on the issues page, clicking it also re-checks Hide Dependency Dashboard', async ({
