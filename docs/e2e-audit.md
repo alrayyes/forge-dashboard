@@ -98,11 +98,11 @@ server code it covers, and the change was reverted.
 for the banner wording, by the existing banner tests. Both were deleted.
 Together they ran 4.3 s.
 
-The other four stay. Their server side is a store that keeps the filter state
-as written, covered in the table, and what each test asserts is the page's own
-behaviour: the cookie against the copy, a pick kept through a detour, an edit
-that beats a copy still loading, the error wired to its field. A server
-mutation does not turn those red, and no lower test pins them yet. They stay
+The other four specs remain. Their server side is a store that keeps the filter
+state as written, covered in the table, and what each test asserts is the page's
+own behaviour: the cookie against the copy, a pick kept through a detour, an
+edit that beats a copy still loading, the error wired to its field. A server
+mutation does not turn those red, and no lower test pins them yet. They keep
 class B in the CSV until one does.
 
 ### UI over state a component test could cover (class C)
