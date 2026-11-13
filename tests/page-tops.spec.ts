@@ -91,10 +91,13 @@ test.describe('the pages start with the list (#1325)', () => {
         page,
         [
           makePR(1),
+          makePR(4),
           makePR(2, { kind: 'release' }),
+          makePR(5, { kind: 'release' }),
           makePR(3, { kind: 'dependency' }),
+          makePR(6, { kind: 'dependency' }),
         ],
-        [ISSUE],
+        [ISSUE, { ...ISSUE, number: 8, title: 'Another issue' }],
       );
       await page.goto(path);
       await expect(page.locator('.filter-bar')).toBeVisible();

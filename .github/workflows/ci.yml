@@ -512,7 +512,7 @@ jobs:
           exit 1
 
   # Layout and structure. Style and mechanics are prose.yml, called by
-  # `prose-tiers` below — see its header comment for why they're split out.
+  # `prose-tiers` below. See its header comment for why they are split out.
   prose:
     needs: changes
     if: needs.changes.outputs.prose == 'true'

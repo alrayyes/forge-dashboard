@@ -38,4 +38,7 @@ fi
 # alls-green lets a skipped job through, so the path filter still works.
 block ci-result | grep -Eq '^\s+prose-tiers,?$' || fail "ci result does not need prose-tiers"
 
+# Without allowed-skips, a skipped prose-tiers (path filter) would fail the gate.
+block ci-result | grep -Fq 'allowed-skips: ${{ toJSON(needs) }}' || fail "ci result does not set allowed-skips: \${{ toJSON(needs) }}"
+
 exit "$failed"

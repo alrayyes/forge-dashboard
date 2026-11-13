@@ -135,7 +135,7 @@ the only problem, the dialog has no failed check, so it offers no Copy log or
 Rerun failed checks, and the Failed number stays at zero. The same goes for a
 default branch: when the newest commit has no check run because a workflow
 ended in `startup_failure`, the Main branches row reads Failed and names the
-workflow and links the run, rather than showing an older result for that commit.
+workflow and links the run, rather than showing the result of an earlier commit.
 
 The workflow-runs read takes the newest 100 runs of a head commit. A held or
 `startup_failure` run further back goes unseen.
@@ -1196,7 +1196,7 @@ progress.
 Both the Pull requests and the Bots page header have a `Rerun failed checks`
 button for the failing pull requests the filters leave, beside the count. It
 sits in the header row and adds no height, so a row turning red doesn't move
-the list. On a phone or small device (600px and narrower) the header's controls
+the list. On a phone or narrow screen (600px and narrower) the header's controls
 take a row of their own, with or without the button, for the same reason. The
 button counts the failing pull requests it may still rerun, so `Rerun failed
 checks (3)` means three, and a filter that narrows the list narrows the count.
