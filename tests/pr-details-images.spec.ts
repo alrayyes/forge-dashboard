@@ -50,6 +50,7 @@ function png(width: number, height: number): Buffer {
 const FORGE_IMAGE = 'https://github.com/user-attachments/assets/wide';
 const BROKEN_IMAGE = 'https://github.com/user-attachments/assets/gone';
 const TALL_IMAGE = 'https://github.com/user-attachments/assets/tall';
+const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
 async function openDialog(
@@ -108,13 +109,20 @@ async function openDialog(
   );
   const asked: string[] = [];
   const askedFor: URLSearchParams[] = [];
-  await page.route('**/api/v1/images*', (route) => {
+  // The slow image waits for `release()`, so a test can look at the page
+  // while the bytes are still on their way.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/images*', async (route) => {
     const params = new URL(route.request().url()).searchParams;
     const target = params.get('url') ?? '';
     asked.push(target);
     askedFor.push(params);
     if (target === BROKEN_IMAGE)
       return route.fulfill({ status: 404, body: '{}' });
+    if (target === SLOW_IMAGE) await gate;
     return route.fulfill({
       status: 200,
       contentType: 'image/png',
@@ -134,7 +142,7 @@ async function openDialog(
     .click();
   const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
   await expect(dialog).toBeVisible();
-  return { dialog, asked, askedFor, stranger };
+  return { dialog, asked, askedFor, stranger, release };
 }
 
 const DESCRIPTION = [
@@ -306,6 +314,22 @@ for (const [width, height] of [
       true,
     );
 
+    // Tab order is the visual order: title, original, Close, left to right
+    // and top to bottom.
+    const order = await lightbox.evaluate((el) => {
+      const stops = [...el.querySelectorAll<HTMLElement>('a[href], button')];
+      const pos = stops.map((s) => {
+        const r = s.getBoundingClientRect();
+        return [Math.round(r.top), Math.round(r.left)];
+      });
+      // Controls within 24px of each other's top share a row.
+      const visual = [...pos].sort((a, b) =>
+        Math.abs(a[0] - b[0]) < 24 ? a[1] - b[1] : a[0] - b[0],
+      );
+      return { dom: pos, visual };
+    });
+    expect(order.dom).toEqual(order.visual);
+
     // Nothing sideways, the image contained.
     const overflow = await lightbox.evaluate(
       (el) => el.scrollWidth - el.clientWidth,
@@ -386,3 +410,39 @@ for (const width of [320, 390, 1280]) {
     expect(results.violations).toEqual([]);
   });
 }
+
+test('an image already in the cache drops its skeleton (#3468)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { dialog } = await openDialog(page, `![wide mockup](${FORGE_IMAGE})`);
+  const image = dialog.locator('.details-body').getByRole('img');
+  await expect(image).toHaveClass(/md-image-loaded/);
+  // Close and open again: the browser now has the bytes, so the image is
+  // complete before anything listens for its load.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page
+    .locator('#pr-rows .row')
+    .first()
+    .getByRole('button', { name: /^#\d+ / })
+    .click();
+  await expect(dialog).toBeVisible();
+  await expect(image).toBeVisible();
+  await expect(image).toHaveClass(/md-image-loaded/);
+});
+
+test('the skeleton holds until the image really loads (#3468)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { dialog, release } = await openDialog(page, `![slow](${SLOW_IMAGE})`);
+  const image = dialog.locator('.details-body').getByRole('img', {
+    name: 'slow',
+  });
+  await expect(image).not.toHaveClass(/md-image-loaded/);
+  const waiting = await image.boundingBox();
+  expect(waiting && waiting.height >= 120).toBe(true);
+  release();
+  await expect(image).toHaveClass(/md-image-loaded/);
+});

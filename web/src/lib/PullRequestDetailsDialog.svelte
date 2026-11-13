@@ -932,6 +932,13 @@
 >
   {#if lightbox}
     <h2 class="lightbox-title">{lightbox.alt || "Image"}</h2>
+    <a
+      class="lightbox-original"
+      href={lightbox.src}
+      target="_blank"
+      rel="noopener noreferrer"
+      >Open original in new tab<span aria-hidden="true"> &#8599;</span></a
+    >
     <button
       type="button"
       class="lightbox-close"
@@ -945,13 +952,6 @@
         decoding="async"
       />
     </div>
-    <a
-      class="lightbox-original"
-      href={lightbox.src}
-      target="_blank"
-      rel="noopener noreferrer"
-      >Open original in new tab<span aria-hidden="true"> &#8599;</span></a
-    >
   {/if}
 </dialog>
 
@@ -1560,8 +1560,8 @@
     }
   }
 
-  /* The image viewer (#3414): one grid, so "Open original" sits in the top
-     bar on a wide screen and under the image on a phone. */
+  /* The image viewer (#3414): one grid whose visual order is its DOM order
+     (title, original, Close, image), so Tab follows what the eye sees. */
   .image-lightbox {
     width: min(1100px, calc(100vw - 32px));
     max-width: 100vw;
@@ -1577,8 +1577,8 @@
   .image-lightbox[open] {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto minmax(0, 1fr) auto;
-    grid-template-areas: "title close" "stage stage" "original original";
+    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-areas: "title title" "original close" "stage stage";
   }
   .image-lightbox::backdrop {
     background: var(--backdrop);
@@ -1596,7 +1596,7 @@
     grid-area: close;
     min-width: 48px;
     min-height: 48px;
-    margin: 8px 12px 8px 0;
+    margin: 4px 12px 8px 0;
     padding: 0 16px;
     border: 1px solid var(--border);
     border-radius: var(--radius);
@@ -1627,7 +1627,7 @@
   .lightbox-stage img {
     display: block;
     max-width: 100%;
-    max-height: calc(100dvh - 200px);
+    max-height: calc(100dvh - 260px);
     object-fit: contain;
   }
   .lightbox-original {
@@ -1637,17 +1637,13 @@
     justify-content: center;
     min-height: 48px;
     padding: 0 16px;
-    border-top: 1px solid var(--border);
     color: var(--accent);
   }
   @media (min-width: 720px) {
     .image-lightbox[open] {
       grid-template-columns: minmax(0, 1fr) auto auto;
+      grid-template-rows: auto minmax(0, 1fr);
       grid-template-areas: "title original close" "stage stage stage";
-    }
-    .lightbox-original {
-      border-top: 0;
-      padding: 0 16px;
     }
   }
 </style>
