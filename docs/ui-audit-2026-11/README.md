@@ -25,7 +25,7 @@ when it only repeats the one count beside it (2 running of 2 draws "2 running").
 
 `before-forced-colors-toggles/` and `after-forced-colors-toggles/` show the
 auto-merge segment (in the phone Filters sheet at 390px, inline at 1280px) and
-the advisories severity filters, under Chromium's forced-colors emulation,
+the severity filters in the advisories dialog, under Chromium's forced colours emulation,
 before and after the pressed-state fix for ticket 3388. These are emulation
 shots: Chromium doesn't repaint system colours the way Windows High Contrast
 does, so they show the non-colour mark (the thicker border on the pressed
