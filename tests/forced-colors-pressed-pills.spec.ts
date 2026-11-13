@@ -146,6 +146,9 @@ for (const width of [390, 1280]) {
       await page.setViewportSize({ width, height: 800 });
       await c.seed(page);
       await page.goto(c.path);
+      // On a phone the quick pills live in the Filters sheet (#3734).
+      if (width === 390 && c.name === 'quick pills')
+        await page.getByRole('button', { name: /^Filters/ }).click();
       const pills = page.locator(`${c.pill}:visible`);
       await expect(pills.first()).toBeVisible();
       const pressed = pills.and(page.locator('[aria-pressed="true"]')).first();

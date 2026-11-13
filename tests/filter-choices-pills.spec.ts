@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { pickedValues, pickOnly } from './label-filter-helper';
+import { pickedValues, pickOnly, togglePicks } from './label-filter-helper';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // #1427: a quick pill is offered only when clicking it would show something,
@@ -76,10 +77,8 @@ async function open(
   await page.goto(path);
 }
 
-const pill = (page: Page, name: string) =>
-  page
-    .getByRole('group', { name: 'Quick filters' })
-    .getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 
 test.describe('quick pills offer only what would show something (#1427)', () => {
   test('only the pills some pull request matches are offered', async ({
@@ -91,17 +90,17 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     ]);
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
-    for (const name of ['All', 'Failing CI', 'Ready to Merge']) {
+    for (const name of ['Failing', 'Ready']) {
       await expect(pill(page, name)).toBeVisible();
     }
     // Every row is on GitHub, so that pill would show what All shows (#3669).
     for (const name of [
       'GitHub',
       'Forgejo',
-      'Conflicts',
+      'Conflicting',
       'Out of date',
-      'Needs Review',
-      'Review requested from me',
+      'Needs review',
+      'Review requested',
     ]) {
       await expect(pill(page, name)).toBeHidden();
     }
@@ -113,12 +112,12 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
       pr(2, { ci: 'failure', author: 'dana' }),
       pr(3, { ci: 'success' }),
     ]);
-    await expect(pill(page, 'Failing CI')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeVisible();
 
     await pickOnly(page, 'author', 'github:claude');
 
-    await expect(pill(page, 'Failing CI')).toBeHidden();
-    await expect(pill(page, 'Ready to Merge')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeHidden();
+    await expect(pill(page, 'Ready')).toBeVisible();
   });
 
   test('the active pill stays offered after a reload that finds nothing for it', async ({
@@ -133,19 +132,16 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
         r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
-    await pill(page, 'Failing CI').click();
+    await pill(page, 'Failing').click();
     await saved;
 
     await page.unroute('**/api/v1/dashboard*');
     await serve(page, [pr(1, { ci: 'success' })]);
     await page.reload();
 
-    await expect(pill(page, 'Failing CI')).toBeVisible();
-    await expect(pill(page, 'Failing CI')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    await expect(pill(page, 'All')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeVisible();
+    await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
+    await expect(pill(page, 'All', 'ci')).toBeVisible();
   });
 
   test('the Issues page offers a forge only when its issues are on both', async ({
@@ -163,7 +159,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
       [],
       [issue(1), issue(2, { forge: 'forgejo' })],
     );
-    await expect(pill(page, 'All')).toBeVisible();
+    await expect(pill(page, 'All', 'forge')).toBeVisible();
     await expect(pill(page, 'GitHub')).toBeVisible();
     await expect(pill(page, 'Forgejo')).toBeVisible();
   });
@@ -207,15 +203,15 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await pickOnly(page, 'repo', 'forgejo:h/x');
     // The repo pick leaves only the passing Forgejo pull request.
-    await expect(pill(page, 'Failing CI')).toBeHidden();
+    await expect(pill(page, 'Failing')).toBeHidden();
 
-    await pill(page, 'GitHub').click();
+    await togglePicks(page, 'repo', 'forgejo:h/x');
 
-    // Choosing GitHub clears the Forgejo repo pick, so the failing GitHub pull
-    // request shows, and its pill is offered without another action.
+    // Clearing the repo pick shows the failing GitHub pull request again, and
+    // its pill is offered without another action.
     await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
-    await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    await expect(pill(page, 'Failing CI')).toBeVisible();
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    await expect(pill(page, 'Failing')).toBeVisible();
   });
 
   test('has no axe-core violations with pills hidden', async ({ page }) => {
@@ -223,7 +219,7 @@ test.describe('quick pills offer only what would show something (#1427)', () => 
       pr(1, { ci: 'failure' }),
       pr(2, { ci: 'success' }),
     ]);
-    await expect(pill(page, 'Failing CI')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

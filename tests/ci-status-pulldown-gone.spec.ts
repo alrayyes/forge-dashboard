@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
 // The board header no longer has a "CI status" pulldown: the quick pills say
@@ -64,10 +65,8 @@ async function open(page: Page, url: string, pullRequests = MIXED) {
 }
 
 const rows = (page: Page) => page.locator('#pr-rows > .row');
-const pill = (page: Page, name: string) =>
-  page
-    .getByRole('group', { name: 'Quick filters' })
-    .getByRole('button', { name, exact: true });
+const pill = (page: Page, name: string, group?: PillGroup) =>
+  quickPill(page, name, group);
 
 // Seeds the saved copy and waits until the server reports it, so the page
 // opened next reads the seed and not an older write.
@@ -95,7 +94,7 @@ test.describe('the CI status pulldown is gone (2084)', () => {
   }) => {
     await open(page, '/pull-requests.html');
     await expect(rows(page)).toHaveCount(3);
-    await expect(pill(page, 'Failing CI')).toBeVisible();
+    await expect(pill(page, 'Failing')).toBeVisible();
   });
 
   test('No checks is offered only when a pull request has no checks, and lists those', async ({
@@ -111,7 +110,7 @@ test.describe('the CI status pulldown is gone (2084)', () => {
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('Pull request 3');
 
-    await pill(page, 'All').click();
+    await pill(page, 'All', 'ci').click();
     await expect(rows(page)).toHaveCount(3);
   });
 
@@ -123,10 +122,7 @@ test.describe('the CI status pulldown is gone (2084)', () => {
 
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('Pull request 2');
-    await expect(pill(page, 'Failing CI')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
+    await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#held-picks .held-pick-clear')).toHaveCount(0);
 
     // The page saves the migrated state once, so the old key leaves the copy.
@@ -135,7 +131,7 @@ test.describe('the CI status pulldown is gone (2084)', () => {
         const got = await (
           await page.request.get('/api/v1/settings/filter-state')
         ).json();
-        return JSON.stringify([got?.pr?.status ?? null, got?.pr?.quick]);
+        return JSON.stringify([got?.pr?.status ?? null, got?.pr?.ci]);
       })
       .toBe(JSON.stringify([null, 'failing']));
   });

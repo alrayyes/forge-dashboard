@@ -127,8 +127,8 @@ test.describe('a cancelled-only pull request (3301)', () => {
     await open(page);
 
     await page
-      .getByRole('group', { name: 'Quick filters' })
-      .getByRole('button', { name: 'Failing CI', exact: true })
+      .locator('.filter-bar .quick-pills')
+      .getByRole('button', { name: 'Failing', exact: true })
       .click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(row(page, 'Really failed')).toBeVisible();
