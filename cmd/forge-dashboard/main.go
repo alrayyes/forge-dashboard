@@ -29,6 +29,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dbmigrate"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/githubstatus"
 	"github.com/alrayyes/forge-dashboard/internal/memlimit"
 	"github.com/alrayyes/forge-dashboard/internal/osv"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
@@ -586,6 +587,10 @@ func shareBodies(client *github.Client, bodies *github.RenderedBodyCache) {
 // at a local server so buildSources itself can be exercised.
 var githubAPIBaseURL = ""
 
+// githubStatusURL is GitHub's public status page. A variable so a test can
+// point it at a local server.
+var githubStatusURL = githubstatus.BaseURL
+
 // buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
 // requests in the request log.
@@ -597,12 +602,18 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// Likewise for the GitHub bodies the image route reads: a client lives for
 	// one request, so a cache on it would never hit (#3682).
 	renderedBodies := github.NewRenderedBodyCache()
+	// One status page reader too, so a burst of failing clients makes one
+	// request (#3633).
+	status := githubstatus.New(githubStatusURL, nil)
 
 	return func(c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
 		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, renderedBodies); src != nil {
+			if gh, ok := src.(*github.Client); ok {
+				gh.SetStatusChecker(status)
+			}
 			sources = append(sources, src)
 		}
 

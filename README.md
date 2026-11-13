@@ -105,10 +105,15 @@ page open. Any other image shows as a link.
 
 ## Privacy
 
-The dashboard talks to your forges and to nothing else, with one opt-in
-exception. Forgejo has no dependency alerts, so the dashboard can match a
-repo's lock files against the public [OSV](https://osv.dev) database instead.
-That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
+The dashboard talks to your forges and to nothing else, with two exceptions.
+The first isn't optional but sends nothing about you: when GitHub can't be
+reached, it reads GitHub's public status page (`www.githubstatus.com`) to say
+whether GitHub reports an incident, at most once a minute and never while GitHub
+works. That request carries no token, account or repo name.
+
+The second is opt-in. Forgejo has no dependency alerts, so the dashboard can
+match a repo's lock files against the public [OSV](https://osv.dev) database
+instead. That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
 
 When it is on, **the package names and versions in each Forgejo repo's lock
 files, in the root or any subdirectory (`package-lock.json`, `bun.lock`,
