@@ -898,8 +898,12 @@ section.board {
      max-width: 760px, so everything from 761px up to 1103px overflows or
      squeezes the title. Drop the
      author, created and updated columns across that range so the 1fr
-     title and the status cell stay on screen. */
-  grid-template-columns: 280px 1fr 96px 82px 82px 280px 22px;
+     title and the status cell stay on screen.
+     #3829: the author, created and updated tracks are in rem, not px, because
+     their text follows the root font size. At 200% a 82px track held text that
+     was twice as wide, which ran into the next column. 6rem and 5.125rem are
+     96px and 82px at the default size, so nothing moves there. */
+  grid-template-columns: 280px 1fr 6rem 5.125rem 5.125rem 280px 22px;
   gap: 12px;
   align-items: center;
   padding: 12px 18px;
@@ -957,7 +961,7 @@ section.board {
    The phone layout (max-width: 760px) is its own stacked grid and is left alone. */
 @media (min-width: 761px) {
   .row.issue-row {
-    grid-template-columns: 280px minmax(0, 1fr) 96px 82px 82px 22px;
+    grid-template-columns: 280px minmax(0, 1fr) 6rem 5.125rem 5.125rem 22px;
   }
   .row.issue-row .empty-cell {
     display: none;

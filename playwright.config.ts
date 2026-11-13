@@ -265,6 +265,7 @@ const singleUserSpecs = [
   '**/csp-img-src.spec.ts',
   '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
+  '**/list-date-columns-root-font-size.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
