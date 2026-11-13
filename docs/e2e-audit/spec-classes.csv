@@ -66,7 +66,6 @@ filter-every-control.spec.ts,29.816,3,0,C,,29.8
 filter-held-pick-note.spec.ts,5.553,7,5,A,,1.6
 filter-hide-dependency-dashboard-restore.spec.ts,1.957,2,0,C,,2.0
 filter-late-copy.spec.ts,2.743,5,0,B,,2.7
-filter-newer-wins.spec.ts,1.236,1,0,B,,1.2
 filter-options.spec.ts,3.199,4,1,C,,2.4
 filter-persistence.spec.ts,6.981,7,0,B,,7.0
 filter-pick-panel-focus.spec.ts,1.615,3,3,A,,0.0
@@ -249,5 +248,4 @@ webhooks-phone-sort.spec.ts,5.72,8,7,A,,0.7
 webhooks-rebase-bots.spec.ts,2.674,4,0,C,,2.7
 webhooks-status-line.spec.ts,1.154,3,0,C,,1.2
 webhooks-table-tablet.spec.ts,3.141,6,4,A,,1.0
-webhooks.spec.ts,3.394,2,1,B,web/src/lib/webhooks-filter.test.ts,1.7
 webmcp.spec.ts,2.567,7,6,A,web/src/lib/webmcp-parity.test.ts;web/src/lib/webmcp-tools.test.ts,0.4

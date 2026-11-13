@@ -69,7 +69,6 @@
   "filter-held-pick-note.spec.ts": 5.806,
   "filter-hide-dependency-dashboard-restore.spec.ts": 2.221,
   "filter-late-copy.spec.ts": 2.3,
-  "filter-newer-wins.spec.ts": 1.159,
   "filter-options.spec.ts": 2.488,
   "filter-persistence.spec.ts": 6.444,
   "filter-pick-panel-focus.spec.ts": 1.762,
@@ -257,6 +256,5 @@
   "webhooks-rebase-bots.spec.ts": 1.999,
   "webhooks-status-line.spec.ts": 1.041,
   "webhooks-table-tablet.spec.ts": 1.917,
-  "webhooks.spec.ts": 3.189,
   "webmcp.spec.ts": 2.219
 }
