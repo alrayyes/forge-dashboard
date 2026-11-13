@@ -185,19 +185,6 @@ test.describe('first refresh loading state (#1672)', () => {
     await expect(navPills(page).first()).not.toHaveText('–');
   });
 
-  test('a snapshot without the flag counts as loaded', async ({ page }) => {
-    const mode: Mode = { done: undefined, withItems: false };
-    await holdDashboard(page, mode);
-    await page.goto('/pull-requests.html');
-
-    await expect(page.locator('#pr-empty')).toBeVisible();
-    await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-    await expect(page.locator('.list-region')).not.toHaveAttribute(
-      'aria-busy',
-      /.*/,
-    );
-  });
-
   test('the Branches page shows the skeleton too, and the nav a dash', async ({
     page,
   }) => {

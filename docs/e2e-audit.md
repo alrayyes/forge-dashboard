@@ -119,7 +119,10 @@ One ticket per group, each doing moves with its own mutation proof:
 
 - Component test harness, so class C has somewhere to go (already filed).
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
-  `cancel-run`, `settings-groups`.
+  `cancel-run`, `settings-groups` (done: six tests that only restated
+  a lib predicate or wording are gone, and the durations in
+  `tests/e2e-durations.json` refresh the next time a green `main` run is
+  recorded).
 - pin `settlesOnRow` in `wait-chip.test.ts`, then trim `wait-chip`.
 - prove the class B specs with Go mutations, then trim them.
 - cut `filter-every-control` rounds and move its round-trip and cookie checks

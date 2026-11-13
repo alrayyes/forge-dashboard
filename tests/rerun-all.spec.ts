@@ -202,17 +202,6 @@ for (const [name, path, rows] of [
   });
 }
 
-test('with no failing row the control is not there', async ({ page }) => {
-  await open(
-    page,
-    '/pull-requests.html',
-    [pr(1, { ci: 'success', allowedActions: [] })],
-    {},
-  );
-  await expect(page.locator('.row').first()).toBeVisible();
-  await expect(page.locator('#rerun-all-button')).toBeHidden();
-});
-
 test('when no failing row can run the dialog says so and sends nothing', async ({
   page,
 }) => {
