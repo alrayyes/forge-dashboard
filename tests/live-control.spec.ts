@@ -369,3 +369,16 @@ test.describe('Branches pause and refresh (#3699)', () => {
     await expect(control(page)).toContainText('updated 1h ago');
   });
 });
+
+test('a refresh that fails with no rows on screen raises one alert, not two', async ({
+  page,
+}) => {
+  await mockDashboard(page);
+  await page.route('**/api/v1/main-branches', (route: Route) =>
+    route.fulfill({ status: 500, body: 'nope' }),
+  );
+  await page.goto('/');
+  await expect(page.getByRole('alert')).toHaveCount(1);
+  await control(page).getByRole('button', { name: 'Refresh now' }).click();
+  await expect(page.getByRole('alert')).toHaveCount(1);
+});

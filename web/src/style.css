@@ -1285,6 +1285,12 @@ select.col-filter {
   color: var(--ink-2);
   flex: none;
 }
+/* On Main branches, at a large root size on a narrow phone, the group wraps
+   instead of scrolling the page sideways. */
+.mb-header-controls .live-control {
+  flex-wrap: wrap;
+  max-width: 100%;
+}
 .live-status {
   display: inline-flex;
   align-items: center;
@@ -5434,21 +5440,34 @@ footer a[aria-current="page"] {
    whether or not the button is there. The header is then the same height
    either way. */
 @media (max-width: 600px) {
+  /* The live control (#3699) is wide, so it takes the first line and the
+     count, the Hidden toggle and the button share the second. */
   .board-head:has(.rerun-all) .board-head-controls {
     flex: 1 1 100%;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     justify-content: space-between;
     gap: 8px;
-    /* The row is as tall as the button whether or not it shows, so the
-       button needs no negative margin and never lands on the heading. */
-    min-height: 44px;
+  }
+  .board-head:has(.rerun-all) .board-head-controls .live-control {
+    flex: 1 1 100%;
+  }
+  .board-head:has(.rerun-all) .board-head-controls .live-updated {
+    margin-right: auto;
   }
   .board-head:has(.rerun-all) .board-head-controls .count {
     margin-left: auto;
+    /* The second line is as tall as the button whether or not it shows, so
+       the button needs no negative margin and never lands on the heading. */
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
   }
   .rerun-all {
     margin-block: 0;
     min-width: 0;
+    /* Takes what the Hidden toggle and the count leave, so the second line
+       never breaks in two; the label wraps instead. */
+    flex: 1 1 0;
   }
   /* The label wraps in two lines when the Hidden toggle shares the row. */
   .rerun-all-button {

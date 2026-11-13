@@ -389,7 +389,8 @@
       apply((await res.json()) as MainBranches, asked);
     } catch (err) {
       // A refresh that fails keeps the rows already on screen, and says so.
-      if (asked) {
+      // With no rows on screen the read-failure alert below already says it.
+      if (asked && data && !initial) {
         refreshError = `Could not refresh: ${err instanceof Error ? err.message : String(err)}`;
       }
       if (initial || !data) {
@@ -539,6 +540,9 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px 12px;
+    }
+    .mb-header-controls {
+      max-width: 100%;
     }
     .mb-header h1 {
       font-size: 1.375rem;
