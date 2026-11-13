@@ -204,6 +204,22 @@ test.describe('first refresh loading state (#1672)', () => {
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
   });
 
+  test('after about ten seconds the status line says it can take a while', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const mode: Mode = { done: false, withItems: false };
+    await holdDashboard(page, mode);
+    await page.goto('/pull-requests.html');
+
+    const status = page.getByTestId('first-refresh-status');
+    await expect(status).toHaveText('Loading your pull requests…');
+    await page.clock.fastForward(11_000);
+    await expect(status).toHaveText(
+      'Still loading. The first refresh can take a while after a restart.',
+    );
+  });
+
   test('nothing animates under prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await holdDashboard(page, { done: false, withItems: false });
