@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.41.0](https://github.com/alrayyes/forge-dashboard/compare/v9.40.0...v9.41.0) (2026-11-13)
+
+
+### Features
+
+* **web:** say an unreachable forge once, in the banner ([#3736](https://github.com/alrayyes/forge-dashboard/issues/3736)) ([cab0bd7](https://github.com/alrayyes/forge-dashboard/commit/cab0bd79e2bdb920532c5265707e255429ba5454)), closes [#3719](https://github.com/alrayyes/forge-dashboard/issues/3719)
+
 ## [9.40.0](https://github.com/alrayyes/forge-dashboard/compare/v9.39.0...v9.40.0) (2026-11-13)
 
 
