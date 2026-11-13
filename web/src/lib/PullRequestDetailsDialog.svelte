@@ -1126,25 +1126,37 @@
     border-radius: 3px;
     background: transparent;
   }
-  .markdown :global(label.task input:checked) {
-    background:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%23fff' stroke-width='1.8'/%3E%3C/svg%3E")
-        center / 100% no-repeat,
-      var(--accent);
-    border-color: var(--accent);
+  .markdown :global(label.task input) {
+    position: relative;
+    /* The tick is white on the accent; the accent is light in the dark scheme,
+       so the tick is dark there. */
+    --tick: #fff;
   }
-  /* The accent is light in the dark scheme, so the tick is dark there. */
   @media (prefers-color-scheme: dark) {
     :global(:root:not([data-theme="light"]))
       .markdown
-      :global(label.task input:checked) {
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%2306181a' stroke-width='1.8'/%3E%3C/svg%3E");
+      :global(label.task input) {
+      --tick: #06181a;
     }
   }
-  :global(:root[data-theme="dark"])
-    .markdown
-    :global(label.task input:checked) {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.5l2.5 2.5 4.5-5.5' fill='none' stroke='%2306181a' stroke-width='1.8'/%3E%3C/svg%3E");
+  :global(:root[data-theme="dark"]) .markdown :global(label.task input) {
+    --tick: #06181a;
+  }
+  .markdown :global(label.task input:checked) {
+    background: var(--accent);
+    border-color: var(--accent);
+  }
+  /* Drawn with borders, not an image, so the image policy needs no data: URL. */
+  .markdown :global(label.task input:checked::before) {
+    content: "";
+    position: absolute;
+    left: 3.5px;
+    top: 0.5px;
+    width: 3px;
+    height: 6.5px;
+    border: solid var(--tick);
+    border-width: 0 1.8px 1.8px 0;
+    transform: rotate(45deg);
   }
   /* Forced colours drop our fills and the fixed-colour tick, so a checked box
      would look empty: hand the control back to the browser. */
@@ -1154,6 +1166,9 @@
       appearance: auto;
       background: none;
       border: 0;
+    }
+    .markdown :global(label.task input:checked::before) {
+      content: none;
     }
   }
   .markdown :global(blockquote) {

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"regexp"
 
+	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
@@ -40,6 +41,29 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	default:
 		return "", fmt.Errorf("%w: %q", errImageItemKind, item.Kind)
 	}
+	load := func(ctx context.Context) (string, error) { return c.readRenderedBody(ctx, path) }
+	var bodyHTML string
+	var err error
+	if label := c.credentialLabel(); c.renderedBodies == nil || label == "" {
+		bodyHTML, err = load(ctx)
+	} else {
+		bodyHTML, err = c.renderedBodies.get(ctx, label+" "+path, load)
+	}
+	if err != nil {
+		return "", err
+	}
+
+	for _, m := range renderedAnchor.FindAllStringSubmatch(bodyHTML, -1) {
+		if html.UnescapeString(m[1]) == link {
+			return html.UnescapeString(m[2]), nil
+		}
+	}
+
+	return "", nil
+}
+
+// readRenderedBody asks the API for the item at path with its HTML body.
+func (c *Client) readRenderedBody(ctx context.Context, path string) (string, error) {
 	req, err := c.restClient.NewRequest(http.MethodGet, path, nil)
 	if err != nil {
 		return "", fmt.Errorf("read rendered body: %w", err)
@@ -52,11 +76,22 @@ func (c *Client) SignedImageURL(ctx context.Context, owner, name string, item da
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, "/"+path, resp)
 
-	for _, m := range renderedAnchor.FindAllStringSubmatch(body.BodyHTML, -1) {
-		if html.UnescapeString(m[1]) == link {
-			return html.UnescapeString(m[2]), nil
-		}
-	}
+	return body.BodyHTML, nil
+}
 
-	return "", nil
+// credentialLabel names who this Client acts as, for keys that must not cross
+// accounts: the stats label when set, else one derived the same way. Empty means
+// unidentifiable, and nothing is cached.
+func (c *Client) credentialLabel() string {
+	switch {
+	case c.statsCredential != "":
+		return c.statsCredential
+	case c.token != "":
+		return apistats.TokenCredential(c.token)
+	case c.username != "":
+		return apistats.AccountCredential(c.username)
+	default:
+		// An App client no one labelled: nothing tells it from another.
+		return ""
+	}
 }
