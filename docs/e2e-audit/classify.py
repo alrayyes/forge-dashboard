@@ -7,6 +7,7 @@ lib={os.path.basename(p)[:-8] for p in glob.glob(f'{root}/web/src/lib/*.test.ts'
 gotests=[os.path.basename(p) for p in glob.glob(f'{root}/internal/**/*_test.go',recursive=True)]
 gostems={g[:-8].replace('_','-') for g in gotests}
 Bset={'webhooks','settings-field-errors','filter-persistence','main-branches-server-copy','filter-late-copy','filter-newer-wins'}
+Aset={'mono-figures'}  # assertions live in a helper the token scan cannot see
 Dset={'filter-save-order':'web/src/lib/filters-save-order.test.ts','filter-mixed-case':'web/src/lib/filters-mixed-case.test.ts'}
 rows=[]
 for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
@@ -19,7 +20,7 @@ for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
     lowers=[f'web/src/lib/{l}.test.ts' for l in sorted(lib) if l==stem or stem.startswith(l+'-') or l.startswith(stem)]
     if stem in Dset: cls='D'; lowers=[Dset[stem]]
     elif stem in Bset: cls='B'
-    elif nt and nb/nt>=0.5: cls='A'
+    elif stem in Aset or (nt and nb/nt>=0.5): cls='A'
     else: cls='C'
     movable=0.0
     if d and nt: movable=d*(nt-nb)/nt

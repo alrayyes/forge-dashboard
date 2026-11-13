@@ -130,7 +130,7 @@ main-branches-server-copy.spec.ts,4.113,7,0,B,,4.1
 main-branches-stream.spec.ts,0.656,3,0,C,,0.7
 mentioned-tickets.spec.ts,5.58,7,2,C,,4.0
 mobile-filters.spec.ts,7.606,9,7,A,,1.7
-mono-figures.spec.ts,1.621,4,0,C,,1.6
+mono-figures.spec.ts,1.621,4,0,A,,1.6
 nav-branches-pill-matches-page.spec.ts,0.36,1,0,C,,0.4
 nav-branches-pills.spec.ts,2.05,5,3,A,,0.8
 nav-count-reads.spec.ts,3.18,5,2,C,,1.9
@@ -153,7 +153,7 @@ pipeline-check-states.spec.ts,7.207,9,5,A,,3.2
 pipeline-check-waiting.spec.ts,,2,1,A,,0.0
 pipeline-long-check-name.spec.ts,4.505,1,1,A,,0.0
 pipeline-panel-live.spec.ts,10.347,14,7,A,,5.2
-pipeline-run-output.spec.ts,26.835,52,25,C,,13.9
+pipeline-run-output.spec.ts,26.835,53,26,C,,13.7
 placeholder-contrast.spec.ts,1.051,2,2,A,web/src/lib/placeholder-contrast.test.ts,0.0
 pr-author-avatar.spec.ts,2.588,7,2,C,,1.8
 pr-auto-update.spec.ts,13.321,12,4,C,,8.9

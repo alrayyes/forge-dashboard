@@ -1,8 +1,8 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (252 files, 2,236 tests) against
-`main` at release 9.41.0. No spec was edited, moved or deleted. The per-spec
-table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
+Read-only audit of every `tests/*.spec.ts` (252 files, 2,237 tests) against
+`main`. No spec was edited, moved, or deleted. The per-spec table is
+[`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.
 
 ## Method
@@ -13,13 +13,18 @@ table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 - Classes: **A** browser-only (layout, CSS, focus, keyboard, axe, viewport);
   **B** UI over logic a Go test covers; **C** UI over wording or state a unit or
   component test could cover; **D** fully covered below. A spec takes A when
-  half or more of its tests touch a browser-only API, else B or C. Mixed specs
-  get their dominant class.
+  half or more of its tests use a browser-only API, or when listed by hand
+  (`mono-figures`). The rest default to C. B is a hand-picked list of six specs,
+  and D is set by hand from the two deleted specs, since neither is detected.
+  Mixed specs get their dominant class.
+- The token scan only sees assertions written in the spec body. Browser
+  assertions held in a helper are missed, so such a spec reads as C when it is
+  A. `mono-figures` is the known case and is set to A by hand; others may exist.
 - "Est. movable" is an upper bound: spec duration times the share of its tests
   with no browser-only token. Time is assumed proportional to test count. It is
   not a measured saving.
 - Most specs mock `/api/v1/dashboard` with `page.route`, so they check the UI
-  over canned state. `web/` has 137 unit test files, all in `web/src/lib` (pure
+  over canned state. `web/` has 107 unit test files, all in `web/src/lib` (pure
   functions or fake DOM), and no Svelte component harness. Class C is therefore
   blocked on one, tracked as its own ticket, except where a lib function already
   carries the logic.
@@ -30,14 +35,14 @@ table is [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 
 | Class                           | Specs | Summed duration |
 | ------------------------------- | ----- | --------------- |
-| A browser-only                  | 114   | 553 s           |
+| A browser-only                  | 115   | 554 s           |
 | B Go covers the logic           | 6     | 20 s            |
-| C needs a lib or component test | 132   | 900 s           |
+| C needs a lib or component test | 131   | 898 s           |
 | D fully covered below           | 0     | 0 s             |
 
 D is empty today. The two specs that qualified (`filter-save-order`,
 `filter-mixed-case`) were deleted earlier with their own mutation proof. The
-upper bound over classes B and C is about 670 s of the 1,472 s run, and almost
+upper bound over classes B and C is about 671 s of the 1,472 s run, and almost
 none of it is safe to cut until the lower test exists. The order that keeps
 coverage is: write the lower test, prove it red under a mutation, then trim the
 spec.
@@ -67,18 +72,18 @@ be trimmed until it does.
 
 `webhooks`, `settings-field-errors`, `filter-persistence`,
 `main-branches-server-copy`, `filter-late-copy` and `filter-newer-wins` (20 s
-together). Their Go tests under `internal/` are named in the CSV where they
-matched, but no Go mutation was run, so these stay unproven.
+together). The class is hand-picked, and the CSV names no Go test for them. No
+Go mutation was run, so these stay unproven.
 
 ### UI over state a component test could cover (class C)
 
-132 specs, 900 s. No lower test exists for most. Where a lib test partly matches
+131 specs, 898 s. No lower test exists for most. Where a lib test partly matches
 (`dashboard`, `settings`, `webhooks-filter-choices`), the CSV names it.
 Confidence is low wherever no lower test was found.
 
 ### Browser-only (class A)
 
-114 specs, 553 s. These stay. Some still carry state-only tests beside the
+115 specs, 554 s. These stay. Some still carry state-only tests beside the
 layout ones; the upper bound counts those.
 
 ## Specs worth moving first
@@ -94,7 +99,7 @@ Ranked by estimated movable seconds, class A excluded.
 | 5   | `settings-groups`              | 27.4 s   | 22    | 9            | 16.2 s       | `settings-groups.test.ts` (proven, hash routing only)   |
 | 6   | `wait-chip`                    | 22.8 s   | 20    | 6            | 16.0 s       | `wait-chip.test.ts` (not proven)                        |
 | 7   | `webhooks-page`                | 17.0 s   | 56    | 8            | 14.5 s       | Missing: page state tests                               |
-| 8   | `pipeline-run-output`          | 26.8 s   | 52    | 25           | 13.9 s       | Missing: log-view state tests                           |
+| 8   | `pipeline-run-output`          | 26.8 s   | 53    | 26           | 13.7 s       | Missing: log-view state tests                           |
 | 9   | `copy-failure`                 | 14.4 s   | 17    | 3            | 11.9 s       | Missing: clipboard failure message                      |
 | 10  | `pr-dialog-actions`            | 21.6 s   | 30    | 14           | 11.5 s       | Missing: action enablement                              |
 | 11  | `first-refresh-loading`        | 21.1 s   | 13    | 6            | 11.4 s       | `first-refresh.test.ts` (proven); missing: banner state |
