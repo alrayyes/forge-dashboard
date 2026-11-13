@@ -17,7 +17,7 @@ interface Spec {
 const METHODS = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch'];
 
 /** Every operation in a parsed spec, with its exclusion reason if it has one. */
-export function specOperations(spec: Spec): {
+function specOperations(spec: Spec): {
   ids: string[];
   excluded: Map<string, string>;
 } {
@@ -47,7 +47,7 @@ export function specOperations(spec: Spec): {
 }
 
 /** What is wrong with how a spec's operations are covered; empty when nothing. */
-export function parityProblems(
+function parityProblems(
   spec: Spec,
   toolOperations: Record<string, string>,
   pending: Record<string, string>,
