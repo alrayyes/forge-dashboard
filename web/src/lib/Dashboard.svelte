@@ -5547,7 +5547,6 @@
       const wasLanded = issueShown.landed;
       const rendered = settleIssues();
       if (!rendered) drawRowFolds();
-      syncFilterBar();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, issueShown.items));
       return rendered;
@@ -5746,7 +5745,6 @@
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
     function offerWhatIsShown(change: "none" | "titles" | "all" = "all") {
-      syncFilterBar();
       const typing = Boolean(
         document.activeElement?.matches('input[data-col="title"]'),
       );
@@ -5768,7 +5766,6 @@
       const wasLanded = prShown.landed;
       const rendered = settlePRs();
       if (!rendered) drawRowFolds();
-      syncFilterBar();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
