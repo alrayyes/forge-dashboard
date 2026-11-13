@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -188,4 +189,88 @@ func TestSignedImageURL_KeepsItemsApart(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 2, calls.Load())
+}
+
+func TestSignedImageURL_TwoCredentialsNeverShareAnEntry(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls.Add(1)
+		who := r.Header.Get("Authorization")
+		writeJSON(t, w, map[string]any{"body_html": `<a href="` + attachment + `"><img src="https://private-user-images.githubusercontent.com/1/` + url.QueryEscape(who) + `.png"></a>`})
+	}))
+	t.Cleanup(srv.Close)
+	cache := github.NewRenderedBodyCache()
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+	resolve := func(token string) string {
+		c := github.NewClient(token, "", srv.URL)
+		c.ShareRenderedBodyCache(cache)
+		got, err := c.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+		require.NoError(t, err)
+
+		return got
+	}
+
+	a := resolve("token-a")
+	b := resolve("token-b")
+	again := resolve("token-a")
+
+	assert.Contains(t, a, "token-a")
+	assert.Contains(t, b, "token-b", "one account's body is never served to another")
+	assert.Equal(t, a, again)
+	assert.EqualValues(t, 2, calls.Load())
+}
+
+func TestSignedImageURL_AFailedReadIsNotCached(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if calls.Add(1) == 1 {
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	}))
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
+
+	_, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+	require.Error(t, err)
+	got, err := client.SignedImageURL(t.Context(), "octo", "repo", item, attachment)
+
+	require.NoError(t, err)
+	assert.Contains(t, got, "signed.png")
+	assert.EqualValues(t, 2, calls.Load())
+}
+
+func TestSignedImageURL_TheCacheHoldsAtMostItsCap(t *testing.T) {
+	t.Parallel()
+	var calls atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls.Add(1)
+		writeJSON(t, w, map[string]any{"body_html": renderedBody})
+	}))
+	t.Cleanup(srv.Close)
+	client := github.NewClient("test-token", "", srv.URL)
+	client.SetRenderedBodyMaxForTest(2)
+	now := time.Now()
+	client.SetRenderedBodyClockForTest(func() time.Time { return now })
+	read := func(n int) {
+		now = now.Add(time.Second)
+		_, err := client.SignedImageURL(t.Context(), "octo", "repo", dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: n}, attachment)
+		require.NoError(t, err)
+	}
+
+	read(1)
+	read(2)
+	read(3) // evicts item 1, the first to expire
+	assert.EqualValues(t, 3, calls.Load())
+	read(2)
+	read(3)
+	assert.EqualValues(t, 3, calls.Load(), "the newest two are kept")
+	read(1)
+	assert.EqualValues(t, 4, calls.Load(), "the evicted one is read again")
+	assert.LessOrEqual(t, client.RenderedBodyCountForTest(), 2)
 }

@@ -524,10 +524,12 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Dr
 // per refresh) rather than going through GenericSource's
 // one-REST-call-per-repo model.
 //
+// bodies, when not nil, is the rendered-body cache every client shares (#3682).
+//
 // baseURL is always "" (the real GitHub API) from buildSources;
 // it's a parameter purely so a test can override it, the same testability
 // NewClient/NewAppClient's own baseURL parameters already provide.
-func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters) dashboard.Source {
+func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, bodies *github.RenderedBodyCache) dashboard.Source {
 	appConnected := githubAppID != 0 && c.GitHubAppInstallationID != 0
 	if appConnected {
 		client, err := github.NewAppClient(githubAppID, c.GitHubAppInstallationID, githubAppPrivateKey, baseURL, recorder)
@@ -541,6 +543,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 			// saved personal token when there is one (#666).
 			client.SetCommentToken(c.GitHubToken)
 			client.SetStats(stats, apistats.AppCredential(c.GitHubAppInstallationID))
+			shareBodies(client, bodies)
 
 			return client
 		}
@@ -550,6 +553,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	case c.GitHubToken != "":
 		client := github.NewClient(c.GitHubToken, "", baseURL, recorder)
 		client.SetStats(stats, apistats.TokenCredential(c.GitHubToken))
+		shareBodies(client, bodies)
 		if c.WebhookToken != "" {
 			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
 		}
@@ -558,6 +562,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	case c.GitHubUsername != "":
 		client := github.NewClient("", c.GitHubUsername, baseURL, recorder)
 		client.SetStats(stats, apistats.AccountCredential(c.GitHubUsername))
+		shareBodies(client, bodies)
 
 		return client
 	case appConnected:
@@ -570,6 +575,13 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	}
 }
 
+// shareBodies puts client on the shared rendered-body cache, if there is one.
+func shareBodies(client *github.Client, bodies *github.RenderedBodyCache) {
+	if bodies != nil {
+		client.ShareRenderedBodyCache(bodies)
+	}
+}
+
 // buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
 // requests in the request log.
@@ -578,12 +590,15 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// One cache for every client this closure builds: a login or a settings
 	// save builds new clients, and they pick up what the old ones learned.
 	advisoryCache := forgejo.NewAdvisoryCache()
+	// Likewise for the GitHub bodies the image route reads: a client lives for
+	// one request, so a cache on it would never hit (#3682).
+	renderedBodies := github.NewRenderedBodyCache()
 
 	return func(c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder, stats); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, "", recorder, stats, renderedBodies); src != nil {
 			sources = append(sources, src)
 		}
 

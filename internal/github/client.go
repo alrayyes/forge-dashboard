@@ -93,7 +93,7 @@ type Client struct {
 	webhookPath string
 
 	// renderedBodies holds items' rendered HTML for a few minutes (#3682).
-	renderedBodies renderedBodyCache
+	renderedBodies *RenderedBodyCache
 
 	// hooks* remember a webhook check GitHub refused for lack of permission
 	// (#894), so refreshes don't ask 50 repos the same question every time.
@@ -253,7 +253,16 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 		username:   username,
 		restClient: restClient,
 		recorder:   rec,
+
+		renderedBodies: NewRenderedBodyCache(),
 	}
+}
+
+// ShareRenderedBodyCache makes this Client use cache, so rendered item bodies
+// outlive it. A source builder makes a fresh Client per request, and without a
+// shared cache none of them would ever hit (#3682).
+func (c *Client) ShareRenderedBodyCache(cache *RenderedBodyCache) {
+	c.renderedBodies = cache
 }
 
 // ValidateAppPrivateKey confirms privateKeyPEM parses as a usable GitHub
@@ -319,6 +328,7 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		restClient:       restClient,
 		appAuthenticated: true,
 		recorder:         rec,
+		renderedBodies:   NewRenderedBodyCache(),
 	}, nil
 }
 
