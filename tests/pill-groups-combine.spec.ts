@@ -174,7 +174,7 @@ test.describe('pill groups combine (#3734)', () => {
       .toBeDefined();
   });
 
-  for (const width of [360, 390, 1280]) {
+  for (const width of [360, 390, 820, 1280]) {
     test(`at ${width}px each group is a labelled group and axe is clean`, async ({
       page,
     }) => {
@@ -204,6 +204,10 @@ test.describe('pill groups combine (#3734)', () => {
           await expect(
             page.getByRole('group', { name, exact: true }),
           ).toBeVisible();
+        await quickPill(page, 'Failing').click();
+        await quickPill(page, 'GitHub').click();
+        await expect(rows(page)).toHaveCount(1);
+        await expect(rows(page)).toContainText('PR 1');
       }
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
