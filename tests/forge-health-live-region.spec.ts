@@ -133,12 +133,14 @@ test.describe('the forge health live region (WCAG 4.1.3)', () => {
     await expect(page.locator(LIVE)).toContainText('GitHub reachable');
   });
 
-  test('recovery removes the pill and still announces once (#3681)', async ({
+  test('recovery clears the banner and still announces once (#3681)', async ({
     page,
   }) => {
     const state: State = { forge: down(), requests: 0 };
     await open(page, state);
-    await expect(page.locator('#forge-health .forge-health')).toHaveCount(1);
+    // The banner says it; the toolbar draws no chip (#3719).
+    await expect(page.locator('#unreachable-banner')).toBeVisible();
+    await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);
     state.forge = up();
     await poll(page, state);
     await expect(page.locator('#forge-health .forge-health')).toHaveCount(0);

@@ -152,8 +152,8 @@ test.describe('webhook-triggered live updates', () => {
     // The same push reaches app.js's own EventSource and re-renders the
     // dashboard, no reload needed — assert the visible effect too, not
     // just that a message arrived.
-    await expect(page.locator('#forge-health')).toContainText(
-      'Forgejo unreachable',
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      /Forgejo is (unreachable|starting up)/,
     );
   });
 

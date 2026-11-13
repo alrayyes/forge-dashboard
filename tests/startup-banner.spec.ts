@@ -49,7 +49,7 @@ test.describe('the banner right after a restart (#3554)', () => {
     const banner = page.locator('#unreachable-banner');
     await expect(banner).toContainText(/GitHub is starting up\./);
     await expect(banner).not.toContainText('unreachable');
-    await expect(banner).toContainText('Showing the last data from');
+    await expect(banner).toContainText('Showing data from');
     await expect(banner.getByRole('button', { name: 'Retry' })).toHaveCount(1);
   });
 
