@@ -73,6 +73,7 @@ const singleUserSpecs = [
   '**/filter-options.spec.ts',
   '**/mobile-filters.spec.ts',
   '**/filter-sheet-layout.spec.ts',
+  '**/filter-sheet-forced-colors.spec.ts',
   '**/show-drafts.spec.ts',
   '**/show-drafts-by-page.spec.ts',
   '**/show-row-clears-filters.spec.ts',
