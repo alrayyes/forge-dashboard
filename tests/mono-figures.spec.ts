@@ -63,7 +63,7 @@ test.describe('mono face and tabular figures (#1754)', () => {
     for (let i = 0; i < 2; i++) await expectMono(versions.nth(i));
 
     const notes = page.locator('.release-notes');
-    const prs = notes.getByRole('link', { name: /^#\d+$/ });
+    const prs = notes.getByRole('link', { name: /^#\d+\b/ });
     await expect(prs).toHaveCount(3);
     for (let i = 0; i < 3; i++) await expectMono(prs.nth(i));
 

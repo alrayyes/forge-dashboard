@@ -202,7 +202,9 @@ test.describe('release history page', () => {
     await expect(link).toHaveAccessibleName(
       '#12 (opens on the forge in a new tab)',
     );
-    await expect(page.getByRole('link', { name: '6bf88c3' })).toBeVisible();
+    await expect(
+      page.getByRole('link', { name: '6bf88c3', exact: true }),
+    ).toBeVisible();
   });
 
   for (const width of [360, 390, 1280]) {
