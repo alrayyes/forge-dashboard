@@ -2,6 +2,8 @@ package imageproxy
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"image"
 	_ "image/gif" // registers GIF so DecodeConfig can read its header
 	"image/jpeg"
@@ -41,7 +43,8 @@ func AllowedWidth(width int) bool { return slices.Contains(widths, width) }
 // than upright (scaling would drop the tag and turn the picture), or when the
 // result would not be smaller. A source
 // over MaxPixels is refused with ErrTooLarge, judged from its header alone.
-func Resize(img Image, width int) (Image, error) {
+// Waiting for one of the few resize slots ends with ctx.
+func Resize(ctx context.Context, img Image, width int) (Image, error) {
 	if img.ContentType == "image/gif" {
 		return img, nil
 	}
@@ -58,8 +61,12 @@ func Resize(img Image, width int) (Image, error) {
 	if img.ContentType == "image/jpeg" && jpegOrientation(img.Data) > 1 {
 		return img, nil
 	}
-	resizeSlots <- struct{}{}
-	defer func() { <-resizeSlots }()
+	select {
+	case resizeSlots <- struct{}{}:
+		defer func() { <-resizeSlots }()
+	case <-ctx.Done():
+		return Image{}, fmt.Errorf("imageproxy: %w", ctx.Err())
+	}
 	src, _, err := image.Decode(bytes.NewReader(img.Data))
 	if err != nil {
 		return img, nil //nolint:nilerr // truncated or unsupported (animated WebP): pass it on

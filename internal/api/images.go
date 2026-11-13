@@ -133,7 +133,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 			return
 		}
 		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
-			return fetchSized(width, func() (imageproxy.Image, error) {
+			return fetchSized(ctx, width, func() (imageproxy.Image, error) {
 				return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
 			})
 		})
@@ -162,13 +162,13 @@ func handleImage(deps Deps) http.HandlerFunc {
 }
 
 // fetchSized runs fetch and, when width is set, scales what it returned.
-func fetchSized(width int, fetch func() (imageproxy.Image, error)) (imageproxy.Image, error) {
+func fetchSized(ctx context.Context, width int, fetch func() (imageproxy.Image, error)) (imageproxy.Image, error) {
 	img, err := fetch()
 	if err != nil || width == 0 {
 		return img, err
 	}
 
-	return imageproxy.Resize(img, width) //nolint:wrapcheck // the kinds are mapped by imageFailure
+	return imageproxy.Resize(ctx, img, width) //nolint:wrapcheck // the kinds are mapped by imageFailure
 }
 
 // imageOptionsOf checks the optional kind and width, returning the width (0

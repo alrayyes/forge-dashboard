@@ -2,6 +2,7 @@ package imageproxy_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"hash/crc32"
 	"image"
@@ -10,10 +11,12 @@ import (
 	"image/jpeg"
 	imgpng "image/png"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/image/draw"
 )
 
 // noisy is a picture that does not compress to nothing, so a smaller size is
@@ -60,7 +63,7 @@ func TestResize_ShrinksAPNGKeepingTheAspectRatio(t *testing.T) {
 	t.Parallel()
 	src := encodePNG(t, noisy(1600, 800))
 
-	out, err := imageproxy.Resize(src, 640)
+	out, err := imageproxy.Resize(t.Context(), src, 640)
 
 	require.NoError(t, err)
 	assert.Equal(t, "image/png", out.ContentType)
@@ -74,7 +77,7 @@ func TestResize_ShrinksAJPEGAndStaysAJPEG(t *testing.T) {
 	t.Parallel()
 	src := encodeJPEG(t, noisy(1200, 900))
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, "image/jpeg", out.ContentType)
@@ -89,7 +92,7 @@ func TestResize_ReturnsTheOriginalWhenNotWiderThanRequested(t *testing.T) {
 	src := encodePNG(t, noisy(300, 200))
 
 	for _, width := range []int{300, 320, 640} {
-		out, err := imageproxy.Resize(src, width)
+		out, err := imageproxy.Resize(t.Context(), src, width)
 
 		require.NoError(t, err)
 		assert.Equal(t, src, out, "width %d", width)
@@ -104,7 +107,7 @@ func TestResize_ReturnsTheOriginalForAGIF(t *testing.T) {
 	require.NoError(t, gif.EncodeAll(&b, &gif.GIF{Image: []*image.Paletted{frame(), frame()}, Delay: []int{5, 5}}))
 	src := imageproxy.Image{ContentType: "image/gif", Data: b.Bytes()}
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
@@ -116,7 +119,7 @@ func TestResize_FallsBackToTheOriginalWhenDecodingFails(t *testing.T) {
 	// Valid header (so the size check passes), truncated body.
 	broken := imageproxy.Image{ContentType: "image/png", Data: good.Data[:len(good.Data)/2]}
 
-	out, err := imageproxy.Resize(broken, 320)
+	out, err := imageproxy.Resize(t.Context(), broken, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, broken, out)
@@ -128,7 +131,7 @@ func TestResize_FallsBackForAWebPItCannotDecode(t *testing.T) {
 	// a still decoder.
 	src := imageproxy.Image{ContentType: "image/webp", Data: append([]byte("RIFF\x20\x00\x00\x00WEBPVP8X"), make([]byte, 40)...)}
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
@@ -141,7 +144,7 @@ func TestResize_RefusesAnImageOverThePixelLimitBeforeDecoding(t *testing.T) {
 	// dimensions were read from the header alone.
 	src := headerOnlyPNG(40000, 40000)
 
-	_, err := imageproxy.Resize(src, 320)
+	_, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
 }
@@ -170,7 +173,7 @@ func TestResize_KeepsTheOriginalWhenScalingWouldNotMakeItSmaller(t *testing.T) {
 	require.NoError(t, jpeg.Encode(&b, noisy(1000, 1000), &jpeg.Options{Quality: 1}))
 	src := imageproxy.Image{ContentType: "image/jpeg", Data: b.Bytes()}
 
-	out, err := imageproxy.Resize(src, 960)
+	out, err := imageproxy.Resize(t.Context(), src, 960)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
@@ -196,17 +199,17 @@ func TestResize_PixelLimitBoundary(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, 16_000_000, imageproxy.MaxPixels)
 
-	atLimit, err := imageproxy.Resize(headerOnlyPNG(4000, 4000), 320)
+	atLimit, err := imageproxy.Resize(t.Context(), headerOnlyPNG(4000, 4000), 320)
 	require.NoError(t, err, "exactly MaxPixels is accepted")
 	assert.NotEmpty(t, atLimit.Data)
-	_, err = imageproxy.Resize(headerOnlyPNG(16_000_000, 1), 320)
+	_, err = imageproxy.Resize(t.Context(), headerOnlyPNG(16_000_000, 1), 320)
 	require.NoError(t, err, "a wide, short image at the limit is accepted")
 
-	_, err = imageproxy.Resize(headerOnlyPNG(16_000_001, 1), 320)
+	_, err = imageproxy.Resize(t.Context(), headerOnlyPNG(16_000_001, 1), 320)
 	require.ErrorIs(t, err, imageproxy.ErrTooLarge, "one pixel over is refused")
-	_, err = imageproxy.Resize(headerOnlyPNG(4001, 4000), 320)
+	_, err = imageproxy.Resize(t.Context(), headerOnlyPNG(4001, 4000), 320)
 	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
-	_, err = imageproxy.Resize(headerOnlyPNG(1, 16_000_001), 320)
+	_, err = imageproxy.Resize(t.Context(), headerOnlyPNG(1, 16_000_001), 320)
 	require.ErrorIs(t, err, imageproxy.ErrTooLarge)
 }
 
@@ -214,7 +217,7 @@ func TestResize_AZeroSizedHeaderIsPassedOnNotRefusedOrCrashed(t *testing.T) {
 	t.Parallel()
 	src := headerOnlyPNG(0, 0)
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
@@ -224,7 +227,7 @@ func TestResize_NeverUpscales(t *testing.T) {
 	t.Parallel()
 	src := encodePNG(t, noisy(200, 100))
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
@@ -234,7 +237,7 @@ func TestResize_AVeryWideImageKeepsAtLeastOnePixelOfHeight(t *testing.T) {
 	t.Parallel()
 	src := encodePNG(t, noisy(2000, 1))
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	w, h := dims(t, out)
@@ -256,7 +259,7 @@ func TestResize_AveragesInsteadOfPickingPixels(t *testing.T) {
 	}
 	src := encodePNG(t, img)
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	got, err := imgpng.Decode(bytes.NewReader(out.Data))
@@ -290,7 +293,7 @@ func TestResize_ReturnsTheOriginalForARotatedJPEG(t *testing.T) {
 
 	for _, o := range []uint16{2, 3, 6, 8} {
 		src := withOrientation(t, plain, o)
-		out, err := imageproxy.Resize(src, 320)
+		out, err := imageproxy.Resize(t.Context(), src, 320)
 
 		require.NoError(t, err)
 		assert.Equal(t, src, out, "orientation %d", o)
@@ -301,7 +304,7 @@ func TestResize_ScalesAnUprightJPEGEvenWithAnEXIFTag(t *testing.T) {
 	t.Parallel()
 	src := withOrientation(t, encodeJPEG(t, noisy(1200, 900)), 1)
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	w, _ := dims(t, out)
@@ -316,8 +319,167 @@ func TestResize_AnImageExactlyTheRequestedWidthIsNotRescaled(t *testing.T) {
 	require.NoError(t, jpeg.Encode(&b, noisy(320, 240), &jpeg.Options{Quality: 100}))
 	src := imageproxy.Image{ContentType: "image/jpeg", Data: b.Bytes()}
 
-	out, err := imageproxy.Resize(src, 320)
+	out, err := imageproxy.Resize(t.Context(), src, 320)
 
 	require.NoError(t, err)
 	assert.Equal(t, src, out)
+}
+
+func insertAfterSOI(jpg imageproxy.Image, seg []byte) imageproxy.Image {
+	data := append([]byte{}, jpg.Data[:2]...)
+	data = append(data, seg...)
+	data = append(data, jpg.Data[2:]...)
+
+	return imageproxy.Image{ContentType: "image/jpeg", Data: data}
+}
+
+func segment(marker byte, body []byte) []byte {
+	seg := []byte{0xFF, marker}
+	seg = binary.BigEndian.AppendUint16(seg, uint16(len(body)+2)) //nolint:gosec // a few bytes
+
+	return append(seg, body...)
+}
+
+func TestResize_FindsTheOrientationBehindOtherMarkerSegments(t *testing.T) {
+	t.Parallel()
+	rotated := withOrientation(t, encodeJPEG(t, noisy(1200, 900)), 6)
+	jfif := segment(0xE0, []byte("JFIF\x00\x01\x01\x00\x00\x01\x00\x01\x00\x00"))
+	xmp := segment(0xE1, []byte("http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta/>"))
+
+	for name, src := range map[string]imageproxy.Image{
+		"after JFIF":       insertAfterSOI(rotated, jfif),
+		"after XMP":        insertAfterSOI(rotated, xmp),
+		"after both":       insertAfterSOI(insertAfterSOI(rotated, xmp), jfif),
+		"little endian II": insertAfterSOI(encodeJPEG(t, noisy(1200, 900)), littleEndianOrientation(8)),
+	} {
+		out, err := imageproxy.Resize(t.Context(), src, 320)
+
+		require.NoError(t, err, name)
+		assert.Equal(t, src, out, name)
+	}
+}
+
+func littleEndianOrientation(o byte) []byte {
+	exif := []byte("Exif\x00\x00II\x2a\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00")
+	exif = append(exif, o, 0, 0, 0, 0, 0, 0, 0)
+
+	return segment(0xE1, exif)
+}
+
+// Not parallel: it holds the shared resize slots, which would starve or
+// deadlock a parallel test holding them too.
+func TestResize_OnlyTwoRunAtOnceAndAWaitingOneEndsWithItsContext(t *testing.T) {
+	src := encodePNG(t, noisy(1000, 800))
+	require.Equal(t, 2, imageproxy.ResizeSlots, "the documented limit")
+
+	t.Run("one free slot lets a resize through", func(t *testing.T) {
+		release := imageproxy.HoldResizeSlots(1)
+		defer release()
+
+		out, err := imageproxy.Resize(t.Context(), src, 320)
+
+		require.NoError(t, err)
+		w, _ := dims(t, out)
+		assert.Equal(t, 320, w)
+	})
+
+	t.Run("no free slot blocks until the context ends", func(t *testing.T) {
+		release := imageproxy.HoldResizeSlots(2)
+		ctx, cancel := context.WithTimeout(t.Context(), 100*time.Millisecond)
+		defer cancel()
+		start := time.Now()
+
+		errc := make(chan error, 1)
+		go func() {
+			_, err := imageproxy.Resize(ctx, src, 320)
+			errc <- err
+		}()
+		var err error
+		select {
+		case err = <-errc:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the wait for a slot ignored its context")
+		}
+
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+		assert.GreaterOrEqual(t, time.Since(start), 90*time.Millisecond, "it waited for a slot")
+		assert.Less(t, time.Since(start), 2*time.Second, "it stopped when the context did")
+		release()
+	})
+
+	t.Run("a cancelled context stops the wait at once", func(t *testing.T) {
+		release := imageproxy.HoldResizeSlots(2)
+		defer release()
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+		errc := make(chan error, 1)
+		go func() {
+			_, err := imageproxy.Resize(ctx, src, 320)
+			errc <- err
+		}()
+		var err error
+		select {
+		case err = <-errc:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the wait for a slot ignored its context")
+		}
+
+		require.ErrorIs(t, err, context.Canceled)
+	})
+}
+
+// Not parallel: it holds the shared resize slots, which would starve or
+// deadlock a parallel test holding them too.
+func TestResize_ASlotFreedLetsTheWaitingResizeFinish(t *testing.T) {
+	src := encodePNG(t, noisy(1000, 800))
+	release := imageproxy.HoldResizeSlots(2)
+	done := make(chan error, 1)
+	go func() {
+		_, err := imageproxy.Resize(t.Context(), src, 320)
+		done <- err
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("a resize ran with every slot held (err %v)", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+	release()
+
+	select {
+	case err := <-done:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("the waiting resize never ran after a slot freed")
+	}
+}
+
+func TestResize_EncodesAJPEGAtQuality85(t *testing.T) {
+	t.Parallel()
+	// A smooth picture with some texture, so the quality setting shows in the
+	// size. The expected bytes are the same scale and encode done here.
+	img := image.NewRGBA(image.Rect(0, 0, 1280, 960))
+	for y := range 960 {
+		for x := range 1280 {
+			img.Set(x, y, color.RGBA{uint8(x / 5), uint8(y / 4), uint8((x * y) >> 7 & 0xff), 255})
+		}
+	}
+	src := encodeJPEG(t, img)
+	ref := image.NewRGBA(image.Rect(0, 0, 640, 480))
+	draw.CatmullRom.Scale(ref, ref.Bounds(), decodeJPEG(t, src), img.Bounds(), draw.Src, nil)
+	var want bytes.Buffer
+	require.NoError(t, jpeg.Encode(&want, ref, &jpeg.Options{Quality: 85}))
+
+	out, err := imageproxy.Resize(t.Context(), src, 640)
+
+	require.NoError(t, err)
+	assert.Equal(t, want.Bytes(), out.Data)
+}
+
+func decodeJPEG(t *testing.T, img imageproxy.Image) image.Image {
+	t.Helper()
+	got, err := jpeg.Decode(bytes.NewReader(img.Data))
+	require.NoError(t, err)
+
+	return got
 }

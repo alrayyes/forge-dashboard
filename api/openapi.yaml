@@ -3602,7 +3602,8 @@ paths:
             refused, not snapped. The original is returned
             unchanged when it is no wider, when it is a GIF (which may be
             animated), when it cannot be decoded (an animated WebP, say), when it is
-            a JPEG with an EXIF orientation other than upright, or
+            a JPEG with an EXIF orientation other than upright (orientation in a
+            PNG or WebP is not read), or
             when scaling would not make it smaller. A JPEG stays a JPEG; a PNG
             or WebP comes back as a PNG. A source over 16 million pixels,
             judged from its header before anything is decoded, answers 413.
