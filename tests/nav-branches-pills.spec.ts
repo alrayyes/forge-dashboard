@@ -64,9 +64,29 @@ async function open(page: Page, branches: Counts) {
 }
 
 const BRANCHES = '/';
+const header = (page: Page) => page.locator(`header nav a[href="${BRANCHES}"]`);
 const tab = (page: Page) => page.locator(`.bottom-nav a[href="${BRANCHES}"]`);
 
 test.describe('the Branches nav pill shows failing, running and passing (#1458)', () => {
+  test('a branch held for workflow approval is named in the header link (#2024)', async ({
+    page,
+  }) => {
+    // The pill itself is asserted in the NavPills stories; the wording is
+    // unit-tested in nav-labels.test.ts. This pins that the link carries it.
+    await open(page, {
+      total: 8,
+      failed: 0,
+      running: 4,
+      passed: 3,
+      none: 0,
+      awaitingApproval: 1,
+    });
+    await expect(header(page)).toHaveAttribute(
+      'aria-label',
+      /1 waiting for approval/,
+    );
+  });
+
   test('on a 360px phone every tab fits and the pill stays inside its tab', async ({
     page,
   }) => {
