@@ -102,6 +102,16 @@ too, so `2024` finds a pull request with 2024 in its title. It is the same box
 as the title search, so it is remembered with the other filters and **Clear
 filters** empties it.
 
+## Short lists
+
+A page with one row, or none, has nothing to search or sort, so the filter bar,
+the phone **Filters** button and the sort control are not drawn. The count is
+the list before any filter, so a filter that narrows a longer list to one row
+keeps the bar and **Clear filters**. A single row also keeps the bar while a
+filter is picked, since that pick may be what hides the others, and while **Show
+drafts** has drafts to reveal. The same holds for the
+Issues, Releases and Bots pages. The bar comes back when a second row arrives.
+
 ## Issues a pull request closes
 
 A pull request that closes issues shows a "Closes" link for each, after

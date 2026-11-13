@@ -137,7 +137,11 @@ test('choices stay with the list on screen while updates are paused', async ({
 test('choices follow the list when a held list lands by a sort change', async ({
   page,
 }) => {
-  await open(page);
+  // Two rows on screen, since the sort control is not drawn over one (#3670).
+  await open(page, '/pull-requests.html', [
+    ...SHOWN,
+    pr(3, 'alrayyes', 'alrayyes/app', 'bug'),
+  ]);
   await page.getByRole('button', { name: 'Pause live updates' }).click();
   await page.evaluate((data) => window.__push(data), snapshot(NEWER));
   await expect(page.locator('#updates-paused-hint')).toBeVisible();

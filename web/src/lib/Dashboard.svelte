@@ -5547,6 +5547,7 @@
       const wasLanded = issueShown.landed;
       const rendered = settleIssues();
       if (!rendered) drawRowFolds();
+      syncFilterBar();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, issueShown.items));
       return rendered;
@@ -5745,6 +5746,7 @@
     // can trail the newest snapshot while it waits (#1427), so they are
     // offered again when a waiting list lands.
     function offerWhatIsShown(change: "none" | "titles" | "all" = "all") {
+      syncFilterBar();
       const typing = Boolean(
         document.activeElement?.matches('input[data-col="title"]'),
       );
@@ -5766,6 +5768,7 @@
       const wasLanded = prShown.landed;
       const rendered = settlePRs();
       if (!rendered) drawRowFolds();
+      syncFilterBar();
       if (before.length > 0 || wasLanded)
         offerWhatIsShown(choicesChange(before, prShown.items));
       return rendered;
@@ -7413,6 +7416,8 @@
     // chip and sync status on a "Group by repository" header (#679).
     let reposByKey = new Map<string, Filters.RepoRef>();
     let allIssues: IssueItem[] = [];
+    // True once a snapshot has said how many rows there are (#3670).
+    let listKnown = false;
     // The latest snapshot's own forges array — mergeActionCell/
     // updateBranchActionCell read this to pre-emptively lock a row's
     // action button when its forge is unreachable or its rate-limit
@@ -7661,6 +7666,7 @@
         Filters.effectivePill(sharedState, view === "issues"),
       );
       keepFocusInBar(focused);
+      syncFilterBar();
       return cleared;
     }
 
@@ -8524,6 +8530,20 @@
       renderBoth();
     });
 
+    // The bar and its sort controls show only for a list of two or more rows
+    // before filters (#3670).
+    function syncFilterBar() {
+      // Until a snapshot has said how many rows there are, the bar stays.
+      if (!listKnown) return;
+      Filters.offerFilterBar(
+        document.querySelector<HTMLElement>(".filter-bar"),
+        itemsOnScreen().length,
+        // A pick, or Show drafts while it has something to reveal, keeps the
+        // bar over one row: the bar is where they are undone.
+        filtersAreDefault() && showDraftsButton?.hidden !== false,
+      );
+    }
+
     // #354: Clear filters is disabled once nothing this page offers is picked.
     function filtersAreDefault(): boolean {
       return Filters.filtersAreDefault(sharedState, {
@@ -8542,6 +8562,7 @@
         "clear-filters-button",
       ) as HTMLButtonElement | null;
       if (button) button.disabled = filtersAreDefault();
+      syncFilterBar();
       renderFilterChrome();
     }
 
@@ -10019,6 +10040,7 @@
       followOpenPipeline();
       evictRerunState();
       allIssues = issues;
+      listKnown = true;
       reposByKey = new Map(
         (data.repos || []).map((r) => [
           Filters.repoKey(r.forge, r.fullName),

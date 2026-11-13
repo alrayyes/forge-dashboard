@@ -162,6 +162,34 @@ test.describe('the Branches filter follows the account (#1620)', () => {
     context,
   }) => {
     const other = await context.newPage();
+    // Two pull requests, since the filter bar is not drawn over fewer (#3670).
+    const pr = (number: number) => ({
+      forge: 'github',
+      repo: 'acme/auth',
+      number,
+      title: `Change ${number}`,
+      url: `https://example.com/${number}`,
+      author: 'dev',
+      draft: false,
+      ci: 'success',
+      labels: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      mergeStatus: 'mergeable',
+    });
+    await other.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+    await other.route('**/api/v1/dashboard', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          pullRequests: [pr(1), pr(2)],
+          issues: [],
+        }),
+      }),
+    );
     await other.goto('/pull-requests.html');
     await other.locator('input[data-col="title"]').fill('newer');
     await expect

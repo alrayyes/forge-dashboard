@@ -186,6 +186,7 @@ for (const scheme of ['light', 'dark'] as const) {
 test('a focused filter field still shows the 2px accent outline', async ({
   page,
 }) => {
+  await seed(page, '/pull-requests.html');
   await page.goto('/pull-requests.html');
   const title = page.locator('input.col-filter[data-col="title"]').first();
   await title.focus();
