@@ -375,7 +375,13 @@ function combined(board: Board): Control[] {
     ),
     select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
     ...(issues ? [] : [toggle('Show drafts', '#show-drafts-toggle', 'drafts')]),
-    toggle('Pause live updates', '#pause-updates-button', 'paused'),
+    {
+      name: 'Pause live updates',
+      stored: [{ group: 'view', key: 'paused', value: '1' }],
+      set: (page) => page.locator('#pause-updates-button').click(),
+      show: (page) =>
+        expect(page.locator('.live-control')).toContainText('Paused'),
+    },
     {
       name: 'title text',
       stored: [{ group: 'shared', key: 'title', value: title }],

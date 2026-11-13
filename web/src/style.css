@@ -217,7 +217,7 @@ header,
 }
 
 /* The dashboard page's own toolbar (the owner-select, forge
-   health, the refreshed clock, the refresh button) — plain markup right
+   health) — plain markup right
    below the shared <header>, not part of it (see (app)/+page.svelte's own
    comment on why: a Svelte context "slot" into the layout's <header> broke
    under SSR). Shares header's own flex layout/spacing above, but as a
@@ -358,11 +358,6 @@ header,
   100% {
     box-shadow: 0 0 0 0 rgba(21, 115, 71, 0);
   }
-}
-
-.refreshed {
-  font-size: 0.75rem;
-  color: var(--ink-3);
 }
 
 .theme-toggle {
@@ -1283,55 +1278,76 @@ select.col-filter {
   outline-offset: 1px;
 }
 
-/* The bar holds the one Pause control for the page's live updates. It
-   draws its box only while paused, so it is not an empty grey strip. */
-.updates-bar {
-  display: flex;
+/* The one live control in a list card header (#3699): status, the time of
+   the snapshot on screen, Pause or Resume, and refresh, in one bordered group
+   that leads the card's right-hand controls. */
+.live-control {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  padding: 6px 12px;
-  margin-bottom: 12px;
-  border: 1px solid transparent;
-  border-radius: var(--radius);
+  gap: 4px 10px;
+  padding-left: 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
   font-size: 0.75rem;
   color: var(--ink-2);
+  flex: none;
 }
-.updates-bar:has(.updates-paused:not([hidden])) {
-  background: var(--surface-sunken);
-  border-color: var(--border);
+.live-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--ink);
 }
-.updates-paused {
-  color: var(--ink-2);
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--ok, #157347);
 }
-.updates-bar button {
+.live-control.paused .live-dot {
+  background: var(--ink-3);
+}
+.live-updated {
+  color: var(--ink-3);
+  white-space: nowrap;
+}
+.live-control button {
   font-family: inherit;
   font-size: 0.75rem;
-  padding: 5px 10px;
-  border-radius: 6px;
-  border: 1px solid var(--border-strong);
-  background: var(--surface);
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
 }
-.updates-bar .updates-pause {
-  margin-left: auto;
+.live-control .live-refresh {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  padding: 0;
+  color: var(--ink-2);
+  border-radius: 0 999px 999px 0;
 }
-.updates-bar .updates-pause[aria-pressed="true"] {
-  border-color: var(--accent);
-  box-shadow: inset 0 0 0 1px var(--accent);
+.live-control button:hover {
+  color: var(--accent);
 }
-.updates-bar button:focus-visible {
+.live-control button:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
-/* Forced colors drops the border colour and inset shadow that mark a paused
-   updates bar (#3388). A 3px system-colour border marks it, with the padding
-   cut by the 2px it gained so the button keeps its size. */
+.live-control .live-refresh[aria-disabled="true"] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
 @media (forced-colors: active) {
-  .updates-bar .updates-pause[aria-pressed="true"] {
-    border: 3px solid Highlight;
-    padding: 3px 8px;
+  .live-control.paused .live-dot {
+    background: GrayText;
+    border: 1px solid GrayText;
   }
 }
 
@@ -4518,16 +4534,14 @@ button.pipeline-check-link:disabled {
   .wrap:has(> .activity-bar) > .filter-bar {
     grid-column: 1;
   }
-  .wrap:has(> .activity-bar) > .activity-bar,
-  .wrap:has(> .activity-bar) > .updates-bar {
+  .wrap:has(> .activity-bar) > .activity-bar {
     grid-column: 2;
   }
   .wrap:has(> .activity-bar) > .activity-bar,
   .wrap:has(> .activity-bar) > .dashboard-toolbar {
     grid-row: 1;
   }
-  .wrap:has(> .activity-bar) > .filter-bar,
-  .wrap:has(> .activity-bar) > .updates-bar {
+  .wrap:has(> .activity-bar) > .filter-bar {
     grid-row: 2;
   }
   .activity-bar {
@@ -4536,7 +4550,6 @@ button.pipeline-check-link:disabled {
     margin: 0;
   }
   .dashboard-toolbar {
-    min-height: 44px;
     padding: 0;
     gap: 4px 12px;
   }
@@ -4558,11 +4571,6 @@ button.pipeline-check-link:disabled {
   }
   .active-filters {
     flex: 0 0 100%;
-  }
-  .updates-bar {
-    align-self: center;
-    padding: 0;
-    margin: 0 0 4px;
   }
   .board-head {
     padding: 6px 18px 4px;
@@ -5053,7 +5061,8 @@ footer a[aria-current="page"] {
       .error-links a,
       .theme-toggle,
       .activity-toggle,
-      .updates-pause,
+      .live-pause,
+      .live-refresh,
       .quick-pill,
       .segment button,
       .clear-filters,
@@ -5084,6 +5093,8 @@ footer a[aria-current="page"] {
     body
     :is(
       .theme-toggle,
+      .live-pause,
+      .live-refresh,
       .quick-pill,
       .token-toggle,
       .copy-button,

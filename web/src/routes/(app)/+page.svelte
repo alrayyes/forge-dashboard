@@ -23,6 +23,7 @@
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
+  import LiveControl from "#lib/LiveControl.svelte";
   import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
   import {
     BackendStatusError,
@@ -342,7 +343,16 @@
   }
 
   // Takes a page of rows, from the stream or from the fallback read.
-  function apply(next: MainBranches) {
+  // While the page is paused (#3699) a page that arrives is held, the newest
+  // one, and drawn on Resume. A refresh the user asked for is drawn at once.
+  let paused = $state(false);
+  let held: MainBranches | null = null;
+  function apply(next: MainBranches, asked = false) {
+    if (paused && !asked) {
+      held = next;
+      return;
+    }
+    held = null;
     if (!supersedes(next, data)) return;
     data = next;
     failure = null;
@@ -361,13 +371,13 @@
 
   // The one read of GET /api/v1/main-branches: the first draw, and the fallback
   // when the stream is down. Every update after that comes from the stream.
-  async function load(initial = false) {
+  async function load(initial = false, asked = false) {
     try {
       const res = await fetch("/api/v1/main-branches", {
         headers: { Accept: "application/json" },
       });
       if (!res.ok) throw new BackendStatusError(res.status);
-      apply((await res.json()) as MainBranches);
+      apply((await res.json()) as MainBranches, asked);
     } catch (err) {
       // A refresh that fails keeps the rows already on screen.
       if (initial || !data) {
@@ -380,6 +390,11 @@
     } finally {
       loading = false;
     }
+  }
+
+  function togglePause() {
+    paused = !paused;
+    if (!paused && held) apply(held);
   }
 
   function retry() {
@@ -485,7 +500,7 @@
     });
     load(true);
     return followMainBranchPage({
-      onPage: apply,
+      onPage: (page) => apply(page),
       onDown: () => load(),
       onUp: () => load(),
     });
@@ -503,6 +518,13 @@
       max-width: 1220px;
       margin: 0 auto;
       padding: 24px 0 64px;
+    }
+    .mb-header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px 12px;
     }
     .mb-header h1 {
       font-size: 1.375rem;
@@ -942,6 +964,14 @@
 <div class="mb-wrap">
   <div class="mb-header">
     <h1>Main branches</h1>
+    <div class="mb-header-controls">
+      <LiveControl
+        {paused}
+        updatedAt={pending ? null : (data?.generatedAt ?? null)}
+        onpause={togglePause}
+        onrefresh={() => load(false, true)}
+      />
+    </div>
   </div>
 
   <!-- Always mounted, so it is empty before it speaks and a screen reader
