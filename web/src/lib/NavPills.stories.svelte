@@ -1,6 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { expect } from "storybook/test";
+  import { expect, within } from "storybook/test";
   import type { NavCount } from "./nav-counts.svelte.js";
   import NavPills from "./NavPills.svelte";
 
@@ -135,7 +135,19 @@
 </Story>
 
 <!-- The first refresh has not finished: a dash, never a 0. -->
-<Story asChild name="First refresh pending">
+<Story
+  asChild
+  name="First refresh pending"
+  play={async ({ canvasElement }) => {
+    const pill = canvasElement.querySelector(".nav-pills") as HTMLElement;
+    await expect(pill.textContent?.trim()).toBe("–");
+    // The dash is hidden from assistive tech: the link keeps its plain name.
+    await expect(pill.getAttribute("aria-hidden")).toBe("true");
+    await expect(
+      within(canvasElement).getByRole("link", { name: /^Pull requests$/ }),
+    ).not.toBeNull();
+  }}
+>
   {@render inLink(null, { pending: true })}
 </Story>
 

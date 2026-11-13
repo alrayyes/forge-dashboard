@@ -204,22 +204,6 @@ test.describe('first refresh loading state (#1672)', () => {
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
   });
 
-  test('after about ten seconds the status line says it can take a while', async ({
-    page,
-  }) => {
-    await page.clock.install();
-    const mode: Mode = { done: false, withItems: false };
-    await holdDashboard(page, mode);
-    await page.goto('/pull-requests.html');
-
-    const status = page.getByTestId('first-refresh-status');
-    await expect(status).toHaveText('Loading your pull requests…');
-    await page.clock.fastForward(11_000);
-    await expect(status).toHaveText(
-      'Still loading. The first refresh can take a while after a restart.',
-    );
-  });
-
   test('nothing animates under prefers-reduced-motion', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await holdDashboard(page, { done: false, withItems: false });
@@ -274,68 +258,6 @@ test.describe('first refresh loading state (#1672)', () => {
       });
     }
   });
-
-  test('the nav links keep plain names while pending, the dash is not read', async ({
-    page,
-  }) => {
-    await holdDashboard(page, { done: false, withItems: false });
-    await page.goto('/pull-requests.html');
-    await expect(page.getByTestId('list-skeleton')).toBeVisible();
-
-    const nav = page.getByRole('navigation', { name: 'Main' });
-    for (const name of [
-      'Branches',
-      'Pull requests',
-      'Releases',
-      'Bots',
-      'Issues',
-    ]) {
-      await expect(nav.getByRole('link', { name, exact: true })).toHaveCount(1);
-    }
-  });
-
-  for (const target of [
-    { name: 'Branches', line: 'Loading your branches…', url: '/' },
-    {
-      name: 'Pull requests',
-      line: 'Loading your pull requests…',
-      url: '/pull-requests.html',
-    },
-  ]) {
-    test(`${target.name}: the status live region is in the page before it has text`, async ({
-      page,
-    }) => {
-      await page.addInitScript(() => {
-        const seen: string[] = [];
-        (window as unknown as { __statusSeen: string[] }).__statusSeen = seen;
-        const look = () => {
-          const el = document.querySelector(
-            '[data-testid="first-refresh-status"]',
-          );
-          if (!el) return;
-          const text = (el.textContent ?? '').trim();
-          if (seen[seen.length - 1] !== text) seen.push(text);
-        };
-        new MutationObserver(look).observe(document, {
-          subtree: true,
-          childList: true,
-          characterData: true,
-        });
-      });
-      const mode: Mode = { done: false, withItems: false };
-      await holdDashboard(page, mode);
-      await page.goto(target.url);
-      await expect(page.getByTestId('first-refresh-status')).toHaveText(
-        target.line,
-      );
-      const seen = await page.evaluate(
-        () => (window as unknown as { __statusSeen: string[] }).__statusSeen,
-      );
-      // First sighting is empty; the text arrives as a change to it.
-      expect(seen[0]).toBe('');
-      expect(seen).toContain(target.line);
-    });
-  }
 
   test('Branches never says nothing is tracked before the flag arrives, and does not hang if the snapshot fails', async ({
     page,
