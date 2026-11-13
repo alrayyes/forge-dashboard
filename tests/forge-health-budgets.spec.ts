@@ -8,7 +8,8 @@ import { test } from './server-fixture';
 // #1433: GitHub has two independent budgets. The text under the forge pill when shown
 // shows each one, labelled, so it never describes a different budget from the
 // banner, and a remaining count above its limit is never shown against that
-// limit.
+// limit. The labels and the hidden counts are `play` functions on the
+// ForgeHealth stories; what stays here needs the page's banner or its live region.
 // https://github.com/alrayyes/forge-dashboard/issues/1433
 
 const inMinutes = (m: number) =>
@@ -56,49 +57,6 @@ test.describe('the budget text on the overview (#1433)', () => {
     await expect(page.locator('#rate-limit-banner')).toContainText(
       /GraphQL budget is spent/,
     );
-  });
-
-  test('a forge with one budget still says which one it is', async ({
-    page,
-  }) => {
-    await open(page, { rateLimitREST: rateLimit(5000, 800, inMinutes(40)) });
-
-    await expect(budgets(page)).toHaveCount(1);
-    await expect(budgets(page)).toContainText(/^GH REST: 800\/5,000 reqs/);
-    await expect(page.locator('#forge-health')).not.toContainText(/GH: /);
-  });
-
-  test('a Forgejo forge labels its budget with its own short name', async ({
-    page,
-  }) => {
-    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
-      route.abort(),
-    );
-    await page.route('**/api/v1/dashboard*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [
-            {
-              forge: 'forgejo',
-              reachable: true,
-              repoCount: 1,
-              rateLimitREST: rateLimit(1000, 150, inMinutes(40)),
-            },
-          ],
-          pullRequests: [],
-          issues: [],
-          repos: [],
-          hiddenDrafts: 0,
-        }),
-      }),
-    );
-    await page.goto('/pull-requests.html');
-
-    await expect(budgets(page)).toHaveCount(1);
-    await expect(budgets(page)).toContainText(/^FJ REST: 150\/1,000 reqs/);
   });
 
   test('a remaining count above its limit is never shown on the overview', async ({

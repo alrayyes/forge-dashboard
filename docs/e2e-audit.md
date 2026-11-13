@@ -164,6 +164,16 @@ One ticket per group, each doing moves with its own mutation proof:
   red by breaking the component: the slow wording, the loading wording,
   `aria-live`, the live region dropped while idle, `aria-hidden` on the dash, and
   the dash replaced by a 0. The CSV row for `first-refresh-loading` is updated.
+- The third move, from `forge-health-budgets`: the toolbar's forge health was
+  drawn inside `Dashboard.svelte`, so it is now its own `ForgeHealth` component
+  and has stories. Two tests that checked the budget text's label (a single
+  REST budget, and a Forgejo forge's own short name) are `play` functions on
+  those stories. About 0.29 s of e2e test time became about 0.02 s of story
+  time. Each assertion was proven red by breaking the component: the Forgejo
+  short name, `aria-live="off"` on a budget, the overview threshold, the kind in
+  the label, the unreachable-forge guard, and the `rate_limited` cause line.
+  The other tests in the spec stay, since they read the page's banner or its
+  live region. The CSV row for `forge-health-budgets` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
