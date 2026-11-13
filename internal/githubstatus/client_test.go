@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -209,4 +210,82 @@ func TestStatus_ConcurrentCallsMakeOneRequest(t *testing.T) {
 	}
 
 	assert.EqualValues(t, 1, f.count.Load())
+}
+
+func TestStatus_ABodyOverTheCapIsNotRead(t *testing.T) {
+	t.Parallel()
+
+	// Valid JSON that reads as an incident, padded past 1 MiB: only a capped
+	// reader cuts it short and fails the decode.
+	pad := strings.Repeat("x", 1<<20+1024)
+	body := `{"status":{"indicator":"minor"},"components":[{"name":"Actions","status":"major_outage"}],"incidents":[],"pad":"` + pad + `"}`
+	f := newFeed(t, body)
+	var logs bytes.Buffer
+	c := newClient(f, &clock{time.Unix(1000, 0)}, &logs)
+
+	assert.Nil(t, c.ProviderStatus(context.Background()))
+}
+
+func TestStatus_ARedirectIsNotFollowed(t *testing.T) {
+	t.Parallel()
+
+	other := newFeed(t, feedWithIncident)
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, other.srv.URL+r.URL.Path, http.StatusFound)
+	}))
+	t.Cleanup(redirector.Close)
+	c := githubstatus.New(redirector.URL, nil,
+		githubstatus.WithLogger(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))))
+
+	assert.Nil(t, c.ProviderStatus(context.Background()))
+	assert.EqualValues(t, 0, other.count.Load())
+}
+
+func TestStatus_ACancelledCallerDoesNotPoisonTheCache(t *testing.T) {
+	t.Parallel()
+
+	f := newFeed(t, feedWithIncident)
+	var logs bytes.Buffer
+	c := newClient(f, &clock{time.Unix(1000, 0)}, &logs)
+
+	cancelled, cancel := context.WithCancel(context.Background())
+	cancel()
+	c.ProviderStatus(cancelled)
+
+	got := c.ProviderStatus(context.Background())
+	require.NotNil(t, got)
+	assert.Equal(t, []string{"Degraded performance"}, got.Incidents)
+	assert.NotContains(t, logs.String(), "unreadable")
+	assert.EqualValues(t, 1, f.count.Load())
+}
+
+func TestStatus_AHungFetchBlocksOnlyThoseWaitingOnIt(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+	var requests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		requests.Add(1)
+		<-release
+		_, _ = w.Write([]byte(feedWithIncident))
+	}))
+	t.Cleanup(srv.Close)
+	t.Cleanup(func() { close(release) })
+	c := githubstatus.New(srv.URL, srv.Client(),
+		githubstatus.WithLogger(slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))))
+
+	patient := make(chan *dashboard.ProviderStatus, 1)
+	go func() { patient <- c.ProviderStatus(context.Background()) }()
+	require.Eventually(t, func() bool { return requests.Load() == 1 }, 5*time.Second, 5*time.Millisecond)
+
+	impatient, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	start := time.Now()
+	assert.Nil(t, c.ProviderStatus(impatient))
+	assert.Less(t, time.Since(start), 2*time.Second)
+
+	release <- struct{}{}
+	got := <-patient
+	require.NotNil(t, got)
+	assert.EqualValues(t, 1, requests.Load())
 }
