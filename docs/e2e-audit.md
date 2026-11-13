@@ -148,7 +148,19 @@ One ticket per group, each doing moves with its own mutation proof:
   recorded).
 - prove the class B specs with Go mutations, then trim them.
 - cut `filter-every-control` rounds and move its round-trip and cookie checks
-  down.
+  down (done: twelve pull request rounds and three on Issues and Webhooks became
+  two, one and one, each read back by a client navigation, a cookie-only reload
+  and a server-copy-only reload, instead of five ways. The spec went from about
+  30 s to about 8 s of test time on one worker; `tests/e2e-durations.json` holds
+  the local figure until a green `main` run records one. The cookie half is
+  `web/src/lib/filters-cookie-roundtrip.test.ts`: every pill, and every group
+  and key a control saves, comes back from the cookie. The server half is
+  `TestFilterStatePut_ThenGet_RoundTripsEveryGroupAndKey` in
+  `internal/api/filter_state_test.go`. Each was proven red by breaking the code
+  it covers: the forge pill saved under the wrong group, the issue, webhooks or
+  pull request group not read back, the cookie value not URL-encoded, an off box
+  read back as on, and the server returning empty values as `0` or dropping the
+  webhooks group).
 - record a duration for the 17 specs that have none, so they rank (done: the
   file was refreshed from a green `main` run, which gave all of them and the
   specs added since an entry. Only specs newer than that run are missing, and

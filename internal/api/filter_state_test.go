@@ -66,6 +66,35 @@ func TestFilterStatePut_ThenGet_RoundTrips(t *testing.T) {
 	assert.JSONEq(t, body, readAll(t, getResp))
 }
 
+// The journey spec used to read every remembered control back from the server
+// copy in a browser. This is that round trip: every group and key the controls
+// store, including an empty string (a box switched off) and a pick of several
+// values, comes back exactly as saved.
+func TestFilterStatePut_ThenGet_RoundTripsEveryGroupAndKey(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	body := `{"shared":{"forge":"forgejo","repo":"github:acme/app\nforgejo:acme/infra",` +
+		`"author":"forgejo:dana","label":"bug","created":"1440","updated":"1440",` +
+		`"groupBy":"repo","title":"pull"},` +
+		`"pr":{"ci":"failing","merge":"conflicting","review":"ready","autoMerge":"off"},` +
+		`"issue":{"hideDependencyDashboard":"","hideTitleRegex":"^zzz"},` +
+		`"view":{"sort":"created","paused":"1","drafts":"1"},` +
+		`"branches":{"status":"failing"},` +
+		`"webhooks":{"forge":"forgejo","repo":"infra","status":"pending","sort":"hasWebhook","dir":"asc"},` +
+		`"rev":7}`
+
+	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings/filter-state", body, sessionCookie)
+	defer func() { _ = putResp.Body.Close() }()
+	require.Equal(t, http.StatusNoContent, putResp.StatusCode)
+
+	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings/filter-state", "", sessionCookie)
+	defer func() { _ = getResp.Body.Close() }()
+	require.Equal(t, http.StatusOK, getResp.StatusCode)
+	assert.JSONEq(t, body, readAll(t, getResp))
+}
+
 func TestFilterStatePut_InvalidJSON_Returns400(t *testing.T) {
 	t.Parallel()
 
