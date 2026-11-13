@@ -32,6 +32,12 @@ does, so they show the non-colour mark (the thicker border on the pressed
 control), not the real palette. Pause live updates is covered by the Playwright
 spec, not by a screenshot.
 
+`before-pill-count/` and `after-pill-count/` show the Main branches filter bar
+(`All 2` active) at 390px, 820px and 1280px, light and dark, on the code before
+and after the active pill's count was made readable (ticket 3317). In light the
+count went from 4.04:1 (white at .85 opacity on `#0e7c86`) to 6.4:1 (opaque
+white on `#0c6972`); dark is unchanged.
+
 Stitch designs for moving the bulk actions into the card header (ticket 3755):
 
 - `stitch/bulk-actions-header-desktop-1280.png`: Update all as an outlined
