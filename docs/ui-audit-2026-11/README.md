@@ -63,9 +63,18 @@ bar at 1280px in forced colours (Chromium's `forcedColors: 'active'` emulation,
 not a real Windows High Contrast session), light and dark. "Before" is the
 current code with the forced-colours block from PR 3553 removed by hand; "after"
 is the current code. The repo, Authors and Labels pick triggers gain the arrow
-the selects already had (ticket 3442). The 390px filter sheet is not covered:
-its controls have no arrow in forced colours, selects included, because the
-rules only match `.filter-bar` (ticket 3821).
+the selects already had (ticket 3442). The 390px filter sheet is covered
+separately below (ticket 3821).
+
+`before-filter-sheet-arrows/` and `after-filter-sheet-arrows/` show the phone
+Filters sheet on Pull requests at 390px in forced colours, light and dark,
+cropped to the Sort, Group, repo, Authors, Labels, Created and Updated controls.
+It is Chromium's `forcedColors: 'active'` emulation, not a real Windows High
+Contrast session. "After" is current main. "Before" is the same build with only
+the `.filter-sheet` selectors added for ticket 3821 removed from the
+forced-colours rules, which until then matched `.filter-bar` only. Before, none
+of the seven controls shows an arrow; after, the selects show the native arrow
+and the three pick triggers show the drawn one. The shots use UTC and demo data.
 
 Stitch designs for moving the bulk actions into the card header (ticket 3755):
 
