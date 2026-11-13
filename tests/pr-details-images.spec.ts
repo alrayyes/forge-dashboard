@@ -49,6 +49,8 @@ function png(width: number, height: number): Buffer {
 
 const FORGE_IMAGE = 'https://github.com/user-attachments/assets/wide';
 const BROKEN_IMAGE = 'https://github.com/user-attachments/assets/gone';
+const TALL_IMAGE = 'https://github.com/user-attachments/assets/tall';
+const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
 
 async function openDialog(
@@ -107,17 +109,24 @@ async function openDialog(
   );
   const asked: string[] = [];
   const askedFor: URLSearchParams[] = [];
-  await page.route('**/api/v1/images*', (route) => {
+  // The slow image waits for `release()`, so a test can look at the page
+  // while the bytes are still on their way.
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route('**/api/v1/images*', async (route) => {
     const params = new URL(route.request().url()).searchParams;
     const target = params.get('url') ?? '';
     asked.push(target);
     askedFor.push(params);
     if (target === BROKEN_IMAGE)
       return route.fulfill({ status: 404, body: '{}' });
+    if (target === SLOW_IMAGE) await gate;
     return route.fulfill({
       status: 200,
       contentType: 'image/png',
-      body: png(2000, 600),
+      body: target === TALL_IMAGE ? png(400, 1600) : png(2000, 600),
     });
   });
   const stranger: string[] = [];
@@ -133,7 +142,7 @@ async function openDialog(
     .click();
   const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
   await expect(dialog).toBeVisible();
-  return { dialog, asked, askedFor, stranger };
+  return { dialog, asked, askedFor, stranger, release };
 }
 
 const DESCRIPTION = [
@@ -268,3 +277,172 @@ for (const width of [360, 390, 1280]) {
     expect(results.violations).toEqual([]);
   });
 }
+
+// The in-dialog viewer (#3414) and the height cap with a loading skeleton
+// (#3468).
+for (const [width, height] of [
+  [390, 800],
+  [1280, 800],
+] as const) {
+  test(`an image opens in a lightbox and closes with focus back (${width}px, #3414)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height });
+    const { dialog } = await openDialog(page, `![wide mockup](${FORGE_IMAGE})`);
+    const opener = dialog.getByRole('link', { name: 'wide mockup' });
+    await expect(opener.getByRole('img')).toBeVisible();
+    await opener.focus();
+    const popup = page
+      .waitForEvent('popup', { timeout: 500 })
+      .catch(() => null);
+    await page.keyboard.press('Enter');
+    expect(await popup).toBeNull();
+
+    const lightbox = page.getByRole('dialog', { name: 'wide mockup' });
+    await expect(lightbox).toBeVisible();
+    const close = lightbox.getByRole('button', { name: 'Close' });
+    const original = lightbox.getByRole('link', {
+      name: 'Open original in new tab',
+    });
+    await expect(original).toHaveAttribute('target', '_blank');
+    await expect(original).toHaveAttribute(
+      'href',
+      /^\/api\/v1\/images\?forge=github&url=/,
+    );
+    const closeBox = await close.boundingBox();
+    expect(closeBox && closeBox.width >= 44 && closeBox.height >= 44).toBe(
+      true,
+    );
+
+    // Tab order is the visual order: title, original, Close, left to right
+    // and top to bottom.
+    const order = await lightbox.evaluate((el) => {
+      const stops = [...el.querySelectorAll<HTMLElement>('a[href], button')];
+      const pos = stops.map((s) => {
+        const r = s.getBoundingClientRect();
+        return [Math.round(r.top), Math.round(r.left)];
+      });
+      // Controls within 24px of each other's top share a row.
+      const visual = [...pos].sort((a, b) =>
+        Math.abs(a[0] - b[0]) < 24 ? a[1] - b[1] : a[0] - b[0],
+      );
+      return { dom: pos, visual };
+    });
+    expect(order.dom).toEqual(order.visual);
+
+    // Nothing sideways, the image contained.
+    const overflow = await lightbox.evaluate(
+      (el) => el.scrollWidth - el.clientWidth,
+    );
+    expect(overflow).toBe(0);
+    const img = lightbox.getByRole('img', { name: 'wide mockup' });
+    const imgBox = await img.boundingBox();
+    expect(imgBox && imgBox.width <= width).toBe(true);
+
+    // Page behind is inert and does not scroll.
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('dialog.image-lightbox')?.matches(':modal'),
+      ),
+    ).toBe(true);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    // Focus trap: Tab cycles through the lightbox's own controls only.
+    const inside = () =>
+      lightbox.evaluate((el) => el.contains(document.activeElement));
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab');
+      expect(await inside()).toBe(true);
+    }
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Shift+Tab');
+      expect(await inside()).toBe(true);
+    }
+
+    // Escape closes only the lightbox, and focus goes back to the image.
+    await page.keyboard.press('Escape');
+    await expect(lightbox).toBeHidden();
+    await expect(dialog).toBeVisible();
+    await expect(opener).toBeFocused();
+
+    // The Close button does the same.
+    await opener.click();
+    await expect(lightbox).toBeVisible();
+    await lightbox.getByRole('button', { name: 'Close' }).click();
+    await expect(lightbox).toBeHidden();
+    await expect(opener).toBeFocused();
+  });
+}
+
+for (const width of [320, 390, 1280]) {
+  test(`a tall image is capped and holds its space while loading (${width}px, #3468)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const { dialog } = await openDialog(page, `![tall](${TALL_IMAGE})`);
+    const image = dialog.locator('.details-body').getByRole('img', {
+      name: 'tall',
+    });
+    await expect(image).toBeVisible();
+    await expect(image).toHaveClass(/md-image-loaded/);
+    const box = await image.boundingBox();
+    expect(box && box.height <= 480).toBe(true);
+
+    // Before the bytes arrive, the image sits in a skeleton of set height.
+    const skeleton = await page.evaluate(() => {
+      const img = document.createElement('img');
+      img.className = 'md-image';
+      const host = document.querySelector('.details-body .markdown');
+      host?.append(img);
+      const h = img.getBoundingClientRect().height;
+      img.remove();
+      return h;
+    });
+    expect(skeleton).toBeGreaterThanOrEqual(120);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+}
+
+test('an image already in the cache drops its skeleton (#3468)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { dialog } = await openDialog(page, `![wide mockup](${FORGE_IMAGE})`);
+  const image = dialog.locator('.details-body').getByRole('img');
+  await expect(image).toHaveClass(/md-image-loaded/);
+  // Close and open again: the browser now has the bytes, so the image is
+  // complete before anything listens for its load.
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await page
+    .locator('#pr-rows .row')
+    .first()
+    .getByRole('button', { name: /^#\d+ / })
+    .click();
+  await expect(dialog).toBeVisible();
+  await expect(image).toBeVisible();
+  await expect(image).toHaveClass(/md-image-loaded/);
+});
+
+test('the skeleton holds until the image really loads (#3468)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  const { dialog, release } = await openDialog(page, `![slow](${SLOW_IMAGE})`);
+  const image = dialog.locator('.details-body').getByRole('img', {
+    name: 'slow',
+  });
+  await expect(image).not.toHaveClass(/md-image-loaded/);
+  const waiting = await image.boundingBox();
+  expect(waiting && waiting.height >= 120).toBe(true);
+  release();
+  await expect(image).toHaveClass(/md-image-loaded/);
+});

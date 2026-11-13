@@ -315,3 +315,34 @@
 >
   {@render opener(PULL_REQUEST)}
 </Story>
+
+<!-- An embedded image opened in the viewer (#3414). The proxy isn't served in
+     the catalog, so the play function swaps in an inline image the way the
+     renderer would draw one, then clicks it. -->
+<Story
+  asChild
+  name="Image viewer"
+  beforeEach={() => mockFetch([{ match: ROUTE, body: DETAILS }])}
+  play={async ({ canvasElement }) => {
+    await loaded(canvasElement);
+    const svg =
+      "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='800' height='400'><rect width='800' height='400' fill='%23cde'/></svg>";
+    const host = document.querySelector(
+      ".details-body .markdown",
+    ) as HTMLElement;
+    host.insertAdjacentHTML(
+      "beforeend",
+      `<a href="${svg}" target="_blank" rel="noopener noreferrer"><img class="md-image md-image-loaded" alt="Failing check summary screenshot" src="${svg}"></a>`,
+    );
+    await userEvent.click(
+      host.querySelector("a:has(> img.md-image)") as HTMLElement,
+    );
+    await waitFor(() =>
+      expect(
+        document.querySelector("dialog.image-lightbox[open]"),
+      ).not.toBeNull(),
+    );
+  }}
+>
+  {@render opener(PULL_REQUEST)}
+</Story>
