@@ -184,26 +184,18 @@ test.describe('row status grammar (#1563)', () => {
     await expect(chip).toContainText('Auto-merge');
     await expect(row.locator('.ci-slot .attr-chip')).toHaveCount(0);
     await expect(row.locator('.ci-slot .auto-merge')).toHaveCount(0);
-    const style = await chip.evaluate((el) => {
-      const s = getComputedStyle(el);
-      return {
-        background: s.backgroundColor,
-        border: s.borderTopWidth,
-        animation: s.animationName,
-        icon: el.querySelector('svg') !== null,
-        glyphAnimation: getComputedStyle(el.querySelector('svg') as Element)
-          .animationName,
-        height: el.getBoundingClientRect().height,
-      };
-    });
-    expect(style.background).toBe('rgba(0, 0, 0, 0)');
-    expect(style.border).toBe('1px');
-    expect(style.animation).toBe('none');
-    expect(style.glyphAnimation).toBe('none');
-    expect(style.icon).toBe(true);
+    await expect(chip).toHaveCSS('background-color', 'rgba(0, 0, 0, 0)');
+    await expect(chip).toHaveCSS('border-top-width', '1px');
+    await expect(chip).toHaveCSS('animation-name', 'none');
+    await expect(chip.locator('svg')).toHaveCSS('animation-name', 'none');
     // Smaller than the CI slot.
-    const slot = await row.locator('.ci-slot').boundingBox();
-    expect(style.height).toBeLessThan(slot?.height ?? 0);
+    await expect
+      .poll(async () => {
+        const slot = (await row.locator('.ci-slot').boundingBox())?.height ?? 0;
+        const height = (await chip.boundingBox())?.height ?? 0;
+        return height > 0 && height < slot;
+      })
+      .toBe(true);
   });
 
   // The Forgejo chip is the longest ("Auto-merge on" and the note that the app
