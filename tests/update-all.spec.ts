@@ -228,21 +228,16 @@ test('with nothing to update the button and its line are not shown', async ({
   await expect(page.getByRole('button', { name: /Update all/ })).toHaveCount(0);
 });
 
-test('Update all sits where Rebase all sits on the Bots page', async ({
+test('Update all sits in the header controls, not in a strip under the header', async ({
   page,
 }) => {
   await open(page, [pr(1)]);
-  await expect(page.locator('.update-all')).toBeVisible();
-  // Straight under the board header, as the Bots page's block is.
-  await expect
-    .poll(async () => {
-      const head = await page.locator('.board-head').boundingBox();
-      const block = await page.locator('.update-all').boundingBox();
-      if (!head || !block) return 'not laid out';
-      const gap = block.y - (head.y + head.height);
-      return gap >= 0 && gap < 40 ? 'under the header' : `gap ${gap}px`;
-    })
-    .toBe('under the header');
+  const button = page.getByRole('button', { name: 'Update all (1)' });
+  await expect(button).toBeVisible();
+  await expect(
+    page.locator('.board-head-controls .update-all #update-all-button'),
+  ).toHaveCount(1);
+  await expect(page.locator('section.board > .update-all')).toHaveCount(0);
 });
 
 test(`the confirm fits a phone in light and dark and passes axe`, async ({
@@ -273,59 +268,6 @@ test(`the confirm fits a phone in light and dark and passes axe`, async ({
   }
 });
 
-// The summary line and its button sit inside the card's own padding (#3246):
-// the sentence starts where the heading does, the button ends 18px inside the
-// card's right edge, and 12px separates the block from the header rule and
-// from the first row, measured to the content (the strip's own padding).
-for (const width of [390, 1280]) {
-  test(`the Update all block sits inside the card padding at ${width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await open(page, [pr(1), pr(2)]);
-    const button = page.locator('#update-all-button');
-    await expect(button).toBeVisible();
-    const measure = () =>
-      page.evaluate(() => {
-        const r = (el: Element | null) => el!.getBoundingClientRect();
-        const card = document.querySelector('section.board')!;
-        const button = document.getElementById('update-all-button')!;
-        // The strip's own box, less its padding: the insets stay 12px and 18px.
-        const block = document.querySelector('.update-all')!;
-        const pad = getComputedStyle(block);
-        return {
-          headBottom: r(card.querySelector('.board-head')).bottom,
-          cardInnerRight: r(card).right - card.clientLeft,
-          buttonRight: r(button).right,
-          blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
-          blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
-          rowTop: r(document.querySelector('#pr-rows > .row')).top,
-          buttonMinHeight: getComputedStyle(button).minHeight,
-          scrollW: document.documentElement.scrollWidth,
-          innerW: window.innerWidth,
-        };
-      });
-    await expect
-      .poll(async () => {
-        const m = await measure();
-        return {
-          buttonInset18: Math.abs(m.cardInnerRight - m.buttonRight - 18) < 0.5,
-          aboveBlock12: Math.abs(m.blockTop - m.headBottom - 12) < 0.5,
-          belowBlock12: Math.abs(m.rowTop - m.blockBottom - 12) < 0.5,
-          buttonMinHeight: m.buttonMinHeight,
-          fits: m.scrollW <= m.innerW,
-        };
-      })
-      .toEqual({
-        buttonInset18: true,
-        aboveBlock12: true,
-        belowBlock12: true,
-        buttonMinHeight: '44px',
-        fits: true,
-      });
-  });
-}
-
 // The strip is the button alone (#3635). The count sits in its label, and the
 // page header counts the listed rows ("12 open", or "Showing 4 of 12" under a
 // filter), so no chip repeats either.
@@ -343,7 +285,7 @@ test('the strip is the button alone, with no ready chip', async ({ page }) => {
   await expect(page.locator('#pr-count')).toHaveText('4 open');
 });
 
-test('on a phone the button fills the strip and is its only item', async ({
+test('on a phone the button fills the block and is its only item', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });

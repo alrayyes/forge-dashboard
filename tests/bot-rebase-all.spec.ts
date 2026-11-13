@@ -294,68 +294,6 @@ const expectFitsSideways = (page: Page) =>
     )
     .toBe(true);
 
-// The summary line and its button sit inside the card's own padding (#3246):
-// the sentence starts where the heading does, the button ends 18px inside the
-// card's right edge, and 12px separates the block from the header rule and
-// from the first row, measured to the content (the strip's own padding).
-for (const width of [390, 1280]) {
-  test(`the Rebase all block sits inside the card padding at ${width}px`, async ({
-    page,
-  }) => {
-    await page.setViewportSize({ width, height: 900 });
-    await open(page, [pr(1), pr(2)]);
-    const button = page.locator('#rebase-all-button');
-    await expect(button).toBeVisible();
-    const measure = () =>
-      page.evaluate(() => {
-        const r = (el: Element | null) => el!.getBoundingClientRect();
-        const card = document.querySelector('section.board')!;
-        const summary = document.getElementById('rebase-all-summary')!;
-        const button = document.getElementById('rebase-all-button')!;
-        // The strip's own box, less its padding: the chips and the stacked
-        // phone layout move the content, but the insets stay 12px and 18px.
-        const block = document.querySelector('.rebase-all')!;
-        const pad = getComputedStyle(block);
-        return {
-          headingLeft: r(card.querySelector('.board-head h2')).left,
-          headBottom: r(card.querySelector('.board-head')).bottom,
-          cardInnerRight: r(card).right - card.clientLeft,
-          summaryLeft: r(summary).left,
-          buttonRight: r(button).right,
-          blockTop: r(block).top + Number.parseFloat(pad.paddingTop),
-          blockBottom: r(block).bottom - Number.parseFloat(pad.paddingBottom),
-          rowTop: r(document.querySelector('#pr-rows > .row')).top,
-          buttonMinHeight: getComputedStyle(button).minHeight,
-          scrollW: document.documentElement.scrollWidth,
-          innerW: window.innerWidth,
-          buttonHeight: r(button).height,
-        };
-      });
-    // Re-measures until every inset holds, so a layout still settling on a
-    // loaded runner doesn't fail the test. An empty button can't pass.
-    await expect
-      .poll(async () => {
-        const m = await measure();
-        const checks: [string, boolean][] = [
-          ['button has a box', m.buttonHeight > 0],
-          ['summary starts at the heading', near(m.summaryLeft, m.headingLeft)],
-          [
-            'button 18px inside the card',
-            near(m.cardInnerRight - m.buttonRight, 18),
-          ],
-          ['12px under the header rule', near(m.blockTop - m.headBottom, 12)],
-          ['12px above the first row', near(m.rowTop - m.blockBottom, 12)],
-          ['button min-height 44px', m.buttonMinHeight === '44px'],
-          ['no sideways scroll', m.scrollW <= m.innerW],
-        ];
-        return checks
-          .filter(([, ok]) => !ok)
-          .map(([what]) => `${what} (${JSON.stringify(m)})`);
-      })
-      .toEqual([]);
-  });
-}
-
 // The summary as a status strip (#3276): a headline, an optional reason line,
 // two count chips and the button. The chips repeat the headline's numbers for
 // scanning, so they sit outside the element the button's aria-describedby
