@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.49.0](https://github.com/alrayyes/forge-dashboard/compare/v9.48.0...v9.49.0) (2026-11-13)
+
+
+### Features
+
+* **web:** keep the unreachable banner's relative age ticking ([#3792](https://github.com/alrayyes/forge-dashboard/issues/3792)) ([bae495c](https://github.com/alrayyes/forge-dashboard/commit/bae495cc578a9c89c1ddcf216803e5bc61ad3083)), closes [#3745](https://github.com/alrayyes/forge-dashboard/issues/3745)
+
 ## [9.48.0](https://github.com/alrayyes/forge-dashboard/compare/v9.47.0...v9.48.0) (2026-11-13)
 
 
