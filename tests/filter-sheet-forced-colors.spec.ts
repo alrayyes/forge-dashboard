@@ -94,7 +94,7 @@ for (const scheme of ['light', 'dark'] as const) {
       }).toPass();
 
       const results = await new AxeBuilder({ page })
-        .include('dialog#filter-sheet')
+        .include('.filter-sheet-body')
         .analyze();
       expect(results.violations).toEqual([]);
     });

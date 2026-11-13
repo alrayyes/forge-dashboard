@@ -1061,7 +1061,9 @@ select.col-filter {
    and leave a select with no arrow. Hand the selects back their native one. */
 @media (forced-colors: active) {
   .filter-bar select.col-filter,
-  .filter-bar select.group-select {
+  .filter-bar select.group-select,
+  .filter-sheet select.col-filter,
+  .filter-sheet select.group-select {
     appearance: auto;
     /* The native arrow brings its own room; the 22px reserved for the drawn
        one would clip the text next to it. */
@@ -1072,10 +1074,12 @@ select.col-filter {
      (#3442). Draw one from borders instead, which forced colors keeps and
      maps to system colors. It sits where the drawn chevron does, inside the
      22px the padding reserves. */
-  .filter-bar .label-filter-button {
+  .filter-bar .label-filter-button,
+  .filter-sheet .label-filter-button {
     position: relative;
   }
-  .filter-bar .label-filter-button::after {
+  .filter-bar .label-filter-button::after,
+  .filter-sheet .label-filter-button::after {
     content: "";
     position: absolute;
     right: 8px;
