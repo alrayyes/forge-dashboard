@@ -92,7 +92,7 @@ level=INFO msg=memory cgroupMemoryLimit=256MiB goMemoryLimit=230MiB goMemoryLimi
 `goMemoryLimitSource` is `cgroup-90pct` when the process set the limit,
 `GOMEMLIMIT` when you did, and `default` when nothing limits the heap. A
 container that restarts over and over shows this line again and again in
-`docker logs`. Docker's `State.OOMKilled` can read false when the memory
+`docker logs`. The `State.OOMKilled` field in Docker can read false when the memory
 controller ended the process, so count the restarts instead, or read the kernel
 log:
 

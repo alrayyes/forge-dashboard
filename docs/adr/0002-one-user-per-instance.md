@@ -1,4 +1,4 @@
-# 2. One user per instance
+# One user per instance
 
 Status: accepted (2026-10-18)
 
@@ -35,7 +35,7 @@ pull requests, one feature each.
   then closes for good. More passkeys for the same user stay possible from
   Settings, for recovery. Losing every passkey is fixed from the host with
   `reset-passkeys`.
-- Invites, the admin area and dashboard sharing are gone, along with the
+- Invites, the admin area, and dashboard sharing are gone, along with the
   `owner` argument on the dashboard and the MCP reads.
 - One aggregator replaces the manager of per-user ones. The user id column is
   dropped from settings, sessions, API tokens, passkey labels, and the request

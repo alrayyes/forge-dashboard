@@ -100,3 +100,6 @@ Packagist
 rollups?(.s)?
 Gravatar
 Libravatar
+tooltip
+tooltips
+cgroup

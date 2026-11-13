@@ -1,4 +1,4 @@
-# 1. Business rules live behind the API, not in the page
+# Business rules live behind the API, not in the page
 
 Status: accepted (2026-10-05)
 

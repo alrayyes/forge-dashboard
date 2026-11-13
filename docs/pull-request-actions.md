@@ -135,7 +135,7 @@ the only problem, the dialog has no failed check, so it offers no Copy log or
 Rerun failed checks, and the Failed number stays at zero. The same goes for a
 default branch: when the newest commit has no check run because a workflow
 ended in `startup_failure`, the Main branches row reads Failed and names the
-workflow and links the run, rather than showing an older commit's result.
+workflow and links the run, rather than showing an older result for that commit.
 
 The workflow-runs read takes the newest 100 runs of a head commit. A held or
 `startup_failure` run further back goes unseen.
@@ -169,9 +169,9 @@ warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
 3:1 for the outline). Conflicts, Blocked and
 Checking for conflicts stay as merge pills, since they say what the merge needs.
-Forgejo has one `mergeable` flag, false for a conflict and also while the forge
-rechecks after a base push, so a Forgejo pull request that is false with a moved
-base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
+Forgejo has one `mergeable` flag. It is false for a conflict and also while the
+forge rechecks after a base push, so a Forgejo pull request that is false with a
+moved base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
 seconds, two refresh intervals. Its Merge stays locked with the same words.
 A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
 refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
@@ -860,7 +860,7 @@ cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
 Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
 of 13 checks.` The branch pill stays the word alone; the count is in
 `checks.cancelled`. A Cancelled row is not in the Failing CI filter or the
-Failed number of the menu pill, and it is not a pass either: Ready, Merge and
+Failed number of the menu pill, and it is not a pass either, so Ready, Merge and
 auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
 failure status, and the server leaves those out of the failed count. When that
 leaves no failed check and nothing waiting, the row reads Cancelled too, with
@@ -990,8 +990,8 @@ does nothing until the owner accepts it on the installation's page. When the
 forge refuses (no permission, a run too old or already running), the panel shows
 its reason and the button stays for another try.
 The button carries the number of checks it reruns ("Rerun failed checks (2)")
-and a line before it gives the same count: "2 failed checks will rerun on
-GitHub." The count covers the failed or timed-out checks in the panel that name
+and a line before it gives the same count: `2 failed checks will rerun on
+GitHub.` The count covers the failed or timed-out checks in the panel that name
 a workflow run, and the line adds "1 can't be rerun from here." for the ones
 that don't. With none to rerun there is no button, only a line: "The failed
 check can't be rerun from here." for one, "None of the 2 failed checks can be
@@ -1147,7 +1147,7 @@ already requested, a Dependabot pull request on a GitHub App with no saved
 personal token, a rebase the server blocks, or none offered. When some can be
 asked, a line under the headline says how many and why, for example `2 can be
 rebased. 1 is left out: Rebase requested.`, in the words the row shows. The
-confirm dialog lists the pull requests it will rebase, then a `Left out` group
+confirm dialog lists the pull requests it rebases, then a `Left out` group
 with each one's reason. With nothing left out the group isn't there. When no
 pull request can be asked, the button is unavailable.
 
@@ -1196,7 +1196,7 @@ progress.
 Both the Pull requests and the Bots page header have a `Rerun failed checks`
 button for the failing pull requests the filters leave, beside the count. It
 sits in the header row and adds no height, so a row turning red doesn't move
-the list. On a phone or small tablet (600px and narrower) the header's controls
+the list. On a phone or small device (600px and narrower) the header's controls
 take a row of their own, with or without the button, for the same reason. The
 button counts the failing pull requests it may still rerun, so `Rerun failed
 checks (3)` means three, and a filter that narrows the list narrows the count.
