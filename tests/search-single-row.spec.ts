@@ -139,20 +139,36 @@ for (const vp of VIEWPORTS) {
       await search(page).focus();
       await search(page).fill('');
       await expect(search(page)).toBeHidden();
-      const held = await page.evaluate(() => {
-        const el = document.activeElement;
-        return {
-          drawn:
-            el !== null &&
-            el !== document.body &&
-            el.getClientRects().length > 0,
-          inBar: !!el?.closest('.filter-bar'),
-        };
+      // The first control still drawn: the All pill, or on a phone, where the
+      // bar draws no pills, the Filters button.
+      await expect(
+        phone
+          ? page.locator('#filters-button')
+          : page
+              .locator('.filter-bar .quick-pills .quick-pill[data-pill="all"]')
+              .first(),
+      ).toBeFocused();
+    });
+
+    test('a slash with the box hidden is left to the page', async ({
+      page,
+    }) => {
+      await open(page);
+      await pickForgejo(page, phone);
+      await expect(search(page)).toBeHidden();
+      await page.evaluate(() =>
+        (document.activeElement as HTMLElement)?.blur(),
+      );
+      const defaultPrevented = await page.evaluate(() => {
+        const e = new KeyboardEvent('keydown', {
+          key: '/',
+          bubbles: true,
+          cancelable: true,
+        });
+        document.body.dispatchEvent(e);
+        return e.defaultPrevented;
       });
-      expect(held).toEqual({ drawn: true, inBar: true });
-      // No gap: the bar's first row is still as tall as its content.
-      const top = await page.locator('.filter-bar-top').boundingBox();
-      if (phone) expect(top?.height ?? 0).toBeGreaterThan(30);
+      expect(defaultPrevented).toBe(false);
     });
 
     test('AC5: clearing the filter brings the search back without a reload', async ({

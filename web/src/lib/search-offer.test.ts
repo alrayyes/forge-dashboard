@@ -20,7 +20,7 @@ describe('searchOffered', () => {
     expect(searchOffered(1, 'fix')).toBe(true);
   });
 
-  test('is untouched for an empty list, which the bar already covers', () => {
+  test('shows for an empty list, which the bar already covers', () => {
     expect(searchOffered(0, '')).toBe(true);
   });
 });

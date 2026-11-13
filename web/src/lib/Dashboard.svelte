@@ -8638,7 +8638,8 @@
           t instanceof HTMLSelectElement)
       )
         return;
-      if (!titleSearch) return;
+      // A hidden box can't take focus, so the key is left to the page (#3823).
+      if (!titleSearch || titleSearch.getClientRects().length === 0) return;
       e.preventDefault();
       titleSearch.focus();
     }
