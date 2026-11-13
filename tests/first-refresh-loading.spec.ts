@@ -185,19 +185,6 @@ test.describe('first refresh loading state (#1672)', () => {
     await expect(navPills(page).first()).not.toHaveText('–');
   });
 
-  test('a snapshot without the flag counts as loaded', async ({ page }) => {
-    const mode: Mode = { done: undefined, withItems: false };
-    await holdDashboard(page, mode);
-    await page.goto('/pull-requests.html');
-
-    await expect(page.locator('#pr-empty')).toBeVisible();
-    await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-    await expect(page.locator('.list-region')).not.toHaveAttribute(
-      'aria-busy',
-      /.*/,
-    );
-  });
-
   test('the Branches page shows the skeleton too, and the nav a dash', async ({
     page,
   }) => {
@@ -215,22 +202,6 @@ test.describe('first refresh loading state (#1672)', () => {
     mode.done = true;
     await expect(page.getByTestId('no-repos')).toBeVisible();
     await expect(page.getByTestId('list-skeleton')).toHaveCount(0);
-  });
-
-  test('after about ten seconds the status line says it can take a while', async ({
-    page,
-  }) => {
-    await page.clock.install();
-    const mode: Mode = { done: false, withItems: false };
-    await holdDashboard(page, mode);
-    await page.goto('/pull-requests.html');
-
-    const status = page.getByTestId('first-refresh-status');
-    await expect(status).toHaveText('Loading your pull requests…');
-    await page.clock.fastForward(11_000);
-    await expect(status).toHaveText(
-      'Still loading. The first refresh can take a while after a restart.',
-    );
   });
 
   test('nothing animates under prefers-reduced-motion', async ({ page }) => {

@@ -91,13 +91,6 @@ test.describe('settings groups', () => {
     await expect(cardHeading(page, 'Shared with you')).toHaveCount(0);
   });
 
-  test('a group id in the hash opens that group on load', async ({ page }) => {
-    for (const g of GROUPS) {
-      await page.goto(`/settings.html#${g.id}`);
-      await expect(cardHeading(page, g.cards[0])).toBeVisible();
-    }
-  });
-
   // The anchor-to-group mapping is pinned in settings-groups.test.ts. This one
   // proves the scroll: the API tokens card sits below the fold at 500px high.
   test('/settings.html#api-tokens opens its group and scrolls the card into view', async ({

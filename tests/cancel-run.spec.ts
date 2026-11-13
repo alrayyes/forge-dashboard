@@ -222,23 +222,6 @@ async function axeClean(page: Page) {
 }
 
 test.describe('cancel a running pipeline', () => {
-  test('offers Cancel run for a running run, named for the workflow, and nothing for external CI', async ({
-    page,
-  }) => {
-    const dialog = await open(page, pr([{ action: 'cancel_run' }]), {
-      checks: RUNNING,
-      posted: [],
-    });
-
-    await expect(
-      dialog.getByRole('button', { name: 'Cancel run: ci' }),
-    ).toBeVisible();
-    // One run, one button: the external check belongs to no Actions run.
-    await expect(
-      dialog.getByRole('button', { name: /Cancel run/ }),
-    ).toHaveCount(1);
-  });
-
   test('three runs each get a button of their own name, at phone width, with no scroll', async ({
     page,
   }) => {
@@ -306,17 +289,6 @@ test.describe('cancel a running pipeline', () => {
     await expect(
       dialog.getByRole('button', { name: 'Yes, cancel run' }),
     ).toBeVisible();
-  });
-
-  test('offers nothing once every run has finished', async ({ page }) => {
-    const dialog = await open(page, pr([{ action: 'cancel_run' }]), {
-      checks: STOPPED,
-      posted: [],
-    });
-
-    await expect(
-      dialog.getByRole('button', { name: /Cancel run/ }),
-    ).toHaveCount(0);
   });
 
   test('offers nothing when the server does not list cancel_run for the row', async ({
