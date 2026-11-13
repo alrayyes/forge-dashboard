@@ -62,7 +62,7 @@ filter-choices-static.spec.ts,2.635,7,1,C,,2.3
 filter-control-border.spec.ts,4.404,2,2,A,,0.0
 filter-cookie-trimmed.spec.ts,2.781,3,3,A,,0.0
 filter-dropped-pick-notice.spec.ts,0.959,2,1,A,,0.5
-filter-every-control.spec.ts,29.816,3,0,C,,29.8
+filter-every-control.spec.ts,8.0,5,0,C,web/src/lib/filters-cookie-roundtrip.test.ts (proven);internal/api/filter_state_test.go (proven),0
 filter-held-pick-note.spec.ts,5.553,7,5,A,,1.6
 filter-hide-dependency-dashboard-restore.spec.ts,1.957,2,0,C,,2.0
 filter-late-copy.spec.ts,2.743,5,0,B,,2.7

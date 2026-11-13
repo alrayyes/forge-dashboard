@@ -9,13 +9,18 @@ import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
 // are remembered. Pull requests, Issues and Webhooks each get one test that
-// sets the controls in rounds (a pill, or the controls that combine) and reads
-// every round back four ways: after a client navigation away and back, after a
-// full load away and back, after a reload, and after the filter cookie is
-// deleted and the page reloaded (what a second browser sees: the server copy).
-// The server copy is polled first each time, so the last step never races the
-// 500 ms save (that ordering gap is a separate ticket, #1760, and nothing here
-// depends on it).
+// sets every control that combines in one round and reads it back three ways:
+// after a client navigation away and back, after a reload with the saved copy
+// refused (the cookie alone), and after the filter cookie is deleted and the
+// page reloaded (what a second browser sees: the server copy). The server copy
+// is polled first, so the last step never races the 500 ms save (that ordering
+// gap is a separate ticket, #1760, and nothing here depends on it).
+//
+// What the journey no longer repeats lives below the browser. Which group and
+// key each pill, select and toggle is saved under, and that every one comes
+// back from the cookie, is web/src/lib/filters-cookie-roundtrip.test.ts. That
+// the server keeps and returns every group and key as saved is
+// TestFilterStatePut_ThenGet_RoundTripsEveryGroupAndKey in internal/api.
 //
 // Releases and Bots are the same Dashboard.svelte as Pull requests and store
 // under the same keys, so they are not repeated (#3498). Controls that are
@@ -419,36 +424,18 @@ function combined(board: Board): Control[] {
   ];
 }
 
-// A round is the controls set together, then read back. A pill is one choice
-// among several, and the auto-merge answers are too, so each of those gets a
-// round of its own. Auto-merge goes before the pill it is paired with, which
-// is the one that stays offered under it. The combined round comes last, since
-// its picks would leave the other pills nothing to show.
+// A round is the controls set together, then read back. The combined round
+// comes last, since its picks would leave a pill or the Off answer nothing to
+// show. On the pull request board that Off answer and one pill (a pill and the
+// answer both offered over the full list) get the one round before it.
 const PULLS_ROUNDS: Control[][] = [
-  [pill('GitHub', 'github')],
-  [pill('Forgejo', 'forgejo')],
-  [pill('Running', 'running')],
-  [pill('Passing', 'passing')],
-  [pill('No checks', 'no-checks')],
-  [pill('Conflicting', 'conflicting')],
-  [pill('Out of date', 'out-of-date')],
-  [pill('Needs review', 'needs-review')],
-  [pill('Review requested', 'review-requested')],
-  [autoMerge('on'), pill('Ready', 'ready')],
   [autoMerge('off'), pill('Failing', 'failing')],
   combined('pulls'),
 ];
-
-const ISSUES_ROUNDS: Control[][] = [
-  [pill('GitHub', 'github')],
-  [pill('Forgejo', 'forgejo')],
-  combined('issues'),
-];
+const ISSUES_ROUNDS: Control[][] = [combined('issues')];
 
 // The page a round is read back on, and where it goes to leave and come back.
 interface Surface {
-  url: string;
-  awayUrl: string;
   link: (page: Page) => Locator;
   awayLink: (page: Page) => Locator;
   ready: (page: Page) => Promise<unknown>;
@@ -460,8 +447,6 @@ const webhooksRows = (page: Page) => page.locator('#webhooks-rows tr').first();
 function boardSurface(board: Board): Surface {
   const away = BOARDS[board].away;
   return {
-    url: BOARDS[board].url,
-    awayUrl: BOARDS[away].url,
     link: (page) => link(page, board),
     awayLink: (page) => link(page, away),
     ready: (page) => loaded(page, board),
@@ -472,8 +457,6 @@ function boardSurface(board: Board): Surface {
 const WEBHOOKS_URL = '/webhooks.html';
 
 const webhooksSurface: Surface = {
-  url: WEBHOOKS_URL,
-  awayUrl: BOARDS.issues.url,
   link: (page) => page.locator(`.app-nav a[href="${WEBHOOKS_URL}"]`),
   awayLink: (page) => link(page, 'issues'),
   ready: (page) => expect(webhooksRows(page)).toBeVisible(),
@@ -521,18 +504,6 @@ async function readBackRound(page: Page, s: Surface, round: Control[]) {
   await s.ready(page);
   await showAll('after client navigation');
 
-  // Full load away and back.
-  await page.goto(s.awayUrl);
-  await s.awayReady(page);
-  await page.goto(s.url);
-  await s.ready(page);
-  await showAll('after a full load');
-
-  // Reload.
-  await page.reload();
-  await s.ready(page);
-  await showAll('after a reload');
-
   // First paint from the cookie alone.
   await withoutServerCopy(page, async () => {
     await page.reload();
@@ -541,7 +512,6 @@ async function readBackRound(page: Page, s: Surface, round: Control[]) {
   });
 
   // A second browser: no cookie, only the server copy.
-  await saved('before the cookie is cleared');
   await page.context().clearCookies({ name: 'forge-board-filters' });
   await page.reload();
   await s.ready(page);
@@ -621,8 +591,9 @@ for (const board of ['pulls', 'issues'] as const) {
   test(`${board}: every remembered control survives leaving and coming back`, async ({
     page,
   }) => {
-    // Twelve rounds of five reads each; the default 30 s is too close under load.
-    test.setTimeout(90_000);
+    // Two rounds of three reads and the not-remembered checks; the default 30 s
+    // is too close under load.
+    test.setTimeout(60_000);
     await open(page, board);
     await notRemembered(page, board);
     for (const round of BOARD_ROUNDS[board]) {
@@ -719,14 +690,7 @@ const webhookSort = (
     ),
 });
 
-// The forge buttons are only offered while they'd show something, so GitHub
-// goes first, before the repo search leaves only the Forgejo row.
 const WEBHOOK_ROUNDS: Control[][] = [
-  [
-    webhookForge('GitHub forge button', 'github'),
-    // The default order is by name, ascending, so one click reverses it.
-    webhookSort('sort direction', 'fullName', 'desc'),
-  ],
   [
     webhookForge('Forgejo forge button', 'forgejo'),
     {
@@ -751,7 +715,7 @@ const WEBHOOK_ROUNDS: Control[][] = [
 test('webhooks: every remembered control survives leaving and coming back', async ({
   page,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(60_000);
   await openWebhooks(page);
 
   await test.step('page size and current page are not remembered', async () => {
