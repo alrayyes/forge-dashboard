@@ -388,14 +388,24 @@ test('the bottom tab labels stay apart and inside the viewport at 200% and 320px
     .toEqual([]);
 
   // The page's last content is not hidden behind the taller bar.
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  const [barTop, footBottom] = await page.evaluate(() => [
-    document.querySelector('.bottom-nav')?.getBoundingClientRect().top ?? 0,
-    document.querySelector('footer')?.getBoundingClientRect().bottom ?? 0,
-  ]);
-  expect(footBottom, 'footer sits under the bar').toBeLessThanOrEqual(
-    barTop + 0.5,
-  );
+  // Polled: the page keeps growing while the dashboard rows draw.
+  await expect
+    .poll(
+      () =>
+        page.evaluate(() => {
+          window.scrollTo(0, document.body.scrollHeight);
+          const bar = document.querySelector('.bottom-nav');
+          const foot = document.querySelector('footer');
+          return (
+            !!bar &&
+            !!foot &&
+            foot.getBoundingClientRect().bottom <=
+              bar.getBoundingClientRect().top + 0.5
+          );
+        }),
+      { message: 'footer sits above the bar' },
+    )
+    .toBe(true);
 
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
