@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { test } from './server-fixture';
 
 // A confirmed conflict draws its warning and nothing it contradicts: no locked
@@ -207,4 +208,123 @@ test('AC5: the Out of date quick filter still keeps every behind pull request', 
   await page.getByRole('button', { name: /^Out of date/ }).click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
   await expect(row(page, 'Up to date')).toHaveCount(0);
+});
+
+// A Merge already confirming or running keeps its place on the row when a
+// snapshot reports a confirmed conflict, so its progress doesn't vanish. The
+// board holds its rows while a row action is in flight, except the pull request
+// whose details dialog is open, which takes the fresh data where it stands. So
+// the Merge is started from that dialog.
+// Without the phase check in conflictWarnsAlone the warning would replace it.
+// https://github.com/alrayyes/forge-dashboard/issues/3787
+test.describe('a Merge in progress when a conflict appears', () => {
+  const mergeable = () => pr(9, { title: 'Conflict arrives', behind: false });
+  const conflicted = () =>
+    pr(9, {
+      title: 'Conflict arrives',
+      behind: false,
+      mergeStatus: 'conflicting',
+      conflictConfirmed: true,
+    });
+
+  // The row keeps its action instead of the warning alone. The server now
+  // locks Merge, so the action is the locked Merge button; the Merging chip
+  // beside it is the running state.
+  const lockedMerge = (r: Locator) =>
+    r.getByRole('button', { name: 'Merge', exact: true });
+
+  // The live stream, held open until `push` is called, then carrying a
+  // snapshot with the conflict. `held` resolves once the page is listening.
+  async function conflictOnTheStream(page: Page) {
+    let push: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      push = resolve;
+    });
+    let listening: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      listening = resolve;
+    });
+    let served = false;
+    await page.route('**/api/v1/dashboard/stream*', async (route: Route) => {
+      if (served) {
+        return route.fulfill({ status: 404, json: { error: 'done' } });
+      }
+      listening();
+      await gate;
+      served = true;
+      const snapshot = {
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        pullRequests: [conflicted()],
+        issues: [],
+        repos: [],
+        hiddenDrafts: 0,
+      };
+      return route.fulfill({
+        status: 200,
+        contentType: 'text/event-stream',
+        body: `data: ${JSON.stringify(snapshot)}\n\n`,
+      });
+    });
+    return { held, push };
+  }
+
+  for (const width of [360, 390, 1280]) {
+    test(`AC1: a confirming Merge keeps its row action when a conflict appears at ${width}px`, async ({
+      page,
+    }) => {
+      await open(page, width, [mergeable()]);
+      const stream = await conflictOnTheStream(page);
+      const r = row(page, 'Conflict arrives');
+      const dialog = await openActionsDialog(r);
+      await stream.held;
+      await actionsFooter(dialog)
+        .getByRole('button', { name: 'Merge', exact: true })
+        .click();
+      await expect(
+        r.getByRole('button', { name: 'Confirm merge?' }),
+      ).toBeVisible();
+
+      stream.push();
+
+      await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+      await expect(lockedMerge(r)).toHaveAttribute('aria-disabled', 'true');
+      expect((await axe(page)).violations).toEqual([]);
+    });
+
+    test(`AC2: a running Merge keeps its Merging state and row action until the request settles at ${width}px`, async ({
+      page,
+    }) => {
+      await open(page, width, [mergeable()]);
+      const stream = await conflictOnTheStream(page);
+      let release: () => void = () => {};
+      const settle = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await page.route(
+        '**/api/v1/pull-requests/merge',
+        async (route: Route) => {
+          await settle;
+          return route.fulfill({ status: 204 });
+        },
+      );
+      const r = row(page, 'Conflict arrives');
+      const dialog = await openActionsDialog(r);
+      await stream.held;
+      const footer = actionsFooter(dialog);
+      await footer.getByRole('button', { name: 'Merge', exact: true }).click();
+      await footer.getByRole('button', { name: 'Confirm merge?' }).click();
+      await expect(r.locator('.wait-chip-label')).toHaveText('Merging');
+
+      stream.push();
+
+      await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+      await expect(r.locator('.wait-chip-label')).toHaveText('Merging');
+      await expect(lockedMerge(r)).toHaveAttribute('aria-disabled', 'true');
+      expect((await axe(page)).violations).toEqual([]);
+
+      release();
+      await expect(r.locator('.wait-chip-label')).toHaveCount(0);
+    });
+  }
 });
