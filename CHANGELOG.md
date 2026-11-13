@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.38.0](https://github.com/alrayyes/forge-dashboard/compare/v9.37.1...v9.38.0) (2026-11-13)
+
+
+### Features
+
+* **csp:** drop data: from the img-src policy ([#3725](https://github.com/alrayyes/forge-dashboard/issues/3725)) ([ee47c5e](https://github.com/alrayyes/forge-dashboard/commit/ee47c5e594ac57a8a3b96e9c6b886f95926865cd)), closes [#3679](https://github.com/alrayyes/forge-dashboard/issues/3679)
+
 ## [9.37.1](https://github.com/alrayyes/forge-dashboard/compare/v9.37.0...v9.37.1) (2026-11-13)
 
 
