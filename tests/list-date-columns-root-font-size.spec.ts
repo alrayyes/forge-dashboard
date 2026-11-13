@@ -170,11 +170,18 @@ for (const [name, path, rows] of LISTS) {
     await expect(page.locator(`${rows} > .row .updated`).first()).toBeHidden();
   });
 
-  for (const percent of [200, 400]) {
-    test(`${name}: a long title stays readable and the row stays inside the page at ${percent}% and 1280px`, async ({
+  for (const [percent, width] of [
+    [200, 1104],
+    [200, 1200],
+    [200, 1280],
+    [200, 1300],
+    [400, 1104],
+    [400, 1280],
+  ] as const) {
+    test(`${name}: a long title stays readable and the row stays inside the page at ${percent}% and ${width}px`, async ({
       page,
     }) => {
-      await open(page, path, rows, percent);
+      await open(page, path, rows, percent, width);
       const m = await page.evaluate((sel) => {
         const row = document.querySelector(`${sel} > .row`) as HTMLElement;
         const title = row.querySelector('.title-cell') as HTMLElement;
@@ -191,6 +198,24 @@ for (const [name, path, rows] of LISTS) {
       expect(m.height, 'row height').toBeLessThan(400);
     });
   }
+
+  // The compact layout has to win the cascade, not just hide the cells: the
+  // created and updated tracks must be gone too, or the title stays narrow.
+  test(`${name}: at 400% the grid uses the compact tracks`, async ({
+    page,
+  }) => {
+    for (const width of [1104, 1280]) {
+      await open(page, path, rows, 400, width);
+      const got = await page.evaluate(
+        (sel) =>
+          getComputedStyle(
+            document.querySelector(`${sel} > .row`) as Element,
+          ).gridTemplateColumns.split(' ').length,
+        rows,
+      );
+      expect(got, `${width}px track count`).toBe(rows === '#pr-rows' ? 4 : 3);
+    }
+  });
 
   test(`${name}: the grid tracks are unchanged at 100%`, async ({ page }) => {
     const got: Record<string, string> = {};
