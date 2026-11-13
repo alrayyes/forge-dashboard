@@ -35,6 +35,10 @@ const REGULAR = {
   title: 'Add the thing',
   author: 'claude',
   kind: 'regular',
+  // A live Update branch takes the chip's place on a row (#3770), so this one
+  // has none and still draws it.
+  allowedActions: [{ action: 'close' }],
+  status: null,
 };
 
 async function open(

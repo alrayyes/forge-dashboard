@@ -96,17 +96,12 @@ test('a behind pull request whose warning holds Update branch has no second copy
   ).toHaveCount(1);
 });
 
-test('a behind pull request with a known conflict shows Update branch locked with its reason, apart from Merge', async ({
+test('a behind pull request with a known conflict draws no Update branch on its row (#3770)', async ({
   page,
 }) => {
   const row = await open(page, 390, pr({ mergeStatus: 'conflicting' }));
-  const update = row.getByRole('button', { name: 'Update branch' });
-  await expect(update).toHaveCount(1);
-  await expect(update).toHaveAttribute('aria-disabled', 'true');
-  const describedBy = await update.getAttribute('aria-describedby');
-  expect(describedBy).toBeTruthy();
-  await expect(page.locator(`[id="${describedBy}"]`)).toContainText(
-    'Conflicts need fixing by hand',
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
   );
 });
 
