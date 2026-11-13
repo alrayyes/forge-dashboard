@@ -1012,6 +1012,9 @@ select.col-filter {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
 }
+.filter-bar[hidden] {
+  display: none;
+}
 .filter-bar .col-filter,
 .filter-bar .group-select {
   width: auto;
