@@ -176,7 +176,7 @@ open.
   dialog (13px text, no desktop `min-height`) and the `Copy output` and
   `Show output` buttons (`.pipeline-check-link`, 0.75rem text, no padding,
   no desktop `min-height`) are small targets. The excerpt box, which takes focus,
-  sits right over `Copy output`, so the spacing exception may not
+  sits over `Copy output`, so the spacing exception may not
   hold. Both are measured first, in the same ticket as the `Show details`
   summary.
 - Stories for open-not-focused `disclosure` and a focused current
