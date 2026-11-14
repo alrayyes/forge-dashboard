@@ -1492,28 +1492,6 @@ select.col-filter {
   }
 }
 
-/* The marker is words, so it doesn't rely on colour or motion; the fade
-   only plays for people who haven't asked for reduced motion. */
-.updated-just-now {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .updated-just-now {
-    animation: updated-fade 2.5s ease-out;
-  }
-}
-@keyframes updated-fade {
-  from {
-    background: var(--warning-bg);
-  }
-  to {
-    background: transparent;
-  }
-}
-
 /* A segmented control, not tabs — it reshapes what's already on screen
    rather than navigating anywhere, and stays fully visible at rest so the
    active forge is never hidden behind a closed dropdown the way the old
