@@ -370,6 +370,16 @@ function combined(board: Board): Control[] {
       },
       show: (page) => expect(page.locator(TITLE)).toHaveValue(title),
     },
+    // Right after the widening title, while many rows are listed: the picks
+    // below can leave one row, and a sort or group is disabled over one (#3886).
+    select(
+      'group-by select',
+      '#shared-group-select',
+      'repo',
+      'shared',
+      'groupBy',
+    ),
+    select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
     {
       name: 'repo filter',
       stored: [{ group: 'shared', key: 'repo', value: 'forgejo:acme/infra' }],
@@ -415,14 +425,6 @@ function combined(board: Board): Control[] {
       'shared',
       'updated',
     ),
-    select(
-      'group-by select',
-      '#shared-group-select',
-      'repo',
-      'shared',
-      'groupBy',
-    ),
-    select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
     ...(issues ? [] : [toggle('Show drafts', '#show-drafts-toggle', 'drafts')]),
     {
       name: 'Pause live updates',

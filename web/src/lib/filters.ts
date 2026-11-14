@@ -1871,6 +1871,19 @@ export function searchOffered(rows: number, text: string): boolean {
   return !(rows === 1 && text === '');
 }
 
+// The sort select, only while it could reorder something: not over one row or
+// none left by every filter (#3886). The caller disables it rather than hides
+// it, so the bar keeps its controls (#3866), and the chosen sort is kept.
+export function sortOffered(rows: number): boolean {
+  return rows > 1;
+}
+
+// The grouping select, on the same rule. A chosen grouping stays on over one
+// row, or it could not be undone.
+export function groupOffered(rows: number, groupBy: string): boolean {
+  return rows > 1 || groupBy !== '';
+}
+
 // The refs segment's Yes and No.
 export function offerRefs(
   groups: Iterable<HTMLElement>,

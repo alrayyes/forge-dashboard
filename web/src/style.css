@@ -4425,6 +4425,25 @@ button.pipeline-check-link:disabled {
   flex: 4 1 260px;
   min-width: 160px;
 }
+/* A disabled select is dimmed to the quieter ink and loses the pointer, since
+   the rules above would otherwise draw it like an enabled one. The dimmed ink
+   stays above 4.5:1 so the chosen value is still readable; the note beside it
+   carries the reason. Forced colors keeps the system's own disabled look. */
+@media (forced-colors: none) {
+  .filter-bar select:disabled,
+  .filter-sheet select:disabled {
+    color: var(--ink-3);
+    cursor: not-allowed;
+  }
+}
+.list-controls-note {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  align-self: center;
+}
+.list-controls-note[hidden] {
+  display: none;
+}
 .filter-bar .search-wrap[hidden] {
   display: none;
 }

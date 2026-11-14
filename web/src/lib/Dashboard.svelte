@@ -2255,9 +2255,14 @@
     // The control focus falls back to when the row is filtered out, one that
     // is drawn (#3844): the title box hides over one row (#3823).
     function drawnAddressFallback() {
-      return addressFocusFallback(
-        (id) => (document.getElementById(id)?.getClientRects().length ?? 0) > 0,
-      );
+      return addressFocusFallback((id) => {
+        const el = document.getElementById(id);
+        // A disabled select takes no focus (#3886).
+        return (
+          (el?.getClientRects().length ?? 0) > 0 &&
+          !(el as HTMLButtonElement).disabled
+        );
+      });
     }
 
     function openPullRequestReadOnly(
@@ -6140,7 +6145,25 @@
           document.querySelector<HTMLElement>(
             '.filter-bar .col-filter[data-col="title"]',
           ));
-      if (target && target.getClientRects().length > 0) target.focus();
+      if (target && target.getClientRects().length > 0) {
+        target.focus();
+        return;
+      }
+      // Nothing above is drawn (a bar with no pills and no title box, #3886):
+      // the first control in the bar that is drawn and enabled. A disabled
+      // select can't take focus, so it is never the answer.
+      if (from?.closest("#filter-sheet")) return;
+      [
+        ...document.querySelectorAll<HTMLElement>(
+          ".filter-bar button, .filter-bar select, .filter-bar input",
+        ),
+      ]
+        .find(
+          (el) =>
+            el.getClientRects().length > 0 &&
+            !(el as HTMLButtonElement).disabled,
+        )
+        ?.focus();
     }
 
     // After a filter group hides under focus, moves focus to a control that
@@ -8683,6 +8706,7 @@
       // Until a snapshot has said how many rows there are, the bar stays.
       if (!listKnown) return;
       syncSearch();
+      syncListControls();
       Filters.offerFilterBar(
         document.querySelector<HTMLElement>(".filter-bar"),
         itemsOnScreen().length,
@@ -8690,6 +8714,48 @@
         // bar over one row: the bar is where they are undone.
         filtersAreDefault() && showDraftsButton?.hidden !== false,
       );
+    }
+
+    // The sort and grouping selects stay in the bar but are disabled, with the
+    // reason in a visible line they are described by, once the filters leave
+    // one row or none (#3886). They keep their value, so the sort is back as
+    // it was when a second row returns. Focus a select held moves to a control
+    // still drawn, since a disabled one can't keep it.
+    function syncListControls() {
+      const rows = visibleResultCount;
+      let sortOff = false;
+      let groupOff = false;
+      for (const [id, offered] of [
+        ["pr-sort-select", Filters.sortOffered(rows)],
+        [
+          "shared-group-select",
+          Filters.groupOffered(rows, sharedState.shared.groupBy || ""),
+        ],
+      ] as const) {
+        const select = document.getElementById(id) as HTMLSelectElement | null;
+        if (!select) continue;
+        if (!offered) {
+          if (id === "pr-sort-select") sortOff = true;
+          else groupOff = true;
+        }
+        // Described by the reason only while it is disabled: a hidden note
+        // still supplies its text to whatever references it.
+        if (offered) select.removeAttribute("aria-describedby");
+        else select.setAttribute("aria-describedby", "list-controls-note");
+        if (select.disabled === !offered) continue;
+        const hadFocus = document.activeElement === select;
+        select.disabled = !offered;
+        if (hadFocus && !offered) {
+          focusFilterBar(select);
+        }
+      }
+      const note = document.getElementById("list-controls-note");
+      if (note) {
+        note.hidden = !sortOff && !groupOff;
+        note.textContent = groupOff
+          ? "Sorting and grouping need two or more rows."
+          : "Sorting needs two or more rows.";
+      }
     }
 
     // The title search hides over one row left by the other filters, unless it
@@ -10671,11 +10737,15 @@
         <option value="repo">Group by repository</option>
         <option value="forge">Group by forge</option>
       </select>
+      <span class="list-controls-note" id="list-controls-note" hidden
+        >Sorting and grouping need two or more rows.</span
+      >
       <div id="shared-repo-filter"></div>
       <div id="shared-author-filter"></div>
       <div id="shared-label-filter"></div>
       <select
         class="col-filter"
+        id="created-filter"
         data-col="created"
         aria-label="Filter by created"
       >
@@ -10687,6 +10757,7 @@
       </select>
       <select
         class="col-filter"
+        id="updated-filter"
         data-col="updated"
         aria-label="Filter by updated"
       >

@@ -274,6 +274,7 @@ const singleUserSpecs = [
   '**/list-date-columns-root-font-size.spec.ts',
   '**/pr-title-root-font-size-band.spec.ts',
   '**/search-single-row.spec.ts',
+  '**/filter-bar-single-row.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
