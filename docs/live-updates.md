@@ -4,10 +4,9 @@ The board polls on the schedule in `readIntervalSeconds` (30 seconds today, set
 by the server, or 2 until your first refresh has finished) and takes pushes
 over a live stream, but
 rows don't move under you. A change to a row's own content (CI,
-merge status, behind, labels, title) updates that row where it stands and
-marks it "Updated just now" for a couple of seconds; it never reorders the
-list. Rows that are added, removed or reordered land by themselves in one
-render, with nothing to press. They wait only while something would be
+merge status, behind, labels, title) updates that row where it stands; it never
+reorders the list. Rows that are added, removed or reordered land by themselves
+in one render, with nothing to press. They wait only while something would be
 disturbed, and land the moment it ends: a row action is in flight (or a Merge is
 waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,

@@ -2776,10 +2776,6 @@
       }
       if (isPR) {
         row.dataset.prKey = prKey(item);
-        if (updatedMarkers.has(prKey(item)))
-          titleCellEl.appendChild(
-            el("span", "updated-just-now", "Updated just now"),
-          );
       }
 
       const meta = el("div", "row-meta");
@@ -5038,10 +5034,6 @@
     let rawIssues: IssueItem[] = [];
     let latestIssuesAsked = false;
 
-    // How long "Updated just now" stays on a row changed in place.
-    const UPDATED_MARKER_MS = 2500;
-    const updatedMarkers = new Set<string>();
-
     // Whether a re-render now would be felt: a row action is in flight (or
     // an armed confirm waits for its second click), or a modal other than
     // the details dialog is open. The details
@@ -5640,21 +5632,6 @@
       livePaused = updatesPaused();
     }
 
-    function markUpdated(keys: string[]) {
-      for (const key of keys) {
-        updatedMarkers.add(key);
-        setTimeout(() => {
-          updatedMarkers.delete(key);
-          document
-            .querySelectorAll<HTMLElement>("#pr-rows .row")
-            .forEach((row) => {
-              if (row.dataset.prKey === key)
-                row.querySelector(".updated-just-now")?.remove();
-            });
-        }, UPDATED_MARKER_MS);
-      }
-    }
-
     // Applies whatever is pending (or just re-sorts what's shown) without
     // rendering; the caller renders once. Called before any user-driven
     // filter, sort or page change.
@@ -6030,7 +6007,7 @@
       }
       if (structural > 0 && !pointerRestsOnList()) {
         // Rows came, went or moved and nothing would be disturbed: the whole
-        // snapshot lands in one render, a changed row marked as usual. Only
+        // snapshot lands in one render. Only
         // what the filters show is announced.
         const onList = (items: PullRequestItem[]) =>
           items.filter((item) =>
@@ -6049,7 +6026,6 @@
         retireFailuresOfRemoved(next);
         prShown.land(next);
         latestPRs = null;
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         if (view !== "issues") announceListUpdate(shownDiff);
 
@@ -6060,7 +6036,6 @@
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         prShown.land(prShown.items.map((p) => fresh.get(prKey(p)) ?? p));
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
       }
       if (structural === 0) latestPRs = null;
