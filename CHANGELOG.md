@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.59.1](https://github.com/alrayyes/forge-dashboard/compare/v9.59.0...v9.59.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** clear the bottom safe-area inset in the checks dialog footer ([#3950](https://github.com/alrayyes/forge-dashboard/issues/3950)) ([6bc4d5c](https://github.com/alrayyes/forge-dashboard/commit/6bc4d5c72655b181ff129fcd25a873688d6f17dd)), closes [#3895](https://github.com/alrayyes/forge-dashboard/issues/3895)
+
 ## [9.59.0](https://github.com/alrayyes/forge-dashboard/compare/v9.58.3...v9.59.0) (2026-11-14)
 
 
