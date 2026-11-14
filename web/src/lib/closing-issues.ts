@@ -41,8 +41,17 @@ export const closingPillClass = (issue: ClosingIssue) =>
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
 export function closingPillName(issue: ClosingIssue, prRepo: string) {
-  return `${closingPillText(issue, prRepo)}, opens the issue`;
+  const text = closingPillText(issue, prRepo);
+  return issue.relation === 'refs'
+    ? `${text}, references, does not close, opens the issue`
+    : `${text}, opens the issue`;
 }
+
+/** The pill's tooltip: what it does to the issue, which the italic alone doesn't say. */
+export const closingPillTitle = (issue: ClosingIssue) =>
+  issue.relation === 'refs'
+    ? 'References the issue, does not close it'
+    : 'Closes the issue when it merges';
 
 /** The pills a row shows, and the ones kept behind the count. */
 export function splitClosing<T extends ClosingIssue>(list: T[]) {
@@ -161,6 +170,7 @@ export function closingPills(
     }
     link.textContent = closingPillText(issue, prRepo);
     link.setAttribute('aria-label', closingPillName(issue, prRepo));
+    link.title = closingPillTitle(issue);
     return link;
   };
   wrap.append(...shown.map(pill));

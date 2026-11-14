@@ -1819,7 +1819,8 @@ button.title {
   align-items: baseline;
   gap: 4px 6px;
 }
-.mentioned-by-label {
+.mentioned-by-label,
+.mentioned-by-hint {
   color: var(--ink-2);
   font-size: 0.85em;
 }
