@@ -269,6 +269,7 @@ const singleUserSpecs = [
   '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',
   '**/list-date-columns-root-font-size.spec.ts',
+  '**/pr-title-root-font-size-band.spec.ts',
   '**/search-single-row.spec.ts',
 ];
 
