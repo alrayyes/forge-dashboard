@@ -188,8 +188,18 @@ once, even inside the window, and names the files git reported ("In a.txt,
 docs/b.md"). If the flag is still false for the same head and base after the
 window and no refusal named a conflict, the row says "Conflict not confirmed",
 since the flag is false for a stuck check too. That pill is a button: a tap
-shows the reason, and Update branch stays available on it, because a refused
-update is how it gets confirmed. Either way the status is `conflicting` for the
+shows the reason, and Update branch stays available on it when the row offers
+one (a behind pull request), because a refused update is how it gets confirmed.
+The words are said once: the pill carries them, the row's status block stays
+out, and the locked Merge is described by the pill's reason. The reason names
+only what the row can do: "Use Update branch to find out" when the row has the
+button, otherwise "Wait for the forge to finish checking, or open the pull
+request on the forge". While the forge is unreachable or its budget is spent the
+row draws no controls and the rows are its earlier answer, so the reason says
+that, and the banner says how old the data is. The API's blocked reason for
+Merge follows the same rule: it names Update branch only when the pull request
+lists it. None of this depends on the forge: it reads the row's actions and the
+board's forge health. Either way the status is `conflicting` for the
 Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
