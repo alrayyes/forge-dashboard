@@ -5218,10 +5218,28 @@ footer a[aria-current="page"] {
     .ignore-scope-select,
     .data-table td.action button,
     .ignored-disclosure summary,
-    .ignored-disclosure button
+    .ignored-disclosure button,
+    .forge-health-detail summary,
+    .pipeline-check-copy .pipeline-check-link
   ) {
   box-sizing: border-box;
   min-height: var(--tap-floor);
+}
+/* These two sit in a tight line of text. From 761px up they take the floor
+   without moving what is around them: the box grows by the difference and
+   the margins give it back (11px text is 15px tall, so 4.5px a side). */
+@media (min-width: 761px) {
+  :root
+    body
+    :is(
+      .forge-health-detail summary,
+      .pipeline-check-copy .pipeline-check-link
+    ) {
+    margin-block: calc((15px - var(--tap-floor)) / 2);
+  }
+  :root body .forge-health-detail[open] summary {
+    margin-bottom: calc(2px + (15px - var(--tap-floor)) / 2);
+  }
 }
 :root body :is(footer a, .release-head h2 a, .repo-link) {
   display: inline-flex;
@@ -5303,6 +5321,8 @@ footer a[aria-current="page"] {
       .data-table td.action button,
       .ignored-disclosure summary,
       .ignored-disclosure button,
+      .forge-health-detail summary,
+      .pipeline-check-copy .pipeline-check-link,
       select,
       input:not([type="checkbox"], [type="radio"]),
       label:not(.task):has(> input[type="checkbox"]),

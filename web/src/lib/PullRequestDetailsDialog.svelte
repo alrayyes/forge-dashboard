@@ -1402,7 +1402,9 @@
     cursor: pointer;
     font-size: 0.8125rem;
     color: var(--ink-2);
-    margin-bottom: 8px;
+    /* 24px tall (2.5.8). The margin gives back what the height took. */
+    min-height: 24px;
+    margin-bottom: 2px;
   }
   .details-comments {
     list-style: none;
@@ -1565,6 +1567,7 @@
     }
     .details-collapsed summary {
       min-height: 44px;
+      margin-bottom: 8px;
       display: flex;
       align-items: center;
     }
