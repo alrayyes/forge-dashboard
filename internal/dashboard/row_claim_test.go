@@ -54,3 +54,29 @@ func TestClaimOf(t *testing.T) {
 		assert.NotContains(t, lower, "github")
 	})
 }
+
+func TestClaimOfRow(t *testing.T) {
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	kinds := []dashboard.ClaimKind{dashboard.ClaimConflict, dashboard.ClaimState, dashboard.ClaimAction}
+	for _, kind := range kinds {
+		t.Run(string(kind), func(t *testing.T) {
+			c := dashboard.ClaimOfRow(kind, nil)
+			assert.Equal(t, dashboard.ClaimConfirmed, c.State)
+			assert.True(t, c.ActionsOpen)
+			assert.Nil(t, c.Since)
+			assert.Empty(t, c.Reason)
+
+			c = dashboard.ClaimOfRow(kind, &since)
+			assert.Equal(t, dashboard.ClaimCarriedOver, c.State)
+			assert.False(t, c.ActionsOpen)
+			assert.Equal(t, &since, c.Since)
+			assert.NotEmpty(t, c.Reason)
+		})
+	}
+
+	t.Run("reads the same as a forge that can't be asked", func(t *testing.T) {
+		down := dashboard.ClaimOf(dashboard.ClaimState, dashboard.ForgeHealth{StaleSince: &since}, true)
+		row := dashboard.ClaimOfRow(dashboard.ClaimState, &since)
+		assert.Equal(t, down, row)
+	})
+}

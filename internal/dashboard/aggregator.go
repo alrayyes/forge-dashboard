@@ -1690,7 +1690,9 @@ func clearStartingWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) []F
 	if i < 0 {
 		return forges
 	}
-	if slices.ContainsFunc(repos, func(r Repo) bool { return r.Forge == forge && r.StaleSince != nil }) {
+	if slices.ContainsFunc(repos, func(r Repo) bool {
+		return r.Forge == forge && ClaimOfRow(ClaimState, r.StaleSince).State == ClaimCarriedOver
+	}) {
 		return forges
 	}
 	out := slices.Clone(forges)

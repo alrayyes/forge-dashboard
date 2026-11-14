@@ -89,6 +89,38 @@ describe('rowClaim', () => {
     expect(off.reason).not.toContain('Update');
   });
 
+  describe('a row that carries its own since-time', () => {
+    const staleSince = '2026-01-01T00:00:00Z';
+    for (const kind of ['conflict', 'state', 'action'] as ClaimKind[]) {
+      test(`${kind} is carried over, with no lock needed`, () => {
+        const c = rowClaim({ kind, lock: null, staleSince });
+        expect(c.state).toBe('carried_over');
+        expect(c.actionsOpen).toBe(false);
+        expect(c.reason).not.toBe('');
+      });
+      test(`${kind} with no since-time is confirmed`, () => {
+        for (const staleSince of [null, undefined]) {
+          expect(rowClaim({ kind, lock: null, staleSince }).state).toBe(
+            'confirmed',
+          );
+        }
+      });
+    }
+
+    test('reads the same as a pull request row of an unreachable forge', () => {
+      const lock = { reason: 'down', code: 'forge_unreachable' };
+      const pr = rowClaim({ kind: 'state', lock, since: '3 min ago' });
+      const row = rowClaim({
+        kind: 'state',
+        lock: null,
+        staleSince,
+        since: '3 min ago',
+      });
+      expect(row.reason).toBe(pr.reason);
+      expect(row.state).toBe(pr.state);
+    });
+  });
+
   test('has no forge in it', async () => {
     const src = await Bun.file(
       new URL('./row-claim.ts', import.meta.url),
