@@ -1,7 +1,8 @@
 // Which Dependabot command buttons a pull request gets, and which of them are
 // locked. Pure: Dashboard.svelte hands in what it knows and draws the answer.
 
-import { isReadOnlyLock, type LockInfo } from './lock-info';
+import type { LockInfo } from './lock-info';
+import { rowClaim } from './row-claim';
 
 export type DependabotAction = 'rebase' | 'recreate';
 
@@ -108,7 +109,8 @@ export function dependabotButtonDecision(
     // A forge that is spent or unreachable is read-only: one banner says so,
     // and no button is drawn on every row.
     const proactive = i.proactive();
-    if (isReadOnlyLock(proactive)) return { kind: 'hidden' };
+    if (!rowClaim({ kind: 'action', lock: proactive }).actionsOpen)
+      return { kind: 'hidden' };
     if (proactive)
       return { kind: 'locked', lock: proactive, printNote: i.printReason };
     if (i.action === 'recreate' && i.confirmingRecreate)

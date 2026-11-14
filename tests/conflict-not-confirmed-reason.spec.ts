@@ -69,7 +69,12 @@ const BEHIND = pr(2, {
   },
 });
 
-async function open(page: Page, prs: unknown[], reachable = true) {
+async function open(
+  page: Page,
+  prs: unknown[],
+  reachable = true,
+  forge = 'forgejo',
+) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -80,9 +85,9 @@ async function open(page: Page, prs: unknown[], reachable = true) {
         generatedAt: new Date().toISOString(),
         forges: [
           reachable
-            ? { forge: 'forgejo', reachable: true, repoCount: 1 }
+            ? { forge, reachable: true, repoCount: 1 }
             : {
-                forge: 'forgejo',
+                forge,
                 reachable: false,
                 repoCount: 1,
                 errorKind: 'unreachable',
@@ -134,27 +139,35 @@ test('its Merge stays locked and its description says why', async ({
   expect(results.violations).toEqual([]);
 });
 
-test('a behind row with a live Update branch says to use it, once', async ({
-  page,
-}) => {
-  await open(page, [BEHIND]);
-  const r = row(page, 'Behind');
-  await expect(r.getByText(TITLE)).toHaveCount(1);
-  await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(1);
-  await r.getByRole('button', { name: TITLE }).click();
-  await expect(r.locator('.merge-where')).toContainText('Use Update branch');
-});
+// The rule reads the forge's health and never its name (#3968): both forges
+// get the same words.
+for (const forge of ['forgejo', 'github']) {
+  test(`${forge}: a behind row with a live Update branch says to use it, once`, async ({
+    page,
+  }) => {
+    await open(page, [{ ...BEHIND, forge }], true, forge);
+    const r = row(page, 'Behind');
+    await expect(r.getByText(TITLE)).toHaveCount(1);
+    await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(
+      1,
+    );
+    await r.getByRole('button', { name: TITLE }).click();
+    await expect(r.locator('.merge-where')).toContainText('Use Update branch');
+  });
 
-test('while the forge is unreachable the reason says the rows are earlier data and no action runs', async ({
-  page,
-}) => {
-  await open(page, [BEHIND], false);
-  const r = row(page, 'Behind');
-  await expect(r.getByText(TITLE)).toHaveCount(1);
-  await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(0);
-  await r.getByRole('button', { name: TITLE }).click();
-  const reason = r.locator('.merge-where');
-  await expect(reason).toContainText("isn't answering");
-  await expect(reason).toContainText('earlier');
-  await expect(reason).not.toContainText('Use Update branch');
-});
+  test(`${forge}: while the forge is unreachable the reason says the rows are earlier data and no action runs`, async ({
+    page,
+  }) => {
+    await open(page, [{ ...BEHIND, forge }], false, forge);
+    const r = row(page, 'Behind');
+    await expect(r.getByText(TITLE)).toHaveCount(1);
+    await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(
+      0,
+    );
+    await r.getByRole('button', { name: TITLE }).click();
+    const reason = r.locator('.merge-where');
+    await expect(reason).toContainText("isn't answering");
+    await expect(reason).toContainText('earlier');
+    await expect(reason).not.toContainText('Use Update branch');
+  });
+}

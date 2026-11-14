@@ -202,14 +202,28 @@ request on the forge". While the forge is unreachable or its budget is spent the
 row draws no controls and the rows are its earlier answer, so the reason says
 that, and the banner says how old the data is. The API's blocked reason for
 Merge follows the same rule: it names Update branch only when the pull request
-lists it. None of this depends on the forge: it reads the row's actions and the
-board's forge health. Either way the status is `conflicting` for the
+lists it. None of this depends on the forge: the words come from the one rule
+below. Either way the status is `conflicting` for the
 Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
+
+What a row may claim while its forge can't be asked is decided in one place,
+`rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in
+`internal/dashboard/row_claim.go` where the server decides. It reads the forge's
+health and never its name, so a Forgejo row and a GitHub row get the same words.
+Each claim is one of three: confirmed (the forge answered), carried over (the
+forge can't be asked, so the row is an earlier answer, with since-when and the
+reason) or unknown (the forge answered but hasn't said, which only an
+unconfirmed conflict is). The same answer says whether a control may be drawn:
+none is while the forge can't be asked, and none is while its budget is spent
+(the web only; a spent budget says nothing about how old the data is). The
+Dependabot buttons, the actions in the issue dialog, the row controls, and the
+auto-merge, hidden-pull-request and queued-action checks on the server all ask
+it, so a new case lands in all of them at once.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the

@@ -186,8 +186,8 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
-  import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
-  import { unconfirmedConflictReason } from "#lib/conflict-reason.js";
+  import type { LockInfo } from "#lib/lock-info.js";
+  import { rowClaim } from "#lib/row-claim.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -1123,10 +1123,12 @@
       };
       if (unconfirmedConflict(item)) {
         facts.reasonId = conflictReasonId(item);
-        facts.reason = unconfirmedConflictReason({
+        facts.reason = rowClaim({
+          kind: "conflict",
           lock: proactiveActionLockReason(item.forge),
+          answered: false,
           updateOffered: liveUpdateBranch(item),
-        });
+        }).reason;
       }
       return facts;
     }
@@ -3286,7 +3288,7 @@
     // failed click (a 429 the snapshot hadn't shown yet) still draws, with
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return isReadOnlyLock(reason);
+      return !rowClaim({ kind: "action", lock: reason }).actionsOpen;
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
