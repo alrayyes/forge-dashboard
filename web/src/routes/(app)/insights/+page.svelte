@@ -7,6 +7,11 @@
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
+  import {
+    releaseHeldPick as releaseHeldPickWiring,
+    setHideDependencyDashboard,
+    setSharedControl,
+  } from "#lib/filter-wiring.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import type { FilterableItem, SharedFilterState } from "#lib/filters.js";
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
@@ -194,10 +199,7 @@
   let heldPicksEl: HTMLDivElement | undefined = $state();
 
   function releaseHeldPick(pick: Filters.HeldPick) {
-    Filters.releaseHeld(pick.group, pick.key);
-    Filters.touchKey(pick.group, pick.key);
-    Filters.saveState(sharedState);
-    heldList = Filters.heldPicks();
+    heldList = releaseHeldPickWiring(sharedState, pick);
     tick().then(() => heldPicksEl && Filters.focusHeldPicks(heldPicksEl));
   }
 
@@ -275,9 +277,7 @@
             c instanceof HTMLInputElement && c.type === "radio"
               ? c.value
               : c.value.trim().toLowerCase();
-          sharedState.shared[col] = value;
-          Filters.touchKey("shared", col);
-          Filters.releaseHeld("shared", col);
+          setSharedControl(sharedState, col, value);
           // Each pick narrows what the others can offer (#1427).
           if (
             col === "forge" ||
@@ -307,10 +307,7 @@
   let settingsHiddenIssues = $state(0);
 
   function toggleHideDependencyDashboard() {
-    sharedState.issue.hideDependencyDashboard = hideDependencyDashboard
-      ? "1"
-      : "";
-    Filters.touchKey("issue", "hideDependencyDashboard");
+    setHideDependencyDashboard(sharedState, hideDependencyDashboard);
     Filters.saveState(sharedState);
     // What the Dependency Dashboard hides is not worth choosing from (#1427).
     updateSharedFilterOptions();
