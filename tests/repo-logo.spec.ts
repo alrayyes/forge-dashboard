@@ -111,9 +111,14 @@ test.describe('Repository logo (#2001)', () => {
     ).toHaveAttribute('alt', '');
   });
 
-  test('a repository with no logo draws nothing extra', async ({ page }) => {
+  test('a repository with no logo draws nothing extra on a row', async ({
+    page,
+  }) => {
     await openRows(page);
     await expect(repoCell(page, 'no-logo').locator('img')).toHaveCount(0);
+    await expect(
+      repoCell(page, 'no-logo').locator('.logo-placeholder'),
+    ).toHaveCount(0);
   });
 
   test('an http logo is never loaded', async ({ page }) => {
@@ -143,6 +148,9 @@ test.describe('Repository logo (#2001)', () => {
     await expect(
       rows.filter({ hasText: 'alrayyes/no-logo' }).locator('img'),
     ).toHaveCount(0);
+    await expect(
+      rows.filter({ hasText: 'alrayyes/no-logo' }).locator('.logo-placeholder'),
+    ).toHaveCount(1);
   });
 
   test('the Repositories page cell reads as the bare repository name, with or without a logo', async ({

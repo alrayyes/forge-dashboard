@@ -1884,6 +1884,32 @@ button.title {
   border-radius: 50%;
   object-fit: cover;
 }
+/* No image to show (none, refused, or failed to load): the initial on a
+   neutral circle in the same 20px box, so names keep their x (#3868). The
+   letter is generated content, so it is neither selectable nor part of the
+   cell's text. --ink on --surface-sunken, as the filter chips. */
+.avatar-placeholder,
+.logo-placeholder {
+  display: inline-block;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  text-align: center;
+}
+.avatar-placeholder {
+  font-size: 0.6875rem;
+  line-height: 18px;
+}
+.logo-placeholder {
+  font-size: 0.625rem;
+  line-height: 14px;
+}
+.avatar-placeholder::before,
+.logo-placeholder::before {
+  content: attr(data-initial);
+}
 .author-name {
   display: block;
   overflow: hidden;
