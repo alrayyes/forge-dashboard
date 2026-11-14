@@ -24,7 +24,7 @@ export function unconfirmedConflictReason({
   if (isReadOnlyLock(lock)) {
     if (lock?.code === 'rate_limited')
       return `${WHY} ${lock.reason} No action can run until then.`;
-    return `${WHY} The forge can't be reached, so this is its earlier answer and no action can run until it answers again. The banner says how old the data is.`;
+    return `${WHY} The forge isn't answering yet, so this may be an earlier answer, and no action can run until it does.`;
   }
   if (updateOffered) return `${WHY} Use Update branch to find out.`;
   return `${WHY} Wait for the forge to finish checking, or open the pull request on the forge.`;

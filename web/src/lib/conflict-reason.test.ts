@@ -20,7 +20,7 @@ describe('unconfirmedConflictReason', () => {
       lock: { reason: 'x', code: 'forge_unreachable' },
       updateOffered: true,
     });
-    expect(text).toContain("can't be reached");
+    expect(text).toContain("isn't answering");
     expect(text).toContain('earlier');
     expect(text).not.toContain('Update');
   });

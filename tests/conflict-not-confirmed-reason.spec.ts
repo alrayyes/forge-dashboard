@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 // "Conflict not confirmed" is said once, as the pill, and the reason it opens
 // names only what the row can do: Update branch when the row has the button,
 // otherwise waiting or opening the pull request on the forge. While the forge
-// can't be reached the rows are earlier data and no action runs, so the reason
+// can't be reached the rows may be earlier data and no action runs, so the reason
 // says that instead.
 // https://github.com/alrayyes/forge-dashboard/issues/3965
 
@@ -154,7 +154,7 @@ test('while the forge is unreachable the reason says the rows are earlier data a
   await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(0);
   await r.getByRole('button', { name: TITLE }).click();
   const reason = r.locator('.merge-where');
-  await expect(reason).toContainText("can't be reached");
+  await expect(reason).toContainText("isn't answering");
   await expect(reason).toContainText('earlier');
   await expect(reason).not.toContainText('Use Update branch');
 });

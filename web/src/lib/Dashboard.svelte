@@ -1087,11 +1087,13 @@
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
       // Forgejo's flag stayed false and no refusal named a conflict (#3308).
-      if (status === "conflicting" && conflict.confirmed === false)
-        return unconfirmedConflictPill(
-          conflict.reason ?? "",
-          conflict.reasonId,
-        );
+      if (
+        status === "conflicting" &&
+        conflict.confirmed === false &&
+        conflict.reason &&
+        conflict.reasonId
+      )
+        return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -1155,7 +1157,7 @@
     // it is for a conflict and also for a check that never finishes.
     function unconfirmedConflictPill(
       reasonText: string,
-      id = "conflict-reason",
+      id: string,
     ): HTMLElement {
       const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
       pill.type = "button";
