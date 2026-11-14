@@ -168,6 +168,27 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await expect(line).toContainText('Missing permission');
   });
 
+  test('a dismissed toast then a snapshot without the pull request throws nothing and the board moves on (#3931)', async ({
+    page,
+  }) => {
+    const errors: string[] = [];
+    page.on('pageerror', (error) => errors.push(String(error)));
+    const both = [pr(613), pr(603)];
+    await open(page, both);
+
+    await rowFor(page, 613)
+      .getByRole('button', { name: 'Update branch' })
+      .click();
+    await dismissToasts(page);
+    await push(page, [pr(603)]);
+    await page.clock.runFor(300);
+
+    // Nothing holds the board once the toast is gone, so the row leaves with
+    // the snapshot (#752); what matters here is that no timer throws.
+    expect(errors).toEqual([]);
+    await expect(rowFor(page, 613)).toHaveCount(0);
+  });
+
   test('a toast opening under the pointer keeps the board still until the pointer leaves it', async ({
     page,
   }) => {
@@ -225,15 +246,8 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await page.mouse.up();
     await expect(page.locator('#feedback-toasts li')).toHaveCount(0);
 
-    // Dismissing a failure toast and then pushing a snapshot that omits the
-    // pull request can throw a page-timer TypeError under load (#3931,
-    // reproduces on main). This test is about the board moving, so it
-    // tolerates exactly that error and nothing else; drop the catch when
-    // #3931 is fixed.
     await push(page, [pr(603)]);
-    await page.clock.runFor(300).catch((error: unknown) => {
-      if (!String(error).includes("reading 'length'")) throw error;
-    });
+    await page.clock.runFor(300);
     await expect(rowFor(page, 613)).toHaveCount(0);
   });
 
