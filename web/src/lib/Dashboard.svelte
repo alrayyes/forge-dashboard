@@ -4582,6 +4582,17 @@
         .then(() => requested);
     }
 
+    // The row draws no Update branch: its forge is read-only (budget spent,
+    // unreachable, starting) and no click has locked the button with a reason
+    // of its own. The row and Update all both ask this, so a count never
+    // promises a button the board lacks (#3971).
+    function updateBranchHidden(item: PullRequestItem): boolean {
+      return (
+        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      );
+    }
+
     // Only rendered when the forge reports this pull request as behind
     // its base, so it can show alongside the merge button rather than
     // instead of it. A conflicting pull request gets it locked, with the
@@ -4594,11 +4605,7 @@
       // each snapshot, so the real button comes back by itself (#701).
       const updateBranch = findAction(item, "update_branch");
       if (!updateBranch) return null;
-      if (
-        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
-        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
-      )
-        return null;
+      if (updateBranchHidden(item)) return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
@@ -6404,6 +6411,8 @@
     function currentUpdatePlan() {
       return updateAllPlan(visiblePullRows, {
         updating: (item) => updateBranchState[prKey(item)]?.phase === "queued",
+        // Rows that draw no Update branch are not offered either (#3971).
+        controlsHidden: updateBranchHidden,
       });
     }
 

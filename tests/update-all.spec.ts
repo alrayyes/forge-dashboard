@@ -36,12 +36,13 @@ async function open(
   page: Page,
   pullRequests: ReturnType<typeof pr>[],
   reads: Reads = { count: 0, gate: null },
+  forge: Record<string, unknown> = {},
 ) {
   const posts: Record<string, unknown>[] = [];
   const snapshot = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      forges: [{ forge: 'github', reachable: true, repoCount: 1, ...forge }],
       pullRequests,
       issues: [],
       repos: [],
@@ -414,4 +415,39 @@ test('at 320px the button fits without sideways scroll', async ({ page }) => {
   }));
   expect(m.h).toBeGreaterThanOrEqual(44);
   expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
+});
+
+// A read-only forge (budget spent) draws no Update branch on its rows, so
+// Update all can't count them either (#3971).
+test('a rate-limited forge draws no row button and no Update all count', async ({
+  page,
+}) => {
+  const resetsAt = new Date(Date.now() + 600_000).toISOString();
+  await open(
+    page,
+    [pr(1), pr(2)],
+    { count: 0, gate: null },
+    {
+      rateLimitREST: { limit: 5000, remaining: 0, resetsAt },
+    },
+  );
+  const row = page.locator('#pr-rows .row', { hasText: 'Change number 1' });
+  await expect(row).toBeVisible();
+  await expect(row.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    0,
+  );
+  await expect(page.locator('#update-all-button')).not.toBeVisible();
+});
+
+test('a healthy forge counts the rows that draw Update branch', async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2)]);
+  const rows = page.locator('#pr-rows .row');
+  await expect(rows.getByRole('button', { name: 'Update branch' })).toHaveCount(
+    2,
+  );
+  await expect(
+    page.getByRole('button', { name: 'Update all (2)' }),
+  ).toBeVisible();
 });
