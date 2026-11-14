@@ -703,6 +703,96 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+  /api/v1/connections/forgejo:
+    post:
+      operationId: startForgejoConnection
+      summary: Start linking a Forgejo account with OAuth
+      description: |
+        Begins the authorization code flow with PKCE (RFC 9700) against the
+        given Forgejo instance and returns the instance's consent page URL.
+        The browser goes there; Forgejo sends it back to
+        `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
+        instance is already connected: the instance is locked until
+        `DELETE /api/v1/connections/forgejo`. Replaces pasting a Forgejo token (#3951).
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartForgejoConnectionRequest"
+      responses:
+        "200":
+          description: Where to send the browser.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionAuthorizeResponse"
+        "400":
+          description: The instance URL isn't a valid http(s) URL, or OAuth isn't configured on this server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A Forgejo instance is already connected. Disconnect first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: disconnectForgejo
+      summary: Unlink the Forgejo account
+      description: |
+        Deletes the stored token pair and clears the saved instance URL and
+        account name. Passkey sign-in is unaffected.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204":
+          description: Disconnected, or there was nothing to disconnect.
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/connections/forgejo/callback:
+    get:
+      operationId: finishForgejoConnection
+      summary: Forgejo's redirect back after consent
+      description: |
+        Checks `state` (single use, ten minutes), exchanges `code` with the
+        PKCE verifier, stores the token pair encrypted, and redirects the
+        browser to `/settings`. A missing, wrong, used or expired `state`
+        answers 400 and stores nothing.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        "303":
+          description: Linked. Redirects to `/settings`.
+        "400":
+          description: Unknown, used or expired state, or the code exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/v1/settings/filter-state:
     get:
       operationId: getFilterState
@@ -4636,6 +4726,22 @@ components:
             and nothing is saved. More than 20 entries, or an entry over 200
             characters, is a 400 too. See SettingsResponse.ignoredTitles.
 
+    StartForgejoConnectionRequest:
+      type: object
+      required: [instanceUrl]
+      properties:
+        instanceUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: https://git.example.com
+    ConnectionAuthorizeResponse:
+      type: object
+      required: [authorizeUrl]
+      properties:
+        authorizeUrl:
+          type: string
+          format: uri
     ThemeResponse:
       type: object
       description: See GET /api/v1/settings/theme's own description.
