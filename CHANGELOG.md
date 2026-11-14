@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.59.0](https://github.com/alrayyes/forge-dashboard/compare/v9.58.3...v9.59.0) (2026-11-14)
+
+
+### Features
+
+* **imageproxy:** refuse the last IPv6 special-purpose ranges ([#3941](https://github.com/alrayyes/forge-dashboard/issues/3941)) ([59a68d4](https://github.com/alrayyes/forge-dashboard/commit/59a68d4e3088766f77a6cacd4d923bbb3e18020e)), closes [#3936](https://github.com/alrayyes/forge-dashboard/issues/3936)
+
 ## [9.58.3](https://github.com/alrayyes/forge-dashboard/compare/v9.58.2...v9.58.3) (2026-11-14)
 
 
