@@ -568,6 +568,11 @@ header,
 .nav-passed {
   color: var(--good);
 }
+/* Cancelled (#3958): nothing broke, so the neutral ink, like the cancelled
+   pill on a row. The stop glyph carries it, not the colour. */
+.nav-cancelled {
+  color: var(--ink-2);
+}
 .nav-none {
   color: var(--ink-2);
 }

@@ -123,6 +123,28 @@
   })}
 </Story>
 
+<!-- A branch whose last run was cancelled is drawn, so the parts add up to the
+     total (#3958). -->
+<Story
+  asChild
+  name="Cancelled"
+  play={async ({ canvasElement }) => {
+    const pill = canvasElement.querySelector(".nav-pills") as HTMLElement;
+    await expect(pill.querySelector(".nav-total")?.textContent).toBe("6");
+    await expect(
+      pill.querySelector(".nav-cancelled")?.textContent?.trim(),
+    ).toBe("1");
+    await expect(pill.querySelector(".nav-cancelled svg")).not.toBeNull();
+    const shown = [...pill.querySelectorAll(".nav-count")].reduce(
+      (n, el) => n + Number(el.textContent?.trim()),
+      0,
+    );
+    await expect(shown).toBe(6);
+  }}
+>
+  {@render inLink({ total: 6, failed: 2, passed: 3, cancelled: 1 })}
+</Story>
+
 <!-- Nothing in the page: no pill at all. -->
 <Story
   asChild

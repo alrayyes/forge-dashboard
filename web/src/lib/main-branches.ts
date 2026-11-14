@@ -141,6 +141,7 @@ export function branchNavCount(counts: MainBranchCounts): NavCount {
     failed: counts.failed,
     running: counts.running,
     passed: counts.passed,
+    cancelled: counts.cancelled,
     none: counts.none,
     awaitingApproval: counts.awaitingApproval,
   };
@@ -463,7 +464,7 @@ export function duration(seconds: number | null): string {
 // `branches` group of plain strings in the shared cookie for the first paint
 // and in the server copy for a second browser. These two convert between that
 // group and the filter, and a stale or hand-edited value reads as its default.
-const STATUSES = [
+export const MAIN_BRANCH_STATUSES = [
   'all',
   'failed',
   'running',
@@ -478,7 +479,7 @@ const ADVISORY_CHOICES = ['all', 'has', 'none'];
 export function filterFromState(
   saved: Record<string, string> | undefined,
 ): MainBranchFilter {
-  const status = STATUSES.includes(saved?.status ?? '')
+  const status = MAIN_BRANCH_STATUSES.includes(saved?.status ?? '')
     ? (saved?.status as StatusPill)
     : 'all';
   const forge = FORGES.includes(saved?.forge ?? '')

@@ -228,4 +228,25 @@ describe('pillParts', () => {
       );
     }
   });
+
+  test('draws cancelled branches after the passing ones, so the parts add up (#3958)', () => {
+    const count = { total: 6, failed: 2, passed: 3, cancelled: 1 };
+    expect(pillParts(count)).toEqual([
+      { kind: 'failed', n: 2, words: 'failing' },
+      { kind: 'passed', n: 3, words: 'passing' },
+      { kind: 'cancelled', n: 1, words: 'cancelled' },
+    ]);
+    expect(headerLabel('Branches', count)).toBe(
+      '6 2 3 1, Branches, 6 total, 2 failing, 3 passing, 1 cancelled',
+    );
+    expect(tabLabel('Branches', count)).toBe(
+      '6 2 3 1 Branches, 2 failing, 3 passing, 1 cancelled',
+    );
+  });
+
+  test('draws and speaks nothing extra for zero cancelled (#1439)', () => {
+    const count = { total: 5, failed: 2, passed: 3, cancelled: 0 };
+    expect(pillParts(count).map((p) => p.kind)).toEqual(['failed', 'passed']);
+    expect(headerLabel('Branches', count)).not.toContain('cancelled');
+  });
 });

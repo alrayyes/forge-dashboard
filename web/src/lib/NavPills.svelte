@@ -75,6 +75,29 @@
             ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
           >{part.n}</span
         >
+      {:else if part.kind === "cancelled"}
+        <!-- The stop glyph the row and the pipeline panel use for a cancelled
+           run, in neutral ink: nothing broke (#3958). -->
+        <span class="nav-count nav-cancelled"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><rect
+              x="9"
+              y="9"
+              width="6"
+              height="6"
+              rx="1"
+            /></svg
+          >{part.n}</span
+        >
       {:else if part.kind === "running"}
         <!-- The hairline between the outcomes and the state. Decoration only,
            and only when an outcome sits before the running count: with the
