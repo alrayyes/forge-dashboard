@@ -100,10 +100,15 @@ for (const forge of ['forgejo', 'github']) {
         'title',
         /earlier answer from \d+m ago/,
       );
-      await expect(
-        pill.locator('.sr-only', { hasText: 'earlier answer' }),
-        selector,
-      ).toHaveText(/earlier answer from \d+m ago/);
+      // The pipeline pill is a button with a name of its own, so the words
+      // belong in that name; the others say them in hidden text.
+      if (selector === '.ci-pill')
+        await expect(pill).toHaveAccessibleName(/earlier answer from \d+m ago/);
+      else
+        await expect(
+          pill.locator('.sr-only', { hasText: 'earlier answer' }),
+          selector,
+        ).toHaveText(/earlier answer from \d+m ago/);
     }
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

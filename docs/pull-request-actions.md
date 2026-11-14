@@ -236,7 +236,18 @@ the since-time as `since`, whatever the earlier answer said. The kinds `state`
 and `action` differ in nothing today; they are kept apart so a rule that needs
 one has a place to land. The sentence for a carried-over row is the same on the
 server and the web, apart from the since-time the web puts in the words and the
-server sends as a field. A row that carries its own
+server sends as a field.
+
+Three limits to know. The interactive CI pill carries the words in its
+accessible name, the other pills in hidden text, and a pill whose caller names
+it (the one on an issue's linked pull request) only in its tooltip. With two
+hosts of one kind and one down, a row may be on the healthy host: its controls
+stay on, yet its pills read as carried over and say "no action can run", so the
+tooltip can overstate. The page can't tell which host a row is on, so it takes
+the cautious side for claims. API clients see `forge_unreachable` in place of a
+row's own blocked code (a `conflict`, say) while the forge is down, and an
+`update_branch` entry that auto-update would hide stays listed, blocked, since
+the rule runs after that choice. A row that carries its own
 since-time, a main branch row or a repo marked `staleSince`, asks the same
 rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
 with one is carried over, in the same words and with the same since-time.

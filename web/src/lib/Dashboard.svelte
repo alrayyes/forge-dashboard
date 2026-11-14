@@ -1024,16 +1024,22 @@
     // A pill that reports a forge's fact, marked as an earlier answer while the
     // forge can't be asked: the reason as its tooltip and as text for a screen
     // reader, since a tooltip is not announced.
+    // A pill with a name of its own (the pipeline button) gets the words in
+    // that name; one whose caller sets the name (announce false) gets the
+    // tooltip only.
     function claimed<T extends HTMLElement>(
       pill: T,
       item: { forge: string },
+      announce = true,
     ): T {
       const claim = stateClaim(item);
       if (claim.state !== "carried_over") return pill;
       pill.dataset.claim = claim.state;
       const earlier = claim.reason.replace(/^Showing data[^.]*\.\s*/, "");
       pill.title = pill.title ? `${pill.title}. ${earlier}` : earlier;
-      pill.appendChild(el("span", "sr-only", ` ${earlier}`));
+      const name = pill.getAttribute("aria-label");
+      if (name) pill.setAttribute("aria-label", `${name} ${earlier}`);
+      else if (announce) pill.appendChild(el("span", "sr-only", ` ${earlier}`));
       return pill;
     }
 
@@ -1056,6 +1062,7 @@
           announce,
         }),
         item,
+        announce,
       );
     }
 
