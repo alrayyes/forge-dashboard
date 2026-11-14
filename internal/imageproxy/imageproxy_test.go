@@ -337,18 +337,25 @@ func TestFetch_HonoursACancelledContext(t *testing.T) {
 func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 	t.Parallel()
 	for name, host := range map[string]string{
-		"shared address space": "100.64.0.1",
-		"benchmarking":         "198.18.0.1",
-		"IETF protocol":        "192.0.0.8",
-		"NAT64":                "[64:ff9b::808:808]",
-		"6to4":                 "[2002:808:808::1]",
-		"TEST-NET-1":           "192.0.2.1",
-		"TEST-NET-2":           "198.51.100.1",
-		"TEST-NET-3":           "203.0.113.1",
-		"class E":              "240.0.0.1",
-		"IPv6 documentation":   "[2001:db8::1]",
-		"local-use NAT64":      "[64:ff9b:1::1]",
-		"mapped loopback":      "[::ffff:127.0.0.1]",
+		"shared address space":   "100.64.0.1",
+		"benchmarking":           "198.18.0.1",
+		"IETF protocol":          "192.0.0.8",
+		"NAT64":                  "[64:ff9b::808:808]",
+		"6to4":                   "[2002:808:808::1]",
+		"TEST-NET-1":             "192.0.2.1",
+		"TEST-NET-2":             "198.51.100.1",
+		"TEST-NET-3":             "203.0.113.1",
+		"class E":                "240.0.0.1",
+		"IPv6 documentation":     "[2001:db8::1]",
+		"local-use NAT64":        "[64:ff9b:1::1]",
+		"mapped loopback":        "[::ffff:127.0.0.1]",
+		"RFC 9637 documentation": "[3fff::1]",
+		"this network":           "0.0.0.1",
+		"discard prefix":         "[100::1]",
+		"6to4 relay anycast":     "192.88.99.1",
+		"Teredo":                 "[2001:0:4136:e378:8000:63bf:3fff:fdd2]",
+		"IPv6 benchmarking":      "[2001:2::1]",
+		"deprecated ORCHID":      "[2001:10::1]",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -371,11 +378,33 @@ func TestRefuseNonPublic_UnmapsAnIPv4MappedAddress(t *testing.T) {
 		"mapped loopback":     "[::ffff:127.0.0.1]:80",
 		"mapped TEST-NET-1":   "[::ffff:192.0.2.1]:80",
 		"mapped shared space": "[::ffff:100.64.0.1]:80",
+		"mapped this network": "[::ffff:0.0.0.1]:80",
+		"mapped 6to4 relay":   "[::ffff:192.88.99.1]:80",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			require.Error(t, imageproxy.RefuseNonPublic(address))
+		})
+	}
+}
+
+// 2001::/23 is mostly not reachable, but IANA marks some of it globally
+// reachable (anycast services, AMT, AS112, ORCHIDv2), so only the unreachable
+// blocks are refused and these stay allowed.
+func TestRefuseNonPublic_AllowsGloballyReachableIETFProtocolRanges(t *testing.T) {
+	t.Parallel()
+	for name, address := range map[string]string{
+		"PCP anycast":     "[2001:1::1]:80",
+		"AMT":             "[2001:3::1]:80",
+		"AS112-v6":        "[2001:4:112::1]:80",
+		"ORCHIDv2":        "[2001:20::1]:80",
+		"drone remote ID": "[2001:30::1]:80",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NoError(t, imageproxy.RefuseNonPublic(address))
 		})
 	}
 }
