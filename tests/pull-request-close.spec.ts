@@ -6,6 +6,7 @@ import {
   openActionsDialog,
 } from './actions-dialog-helper';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 interface MockLabel {
   name: string;
@@ -438,6 +439,7 @@ test.describe('pull request close button', () => {
     await closeActionsDialog(dialog);
     await expect(row.locator('.row-lock-cue')).toBeVisible();
 
+    await dismissToasts(page);
     await row.getByRole('button', { name: /^Dismiss failure/ }).click();
     await expect(row.locator('.row-lock-cue')).toHaveCount(0);
     const reopened = await openCloseInDialog(row);

@@ -3199,6 +3199,14 @@ a.ci-pill:hover {
   color: var(--ink-2);
 }
 
+/* A failure whose error toast is on screen keeps its line in the markup but
+   doesn't draw it, so the sentence shows once (#3914). An author display:flex
+   beats the UA's [hidden], so say it here. */
+.row-feedback[hidden],
+.row-feedback-line[hidden] {
+  display: none;
+}
+
 .row-feedback-line {
   display: flex;
   align-items: center;

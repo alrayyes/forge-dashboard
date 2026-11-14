@@ -7,6 +7,7 @@ import {
   viaActionsDialog,
 } from './actions-dialog-helper';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // #1206: a row's failure line for a network failure clears itself after ten
 // seconds, pauses while it is hovered or focused, and the row is read again
@@ -179,6 +180,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     );
     await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
+    await dismissToasts(page);
 
     await page.clock.fastForward(120_000);
     await expect(line(page)).toHaveCount(1);
@@ -197,6 +199,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     );
     await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
+    await dismissToasts(page);
 
     await line(page).hover();
     await page.clock.fastForward(30_000);
@@ -216,6 +219,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     );
     await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
+    await dismissToasts(page);
 
     await line(page)
       .getByRole('button', { name: /Dismiss/ })
@@ -297,6 +301,7 @@ test.describe('a network failure line clears itself (#1206)', () => {
     );
     await page.goto('/pull-requests.html');
     await failUpdateBranch(page);
+    await dismissToasts(page);
     await page.clock.fastForward(7_000);
     await expect(line(page)).toHaveCount(1);
 

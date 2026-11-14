@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // #982: the server owns an Update branch the forge accepted. Each pull
 // request in a snapshot carries `updateRequest` (queued, or expired after
@@ -221,14 +222,16 @@ test.describe('update branch request from the server', () => {
     await push(page, current);
 
     await expect(line(page)).toContainText('Timed out');
-    await expect(
-      line(page).getByRole('button', { name: 'Retry' }),
-    ).toBeVisible();
     const toasts = page.locator(
       '#feedback-toasts .feedback-toast[data-kind="error"]',
     );
     await expect(toasts).toHaveCount(1);
     await expect(toasts).not.toContainText(/five minutes|5 minutes/i);
+    await expect(line(page)).toBeHidden();
+    await dismissToasts(page);
+    await expect(
+      line(page).getByRole('button', { name: 'Retry' }),
+    ).toBeVisible();
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
     ).toBeEnabled();
@@ -236,7 +239,7 @@ test.describe('update branch request from the server', () => {
     // The same expired record on the next snapshot says nothing new.
     await push(page, current);
     await settle(page);
-    await expect(toasts).toHaveCount(1);
+    await expect(toasts).toHaveCount(0);
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
     ).toBeEnabled();
@@ -302,6 +305,7 @@ test.describe('update branch request from the server', () => {
     await answered;
     await settle(page);
     await expect(line(page)).toContainText('Timed out');
+    await dismissToasts(page);
     await expect(
       line(page).getByRole('button', { name: 'Retry' }),
     ).toBeVisible();

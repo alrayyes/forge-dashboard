@@ -3,6 +3,7 @@ import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
 import { serveChecks } from './checks-feed-helper';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // A failed action keeps its plain sentence on the row, and a Copy button
 // beside it copies what the server really answered: the status, the body as
@@ -152,6 +153,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
       await refuse(page, a.endpoint, 403, REFUSAL);
       const row = await open(page);
       await a.start(row);
+      await dismissToasts(page);
 
       const line = row.locator('.row-feedback-line[data-phase="failed"]');
       await expect(line).toBeVisible();
@@ -234,6 +236,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     });
     const row = await open(page);
     await ACTIONS[2].start(row);
+    await dismissToasts(page);
 
     const line = row.locator('.row-feedback-line[data-phase="failed"]');
     await expect(line).toContainText(sentence);
@@ -253,6 +256,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
     await copyIn(row).click();
 
     const payload = await readClipboard(page);
@@ -271,6 +275,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
     const copy = copyIn(row);
     await copy.click();
 
@@ -287,6 +292,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     );
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
     await copyIn(row).click();
 
     const payload = await readClipboard(page);
@@ -311,6 +317,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     );
     const row = await open(page);
     await ACTIONS[0].start(row);
+    await dismissToasts(page);
     await copyIn(row).click();
 
     expect((await readClipboard(page)).response).toBe(
@@ -333,6 +340,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
 
     const copy = copyIn(row);
     await copy.focus();
@@ -348,6 +356,7 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
     await expect(copyIn(row)).toBeVisible();
 
     expect(
@@ -491,6 +500,7 @@ test.describe('Copy error details without a clipboard (#1323)', () => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
     const row = await open(page);
     await ACTIONS[4].start(row);
+    await dismissToasts(page);
     await copyIn(row).click();
 
     const box = row.getByRole('textbox', { name: 'Error details' });

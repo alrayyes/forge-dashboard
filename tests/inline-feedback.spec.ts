@@ -245,7 +245,7 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toast).toBeVisible();
   });
 
-  test('an error toast stays until it is dismissed, and the row keeps a Failed line with Retry', async ({
+  test('an error toast stays until it is dismissed, and the row then shows a Failed line with Retry', async ({
     page,
   }) => {
     const mocks = await setup(page, [makePR(3)], {
@@ -260,23 +260,25 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await page.clock.runFor(7500);
     await expect(toast).toBeVisible();
 
+    // The toast says it, so the row doesn't repeat it (#3914) ...
     const line = rowFor(page, 3).locator('.row-feedback');
+    await expect(line).toBeHidden();
+
+    // ... until the toast is dismissed.
+    await toast.getByRole('button', { name: /Dismiss/ }).click();
+    await expect(toasts(page)).toHaveCount(0);
     await expect(line).toContainText('Failed');
     await expect(line).toContainText('upstream broke');
 
     await line.getByRole('button', { name: 'Retry' }).click();
     await expect.poll(() => mocks.hits[3]).toBe(2);
 
-    // The mock fails every attempt, so the retry raises its own error
-    // toast beside the first. Wait for it: dismissing before it lands
-    // leaves it behind and the count never reaches 0 (#826).
-    await expect(toasts(page)).toHaveCount(2);
-    for (const _ of [0, 1]) {
-      await toasts(page)
-        .first()
-        .getByRole('button', { name: /Dismiss/ })
-        .click();
-    }
+    // The mock fails every attempt, so the retry raises its own error toast.
+    await expect(toasts(page)).toHaveCount(1);
+    await toasts(page)
+      .first()
+      .getByRole('button', { name: /Dismiss/ })
+      .click();
     await expect(toasts(page)).toHaveCount(0);
   });
 

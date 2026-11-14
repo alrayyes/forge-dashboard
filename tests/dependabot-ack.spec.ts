@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
+import { dismissToasts } from './toast-helper';
 
 // #1082: Dependabot reacts to an `@dependabot rebase` comment with a
 // thumbs-up to say it got the command. The server looks for that reaction and
@@ -227,6 +228,7 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
     await push(page, current);
 
     await expect(line(page)).toContainText('No reply from Dependabot yet');
+    await dismissToasts(page);
     await expect(
       line(page).getByRole('button', { name: /^Ask again/ }),
     ).toBeVisible();

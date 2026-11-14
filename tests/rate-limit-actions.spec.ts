@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // A rate limit is a "wait until" condition, not a transient fault: the
 // forge says when it resets, so the blocked actions are greyed out with
@@ -145,6 +146,8 @@ test.describe('rate-limited actions (#732)', () => {
     await row.getByRole('button', { name: 'Merge', exact: true }).click();
     await row.getByRole('button', { name: 'Confirm merge?' }).click();
 
+    // The row's Retry comes back once the toast is dismissed (#3914).
+    await dismissToasts(page);
     const retry = row.getByRole('button', { name: /^Retry/ });
     await expect(retry).toBeVisible();
     await retry.click();

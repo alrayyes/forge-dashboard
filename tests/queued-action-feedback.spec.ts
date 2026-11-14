@@ -7,6 +7,7 @@ import {
 } from './actions-dialog-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
+import { dismissToasts } from './toast-helper';
 
 // #680, #714: Update branch, Dependabot rebase and Renovate rebase all
 // answer with "Queued…" the instant they're clicked and hold that state
@@ -697,10 +698,11 @@ test.describe('queued state: bot rebases move on once a snapshot shows pickup', 
 
     const line = page.locator('#pr-rows .row').first().locator('.row-feedback');
     await expect(line).toContainText('Timed out');
-    await expect(line.getByRole('button', { name: 'Retry' })).toBeVisible();
     await expect(
       page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
     ).toContainText("Renovate hasn't acted");
+    await dismissToasts(page);
+    await expect(line.getByRole('button', { name: 'Retry' })).toBeVisible();
     const freed = await openActionsDialog(
       page.locator('#pr-rows .row').first(),
     );

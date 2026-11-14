@@ -400,6 +400,8 @@ for (const d of drivers) {
       await d.act(row);
 
       await expect(row.locator('.row-feedback')).toContainText('EOF');
+      // The toast carries it; the row line isn't drawn beside it (#3914).
+      await expect(row.locator('.row-feedback-text')).toBeHidden();
       const button = await d.find(row);
       await expect(button).toBeEnabled();
       await expect(button).not.toHaveAttribute('aria-disabled', 'true');

@@ -214,7 +214,8 @@ under the buttons reminds you that Escape or a click elsewhere cancels. Only one
 Merge or Close is armed at a time, and double-clicking Merge arms it without
 confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
-reason, which the row and a toast show: already merged or closed (the row
+reason. A toast shows it, and the row's own line appears once you dismiss the
+toast. The reasons are: already merged or closed (the row
 switches to "Merged" or "Closed" and drops off the list on the next snapshot),
 a conflict, behind the base branch, a check pending or failing, branch
 protection, a missing permission, or a rate limit with its reset time. The
@@ -514,7 +515,11 @@ Merge, close, auto-merge, Update branch, and the Dependabot and Renovate actions
 all report on the row you acted on, not in a banner at the top of the page. A
 wait shows as one chip in the row's action area (below), and a failure gets a
 status line under the actions: "Failed" with the reason, a Retry button, and a
-Dismiss button. Each pull request in flight has its own. A failure says one
+Dismiss button. Each pull request in flight has its own. While the failure's
+error toast is showing, the row doesn't show the line, so the reason appears
+once. The line appears when the toast is dismissed, or when a fourth toast
+pushes it out of the stack of three. The pull request's own dialog always
+keeps the line. A failure says one
 plain sentence: the server's own reason when it gave one, or "The forge refused
 this action and gave no reason." The raw error text stays in the server log, and
 off the row. A **Copy** button beside the failure (on the row and in its toast,
