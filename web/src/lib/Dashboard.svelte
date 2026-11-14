@@ -6404,6 +6404,11 @@
     function currentUpdatePlan() {
       return updateAllPlan(visiblePullRows, {
         updating: (item) => updateBranchState[prKey(item)]?.phase === "queued",
+        // Rows of a read-only forge draw no Update branch, so they are not
+        // offered either, unless a lock from a click already shows one (#3971).
+        controlsHidden: (item) =>
+          (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
+          readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge)),
       });
     }
 

@@ -1249,8 +1249,11 @@ their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
-one switched on for itself. One switched off for itself, or one a draft or
-release-please pull request keeps out of the automatic update, still counts.
+one switched on for itself. A pull request whose forge is out of API budget,
+can't be reached or is still starting isn't counted either, since the row draws
+no `Update branch` while the forge is read-only and the banner says why. One
+switched off for itself, or one a draft or release-please pull request keeps out
+of the automatic update, still counts.
 
 Pressing it opens a confirm dialog with a tick box for each pull request, all
 ticked. Clear a box to leave that one out. `Update` then updates the ticked ones
