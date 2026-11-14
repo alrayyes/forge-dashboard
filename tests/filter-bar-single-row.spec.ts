@@ -130,9 +130,10 @@ test.describe('filter bar over one row (#3886)', () => {
       const enabled = await look();
       await pill(page, 'Forgejo').click();
       await expect(sort(page)).toBeDisabled();
-      const disabled = await look();
-      expect(disabled.color).not.toBe(enabled.color);
-      expect(disabled.cursor).toBe('not-allowed');
+      await expect(sort(page)).toHaveCSS('cursor', 'not-allowed');
+      await expect
+        .poll(async () => (await look()).color)
+        .not.toBe(enabled.color);
       expect(enabled.cursor).not.toBe('not-allowed');
     });
   }
@@ -267,8 +268,12 @@ test.describe('filter bar over one row (#3886)', () => {
     const enabled = await look();
     await pill(page, 'Forgejo').click();
     await expect(sort(page)).toBeDisabled();
-    const disabled = await look();
-    expect(disabled.color).toBe(disabled.grayText);
+    await expect
+      .poll(async () => {
+        const disabled = await look();
+        return disabled.color === disabled.grayText;
+      })
+      .toBe(true);
     expect(enabled.color).not.toBe(enabled.grayText);
   });
 });
