@@ -237,7 +237,9 @@ HTTPS image, fetched by this server and passed on, so your browser never
 contacts the forge for it. On Forgejo that works only when the image is on the
 same host and scheme as the saved instance; a Gravatar or Libravatar avatar
 shows the initial instead. When the forge sends none, the URL isn't HTTPS, or
-the image can't load, the row shows the name alone. The narrow layout drops the
+the image can't load, the row draws the author's initial on a neutral circle in
+the same 20px box, so every name starts at the same place. The initial is
+decorative: a screen reader hears the name once. The narrow layout drops the
 author column, avatar included.
 
 The avatar and the name are one link to the author's page on the forge, opening
@@ -257,9 +259,11 @@ generated card GitHub makes for a repository with no image is never shown, and
 neither is the owner's avatar. The image is the forge's own HTTPS image, which
 this server fetches and passes on. On Forgejo that works only when the image is
 on the same host and scheme as the saved instance, so a Gravatar or Libravatar
-avatar shows the initial instead. A repository with no logo, an image that isn't
-HTTPS or one that can't load shows the name alone. The unauthenticated
-username-only listing carries no images, so it shows none.
+avatar shows the initial instead. On the Repositories page, a repository with
+no logo, an image that isn't HTTPS or one that can't load shows the repository's
+initial in the same 16px box, so names line up. On a row the name is shown
+alone, since the repository column has no room to spare for the box. The
+unauthenticated username-only listing carries no images, so it shows none.
 
 ## Long repository names
 

@@ -68,6 +68,7 @@
   import {
     labelKey,
     repoName,
+    initialOf,
     choiceText,
     type PickChoice,
     pickImageNode,
@@ -2757,22 +2758,28 @@
       const avatar = avatarSrc(
         (item as PullRequestItem | IssueItem).authorAvatarUrl,
       );
-      if (avatar) {
-        // Decorative: the name beside it already says who. A failed load
-        // drops the image and leaves the name alone.
-        const img = el("img", "author-avatar") as HTMLImageElement;
-        img.src = avatar;
-        img.alt = "";
-        img.width = 20;
-        img.height = 20;
-        img.loading = "lazy";
-        img.referrerPolicy = "no-referrer";
-        img.addEventListener("error", () => {
-          img.remove();
-          authorCell.classList.remove("has-avatar");
-        });
+      if (item.author) {
+        // Decorative: the name beside it already says who. The box is 20px
+        // whether it holds the image or the initial, so every name starts at
+        // the same x (#3868). A failed load swaps the image for the initial
+        // in place.
+        const placeholder = el("span", "author-avatar avatar-placeholder");
+        placeholder.setAttribute("aria-hidden", "true");
+        placeholder.dataset.initial = initialOf(item.author);
+        let box: HTMLElement = placeholder;
+        if (avatar) {
+          const img = el("img", "author-avatar") as HTMLImageElement;
+          img.src = avatar;
+          img.alt = "";
+          img.width = 20;
+          img.height = 20;
+          img.loading = "lazy";
+          img.referrerPolicy = "no-referrer";
+          img.addEventListener("error", () => img.replaceWith(placeholder));
+          box = img;
+        }
         authorCell.classList.add("has-avatar");
-        authorCell.replaceChildren(img, nameSpan);
+        authorCell.replaceChildren(box, nameSpan);
       }
       // The avatar and the name are one link to the person's page on the
       // forge, not two links to the same place. It sits above the row's
