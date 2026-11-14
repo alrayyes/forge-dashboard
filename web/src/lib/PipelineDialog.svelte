@@ -99,6 +99,7 @@
     formatCheckDuration,
     groupChecks,
     isBlocking,
+    runLinkNoun,
     runPageUrl,
     type Check,
   } from "#lib/pipeline-checks.js";
@@ -579,9 +580,19 @@
     new Map(checkKeys(checks).map((key, i) => [checks[i], key])),
   );
   const groups = $derived(groupChecks(checks));
-  // The board's own run address, else the newest run the checks name, so a
-  // pull request links to its run as a branch does. None, no link.
-  const runLink = $derived(target?.runUrl || runPageUrl(checks));
+  // The board's own run address, else the run the checks name (the failed
+  // one when there are several), so a pull request links to a run as a branch
+  // does. None, no link.
+  const runLink = $derived(
+    target?.runUrl
+      ? { url: target.runUrl, kind: "run" as const }
+      : runPageUrl(checks),
+  );
+  const runLinkText = $derived(
+    target && runLink
+      ? `Open ${runLinkNoun(runLink.kind)} on ${forgeLabel(target)}`
+      : "",
+  );
   const failed = $derived(
     checks.some((c) => {
       const state = checkState(c);
@@ -896,11 +907,11 @@
     <div class="pipeline-dialog-footer">
       <a
         class="pipeline-run-button"
-        href={runLink}
+        href={runLink.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="Open run on {forgeLabel(target)} (opens in a new tab)"
-        >Open run on {forgeLabel(target)}<ExternalLinkIcon /></a
+        aria-label="{runLinkText} (opens in a new tab)"
+        >{runLinkText}<ExternalLinkIcon /></a
       >
     </div>
   {/if}

@@ -157,19 +157,45 @@ export function blockingFirst(checks: Check[]): Check[] {
 
 const RUN_PAGE = /^(.*\/actions\/runs\/(\d+))(?:\/|$)/;
 
-// The page of the newest Actions run the checks name, for a target that
-// carries no run address of its own (a pull request). A job's page is the
-// run's page plus a job path, so trimming it names the whole run. A
-// third-party status has no run page, and neither does an empty list.
-export function runPageUrl(checks: Check[]): string | undefined {
-  let newest: { url: string; id: number } | undefined;
+export type RunLinkKind = 'run' | 'failed-run' | 'latest-run';
+
+// The run page to link for a target that carries no run address of its own (a
+// pull request). A job's page is the run's page plus a job path, so trimming it
+// names the run. One run is just "the run". Several runs (workflows, a re-run)
+// can't all be opened by one link, so it goes to the newest run holding a
+// failed check, since that is what someone opens the dialog to debug, and the
+// kind says so; with nothing failed, to the newest run. A third-party status
+// has no run page, and neither does an empty list.
+export function runPageUrl(
+  checks: Check[],
+): { url: string; kind: RunLinkKind } | undefined {
+  const runs = new Map<number, { url: string; failed: boolean }>();
   for (const check of checks) {
     const match = RUN_PAGE.exec(check.url);
     if (!match) continue;
     const id = Number(match[2]);
-    if (!newest || id > newest.id) newest = { url: match[1], id };
+    const state = checkState(check);
+    const failed = state === 'failure' || state === 'timed_out';
+    const seen = runs.get(id);
+    runs.set(id, { url: match[1], failed: failed || (seen?.failed ?? false) });
   }
-  return newest?.url;
+  if (runs.size === 0) return undefined;
+  const newest = (entries: [number, { url: string }][]) =>
+    entries.reduce((a, b) => (b[0] > a[0] ? b : a))[1].url;
+  const all = [...runs];
+  if (all.length === 1) return { url: all[0][1].url, kind: 'run' };
+  const failed = all.filter(([, run]) => run.failed);
+  if (failed.length > 0) return { url: newest(failed), kind: 'failed-run' };
+
+  return { url: newest(all), kind: 'latest-run' };
+}
+
+// What the link opens, in the words after "Open".
+export function runLinkNoun(kind: RunLinkKind): string {
+  if (kind === 'failed-run') return 'latest failed run';
+  if (kind === 'latest-run') return 'latest run';
+
+  return 'run';
 }
 
 // How many failed checks a rerun restarts and how many it leaves out. The
