@@ -475,7 +475,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       checkLinkName('Open on GitHub', 'queued-job'),
       checkLinkName('Open job on GitHub', 'done-job'),
       checkLinkName('Open check page', 'lint'),
-      'Open the whole run on GitHub (opens in a new tab)',
+      'Open run on GitHub (opens in a new tab)',
     ];
     for (const name of names) {
       const link = dialog.getByRole('link', { name });
@@ -485,8 +485,8 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(dialog.locator('a[target="_blank"]')).toHaveCount(
       names.length,
     );
-    await expect(dialog.locator('.pipeline-run a')).toHaveText(
-      'Open the whole run on GitHub',
+    await expect(dialog.locator('.pipeline-dialog-footer a')).toHaveText(
+      'Open run on GitHub',
     );
   });
 

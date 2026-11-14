@@ -273,7 +273,7 @@ test.describe('pipeline panel updates live', () => {
       },
     ]);
     const link = dialog(page).getByRole('link', {
-      name: 'Open the whole run on Forgejo (opens in a new tab)',
+      name: 'Open run on Forgejo (opens in a new tab)',
     });
     await expect(link).toHaveAttribute(
       'href',

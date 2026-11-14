@@ -891,21 +891,19 @@
         {/if}
       {/each}
     {/if}
-    {#if target && runLink}
-      <p class="pipeline-run">
-        <a
-          class="pipeline-check-link"
-          href={runLink}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="Open the whole run on {forgeLabel(
-            target,
-          )} (opens in a new tab)"
-          >Open the whole run on {forgeLabel(target)}<ExternalLinkIcon /></a
-        >
-      </p>
-    {/if}
   </div>
+  {#if target && runLink}
+    <div class="pipeline-dialog-footer">
+      <a
+        class="pipeline-run-button"
+        href={runLink}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label="Open run on {forgeLabel(target)} (opens in a new tab)"
+        >Open run on {forgeLabel(target)}<ExternalLinkIcon /></a
+      >
+    </div>
+  {/if}
 </dialog>
 
 <style>
