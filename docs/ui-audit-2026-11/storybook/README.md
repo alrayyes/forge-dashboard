@@ -163,8 +163,8 @@ uploaded as stacked parts.
   `Medium` badges are `--critical` on `--critical-bg` (4.68:1) and `--warning` on
   `--warning-bg` (4.87:1). The focus ring is a 2px `--accent` outline.
   The filter pills, back and close buttons are 32px high, the loading
-  line is a `role="status"` region, and the `closed` story draws only
-  its trigger on purpose.
+  line is a `role="status"` region, and the `closed` story shows only
+  a trigger on purpose.
 - **Considered, not adopted:** a reason for the disabled `Show output`
   button, a spinner, colour-only error pills (the sheets show error text
   and a tag reading `ERROR`), and the `forgehealth` "0 GraphQL budget but green
