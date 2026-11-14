@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.60.2](https://github.com/alrayyes/forge-dashboard/compare/v9.60.1...v9.60.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* count cancelled runs as a part of the Pull requests, Releases and Bots nav pills ([#3991](https://github.com/alrayyes/forge-dashboard/issues/3991)) ([edaeb18](https://github.com/alrayyes/forge-dashboard/commit/edaeb18ab9e926ddb5a959d867b6c6982d777434))
+
 ## [9.60.1](https://github.com/alrayyes/forge-dashboard/compare/v9.60.0...v9.60.1) (2026-11-14)
 
 
