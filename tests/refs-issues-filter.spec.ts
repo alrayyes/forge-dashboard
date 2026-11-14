@@ -185,7 +185,9 @@ test.describe('the refs pill on an issue row', () => {
     ]);
     await expect(
       refPills(page, 'Fixed and referenced').first(),
-    ).toHaveAccessibleName(/^Pull request #2.*, references this issue$/);
+    ).toHaveAccessibleName(
+      /^Pull request #2.*, references, does not close this issue$/,
+    );
     await expect(closePills(page, 'Fixed and referenced')).toHaveAccessibleName(
       /^Pull request #1.*, closes this issue$/,
     );
