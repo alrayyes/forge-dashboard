@@ -23,6 +23,7 @@ import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { AxeBuilder } from '@axe-core/playwright';
 import { chromium } from '@playwright/test';
+import { logoAnswer } from './storybook-logo-route';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const WEB = path.join(ROOT, 'web');
@@ -31,10 +32,8 @@ const VIEWPORT = { width: 1280, height: 800 };
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const STORY_TIMEOUT_MS = 15_000;
 
-// RepoLogo only loads https URLs, so its stories point at a host that does not
-// exist. The browser is handed this mark for it, and nothing else leaves the
-// machine.
-const LOGO_HOST = 'logos.example.test';
+// The browser is handed this mark for the one logo path the stories use, and
+// nothing else leaves the machine (see storybook-logo-route.ts).
 const LOGO_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="#4f46e5"/><path d="M9 9h14v4H13v3h8v4h-8v3H9z" fill="#fff"/></svg>';
 
@@ -202,8 +201,7 @@ async function main() {
       // A logo is asked of the image proxy, which Storybook doesn't run: answer
       // for the one address the stories use, keyed by the `url` it carries.
       if (url.pathname === '/api/v1/images') {
-        const asked = new URL(url.searchParams.get('url') ?? 'about:blank');
-        return asked.hostname === LOGO_HOST && asked.protocol === 'https:'
+        return logoAnswer(url.pathname + url.search) === 'logo'
           ? route.fulfill({ contentType: 'image/svg+xml', body: LOGO_SVG })
           : route.abort();
       }
