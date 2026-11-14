@@ -108,3 +108,16 @@ Rejected: nothing. The sample content in the stills is placeholder only, and the
 viewer chrome adds no invented features. Not designed: a height cap and loading
 skeleton (ticket 3468), the dark theme, and focus trap, inert page and scroll
 lock (to be shown in the spec, not a still).
+
+## Result count on the list pages
+
+A tweak to one element, so it skipped Stitch. The count in the board header
+("4 open", or "Showing 2 of 4" when a filter narrows the list) was 12.5px grey
+fixed-width text, the lowest-contrast ink in the header. The number is now
+1.25rem at weight 600 in `--ink`, and the surrounding words are 0.875rem in
+`--ink-2`, in the body face. The fixed-width face went because at the new size
+it pushed the header's controls onto a second line at 820px. The words and the
+position are unchanged, and the count is still not a live region: a filter
+change announces its result count through the existing status region. Before
+and after captures (desktop light and dark, phone light, and the filtered
+state on desktop) are on the ticket.

@@ -3,8 +3,8 @@
 
   // The repository's own logo, only when the forge has one: nothing is drawn
   // otherwise, so a row without one doesn't shift. Decorative, since the
-  // repository's name sits beside it. A failed load drops the image and
-  // leaves the name alone.
+  // repository's name sits beside it. A failed load drops the image, so
+  // nothing is drawn.
   let { url }: { url: string | undefined } = $props();
 
   let failed = $state(false);

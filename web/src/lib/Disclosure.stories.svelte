@@ -41,6 +41,23 @@
   }}
 />
 
+<!-- Open, with focus moved off the toggle: the panel without a focus ring. -->
+<Story
+  name="Open not focused"
+  args={{
+    id: "webhook-help",
+    label: "How do I add a webhook?",
+    children: help,
+  }}
+  play={async ({ canvasElement }) => {
+    const button = canvasElement.querySelector("button") as HTMLButtonElement;
+    await userEvent.click(button);
+    button.blur();
+    await expect(button.getAttribute("aria-expanded")).toBe("true");
+    await expect(document.activeElement).not.toBe(button);
+  }}
+/>
+
 <!-- Keyboard focus on the toggle. -->
 <Story
   name="Focused"
