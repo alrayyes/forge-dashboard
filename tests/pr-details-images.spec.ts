@@ -54,6 +54,13 @@ const NEAR_UNDER = 'https://github.com/user-attachments/assets/under';
 const NEAR_OVER = 'https://github.com/user-attachments/assets/over';
 const SLOW_IMAGE = 'https://github.com/user-attachments/assets/slow';
 const STRANGER = 'https://tracker.example.net/pixel.png';
+const GIST_IMAGE =
+  'https://gist.githubusercontent.com/octo/0123abcd/raw/4567ef/shot.png';
+const GIST_BROKEN =
+  'https://gist.githubusercontent.com/octo/0123abcd/raw/4567ef/gone.png';
+const GIST_LOOKALIKE =
+  'https://gist.githubusercontent.com.evil.example/octo/0123abcd/raw/x/shot.png';
+const GIST_PAGE = 'https://gist.github.com/octo/0123abcd/raw/x/shot.png';
 
 // WCAG contrast ratio of two opaque `rgb(r, g, b)` computed colors.
 function contrast(a: string, b: string): number {
@@ -135,7 +142,7 @@ async function openDialog(
     const target = params.get('url') ?? '';
     asked.push(target);
     askedFor.push(params);
-    if (target === BROKEN_IMAGE)
+    if (target === BROKEN_IMAGE || target === GIST_BROKEN)
       return route.fulfill({ status: 404, body: '{}' });
     if (target === SLOW_IMAGE) await gate;
     return route.fulfill({
@@ -250,6 +257,53 @@ for (const [scheme, width] of [
       (el) => el.scrollWidth - el.clientWidth,
     );
     expect(overflow).toBe(0);
+
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+}
+
+for (const width of [390, 1280]) {
+  test(`a gist image shows inline, a lookalike host stays a link (${width}px, #3888)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const { dialog, asked } = await openDialog(
+      page,
+      [
+        `![gist shot](${GIST_IMAGE})`,
+        `![gist gone](${GIST_BROKEN})`,
+        `![lookalike](${GIST_LOOKALIKE})`,
+        `![gist page](${GIST_PAGE})`,
+      ].join('\n\n'),
+    );
+    const text = dialog.locator('.details-body .markdown').first();
+
+    const image = text.getByRole('img', { name: 'gist shot' });
+    await expect(image).toBeVisible();
+    await expect(image).toHaveAttribute(
+      'src',
+      /^\/api\/v1\/images\?forge=github&url=https%3A%2F%2Fgist\.githubusercontent\.com%2F/,
+    );
+
+    // A missing gist image reads as text, not a broken-image icon.
+    await expect(text.getByRole('img', { name: 'gist gone' })).toHaveCount(0);
+    await expect(text).toContainText('Image not available: gist gone');
+
+    // Only the exact host is taken: a lookalike and gist.github.com stay links.
+    await expect(text.locator('img')).toHaveCount(1);
+    await expect(text.getByRole('link', { name: 'lookalike' })).toHaveAttribute(
+      'href',
+      GIST_LOOKALIKE,
+    );
+    await expect(text.getByRole('link', { name: 'gist page' })).toHaveAttribute(
+      'href',
+      GIST_PAGE,
+    );
+    expect(asked).not.toContain(GIST_LOOKALIKE);
+    expect(asked).not.toContain(GIST_PAGE);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])

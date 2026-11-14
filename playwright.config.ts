@@ -87,6 +87,7 @@ const singleUserSpecs = [
   '**/nav.spec.ts',
   '**/nav-telemetry-pills.spec.ts',
   '**/pipeline-check-states.spec.ts',
+  '**/pipeline-dialog-footer.spec.ts',
   '**/pipeline-check-waiting.spec.ts',
   '**/pipeline-panel-live.spec.ts',
   '**/pipeline-run-output.spec.ts',

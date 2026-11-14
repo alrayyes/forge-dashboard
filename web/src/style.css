@@ -3982,14 +3982,49 @@ footer a.mono:focus-visible {
   color: var(--ink-3);
   font-size: 0.8125rem;
 }
-.pipeline-run {
-  margin: 14px 0 0;
-  font-size: 0.8125rem;
+/* The run link lives outside the scrolling body, under a divider, so a long
+   list never pushes it off screen (#3876). */
+.pipeline-dialog-footer {
+  flex: none;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
 }
-.pipeline-run a {
-  display: inline-flex;
+.pipeline-run-button {
+  box-sizing: border-box;
+  display: flex;
   align-items: center;
-  min-height: 44px;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 8px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.pipeline-run-button:hover {
+  background: var(--surface-sunken);
+}
+.pipeline-run-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+@media (min-width: 761px) {
+  .pipeline-run-button {
+    width: auto;
+    justify-content: flex-start;
+  }
+}
+@media (forced-colors: active) {
+  .pipeline-run-button {
+    border-color: LinkText;
+    color: LinkText;
+  }
 }
 .pipeline-check-list {
   list-style: none;

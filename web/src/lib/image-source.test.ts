@@ -45,6 +45,7 @@ describe('imageSourceFor a GitHub item', () => {
       'https://github.com/user-attachments/assets/1234',
       'https://user-images.githubusercontent.com/1/a.png',
       'https://private-user-images.githubusercontent.com/1/a.png?jwt=x',
+      'https://gist.githubusercontent.com/octo/0123/raw/4567/a.png',
     ]) {
       expect(src(url)).toBe(proxied('github', url));
     }
@@ -57,6 +58,11 @@ describe('imageSourceFor a GitHub item', () => {
       'https://camo.githubusercontent.com/abc',
       'https://github.com.evil.test/a.png',
       'http://github.com/a.png',
+      'https://gist.github.com/octo/0123/raw/a.png',
+      'https://gist.githubusercontent.com.evil.example/a.png',
+      'https://evilgist.githubusercontent.com/a.png',
+      'https://gist.githubusercontent.com:8443/a.png',
+      'http://gist.githubusercontent.com/a.png',
     ]) {
       expect(src(url)).toBeNull();
     }
