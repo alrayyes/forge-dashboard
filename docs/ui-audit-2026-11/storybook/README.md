@@ -151,7 +151,7 @@ open.
 - **`firstrefreshstatus` width jump from 128 to 354px.** The story
   harness shrink-wraps the box; it is not a layout shift in the app.
 - **`copychecklog` contrast, focus ring and state claims.** Stitch
-  guessed the accent as `#088395` (4.0:1). The real `--accent` is 4.95:1
+  guessed the accent as `#088395`. The real `--accent` is 4.95:1
   on white. The focus ring is a 2px `--accent` outline with a 2px offset,
   clearly visible in the focused story, and the notice text is `--ink-2`
   (7.46:1). The busy button is `aria-busy` and `aria-disabled`, the status
@@ -192,5 +192,5 @@ open.
 - Telling the user when the token can't read job logs is a feature idea
   from the `checkrunoutput` discussion, not a Stitch finding. It is
   ticketed on its own.
-- Not measured: `advisoriesdialog` filter pills (20 to 22px) and the
-  `errorpage` links on desktop. The phone sizes are 44px.
+- Not measured: `advisoriesdialog` filter pills (20 to 22px). The
+  `errorpage` links already set `min-height: 24px`, so they pass.
