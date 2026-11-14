@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
+import './forge-labels-fixture';
 import { pipelineTarget } from './pipeline-target';
 import { checkControl } from './run-log';
 

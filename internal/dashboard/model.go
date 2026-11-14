@@ -534,6 +534,9 @@ type ForgeHealth struct {
 	// while the forge is unreachable and the page names an incident on
 	// something the dashboard uses (#3633). Absent otherwise.
 	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
+	// Capabilities is what this forge can do, filled in when a response is
+	// built (WithCapabilities), so no refresh path has to set it.
+	Capabilities ForgeCapabilities `json:"capabilities"`
 }
 
 // ProviderStatus matches components.schemas.ProviderStatus: facts from a

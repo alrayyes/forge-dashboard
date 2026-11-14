@@ -4,7 +4,7 @@
 // letting a click fail.
 
 import { isUnreachable } from './forge-starting';
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, type ForgeCapabilities } from './forges';
 import {
   isRateLimited,
   type RateLimit,
@@ -24,6 +24,8 @@ export type ForgeHealthEntry = {
   dependabotCommandsBlocked?: string;
   // Why this forge can't rerun checks: an old Forgejo has no route for it.
   rerunChecksBlocked?: string;
+  // What the forge can do; the label is where the pages read its name.
+  capabilities?: ForgeCapabilities;
 };
 
 export type ForgeLock = {

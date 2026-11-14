@@ -496,7 +496,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
-		Forges:         snap.Forges,
+		Forges:         dashboard.WithCapabilities(snap.Forges),
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
