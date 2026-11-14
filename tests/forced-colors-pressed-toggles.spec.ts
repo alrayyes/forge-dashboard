@@ -196,24 +196,29 @@ for (const width of [390, 1280]) {
         const before = await shape(controls);
         await controls.click();
         await expect(controls).toHaveAttribute('aria-pressed', 'true');
-        expect(await shape(controls)).not.toBe(before);
+        await expect.poll(() => shape(controls)).not.toBe(before);
       } else {
         await expect(pick(pressedSel)).toBeVisible();
         await expect(pick(openSel)).toBeVisible();
-        expect(await shape(pick(pressedSel))).not.toBe(
-          await shape(pick(openSel)),
-        );
+        await expect
+          .poll(
+            async () =>
+              (await shape(pick(pressedSel))) !== (await shape(pick(openSel))),
+          )
+          .toBe(true);
       }
 
       // Focused, a pressed control still differs from an open one, and the
       // ring keeps its offset.
       await page.keyboard.press('Shift');
       await pick(pressedSel).focus();
+      await expect(pick(pressedSel)).toBeFocused();
       const focusedPressed = await shape(pick(pressedSel));
       await expect(pick(pressedSel)).not.toHaveCSS('outline-offset', '0px');
       if (!single) {
         await pick(openSel).focus();
-        expect(await shape(pick(openSel))).not.toBe(focusedPressed);
+        await expect(pick(openSel)).toBeFocused();
+        await expect.poll(() => shape(pick(openSel))).not.toBe(focusedPressed);
       }
 
       // The mark takes no room.
