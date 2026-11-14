@@ -5776,7 +5776,7 @@ components:
 
     ForgeHealth:
       type: object
-      required: [forge, reachable, repoCount]
+      required: [forge, reachable, repoCount, capabilities]
       properties:
         forge:
           $ref: "#/components/schemas/Forge"
@@ -5888,6 +5888,76 @@ components:
             nothing there, when it can't be read, and for Forgejo, which has no
             such page. A client says "GitHub reports an incident" and leaves
             the cause of a failure with no incident to the forge's own error.
+        capabilities:
+          $ref: "#/components/schemas/ForgeCapabilities"
+
+    ForgeCapabilities:
+      type: object
+      description: >-
+        What one forge can do, as facts a client reads instead of testing the
+        forge's name. A forge this service learns to talk to is one more set of
+        values here, so a client that reads these needs no change for it.
+      required:
+        - autoMergeHeldByApp
+        - checksViaWebhook
+        - servesRunningLog
+        - serverLogExcerpts
+        - approvalGatedRuns
+        - dependabotCommands
+        - advisorySource
+        - statusPageUrl
+        - rateLimitModel
+        - issueRefSyntax
+        - label
+      properties:
+        autoMergeHeldByApp:
+          type: boolean
+          description: >-
+            True when this app holds an armed auto-merge and merges the pull
+            request itself once its checks pass. False when the forge holds it
+            and merges on its own.
+        checksViaWebhook:
+          type: boolean
+          description: >-
+            True when the forge reports check results by webhook, so a pending
+            run is polled only when no event arrived. False when results are
+            found by polling.
+        servesRunningLog:
+          type: boolean
+          description: True when a job's log can be read while the job runs.
+        serverLogExcerpts:
+          type: boolean
+          description: >-
+            True when a failed job's excerpt is read from the log endpoint
+            (`excerpt=true`). False when the check list already carries it.
+        approvalGatedRuns:
+          type: boolean
+          description: True when a run can be held until a person approves it.
+        dependabotCommands:
+          type: boolean
+          description: True when a `@dependabot` comment does anything on this forge.
+        advisorySource:
+          type: string
+          description: >-
+            Where the repository advisories come from. Open-ended, so a new
+            source is not a breaking change; today `dependabot` and `osv`.
+        statusPageUrl:
+          type: string
+          description: >-
+            The forge's public status page, or an empty string when it has none.
+        rateLimitModel:
+          type: string
+          description: >-
+            How the forge budgets requests. Open-ended; today
+            `graphql_and_rest` (two separate allowances) and `rest`.
+        issueRefSyntax:
+          type: string
+          description: >-
+            The forms the forge's text uses to reference an issue. Open-ended;
+            today `hash_or_gh_prefix` (a hash sign or a `GH-` prefix before the number) and `hash` (the hash sign only).
+        label:
+          type: string
+          description: The forge's name as a person reads it, such as `GitHub`.
 
     ProviderStatus:
       type: object

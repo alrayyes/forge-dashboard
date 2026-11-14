@@ -29,6 +29,14 @@ One Go binary serves all of it. `web/` builds to static files that
 
 - **Adapters** turn a forge's answer into `dashboard.PullRequest`, `Issue` and
   `Repo`. Nothing outside them knows what a GraphQL node looks like.
+- **Forge capabilities** are one `dashboard.ForgeCapabilities` value per forge
+  (`internal/dashboard/forge_capabilities.go`): who holds an armed auto-merge,
+  whether check results arrive by webhook, which logs the forge serves, where
+  advisories come from, its status page, its rate-limit model, how it spells an
+  issue reference, and its label. Each forge's health in the dashboard and Main
+  branches answers carries it as `capabilities`, so a client asks what a forge
+  can do instead of testing its name, and the web pages read a forge's label
+  from it. Adding a forge means filling in this value, besides its adapter.
 - **The aggregator** refreshes the instance's one snapshot in the
   background, so a request reads the last good snapshot and never blocks on a
   forge. A webhook from a forge refreshes one repo early.

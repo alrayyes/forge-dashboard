@@ -46,7 +46,7 @@ func buildMainBranchesResponse(generatedAt time.Time, forges []dashboard.ForgeHe
 
 	return mainBranchesResponse{
 		GeneratedAt: generatedAt,
-		Forges:      forges,
+		Forges:      dashboard.WithCapabilities(forges),
 		Branches:    rows,
 	}
 }
