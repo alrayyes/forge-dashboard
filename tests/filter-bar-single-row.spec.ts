@@ -15,7 +15,7 @@ function issue(number: number, forge: 'github' | 'forgejo') {
     number,
     title: `Issue ${number}`,
     url: `https://example.com/issues/${number}`,
-    author: 'sam',
+    author: forge === 'github' ? 'sam' : 'kim',
     labels: [
       { name: 'bug', color: 'd73a4a' },
       { name: `area-${number}`, color: 'ededed' },
@@ -384,3 +384,105 @@ test.describe('filter bar over one row on a phone (#3886)', () => {
     await expect(sheet.locator('#shared-label-filter-button')).toBeVisible();
   });
 });
+
+// Every pick filter hides over one row unless it holds a pick, on every page
+// that draws them. `SharedPicks.draw()` applies `pickFilterVisible` to all
+// three, so each one is pinned here (#3943).
+// https://github.com/alrayyes/forge-dashboard/issues/3943
+const PICKS = [
+  { name: 'repo', button: '#shared-repo-filter-button', pick: 'acme/tool' },
+  { name: 'author', button: '#shared-author-filter-button', pick: 'kim' },
+  { name: 'label', button: '#shared-label-filter-button', pick: 'area-4' },
+] as const;
+
+const PAGES = [
+  { path: '/issues.html', kind: 'issue', rows: '#issue-rows > .row' },
+  { path: '/releases.html', kind: 'release', rows: '#pr-rows > .row' },
+  { path: '/bots.html', kind: 'dependency', rows: '#pr-rows > .row' },
+] as const;
+
+async function openPage(page: Page, path: string, kind: string) {
+  const pr = (number: number, forge: 'github' | 'forgejo') => ({
+    ...issue(number, forge),
+    title: `Pull request ${number}`,
+    url: `https://example.com/pull/${number}`,
+    draft: false,
+    ci: 'success',
+    mergeStatus: 'mergeable',
+    behind: false,
+    kind,
+    closesIssues: [],
+  });
+  const rows = ISSUES.map((i) => pr(i.number, i.forge));
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [
+          { forge: 'github', reachable: true, repoCount: 1 },
+          { forge: 'forgejo', reachable: true, repoCount: 1 },
+        ],
+        pullRequests: kind === 'issue' ? [] : rows,
+        issues: kind === 'issue' ? ISSUES : [],
+        openIssueCount: kind === 'issue' ? ISSUES.length : 0,
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto(path);
+}
+
+for (const { path, kind, rows } of PAGES) {
+  test.describe(`pick filters over one row on ${path} (#3943)`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await openPage(page, path, kind);
+      await expect(page.locator(rows)).toHaveCount(4);
+    });
+
+    for (const { name, button, pick } of PICKS) {
+      const control = (page: Page) => page.locator(button).first();
+
+      test(`many rows draw the ${name} filter`, async ({ page }) => {
+        await expect(control(page)).toBeVisible();
+        expect((await axe(page)).violations).toEqual([]);
+      });
+
+      test(`one row hides the ${name} filter when nothing is picked`, async ({
+        page,
+      }) => {
+        await pill(page, 'Forgejo').click();
+        await expect(page.locator(rows)).toHaveCount(1);
+        await expect(control(page)).toBeHidden();
+        expect((await axe(page)).violations).toEqual([]);
+      });
+
+      test(`a picked ${name} stays drawn over one row until it is cleared`, async ({
+        page,
+      }) => {
+        const box = control(page)
+          .locator('xpath=..')
+          .getByRole('checkbox', { name: pick, exact: true });
+        await control(page).click();
+        await box.check();
+        await page.keyboard.press('Escape');
+        // The filter's own pick is not in its pool, so it still has choices
+        // here. Narrowing with the pill leaves it one row and one choice, so
+        // only the held pick keeps it drawn.
+        await pill(page, 'Forgejo').click();
+        await expect(page.locator(rows)).toHaveCount(1);
+        await expect(control(page)).toBeVisible();
+        expect((await axe(page)).violations).toEqual([]);
+        await control(page).click();
+        await box.uncheck();
+        await page.keyboard.press('Escape');
+        await expect(control(page)).toBeHidden();
+        expect((await axe(page)).violations).toEqual([]);
+      });
+    }
+  });
+}
