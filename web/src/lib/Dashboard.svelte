@@ -219,6 +219,7 @@
   import type { StripChip } from "#lib/strip-chip.js";
   import { remainingBand } from "#lib/rate-limit-band.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
+  import { renderShownCount } from "#lib/shown-count.js";
   import {
     formatClock,
     formatTime,
@@ -731,13 +732,6 @@
 
     function isPending(button: HTMLButtonElement): boolean {
       return button.getAttribute("aria-disabled") === "true";
-    }
-
-    // The one line that says how many rows show: the total when nothing is
-    // filtered, "Showing 1 of 2" when a filter narrows it (#1325). The nav
-    // icons carry the totals, so the page has no tiles repeating them.
-    function shownCountText(shown: number, total: number): string {
-      return shown === total ? `${total} open` : `Showing ${shown} of ${total}`;
     }
 
     // ---- row rendering ----
@@ -8240,11 +8234,9 @@
           updateRerunAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
-        if (count)
-          count.textContent = shownCountText(
-            visible.length,
-            state.items.length,
-          );
+        // The nav icons carry the totals, so the page has no tiles repeating
+        // them; this is the one place a filtered total shows (#1325, #3867).
+        if (count) renderShownCount(count, visible.length, state.items.length);
         // Every state change this app makes ends in a render() on one
         // or both boards (directly, or via renderBoth()) —
         // updateClearFiltersButton is declared later in this same

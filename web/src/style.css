@@ -727,10 +727,17 @@ section.board {
   color: var(--ink-2);
 }
 
+/* The count is a result total: the number is the one thing a person scans for
+   (#3867), so it takes the main ink at 1.25rem semibold and the words around
+   it stay at sentence size in the secondary ink. */
 .board-head .count {
-  font-family: "IBM Plex Mono", monospace;
-  font-size: 0.78125rem;
-  color: var(--ink-3);
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.board-head .count strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
 }
 
 /* The forge filter doesn't correspond to one of .row's own grid columns
