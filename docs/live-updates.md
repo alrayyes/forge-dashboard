@@ -202,33 +202,33 @@ Every item in the navigation shows how many items its page lists, and how many
 of them are failing. It is one pill: a neutral **total**, then the outcomes,
 failing (red) and passing (green), then a thin divider and the state, running
 (amber, a spinner, or a still clock under reduced motion). Each count has its
-own glyph so colour is never the only signal. Branches counts default
-branches. Pull requests, Releases and Bots count their pull requests (without
-the ones that belong to another of the three). All four show those three
-counts, in that order. The divider appears only when a running count follows an
-outcome, and not on a phone. A pull request with no checks gets a neutral
-count with a dashed circle, last, worded "without checks"; it is not counted
-as running. One held for workflow approval is in the total only, so those
-numbers needn't add up. Branches adds a neutral count with the same dashed
-circle for the branches with no pipeline, and a stop glyph in neutral ink for
-the ones whose last run was cancelled, shown after passing, so its numbers do
-add up. A zero is never drawn. The total is left out when it would only repeat
-the pill's single count (2 running of 2 shows "2 running", not "2 2"); with two
+own glyph so colour is never the only signal. Branches counts default branches.
+Pull requests, Releases and Bots count their pull requests (without the ones
+that belong to another of the three). All four show the failing, passing and
+running counts. The divider appears only when a running count follows an
+outcome, and not on a phone. A pull request with no checks gets a neutral count
+with a dashed circle, last, worded "without checks"; it is not counted as
+running. One held for workflow approval is in the total only, so those numbers
+needn't add up. All four draw a stop glyph in neutral ink for what was
+cancelled, shown after passing: a pull request whose only non-passing runs were
+cancelled, or a branch whose last run was. Branches adds a neutral count with
+the same dashed circle for the branches with no pipeline, so its numbers do add
+up. A zero is never drawn. The total is left out when it would only repeat the
+pill's single count (2 running of 2 shows "2 running", not "2 2"); with two
 categories, or one that falls short of the total, it stays. The link's name says
-the same in words, in the same order, after the numbers as drawn:
-"15 2 10 3, Pull requests, 15 total, 2 failing, 10 passing, 3 running", and
-"8 2 3 1 1 1, Branches, 8 total, 2 failing, 3 passing, 1 cancelled, 1 running,
-1 without a pipeline". On
-a phone the total sits on its own line before the counts, and with three-digit
-numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard or what your
-settings hide, and has no failed count. The server works the numbers out from
-the same lists the pages show (`navCounts` on `/api/v1/dashboard`), so a page
-agrees with its icon, and a hidden pull request is in neither. The dashboard
-pages set them from each snapshot. The other signed-in pages (Branches,
-Insights, Settings and the rest) load them and ask again every 30 seconds
-while the tab is visible, so a refresh or a webhook changes them without a
-reload.
+the same in words, in the same order, after the numbers as drawn: "15 2 10 3,
+Pull requests, 15 total, 2 failing, 10 passing, 3 running", and "8 2 3 1 1 1,
+Branches, 8 total, 2 failing, 3 passing, 1 cancelled, 1 running, 1 without a
+pipeline". On a phone the total sits on its own line before the counts, and with
+three-digit numbers each count takes a line, so the busy tabs grow to about
+110px. Issues counts open issues, without Renovate's Dependency Dashboard or
+what your settings hide, and has no failed count. The server works the numbers
+out from the same lists the pages show (`navCounts` on `/api/v1/dashboard`), so
+a page agrees with its icon, and a hidden pull request is in neither. The
+dashboard pages set them from each snapshot. The other signed-in pages
+(Branches, Insights, Settings and the rest) load them and ask again every 30
+seconds while the tab is visible, so a refresh or a webhook changes them without
+a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -256,12 +256,12 @@ The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
 `GET /api/v1/dashboard` and its stream carry `navCounts`, the numbers behind the
 navigation badges for Pull requests, Releases and Bots: a `total` and how many
-have CI `running`, `failed` and `passed`, or `noChecks` when it has none; and
-for Issues a `total` only. One held for workflow approval counts in the total
-alone, so the numbers need not add up. They count what each page shows when it
-opens. Pull requests leave out ignored repos, drafts and hidden ones (even
-while Show drafts or Show hidden is on). They are always present, zero when
-nothing is there.
+have CI `running`, `failed`, `passed` and `cancelled`, or `noChecks` when it has
+none; and for Issues a `total` only. One held for workflow approval counts in
+the total alone, so the numbers need not add up. They count what each page shows
+when it opens. Pull requests leave out ignored repos, drafts and hidden ones
+(even while Show drafts or Show hidden is on). They are always present, zero
+when nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge

@@ -27,10 +27,10 @@ func TestBuildNavCounts_HeldForApprovalIsNotFailed(t *testing.T) {
 	assert.Equal(t, 0, counts.PullRequests.Passed)
 }
 
-// A pull request whose only trouble is a cancelled run counts in the total and
-// nowhere else: nothing failed, so it is not Failed, and nothing is running or
-// passing either (#3301).
-func TestBuildNavCounts_CancelledOnlyIsInTheTotalNotFailed(t *testing.T) {
+// A pull request whose only trouble is a cancelled run is a part of its own:
+// nothing failed, so it is not Failed, but the parts add up to the total
+// (#3967).
+func TestBuildNavCounts_CancelledOnlyIsItsOwnPart(t *testing.T) {
 	t.Parallel()
 
 	var cancelled pullRequestView
@@ -39,6 +39,7 @@ func TestBuildNavCounts_CancelledOnlyIsInTheTotalNotFailed(t *testing.T) {
 	counts := buildNavCounts([]pullRequestView{cancelled}, 0)
 
 	assert.Equal(t, 1, counts.PullRequests.Total)
+	assert.Equal(t, 1, counts.PullRequests.Cancelled)
 	assert.Equal(t, 0, counts.PullRequests.Failed)
 	assert.Equal(t, 0, counts.PullRequests.Running)
 	assert.Equal(t, 0, counts.PullRequests.Passed)
