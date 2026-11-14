@@ -46,6 +46,7 @@ func statusesOf(n int, state string) []map[string]string {
 // serve starts the fake forge and returns its client and a counter of the
 // combined-status requests it has answered.
 func (f pagedForge) serve(t *testing.T) (*forgejo.Client, *atomic.Int32) {
+	t.Helper()
 	client, reads, _ := f.serveRecorded(t)
 
 	return client, reads
