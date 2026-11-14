@@ -6005,7 +6005,7 @@
       }
       if (structural > 0 && !pointerRestsOnList()) {
         // Rows came, went or moved and nothing would be disturbed: the whole
-        // snapshot lands in one render, a changed row marked as usual. Only
+        // snapshot lands in one render. Only
         // what the filters show is announced.
         const onList = (items: PullRequestItem[]) =>
           items.filter((item) =>
