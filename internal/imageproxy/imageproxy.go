@@ -166,6 +166,9 @@ var specialPurpose = []netip.Prefix{
 	netip.MustParsePrefix("2002::/16"),
 }
 
+// ietfProtocolAssignments is the IETF protocol assignments block. The registry
+// marks all of it not globally reachable, so refuseNonPublic refuses an
+// address in it unless the address is in ietfReachable.
 var ietfProtocolAssignments = netip.MustParsePrefix("2001::/23")
 
 // ietfReachable are the entries inside 2001::/23 that the registry marks
