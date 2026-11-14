@@ -26,7 +26,10 @@
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
-  import { saveWebhooksFilter } from "#lib/filter-wiring.js";
+  import {
+    saveWebhooksControl,
+    type WebhooksControl,
+  } from "#lib/filter-wiring.js";
   import { webhooksFilterFromState } from "#lib/webhooks-filter.js";
 
   type RateLimit = {
@@ -287,7 +290,7 @@
     if (key !== "forge" && key !== "fullName" && key !== "hasWebhook") return;
     sortKey = key;
     sortDir = dir === "desc" ? "desc" : "asc";
-    onFilterChange(["sort", "dir"]);
+    onFilterChange("sort");
   }
 
   // True while the table is drawn as cards and its header is clipped to 1px.
@@ -310,7 +313,7 @@
       sortKey = key;
       sortDir = "asc";
     }
-    onFilterChange(["sort", "dir"]);
+    onFilterChange("sort");
   }
 
   // The filters are saved with the other pages' (#1620): the cookie at once
@@ -348,8 +351,8 @@
 
   // The key is touched before the save, so a server copy still loading does
   // not overwrite it (#1713).
-  function save(keys: string[], freeText = false) {
-    saved = saveWebhooksFilter(saved, currentFilter(), keys, freeText);
+  function save(control: WebhooksControl) {
+    saved = saveWebhooksControl(saved, currentFilter(), control);
   }
 
   const filtersAreDefault = $derived(
@@ -371,17 +374,17 @@
     filterStatus = "";
     sortKey = "fullName";
     sortDir = "asc";
-    onFilterChange(["forge", "repo", "status", "sort", "dir"]);
+    onFilterChange("clear");
     setStatus(FILTERS_CLEARED);
     if (byKeyboard) document.getElementById("webhooks-repo-filter")?.focus();
   }
 
-  function onFilterChange(keys: string[], freeText = false) {
+  function onFilterChange(control: WebhooksControl) {
     page = 1;
     // A result is about the list as it was; once a filter changes it is
     // stale.
     setStatus("");
-    save(keys, freeText);
+    save(control);
   }
 
   function setStatus(message: string, kind: "" | "error" = "", detail = "") {
@@ -1205,7 +1208,7 @@
               checked={filterForge === ""}
               onchange={() => {
                 filterForge = "";
-                onFilterChange(["forge"]);
+                onFilterChange("forge");
               }}
             />
             <span>All</span>
@@ -1221,7 +1224,7 @@
                 checked={filterForge === "github"}
                 onchange={() => {
                   filterForge = "github";
-                  onFilterChange(["forge"]);
+                  onFilterChange("forge");
                 }}
               />
               <span>GitHub</span>
@@ -1238,7 +1241,7 @@
                 checked={filterForge === "forgejo"}
                 onchange={() => {
                   filterForge = "forgejo";
-                  onFilterChange(["forge"]);
+                  onFilterChange("forge");
                 }}
               />
               <span>Forgejo</span>
@@ -1256,7 +1259,7 @@
           bind:value={filterRepo}
           oninput={(e) => {
             filterRepo = e.currentTarget.value;
-            onFilterChange(["repo"], true);
+            onFilterChange("repo");
           }}
         />
         <select
@@ -1267,7 +1270,7 @@
           bind:value={filterStatus}
           onchange={(e) => {
             filterStatus = e.currentTarget.value;
-            onFilterChange(["status"]);
+            onFilterChange("status");
           }}
         >
           <option value="">All statuses</option>
