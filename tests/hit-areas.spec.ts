@@ -777,6 +777,60 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
       within: '#forge-health',
     });
     expectNone(problems);
+
+    // The 24px reach is a hit area, not a taller box: the words stay where the
+    // line sits, clear of the error line above, closed and open, and they sit
+    // inside the control at phone width too.
+    const textBox = () =>
+      page.evaluate(() => {
+        const summary = document.querySelector(
+          '#forge-health .forge-health-detail summary',
+        ) as HTMLElement;
+        const error = document.querySelector(
+          '#forge-health .forge-health-error',
+        ) as HTMLElement;
+        const range = document.createRange();
+        range.selectNodeContents(summary);
+        const text = range.getBoundingClientRect();
+        const box = summary.getBoundingClientRect();
+        return {
+          aboveError: text.top - error.getBoundingClientRect().bottom,
+          insideTop: text.top - box.top,
+          insideBottom: box.bottom - text.bottom,
+          top: text.top - error.getBoundingClientRect().top,
+        };
+      });
+    for (const size of [DESKTOP, PHONE]) {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      const details = page.locator('#forge-health .forge-health-detail');
+      for (const open of [false, true]) {
+        await details.evaluate((el, o) => {
+          (el as HTMLDetailsElement).open = o;
+        }, open);
+        const t = await textBox();
+        const where = `@${size.width} ${open ? 'open' : 'closed'}`;
+        expect(
+          t.aboveError,
+          `text clear of the error line ${where}`,
+        ).toBeGreaterThanOrEqual(0);
+        expect(
+          t.insideTop,
+          `text inside the box ${where}`,
+        ).toBeGreaterThanOrEqual(-0.5);
+        expect(
+          t.insideBottom,
+          `text inside the box ${where}`,
+        ).toBeGreaterThanOrEqual(-0.5);
+        if (size === DESKTOP)
+          // Unmoved from the 2px gap under the error line's own 15px line.
+          expect(t.aboveError, `no gap added ${where}`).toBeLessThanOrEqual(3);
+        else
+          expect(
+            Math.abs(t.insideTop - t.insideBottom),
+            `text centred ${where}`,
+          ).toBeLessThanOrEqual(1);
+      }
+    }
   });
 
   // https://github.com/alrayyes/forge-dashboard/issues/3891
