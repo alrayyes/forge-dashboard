@@ -133,12 +133,12 @@ anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
 
 ### Adopted
 
-- #3890: the failed-load logo story draws the logo, because the
+- The failed-load logo story draws the logo, because the
   screenshot script serves every logo path.
-- #3891: small standalone hit areas (footer links, `Pull requests`,
+- Small standalone hit areas (footer links, `Pull requests`,
   `Show details`, reaction pill). Stitch's heights are estimates, so the
   ticket starts by measuring.
-- #3892: stories for open-not-focused `disclosure` and a focused current
+- Stories for open-not-focused `disclosure` and a focused current
   group in `settingsnav`.
 
 ### Noted, not ticketed
