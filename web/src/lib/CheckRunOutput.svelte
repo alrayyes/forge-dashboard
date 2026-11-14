@@ -150,11 +150,15 @@
       ><path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} /></svg
     ></button
   >
-  {#if shown && phase === "ready"}
+  <!-- The slot is always there, so the toggle and the job link don't move when
+       the output loads (#3866). Until the text is ready it is out of sight and
+       out of the tab order. -->
+  {#if url}
     <button
       bind:this={flow.button}
       type="button"
       class="run-icon-btn"
+      class:run-icon-btn-idle={!(shown && phase === "ready")}
       aria-disabled={flow.busy ? "true" : undefined}
       aria-busy={flow.busy ? "true" : undefined}
       onclick={copy}

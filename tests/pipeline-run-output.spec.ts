@@ -238,6 +238,35 @@ test.describe('a check run output in the pipeline dialog', () => {
     );
   });
 
+  test('opening the output and copying it leave the row controls where they were (#3866)', async ({
+    page,
+  }) => {
+    await setup(page, {
+      status: 200,
+      body: { text: 'line\n', truncated: false },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const row = dialog.locator('li.pipeline-check', { hasText: 'build' });
+    const toggle = row.locator('.run-toggle');
+    const jobLink = row.locator('a.run-icon-btn');
+    const before = {
+      toggle: await toggle.boundingBox(),
+      link: await jobLink.boundingBox(),
+    };
+
+    await toggle.click();
+    await expect(
+      row.getByRole('button', { name: 'Copy output: build' }),
+    ).toBeVisible();
+    expect(await toggle.boundingBox()).toEqual(before.toggle);
+    expect(await jobLink.boundingBox()).toEqual(before.link);
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(await toggle.boundingBox()).toEqual(before.toggle);
+    expect(await jobLink.boundingBox()).toEqual(before.link);
+  });
+
   test('the output is reachable from the keyboard and hides again', async ({
     page,
   }) => {
@@ -347,7 +376,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveText('Copy output');
     await expect(
-      dialog.locator('.run-actions button.run-icon-btn'),
+      dialog.locator('.run-actions button.run-icon-btn:visible'),
     ).toHaveCount(0);
   });
 

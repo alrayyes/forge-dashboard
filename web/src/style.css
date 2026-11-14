@@ -5391,6 +5391,17 @@ footer a[aria-current="page"] {
   white-space: nowrap;
   cursor: pointer;
 }
+/* "Show output" and "Hide output" take one width, so the label swap moves
+   nothing. */
+.run-toggle {
+  justify-content: flex-end;
+  min-width: 8.5em;
+  box-sizing: border-box;
+}
+/* The Copy slot before the output is ready: kept in the layout, not seen. */
+.run-icon-btn-idle {
+  visibility: hidden;
+}
 .run-toggle:disabled {
   color: var(--ink-2);
   cursor: default;
