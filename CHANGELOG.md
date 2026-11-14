@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.54.0](https://github.com/alrayyes/forge-dashboard/compare/v9.53.2...v9.54.0) (2026-11-14)
+
+
+### Features
+
+* **images:** scale embedded images down with an optional width ([#3858](https://github.com/alrayyes/forge-dashboard/issues/3858)) ([1adb8b2](https://github.com/alrayyes/forge-dashboard/commit/1adb8b2aa40c725ae807bc28771661bb8404f9a9)), closes [#3819](https://github.com/alrayyes/forge-dashboard/issues/3819)
+
 ## [9.53.2](https://github.com/alrayyes/forge-dashboard/compare/v9.53.1...v9.53.2) (2026-11-13)
 
 
