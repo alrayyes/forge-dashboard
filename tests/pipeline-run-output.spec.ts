@@ -1670,3 +1670,53 @@ test.describe('a copy pressed while the output loads', () => {
     }
   }
 });
+
+test.describe('a long check output in phone landscape', () => {
+  test('stays inside the visible dialog body and hands the scroll on at its edges', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    const text = Array.from({ length: 400 }, (_, i) => `line ${i + 1}`).join(
+      '\n',
+    );
+    await setup(page, { status: 200, body: { text, truncated: false } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output).toContainText('line 1');
+    await expect(output).toHaveAttribute('tabindex', '0');
+
+    const body = dialog.locator('.pipeline-dialog-body');
+    const outputBox = await output.boundingBox();
+    const bodyBox = await body.boundingBox();
+    expect(outputBox?.height).toBeLessThanOrEqual(bodyBox?.height ?? 0);
+    // It is still a scroll region of its own, not grown to fit the log.
+    expect(
+      await output.evaluate((el) => el.scrollHeight > el.clientHeight),
+    ).toBe(true);
+    expect(
+      await output.evaluate((el) => getComputedStyle(el).overscrollBehaviorY),
+    ).toBe('auto');
+
+    // Scrolled to its end, the output passes the wheel on to the body.
+    await output.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const before = await body.evaluate((el) => el.scrollTop);
+    const box = await output.boundingBox();
+    await page.mouse.move(
+      (box?.x ?? 0) + (box?.width ?? 0) / 2,
+      (box?.y ?? 0) + (box?.height ?? 0) / 2,
+    );
+    await page.mouse.wheel(0, 200);
+    await expect
+      .poll(() => body.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(before);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+});
