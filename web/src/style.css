@@ -1063,6 +1063,15 @@ section.board {
     }
   }
 }
+/* The band rule above sets a 280px status track, which would undo the 232px
+   one the 761-860px range needs to keep label chips off the CI pill (#3261). */
+@media (min-width: 761px) and (max-width: 860px) {
+  @container (max-width: min(calc(700px + 19rem), 1190px)) {
+    .row:not(.issue-row) {
+      grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
+    }
+  }
+}
 
 .row:last-child {
   border-bottom: none;
