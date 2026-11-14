@@ -101,6 +101,7 @@ const singleUserSpecs = [
   '**/ci-pill-counts.spec.ts',
   '**/checking-for-conflicts.spec.ts',
   '**/conflict-not-confirmed.spec.ts',
+  '**/conflict-not-confirmed-reason.spec.ts',
   '**/conflict-row-warning-only.spec.ts',
   '**/running-pill-counts.spec.ts',
   '**/issue-author-avatar.spec.ts',

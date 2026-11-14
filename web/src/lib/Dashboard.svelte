@@ -187,6 +187,7 @@
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
   import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
+  import { unconfirmedConflictReason } from "#lib/conflict-reason.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -1087,8 +1088,13 @@
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
       // Forgejo's flag stayed false and no refusal named a conflict (#3308).
-      if (status === "conflicting" && conflict.confirmed === false)
-        return unconfirmedConflictPill();
+      if (
+        status === "conflicting" &&
+        conflict.confirmed === false &&
+        conflict.reason &&
+        conflict.reasonId
+      )
+        return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -1102,10 +1108,40 @@
       return group;
     }
 
-    type ConflictFacts = { confirmed?: boolean; files?: string[] };
+    type ConflictFacts = {
+      confirmed?: boolean;
+      files?: string[];
+      // The unconfirmed pill's reason and the id Merge is described by (#3965).
+      reason?: string;
+      reasonId?: string;
+    };
 
     function conflictFacts(item: PullRequestItem): ConflictFacts {
-      return { confirmed: item.conflictConfirmed, files: item.conflictFiles };
+      const facts: ConflictFacts = {
+        confirmed: item.conflictConfirmed,
+        files: item.conflictFiles,
+      };
+      if (unconfirmedConflict(item)) {
+        facts.reasonId = conflictReasonId(item);
+        facts.reason = unconfirmedConflictReason({
+          lock: proactiveActionLockReason(item.forge),
+          updateOffered: liveUpdateBranch(item),
+        });
+      }
+      return facts;
+    }
+
+    // The forge's flag stayed false and no refusal named a conflict (#3308).
+    // The pill says it, with its reason; Merge is described by that reason
+    // instead of the row's status block saying the same words again (#3965).
+    function unconfirmedConflict(item: PullRequestItem): boolean {
+      return (
+        item.mergeStatus === "conflicting" && item.conflictConfirmed === false
+      );
+    }
+
+    function conflictReasonId(item: PullRequestItem): string {
+      return `${idScope}conflict-reason-${domSafeId(prKey(item))}`;
     }
 
     // "In a.txt, b.md and 2 more": where a refused merge or update said the
@@ -1117,24 +1153,20 @@
       return more > 0 ? `In ${shown} and ${more} more` : `In ${shown}`;
     }
 
-    let unconfirmedReasonCount = 0;
-
     // "Conflict not confirmed" and the reason one tap away. The server leaves
     // it at that: the forge's flag has been false past the check window, which
     // it is for a conflict and also for a check that never finishes.
-    function unconfirmedConflictPill(): HTMLElement {
-      const id = `conflict-reason-${++unconfirmedReasonCount}`;
+    function unconfirmedConflictPill(
+      reasonText: string,
+      id: string,
+    ): HTMLElement {
       const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
       pill.type = "button";
       pill.setAttribute("aria-expanded", "false");
       pill.setAttribute("aria-controls", id);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode("Conflict not confirmed"));
-      const reason = el(
-        "span",
-        "merge-where",
-        "The forge says this can't merge, and says the same while it is still checking. No merge or update has been refused with a conflict yet. Update the branch to find out.",
-      );
+      const reason = el("span", "merge-where", reasonText);
       reason.id = id;
       reason.hidden = true;
       pill.addEventListener("click", (event) => {
@@ -3516,6 +3548,8 @@
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      // The pill already says it, and holds the reason (#3965).
+      if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
@@ -3631,7 +3665,11 @@
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
-        const described = item.status ? statusAreaId(item) : undefined;
+        const described = !item.status
+          ? undefined
+          : unconfirmedConflict(item) && item.status.code === "conflict"
+            ? conflictReasonId(item)
+            : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,

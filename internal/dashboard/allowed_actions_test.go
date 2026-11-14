@@ -188,7 +188,20 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 			p.MergeStatus = dashboard.MergeConflicting
 			no := false
 			p.ConflictConfirmed = &no
+		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge"},
+		{"conflict the forge has not confirmed, behind with Update branch on offer", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			p.Behind = true
+			no := false
+			p.ConflictConfirmed = &no
 		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out"},
+		{"conflict the forge has not confirmed, behind but Renovate rebases it", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			p.Behind = true
+			p.Author = "renovate[bot]"
+			no := false
+			p.ConflictConfirmed = &no
+		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge"},
 		{"conflict a refusal named", func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeConflicting
 			yes := true
