@@ -187,7 +187,7 @@
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
   import type { LockInfo } from "#lib/lock-info.js";
-  import { rowClaim } from "#lib/row-claim.js";
+  import { type RowClaim, rowClaim } from "#lib/row-claim.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -198,6 +198,7 @@
   import { anyRowHoldsTheBoard } from "#lib/row-action-in-flight.js";
   import {
     type ForgeHealthEntry,
+    carriedOverLock,
     dependabotBlockedReason,
     rerunBlockedLock,
     forgeLockReason,
@@ -1006,6 +1007,36 @@
       });
       return { status, awaiting, model };
     }
+    // What a row may claim about the facts its forge reported (behind, checks,
+    // merge state, auto-merge): the one rule a row's actions ask, given the
+    // forge's health, never its name (#3994).
+    function stateClaim(item: { forge: string }): RowClaim {
+      const earlier = carriedOverLock(lastForges, item.forge);
+      return rowClaim({
+        kind: "state",
+        lock: earlier?.lock ?? null,
+        since: earlier?.staleSince
+          ? relativeTime(earlier.staleSince)
+          : undefined,
+      });
+    }
+
+    // A pill that reports a forge's fact, marked as an earlier answer while the
+    // forge can't be asked: the reason as its tooltip and as text for a screen
+    // reader, since a tooltip is not announced.
+    function claimed<T extends HTMLElement>(
+      pill: T,
+      item: { forge: string },
+    ): T {
+      const claim = stateClaim(item);
+      if (claim.state !== "carried_over") return pill;
+      pill.dataset.claim = claim.state;
+      const earlier = claim.reason.replace(/^Showing data[^.]*\.\s*/, "");
+      pill.title = pill.title ? `${pill.title}. ${earlier}` : earlier;
+      pill.appendChild(el("span", "sr-only", ` ${earlier}`));
+      return pill;
+    }
+
     // announce false leaves the words to a name the caller sets, as the pill
     // on an issue row does: the hidden line would otherwise repeat in its text.
     function ciPill(
@@ -1018,11 +1049,14 @@
       // openPipelineDialog's "close" handler refocuses it by this id once a
       // later render has rebuilt the row.
       const open = status !== "none" && interactive;
-      return renderCiPill(model, {
-        onOpen: open ? () => openPipelineDialog(item) : undefined,
-        id: `pipeline-trigger-${domSafeId(prKey(item))}`,
-        announce,
-      });
+      return claimed(
+        renderCiPill(model, {
+          onOpen: open ? () => openPipelineDialog(item) : undefined,
+          id: `pipeline-trigger-${domSafeId(prKey(item))}`,
+          announce,
+        }),
+        item,
+      );
     }
 
     // The pipeline on the pill of the pull request that will close an issue:
@@ -1084,6 +1118,7 @@
       status: string,
       ci: string,
       conflict: ConflictFacts = {},
+      forge = "",
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
@@ -1097,7 +1132,7 @@
         return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
-      const pill = el("span", `merge-pill ${status}`);
+      const pill = claimed(el("span", `merge-pill ${status}`), { forge });
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
       const where = conflictWhere(conflict.files ?? []);
@@ -1197,7 +1232,7 @@
     ): HTMLElement | null {
       if (!item.behind || item.empty) return null;
       if (onRow && (conflictShown(item) || liveUpdateBranch(item))) return null;
-      return attrChip("behind", "Out of date");
+      return claimed(attrChip("behind", "Out of date"), item);
     }
 
     // A conflict a person has to fix by hand: the forge says conflicting and,
@@ -1353,9 +1388,9 @@
         const chip = attrChip("auto-merge", "Auto-merge on");
         const note = HOLDER_NOTE[pr.autoMergeHeldBy ?? ""];
         if (note) chip.appendChild(el("span", "pill-note", note));
-        return chip;
+        return claimed(chip, pr);
       }
-      return attrChip("auto-merge", "Auto-merge");
+      return claimed(attrChip("auto-merge", "Auto-merge"), pr);
     }
 
     // The attribute tier (#1563): something set on the pull request that
@@ -1580,6 +1615,7 @@
         item.mergeStatus,
         item.ci,
         conflictFacts(item),
+        item.forge,
       );
       if (merge) state.appendChild(merge);
       const attributes = attributeCluster(item);
@@ -1588,7 +1624,9 @@
       // The dialog keeps saying a pull request is out of date even when it
       // is empty, which the row's badge leaves out.
       if (item.behind && !attributes.querySelector(".behind"))
-        attributes.appendChild(attrChip("behind", "Out of date"));
+        attributes.appendChild(
+          claimed(attrChip("behind", "Out of date"), item),
+        );
       if (item.kind === "release") {
         const version = releaseVersion(item.title);
         if (version)
@@ -2856,6 +2894,7 @@
           pr.mergeStatus,
           pr.ci,
           conflictFacts(pr),
+          pr.forge,
         );
         if (conflictPill) statusCell.appendChild(conflictPill);
         const reviewActivity = reviewPill(pr, (triggerId) =>
@@ -7089,8 +7128,7 @@
       if (lock?.code !== "rate_limited") return null;
       // With a host of this kind down, the row may be on that host, and a
       // queued action would wait for a reset that doesn't bring it back.
-      if (lastForges.some((f) => f.forge === item.forge && isUnreachable(f)))
-        return null;
+      if (stateClaim(item).state === "carried_over") return null;
       const action = queueableAction(item);
       if (!action) return null;
       const resets = lock.resetsAt ?? "";
