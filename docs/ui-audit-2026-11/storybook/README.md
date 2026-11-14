@@ -119,9 +119,10 @@ uploaded as stacked parts.
   Stitch guessed GitHub's colours. The real `--critical` is 5.47:1 on
   white and 4.68:1 on `--critical-bg`, and `--warning` is 5.51:1 and
   4.87:1.
-- **Button borders at 1.3:1** (nearly every sheet). Controls use
-  `--control-border` (3.52:1). Only decorative card borders are
-  `--border` (1.33:1), which SC 1.4.11 does not cover.
+- **Button borders at 1.3:1** (nearly every sheet, except
+  `advisoriesdialog`). Controls use `--control-border` (3.52:1). Only
+  decorative card borders are `--border` (1.33:1), which SC 1.4.11 does
+  not cover.
 - **Disclosure trigger 38px high.** `Disclosure.svelte` sets
   `min-height: 44px`.
 - **`ago(2026-01-01T00:00:00Z)` shown to users.** It is the story's
@@ -158,12 +159,12 @@ uploaded as stacked parts.
   is a `role="status"` region, and the hidden button with nothing to copy
   is intended.
 - **`advisoriesdialog` contrast, focus and size claims.** Field labels,
-  metadata and loading text use `--ink-2` (7.46:1). Filter pills use
-  `--ink` with `--border-strong`. The `High` and `Medium` badges are
-  `--critical` on `--critical-bg` (4.68:1) and `--warning` on
+  metadata and loading text use `--ink-2` (7.46:1). The `High` and
+  `Medium` badges are `--critical` on `--critical-bg` (4.68:1) and `--warning` on
   `--warning-bg` (4.87:1). The focus ring is a 2px `--accent` outline.
-  The filter pills, back and close buttons are 32px high, and the
-  loading line is a `role="status"` region.
+  The filter pills, back and close buttons are 32px high, the loading
+  line is a `role="status"` region, and the `closed` story draws only
+  its trigger on purpose.
 - **Considered, not adopted:** a reason for the disabled `Show output`
   button, a spinner, colour-only error pills (the sheets show error text
   and a tag reading `ERROR`), and the `forgehealth` "0 GraphQL budget but green
@@ -172,6 +173,12 @@ uploaded as stacked parts.
 
 ### Adopted
 
+- The `advisoriesdialog` buttons do not use `--control-border`. The
+  filter pills and ghost buttons use `--border-strong` (1.62:1 on white),
+  and the back and close buttons use `--border` (1.33:1). They have text
+  or icon labels, so SC 1.4.11 may not need the border, but every other
+  control in the app uses `--control-border`. Stitch's "borders under
+  2:1" was right for these.
 - The failed-load logo story does not fail: the screenshot script
   serves every logo path, so it came out identical to the loaded story. A really
   failed load draws nothing (`RepoLogo` renders only the image), so it
