@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.58.3](https://github.com/alrayyes/forge-dashboard/compare/v9.58.2...v9.58.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** keep the board's list when a failure retires during a snapshot landing ([#3940](https://github.com/alrayyes/forge-dashboard/issues/3940)) ([509ad77](https://github.com/alrayyes/forge-dashboard/commit/509ad77533e484ad4e4faa06689832f4e1b92f0f)), closes [#3931](https://github.com/alrayyes/forge-dashboard/issues/3931)
+
 ## [9.58.2](https://github.com/alrayyes/forge-dashboard/compare/v9.58.1...v9.58.2) (2026-11-14)
 
 
