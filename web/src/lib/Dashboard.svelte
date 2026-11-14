@@ -76,7 +76,11 @@
     toggleLabel,
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    registerForgeCapabilities,
+  } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
@@ -10119,6 +10123,7 @@
       }
       followReadInterval(data.readIntervalSeconds);
 
+      registerForgeCapabilities(data.forges);
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
         lastForges.filter((f) => isUnreachable(f)).map((f) => f.forge),

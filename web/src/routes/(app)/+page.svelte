@@ -1,6 +1,10 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    registerForgeCapabilities,
+  } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { runSignature } from "#lib/pipeline-live.js";
   import type { Check } from "#lib/pipeline-checks.js";
@@ -353,6 +357,7 @@
   let refreshError = $state<string | null>(null);
   let held: MainBranches | null = null;
   function apply(next: MainBranches, asked = false) {
+    registerForgeCapabilities(next.forges);
     if (paused && !asked) {
       held = next;
       return;

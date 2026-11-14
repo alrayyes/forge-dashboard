@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
+import './forge-labels-fixture';
 import {
   authorChoices,
   authorOverflowText,
