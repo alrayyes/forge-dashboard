@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.59.2](https://github.com/alrayyes/forge-dashboard/compare/v9.59.1...v9.59.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** size the check output to the dialog body in phone landscape ([#3959](https://github.com/alrayyes/forge-dashboard/issues/3959)) ([4c31f42](https://github.com/alrayyes/forge-dashboard/commit/4c31f42d9721cf91a8848d48226207e71cd6c27f)), closes [#3879](https://github.com/alrayyes/forge-dashboard/issues/3879)
+
 ## [9.59.1](https://github.com/alrayyes/forge-dashboard/compare/v9.59.0...v9.59.1) (2026-11-14)
 
 
