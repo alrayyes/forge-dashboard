@@ -5223,6 +5223,32 @@ footer a[aria-current="page"] {
   box-sizing: border-box;
   min-height: var(--tap-floor);
 }
+/* These two sit in a tight line of text, so the 24px floor is a hit area
+   that reaches past the text, not a taller box: nothing moves. The pseudo-
+   element answers for the control, and its inset is the line's own height
+   less the floor, so it follows the text size and zoom. From 761px up only;
+   a phone gets a real 44px box below. */
+@media (min-width: 761px) {
+  :root
+    body
+    :is(
+      .forge-health-detail summary,
+      .pipeline-check-copy .pipeline-check-link
+    ) {
+    position: relative;
+  }
+  :root
+    body
+    :is(
+      .forge-health-detail summary,
+      .pipeline-check-copy .pipeline-check-link
+    )::after {
+    content: "";
+    position: absolute;
+    inset-inline: 0;
+    inset-block: calc((1lh - var(--tap-floor)) / 2);
+  }
+}
 :root body :is(footer a, .release-head h2 a, .repo-link) {
   display: inline-flex;
   align-items: center;
@@ -5303,6 +5329,8 @@ footer a[aria-current="page"] {
       .data-table td.action button,
       .ignored-disclosure summary,
       .ignored-disclosure button,
+      .forge-health-detail summary,
+      .pipeline-check-copy .pipeline-check-link,
       select,
       input:not([type="checkbox"], [type="radio"]),
       label:not(.task):has(> input[type="checkbox"]),
@@ -5327,6 +5355,11 @@ footer a[aria-current="page"] {
       label:not(.task):has(> input[type="radio"])
     ) {
     min-width: var(--tap);
+  }
+  /* The toggle's text sits in the middle of its 44px box. */
+  :root body .forge-health-detail summary {
+    display: flex;
+    align-items: center;
   }
   /* 3px each side makes "Privacy" 44 wide. The separator and its link stay
      together on one line. */
