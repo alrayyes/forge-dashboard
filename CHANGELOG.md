@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.61.2](https://github.com/alrayyes/forge-dashboard/compare/v9.61.1...v9.61.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** leave rows with no drawn Update branch out of Update all ([#4001](https://github.com/alrayyes/forge-dashboard/issues/4001)) ([3717078](https://github.com/alrayyes/forge-dashboard/commit/3717078dd842b2ebe05ace2202c57189f0f8af84))
+
 ## [9.61.1](https://github.com/alrayyes/forge-dashboard/compare/v9.61.0...v9.61.1) (2026-11-14)
 
 
