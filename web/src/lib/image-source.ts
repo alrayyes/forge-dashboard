@@ -9,6 +9,7 @@ const GITHUB_HOSTS = new Set([
   'user-images.githubusercontent.com',
   'private-user-images.githubusercontent.com',
   'raw.githubusercontent.com',
+  'gist.githubusercontent.com',
 ]);
 
 export type ImageSource = (src: string) => string | null;

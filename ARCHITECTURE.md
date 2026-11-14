@@ -314,8 +314,10 @@ can't fire a tracking pixel when the dialog opens.
 - The allowed hosts are a list, not a pattern. Forgejo: the saved instance's
   host and port, and its token goes there and nowhere else. GitHub: `github.com`,
   `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`,
-  `raw.githubusercontent.com`, `avatars.githubusercontent.com` and
-  `repository-images.githubusercontent.com`, fetched with no token (its
+  `raw.githubusercontent.com`, `gist.githubusercontent.com`,
+  `avatars.githubusercontent.com` and `repository-images.githubusercontent.com`,
+  each matched by its exact name (a lookalike such as
+  `gist.githubusercontent.com.evil.example` is refused), fetched with no token (its
   attachment links carry their own signature).
 - A `github.com/user-attachments/...` link in a private repository isn't served
   unsigned. When the page names the item it sits in, or the comment, the
