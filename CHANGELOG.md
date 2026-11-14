@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.55.0](https://github.com/alrayyes/forge-dashboard/compare/v9.54.2...v9.55.0) (2026-11-14)
+
+
+### Features
+
+* **images:** keep orientation when the proxy resizes a PNG or WebP ([#3870](https://github.com/alrayyes/forge-dashboard/issues/3870)) ([5b1a231](https://github.com/alrayyes/forge-dashboard/commit/5b1a231a364afd4dbc2520a442bcb2fa61f9ba8d)), closes [#3859](https://github.com/alrayyes/forge-dashboard/issues/3859)
+
 ## [9.54.2](https://github.com/alrayyes/forge-dashboard/compare/v9.54.1...v9.54.2) (2026-11-14)
 
 
