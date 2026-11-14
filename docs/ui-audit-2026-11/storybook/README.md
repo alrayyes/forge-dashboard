@@ -7,108 +7,110 @@ Sheets sent to Stitch are in `sheets/`. Audited at desktop 1280px, light theme
 only: the catalogue has no phone or dark variants, so those remain covered only
 by the route-level audit (forge-dashboard-1 to 27).
 
-| Story                                                                            | Component                  | Stitch request                         | Outcome                                                    |
-| -------------------------------------------------------------------------------- | -------------------------- | -------------------------------------- | ---------------------------------------------------------- |
-| `advisoriesdialog--advisory-detail`                                              | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--closed`                                                       | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--detail-focus-on-back`                                         | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--empty`                                                        | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--filtered-to-critical`                                         | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--forgejo-list`                                                 | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--loading`                                                      | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--open-list`                                                    | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out)                           |
-| `advisoriesdialog--partial-list`                                                 | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below                                         |
-| `advisoriesdialog--request-failed`                                               | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below                                         |
-| `advisoriesdialog--unreadable`                                                   | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below                                         |
-| `checkrunoutput--closed`                                                         | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--expired`                                                        | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--forbidden`                                                      | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--loading`                                                        | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--no-output`                                                      | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--output-cut`                                                     | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--output-shown`                                                   | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `checkrunoutput--show-output-disabled`                                           | `checkrunoutput`           | forge-dashboard-30                     | audited, see below                                         |
-| `copychecklog--copied`                                                           | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--copying`                                                          | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--empty`                                                            | `copychecklog`             | not audited: the story renders nothing | n/a                                                        |
-| `copychecklog--failed-check`                                                     | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--focused`                                                          | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--log-unreadable`                                                   | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--no-job`                                                           | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `copychecklog--not-copyable`                                                     | `copychecklog`             | forge-dashboard-31                     | not completed (Stitch timed out; the sheet itself is fine) |
-| `disclosure--closed`                                                             | `disclosure`               | forge-dashboard-32                     | audited, see below                                         |
-| `disclosure--focused`                                                            | `disclosure`               | forge-dashboard-32                     | audited, see below                                         |
-| `disclosure--open`                                                               | `disclosure`               | forge-dashboard-32                     | audited, see below                                         |
-| `errorpage--not-found`                                                           | `errorpage`                | forge-dashboard-33                     | audited, see below                                         |
-| `errorpage--server-error`                                                        | `errorpage`                | forge-dashboard-33                     | audited, see below                                         |
-| `firstrefreshstatus--announces-by-changing-text`                                 | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below                                         |
-| `firstrefreshstatus--done`                                                       | `firstrefreshstatus`       | not audited: the story renders nothing | n/a                                                        |
-| `firstrefreshstatus--loading`                                                    | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below                                         |
-| `firstrefreshstatus--still-loading`                                              | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below                                         |
-| `footer--dev-build`                                                              | `footer`                   | forge-dashboard-35                     | audited, see below                                         |
-| `footer--privacy-page-current`                                                   | `footer`                   | forge-dashboard-35                     | audited, see below                                         |
-| `footer--released-version`                                                       | `footer`                   | forge-dashboard-35                     | audited, see below                                         |
-| `footer--version-request-fails`                                                  | `footer`                   | forge-dashboard-35                     | audited, see below                                         |
-| `footer--version-unresolved`                                                     | `footer`                   | forge-dashboard-35                     | audited, see below                                         |
-| `forgehealth--forgejo-budget-uses-its-own-short-name`                            | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--healthy`                                                           | `forgehealth`              | not audited: the story renders nothing | n/a                                                        |
-| `forgehealth--one-budget-names-itself`                                           | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--rate-limited-with-a-rate-limited-error-says-it-only-in-the-banner` | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--remaining-above-its-limit`                                         | `forgehealth`              | not audited: the story renders nothing | n/a                                                        |
-| `forgehealth--spent-graph-ql-budget-beside-a-healthy-rest-one`                   | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--starting-up`                                                       | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--unreachable-and-rate-limited`                                      | `forgehealth`              | forge-dashboard-36                     | audited, see below                                         |
-| `forgehealth--unreachable-draws-nothing`                                         | `forgehealth`              | not audited: the story renders nothing | n/a                                                        |
-| `listskeleton--default-rows`                                                     | `listskeleton`             | forge-dashboard-37                     | audited, see below                                         |
-| `listskeleton--long-list`                                                        | `listskeleton`             | forge-dashboard-37                     | audited, see below                                         |
-| `listskeleton--one-row`                                                          | `listskeleton`             | forge-dashboard-37                     | audited, see below                                         |
-| `navpills--all-counts`                                                           | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--branches-with-no-pipeline`                                            | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--empty`                                                                | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--first-refresh-pending`                                                | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--passing-only`                                                         | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--stacked`                                                              | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `navpills--waiting-for-approval`                                                 | `navpills`                 | forge-dashboard-38                     | audited, see below                                         |
-| `pipelinedialog--all-passing`                                                    | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--closed`                                                         | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--error`                                                          | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--failed-check`                                                   | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--focus-on-close`                                                 | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--loading`                                                        | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--main-branch`                                                    | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--no-checks`                                                      | `pipelinedialog`           | forge-dashboard-39                     | audited, see below                                         |
-| `pipelinedialog--running`                                                        | `pipelinedialog`           | forge-dashboard-40                     | audited, see below                                         |
-| `pullrequestdetailsdialog--closed`                                               | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--cut-off`                                              | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--dependency-bump`                                      | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--empty`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--error`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--focus-on-try-again`                                   | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--image-viewer`                                         | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--issue`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below                                         |
-| `pullrequestdetailsdialog--loading`                                              | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below                                         |
-| `pullrequestdetailsdialog--pull-request`                                         | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below                                         |
-| `pullrequestdetailsdialog--release`                                              | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below                                         |
-| `pullrequestdetailsdialog--release-without-notes`                                | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below                                         |
-| `readfailurealert--error-with-retry`                                             | `readfailurealert`         | forge-dashboard-43                     | audited, see below                                         |
-| `readfailurealert--hidden`                                                       | `readfailurealert`         | not audited: the story renders nothing | n/a                                                        |
-| `readfailurealert--page-read-error`                                              | `readfailurealert`         | forge-dashboard-43                     | audited, see below                                         |
-| `repologo--insecure-url`                                                         | `repologo`                 | not audited: the story renders nothing | n/a                                                        |
-| `repologo--logo-fails-to-load`                                                   | `repologo`                 | forge-dashboard-44                     | audited, see below                                         |
-| `repologo--no-logo`                                                              | `repologo`                 | not audited: the story renders nothing | n/a                                                        |
-| `repologo--with-a-logo`                                                          | `repologo`                 | forge-dashboard-44                     | audited, see below                                         |
-| `settingsnav--behaviour-current`                                                 | `settingsnav`              | forge-dashboard-45                     | audited, see below                                         |
-| `settingsnav--connections-current`                                               | `settingsnav`              | forge-dashboard-45                     | audited, see below                                         |
-| `settingsnav--display-current`                                                   | `settingsnav`              | forge-dashboard-45                     | audited, see below                                         |
-| `settingsnav--focus-on-a-group`                                                  | `settingsnav`              | forge-dashboard-45                     | audited, see below                                         |
-| `settingsnav--integrations-current`                                              | `settingsnav`              | forge-dashboard-45                     | audited, see below                                         |
+| Story                                                                            | Component                  | Stitch request                         | Outcome                          |
+| -------------------------------------------------------------------------------- | -------------------------- | -------------------------------------- | -------------------------------- |
+| `advisoriesdialog--advisory-detail`                                              | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--closed`                                                       | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--detail-focus-on-back`                                         | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--empty`                                                        | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--filtered-to-critical`                                         | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--forgejo-list`                                                 | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--loading`                                                      | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--open-list`                                                    | `advisoriesdialog`         | forge-dashboard-28                     | not completed (Stitch timed out) |
+| `advisoriesdialog--partial-list`                                                 | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below               |
+| `advisoriesdialog--request-failed`                                               | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below               |
+| `advisoriesdialog--unreadable`                                                   | `advisoriesdialog`         | forge-dashboard-29                     | audited, see below               |
+| `checkrunoutput--closed`                                                         | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--expired`                                                        | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--forbidden`                                                      | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--loading`                                                        | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--no-output`                                                      | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--output-cut`                                                     | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--output-shown`                                                   | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `checkrunoutput--show-output-disabled`                                           | `checkrunoutput`           | forge-dashboard-30                     | audited, see below               |
+| `copychecklog--copied`                                                           | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--copying`                                                          | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--empty`                                                            | `copychecklog`             | not audited: the story renders nothing | n/a                              |
+| `copychecklog--failed-check`                                                     | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--focused`                                                          | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--log-unreadable`                                                   | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--no-job`                                                           | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `copychecklog--not-copyable`                                                     | `copychecklog`             | forge-dashboard-31                     | audited, see below               |
+| `disclosure--closed`                                                             | `disclosure`               | forge-dashboard-32                     | audited, see below               |
+| `disclosure--focused`                                                            | `disclosure`               | forge-dashboard-32                     | audited, see below               |
+| `disclosure--open`                                                               | `disclosure`               | forge-dashboard-32                     | audited, see below               |
+| `errorpage--not-found`                                                           | `errorpage`                | forge-dashboard-33                     | audited, see below               |
+| `errorpage--server-error`                                                        | `errorpage`                | forge-dashboard-33                     | audited, see below               |
+| `firstrefreshstatus--announces-by-changing-text`                                 | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below               |
+| `firstrefreshstatus--done`                                                       | `firstrefreshstatus`       | not audited: the story renders nothing | n/a                              |
+| `firstrefreshstatus--loading`                                                    | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below               |
+| `firstrefreshstatus--still-loading`                                              | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below               |
+| `footer--dev-build`                                                              | `footer`                   | forge-dashboard-35                     | audited, see below               |
+| `footer--privacy-page-current`                                                   | `footer`                   | forge-dashboard-35                     | audited, see below               |
+| `footer--released-version`                                                       | `footer`                   | forge-dashboard-35                     | audited, see below               |
+| `footer--version-request-fails`                                                  | `footer`                   | forge-dashboard-35                     | audited, see below               |
+| `footer--version-unresolved`                                                     | `footer`                   | forge-dashboard-35                     | audited, see below               |
+| `forgehealth--forgejo-budget-uses-its-own-short-name`                            | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--healthy`                                                           | `forgehealth`              | not audited: the story renders nothing | n/a                              |
+| `forgehealth--one-budget-names-itself`                                           | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--rate-limited-with-a-rate-limited-error-says-it-only-in-the-banner` | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--remaining-above-its-limit`                                         | `forgehealth`              | not audited: the story renders nothing | n/a                              |
+| `forgehealth--spent-graph-ql-budget-beside-a-healthy-rest-one`                   | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--starting-up`                                                       | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--unreachable-and-rate-limited`                                      | `forgehealth`              | forge-dashboard-36                     | audited, see below               |
+| `forgehealth--unreachable-draws-nothing`                                         | `forgehealth`              | not audited: the story renders nothing | n/a                              |
+| `listskeleton--default-rows`                                                     | `listskeleton`             | forge-dashboard-37                     | audited, see below               |
+| `listskeleton--long-list`                                                        | `listskeleton`             | forge-dashboard-37                     | audited, see below               |
+| `listskeleton--one-row`                                                          | `listskeleton`             | forge-dashboard-37                     | audited, see below               |
+| `navpills--all-counts`                                                           | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--branches-with-no-pipeline`                                            | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--empty`                                                                | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--first-refresh-pending`                                                | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--passing-only`                                                         | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--stacked`                                                              | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `navpills--waiting-for-approval`                                                 | `navpills`                 | forge-dashboard-38                     | audited, see below               |
+| `pipelinedialog--all-passing`                                                    | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--closed`                                                         | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--error`                                                          | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--failed-check`                                                   | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--focus-on-close`                                                 | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--loading`                                                        | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--main-branch`                                                    | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--no-checks`                                                      | `pipelinedialog`           | forge-dashboard-39                     | audited, see below               |
+| `pipelinedialog--running`                                                        | `pipelinedialog`           | forge-dashboard-40                     | audited, see below               |
+| `pullrequestdetailsdialog--closed`                                               | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--cut-off`                                              | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--dependency-bump`                                      | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--empty`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--error`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--focus-on-try-again`                                   | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--image-viewer`                                         | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--issue`                                                | `pullrequestdetailsdialog` | forge-dashboard-41                     | audited, see below               |
+| `pullrequestdetailsdialog--loading`                                              | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below               |
+| `pullrequestdetailsdialog--pull-request`                                         | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below               |
+| `pullrequestdetailsdialog--release`                                              | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below               |
+| `pullrequestdetailsdialog--release-without-notes`                                | `pullrequestdetailsdialog` | forge-dashboard-42                     | audited, see below               |
+| `readfailurealert--error-with-retry`                                             | `readfailurealert`         | forge-dashboard-43                     | audited, see below               |
+| `readfailurealert--hidden`                                                       | `readfailurealert`         | not audited: the story renders nothing | n/a                              |
+| `readfailurealert--page-read-error`                                              | `readfailurealert`         | forge-dashboard-43                     | audited, see below               |
+| `repologo--insecure-url`                                                         | `repologo`                 | not audited: the story renders nothing | n/a                              |
+| `repologo--logo-fails-to-load`                                                   | `repologo`                 | forge-dashboard-44                     | audited, see below               |
+| `repologo--no-logo`                                                              | `repologo`                 | not audited: the story renders nothing | n/a                              |
+| `repologo--with-a-logo`                                                          | `repologo`                 | forge-dashboard-44                     | audited, see below               |
+| `settingsnav--behaviour-current`                                                 | `settingsnav`              | forge-dashboard-45                     | audited, see below               |
+| `settingsnav--connections-current`                                               | `settingsnav`              | forge-dashboard-45                     | audited, see below               |
+| `settingsnav--display-current`                                                   | `settingsnav`              | forge-dashboard-45                     | audited, see below               |
+| `settingsnav--focus-on-a-group`                                                  | `settingsnav`              | forge-dashboard-45                     | audited, see below               |
+| `settingsnav--integrations-current`                                              | `settingsnav`              | forge-dashboard-45                     | audited, see below               |
 
 ## Findings
 
-Stitch answered 16 of the 18 sheets. It cannot see the real tokens, so
+Stitch answered 17 of the 18 sheets. It cannot see the real tokens, so
 its colour measurements were checked against `web/src/style.css` before
-anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
-31 (`copychecklog`) did not finish and stay open.
+anything was adopted. `copychecklog` only worked on a second try: Stitch's
+secret scrubber damaged the sheet's embedded image, so it was uploaded as
+two halves. The first `advisoriesdialog` sheet did not finish and stays
+open.
 
 ### Rejected
 
@@ -148,6 +150,13 @@ anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
   background.
 - **`firstrefreshstatus` width jump from 128 to 354px.** The story
   harness shrink-wraps the box; it is not a layout shift in the app.
+- **`copychecklog` contrast, focus ring and state claims.** Stitch
+  guessed the accent as `#088395` (4.0:1). The real `--accent` is 4.95:1
+  on white. The focus ring is a 2px `--accent` outline with a 2px offset,
+  clearly visible in the focused story, and the notice text is `--ink-2`
+  (7.46:1). The busy button is `aria-busy` and `aria-disabled`, the status
+  is a `role="status"` region, and the hidden button with nothing to copy
+  is intended.
 - **Considered, not adopted:** a reason for the disabled `Show output`
   button, a spinner, colour-only error pills (the sheets show error text
   and a tag reading `ERROR`), and the `forgehealth` "0 GraphQL budget but green
@@ -163,6 +172,13 @@ anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
 - The `Show details` summary in `forgehealth` has 11px text and no
   `min-height`. It is missing from the tap-floor selector list and from
   the hit-area sweep. Stitch's other size claims were rejected above.
+- The `.details-collapsed summary` toggle in the pull request details
+  dialog (13px text, no desktop `min-height`) and the `Copy output` and
+  `Show output` buttons (`.pipeline-check-link`, 0.75rem text, no padding,
+  no desktop `min-height`) are small targets. The excerpt box, which takes focus,
+  sits right over `Copy output`, so the spacing exception may not
+  hold. Both are measured first, in the same ticket as the `Show details`
+  summary.
 - Stories for open-not-focused `disclosure` and a focused current
   group in `settingsnav`.
 
@@ -173,5 +189,8 @@ anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
   product decision first.
 - Stitch estimated sizes from images, so none of its pixel figures were
   adopted without measuring the CSS.
+- Telling the user when the token can't read job logs is a feature idea
+  from the `checkrunoutput` discussion, not a Stitch finding. It is
+  ticketed on its own.
 - Not measured: `advisoriesdialog` filter pills (20 to 22px) and the
   `errorpage` links on desktop. The phone sizes are 44px.
