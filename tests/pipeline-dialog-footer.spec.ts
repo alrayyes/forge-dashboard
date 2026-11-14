@@ -78,11 +78,33 @@ const dialog = (page: Page) =>
 const link = (page: Page) =>
   dialog(page).getByRole('link', { name: LINK_NAME });
 
+// Reads the link's box until two reads in a row agree, so a slide-in or a late
+// render can't decide the result.
+async function settledBox(page: Page) {
+  let last = '';
+  let box: { x: number; y: number; width: number; height: number } | null =
+    null;
+  await expect
+    .poll(async () => {
+      box = await link(page).boundingBox();
+      const now = JSON.stringify(box);
+      const same = box !== null && now === last;
+      last = now;
+      return same;
+    })
+    .toBe(true);
+  return box as unknown as {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}
+
 async function insideViewport(page: Page) {
-  const box = await link(page).boundingBox();
+  const box = await settledBox(page);
   const view = page.viewportSize();
-  expect(box).not.toBeNull();
-  if (!box || !view) return;
+  if (!view) throw new Error('no viewport');
   expect(box.x).toBeGreaterThanOrEqual(0);
   expect(box.y).toBeGreaterThanOrEqual(0);
   expect(box.x + box.width).toBeLessThanOrEqual(view.width);
@@ -112,10 +134,17 @@ test.describe('pipeline dialog footer', () => {
   }
 
   test('the run link stays on screen at 200% root font', async ({ page }) => {
-    await page.addInitScript(() => {
+    await open(page, { width: 390, height: 780 }, 40);
+    await page.evaluate(() => {
       document.documentElement.style.fontSize = '200%';
     });
-    await open(page, { width: 390, height: 780 }, 40);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => getComputedStyle(document.documentElement).fontSize,
+        ),
+      )
+      .toBe('32px');
     await insideViewport(page);
   });
 
@@ -130,6 +159,7 @@ test.describe('pipeline dialog footer', () => {
         .locator('.pipeline-dialog-body')
         .getByRole('link', { name: LINK_NAME }),
     ).toHaveCount(0);
+    await settledBox(page);
     const m = await link(page).evaluate((el) => {
       const a = el.getBoundingClientRect();
       const f = el.parentElement?.getBoundingClientRect();
@@ -155,7 +185,7 @@ test.describe('pipeline dialog footer', () => {
     page,
   }) => {
     await open(page, { width: 1280, height: 800 }, 4);
-    const box = await link(page).boundingBox();
+    const box = await settledBox(page);
     const sheet = await dialog(page).boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(24);
     expect((box?.x ?? 0) - (sheet?.x ?? 0)).toBeLessThan(40);
@@ -167,11 +197,14 @@ test.describe('pipeline dialog footer', () => {
     await open(page, { width: 390, height: 780 }, 40);
     const last = dialog(page).locator('.pipeline-check').last();
     await last.scrollIntoViewIfNeeded();
-    const lastBox = await last.boundingBox();
-    const linkBox = await link(page).boundingBox();
-    expect((lastBox?.y ?? 0) + (lastBox?.height ?? 0)).toBeLessThanOrEqual(
-      linkBox?.y ?? 0,
-    );
+    await expect
+      .poll(async () => {
+        const lastBox = await last.boundingBox();
+        const linkBox = await link(page).boundingBox();
+        if (!lastBox || !linkBox) return false;
+        return lastBox.y + lastBox.height <= linkBox.y;
+      })
+      .toBe(true);
   });
 
   test('it is the last stop in tab order', async ({ page }) => {
