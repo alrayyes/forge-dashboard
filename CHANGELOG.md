@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.57.3](https://github.com/alrayyes/forge-dashboard/compare/v9.57.2...v9.57.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **imageproxy:** refuse documentation and reserved address ranges ([#3918](https://github.com/alrayyes/forge-dashboard/issues/3918)) ([92e619e](https://github.com/alrayyes/forge-dashboard/commit/92e619ee15b2d5443e1244eb413a8b172e1d0f0b)), closes [#3906](https://github.com/alrayyes/forge-dashboard/issues/3906)
+
+## [9.57.2](https://github.com/alrayyes/forge-dashboard/compare/v9.57.1...v9.57.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **dashboard:** count only asked forges toward the forge-down streak ([#3915](https://github.com/alrayyes/forge-dashboard/issues/3915)) ([8fb5ef4](https://github.com/alrayyes/forge-dashboard/commit/8fb5ef4bd2df0aca45a7f05222497b0e1a89b5de)), closes [#3905](https://github.com/alrayyes/forge-dashboard/issues/3905)
+
 ## [9.57.1](https://github.com/alrayyes/forge-dashboard/compare/v9.57.0...v9.57.1) (2026-11-14)
 
 

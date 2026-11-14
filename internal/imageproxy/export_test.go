@@ -16,3 +16,7 @@ func HoldResizeSlots(n int) (release func()) {
 
 // ResizeSlots is how many resizes may run at once.
 const ResizeSlots = maxConcurrentResizes
+
+// RefuseNonPublic is the dial check, so a test can hand it an address as the
+// socket layer would, mapped form included.
+func RefuseNonPublic(address string) error { return refuseNonPublic("tcp", address, nil) }
