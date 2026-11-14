@@ -111,19 +111,34 @@ request, GitHub's `mergeStateStatus`, draft flag, behind count, auto-merge
 state and merge methods with what the dashboard shows, in the public repo
 `alrayyes/forge-dashboard-e2e-fixture`.
 
+That repo is archived. On it the open pull requests read as blocked (the
+conflicting one as dirty), so two entries in `knownDisagreements` (pull
+requests 220 and 221) are stale and
+`TestGitHubState_DashboardAgreesWithGitHub` fails on them, though it only reads.
+`TestGitHubState_ClosedAndMergedPullRequestsAreNotListed` also only reads, and
+passes. The other two,
+`TestGitHubState_MergeUsesAMethodTheRepoAllows` and
+`TestGitHubState_AutoMergeFollowsTheRepoSetting`, write to the repo, and so do
+`reset.sh` and `build.sh`. They fail with a read-only error. To run them all,
+restore the repo from archive in its settings, under Danger zone, rebuild the
+fixture, and archive it again afterwards.
+
 ```sh
-scripts/e2e-fixture/reset.sh                 # close every PR, delete base/ and head/ branches
-scripts/e2e-fixture/build.sh /path/to/clone  # one open PR per state, a clone of the fixture repo
-GITHUB_TOKEN=$(gh auth token) go test -tags ghfixture -run TestGitHubState -v ./integration/
+scripts/e2e-fixture/reset.sh                 # needs the repo restored
+scripts/e2e-fixture/build.sh /path/to/clone  # needs the repo restored
+GITHUB_TOKEN=$(gh auth token) go test -tags ghfixture -run '^TestGitHubState_ClosedAndMergedPullRequestsAreNotListed$' -v ./integration/  # works while archived
+GITHUB_TOKEN=$(gh auth token) go test -tags ghfixture -run TestGitHubState -v ./integration/  # needs restore and rebuild
 ```
 
-The test prints one row per pull request: what GitHub says, what the dashboard
+The tests print one row per pull request: what GitHub says, what the dashboard
 says, and the verdict. Needs:
 
-- `gh` logged in as the fixture repo's owner (the tests read `viewerCanMergeAsAdmin`,
-  change merge settings and open and merge pull requests of their own).
-- The fixture built, and its checks finished. Two pull requests hold a "slow" check
-  pending for 55 minutes, so run the test within that window or rebuild.
+- `gh` logged in as the fixture repo's owner (the tests read `viewerCanMergeAsAdmin`;
+  the two writing tests also change merge settings and open and merge pull
+  requests of their own).
+- For the full comparison, the fixture restored from archive and rebuilt, and
+  its checks finished. Two pull requests hold a "slow" check pending for 55
+  minutes, so run the test within that window or rebuild.
 
 A difference that is deliberate (an empty or stacked pull request, which the
 dashboard blocks and GitHub allows; the owner's merge past requirements,
