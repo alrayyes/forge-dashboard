@@ -2624,6 +2624,11 @@
         group.append(
           el("span", "mentioned-by-label", "Referenced in"),
           referenced,
+          el(
+            "span",
+            "mentioned-by-hint",
+            "Italic: these reference the issue, they do not close it.",
+          ),
         );
         attributes.appendChild(group);
       }

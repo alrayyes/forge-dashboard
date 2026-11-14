@@ -251,6 +251,22 @@ test.describe('the refs pill on an issue row', () => {
     await expect(refPills(page, 'Many references')).toHaveCount(4);
   });
 
+  test('a refs pill says in its tooltip that it does not close the issue', async ({
+    page,
+  }) => {
+    await open(page, '/issues.html');
+    const pill = refPills(page, 'Fixed and referenced').first();
+    await expect(pill).toHaveAttribute(
+      'title',
+      'References this issue, does not close it',
+    );
+    await expect(
+      rowOf(page, 'Fixed and referenced')
+        .locator('.linked-pr:not(.refs-pill)')
+        .first(),
+    ).toHaveAttribute('title', 'Closes this issue when it merges');
+  });
+
   test('is in the issue pop-up under Referenced in, with no axe violations', async ({
     page,
   }) => {
@@ -266,6 +282,10 @@ test.describe('the refs pill on an issue row', () => {
       'Referenced in',
     );
     await expect(popup.locator('.refs-pill')).toHaveCount(2);
+    // Reachable without hover, so a phone reader gets it too.
+    await expect(popup.locator('.mentioned-by-hint')).toHaveText(
+      'Italic: these reference the issue, they do not close it.',
+    );
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
