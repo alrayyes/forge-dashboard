@@ -339,8 +339,12 @@ can't fire a tracking pixel when the dialog opens.
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public
   address (private, local, link-local, shared 100.64.0.0/10, benchmarking,
-  documentation, class E, NAT64 and 6to4 ranges, plus IPv4-mapped forms of
-  these) is refused on the resolved address. The exception is
+  documentation (including 3fff::/20), class E, NAT64, 6to4, and the
+  192.88.99.0/24 relay, the 0.0.0.0/8 "this network" block, the 100::/64
+  discard prefix and the unreachable parts of 2001::/23 (Teredo, benchmarking,
+  deprecated ORCHID), plus IPv4-mapped forms of these) is refused on the
+  resolved address. The globally reachable parts of 2001::/23 (IETF
+  service hosts, AMT, AS112, ORCHIDv2) stay allowed. The exception is
   the configured Forgejo instance, which is often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
   the host's header. SVG is refused. Up to 8 MiB for an embedded image, 512 KiB
