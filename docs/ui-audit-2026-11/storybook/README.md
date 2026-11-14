@@ -198,7 +198,7 @@ uploaded as stacked parts.
   hold. Both are measured first, in the same ticket as the `Show details`
   summary.
 - Stories for open-not-focused `disclosure` and a focused current
-  group in `settingsnav`.
+  group in `settingsnav`. Both now exist and are listed in the table.
 
 ### Noted, not ticketed
 
