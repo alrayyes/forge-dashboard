@@ -341,10 +341,13 @@ can't fire a tracking pixel when the dialog opens.
   address (private, local, link-local, shared 100.64.0.0/10, benchmarking,
   documentation (including 3fff::/20), class E, NAT64, 6to4, and the
   192.88.99.0/24 relay, the 0.0.0.0/8 "this network" block, the 100::/64
-  discard prefix and the unreachable parts of 2001::/23 (Teredo, benchmarking,
-  deprecated ORCHID), plus IPv4-mapped forms of these) is refused on the
-  resolved address. The globally reachable parts of 2001::/23 (IETF
-  service hosts, AMT, AS112, ORCHIDv2) stay allowed. The exception is
+  discard prefix, the 100:0:0:1::/64 dummy prefix, the 5f00::/16 segment
+  routing block, and all of 2001::/23 except the entries the registry marks
+  globally reachable, plus IPv4-mapped forms of these) is refused on the
+  resolved address. The reachable
+  entries of 2001::/23 stay allowed: three single addresses
+  (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of 2001:1::/32), AMT,
+  AS112-v6, ORCHIDv2, and the drone remote ID tags. The exception is
   the configured Forgejo instance, which is often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
   the host's header. SVG is refused. Up to 8 MiB for an embedded image, 512 KiB
