@@ -287,6 +287,6 @@ A row whose own content changed updates where it stands, and a refresh with no
 change leaves every row alone. Sort works as it does for pull requests, and
 like them the filter bar and sort control are hidden while the list has one row
 or none (see Short lists in the pull request pages doc). When filters narrow
-a longer list to one row, sort and group are disabled instead and the label
-filter hides unless a label is picked. The pause setting is
-shared with the pull request page.
+a longer list to one row, sort and group are disabled instead, and the repo,
+author and label filters hide unless something is picked in that filter. The
+pause setting is shared with the pull request page.

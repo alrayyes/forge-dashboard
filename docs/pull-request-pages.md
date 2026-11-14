@@ -125,11 +125,13 @@ why ("Sorting and grouping need two or more rows."). It is visible, so touch and
 keyboard users get it too, and the selects are described by it. The bar can
 still change height as rows come and go. Your chosen sort is kept and works
 again when a second row arrives. A chosen grouping stays enabled so it can be
-undone. The **Labels** filter hides over one row unless a label is picked,
-since its choices can then only empty the list. If a select held focus when it
-disabled, focus moves to the first control still drawn. The same holds for the
-Issues, Releases, and Bots pages. On a phone the selects and the line sit in
-the Filters sheet.
+undone. The repo, author and **Labels** filters hide over one row unless
+something is picked in that filter, since their choices can then only empty the
+list. A filter that holds a pick stays drawn so you can clear it. If a select
+held focus when it disabled, focus moves to the first control still drawn. The
+same holds for the Issues, Releases, and Bots pages. On a phone the selects and
+the line sit in the Filters sheet, and a filter that hides is gone from the
+sheet too.
 
 The title box hides on its own when the other filters leave exactly one row,
 since it has nothing to narrow. It counts the rows before the box's own text
