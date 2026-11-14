@@ -3,6 +3,7 @@
 Generated from `bun run storybook:screenshots` (93 stories). Each story is
 either audited by a numbered Stitch request (answers recorded below as they
 arrive) or renders nothing in that state, so there is nothing to look at.
+Two stories were added after the audit and are listed as not audited.
 Sheets sent to Stitch are in `sheets/`. Audited at desktop 1280px, light theme
 only: the catalogue has no phone or dark variants, so those remain covered only
 by the route-level audit (forge-dashboard-1 to 27).
@@ -39,6 +40,7 @@ by the route-level audit (forge-dashboard-1 to 27).
 | `disclosure--closed`                                                             | `disclosure`               | forge-dashboard-32                     | audited, see below |
 | `disclosure--focused`                                                            | `disclosure`               | forge-dashboard-32                     | audited, see below |
 | `disclosure--open`                                                               | `disclosure`               | forge-dashboard-32                     | audited, see below |
+| `disclosure--open-not-focused`                                                   | `disclosure`               | none, added after the audit            | not audited        |
 | `errorpage--not-found`                                                           | `errorpage`                | forge-dashboard-33                     | audited, see below |
 | `errorpage--server-error`                                                        | `errorpage`                | forge-dashboard-33                     | audited, see below |
 | `firstrefreshstatus--announces-by-changing-text`                                 | `firstrefreshstatus`       | forge-dashboard-34                     | audited, see below |
@@ -101,6 +103,7 @@ by the route-level audit (forge-dashboard-1 to 27).
 | `settingsnav--connections-current`                                               | `settingsnav`              | forge-dashboard-45                     | audited, see below |
 | `settingsnav--display-current`                                                   | `settingsnav`              | forge-dashboard-45                     | audited, see below |
 | `settingsnav--focus-on-a-group`                                                  | `settingsnav`              | forge-dashboard-45                     | audited, see below |
+| `settingsnav--focus-on-the-current-group`                                        | `settingsnav`              | none, added after the audit            | not audited        |
 | `settingsnav--integrations-current`                                              | `settingsnav`              | forge-dashboard-45                     | audited, see below |
 
 ## Findings
