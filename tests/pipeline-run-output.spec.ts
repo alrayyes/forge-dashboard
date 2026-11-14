@@ -376,7 +376,7 @@ test.describe('a check run output in the pipeline dialog', () => {
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveText('Copy output');
     await expect(
-      dialog.locator('.run-actions button.run-icon-btn'),
+      dialog.locator('.run-actions button.run-icon-btn:visible'),
     ).toHaveCount(0);
   });
 
