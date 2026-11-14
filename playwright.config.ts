@@ -71,7 +71,6 @@ const singleUserSpecs = [
   '**/filter-every-control.spec.ts',
   '**/filter-held-pick-note.spec.ts',
   '**/filter-hide-dependency-dashboard-restore.spec.ts',
-  '**/filter-late-copy.spec.ts',
   '**/filter-options.spec.ts',
   '**/mobile-filters.spec.ts',
   '**/filter-sheet-layout.spec.ts',
