@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.61.1](https://github.com/alrayyes/forge-dashboard/compare/v9.61.0...v9.61.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **imageproxy:** refuse the deprecated site-local range fec0::/10 ([#4003](https://github.com/alrayyes/forge-dashboard/issues/4003)) ([87abf65](https://github.com/alrayyes/forge-dashboard/commit/87abf651aaf3ca1767bce5b313e399ab7ce8a2ab)), closes [#3919](https://github.com/alrayyes/forge-dashboard/issues/3919)
+
 ## [9.61.0](https://github.com/alrayyes/forge-dashboard/compare/v9.60.2...v9.61.0) (2026-11-14)
 
 
