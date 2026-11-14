@@ -19,6 +19,7 @@ const singleUserSpecs = [
   '**/forced-colors-pressed-toggles.spec.ts',
   '**/forced-colors-current-page.spec.ts',
   '**/filter-pill-count-contrast.spec.ts',
+  '**/result-count.spec.ts',
   '**/advisory-chip-fit.spec.ts',
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',
