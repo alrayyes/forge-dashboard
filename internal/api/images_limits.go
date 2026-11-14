@@ -54,6 +54,7 @@ type imageKey struct {
 	forge string
 	kind  imageKind
 	url   string
+	width string // validated by the handler; empty is the original bytes
 }
 
 type cachedImage struct {
@@ -70,7 +71,7 @@ func (l *imageLimits) load(ctx context.Context, q url.Values, raw string, fetch 
 	if q.Get("kind") == string(imageAvatar) {
 		kind = imageAvatar
 	}
-	key := imageKey{forge: q.Get("forge"), kind: kind, url: raw}
+	key := imageKey{forge: q.Get("forge"), kind: kind, url: raw, width: q.Get("width")}
 	if img, ok := l.get(key); ok {
 		return img, nil
 	}
