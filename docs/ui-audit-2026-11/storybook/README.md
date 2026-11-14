@@ -150,17 +150,17 @@ anything was adopted. Requests 28 (`advisoriesdialog`, first sheet) and
   harness shrink-wraps the box; it is not a layout shift in the app.
 - **Considered, not adopted:** a reason for the disabled `Show output`
   button, a spinner, colour-only error pills (the sheets show error text
-  and an `ERROR` tag), and the `forgehealth` "0 GraphQL budget but green
+  and a tag reading `ERROR`), and the `forgehealth` "0 GraphQL budget but green
   pill" and refresh-button copy. These are opinions that need a product
   decision first.
 
 ### Adopted
 
 - The failed-load logo story does not fail: the screenshot script
-  serves every logo path, so it matches the loaded story. A really
+  serves every logo path, so it came out identical to the loaded story. A really
   failed load draws nothing (`RepoLogo` renders only the image), so it
   belongs with the stories that render nothing.
-- The `Show details` summary in `forgehealth` is an 11px target with no
+- The `Show details` summary in `forgehealth` has 11px text and no
   `min-height`. It is missing from the tap-floor selector list and from
   the hit-area sweep. Stitch's other size claims were rejected above.
 - Stories for open-not-focused `disclosure` and a focused current
