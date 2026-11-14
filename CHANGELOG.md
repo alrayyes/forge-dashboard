@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.60.1](https://github.com/alrayyes/forge-dashboard/compare/v9.60.0...v9.60.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** say Conflict not confirmed once, with a reason the row can act on ([#3970](https://github.com/alrayyes/forge-dashboard/issues/3970)) ([b93747a](https://github.com/alrayyes/forge-dashboard/commit/b93747add93c98dc4052f1f8c1793be6f50646c2))
+
 ## [9.60.0](https://github.com/alrayyes/forge-dashboard/compare/v9.59.4...v9.60.0) (2026-11-14)
 
 
