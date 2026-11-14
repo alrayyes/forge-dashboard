@@ -78,6 +78,10 @@ Six specs started here: `webhooks`, `settings-field-errors`,
 `filter-newer-wins`. Each Go test below was run red under a mutation of the
 server code it covers, and the change was reverted.
 
+`filter-late-copy` has since gone. Each control now calls a function in
+`web/src/lib/filter-wiring.ts`, and its unit test goes red when the call that
+marks the key as touched is removed.
+
 | Server logic                                                                           | Go test                                                                                                 | Mutation                                                                   | Result            |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------- |
 | Webhook signature check                                                                | `TestGitHubWebhook_*_Refused`, `TestForgejoWebhook_*_Refused`                                           | check skipped                                                              | 6 fail, red       |

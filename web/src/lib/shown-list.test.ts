@@ -1,7 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import type { FilterableItem } from './filters';
-import { choicesChange, offerAction, shownList } from './shown-list';
+import { choicesChange, landShown, offerAction, shownList } from './shown-list';
 
 function item(over: Record<string, unknown> = {}): FilterableItem {
   return {
@@ -107,5 +107,29 @@ describe('offerAction', () => {
   test('any other change rebuilds every choice', () => {
     expect(offerAction('all', false, false)).toBe('rebuild');
     expect(offerAction('all', false, true)).toBe('rebuild');
+  });
+});
+
+describe('landShown', () => {
+  test('lands the list and offers the choices it changes when asked to', () => {
+    const shown = shownList<FilterableItem>();
+    shown.land([item()]);
+    const offers: string[] = [];
+    landShown(shown, [item({ repo: 'a/c' })], true, (change) =>
+      offers.push(change),
+    );
+    expect(shown.items[0].repo).toBe('a/c');
+    expect(offers).toEqual(['all']);
+  });
+
+  test('lands the list without offering when the caller offers itself', () => {
+    const shown = shownList<FilterableItem>();
+    shown.land([item()]);
+    const offers: string[] = [];
+    landShown(shown, [item({ repo: 'a/c' })], false, (change) =>
+      offers.push(change),
+    );
+    expect(shown.items[0].repo).toBe('a/c');
+    expect(offers).toEqual([]);
   });
 });

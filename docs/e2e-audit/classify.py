@@ -6,7 +6,7 @@ BROWSER=re.compile(r'toHaveCSS|getComputedStyle|boundingBox|\.focus\(|keyboard\.
 lib={os.path.basename(p)[:-8] for p in glob.glob(f'{root}/web/src/lib/*.test.ts')}
 gotests=[os.path.basename(p) for p in glob.glob(f'{root}/internal/**/*_test.go',recursive=True)]
 gostems={g[:-8].replace('_','-') for g in gotests}
-Bset={'settings-field-errors','filter-persistence','main-branches-server-copy','filter-late-copy'}
+Bset={'settings-field-errors','filter-persistence','main-branches-server-copy'}
 Aset={'mono-figures'}  # assertions live in a helper the token scan cannot see
 Dset={'filter-save-order':'web/src/lib/filters-save-order.test.ts','filter-mixed-case':'web/src/lib/filters-mixed-case.test.ts'}
 rows=[]

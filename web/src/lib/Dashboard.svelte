@@ -44,8 +44,27 @@
     type FeedSource,
     type RunFacts,
   } from "#lib/check-feed.js";
+  import {
+    clearFilterFor,
+    releaseHeldPick,
+    resetFilters,
+    setDrafts,
+    setGroupBy,
+    setHideDependencyDashboard,
+    setHideTitleRegex,
+    setPaused,
+    setQuickPill,
+    setSegment,
+    setSharedControl,
+    setSort,
+  } from "#lib/filter-wiring.js";
   import * as Filters from "#lib/filters.js";
-  import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
+  import {
+    choicesChange,
+    landShown,
+    offerAction,
+    shownList,
+  } from "#lib/shown-list.js";
   import {
     labelKey,
     repoName,
@@ -5605,18 +5624,19 @@
     function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
-      const before = prShown.items;
-      prShown.land(sorted);
-      if (offer) offerWhatIsShown(choicesChange(before, prShown.items));
+      landShown(prShown, sorted, offer, offerWhatIsShown);
       prBoard.replaceItems(prShown.items);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
     function applyPendingIssuesNow(offer = true) {
-      const before = issueShown.items;
-      issueShown.land(Filters.sortItems(rawIssues, sharedState.view.sort));
-      if (offer) offerWhatIsShown(choicesChange(before, issueShown.items));
+      landShown(
+        issueShown,
+        Filters.sortItems(rawIssues, sharedState.view.sort),
+        offer,
+        offerWhatIsShown,
+      );
       issueBoard.replaceItems(issueShown.items);
       latestIssues = null;
       latestIssuesAsked = false;
@@ -8298,9 +8318,10 @@
         hideDependencyDashboardCheckbox.checked =
           extraState.hideDependencyDashboard === "1";
         hideDependencyDashboardCheckbox.addEventListener("change", () => {
-          extraState.hideDependencyDashboard =
-            hideDependencyDashboardCheckbox.checked ? "1" : "";
-          Filters.touchKey("issue", "hideDependencyDashboard");
+          setHideDependencyDashboard(
+            sharedState,
+            hideDependencyDashboardCheckbox.checked,
+          );
           state.page = 1;
           Filters.saveState(sharedState);
           // What it hides or shows changes which repos, authors and labels
@@ -8320,8 +8341,7 @@
         titleRegexInput.value = extraState.hideTitleRegex ?? "";
         titleRegexInput.addEventListener("input", () => {
           onUserChange?.();
-          extraState.hideTitleRegex = titleRegexInput.value;
-          Filters.touchKey("issue", "hideTitleRegex");
+          setHideTitleRegex(sharedState, titleRegexInput.value);
           state.page = 1;
           Filters.saveState(sharedState, "hideTitleRegex");
           updateSharedFilterOptions();
@@ -8428,8 +8448,7 @@
     );
 
     togglePause = () => {
-      sharedState.view.paused = updatesPaused() ? "" : "1";
-      Filters.touchKey("view", "paused");
+      setPaused(sharedState, !updatesPaused());
       Filters.saveState(sharedState);
       syncPauseControl();
       announceText(
@@ -8445,8 +8464,7 @@
     };
     syncPauseControl();
     showDraftsButton?.addEventListener("click", () => {
-      sharedState.view.drafts = draftsOn() ? "" : "1";
-      Filters.touchKey("view", "drafts");
+      setDrafts(sharedState, !draftsOn());
       Filters.saveState(sharedState);
       syncDraftsPreference();
     });
@@ -8495,9 +8513,7 @@
             c instanceof HTMLInputElement && c.type === "radio"
               ? c.value
               : c.value.trim().toLowerCase();
-          sharedState.shared[col] = value;
-          Filters.touchKey("shared", col);
-          Filters.releaseHeld("shared", col);
+          setSharedControl(sharedState, col, value);
           prBoard.resetPage();
           issueBoard.resetPage();
           // Repo/Author/Label options (and "Group by forge") are scoped
@@ -8562,8 +8578,7 @@
       b.addEventListener("click", () => {
         const group = b.closest<HTMLElement>("[data-group]")?.dataset
           .group as Filters.PillGroup;
-        Filters.setPill(sharedState, group, b.dataset.pill ?? "all");
-        Filters.touchKey(group === "forge" ? "shared" : "pr", group);
+        setQuickPill(sharedState, group, b.dataset.pill ?? "all");
         prBoard.resetPage();
         issueBoard.resetPage();
         updateSharedFilterOptions();
@@ -8620,10 +8635,6 @@
         .querySelector<HTMLButtonElement>(`.${groupClass} [data-${attr}="any"]`)
         ?.click();
     }
-    function setPick(group: Record<string, string>, key: string, v: string) {
-      if (v === "any") delete group[key];
-      else group[key] = v;
-    }
     // On and Off filter on what the forge says; the choice is the pull request
     // board's own (sharedState.pr), so it combines with a quick pill.
     const syncAutoMerge = wireSegment(
@@ -8631,8 +8642,7 @@
       "am",
       () => sharedState.pr.autoMerge,
       (v) => {
-        setPick(sharedState.pr, "autoMerge", v);
-        Filters.touchKey("pr", "autoMerge");
+        setSegment(sharedState, "pr", "autoMerge", v);
       },
       () => prBoard.resetPage(),
     );
@@ -8643,8 +8653,7 @@
       "ref",
       () => pickGroup()[refsKey()],
       (v) => {
-        setPick(pickGroup(), refsKey(), v);
-        Filters.touchKey(pullsView ? "pr" : "issue", refsKey());
+        setSegment(sharedState, pullsView ? "pr" : "issue", refsKey(), v);
       },
       () => {
         prBoard.resetPage();
@@ -8681,8 +8690,7 @@
       "shared-group-select",
     ) as HTMLSelectElement | null;
     sharedGroupSelect?.addEventListener("change", () => {
-      sharedState.shared.groupBy = sharedGroupSelect.value || "";
-      Filters.touchKey("shared", "groupBy");
+      setGroupBy(sharedState, sharedGroupSelect.value || "");
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -8696,8 +8704,7 @@
     ) as HTMLSelectElement | null;
     if (sortSelect) sortSelect.value = sharedState.view.sort || "";
     sortSelect?.addEventListener("change", () => {
-      sharedState.view.sort = sortSelect.value;
-      Filters.touchKey("view", "sort");
+      setSort(sharedState, sortSelect.value);
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -8960,9 +8967,7 @@
     function renderHeldNote() {
       if (!heldPicksEl) return;
       Filters.renderHeldPicks(heldPicksEl, (pick) => {
-        Filters.releaseHeld(pick.group, pick.key);
-        Filters.touchKey(pick.group, pick.key);
-        Filters.saveState(sharedState);
+        releaseHeldPick(sharedState, pick);
         updateClearFiltersButton();
       });
     }
@@ -9071,9 +9076,7 @@
           continue;
         }
         const group = prKeys.includes(filter) ? "pr" : "shared";
-        Filters.touchKey(group, filter);
-        sharedState[group][filter] = "";
-        Filters.releaseHeld(group, filter);
+        clearFilterFor(sharedState, group, filter);
       }
       if (failing.length > 0) {
         syncQuickPills();
@@ -9106,27 +9109,12 @@
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {
-      // Mutated in place, not reassigned: createBoard's own extraState
-      // closures (sharedState.pr, sharedState.issue) captured these
-      // exact objects at setup time, and a reassignment here would
-      // leave them pointing at the old, still-filtered one.
-      for (const k of Object.keys(sharedState.shared))
-        delete sharedState.shared[k];
-      for (const k of Object.keys(sharedState.pr)) delete sharedState.pr[k];
-      // The page's own saved values for a field the Settings page replaced
-      // stay: they come back when the setting is turned off (#1630).
-      const keptDependencyDashboard = sharedState.issue.hideDependencyDashboard;
-      const keptTitleRegex = sharedState.issue.hideTitleRegex;
-      for (const k of Object.keys(sharedState.issue))
-        delete sharedState.issue[k];
-      sharedState.issue.hideDependencyDashboard =
-        settingsHideDependencyDashboard
-          ? (keptDependencyDashboard ?? "1")
-          : "1";
-      if (settingsIgnoreTitles && keptTitleRegex)
-        sharedState.issue.hideTitleRegex = keptTitleRegex;
-      Filters.releaseAllHeld();
-      Filters.touchAll();
+      // Emptied in place: createBoard's own extraState closures captured
+      // these objects at setup time.
+      resetFilters(sharedState, {
+        hideDependencyDashboard: settingsHideDependencyDashboard,
+        ignoreTitles: settingsIgnoreTitles,
+      });
       syncQuickPills();
       syncAutoMerge();
       syncRefs();
