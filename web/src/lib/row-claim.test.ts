@@ -128,3 +128,11 @@ describe('rowClaim', () => {
     expect(src).not.toMatch(/forgejo|github/i);
   });
 });
+
+// The Go mirror (internal/dashboard/row_claim_test.go) pins this same sentence
+// for a row with no since-time, so the two read alike.
+test('a carried-over row with no since-time reads as the server does', () => {
+  expect(rowClaim({ kind: 'state', lock: unreachable }).reason).toBe(
+    "Showing data. The forge isn't answering yet, so this may be an earlier answer, and no action can run until it does.",
+  );
+});
