@@ -68,16 +68,19 @@ func refreshForge(t *testing.T) (cfg oauth2.Config, forms func() []url.Values) {
 	}))
 	t.Cleanup(srv.Close)
 
-	return oauth2.Config{
+	cfg = oauth2.Config{
 		ClientID:     "client-id",
 		ClientSecret: "client-secret",
 		Endpoint:     oauth2.Endpoint{TokenURL: srv.URL + "/token"},
-	}, func() []url.Values {
+	}
+	forms = func() []url.Values {
 		mu.Lock()
 		defer mu.Unlock()
 
 		return append([]url.Values(nil), got...)
 	}
+
+	return cfg, forms
 }
 
 func expiredToken() *oauth2.Token {
