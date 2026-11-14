@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.59.3](https://github.com/alrayyes/forge-dashboard/compare/v9.59.2...v9.59.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **pipeline-dialog:** name the run the link opens when checks span several runs ([#3964](https://github.com/alrayyes/forge-dashboard/issues/3964)) ([cbba7c8](https://github.com/alrayyes/forge-dashboard/commit/cbba7c87f1cf5033f3edfa410584fde4f9421e81)), closes [#3877](https://github.com/alrayyes/forge-dashboard/issues/3877)
+
 ## [9.59.2](https://github.com/alrayyes/forge-dashboard/compare/v9.59.1...v9.59.2) (2026-11-14)
 
 
