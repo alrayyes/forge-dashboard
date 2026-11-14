@@ -1201,12 +1201,15 @@ func settleOrHold(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.
 // holdUpstreamError counts forge's consecutive failed fetches in streaks, and
 // turns the first ForgeFailureThreshold-1 failures that were the forge's own 5xx
 // into the rows and health it last had, so the page does not flip to a banner
-// for a blip. A fetch that read the forge resets the count.
+// for a blip. A fetch that read the forge resets the count. A forge nobody
+// asked (budget spent, previous fetch still running) is left out: only a real
+// answer moves the count.
 func holdUpstreamError(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, forge Forge) (Result, bool) {
+	if !asked {
+		return r, false
+	}
 	if r.Health.Reachable {
-		if asked {
-			streaks[forge] = 0
-		}
+		streaks[forge] = 0
 
 		return r, false
 	}
