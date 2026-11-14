@@ -33,7 +33,11 @@
   name="Logo fails to load"
   args={{ url: "https://logos.example.test/missing.png" }}
   play={async ({ canvasElement }) => {
-    await waitFor(() => expect(canvasElement.querySelector("img")).toBeNull());
+    // The test runner does not intercept the logo request, so on a busy
+    // machine the failure arrives well after waitFor's 1000 ms default.
+    await waitFor(() => expect(canvasElement.querySelector("img")).toBeNull(), {
+      timeout: 15000,
+    });
   }}
 />
 
