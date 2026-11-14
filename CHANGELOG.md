@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.58.2](https://github.com/alrayyes/forge-dashboard/compare/v9.58.1...v9.58.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** show a refused action's reason once, in the toast ([#3930](https://github.com/alrayyes/forge-dashboard/issues/3930)) ([91b85f5](https://github.com/alrayyes/forge-dashboard/commit/91b85f5f0adfdec3006ce0a4771985c67e9269f9)), closes [#3914](https://github.com/alrayyes/forge-dashboard/issues/3914)
+
 ## [9.58.1](https://github.com/alrayyes/forge-dashboard/compare/v9.58.0...v9.58.1) (2026-11-14)
 
 
