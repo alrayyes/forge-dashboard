@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.58.1](https://github.com/alrayyes/forge-dashboard/compare/v9.58.0...v9.58.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **imageproxy:** refuse more IANA reserved address ranges ([#3934](https://github.com/alrayyes/forge-dashboard/issues/3934)) ([78733d3](https://github.com/alrayyes/forge-dashboard/commit/78733d3316a2bac3a905b446ef96fda81820f43e)), closes [#3923](https://github.com/alrayyes/forge-dashboard/issues/3923)
+
 ## [9.58.0](https://github.com/alrayyes/forge-dashboard/compare/v9.57.5...v9.58.0) (2026-11-14)
 
 
