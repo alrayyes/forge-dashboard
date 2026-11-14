@@ -80,3 +80,23 @@ func TestClaimOfRow(t *testing.T) {
 		assert.Equal(t, down, row)
 	})
 }
+
+// The web's rowClaim (web/src/lib/row-claim.ts) says the same words for a
+// carried-over row with no since-time; its test pins the same sentence.
+const carriedOverWords = "Showing data. The forge isn't answering yet, so this may be an earlier answer, and no action can run until it does."
+
+func TestClaimOf_CarriedOverReadsAsTheWebDoes(t *testing.T) {
+	c := dashboard.ClaimOf(dashboard.ClaimState, dashboard.ForgeHealth{Reachable: false}, true)
+	assert.Equal(t, carriedOverWords, c.Reason)
+}
+
+func TestForgeHealthOf(t *testing.T) {
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	down := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, StaleSince: &since}
+	up := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}
+	other := dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo}
+
+	assert.Equal(t, down, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{down, other}, dashboard.ForgeGitHub))
+	assert.Equal(t, up, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{down, up}, dashboard.ForgeGitHub), "a host that answers keeps the row's claim open")
+	assert.True(t, dashboard.ForgeHealthOf(nil, dashboard.ForgeGitHub).Reachable, "no entry says nothing against a row")
+}

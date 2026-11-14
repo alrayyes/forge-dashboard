@@ -1,6 +1,9 @@
 package dashboard
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 // ActionName is one thing a client can do to a pull request. Matches
 // components.schemas.AllowedAction.action.
@@ -43,6 +46,9 @@ type Blocked struct {
 	Code    ActionCode `json:"code"`
 	Message string     `json:"message"`
 	Next    string     `json:"next,omitempty"`
+	// Since is when the rows on show were read, set only with
+	// ActionForgeUnreachable and only when the dashboard knows.
+	Since *time.Time `json:"since,omitempty"`
 }
 
 // AllowedActions works out which actions a pull request offers, from the
@@ -51,6 +57,27 @@ type Blocked struct {
 // client: a rate-limited or unreachable forge, a missing token, an action
 // already in flight.
 func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
+	return AllowedActionsOn(pr, renovateAuthors, ForgeHealth{Reachable: true})
+}
+
+// AllowedActionsOn is AllowedActions for a pull request whose forge has the
+// given health. While the forge can't be asked the row is an earlier answer
+// and no action can run, so every action is blocked with the reason the claim
+// rule gives, whatever the earlier answer said (#3994). Nothing else of the forge's
+// health, a spent budget included, is read here.
+func AllowedActionsOn(pr PullRequest, renovateAuthors []string, h ForgeHealth) []ActionAvailability {
+	out := allowedActions(pr, renovateAuthors)
+	if claim := ClaimOf(ClaimAction, h, true); !claim.ActionsOpen {
+		for i := range out {
+			out[i].Primary = false
+			out[i].Blocked = &Blocked{Code: ActionForgeUnreachable, Message: claim.Reason, Since: claim.Since}
+		}
+	}
+
+	return out
+}
+
+func allowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
 	out := []ActionAvailability{}
 	// An empty pull request can't become mergeable by waiting, so it offers no
 	// Merge at all, only Close. PullRequestStatus says why (#1375).

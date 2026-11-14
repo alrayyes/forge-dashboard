@@ -12,7 +12,10 @@ const (
 	ClaimConflict ClaimKind = "conflict"
 	// ClaimState is any other fact the forge reports.
 	ClaimState ClaimKind = "state"
-	// ClaimAction is whether a control may be offered.
+	// ClaimAction is whether a control may be offered. It differs from
+	// ClaimState in nothing today: both read the forge's health the same way.
+	// The kinds are kept apart so a rule that needs one (a spent budget only
+	// closes actions, never says the data is old) has a place to land.
 	ClaimAction ClaimKind = "action"
 )
 
@@ -76,11 +79,40 @@ func ClaimOfRow(kind ClaimKind, since *time.Time) RowClaim {
 	return ClaimOf(kind, ForgeHealth{Reachable: true}, true)
 }
 
+// ForgeHealthOf is the health a row of kind forge is judged by when the
+// snapshot holds one entry per host. A row names its forge kind, not its host,
+// so one host that answers keeps the claim open, as the web's lock does. A kind
+// with no entry says nothing against its rows.
+func ForgeHealthOf(forges []ForgeHealth, forge Forge) ForgeHealth {
+	var first *ForgeHealth
+	for i := range forges {
+		if forges[i].Forge != forge {
+			continue
+		}
+		if ClaimOf(ClaimState, forges[i], true).State == ClaimConfirmed {
+			return forges[i]
+		}
+		if first == nil {
+			first = &forges[i]
+		}
+	}
+	if first == nil {
+		return ForgeHealth{Forge: forge, Reachable: true}
+	}
+
+	return *first
+}
+
+// carriedOverWords is the web's sentence for a carried-over row with no
+// since-time (web/src/lib/row-claim.ts), word for word. The since-time travels
+// in RowClaim.Since, not in the text.
+const carriedOverWords = "Showing data. The forge isn't answering yet, so this may be an earlier answer, and no action can run until it does."
+
 func carriedOver(since *time.Time) RowClaim {
 	return RowClaim{
 		State:       ClaimCarriedOver,
 		Since:       since,
 		ActionsOpen: false,
-		Reason:      "The forge can't be asked right now, so this is an earlier answer and no action can run until it can.",
+		Reason:      carriedOverWords,
 	}
 }

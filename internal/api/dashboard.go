@@ -480,6 +480,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	board.autoMergeReport = deps.Service.AutoMergeReport()
 	board.refreshInterval = deps.Service.RefreshInterval()
 	board.now = time.Now()
+	board.forges = snap.Forges
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
@@ -538,7 +539,10 @@ type boardSettings struct {
 	// the failing-for-good cutoff is a multiple of.
 	refreshInterval time.Duration
 	// now is the one clock the payload is built against.
-	now              time.Time
+	now time.Time
+	// forges is each host's health, which the claim rule reads for a row's
+	// allowed actions (#3994).
+	forges           []dashboard.ForgeHealth
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
@@ -792,7 +796,7 @@ func (idx snapshotIndex) closed(forge, repo string, number int) bool {
 // offer: auto-update skips it, so nothing else will bring it up to date
 // (#1104). Merge's "behind" reason then says who does.
 func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
-	actions := dashboard.AllowedActions(pr, b.renovateAuthors)
+	actions := dashboard.AllowedActionsOn(pr, b.renovateAuthors, dashboard.ForgeHealthOf(b.forges, pr.Forge))
 	_, repoAuto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]
 	if dashboard.KindOf(pr, b.renovateAuthors) == dashboard.KindRelease {
 		if !repoAuto {

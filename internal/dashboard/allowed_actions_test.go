@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -530,5 +531,46 @@ func TestAllowedActions_EditedDependabotBranchUpdatesInsteadOfRebasing(t *testin
 		})
 
 		assert.NotContains(t, actionNames(upToDate), dashboard.ActionUpdateBranch)
+	})
+}
+
+// While the forge can't be asked, no action can run, and the reason comes from
+// the one claim rule (#3994).
+func TestAllowedActionsOn_ForgeThatCantBeAsked(t *testing.T) {
+	t.Parallel()
+
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	down := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, StaleSince: &since}
+	claim := dashboard.ClaimOf(dashboard.ClaimAction, down, true)
+
+	for _, forge := range []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo} {
+		pr := ghPR(func(p *dashboard.PullRequest) { p.Forge = forge; p.Behind = true })
+		down.Forge = forge
+		actions := dashboard.AllowedActionsOn(pr, nil, down)
+		require.NotEmpty(t, actions)
+		for _, a := range actions {
+			require.NotNil(t, a.Blocked, "%s %s", forge, a.Action)
+			assert.Equal(t, dashboard.ActionForgeUnreachable, a.Blocked.Code)
+			assert.Equal(t, claim.Reason, a.Blocked.Message)
+			assert.Equal(t, claim.Since, a.Blocked.Since)
+			assert.False(t, a.Primary)
+		}
+	}
+
+	t.Run("the claim's reason outranks one the earlier answer had", func(t *testing.T) {
+		t.Parallel()
+
+		pr := ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting })
+		for _, a := range dashboard.AllowedActionsOn(pr, nil, down) {
+			if a.Action == dashboard.ActionMerge {
+				assert.Equal(t, dashboard.ActionForgeUnreachable, a.Blocked.Code)
+			}
+		}
+	})
+	t.Run("a forge that answers changes nothing", func(t *testing.T) {
+		t.Parallel()
+
+		pr := ghPR(nil)
+		assert.Equal(t, dashboard.AllowedActions(pr, nil), dashboard.AllowedActionsOn(pr, nil, dashboard.ForgeHealth{Reachable: true}))
 	})
 }
