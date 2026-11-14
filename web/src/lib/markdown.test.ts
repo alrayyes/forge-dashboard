@@ -3,6 +3,45 @@ import { describe, expect, test } from 'bun:test';
 import { renderMarkdown } from './markdown';
 import { repoUrlOf } from './repo-url';
 
+// A wall-clock budget fails on a loaded machine, so the cost of an input that
+// opens comments and never closes them is compared with the cost of the same
+// input with each comment closed. Load slows both alike; a render that goes
+// quadratic on the unclosed ones does not.
+const MAX_SLOWDOWN = 20;
+
+function openerInputs(n: number) {
+  const pair = (open: string, close: string) => ({
+    hostile: open.repeat(n),
+    baseline: close.repeat(n),
+  });
+  return [
+    pair(`<!-- ${'x'.repeat(100)}\n\n`, `<!-- ${'x'.repeat(100)} -->\n\n`),
+    pair('<!-- x\n', '<!-- x -->\n'),
+    pair('a <!-- b ', 'a <!-- b --> '),
+  ];
+}
+
+async function bestOf3(render: (src: string) => Promise<string>, src: string) {
+  let best = Number.POSITIVE_INFINITY;
+  for (let i = 0; i < 3; i++) {
+    const start = performance.now();
+    await render(src);
+    best = Math.min(best, performance.now() - start);
+  }
+  return best;
+}
+
+async function slowdown(
+  render: (src: string) => Promise<string>,
+  hostile: string,
+  baseline: string,
+) {
+  return (
+    (await bestOf3(render, hostile)) /
+    Math.max(await bestOf3(render, baseline), 1)
+  );
+}
+
 // https://github.com/alrayyes/forge-dashboard/issues/1655
 // GFM task list items: https://github.github.com/gfm/#task-list-items-extension-
 describe('task list items', () => {
@@ -397,16 +436,26 @@ describe('HTML comments', () => {
   });
 
   test('many comment openers that never close stay fast', async () => {
-    for (const src of [
-      `<!-- ${'x'.repeat(100)}\n\n`.repeat(20_000),
-      '<!-- x\n'.repeat(20_000),
-      'a <!-- b '.repeat(20_000),
-    ]) {
-      const start = performance.now();
-      const html = await renderMarkdown(src);
-      expect(performance.now() - start).toBeLessThan(2000);
-      expect(html).toContain('&lt;!--');
+    for (const { hostile, baseline } of openerInputs(20_000)) {
+      expect(await slowdown(renderMarkdown, hostile, baseline)).toBeLessThan(
+        MAX_SLOWDOWN,
+      );
+      expect(await renderMarkdown(hostile)).toContain('&lt;!--');
     }
+  });
+
+  test('a render that goes quadratic on unclosed openers fails that check', async () => {
+    const quadratic = async (src: string) => {
+      if (src.includes('-->')) return '';
+      const n = src.split('<!--').length;
+      let sink = 0;
+      for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) sink += j & 1;
+      return String(sink);
+    };
+    const [{ hostile, baseline }] = openerInputs(20_000);
+    expect(await slowdown(quadratic, hostile, baseline)).toBeGreaterThan(
+      MAX_SLOWDOWN,
+    );
   });
 
   test('an unclosed comment and raw HTML stay escaped text', async () => {
