@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.57.0](https://github.com/alrayyes/forge-dashboard/compare/v9.56.0...v9.57.0) (2026-11-14)
+
+
+### Features
+
+* **web:** make the result count on the list pages easier to see ([#3889](https://github.com/alrayyes/forge-dashboard/issues/3889)) ([c622759](https://github.com/alrayyes/forge-dashboard/commit/c6227595cf82d817b0fcf691aa4c3ca3adbf28cd)), closes [#3867](https://github.com/alrayyes/forge-dashboard/issues/3867)
+
+
+### Bug Fixes
+
+* **a11y:** give Show details, the generated description toggle and Copy output a 24px hit area ([#3900](https://github.com/alrayyes/forge-dashboard/issues/3900)) ([87471de](https://github.com/alrayyes/forge-dashboard/commit/87471de0a371472274817e674cf76a31a42430b2)), closes [#3891](https://github.com/alrayyes/forge-dashboard/issues/3891)
+
 ## [9.56.0](https://github.com/alrayyes/forge-dashboard/compare/v9.55.0...v9.56.0) (2026-11-14)
 
 
