@@ -9,6 +9,7 @@ import (
 	"database/sql"
 	"net"
 	"net/http"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -71,11 +72,33 @@ func TestRunHealthcheckFailsWhenNothingIsListening(t *testing.T) {
 	require.Error(t, runHealthcheck())
 }
 
-func TestRunHealthcheckFallsBackToDefaultAddrWhenEnvUnset(t *testing.T) {
-	// run's own default is ":8080" - nothing should be listening there in
-	// a test process, so this just proves the fallback is used (a
-	// connection-refused error) rather than an empty-addr parse error.
-	require.Error(t, runHealthcheck())
+func TestReadyzURLFallsBackToDefaultAddrWhenEnvUnset(t *testing.T) {
+	// Resolved without dialling: a dial of :8080 would depend on whether
+	// something on the machine happens to listen there.
+	t.Setenv("ADDR", "")
+	require.NoError(t, os.Unsetenv("ADDR"))
+
+	got, err := readyzURL()
+
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:8080/readyz", got)
+}
+
+func TestReadyzURLUsesThePortOfAddr(t *testing.T) {
+	t.Setenv("ADDR", "0.0.0.0:9191")
+
+	got, err := readyzURL()
+
+	require.NoError(t, err)
+	require.Equal(t, "http://127.0.0.1:9191/readyz", got)
+}
+
+func TestReadyzURLRejectsAnAddrWithoutAPort(t *testing.T) {
+	t.Setenv("ADDR", "localhost")
+
+	_, err := readyzURL()
+
+	require.Error(t, err)
 }
 
 // serveRoutes serves the given status per path and 404 for anything else,
