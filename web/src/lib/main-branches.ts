@@ -8,6 +8,7 @@ import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
+import { rowClaim } from './row-claim';
 
 export type MainBranchStatus =
   | 'failed'
@@ -150,7 +151,21 @@ export function branchNavCount(counts: MainBranchCounts): NavCount {
 // A row carried over from an earlier refresh. The server sends the time and
 // nothing else, so there is one fact and no second field to disagree.
 export function isStale(b: Pick<MainBranch, 'staleSince'>): boolean {
-  return b.staleSince != null;
+  return mainBranchClaim(b).state === 'carried_over';
+}
+
+// What a main branch row may claim: the same rowClaim a pull request row asks,
+// given the row's own since-time, so its reason reads the same (#3993).
+export function mainBranchClaim(
+  b: Pick<MainBranch, 'staleSince'>,
+  since?: string,
+) {
+  return rowClaim({
+    kind: 'state',
+    lock: null,
+    staleSince: b.staleSince,
+    since,
+  });
 }
 
 // The rows newest default-branch commit first, whatever their status. A row

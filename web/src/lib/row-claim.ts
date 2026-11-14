@@ -21,6 +21,9 @@ export type RowClaimInput = {
   kind: ClaimKind;
   // The forge's lock on its controls from the board's health, or null.
   lock: LockInfo | null;
+  // The row's own since-time (a main branch row's staleSince), when it carries
+  // one. A row with one is carried over whatever the lock says (#3993).
+  staleSince?: string | null;
   // How long ago the rows were read, already formatted, when known.
   since?: string;
   // False when the forge has not said (a conflict only its flag reports).
@@ -46,21 +49,23 @@ export function rowClaim({
   kind,
   lock,
   since,
+  staleSince,
   answered = true,
   updateOffered = false,
 }: RowClaimInput): RowClaim {
-  const actionsOpen = !isReadOnlyLock(lock);
+  const earlier = carriedOver(lock) || !!staleSince;
+  const actionsOpen = !isReadOnlyLock(lock) && !staleSince;
   const unconfirmed = kind === 'conflict' && !answered;
   const when = since ? ` from ${since}` : '';
 
-  if (carriedOver(lock)) {
-    const earlier = `The forge isn't answering yet, so this may be an earlier answer${when}, and no action can run until it does.`;
+  if (earlier) {
+    const answer = `The forge isn't answering yet, so this may be an earlier answer${when}, and no action can run until it does.`;
     return {
       state: 'carried_over',
       actionsOpen,
       reason: unconfirmed
-        ? `${WHY} ${earlier}`
-        : `Showing data${when}. ${earlier}`,
+        ? `${WHY} ${answer}`
+        : `Showing data${when}. ${answer}`,
     };
   }
   if (!unconfirmed) return { state: 'confirmed', actionsOpen, reason: '' };

@@ -223,7 +223,13 @@ none is while the forge can't be asked, and none is while its budget is spent
 (the web only; a spent budget says nothing about how old the data is). The
 Dependabot buttons, the actions in the issue dialog, the row controls, and the
 auto-merge, hidden-pull-request and queued-action checks on the server all ask
-it, so a new case lands in all of them at once.
+it, so a new case lands in all of them at once. A row that carries its own
+since-time, a main branch row or a repo marked `staleSince`, asks the same
+rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
+with one is carried over, in the same words and with the same since-time.
+Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
+reserve, the settings page, the snapshot cache, and which forges the aggregator
+asks) are not row claims and read the health directly.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
