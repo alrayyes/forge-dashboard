@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.59.4](https://github.com/alrayyes/forge-dashboard/compare/v9.59.3...v9.59.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** draw cancelled branches in the Branches nav pill ([#3966](https://github.com/alrayyes/forge-dashboard/issues/3966)) ([7c9d23d](https://github.com/alrayyes/forge-dashboard/commit/7c9d23d1789fe0b9dde8ad1715af4ae997290e44)), closes [#3958](https://github.com/alrayyes/forge-dashboard/issues/3958)
+
 ## [9.59.3](https://github.com/alrayyes/forge-dashboard/compare/v9.59.2...v9.59.3) (2026-11-14)
 
 
