@@ -256,7 +256,7 @@ test.describe('pipeline panel updates live', () => {
     await expect(row.locator('.ci-seg-waiting')).toHaveCount(0);
   });
 
-  test('a pull request dialog links to the newest run, as a branch does', async ({
+  test('a pull request dialog with several runs links the newest, and says latest', async ({
     page,
   }) => {
     await open(page, RUNNING_FORGEJO, [
@@ -273,7 +273,7 @@ test.describe('pipeline panel updates live', () => {
       },
     ]);
     const link = dialog(page).getByRole('link', {
-      name: 'Open run on Forgejo (opens in a new tab)',
+      name: 'Open latest run on Forgejo (opens in a new tab)',
     });
     await expect(link).toHaveAttribute(
       'href',

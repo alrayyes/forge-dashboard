@@ -51,10 +51,11 @@ async function open(
   size: { width: number; height: number },
   count: number,
   scheme: 'light' | 'dark' = 'light',
+  list: () => unknown[] = () => jobs(count),
 ) {
   await page.setViewportSize(size);
   await page.emulateMedia({ colorScheme: scheme });
-  await serveChecks(page, () => jobs(count));
+  await serveChecks(page, list);
   await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -190,6 +191,56 @@ test.describe('pipeline dialog footer', () => {
       await expect(link(page)).toHaveAttribute('rel', /noopener/);
     });
   }
+
+  const RUN = 'https://github.com/example/app/actions/runs';
+  const job = (run: number, conclusion: string) => ({
+    name: `job-${run}`,
+    status: 'completed',
+    conclusion,
+    url: `${RUN}/${run}/job/1`,
+  });
+
+  test('several runs with a failure link the failed run and say so', async ({
+    page,
+  }) => {
+    await open(page, SIZES[2], 2, 'light', () => [
+      job(7, 'failure'),
+      job(9, 'success'),
+    ]);
+    const failedLink = dialog(page).getByRole('link', {
+      name: 'Open latest failed run on GitHub (opens in a new tab)',
+    });
+    await expect(failedLink).toHaveAttribute('href', `${RUN}/7`);
+    await expect(failedLink).toHaveText('Open latest failed run on GitHub');
+    await expect(dialog(page).getByText(/whole run/i)).toHaveCount(0);
+  });
+
+  test('several runs with nothing failed link the newest and say latest', async ({
+    page,
+  }) => {
+    await open(page, SIZES[2], 2, 'light', () => [
+      job(7, 'success'),
+      job(9, 'success'),
+    ]);
+    const latest = dialog(page).getByRole('link', {
+      name: 'Open latest run on GitHub (opens in a new tab)',
+    });
+    await expect(latest).toHaveAttribute('href', `${RUN}/9`);
+  });
+
+  test('no run id means no run link', async ({ page }) => {
+    await open(page, SIZES[2], 1, 'light', () => [
+      {
+        name: 'external',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://ci.example/build/1',
+      },
+    ]);
+    await expect(dialog(page).locator('.pipeline-dialog-footer a')).toHaveCount(
+      0,
+    );
+  });
 
   test('a bottom safe-area inset pads the footer and keeps the button whole', async ({
     page,

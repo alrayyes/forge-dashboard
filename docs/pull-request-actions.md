@@ -153,8 +153,12 @@ Every link in the pipeline panel that leaves the dashboard opens a new tab and
 ends in an external-link icon. A job with output reads "Open job on GitHub" (or
 Forgejo) and opens that job's page. The footer holds one outlined button,
 "Open run on GitHub", pinned under a divider so it stays on screen however long
-the list is; it opens the run page. A held workflow reads "Approve on" followed
-by the forge's name.
+the list is; it opens the run page. When a pull request's checks belong to
+several runs (more than one workflow, or a re-run), one link can't open them
+all, so the button says which it opens: "Open latest failed run on GitHub" for
+the newest run with a failed check (even when a newer run passed), or "Open
+latest run on GitHub" when nothing failed. A held workflow reads "Approve on"
+followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
