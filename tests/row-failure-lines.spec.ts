@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // #752: a failure line on a row says one plain sentence, never the raw
 // error string; it can be dismissed and goes away by itself when it no
@@ -138,6 +139,7 @@ test.describe('row failure lines (#752)', () => {
     await prepare(page, { status: 500, body: { error: RAW } });
     await fail(page);
 
+    await dismissToasts(page);
     await line(page)
       .getByRole('button', { name: /^Dismiss/ })
       .click();
@@ -214,6 +216,7 @@ test.describe('row failure lines (#752)', () => {
   }) => {
     await prepare(page, { status: 502, body: { error: RAW } });
     await fail(page);
+    await dismissToasts(page);
     await expect(
       line(page).getByRole('button', { name: /^Retry/ }),
     ).toBeVisible();
@@ -254,6 +257,7 @@ test.describe('row failure lines (#752)', () => {
     await fail(page);
 
     await expect(line(page)).toContainText(sentence);
+    await dismissToasts(page);
     await expect(
       line(page).getByRole('button', { name: /^Retry/ }),
     ).toBeVisible();
@@ -265,6 +269,7 @@ test.describe('row failure lines (#752)', () => {
     await page.setViewportSize({ width: 375, height: 800 });
     await prepare(page, { status: 502, body: { error: RAW } });
     await fail(page);
+    await dismissToasts(page);
 
     const scrollWidth = await page.evaluate(
       () => document.documentElement.scrollWidth,

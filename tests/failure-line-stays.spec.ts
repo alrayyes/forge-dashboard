@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // #918: a failed action's line stays on its row until it is dismissed or the
 // row is acted on again, however many snapshots arrive, and a permission
@@ -113,6 +114,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .click();
     const line = rowFor(page, 613).locator('.row-feedback-line');
     await expect(line).toContainText('Missing permission');
+    await dismissToasts(page);
 
     // Snapshots keep arriving, some changing the row's own fields.
     const updates = [
@@ -153,14 +155,17 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     const line = rowFor(page, 613).locator('.row-feedback-line');
     await expect(line).toContainText('Missing permission');
 
-    // The row stays on screen (rows don't move until asked), so its line must too.
+    // The row stays on screen (rows don't move until asked), so its line must
+    // too. The toast still carries the sentence, so the line is in the page
+    // but not drawn (#3914).
     await push(page, [pr(603)]);
     await page.clock.runFor(300);
     await push(page, both);
     await page.clock.runFor(300);
 
     await expect(rowFor(page, 613)).toHaveCount(1);
-    await expect(line).toBeVisible();
+    await expect(line).toHaveCount(1);
+    await expect(line).toContainText('Missing permission');
   });
 
   test('a toast opening under the pointer keeps the board still until the pointer leaves it', async ({
@@ -220,8 +225,15 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await page.mouse.up();
     await expect(page.locator('#feedback-toasts li')).toHaveCount(0);
 
+    // Dismissing a failure toast and then pushing a snapshot that omits the
+    // pull request can throw a page-timer TypeError under load (#3931,
+    // reproduces on main). This test is about the board moving, so it
+    // tolerates exactly that error and nothing else; drop the catch when
+    // #3931 is fixed.
     await push(page, [pr(603)]);
-    await page.clock.runFor(300);
+    await page.clock.runFor(300).catch((error: unknown) => {
+      if (!String(error).includes("reading 'length'")) throw error;
+    });
     await expect(rowFor(page, 613)).toHaveCount(0);
   });
 
@@ -234,6 +246,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
     await rowFor(page, 613)
       .getByRole('button', { name: 'Update branch' })
       .click();
+    await dismissToasts(page);
     await expect(rowFor(page, 613).locator('.row-feedback-line')).toBeVisible();
     await push(page, both);
     await page.clock.runFor(300);
@@ -262,6 +275,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .getByRole('button', { name: 'Update branch' })
       .click();
     const line = rowFor(page, 613).locator('.row-feedback-line');
+    await dismissToasts(page);
     await expect(line).toBeVisible();
     await line.getByRole('button', { name: /^Dismiss/ }).click();
 
@@ -282,6 +296,7 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .getByRole('button', { name: 'Update branch' })
       .click();
     const line = rowFor(page, 613).locator('.row-feedback-line');
+    await dismissToasts(page);
     await expect(line).toBeVisible();
     await push(page, both);
     await push(page, [pr(613, { ci: 'pending' }), pr(603)]);

@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
+import { dismissToasts } from './toast-helper';
 
 // #707: after a Dependabot or Renovate rebase request the row says the
 // request went out, that the bot picks it up in its own time, and when it
@@ -295,22 +296,24 @@ for (const b of bots) {
 
       await expect(chip(page)).toHaveCount(0);
       await expect(line(page)).toContainText('Timed out');
+      const toasts = page.locator(
+        '#feedback-toasts .feedback-toast[data-kind="error"]',
+      );
+      await expect(toasts).toContainText(`${b.bot} hasn't acted`);
+      await expect(line(page)).toBeHidden();
+      await dismissToasts(page);
       await expect(
         line(page).getByRole('button', {
           name: b.id === 'dependabot' ? 'Ask again' : 'Retry',
         }),
       ).toBeVisible();
-      const toasts = page.locator(
-        '#feedback-toasts .feedback-toast[data-kind="error"]',
-      );
-      await expect(toasts).toContainText(`${b.bot} hasn't acted`);
       await expect(
         row(page).getByRole('button', { name: b.button }),
       ).toBeEnabled();
 
       // The same expired record on the next snapshot says nothing new.
       await push(page, current);
-      await expect(toasts).toHaveCount(1);
+      await expect(toasts).toHaveCount(0);
     });
 
     if (shared) {

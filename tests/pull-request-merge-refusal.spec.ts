@@ -178,6 +178,7 @@ test.describe('a refused merge explains itself from the server code', () => {
     await expect(
       page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
     ).toBeVisible();
+    await expect(row.locator('.row-feedback')).toBeHidden();
   });
 
   test('unknown: shows the forge text and keeps Merge clickable', async ({
@@ -193,15 +194,13 @@ test.describe('a refused merge explains itself from the server code', () => {
 
     const row = await confirmMerge(page);
 
-    await expect(row.locator('.row-feedback')).toContainText('EOF');
-    // The row says Failed, not Failed and a lingering "Merging…".
-    await expect(row.locator('.row-feedback')).toContainText('Failed');
-    await expect(row.locator('.row-feedback')).not.toContainText('Merging…');
     // An unlocked failure is an error toast, not a page banner.
     const failed = page.locator(
       '#feedback-toasts .feedback-toast[data-kind="error"]',
     );
     await expect(failed).toContainText('EOF');
+    // The reason is said once, in the toast; the row doesn't repeat it (#3914).
+    await expect(row.locator('.row-feedback')).toBeHidden();
     await expect(page.locator('#error-banner')).toHaveCount(0);
     await expect(page.locator('#status-banner')).toHaveCount(0);
     const button = row.getByRole('button', { name: 'Merge', exact: true });
@@ -209,7 +208,65 @@ test.describe('a refused merge explains itself from the server code', () => {
     await expect(button).not.toHaveAttribute('aria-disabled', 'true');
   });
 
-  test('a refused row has no axe-core violations', async ({ page }) => {
+  for (const refusal of [
+    {
+      name: 'rate_limited',
+      status: 429,
+      body: {
+        error: 'github: rate limit exceeded',
+        code: 'rate_limited',
+        message:
+          "The forge's API rate limit is reached. Try again once it resets.",
+      },
+      // The client words a rate limit itself, from the code.
+      shown: 'GitHub API rate limit reached',
+    },
+    {
+      name: 'not_mergeable',
+      status: 409,
+      body: {
+        error: 'x',
+        code: 'not_mergeable',
+        message: 'This pull request is not mergeable yet.',
+      },
+    },
+    {
+      name: 'a plain error',
+      status: 500,
+      body: { error: 'boom', code: 'unknown', message: 'Something broke.' },
+    },
+  ]) {
+    test(`${refusal.name}: the reason shows once (the toast), is announced once, and the row line returns when the toast is dismissed`, async ({
+      page,
+    }) => {
+      await mockBoard(page, [makePR()]);
+      await refuse(page, refusal.status, refusal.body);
+      await page.goto('/pull-requests.html');
+
+      const row = await confirmMerge(page);
+
+      const toast = page.locator(
+        '#feedback-toasts .feedback-toast[data-kind="error"]',
+      );
+      const shown = refusal.shown ?? (refusal.body.message as string);
+      await expect(toast).toContainText(shown);
+      // One visible copy: the row doesn't repeat the toast's sentence.
+      await expect(row.locator('.row-feedback-text')).toBeHidden();
+      // The live region still speaks it, once, and it isn't an alert.
+      await expect(page.locator('#feedback-live')).toContainText(shown);
+      await expect(page.locator('[role="alert"]')).toHaveCount(0);
+
+      // With the toast gone the row is the only copy, so it comes back.
+      await toast.getByRole('button', { name: /dismiss/i }).click();
+      await expect(toast).toHaveCount(0);
+      await expect(row.locator('.row-feedback-text')).toBeVisible();
+      await expect(row.locator('.row-feedback-text')).toContainText(shown);
+    });
+  }
+
+  test('a refused row and its toast have no axe-core violations', async ({
+    page,
+  }) => {
     await mockBoard(page, [makePR()]);
     await refuse(page, 409, {
       error: 'x',
@@ -219,7 +276,10 @@ test.describe('a refused merge explains itself from the server code', () => {
     await page.goto('/pull-requests.html');
 
     const row = await confirmMerge(page);
-    await expect(row.locator('.row-feedback')).toBeVisible();
+    await expect(
+      page.locator('#feedback-toasts .feedback-toast[data-kind="error"]'),
+    ).toBeVisible();
+    await expect(row.locator('.row-feedback')).toBeHidden();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

@@ -412,9 +412,26 @@ export function mountFeedbackUI(
     startFailureTimer(id);
   }
 
+  // The failures whose error toast is on screen. The toast says the sentence,
+  // so the row's line for it stays out of sight and out of the accessibility
+  // tree rather than repeat it (#3914). It comes back when the toast goes, so
+  // a failure is never left with no visible copy.
+  function toastedActions(): Set<string> {
+    return new Set(
+      store
+        .visibleToasts()
+        .filter((t) => t.kind === 'error')
+        .map((t) => t.actionKey),
+    );
+  }
+
   function signature(key: string): string {
+    const toasted = toastedActions();
     const lines = inlineEntries(key)
-      .map((e) => `${e.id}|${e.phase}|${e.inline}|${e.commentUrl ?? ''}`)
+      .map(
+        (e) =>
+          `${e.id}|${e.phase}|${e.inline}|${e.commentUrl ?? ''}|${toasted.has(e.actionKey)}`,
+      )
       .join(';');
     const wait = waitFor(key);
     const chip = wait
@@ -423,12 +440,17 @@ export function mountFeedbackUI(
     return `${lines}#${chip}`;
   }
 
-  function buildInline(key: string): HTMLElement | null {
+  // `showAll` is the details dialog's: it sits over the toasts, so it keeps
+  // every line.
+  function buildInline(key: string, showAll = false): HTMLElement | null {
     const entries = inlineEntries(key);
     if (entries.length === 0) return null;
+    const toasted = showAll ? new Set<string>() : toastedActions();
     const wrap = node('div', 'row-feedback');
+    wrap.hidden = entries.every((e) => toasted.has(e.actionKey));
     for (const entry of entries) {
       const line = node('div', 'row-feedback-line');
+      line.hidden = toasted.has(entry.actionKey);
       line.dataset.phase = entry.phase;
       line.appendChild(node('span', 'row-feedback-text', lineText(entry)));
       if (
@@ -764,7 +786,7 @@ export function mountFeedbackUI(
     decorateRow,
     syncRows,
     tick,
-    inlineLines: buildInline,
+    inlineLines: (key: string) => buildInline(key, true),
     setQueuedCount,
   };
 }
