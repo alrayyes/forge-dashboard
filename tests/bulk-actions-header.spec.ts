@@ -199,8 +199,7 @@ test('Updating 2 of 2 keeps the idle width and full-contrast text', async ({
   const busy = (await button.boundingBox())!;
   expect(Math.abs(busy.width - idle.width)).toBeLessThan(1);
   expect(Math.abs(busy.x - idle.x)).toBeLessThan(1);
-  const opacity = await button.evaluate((el) => getComputedStyle(el).opacity);
-  expect(opacity).toBe('1');
+  await expect(button).toHaveCSS('opacity', '1');
   release();
 });
 

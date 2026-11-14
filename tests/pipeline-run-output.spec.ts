@@ -1602,13 +1602,14 @@ test.describe('a copy pressed while the output loads', () => {
         );
         await expect(output).not.toContainText('[31m');
         // Dashed vs solid border: shape, not hue.
-        const style = (sel: string) =>
-          output
-            .locator(sel)
-            .first()
-            .evaluate((el) => getComputedStyle(el).borderLeftStyle);
-        expect(await style('.run-line-warning')).toBe('dashed');
-        expect(await style('.run-line-error')).toBe('solid');
+        await expect(output.locator('.run-line-warning').first()).toHaveCSS(
+          'border-left-style',
+          'dashed',
+        );
+        await expect(output.locator('.run-line-error').first()).toHaveCSS(
+          'border-left-style',
+          'solid',
+        );
 
         const hide = dialog.getByRole('button', { name: 'Hide output: build' });
         const copy = dialog.getByRole('button', { name: 'Copy output: build' });
