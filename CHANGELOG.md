@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.56.0](https://github.com/alrayyes/forge-dashboard/compare/v9.55.0...v9.56.0) (2026-11-14)
+
+
+### Features
+
+* **images:** show images hosted on gist.githubusercontent.com ([#3894](https://github.com/alrayyes/forge-dashboard/issues/3894)) ([47fa9ba](https://github.com/alrayyes/forge-dashboard/commit/47fa9ba64fee3d07e8bee35cfff421c1e173ffe9)), closes [#3888](https://github.com/alrayyes/forge-dashboard/issues/3888)
+* **web:** pin the checks dialog run link in a footer button ([#3887](https://github.com/alrayyes/forge-dashboard/issues/3887)) ([24c3cee](https://github.com/alrayyes/forge-dashboard/commit/24c3ceedacf85cef9eaaa45c91fb69849cf33925)), closes [#3876](https://github.com/alrayyes/forge-dashboard/issues/3876)
+
 ## [9.55.0](https://github.com/alrayyes/forge-dashboard/compare/v9.54.2...v9.55.0) (2026-11-14)
 
 
