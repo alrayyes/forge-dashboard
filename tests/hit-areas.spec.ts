@@ -689,6 +689,124 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     }
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/3891
+  // The same dialog from 761px up, where it keeps its density: Copy output sat
+  // under the excerpt with no height of its own and was 15px tall. Show output
+  // is already a 44px button, and stays covered here.
+  test('pull requests: the Pipeline checks dialog output buttons at desktop widths', async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    const base = 'https://github.com/alrayyes/forge-dashboard/actions/runs/1';
+    await mockDashboard(page);
+    await serveChecks(page, () => [
+      {
+        name: 'test',
+        status: 'completed',
+        conclusion: 'failure',
+        url: `${base}/job/1`,
+        jobId: 1,
+        required: true,
+        failedStep: 'Run go test ./...',
+        excerpt: 'FAIL: database is locked',
+      },
+    ]);
+    await page.setViewportSize({
+      width: DESKTOP.width,
+      height: DESKTOP.height,
+    });
+    await page.goto('/pull-requests.html');
+    await ready(page, '#pr-rows .row');
+    await page
+      .locator('#pr-rows .row')
+      .nth(1)
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.locator('.pipeline-check').first()).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Show output: test' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: test' }),
+    ).toBeVisible();
+    await sweepAll(page, 'pipeline checks, output buttons', problems, {
+      sizes: [PHONE, NARROW, TABLET, DESKTOP],
+      within: '.pipeline-check',
+    });
+    expectNone(problems);
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/3891
+  // The Show details toggle under the forge chip. It shows for a forge that
+  // is starting up and has an error to explain.
+  test('the forge health Show details toggle', async ({ page }) => {
+    const problems: string[] = [];
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [
+            {
+              forge: 'github',
+              reachable: false,
+              starting: true,
+              repoCount: 1,
+              errorKind: 'unreachable',
+              error: 'dial tcp: i/o timeout',
+              staleSince: ago(5),
+            },
+          ],
+          pullRequests: PULL_REQUESTS,
+          issues: ISSUES,
+          repos: [],
+          hiddenDrafts: 0,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await expect(
+      page.locator('#forge-health .forge-health-detail summary'),
+    ).toBeVisible();
+    await sweepAll(page, 'forge health', problems, {
+      within: '#forge-health',
+    });
+    expectNone(problems);
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/3891
+  // The generated text of a dependency update sits behind a summary, which had
+  // no height of its own from 761px up. Every width, not only 700.
+  test('pull requests: the generated description toggle at every width', async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    await mockDashboard(page);
+    await mockDetails(page, `Bumps x from 1 to 2.\n\n${'notes\n\n'.repeat(5)}`);
+    await page.setViewportSize({
+      width: DESKTOP.width,
+      height: DESKTOP.height,
+    });
+    await page.goto('/bots.html');
+    await ready(page, '#pr-rows .row');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: /^#\d+ / })
+      .click();
+    const dialog = page.getByRole('dialog', { name: /^Pull request details/ });
+    await expect(dialog.locator('.details-collapsed summary')).toBeVisible();
+    await sweepAll(page, 'details dialog, collapsed text', problems, {
+      within: '.details-collapsed',
+    });
+    expectNone(problems);
+  });
+
   // https://github.com/alrayyes/forge-dashboard/issues/1867
   // Reaction pills are focusable (they name who reacted on focus), and the
   // generated text of a dependency pull request sits behind a summary. Both
