@@ -18,20 +18,16 @@
     leavePage,
     loadState,
     loadStateFromServer,
-    readCookieState,
     type SharedFilterState,
     saveState,
-    touchKey,
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
-  import {
-    webhooksFilterFromState,
-    webhooksFilterToState,
-  } from "#lib/webhooks-filter.js";
+  import { saveWebhooksFilter } from "#lib/filter-wiring.js";
+  import { webhooksFilterFromState } from "#lib/webhooks-filter.js";
 
   type RateLimit = {
     limit: number;
@@ -332,13 +328,13 @@
   };
 
   function currentFilter() {
-    return webhooksFilterToState({
+    return {
       forge: filterForge as "" | "github" | "forgejo",
       repo: filterRepo,
       status: filterStatus as "" | "confirmed" | "pending",
       sort: sortKey,
       dir: sortDir,
-    });
+    };
   }
 
   function applySaved() {
@@ -353,13 +349,7 @@
   // The key is touched before the save, so a server copy still loading does
   // not overwrite it (#1713).
   function save(keys: string[], freeText = false) {
-    for (const key of keys) touchKey("webhooks", key);
-    // Another tab may have saved its own filters since this page loaded; the
-    // cookie is shared, so start from it and change only this page's group.
-    if (document.cookie.includes("forge-board-filters="))
-      saved = { ...readCookieState(), webhooks: {} };
-    saved.webhooks = currentFilter();
-    saveState(saved, freeText ? "title" : undefined);
+    saved = saveWebhooksFilter(saved, currentFilter(), keys, freeText);
   }
 
   const filtersAreDefault = $derived(
