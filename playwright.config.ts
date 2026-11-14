@@ -222,6 +222,7 @@ const singleUserSpecs = [
   '**/main-branch-release-link.spec.ts',
   '**/main-branch-advisories.spec.ts',
   '**/main-branch-advisories-dialog.spec.ts',
+  '**/advisories-dialog-button-border.spec.ts',
   '**/advisories-dialog-close-position.spec.ts',
   '**/advisory-detail-scroll-share.spec.ts',
   '**/main-branch-advisories-forgejo-dialog.spec.ts',

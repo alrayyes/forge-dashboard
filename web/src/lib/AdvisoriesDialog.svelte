@@ -527,7 +527,7 @@
     min-height: 32px;
     margin: 0 0 8px;
     padding: 0 10px 0 6px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     background: var(--surface-sunken);
     color: var(--ink);
@@ -549,7 +549,7 @@
     width: 32px;
     height: 32px;
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--control-border);
     background: var(--surface-sunken);
     color: var(--ink-2);
   }
@@ -558,7 +558,7 @@
     align-items: center;
     min-height: 32px;
     padding: 0 12px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--control-border);
     border-radius: 8px;
     background: var(--surface);
     color: var(--ink);
@@ -606,7 +606,7 @@
   .adv-filter {
     min-height: 32px;
     padding: 0 12px;
-    border: 1px solid var(--border-strong);
+    border: 1px solid var(--control-border);
     border-radius: 999px;
     background: var(--surface);
     color: var(--ink);
