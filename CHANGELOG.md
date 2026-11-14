@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.57.4](https://github.com/alrayyes/forge-dashboard/compare/v9.57.3...v9.57.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* **test:** wait longer for the logo story's failed image ([#3922](https://github.com/alrayyes/forge-dashboard/issues/3922)) ([8c1f616](https://github.com/alrayyes/forge-dashboard/commit/8c1f6166a402df70b50513ef5e8ebd9a1f59cf00))
+
 ## [9.57.3](https://github.com/alrayyes/forge-dashboard/compare/v9.57.2...v9.57.3) (2026-11-14)
 
 
