@@ -245,8 +245,8 @@ hosts of one kind and one down, a row may be on the healthy host: its controls
 stay on, yet its pills read as carried over and say "no action can run", so the
 tooltip can overstate. The page can't tell which host a row is on, so it takes
 the cautious side for claims. API clients see `forge_unreachable` in place of a
-row's own blocked code (a `conflict`, say) while the forge is down, and an
-`update_branch` entry that auto-update would hide stays listed, blocked, since
+row's own blocked code (a `conflict`, say) while the forge is down. An
+Update branch entries that auto-update would hide stay listed, blocked, since
 the rule runs after that choice. A row that carries its own
 since-time, a main branch row or a repo marked `staleSince`, asks the same
 rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
