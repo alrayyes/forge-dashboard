@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.57.2](https://github.com/alrayyes/forge-dashboard/compare/v9.57.1...v9.57.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **dashboard:** count only asked forges toward the forge-down streak ([#3915](https://github.com/alrayyes/forge-dashboard/issues/3915)) ([8fb5ef4](https://github.com/alrayyes/forge-dashboard/commit/8fb5ef4bd2df0aca45a7f05222497b0e1a89b5de)), closes [#3905](https://github.com/alrayyes/forge-dashboard/issues/3905)
+
 ## [9.57.1](https://github.com/alrayyes/forge-dashboard/compare/v9.57.0...v9.57.1) (2026-11-14)
 
 
