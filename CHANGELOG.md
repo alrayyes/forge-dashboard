@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.57.5](https://github.com/alrayyes/forge-dashboard/compare/v9.57.4...v9.57.5) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** give the advisories dialog buttons the standard control border ([#3925](https://github.com/alrayyes/forge-dashboard/issues/3925)) ([2561026](https://github.com/alrayyes/forge-dashboard/commit/256102692b7a8ba8579407c9716d90e0efcb6525)), closes [#3902](https://github.com/alrayyes/forge-dashboard/issues/3902)
+
 ## [9.57.4](https://github.com/alrayyes/forge-dashboard/compare/v9.57.3...v9.57.4) (2026-11-14)
 
 
