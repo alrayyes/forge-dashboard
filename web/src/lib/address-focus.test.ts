@@ -45,4 +45,16 @@ describe('addressFocusFallback', () => {
       'pr-sort-select',
     );
   });
+
+  test('moves past a sort box that is not offered, to the next control', () => {
+    expect(addressFocusFallback(drawnIds('created-filter'))).toBe(
+      'created-filter',
+    );
+    expect(
+      addressFocusFallback(drawnIds('updated-filter', 'clear-filters-button')),
+    ).toBe('updated-filter');
+    expect(addressFocusFallback(drawnIds('clear-filters-button'))).toBe(
+      'clear-filters-button',
+    );
+  });
 });

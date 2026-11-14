@@ -38,9 +38,15 @@ export interface PickHosts {
 export type PickPools = (key: PickKey) => FilterableItem[];
 
 // A pick filter earns its place in the bar when it can narrow the list, or
-// when it holds a pick the reader may want to clear (#3496).
-export function pickFilterVisible(choices: number, picked: number): boolean {
-  return choices > 1 || picked > 0;
+// when it holds a pick the reader may want to clear (#3496). Over a single row
+// it can only empty the list, so it goes unless it holds a pick (#3886).
+// `rows` is the list it chooses from; left out, only the choices count.
+export function pickFilterVisible(
+  choices: number,
+  picked: number,
+  rows = Number.POSITIVE_INFINITY,
+): boolean {
+  return (choices > 1 && rows > 1) || picked > 0;
 }
 
 const FOCUSABLE = 'button, select, input, a[href]';
@@ -127,7 +133,7 @@ export class SharedPicks {
       hold,
     );
     this.repoChoices = repoOffered;
-    this.draw('repo', repoOffered, state);
+    this.draw('repo', repoOffered, state, pools('repo').length);
 
     const authorOffered = authorChoices(pools('author'));
     const staleAuthor = reconcilePick(
@@ -137,24 +143,31 @@ export class SharedPicks {
       hold,
     );
     this.authorChoices = authorOffered;
-    this.draw('author', authorOffered, state);
+    this.draw('author', authorOffered, state, pools('author').length);
 
+    const labelPool = pools('label');
     const labels = distinctValues(
       (item) => (item.labels || []).map((l) => l.name),
-      pools('label'),
+      labelPool,
     );
     const staleLabel = reconcilePick(state, 'label', labels, hold);
     this.draw(
       'label',
       labels.map((name) => ({ value: name, text: name })),
       state,
+      labelPool.length,
     );
     return staleRepo || staleAuthor || staleLabel;
   }
 
-  private draw(key: PickKey, choices: PickChoice[], state: SharedFilterState) {
+  private draw(
+    key: PickKey,
+    choices: PickChoice[],
+    state: SharedFilterState,
+    rows: number,
+  ) {
     const picked = parsePick(state.shared[key]);
-    const signature = JSON.stringify([choices, picked]);
+    const signature = JSON.stringify([choices, picked, rows > 1]);
     if (this.drawn[key] === signature) return;
     this.drawn[key] = signature;
     if (key === 'label')
@@ -165,7 +178,7 @@ export class SharedPicks {
     else this[key]?.render(choices, picked);
     setVisible(
       this.hosts[key],
-      pickFilterVisible(choices.length, picked.length),
+      pickFilterVisible(choices.length, picked.length, rows),
     );
   }
 }

@@ -2929,8 +2929,10 @@ test.describe('dashboard page', () => {
       // The pill goes first: once the title leaves only failing rows, the pill
       // would show what All shows and is no longer offered (#3669).
       await page.locator('.quick-pills [data-pill="failing"]').click();
-      await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
+      // Before the title narrows the list: grouping is disabled over one row
+      // (#3886).
       await page.selectOption('#shared-group-select', 'repo');
+      await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
       // Title and the pill together leave the failing "Fix build" PR (#1427:
       // a combination that matched nothing is no longer offered).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);

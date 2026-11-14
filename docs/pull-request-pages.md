@@ -119,6 +119,18 @@ filter is picked, since that pick may be what hides the others, and while **Show
 drafts** has drafts to reveal. The same holds for the
 Issues, Releases, and Bots pages. The bar comes back when a second row arrives.
 
+When the filters narrow a longer list to one row or none, the **Sort** and
+**Group** selects stay in the bar but are disabled, and a line beside them says
+why ("Sorting and grouping need two or more rows."). It is visible, so touch and
+keyboard users get it too, and the selects are described by it. The bar can
+still change height as rows come and go. Your chosen sort is kept and works
+again when a second row arrives. A chosen grouping stays enabled so it can be
+undone. The **Labels** filter hides over one row unless a label is picked,
+since its choices can then only empty the list. If a select held focus when it
+disabled, focus moves to the first control still drawn. The same holds for the
+Issues, Releases, and Bots pages. On a phone the selects and the line sit in
+the Filters sheet.
+
 The title box hides on its own when the other filters leave exactly one row,
 since it has nothing to narrow. It counts the rows before the box's own text
 applies, and it never hides while it holds text, so a query that leaves one

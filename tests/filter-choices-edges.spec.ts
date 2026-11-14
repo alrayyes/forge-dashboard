@@ -134,9 +134,11 @@ test('a rename leaves the suggestions alone while the Title box has focus', asyn
 test('a pick the sort-landed list lacks is cleared once, and the rows agree', async ({
   page,
 }) => {
-  await open(page, TWO);
+  // Two rows match the pick, so the sort box (disabled over one row, #3886)
+  // is still there to land the list.
+  await open(page, [...TWO, pr(3, 'claude')]);
   await pickOnly(page, 'author', 'github:claude');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
   await page
     .getByRole('button', { name: /^(Pause|Resume) live updates$/ })
     .click();
