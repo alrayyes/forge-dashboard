@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.57.1](https://github.com/alrayyes/forge-dashboard/compare/v9.57.0...v9.57.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **storybook:** abort the missing logo so the failed-load story fails ([#3899](https://github.com/alrayyes/forge-dashboard/issues/3899)) ([2378927](https://github.com/alrayyes/forge-dashboard/commit/23789275f835ce4d4838493d841888164d951b9c)), closes [#3890](https://github.com/alrayyes/forge-dashboard/issues/3890)
+
 ## [9.57.0](https://github.com/alrayyes/forge-dashboard/compare/v9.56.0...v9.57.0) (2026-11-14)
 
 
