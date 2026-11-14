@@ -5950,8 +5950,11 @@
       }
       botResolvedKeys.clear();
       if (userAsked) {
-        retireFailuresOfRemoved(latestPRs);
-        prShown.land(latestPRs);
+        // Retiring a failure can settle the board itself, which empties
+        // latestPRs, so the snapshot is held in hand first (#3931).
+        const next = latestPRs;
+        retireFailuresOfRemoved(next);
+        prShown.land(next);
         latestPRs = null;
         latestIsUserAsked = false;
         keepFocusAcross(() => prBoard.setItems(prShown.items));
@@ -5975,8 +5978,9 @@
           onList(prShown.items),
           onList(latestPRs),
         );
-        retireFailuresOfRemoved(latestPRs);
-        prShown.land(latestPRs);
+        const next = latestPRs;
+        retireFailuresOfRemoved(next);
+        prShown.land(next);
         latestPRs = null;
         markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
