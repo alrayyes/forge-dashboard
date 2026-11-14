@@ -5557,8 +5557,11 @@ footer a[aria-current="page"] {
 .run-output-text {
   margin: 4px 0 0;
   padding: 8px 10px;
-  max-height: 320px;
+  /* Never taller than half the viewport, so in phone landscape it fits the
+     dialog body, and it passes the scroll on to the body at its edges (#3879). */
+  max-height: min(320px, 50dvh);
   overflow: auto;
+  overscroll-behavior: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   line-height: 1.45;
