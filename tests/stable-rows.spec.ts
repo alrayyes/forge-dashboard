@@ -246,7 +246,7 @@ test.describe('stable rows', () => {
     await expect(region).toHaveText('List updated: 1 added');
   });
 
-  test('a content-only change updates the row in place and marks it Updated just now for a moment', async ({
+  test('a content-only change updates the row in place with no Updated just now tag', async ({
     page,
   }) => {
     await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
@@ -254,24 +254,12 @@ test.describe('stable rows', () => {
     const first = page.locator('#pr-rows .row').first();
     await expect(first).toContainText('Failed');
     await expect(first).toContainText('Pull request 1');
-    await expect(first.getByText('Updated just now')).toBeVisible();
+    // A single read, not a retrying assertion: the old tag went away by
+    // itself after a couple of seconds, which would let a retry pass.
+    expect(await page.getByText('Updated just now').count()).toBe(0);
     await expect(page.locator('#list-updates-status')).toHaveText('');
-
-    // A couple of seconds, then the text goes away on its own.
-    await expect(first.getByText('Updated just now')).toBeHidden({
-      timeout: 6000,
-    });
   });
 
-  test('the Updated just now marker is text, with no animation under reduced motion', async ({
-    page,
-  }) => {
-    await page.emulateMedia({ reducedMotion: 'reduce' });
-    await push(page, [makePR(1, { ci: 'failure' }), initial[1]]);
-    const marker = page.getByText('Updated just now');
-    await expect(marker).toBeVisible();
-    await expect(marker).toHaveCSS('animation-name', 'none');
-  });
   test('a touch holds added rows for a moment, then they land', async ({
     page,
   }) => {

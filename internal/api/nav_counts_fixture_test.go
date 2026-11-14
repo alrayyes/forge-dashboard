@@ -66,7 +66,7 @@ func buildNavCountsFixture(t *testing.T) []byte {
 			"UPDATE_FIXTURES=1 go test ./internal/api -run TestNavCountsFixture.",
 	}
 	for _, kind := range []dashboard.PullRequestKind{dashboard.KindRegular, dashboard.KindRelease, dashboard.KindDependency} {
-		for _, ci := range []dashboard.CIStatus{dashboard.CINone, dashboard.CIPending, dashboard.CISuccess, dashboard.CIFailure} {
+		for _, ci := range []dashboard.CIStatus{dashboard.CINone, dashboard.CIPending, dashboard.CISuccess, dashboard.CIFailure, dashboard.CICancelled} {
 			for _, draft := range []bool{false, true} {
 				for _, hidden := range []bool{false, true} {
 					view := pullRequestView{Kind: kind}

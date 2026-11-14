@@ -45,6 +45,7 @@
     ago,
     applyFilter,
     isStale,
+    mainBranchClaim,
     sortMainBranches,
     DEFAULT_FILTER,
     duration,
@@ -1255,7 +1256,12 @@
                     ><span class="dot"></span>{FORGE_LABELS[b.forge] ??
                       b.forge}</span
                   >
-                  {#if isStale(b)}<span class="mb-chip mb-stale">stale</span
+                  {#if isStale(b)}<span
+                      class="mb-chip mb-stale"
+                      title={mainBranchClaim(
+                        b,
+                        b.staleSince ? formatTime(b.staleSince) : undefined,
+                      ).reason}>stale</span
                     >{/if}
                   {#if b.latestRelease && httpHref(b.latestRelease.url)}
                     {@const release = b.latestRelease}

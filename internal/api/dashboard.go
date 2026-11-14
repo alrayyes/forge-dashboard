@@ -628,7 +628,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		// refresh schedule, so only a still-stale row says it is failing.
 		var failingSince *time.Time
 		forGood := false
-		if r.StaleSince != nil {
+		if dashboard.ClaimOfRow(dashboard.ClaimState, r.StaleSince).State == dashboard.ClaimCarriedOver {
 			failingSince = r.FailingSince
 			forGood = dashboard.FailingForGood(r, b.refreshInterval, b.now)
 		}
@@ -761,7 +761,7 @@ func indexSnapshot(snap dashboard.Snapshot) snapshotIndex {
 		idx.open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
 	}
 	for _, f := range snap.Forges {
-		idx.reachable[f.Forge] = f.Reachable
+		idx.reachable[f.Forge] = dashboard.ClaimOf(dashboard.ClaimState, f, true).State == dashboard.ClaimConfirmed
 	}
 	for _, r := range snap.Repos {
 		idx.tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}

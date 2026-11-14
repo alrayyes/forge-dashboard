@@ -193,8 +193,8 @@ func snapshotRows(snap Snapshot, forge Forge) []CachedRepo {
 // fetchTime is when r was really fetched: its own stale time when it was
 // carried over, else the snapshot's.
 func fetchTime(r Repo, generated time.Time) time.Time {
-	if r.StaleSince != nil {
-		return *r.StaleSince
+	if c := ClaimOfRow(ClaimState, r.StaleSince); c.State == ClaimCarriedOver && c.Since != nil {
+		return *c.Since
 	}
 
 	return generated

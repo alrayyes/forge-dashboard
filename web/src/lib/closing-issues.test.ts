@@ -6,6 +6,7 @@ import {
   closingPillId,
   closingPillName,
   closingPillText,
+  closingPillTitle,
   findAddressedIssue,
   missingIssueNote,
   parseIssueAddress,
@@ -57,8 +58,15 @@ describe('the refs relation', () => {
 
   test('the name contains the visible text and says it opens the issue', () => {
     expect(closingPillName(ref(), 'alrayyes/app')).toBe(
-      'Refs #12, opens the issue',
+      'Refs #12, references, does not close, opens the issue',
     );
+  });
+
+  test('a refs pill says in its tooltip that it does not close the issue', () => {
+    expect(closingPillTitle(ref())).toBe(
+      'References the issue, does not close it',
+    );
+    expect(closingPillTitle(issue())).toBe('Closes the issue when it merges');
   });
 
   test('a pill id differs from the closing one for the same number', () => {

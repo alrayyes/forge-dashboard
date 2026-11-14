@@ -1,5 +1,40 @@
 # Changelog
 
+## [9.61.2](https://github.com/alrayyes/forge-dashboard/compare/v9.61.1...v9.61.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** leave rows with no drawn Update branch out of Update all ([#4001](https://github.com/alrayyes/forge-dashboard/issues/4001)) ([3717078](https://github.com/alrayyes/forge-dashboard/commit/3717078dd842b2ebe05ace2202c57189f0f8af84))
+
+## [9.61.1](https://github.com/alrayyes/forge-dashboard/compare/v9.61.0...v9.61.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **imageproxy:** refuse the deprecated site-local range fec0::/10 ([#4003](https://github.com/alrayyes/forge-dashboard/issues/4003)) ([87abf65](https://github.com/alrayyes/forge-dashboard/commit/87abf651aaf3ca1767bce5b313e399ab7ce8a2ab)), closes [#3919](https://github.com/alrayyes/forge-dashboard/issues/3919)
+
+## [9.61.0](https://github.com/alrayyes/forge-dashboard/compare/v9.60.2...v9.61.0) (2026-11-14)
+
+
+### Features
+
+* **web:** explain why a linked pull request pill is italic ([#3997](https://github.com/alrayyes/forge-dashboard/issues/3997)) ([171d2a5](https://github.com/alrayyes/forge-dashboard/commit/171d2a5b4bbb2a86a3d8646799000ddf02701f0f))
+
+## [9.60.2](https://github.com/alrayyes/forge-dashboard/compare/v9.60.1...v9.60.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* count cancelled runs as a part of the Pull requests, Releases and Bots nav pills ([#3991](https://github.com/alrayyes/forge-dashboard/issues/3991)) ([edaeb18](https://github.com/alrayyes/forge-dashboard/commit/edaeb18ab9e926ddb5a959d867b6c6982d777434))
+
+## [9.60.1](https://github.com/alrayyes/forge-dashboard/compare/v9.60.0...v9.60.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** say Conflict not confirmed once, with a reason the row can act on ([#3970](https://github.com/alrayyes/forge-dashboard/issues/3970)) ([b93747a](https://github.com/alrayyes/forge-dashboard/commit/b93747add93c98dc4052f1f8c1793be6f50646c2))
+
 ## [9.60.0](https://github.com/alrayyes/forge-dashboard/compare/v9.59.4...v9.60.0) (2026-11-14)
 
 

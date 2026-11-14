@@ -87,9 +87,9 @@ func TestDashboard_NavCountsTotalAndFailedPerPage(t *testing.T) {
 	prs, _ := got["pullRequests"].([]any)
 	require.Len(t, prs, 9, "the draft is listed when the request asks for it")
 
-	assert.Equal(t, map[string]any{"total": 3.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "noChecks": 0.0}, navCount(t, got, "pullRequests"))
-	assert.Equal(t, map[string]any{"total": 2.0, "running": 0.0, "failed": 1.0, "passed": 1.0, "noChecks": 0.0}, navCount(t, got, "releases"))
-	assert.Equal(t, map[string]any{"total": 3.0, "running": 0.0, "failed": 2.0, "passed": 0.0, "noChecks": 1.0}, navCount(t, got, "bots"),
+	assert.Equal(t, map[string]any{"total": 3.0, "running": 1.0, "failed": 1.0, "passed": 1.0, "cancelled": 0.0, "noChecks": 0.0}, navCount(t, got, "pullRequests"))
+	assert.Equal(t, map[string]any{"total": 2.0, "running": 0.0, "failed": 1.0, "passed": 1.0, "cancelled": 0.0, "noChecks": 0.0}, navCount(t, got, "releases"))
+	assert.Equal(t, map[string]any{"total": 3.0, "running": 0.0, "failed": 2.0, "passed": 0.0, "cancelled": 0.0, "noChecks": 1.0}, navCount(t, got, "bots"),
 		"a pull request with no checks counts as noChecks, not running, failed or passed")
 	assert.NotContains(t, got["navCounts"], "branches",
 		"the page counts the main branch rows the snapshot carries")
@@ -108,7 +108,7 @@ func TestDashboard_NavCountsAreZeroNotMissingWhenNothingIsTracked(t *testing.T) 
 	got := fetchDashboard(t, srv.URL, cookie)
 
 	for _, page := range []string{"pullRequests", "releases", "bots"} {
-		assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "noChecks": 0.0}, navCount(t, got, page), page)
+		assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "cancelled": 0.0, "noChecks": 0.0}, navCount(t, got, page), page)
 	}
 	assert.Equal(t, map[string]any{"total": 0.0}, navCount(t, got, "issues"))
 }
@@ -126,7 +126,7 @@ func TestDashboard_NavCountsLeaveOutAnIgnoredRepo(t *testing.T) {
 
 	got := fetchDashboard(t, srvURL, cookie)
 
-	assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "noChecks": 0.0}, navCount(t, got, "pullRequests"))
+	assert.Equal(t, map[string]any{"total": 0.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "cancelled": 0.0, "noChecks": 0.0}, navCount(t, got, "pullRequests"))
 }
 
 func TestDashboard_NavCountsIgnoreTheShowHiddenToggle(t *testing.T) {
@@ -138,7 +138,7 @@ func TestDashboard_NavCountsIgnoreTheShowHiddenToggle(t *testing.T) {
 	shown := fetchDashboardWith(t, srvURL, cookie, "?includeHidden=true")
 	require.Equal(t, []int{1, 2}, boardNumbers(t, srvURL, cookie, "?includeHidden=true"), "the hidden one is listed on request")
 
-	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "noChecks": 0.0}, navCount(t, shown, "pullRequests"),
+	assert.Equal(t, map[string]any{"total": 1.0, "running": 0.0, "failed": 0.0, "passed": 0.0, "cancelled": 0.0, "noChecks": 0.0}, navCount(t, shown, "pullRequests"),
 		"a hidden pull request is never in the badge")
 	assert.Equal(t, shown["navCounts"], fetchDashboard(t, srvURL, cookie)["navCounts"])
 }

@@ -14,8 +14,22 @@ test('a pull request without checks raises noChecks, not a number that is missin
     running: 0,
     failed: 1,
     passed: 0,
+    cancelled: 0,
     noChecks: 1,
   });
   expect(counts.bots.noChecks).toBe(0);
   expect(counts.releases.noChecks).toBe(0);
+});
+
+test('a cancelled pull request raises cancelled and sits in its own part (#3967)', () => {
+  const counts = navCountsFor([{ ci: 'cancelled' }, { ci: 'failure' }], 0);
+
+  expect(counts.pullRequests).toEqual({
+    total: 2,
+    running: 0,
+    failed: 1,
+    passed: 0,
+    cancelled: 1,
+    noChecks: 0,
+  });
 });

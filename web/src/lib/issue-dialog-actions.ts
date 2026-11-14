@@ -10,8 +10,9 @@ import {
   NETWORK_FAILURE,
   readActionFailure,
 } from './action-error';
-import { isReadOnlyLock, type LockInfo } from './lock-info';
+import type { LockInfo } from './lock-info';
 import type { DetailsChrome } from './PullRequestDetailsDialog.svelte';
+import { rowClaim } from './row-claim';
 
 export type IssueTarget = { forge: string; repo: string; number: number };
 
@@ -127,7 +128,9 @@ export function createIssueActions(host: IssueActionsHost) {
     if (locked) return locked;
     if (!target || phase === 'closed' || phase === 'reopening') return null;
     const lock = host.forgeLock(target.forge);
-    return lock && (lock.code === 'permission' || isReadOnlyLock(lock))
+    return lock &&
+      (lock.code === 'permission' ||
+        !rowClaim({ kind: 'action', lock }).actionsOpen)
       ? lock.reason
       : null;
   }

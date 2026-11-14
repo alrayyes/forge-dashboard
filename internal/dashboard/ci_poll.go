@@ -111,7 +111,7 @@ const settledPollWindow = 10 * time.Minute
 // GitHub's check events cover its own rows.
 func pollableForgejoBranches(snap Snapshot, now time.Time) []MainBranch {
 	return slices.DeleteFunc(slices.Clone(snap.MainBranches), func(b MainBranch) bool {
-		if b.Forge != ForgeForgejo || b.StaleSince != nil {
+		if b.Forge != ForgeForgejo || ClaimOfRow(ClaimState, b.StaleSince).State == ClaimCarriedOver {
 			return true
 		}
 		if b.Status == MainBranchRunning || b.Checks.Running+b.Checks.Waiting > 0 {

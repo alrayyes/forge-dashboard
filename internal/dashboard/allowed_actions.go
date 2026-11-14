@@ -55,7 +55,7 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	// An empty pull request can't become mergeable by waiting, so it offers no
 	// Merge at all, only Close. PullRequestStatus says why (#1375).
 	if !pr.Empty {
-		out = append(out, mergeAvailability(pr))
+		out = append(out, mergeAvailability(pr, renovateAuthors))
 	}
 	out = append(out, ActionAvailability{Action: ActionClose})
 	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok {
@@ -270,7 +270,7 @@ func renovateRebaseActions(pr PullRequest) []ActionAvailability {
 // mergeAvailability is Merge's rules in the order they apply. Merge is blocked
 // rather than hidden while waiting or fixing something can unlock it. Only an
 // empty pull request, which nothing can unlock, is left without it.
-func mergeAvailability(pr PullRequest) ActionAvailability {
+func mergeAvailability(pr PullRequest, renovateAuthors []string) ActionAvailability {
 	switch {
 	case pr.StackedOn != nil:
 		// Merging it would land it in the parent's branch, not the base it
@@ -282,7 +282,7 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting && pr.ConflictConfirmed != nil && !*pr.ConflictConfirmed:
 		// Only the forge's flag, false for a while, says so (#3308).
-		return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out")
+		return unconfirmedConflictMerge(pr, renovateAuthors)
 	case pr.MergeStatus == MergeConflicting:
 		return mergeBlocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.MergeStatus == MergeChecking:
@@ -342,6 +342,17 @@ func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	}
 
 	return ActionAvailability{Action: ActionMerge}
+}
+
+// unconfirmedConflictMerge is Merge's block for a conflict only the forge's
+// flag reports. Update branch is how it gets confirmed, so it is named only
+// when the pull request offers it (#3965).
+func unconfirmedConflictMerge(pr PullRequest, renovateAuthors []string) ActionAvailability {
+	if _, offered := updateBranchAvailability(pr, renovateAuthors); offered {
+		return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out")
+	}
+
+	return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge")
 }
 
 // updateBranchAvailability: only a pull request that is behind and has

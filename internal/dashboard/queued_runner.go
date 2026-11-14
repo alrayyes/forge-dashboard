@@ -208,7 +208,7 @@ func (a *Aggregator) runQueued(ctx context.Context, run queuedRun, q QueuedActio
 
 		return
 	}
-	if !health.Reachable {
+	if !ClaimOf(ClaimAction, health, true).ActionsOpen {
 		a.retryUnreachableQueued(ctx, q)
 
 		return

@@ -129,7 +129,7 @@ test.describe('the refs pill on a pull request row', () => {
 
     await expect(refs(page, 1)).toHaveText('Refs #12');
     await expect(refs(page, 1)).toHaveAccessibleName(
-      'Refs #12, opens the issue',
+      'Refs #12, references, does not close, opens the issue',
     );
     await expect(closes(page, 1)).toHaveText('Closes #10');
     await expect(refs(page, 2)).toHaveCount(0);

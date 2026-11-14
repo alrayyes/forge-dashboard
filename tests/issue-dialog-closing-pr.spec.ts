@@ -414,7 +414,7 @@ test('the dialog lists the referencing pull requests under Referenced in, after 
     /^Pull request #12.*, closes this issue$/,
   );
   await expect(dialogPills(page).last()).toHaveAccessibleName(
-    /^Pull request #13.*, references this issue$/,
+    /^Pull request #13.*, references, does not close this issue$/,
   );
 
   list = [issue(1, [linked(12)], [linked(13), linked(14)])];

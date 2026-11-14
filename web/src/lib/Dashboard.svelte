@@ -186,7 +186,8 @@
     type RateLimit,
     rateLimitReasonText,
   } from "#lib/rate-limit.js";
-  import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
+  import type { LockInfo } from "#lib/lock-info.js";
+  import { rowClaim } from "#lib/row-claim.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -1087,8 +1088,13 @@
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
       // Forgejo's flag stayed false and no refusal named a conflict (#3308).
-      if (status === "conflicting" && conflict.confirmed === false)
-        return unconfirmedConflictPill();
+      if (
+        status === "conflicting" &&
+        conflict.confirmed === false &&
+        conflict.reason &&
+        conflict.reasonId
+      )
+        return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
@@ -1102,10 +1108,42 @@
       return group;
     }
 
-    type ConflictFacts = { confirmed?: boolean; files?: string[] };
+    type ConflictFacts = {
+      confirmed?: boolean;
+      files?: string[];
+      // The unconfirmed pill's reason and the id Merge is described by (#3965).
+      reason?: string;
+      reasonId?: string;
+    };
 
     function conflictFacts(item: PullRequestItem): ConflictFacts {
-      return { confirmed: item.conflictConfirmed, files: item.conflictFiles };
+      const facts: ConflictFacts = {
+        confirmed: item.conflictConfirmed,
+        files: item.conflictFiles,
+      };
+      if (unconfirmedConflict(item)) {
+        facts.reasonId = conflictReasonId(item);
+        facts.reason = rowClaim({
+          kind: "conflict",
+          lock: proactiveActionLockReason(item.forge),
+          answered: false,
+          updateOffered: liveUpdateBranch(item),
+        }).reason;
+      }
+      return facts;
+    }
+
+    // The forge's flag stayed false and no refusal named a conflict (#3308).
+    // The pill says it, with its reason; Merge is described by that reason
+    // instead of the row's status block saying the same words again (#3965).
+    function unconfirmedConflict(item: PullRequestItem): boolean {
+      return (
+        item.mergeStatus === "conflicting" && item.conflictConfirmed === false
+      );
+    }
+
+    function conflictReasonId(item: PullRequestItem): string {
+      return `${idScope}conflict-reason-${domSafeId(prKey(item))}`;
     }
 
     // "In a.txt, b.md and 2 more": where a refused merge or update said the
@@ -1117,24 +1155,20 @@
       return more > 0 ? `In ${shown} and ${more} more` : `In ${shown}`;
     }
 
-    let unconfirmedReasonCount = 0;
-
     // "Conflict not confirmed" and the reason one tap away. The server leaves
     // it at that: the forge's flag has been false past the check window, which
     // it is for a conflict and also for a check that never finishes.
-    function unconfirmedConflictPill(): HTMLElement {
-      const id = `conflict-reason-${++unconfirmedReasonCount}`;
+    function unconfirmedConflictPill(
+      reasonText: string,
+      id: string,
+    ): HTMLElement {
       const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
       pill.type = "button";
       pill.setAttribute("aria-expanded", "false");
       pill.setAttribute("aria-controls", id);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode("Conflict not confirmed"));
-      const reason = el(
-        "span",
-        "merge-where",
-        "The forge says this can't merge, and says the same while it is still checking. No merge or update has been refused with a conflict yet. Update the branch to find out.",
-      );
+      const reason = el("span", "merge-where", reasonText);
       reason.id = id;
       reason.hidden = true;
       pill.addEventListener("click", (event) => {
@@ -2592,6 +2626,11 @@
         group.append(
           el("span", "mentioned-by-label", "Referenced in"),
           referenced,
+          el(
+            "span",
+            "mentioned-by-hint",
+            "Italic: these reference the issue, they do not close it.",
+          ),
         );
         attributes.appendChild(group);
       }
@@ -2742,10 +2781,6 @@
       }
       if (isPR) {
         row.dataset.prKey = prKey(item);
-        if (updatedMarkers.has(prKey(item)))
-          titleCellEl.appendChild(
-            el("span", "updated-just-now", "Updated just now"),
-          );
       }
 
       const meta = el("div", "row-meta");
@@ -3254,7 +3289,7 @@
     // failed click (a 429 the snapshot hadn't shown yet) still draws, with
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return isReadOnlyLock(reason);
+      return !rowClaim({ kind: "action", lock: reason }).actionsOpen;
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
@@ -3516,6 +3551,8 @@
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      // The pill already says it, and holds the reason (#3965).
+      if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
@@ -3631,7 +3668,11 @@
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
-        const described = item.status ? statusAreaId(item) : undefined;
+        const described = !item.status
+          ? undefined
+          : unconfirmedConflict(item) && item.status.code === "conflict"
+            ? conflictReasonId(item)
+            : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,
@@ -4541,6 +4582,17 @@
         .then(() => requested);
     }
 
+    // The row draws no Update branch: its forge is read-only (budget spent,
+    // unreachable, starting) and no click has locked the button with a reason
+    // of its own. The row and Update all both ask this, so a count never
+    // promises a button the board lacks (#3971).
+    function updateBranchHidden(item: PullRequestItem): boolean {
+      return (
+        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      );
+    }
+
     // Only rendered when the forge reports this pull request as behind
     // its base, so it can show alongside the merge button rather than
     // instead of it. A conflicting pull request gets it locked, with the
@@ -4553,11 +4605,7 @@
       // each snapshot, so the real button comes back by itself (#701).
       const updateBranch = findAction(item, "update_branch");
       if (!updateBranch) return null;
-      if (
-        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
-        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
-      )
-        return null;
+      if (updateBranchHidden(item)) return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
@@ -4997,10 +5045,6 @@
     let latestIssues: IssueItem[] | null = null;
     let rawIssues: IssueItem[] = [];
     let latestIssuesAsked = false;
-
-    // How long "Updated just now" stays on a row changed in place.
-    const UPDATED_MARKER_MS = 2500;
-    const updatedMarkers = new Set<string>();
 
     // Whether a re-render now would be felt: a row action is in flight (or
     // an armed confirm waits for its second click), or a modal other than
@@ -5600,21 +5644,6 @@
       livePaused = updatesPaused();
     }
 
-    function markUpdated(keys: string[]) {
-      for (const key of keys) {
-        updatedMarkers.add(key);
-        setTimeout(() => {
-          updatedMarkers.delete(key);
-          document
-            .querySelectorAll<HTMLElement>("#pr-rows .row")
-            .forEach((row) => {
-              if (row.dataset.prKey === key)
-                row.querySelector(".updated-just-now")?.remove();
-            });
-        }, UPDATED_MARKER_MS);
-      }
-    }
-
     // Applies whatever is pending (or just re-sorts what's shown) without
     // rendering; the caller renders once. Called before any user-driven
     // filter, sort or page change.
@@ -5990,7 +6019,7 @@
       }
       if (structural > 0 && !pointerRestsOnList()) {
         // Rows came, went or moved and nothing would be disturbed: the whole
-        // snapshot lands in one render, a changed row marked as usual. Only
+        // snapshot lands in one render. Only
         // what the filters show is announced.
         const onList = (items: PullRequestItem[]) =>
           items.filter((item) =>
@@ -6009,7 +6038,6 @@
         retireFailuresOfRemoved(next);
         prShown.land(next);
         latestPRs = null;
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         if (view !== "issues") announceListUpdate(shownDiff);
 
@@ -6020,7 +6048,6 @@
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         prShown.land(prShown.items.map((p) => fresh.get(prKey(p)) ?? p));
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
       }
       if (structural === 0) latestPRs = null;
@@ -6384,6 +6411,8 @@
     function currentUpdatePlan() {
       return updateAllPlan(visiblePullRows, {
         updating: (item) => updateBranchState[prKey(item)]?.phase === "queued",
+        // Rows that draw no Update branch are not offered either (#3971).
+        controlsHidden: updateBranchHidden,
       });
     }
 

@@ -192,14 +192,44 @@ once, even inside the window, and names the files git reported ("In a.txt,
 docs/b.md"). If the flag is still false for the same head and base after the
 window and no refusal named a conflict, the row says "Conflict not confirmed",
 since the flag is false for a stuck check too. That pill is a button: a tap
-shows the reason, and Update branch stays available on it, because a refused
-update is how it gets confirmed. Either way the status is `conflicting` for the
+shows the reason, and Update branch stays available on it when the row offers
+one (a behind pull request), because a refused update is how it gets confirmed.
+The words are said once: the pill carries them, the row's status block stays
+out, and the locked Merge is described by the pill's reason. The reason names
+only what the row can do: "Use Update branch to find out" when the row has the
+button, otherwise "Wait for the forge to finish checking, or open the pull
+request on the forge". While the forge is unreachable or its budget is spent the
+row draws no controls and the rows are its earlier answer, so the reason says
+that, and the banner says how old the data is. The API's blocked reason for
+Merge follows the same rule: it names Update branch only when the pull request
+lists it. None of this depends on the forge: the words come from the one rule
+below. Either way the status is `conflicting` for the
 Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
+
+What a row may claim while its forge can't be asked is decided in one place,
+`rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in
+`internal/dashboard/row_claim.go` where the server decides. It reads the forge's
+health and never its name, so a Forgejo row and a GitHub row get the same words.
+Each claim is one of three: confirmed (the forge answered), carried over (the
+forge can't be asked, so the row is an earlier answer, with since-when and the
+reason) or unknown (the forge answered but hasn't said, which only an
+unconfirmed conflict is). The same answer says whether a control may be drawn:
+none is while the forge can't be asked, and none is while its budget is spent
+(the web only; a spent budget says nothing about how old the data is). The
+Dependabot buttons, the actions in the issue dialog, the row controls, and the
+auto-merge, hidden-pull-request and queued-action checks on the server all ask
+it, so a new case lands in all of them at once. A row that carries its own
+since-time, a main branch row or a repo marked `staleSince`, asks the same
+rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
+with one is carried over, in the same words and with the same since-time.
+Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
+reserve, the settings page, the snapshot cache, and which forges the aggregator
+asks) are not row claims and read the health directly.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
@@ -1225,8 +1255,13 @@ their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
-one switched on for itself. One switched off for itself, or one a draft or
-release-please pull request keeps out of the automatic update, still counts.
+one switched on for itself. A pull request whose forge is out of API budget,
+can't be reached or is still starting isn't counted either, since the row draws
+no `Update branch` while the forge is read-only and the banner says why. A row
+whose `Update branch` an earlier click locked with a reason still draws it, so
+it still counts. One
+switched off for itself, or one a draft or release-please pull request keeps out
+of the automatic update, still counts.
 
 Pressing it opens a confirm dialog with a tick box for each pull request, all
 ticked. Clear a box to leave that one out. `Update` then updates the ticked ones

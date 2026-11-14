@@ -21,11 +21,15 @@ export type UpdatePlan<T extends UpdateRow> = {
 type PlanOptions<T extends UpdateRow> = {
   // An update already asked for and waiting on the next snapshot.
   updating?: (item: T) => boolean;
+  // The page draws no row controls for this row: its forge is out of budget,
+  // can't be reached or is still starting. A count of rows with no button to
+  // press would promise what the board doesn't show (#3971).
+  controlsHidden?: (item: T) => boolean;
 };
 
 export function updateAllPlan<T extends UpdateRow>(
   items: readonly T[],
-  { updating }: PlanOptions<T> = {},
+  { updating, controlsHidden }: PlanOptions<T> = {},
 ): UpdatePlan<T> {
   const eligible = items.filter((item) => {
     const update = findAction(item, 'update_branch');
@@ -33,7 +37,8 @@ export function updateAllPlan<T extends UpdateRow>(
       update !== undefined &&
       !update.blocked &&
       !item.autoUpdate?.enabled &&
-      !updating?.(item)
+      !updating?.(item) &&
+      !controlsHidden?.(item)
     );
   });
   return { eligible, total: items.length };

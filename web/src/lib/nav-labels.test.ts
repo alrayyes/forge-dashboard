@@ -249,4 +249,28 @@ describe('pillParts', () => {
     expect(pillParts(count).map((p) => p.kind)).toEqual(['failed', 'passed']);
     expect(headerLabel('Branches', count)).not.toContain('cancelled');
   });
+
+  test('draws cancelled pull requests on Pull requests, Releases and Bots too (#3967)', () => {
+    const count = {
+      total: 9,
+      failed: 2,
+      passed: 3,
+      cancelled: 2,
+      noChecks: 1,
+      running: 1,
+    };
+    expect(pillParts(count).map((p) => [p.kind, p.n])).toEqual([
+      ['failed', 2],
+      ['passed', 3],
+      ['cancelled', 2],
+      ['running', 1],
+      ['noChecks', 1],
+    ]);
+    expect(headerLabel('Pull requests', count)).toBe(
+      '9 2 3 2 1 1, Pull requests, 9 total, 2 failing, 3 passing, 2 cancelled, 1 running, 1 without checks',
+    );
+    expect(tabLabel('PRs', count)).toBe(
+      '9 2 3 2 1 1 PRs, 2 failing, 3 passing, 2 cancelled, 1 running, 1 without checks',
+    );
+  });
 });

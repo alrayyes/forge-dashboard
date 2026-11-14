@@ -342,11 +342,12 @@ can't fire a tracking pixel when the dialog opens.
   documentation (including 3fff::/20), class E, NAT64, 6to4, and the
   192.88.99.0/24 relay, the 0.0.0.0/8 "this network" block, the 100::/64
   discard prefix, the 100:0:0:1::/64 dummy prefix, the 5f00::/16 segment
-  routing block, and all of 2001::/23 except the entries the registry marks
-  globally reachable, plus IPv4-mapped forms of these) is refused on the
-  resolved address. The reachable entries of 2001::/23 stay allowed: three
-  single addresses (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of
-  2001:1::/32), AMT, AS112-v6, ORCHIDv2, and the drone remote ID tags. The
+  routing block, the fec0::/10 deprecated site-local block, and all of
+  2001::/23 except the entries the registry marks globally reachable, plus
+  IPv4-mapped forms of these) is refused on the resolved address. The
+  reachable entries of 2001::/23 stay allowed: three single addresses
+  (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of 2001:1::/32), AMT,
+  AS112-v6, ORCHIDv2, and the drone remote ID tags. The
   exception is the configured Forgejo instance, which is often on a private
   network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting

@@ -34,6 +34,16 @@ function row(over: Partial<Row> & { number: number }): Row {
 }
 
 describe('updateAllPlan', () => {
+  // A forge whose budget is spent, that can't be reached or that is still
+  // starting draws no row controls, so Update all can't offer its rows (#3971).
+  test('leaves out a row whose controls the page does not draw', () => {
+    const plan = updateAllPlan([row({ number: 1 }), row({ number: 2 })], {
+      controlsHidden: (r) => r.number === 1,
+    });
+    expect(plan.eligible.map((r) => r.number)).toEqual([2]);
+    expect(plan.total).toBe(2);
+  });
+
   test('counts the rows whose Update branch the server offers', () => {
     const plan = updateAllPlan([
       row({ number: 1 }),

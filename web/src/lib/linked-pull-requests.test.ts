@@ -7,6 +7,7 @@ import {
   linkedPillId,
   linkedPillName,
   linkedPillText,
+  linkedPillTitle,
   missingNote,
   parsePullRequestAddress,
   splitLinked,
@@ -98,7 +99,17 @@ describe('linkedPillName', () => {
 
   test('says it references the issue when that is what the pull request does', () => {
     expect(linkedPillName(pr(), 'alrayyes/app', null, 'refs')).toBe(
-      'Pull request #12, references this issue',
+      'Pull request #12, references, does not close this issue',
+    );
+  });
+
+  test('says in its tooltip what each relation does to the issue', () => {
+    expect(linkedPillTitle('closes')).toBe('Closes this issue when it merges');
+    expect(linkedPillTitle('refs')).toBe(
+      'References this issue, does not close it',
+    );
+    expect(linkedPillTitle('mentions')).toBe(
+      'Mentions this issue, does not close it',
     );
   });
 

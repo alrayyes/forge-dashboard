@@ -64,7 +64,7 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 		if !repo.HasWebhook || !reachable[repo.Forge] {
 			return false
 		}
-		if repo.StaleSince != nil && !FailingForGood(repo, interval, now) {
+		if ClaimOfRow(ClaimState, repo.StaleSince).State == ClaimCarriedOver && !FailingForGood(repo, interval, now) {
 			return false
 		}
 	}

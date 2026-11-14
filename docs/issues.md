@@ -201,7 +201,12 @@ and the pills are absent when no pull request mentions the issue. The rows don't
 show them. Pull requests that reference the issue are on the rows and in the
 pop-up under "Referenced in", drawn with a dotted outline and italic text,
 after the closing pills; a row shows two of several and a count that opens the
-rest. How a mention is read is in [Tickets a pull request
+rest. Upright means the pull request closes the issue, italic means it only
+references it. A pill says so in its tooltip ("References this issue, does
+not close it") and in its accessible name. The pop-up spells it out under
+"Referenced in" ("Italic: these reference the issue, they do not close it.")
+so a phone reader gets it without hover. How a mention is read is in
+[Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
 ## Opening an issue from its address

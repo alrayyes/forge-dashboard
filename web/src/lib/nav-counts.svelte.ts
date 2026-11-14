@@ -13,13 +13,13 @@ import {
 // that load none. null until it is known, so an item shows no number rather
 // than a misleading 0.
 
-// running and passed come with the pages that have CI (#1439, #1458):
-// Branches, Pull requests, Bots and Releases. A branch with no pipeline or a
-// pull request with no checks has its own neutral count (#3241). Issues
-// carries neither. Branches also carries `cancelled` (#3958) and `none`
-// (#1531), the ones with no pipeline, so its six parts (failed, passed,
-// cancelled, running, awaiting approval, none) add up to the total; the other
-// pages carry `noChecks` instead.
+// running, passed and cancelled come with the pages that have CI (#1439,
+// #1458, #3958, #3967): Branches, Pull requests, Bots and Releases. A branch
+// with no pipeline or a pull request with no checks has its own neutral count
+// (#3241). Issues carries none of them. Branches also carries `none` (#1531),
+// the ones with no pipeline, so its six parts (failed, passed, cancelled,
+// running, awaiting approval, none) add up to the total; the other pages
+// carry `noChecks` instead.
 export type NavCount = {
   total: number;
   failed: number;
