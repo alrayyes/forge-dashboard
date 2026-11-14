@@ -360,11 +360,14 @@ can't fire a tracking pixel when the dialog opens.
   slots gives up when its own context ends. The original comes back unchanged
   when it is already narrow enough, is a GIF (it may be animated), fails to
   decode (an animated WebP), or would not get smaller. It also comes back
-  unchanged for a JPEG whose EXIF orientation is not upright, since a resize
-  would drop the tag and turn the picture. Orientation is read for JPEG only,
-  not for PNG or WebP. A JPEG stays a JPEG, and a PNG or WebP comes back as a
-  PNG. Without `width` the bytes are the original, so a viewer can show the
-  full image. The cache is keyed by width too.
+  unchanged for a JPEG, PNG or WebP whose EXIF orientation is not upright,
+  and for a PNG or WebP whose orientation metadata can't be read, since a
+  resize would drop the tag and turn the picture. A JPEG with an unreadable
+  tag counts as untagged and is scaled. The tag comes from the JPEG `Exif`
+  segment, the PNG `eXIf` chunk or the WebP `EXIF` chunk. A JPEG stays a
+  JPEG, and a PNG or WebP comes back as a PNG. Without `width` the bytes are
+  the original, so a viewer can show the full image. The cache is keyed by
+  width too.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route

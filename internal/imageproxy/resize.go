@@ -39,10 +39,12 @@ func AllowedWidth(width int) bool { return slices.Contains(widths, width) }
 // Resize returns img scaled down to width pixels wide, keeping the aspect
 // ratio. The original comes back unchanged when it is no wider than width,
 // when it is a GIF (which may be animated, and a still frame would lose that),
-// when it cannot be decoded, when it is a JPEG with an EXIF orientation other
-// than upright (scaling would drop the tag and turn the picture), or when the
-// result would not be smaller. A source
-// over MaxPixels is refused with ErrTooLarge, judged from its header alone.
+// when it cannot be decoded, when it is a JPEG, PNG or WebP with an EXIF
+// orientation other than upright, or a PNG or WebP whose orientation metadata
+// can't be read (scaling would drop the tag and turn the picture; a JPEG with
+// an unreadable tag counts as untagged), or when the result would not be
+// smaller. A source over MaxPixels is refused with ErrTooLarge, judged from
+// its header alone.
 // Waiting for one of the few resize slots ends with ctx.
 func Resize(ctx context.Context, img Image, width int) (Image, error) {
 	if img.ContentType == "image/gif" {
@@ -58,7 +60,7 @@ func Resize(ctx context.Context, img Image, width int) (Image, error) {
 	if cfg.Width <= width {
 		return img, nil
 	}
-	if img.ContentType == "image/jpeg" && jpegOrientation(img.Data) > 1 {
+	if o := orientation(img); o > 1 || o == unreadable {
 		return img, nil
 	}
 	select {
