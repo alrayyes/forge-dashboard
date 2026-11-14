@@ -129,25 +129,29 @@ func refuseNonPublic(_, address string, _ syscall.RawConn) error {
 		}
 	}
 
+	if ietfProtocolAssignments.Contains(ip) && !reachableIETF(ip) {
+		return errBlockedAddress
+	}
+
 	return nil
 }
 
 // specialPurpose are the ranges net/netip counts as global unicast but that
 // reach a private network or a translator: shared address space (CGNAT,
-// Tailscale), benchmarking, IETF protocol assignments, the documentation
-// ranges, class E, NAT64 and 6to4, per the IANA special-purpose registries.
+// Tailscale), benchmarking, the documentation ranges, class E, NAT64, 6to4,
+// the discard and dummy IPv6 prefixes and SRv6 SIDs, per the IANA
+// special-purpose registries.
 //
-// 2001::/23 is refused block by block, not whole: the registry marks parts of
-// it globally reachable (2001:1::/32 anycast services, 2001:3::/32 AMT,
-// 2001:4:112::/48 AS112, 2001:20::/28 ORCHIDv2, 2001:30::/28), and a blanket
-// refusal would block real hosts.
+// 2001::/23 is not listed here. The registry marks the whole block not
+// globally reachable and carves out a few reachable entries, so refuseNonPublic
+// refuses it unless the address is in ietfReachable. That is tighter than a
+// deny-list of the unreachable parts, which would miss anything IANA adds.
 var specialPurpose = []netip.Prefix{
 	netip.MustParsePrefix("0.0.0.0/8"),
 	netip.MustParsePrefix("192.88.99.0/24"),
 	netip.MustParsePrefix("100::/64"),
-	netip.MustParsePrefix("2001::/32"),
-	netip.MustParsePrefix("2001:2::/48"),
-	netip.MustParsePrefix("2001:10::/28"),
+	netip.MustParsePrefix("100:0:0:1::/64"),
+	netip.MustParsePrefix("5f00::/16"),
 	netip.MustParsePrefix("3fff::/20"),
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("198.18.0.0/15"),
@@ -160,6 +164,34 @@ var specialPurpose = []netip.Prefix{
 	netip.MustParsePrefix("64:ff9b:1::/48"),
 	netip.MustParsePrefix("2001:db8::/32"),
 	netip.MustParsePrefix("2002::/16"),
+}
+
+var ietfProtocolAssignments = netip.MustParsePrefix("2001::/23")
+
+// ietfReachable are the entries inside 2001::/23 that the registry marks
+// globally reachable: the PCP, TURN and DNS-SD anycast addresses (2001:1::1,
+// 2001:1::2, 2001:1::3, three /128s and not the rest of 2001:1::/32), AMT,
+// AS112-v6, ORCHIDv2 and the drone remote ID tags.
+var ietfReachable = []netip.Prefix{
+	netip.MustParsePrefix("2001:1::1/128"),
+	netip.MustParsePrefix("2001:1::2/128"),
+	netip.MustParsePrefix("2001:1::3/128"),
+	netip.MustParsePrefix("2001:3::/32"),
+	netip.MustParsePrefix("2001:4:112::/48"),
+	netip.MustParsePrefix("2001:20::/28"),
+	netip.MustParsePrefix("2001:30::/28"),
+}
+
+// reachableIETF reports whether ip is in 2001::/23 only through one of the
+// registry's globally reachable entries.
+func reachableIETF(ip netip.Addr) bool {
+	for _, p := range ietfReachable {
+		if p.Contains(ip) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // check validates one hop's URL against the configured set.
