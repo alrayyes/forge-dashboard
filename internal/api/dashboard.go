@@ -761,7 +761,7 @@ func indexSnapshot(snap dashboard.Snapshot) snapshotIndex {
 		idx.open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
 	}
 	for _, f := range snap.Forges {
-		idx.reachable[f.Forge] = f.Reachable
+		idx.reachable[f.Forge] = dashboard.ClaimOf(dashboard.ClaimState, f, true).State == dashboard.ClaimConfirmed
 	}
 	for _, r := range snap.Repos {
 		idx.tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}

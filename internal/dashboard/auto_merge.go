@@ -181,7 +181,7 @@ func (a *Aggregator) dropIfFinished(ctx context.Context, snap Snapshot, key stri
 func forgeReachable(snap Snapshot, forge Forge) bool {
 	for _, f := range snap.Forges {
 		if f.Forge == forge {
-			return f.Reachable
+			return ClaimOf(ClaimState, f, true).State == ClaimConfirmed
 		}
 	}
 
