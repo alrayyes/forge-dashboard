@@ -23,8 +23,9 @@ export type PillKind =
   | 'noChecks';
 
 // The counts after the total, in the order the pill draws them (#1563): the
-// outcomes, failing, passing then cancelled (#3958), then the running state, then the branches
-// held for approval (#2024), then the branches without a pipeline. Zero is never drawn or spoken (#1439). The pill
+// outcomes (failing, passing, then cancelled, #3958), then the running state,
+// then the branches held for approval (#2024), then the branches without a
+// pipeline. Zero is never drawn or spoken (#1439). The pill
 // (NavPills.svelte) and both names below build from this one list, so the
 // order and the zero rule cannot drift apart (#1944).
 export function pillParts(
