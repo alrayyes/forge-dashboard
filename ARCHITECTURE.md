@@ -344,11 +344,11 @@ can't fire a tracking pixel when the dialog opens.
   discard prefix, the 100:0:0:1::/64 dummy prefix, the 5f00::/16 segment
   routing block, and all of 2001::/23 except the entries the registry marks
   globally reachable, plus IPv4-mapped forms of these) is refused on the
-  resolved address. The reachable
-  entries of 2001::/23 stay allowed: three single addresses
-  (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of 2001:1::/32), AMT,
-  AS112-v6, ORCHIDv2, and the drone remote ID tags. The exception is
-  the configured Forgejo instance, which is often on a private network.
+  resolved address. The reachable entries of 2001::/23 stay allowed: three
+  single addresses (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of
+  2001:1::/32), AMT, AS112-v6, ORCHIDv2, and the drone remote ID tags. The
+  exception is the configured Forgejo instance, which is often on a private
+  network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
   the host's header. SVG is refused. Up to 8 MiB for an embedded image, 512 KiB
   for an avatar or logo (the page adds `kind=avatar`), and 10 seconds.

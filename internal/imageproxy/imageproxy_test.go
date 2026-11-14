@@ -401,9 +401,9 @@ func TestRefuseNonPublic_UnmapsAnIPv4MappedAddress(t *testing.T) {
 	}
 }
 
-// 2001::/23 is mostly not reachable, but IANA marks some of it globally
-// reachable (three anycast addresses, AMT, AS112, ORCHIDv2), so only the unreachable
-// blocks are refused and these stay allowed.
+// 2001::/23 is refused except for the entries the IANA registry marks globally
+// reachable (three anycast addresses, AMT, AS112-v6, ORCHIDv2, the drone remote
+// ID tags). These stay allowed, as do addresses just outside the block.
 func TestRefuseNonPublic_AllowsGloballyReachableIETFProtocolRanges(t *testing.T) {
 	t.Parallel()
 	for name, address := range map[string]string{
