@@ -51,12 +51,7 @@ type RowClaim struct {
 // (web/src/lib/row-claim.ts) is the same rule.
 func ClaimOf(kind ClaimKind, h ForgeHealth, answered bool) RowClaim {
 	if !h.Reachable || h.Starting {
-		return RowClaim{
-			State:       ClaimCarriedOver,
-			Since:       h.StaleSince,
-			ActionsOpen: false,
-			Reason:      "The forge can't be asked right now, so this is an earlier answer and no action can run until it can.",
-		}
+		return carriedOver(h.StaleSince)
 	}
 	if kind == ClaimConflict && !answered {
 		return RowClaim{
@@ -67,4 +62,25 @@ func ClaimOf(kind ClaimKind, h ForgeHealth, answered bool) RowClaim {
 	}
 
 	return RowClaim{State: ClaimConfirmed, ActionsOpen: true}
+}
+
+// ClaimOfRow is ClaimOf for a row that carries its own since-time (a main
+// branch row or a repo, StaleSince): a row with one is an earlier answer, with
+// the words and since-time ClaimOf gives a forge that can't be asked. No
+// caller tests a row's StaleSince for that itself (#3993).
+func ClaimOfRow(kind ClaimKind, since *time.Time) RowClaim {
+	if since != nil {
+		return carriedOver(since)
+	}
+
+	return ClaimOf(kind, ForgeHealth{Reachable: true}, true)
+}
+
+func carriedOver(since *time.Time) RowClaim {
+	return RowClaim{
+		State:       ClaimCarriedOver,
+		Since:       since,
+		ActionsOpen: false,
+		Reason:      "The forge can't be asked right now, so this is an earlier answer and no action can run until it can.",
+	}
 }

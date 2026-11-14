@@ -98,7 +98,7 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 	// from.
 	failed := make(map[string]struct{})
 	for _, r := range snap.Repos {
-		if r.StaleSince != nil {
+		if ClaimOfRow(ClaimState, r.StaleSince).State == ClaimCarriedOver {
 			failed[string(r.Forge)+"/"+r.FullName] = struct{}{}
 		}
 	}

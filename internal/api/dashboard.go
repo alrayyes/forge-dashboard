@@ -628,7 +628,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		// refresh schedule, so only a still-stale row says it is failing.
 		var failingSince *time.Time
 		forGood := false
-		if r.StaleSince != nil {
+		if dashboard.ClaimOfRow(dashboard.ClaimState, r.StaleSince).State == dashboard.ClaimCarriedOver {
 			failingSince = r.FailingSince
 			forGood = dashboard.FailingForGood(r, b.refreshInterval, b.now)
 		}
