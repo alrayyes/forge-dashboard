@@ -339,7 +339,8 @@ can't fire a tracking pixel when the dialog opens.
   checked against the list again. At most three are followed.
 - Like the log download in the preceding section, a dial to a non-public
   address (private, local, link-local, shared 100.64.0.0/10, benchmarking,
-  NAT64 and 6to4 ranges) is refused on the resolved address. The exception is
+  documentation, class E, NAT64 and 6to4 ranges, plus IPv4-mapped forms of
+  these) is refused on the resolved address. The exception is
   the configured Forgejo instance, which is often on a private network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
   the host's header. SVG is refused. Up to 8 MiB for an embedded image, 512 KiB

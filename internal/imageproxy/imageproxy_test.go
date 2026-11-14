@@ -342,6 +342,13 @@ func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 		"IETF protocol":        "192.0.0.8",
 		"NAT64":                "[64:ff9b::808:808]",
 		"6to4":                 "[2002:808:808::1]",
+		"TEST-NET-1":           "192.0.2.1",
+		"TEST-NET-2":           "198.51.100.1",
+		"TEST-NET-3":           "203.0.113.1",
+		"class E":              "240.0.0.1",
+		"IPv6 documentation":   "[2001:db8::1]",
+		"local-use NAT64":      "[64:ff9b:1::1]",
+		"mapped loopback":      "[::ffff:127.0.0.1]",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -352,6 +359,23 @@ func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 			_, err := p.Fetch(t.Context(), "http://"+host+":80/a.png")
 
 			require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed)
+		})
+	}
+}
+
+// A dial can hand the check an IPv4-mapped address. Only Unmap lets the IPv4
+// ranges in specialPurpose catch it, so these go to the check directly.
+func TestRefuseNonPublic_UnmapsAnIPv4MappedAddress(t *testing.T) {
+	t.Parallel()
+	for name, address := range map[string]string{
+		"mapped loopback":     "[::ffff:127.0.0.1]:80",
+		"mapped TEST-NET-1":   "[::ffff:192.0.2.1]:80",
+		"mapped shared space": "[::ffff:100.64.0.1]:80",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Error(t, imageproxy.RefuseNonPublic(address))
 		})
 	}
 }
