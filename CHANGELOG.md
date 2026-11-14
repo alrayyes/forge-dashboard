@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.60.0](https://github.com/alrayyes/forge-dashboard/compare/v9.59.4...v9.60.0) (2026-11-14)
+
+
+### Features
+
+* **web:** draw an initial placeholder when an author avatar is missing ([#3984](https://github.com/alrayyes/forge-dashboard/issues/3984)) ([e896fea](https://github.com/alrayyes/forge-dashboard/commit/e896fea993b7de00d271ac29fb1206635f79b6c9)), closes [#3868](https://github.com/alrayyes/forge-dashboard/issues/3868)
+
 ## [9.59.4](https://github.com/alrayyes/forge-dashboard/compare/v9.59.3...v9.59.4) (2026-11-14)
 
 
