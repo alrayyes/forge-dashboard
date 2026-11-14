@@ -130,6 +130,38 @@
       "state": ""
     },
     {
+      "kind": "regular",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": false,
+      "page": "pullRequests",
+      "state": "cancelled"
+    },
+    {
+      "kind": "regular",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "regular",
+      "ci": "cancelled",
+      "draft": true,
+      "hidden": false,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "regular",
+      "ci": "cancelled",
+      "draft": true,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
       "kind": "release",
       "ci": "none",
       "draft": false,
@@ -258,6 +290,38 @@
       "state": ""
     },
     {
+      "kind": "release",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": false,
+      "page": "releases",
+      "state": "cancelled"
+    },
+    {
+      "kind": "release",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "release",
+      "ci": "cancelled",
+      "draft": true,
+      "hidden": false,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "release",
+      "ci": "cancelled",
+      "draft": true,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
       "kind": "dependency",
       "ci": "none",
       "draft": false,
@@ -380,6 +444,38 @@
     {
       "kind": "dependency",
       "ci": "failure",
+      "draft": true,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "dependency",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": false,
+      "page": "bots",
+      "state": "cancelled"
+    },
+    {
+      "kind": "dependency",
+      "ci": "cancelled",
+      "draft": false,
+      "hidden": true,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "dependency",
+      "ci": "cancelled",
+      "draft": true,
+      "hidden": false,
+      "page": "",
+      "state": ""
+    },
+    {
+      "kind": "dependency",
+      "ci": "cancelled",
       "draft": true,
       "hidden": true,
       "page": "",

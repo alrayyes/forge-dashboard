@@ -3,15 +3,18 @@ package api
 import "github.com/alrayyes/forge-dashboard/internal/dashboard"
 
 // pageCount is one nav item's numbers (#1315, #1439, #1458, #3241): how many
-// items its page lists, and how many of those have checks running, failing and
-// passed, or none at all. A pull request held for workflow approval is in Total
-// only, so the five need not add up. Matches
+// items its page lists, and how many of those have checks running, failing,
+// passed or cancelled, or none at all. A pull request held for workflow
+// approval is in Total only, so the six need not add up. Matches
 // components.schemas.NavPullRequestCount.
 type pageCount struct {
 	Total   int `json:"total"`
 	Running int `json:"running"`
 	Failed  int `json:"failed"`
 	Passed  int `json:"passed"`
+	// Cancelled counts the pull requests whose only non-passing runs were
+	// cancelled, so they show beside the other states (#3967).
+	Cancelled int `json:"cancelled"`
 	// NoChecks counts the pull requests with no checks, so they show beside
 	// the other states and not only in Total (#3241).
 	NoChecks int `json:"noChecks"`
@@ -41,7 +44,8 @@ type navCounts struct {
 // badge, so it doesn't jump when a toggle flips. A pull request is running when
 // its CI is pending, failed when it is failing and passed when it succeeded;
 // one whose only failure is workflow runs held for approval is in none of the
-// three. A pull request with no checks counts as such (#3241).
+// four. A pull request is cancelled when its only non-passing runs were
+// cancelled (#3967), and one with no checks counts as such (#3241).
 func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 	var counts navCounts
 	for _, pr := range pullRequests {
@@ -68,6 +72,8 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 			}
 		case dashboard.CISuccess:
 			page.Passed++
+		case dashboard.CICancelled:
+			page.Cancelled++
 		case dashboard.CINone:
 			page.NoChecks++
 		}
