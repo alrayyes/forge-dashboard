@@ -7,6 +7,7 @@ type Count = {
   failed: number;
   running?: number;
   passed?: number;
+  cancelled?: number;
   none?: number;
   noChecks?: number;
   awaitingApproval?: number;
@@ -15,13 +16,14 @@ type Count = {
 export type PillKind =
   | 'failed'
   | 'passed'
+  | 'cancelled'
   | 'running'
   | 'awaiting'
   | 'none'
   | 'noChecks';
 
 // The counts after the total, in the order the pill draws them (#1563): the
-// outcomes, failing then passing, then the running state, then the branches
+// outcomes, failing, passing then cancelled (#3958), then the running state, then the branches
 // held for approval (#2024), then the branches without a pipeline. Zero is never drawn or spoken (#1439). The pill
 // (NavPills.svelte) and both names below build from this one list, so the
 // order and the zero rule cannot drift apart (#1944).
@@ -31,6 +33,7 @@ export function pillParts(
   return [
     { kind: 'failed' as const, n: count.failed, words: 'failing' },
     { kind: 'passed' as const, n: count.passed ?? 0, words: 'passing' },
+    { kind: 'cancelled' as const, n: count.cancelled ?? 0, words: 'cancelled' },
     { kind: 'running' as const, n: count.running ?? 0, words: 'running' },
     {
       kind: 'awaiting' as const,

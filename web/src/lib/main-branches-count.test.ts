@@ -74,6 +74,7 @@ describe('countMainBranches', () => {
       failed: 0,
       passed: 1,
       running: 1,
+      cancelled: 0,
       none: 0,
       awaitingApproval: 1,
     });

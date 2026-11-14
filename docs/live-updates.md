@@ -210,14 +210,16 @@ outcome, and not on a phone. A pull request with no checks gets a neutral
 count with a dashed circle, last, worded "without checks"; it is not counted
 as running. One held for workflow approval is in the total only, so those
 numbers needn't add up. Branches adds a neutral count with the same dashed
-circle for the branches with no pipeline, so its numbers do add up. A zero is
+circle for the branches with no pipeline, and a stop glyph in neutral ink for
+the ones whose last run was cancelled, shown after passing, so its numbers do
+add up. A zero is
 never drawn. The total is left out when it would only repeat the pill's single
 count (2 running of 2 shows "2 running", not "2 2"); with two categories, or
 one that falls short of the total, it stays. The link's name says the same in
 words, in the same order,
 after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
-2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
-3 passing, 1 running, 1 without a pipeline". On
+2 failing, 10 passing, 3 running", and "8 2 3 1 1 1, Branches, 8 total, 2 failing,
+3 passing, 1 cancelled, 1 running, 1 without a pipeline". On
 a phone the total sits on its own line before the counts, and with three-digit
 numbers each count takes a line, so the busy tabs grow to about 110px. Issues
 counts open issues, without Renovate's Dependency Dashboard or what your
