@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.54.2](https://github.com/alrayyes/forge-dashboard/compare/v9.54.1...v9.54.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** keep the checks dialog Copy button and toggle still while the output opens ([#3875](https://github.com/alrayyes/forge-dashboard/issues/3875)) ([0482f47](https://github.com/alrayyes/forge-dashboard/commit/0482f47e42e0350911f16b8d701ec9cf6f1112b5)), closes [#3866](https://github.com/alrayyes/forge-dashboard/issues/3866)
+
 ## [9.54.1](https://github.com/alrayyes/forge-dashboard/compare/v9.54.0...v9.54.1) (2026-11-14)
 
 
