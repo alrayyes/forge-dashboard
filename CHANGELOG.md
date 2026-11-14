@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.58.0](https://github.com/alrayyes/forge-dashboard/compare/v9.57.5...v9.58.0) (2026-11-14)
+
+
+### Features
+
+* **web:** disable sort and group, and hide labels, when the filters leave one row ([#3911](https://github.com/alrayyes/forge-dashboard/issues/3911)) ([d002846](https://github.com/alrayyes/forge-dashboard/commit/d0028468c27ce5ec0263c20f6a28328ddf3c74ed)), closes [#3886](https://github.com/alrayyes/forge-dashboard/issues/3886)
+
 ## [9.57.5](https://github.com/alrayyes/forge-dashboard/compare/v9.57.4...v9.57.5) (2026-11-14)
 
 
