@@ -148,37 +148,81 @@ test.describe('pipeline dialog footer', () => {
     await insideViewport(page);
   });
 
-  test('it is a real outlined button, full width and 44px high on a phone', async ({
+  for (const size of [
+    { width: 360, height: 640 },
+    { width: 390, height: 780 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`it is a real outlined button, 44px high, full width on a phone, at ${size.width}x${size.height}`, async ({
+      page,
+    }) => {
+      await open(page, size, 40);
+      const footer = dialog(page).locator('.pipeline-dialog-footer');
+      await expect(footer.getByRole('link', { name: LINK_NAME })).toHaveCount(
+        1,
+      );
+      await expect(
+        dialog(page)
+          .locator('.pipeline-dialog-body')
+          .getByRole('link', { name: LINK_NAME }),
+      ).toHaveCount(0);
+      await settledBox(page);
+      const m = await link(page).evaluate((el) => {
+        const a = el.getBoundingClientRect();
+        const f = el.parentElement?.getBoundingClientRect();
+        const s = getComputedStyle(el);
+        return {
+          height: a.height,
+          width: a.width,
+          footerWidth: f?.width ?? 0,
+          border: Number.parseFloat(s.borderTopWidth),
+          background: s.backgroundColor,
+        };
+      });
+      expect(m.height).toBeGreaterThanOrEqual(44);
+      expect(m.border).toBeGreaterThan(0);
+      if (size.width < 761) expect(m.width).toBeGreaterThan(m.footerWidth - 40);
+      await expect(link(page)).toHaveText('Open run on GitHub');
+      await expect(link(page).locator('svg[aria-hidden="true"]')).toHaveCount(
+        1,
+      );
+      await expect(link(page)).toHaveAttribute('target', '_blank');
+      await expect(link(page)).toHaveAttribute('rel', /noopener/);
+    });
+  }
+
+  test('a bottom safe-area inset pads the footer and keeps the button whole', async ({
     page,
   }) => {
-    await open(page, { width: 390, height: 780 }, 40);
-    const footer = dialog(page).locator('.pipeline-dialog-footer');
-    await expect(footer.getByRole('link', { name: LINK_NAME })).toHaveCount(1);
-    await expect(
-      dialog(page)
-        .locator('.pipeline-dialog-body')
-        .getByRole('link', { name: LINK_NAME }),
-    ).toHaveCount(0);
-    await settledBox(page);
-    const m = await link(page).evaluate((el) => {
-      const a = el.getBoundingClientRect();
-      const f = el.parentElement?.getBoundingClientRect();
-      const s = getComputedStyle(el);
-      return {
-        height: a.height,
-        width: a.width,
-        footerWidth: f?.width ?? 0,
-        border: Number.parseFloat(s.borderTopWidth),
-        background: s.backgroundColor,
-      };
+    const inset = 34;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+      insets: { bottom: inset },
     });
-    expect(m.height).toBeGreaterThanOrEqual(44);
-    expect(m.border).toBeGreaterThan(0);
-    expect(m.width).toBeGreaterThan(m.footerWidth - 40);
-    await expect(link(page)).toHaveText('Open run on GitHub');
-    await expect(link(page).locator('svg[aria-hidden="true"]')).toHaveCount(1);
-    await expect(link(page)).toHaveAttribute('target', '_blank');
-    await expect(link(page)).toHaveAttribute('rel', /noopener/);
+    await open(page, { width: 390, height: 780 }, 40);
+    await insideViewport(page);
+    const m = await dialog(page)
+      .locator('.pipeline-dialog-footer')
+      .evaluate((el) => {
+        const s = getComputedStyle(el);
+        const b = el.querySelector('a')?.getBoundingClientRect() as DOMRect;
+        return {
+          padBottom: Number.parseFloat(s.paddingBottom),
+          buttonHeight: b.height,
+          gap: window.innerHeight - b.bottom,
+        };
+      });
+    expect(m.padBottom).toBeGreaterThanOrEqual(12 + inset);
+    expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
+    expect(m.gap).toBeGreaterThanOrEqual(inset);
+  });
+
+  test('with no inset the footer keeps its 12px padding', async ({ page }) => {
+    await open(page, { width: 390, height: 780 }, 40);
+    const pad = await dialog(page)
+      .locator('.pipeline-dialog-footer')
+      .evaluate((el) => getComputedStyle(el).paddingBottom);
+    expect(pad).toBe('12px');
   });
 
   test('on desktop it is at least 24px high and left aligned', async ({
