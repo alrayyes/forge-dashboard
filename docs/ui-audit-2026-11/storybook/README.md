@@ -176,9 +176,10 @@ uploaded as stacked parts.
 - The `advisoriesdialog` buttons do not use `--control-border`. The
   filter pills and ghost buttons use `--border-strong` (1.62:1 on white),
   and the back and close buttons use `--border` (1.33:1). They have text
-  or icon labels, so SC 1.4.11 may not need the border, but every other
-  control in the app uses `--control-border`. Stitch's "borders under
-  2:1" was right for these.
+  or icon labels, so SC 1.4.11 may not need the border, but the
+  control-border token is `--control-border` (3.52:1). Stitch's
+  "borders under 2:1" was right for these. Other `--border-strong`
+  users in the app are out of scope here.
 - The failed-load logo story does not fail: the screenshot script
   serves every logo path, so it came out identical to the loaded story. A really
   failed load draws nothing (`RepoLogo` renders only the image), so it
