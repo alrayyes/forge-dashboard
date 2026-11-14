@@ -175,7 +175,7 @@ Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
 relation, closing first, then refs, then plain mentions.
 
 A row shows a "Refs" pill for each, after the "Closes" ones. It is drawn with a
-dashed outline and no fill, so it reads apart from a closing pill by more than
+dotted outline and no fill, so it reads apart from a closing pill by more than
 its word. Its tooltip and accessible name say it references the ticket and
 doesn't close it. It behaves like a closing pill: the first two show, a count
 opens the rest, a press opens the ticket's pop-up in place and Escape returns
