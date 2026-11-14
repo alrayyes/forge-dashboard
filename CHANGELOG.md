@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.61.0](https://github.com/alrayyes/forge-dashboard/compare/v9.60.2...v9.61.0) (2026-11-14)
+
+
+### Features
+
+* **web:** explain why a linked pull request pill is italic ([#3997](https://github.com/alrayyes/forge-dashboard/issues/3997)) ([171d2a5](https://github.com/alrayyes/forge-dashboard/commit/171d2a5b4bbb2a86a3d8646799000ddf02701f0f))
+
 ## [9.60.2](https://github.com/alrayyes/forge-dashboard/compare/v9.60.1...v9.60.2) (2026-11-14)
 
 
