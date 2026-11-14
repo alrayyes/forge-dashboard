@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.54.1](https://github.com/alrayyes/forge-dashboard/compare/v9.54.0...v9.54.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** keep the pull request title readable at 150% and 175% root font size ([#3860](https://github.com/alrayyes/forge-dashboard/issues/3860)) ([5df65a2](https://github.com/alrayyes/forge-dashboard/commit/5df65a28684918ba2cbb07bb06cf5613b64d7495)), closes [#3849](https://github.com/alrayyes/forge-dashboard/issues/3849)
+
 ## [9.54.0](https://github.com/alrayyes/forge-dashboard/compare/v9.53.2...v9.54.0) (2026-11-14)
 
 
