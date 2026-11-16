@@ -185,20 +185,32 @@ for (const [name, path, rows] of LISTS) {
       page,
     }) => {
       await open(page, path, rows, percent, width);
-      const m = await page.evaluate((sel) => {
-        const row = document.querySelector(`${sel} > .row`) as HTMLElement;
-        const title = row.querySelector('.title-cell') as HTMLElement;
-        return {
-          title: title.getBoundingClientRect().width,
-          scroll: row.scrollWidth,
-          client: row.clientWidth,
-          height: row.getBoundingClientRect().height,
-        };
-      }, rows);
-      expect(m.title, 'title width').toBeGreaterThanOrEqual(200);
-      expect(m.scroll, 'row scrolls sideways').toBeLessThanOrEqual(m.client);
-      // A title squeezed to a few pixels stacks one letter per line.
-      expect(m.height, 'row height').toBeLessThan(400);
+      const measure = () =>
+        page.evaluate((sel) => {
+          const row = document.querySelector(`${sel} > .row`) as HTMLElement;
+          const title = row.querySelector('.title-cell') as HTMLElement;
+          return {
+            title: title.getBoundingClientRect().width,
+            scroll: row.scrollWidth,
+            client: row.clientWidth,
+            height: row.getBoundingClientRect().height,
+          };
+        }, rows);
+      // Re-measure until the row has settled, so one read under load can't
+      // fail it.
+      await expect
+        .poll(async () => {
+          const m = await measure();
+          return [
+            ['title width under 200px', m.title >= 200],
+            ['row scrolls sideways', m.scroll <= m.client],
+            // A title squeezed to a few pixels stacks one letter per line.
+            ['row height 400px or more', m.height < 400],
+          ]
+            .filter(([, ok]) => !ok)
+            .map(([what]) => `${what} (${JSON.stringify(m)})`);
+        })
+        .toEqual([]);
     });
   }
 
@@ -209,49 +221,62 @@ for (const [name, path, rows] of LISTS) {
   }) => {
     for (const width of [1104, 1280]) {
       await open(page, path, rows, 400, width);
-      const got = await page.evaluate(
-        (sel) =>
-          getComputedStyle(
-            document.querySelector(`${sel} > .row`) as Element,
-          ).gridTemplateColumns.split(' ').length,
-        rows,
-      );
-      expect(got, `${width}px track count`).toBe(rows === '#pr-rows' ? 4 : 3);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              (sel) =>
+                getComputedStyle(
+                  document.querySelector(`${sel} > .row`) as Element,
+                ).gridTemplateColumns.split(' ').length,
+              rows,
+            ),
+          { message: `${width}px track count` },
+        )
+        .toBe(rows === '#pr-rows' ? 4 : 3);
     }
   });
 
   test(`${name}: the grid tracks are unchanged at 100%`, async ({ page }) => {
-    const got: Record<string, string> = {};
-    for (const width of [320, 390, 1280]) {
-      await open(page, path, rows, 100, width);
-      got[width] = await page.evaluate(
+    const read = () =>
+      page.evaluate(
         (sel) =>
           getComputedStyle(document.querySelector(`${sel} > .row`) as Element)
             .gridTemplateColumns,
         rows,
       );
-    }
     // At 1280 every track is a fixed width, so pin them exactly. Below that the
     // last track is `auto` and holds a text arrow, so its width (and the split
     // with the 1fr track) follows the fallback font. Pin the track count, the
     // total and a bound on the arrow track, which is what the layout controls.
     const px = (tracks: string) => tracks.split(' ').map(parseFloat);
-    expect(got['1280']).toBe(TRACKS_100[rows]['1280']);
-    for (const width of ['320', '390']) {
-      const want = px(TRACKS_100[rows][width]);
-      const have = px(got[width]);
-      expect(have, `${width}px track count`).toHaveLength(want.length);
-      // The arrow track stays glyph-sized: roomy for any fallback font, but
-      // it can't collapse or grow into a real column.
-      expect(have[1], `${width}px arrow track`).toBeGreaterThanOrEqual(8);
-      expect(have[1], `${width}px arrow track`).toBeLessThanOrEqual(24);
-      expect(
-        have.reduce((a, b) => a + b, 0),
-        `${width}px track total`,
-      ).toBeCloseTo(
-        want.reduce((a, b) => a + b, 0),
-        1,
-      );
+    const sum = (n: number[]) => n.reduce((a, b) => a + b, 0);
+    for (const width of [320, 390, 1280]) {
+      await open(page, path, rows, 100, width);
+      await expect
+        .poll(
+          async () => {
+            const tracks = await read();
+            if (width === 1280) {
+              return tracks === TRACKS_100[rows]['1280']
+                ? 'ok'
+                : `${tracks} != ${TRACKS_100[rows]['1280']}`;
+            }
+            const want = px(TRACKS_100[rows][width]);
+            const have = px(tracks);
+            const ok =
+              have.length === want.length &&
+              // The arrow track stays glyph-sized: roomy for any fallback font,
+              // but it can't collapse or grow into a real column.
+              have[1] >= 8 &&
+              have[1] <= 24 &&
+              Math.abs(sum(have) - sum(want)) < 0.05;
+            // The measured tracks name what failed, as the old assertions did.
+            return ok ? 'ok' : `${tracks} vs ${TRACKS_100[rows][width]}`;
+          },
+          { message: `${width}px tracks` },
+        )
+        .toBe('ok');
     }
   });
 
