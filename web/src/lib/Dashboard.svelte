@@ -1039,7 +1039,7 @@
       const claim = stateClaim(item);
       if (claim.state !== "carried_over") return pill;
       pill.dataset.claim = claim.state;
-      const earlier = claim.reason.replace(/^Showing data[^.]*\.\s*/, "");
+      const { earlier } = claim;
       pill.title = pill.title ? `${pill.title}. ${earlier}` : earlier;
       const name = pill.getAttribute("aria-label");
       if (name) pill.setAttribute("aria-label", `${name} ${earlier}`);

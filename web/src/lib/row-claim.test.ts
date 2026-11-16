@@ -121,6 +121,25 @@ describe('rowClaim', () => {
     });
   });
 
+  describe('earlier', () => {
+    test('is the answer on its own, with the since-time', () => {
+      const c = rowClaim({
+        kind: 'state',
+        lock: unreachable,
+        since: '3 min ago',
+      });
+      expect(c.earlier).toBe(
+        "The forge isn't answering yet, so this may be an earlier answer from 3 min ago, and no action can run until it does.",
+      );
+      expect(c.reason).toBe(`Showing data from 3 min ago. ${c.earlier}`);
+    });
+
+    test('is empty unless the row is carried over', () => {
+      expect(rowClaim({ kind: 'state', lock: null }).earlier).toBe('');
+      expect(rowClaim({ kind: 'state', lock: limited }).earlier).toBe('');
+    });
+  });
+
   test('has no forge in it', async () => {
     const src = await Bun.file(
       new URL('./row-claim.ts', import.meta.url),

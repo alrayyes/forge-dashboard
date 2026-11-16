@@ -35,6 +35,12 @@ func TestClaimOf(t *testing.T) {
 		})
 	}
 
+	t.Run("a host that is starting is carried over even if flagged reachable", func(t *testing.T) {
+		h := dashboard.ForgeHealth{Reachable: true, Starting: true, StaleSince: &since}
+		c := dashboard.ClaimOf(dashboard.ClaimState, h, true)
+		assert.Equal(t, dashboard.ClaimCarriedOver, c.State)
+		assert.False(t, c.ActionsOpen)
+	})
 	t.Run("an unconfirmed conflict is unknown", func(t *testing.T) {
 		c := dashboard.ClaimOf(dashboard.ClaimConflict, answered, false)
 		assert.Equal(t, dashboard.ClaimUnknown, c.State)
@@ -95,8 +101,12 @@ func TestForgeHealthOf(t *testing.T) {
 	down := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, StaleSince: &since}
 	up := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}
 	other := dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo}
+	starting := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Starting: true, StaleSince: &since}
 
 	assert.Equal(t, down, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{down, other}, dashboard.ForgeGitHub))
 	assert.Equal(t, up, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{down, up}, dashboard.ForgeGitHub), "a host that answers keeps the row's claim open")
+	assert.Equal(t, starting, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{starting, other}, dashboard.ForgeGitHub), "a host that has not been asked yet is an earlier answer")
+	assert.Equal(t, up, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{starting, up}, dashboard.ForgeGitHub), "a host that answers outranks one that is starting")
+	assert.Equal(t, starting, dashboard.ForgeHealthOf([]dashboard.ForgeHealth{starting, down}, dashboard.ForgeGitHub), "with none answering the first host speaks for the kind")
 	assert.True(t, dashboard.ForgeHealthOf(nil, dashboard.ForgeGitHub).Reachable, "no entry says nothing against a row")
 }
