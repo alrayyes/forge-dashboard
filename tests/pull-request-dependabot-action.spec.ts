@@ -28,6 +28,8 @@ interface MockPR {
   updatedAt: string;
   mergeStatus: string;
   behind: boolean;
+  editedByOthers?: boolean;
+  allowedActions?: { action: string; primary?: boolean }[];
 }
 
 function makePR(overrides: Partial<MockPR> = {}): MockPR {
@@ -683,5 +685,37 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
     await recreate.click({ force: true });
 
     expect(posted).toBe(false);
+  });
+
+  // Dependabot answers "can't rebase it" on a branch someone else committed to,
+  // so the server offers Update branch there instead (#4023).
+  test('a behind Dependabot pull request with foreign commits offers Update branch, not Rebase', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      'github',
+      makePR({
+        behind: true,
+        editedByOthers: true,
+        allowedActions: [
+          { action: 'update_branch', primary: true },
+          { action: 'dependabot_recreate' },
+        ],
+      }),
+    );
+    await page.goto('/bots.html');
+
+    const row = page.locator('#pr-rows .row').first();
+    const footer = await openFooter(row);
+    await expect(
+      footer.getByRole('button', { name: 'Update branch' }),
+    ).toBeVisible();
+    await expect(
+      footer.getByRole('button', { name: 'Dependabot: Recreate' }),
+    ).toBeVisible();
+    await expect(
+      footer.getByRole('button', { name: 'Dependabot: Rebase' }),
+    ).toHaveCount(0);
   });
 });
