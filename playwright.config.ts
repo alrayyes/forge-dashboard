@@ -100,6 +100,7 @@ const singleUserSpecs = [
   '**/bulk-actions-header.spec.ts',
   '**/rerun-all.spec.ts',
   '**/ci-pill-counts.spec.ts',
+  '**/unknown-check-pill.spec.ts',
   '**/checking-for-conflicts.spec.ts',
   '**/conflict-not-confirmed.spec.ts',
   '**/conflict-not-confirmed-reason.spec.ts',
