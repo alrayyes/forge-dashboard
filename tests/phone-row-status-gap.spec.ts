@@ -193,14 +193,15 @@ test.describe('phone row status gap (#3834)', () => {
     await expect
       .poll(async () => {
         const c = await read();
-        return (
+        const ok =
           c.display !== null &&
           c.display !== 'none' &&
           (c.clusterWidth ?? 0) > 0 &&
-          (c.titleWidth ?? 0) > 0
-        );
+          (c.titleWidth ?? 0) > 0;
+        // The measured values name what failed, as the old assertions did.
+        return ok ? 'ok' : JSON.stringify(c);
       })
-      .toBe(true);
+      .toBe('ok');
   });
 
   for (const width of [320, 360, 390, 1280]) {

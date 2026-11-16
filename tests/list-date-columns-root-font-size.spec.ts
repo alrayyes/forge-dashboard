@@ -257,21 +257,26 @@ for (const [name, path, rows] of LISTS) {
         .poll(
           async () => {
             const tracks = await read();
-            if (width === 1280) return tracks === TRACKS_100[rows]['1280'];
+            if (width === 1280) {
+              return tracks === TRACKS_100[rows]['1280']
+                ? 'ok'
+                : `${tracks} != ${TRACKS_100[rows]['1280']}`;
+            }
             const want = px(TRACKS_100[rows][width]);
             const have = px(tracks);
-            return (
+            const ok =
               have.length === want.length &&
               // The arrow track stays glyph-sized: roomy for any fallback font,
               // but it can't collapse or grow into a real column.
               have[1] >= 8 &&
               have[1] <= 24 &&
-              Math.abs(sum(have) - sum(want)) < 0.05
-            );
+              Math.abs(sum(have) - sum(want)) < 0.05;
+            // The measured tracks name what failed, as the old assertions did.
+            return ok ? 'ok' : `${tracks} vs ${TRACKS_100[rows][width]}`;
           },
           { message: `${width}px tracks` },
         )
-        .toBe(true);
+        .toBe('ok');
     }
   });
 
