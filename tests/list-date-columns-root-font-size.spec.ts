@@ -228,7 +228,24 @@ for (const [name, path, rows] of LISTS) {
         rows,
       );
     }
-    expect(got).toEqual(TRACKS_100[rows]);
+    // At 1280 every track is a fixed width, so pin them exactly. Below that the
+    // last track is `auto` and holds a text arrow, so its width (and the split
+    // with the 1fr track) follows the fallback font. Pin the track count and
+    // the total, which is what the layout controls.
+    const px = (tracks: string) => tracks.split(' ').map(parseFloat);
+    expect(got['1280']).toBe(TRACKS_100[rows]['1280']);
+    for (const width of ['320', '390']) {
+      const want = px(TRACKS_100[rows][width]);
+      const have = px(got[width]);
+      expect(have, `${width}px track count`).toHaveLength(want.length);
+      expect(
+        have.reduce((a, b) => a + b, 0),
+        `${width}px track total`,
+      ).toBeCloseTo(
+        want.reduce((a, b) => a + b, 0),
+        1,
+      );
+    }
   });
 
   for (const mode of ['light', 'dark', 'forced-colors'] as const) {
