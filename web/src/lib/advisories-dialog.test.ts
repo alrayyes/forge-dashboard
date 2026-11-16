@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import {
   type AdvisoryItem,
   type AdvisoryList,
@@ -13,7 +13,9 @@ import {
   severityCounts,
   unreadableText,
 } from './advisories-dialog';
-import { registerForgeCapabilities } from './forges';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
+
+afterEach(resetForgeCapabilities);
 
 const item = (over: Partial<AdvisoryItem> = {}): AdvisoryItem => ({
   number: 1,
