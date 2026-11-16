@@ -239,18 +239,29 @@ test.describe('settings groups', () => {
     for (const g of GROUPS) {
       const link = groupLink(page, g.label);
       await expect(link).toBeInViewport({ ratio: 1 });
-      const box = await link.boundingBox();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(
+          async () => {
+            const box = await link.boundingBox();
+            const height = box?.height ?? 0;
+            const width = box?.width ?? 0;
+            return { ok: height >= 44 && width >= 44, height, width };
+          },
+          { message: `${g.label} link size` },
+        )
+        .toMatchObject({ ok: true });
     }
     await groupLink(page, 'Integrations and security').click();
     await expect(cardHeading(page, 'Passkeys')).toBeVisible();
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 
   test.describe('per-card saves still work', () => {

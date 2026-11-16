@@ -251,7 +251,14 @@ test.describe('Repo and Author: several values, matching any', () => {
   });
 
   test('the Bots page has the same controls', async ({ page }) => {
-    await open(page, '/bots.html');
+    // The filter bar shows only for a list of two or more rows (#3670), and
+    // the Bots page lists dependency pull requests. Without two of them the
+    // bar is drawn until the snapshot lands and hidden after, so the test
+    // passed or failed on which came first.
+    await open(page, '/bots.html', [
+      pr(5, 'renovate[bot]', 'acme/api', { kind: 'dependency' }),
+      pr(6, 'dependabot', 'acme/web', { kind: 'dependency' }),
+    ]);
     await expect(pickButton(page, 'repo')).toHaveText('All repos');
     await expect(pickButton(page, 'author')).toHaveText('All authors');
   });
