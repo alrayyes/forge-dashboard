@@ -102,6 +102,9 @@ const intersects = (a: Rect, b: Rect) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 // The computed grid-template-columns on main, per viewport width, at 100%.
+// The 1280 values are asserted exactly. Below that the last track is `auto`
+// and sized by a text arrow, so only the track count and total are asserted,
+// plus a bound on the arrow track; the split here is one font's.
 const TRACKS_100: Record<string, Record<string, string>> = {
   '#issue-rows': {
     '320': '218px 16px',
@@ -238,6 +241,10 @@ for (const [name, path, rows] of LISTS) {
       const want = px(TRACKS_100[rows][width]);
       const have = px(got[width]);
       expect(have, `${width}px track count`).toHaveLength(want.length);
+      // The arrow track stays glyph-sized: roomy for any fallback font, but
+      // it can't collapse or grow into a real column.
+      expect(have[1], `${width}px arrow track`).toBeGreaterThanOrEqual(8);
+      expect(have[1], `${width}px arrow track`).toBeLessThanOrEqual(24);
       expect(
         have.reduce((a, b) => a + b, 0),
         `${width}px track total`,
