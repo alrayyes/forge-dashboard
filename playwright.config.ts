@@ -85,6 +85,7 @@ const singleUserSpecs = [
   '**/nav-public-pages.spec.ts',
   '**/nav.spec.ts',
   '**/nav-telemetry-pills.spec.ts',
+  '**/pipeline-check-action-layout.spec.ts',
   '**/pipeline-check-states.spec.ts',
   '**/pipeline-dialog-footer.spec.ts',
   '**/pipeline-dialog-name.spec.ts',

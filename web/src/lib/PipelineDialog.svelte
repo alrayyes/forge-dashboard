@@ -718,14 +718,19 @@
                no log to read yet (queued, or running on GitHub) links to the
                forge's own page. -->
           {@const linkText = checkLinkText(control, state, forge)}
-          <a
-            class="pipeline-check-link"
-            href={check.url}
-            target="_blank"
-            rel="noopener"
-            aria-label={checkLinkLabel(linkText, check.name)}
-            >{linkText}<ExternalLinkIcon /></a
-          >
+          <!-- The same trailing slot and icon button as a row with output, so
+               a row's actions sit in one place whatever its status (#3878). -->
+          <div class="run-actions">
+            <a
+              class="run-icon-btn"
+              href={check.url}
+              target="_blank"
+              rel="noopener"
+              title={linkText}
+              aria-label={checkLinkLabel(linkText, check.name)}
+              ><ExternalLinkIcon /></a
+            >
+          </div>
         {/if}
         {#if hint}
           <p class="pipeline-check-hint">{hint}</p>
