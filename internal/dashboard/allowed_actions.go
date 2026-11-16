@@ -70,11 +70,7 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
 	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
-		// A command Dependabot has yet to act on can't be withdrawn, so while one
-		// is pending neither is offered; the wait chip says what is going on.
-		if !botRequestPending(pr, BotDependabot) {
-			out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
-		}
+		out = append(out, dependabotActions(pr)...)
 	}
 	if isRenovatePR(pr, renovateAuthors) {
 		out = append(out, renovateRebaseActions(pr)...)
@@ -100,6 +96,24 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	markPrimary(pr, out)
 
 	return out
+}
+
+// dependabotActions: the commands Dependabot answers. A command it has yet to
+// act on can't be withdrawn, so while one is pending neither is offered; the
+// wait chip says what is going on. It refuses a rebase on a branch someone else
+// committed to (#4023), so only Recreate, which discards those commits, is
+// offered there.
+func dependabotActions(pr PullRequest) []ActionAvailability {
+	if botRequestPending(pr, BotDependabot) {
+		return nil
+	}
+
+	var out []ActionAvailability
+	if !pr.EditedByOthers {
+		out = append(out, ActionAvailability{Action: ActionDependabotRebase})
+	}
+
+	return append(out, ActionAvailability{Action: ActionDependabotRecreate})
 }
 
 // mergeHeldForApproval: Merge is offered and gives the approval as its reason.
@@ -362,7 +376,7 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	if !pr.Behind || pr.Empty {
 		return ActionAvailability{}, false
 	}
-	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) {
+	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) && !editedDependabotPR(pr) {
 		return ActionAvailability{}, false
 	}
 	if conflictKnown(pr) {
@@ -402,4 +416,11 @@ func autoMergeOffered(pr PullRequest) bool {
 	}
 
 	return true
+}
+
+// editedDependabotPR: a Dependabot pull request Dependabot won't rebase because
+// someone else committed to its branch. The forge's own branch update works
+// there, so it is that pull request's way to catch up (#4023).
+func editedDependabotPR(pr PullRequest) bool {
+	return isDependabotPR(pr) && pr.EditedByOthers
 }

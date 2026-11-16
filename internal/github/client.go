@@ -1960,6 +1960,21 @@ type graphqlPullRequest struct {
 	Commits   struct {
 		Nodes []prCommitNode `json:"nodes"`
 	} `json:"commits"`
+	// BranchCommits is the branch's first commits with their authors, read
+	// only to tell whether someone other than the pull request's bot wrote one.
+	BranchCommits struct {
+		TotalCount int `json:"totalCount"`
+		Nodes      []struct {
+			Commit struct {
+				Author struct {
+					Name string `json:"name"`
+					User *struct {
+						Login string `json:"login"`
+					} `json:"user"`
+				} `json:"author"`
+			} `json:"commit"`
+		} `json:"nodes"`
+	} `json:"branchCommits"`
 }
 
 type graphqlIssue struct {
@@ -2147,6 +2162,10 @@ query($cursor: String, $since: DateTime) {
             }
             createdAt
             updatedAt
+            branchCommits: commits(first: 20) {
+              totalCount
+              nodes { commit { author { name user { login } } } }
+            }
             commits(last: 1) {
               nodes {
                 commit {
@@ -2271,6 +2290,10 @@ const appRepoFieldsTemplate = `
         }
         createdAt
         updatedAt
+        branchCommits: commits(first: 20) {
+          totalCount
+          nodes { commit { author { name user { login } } } }
+        }
         commits(last: 1) {
           nodes {
             commit {
@@ -3284,6 +3307,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Title:                    p.Title,
 		URL:                      p.URL,
 		Author:                   authorLogin(p.Author),
+		EditedByOthers:           editedByOthers(p),
 		AuthorAvatarURL:          authorAvatarURL(p.Author),
 		Draft:                    p.IsDraft,
 		Labels:                   labelsFromNodes(p.Labels.Nodes),
@@ -3598,6 +3622,10 @@ const pullRequestFields = `        number
         }
         createdAt
         updatedAt
+        branchCommits: commits(first: 20) {
+          totalCount
+          nodes { commit { author { name user { login } } } }
+        }
         commits(last: 1) {
           nodes {
             commit {
@@ -4647,4 +4675,36 @@ func (c *Client) logger() *slog.Logger {
 	}
 
 	return slog.Default()
+}
+
+// editedByOthers: a Dependabot pull request whose branch holds a commit
+// Dependabot didn't write. Dependabot refuses to rebase such a branch, so the
+// dashboard offers Update branch instead (#4023). It is false for any other
+// author, where several commit authors are ordinary, and true when the branch
+// has more commits than the query read, since it can't be vouched for.
+func editedByOthers(p graphqlPullRequest) bool {
+	author := botSlug(authorLogin(p.Author))
+	if author != "dependabot" {
+		return false
+	}
+	if p.BranchCommits.TotalCount > len(p.BranchCommits.Nodes) {
+		return true
+	}
+	for _, n := range p.BranchCommits.Nodes {
+		who := n.Commit.Author.Name
+		if n.Commit.Author.User != nil {
+			who = n.Commit.Author.User.Login
+		}
+		if botSlug(who) != author {
+			return true
+		}
+	}
+
+	return false
+}
+
+// botSlug is a login without its "[bot]" suffix, since GraphQL names a bot's
+// pull request author "dependabot" but its commits "dependabot[bot]".
+func botSlug(login string) string {
+	return strings.TrimSuffix(strings.ToLower(login), "[bot]")
 }

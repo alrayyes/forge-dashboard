@@ -285,6 +285,11 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// EditedByOthers is true when the head branch holds a commit its author
+	// didn't make, such as a bot refreshing a lockfile on a Dependabot branch.
+	// Dependabot refuses to rebase such a branch, so its pull request offers
+	// Update branch instead (#4023). False when the forge can't say.
+	EditedByOthers bool `json:"editedByOthers"`
 	// BaseBranch and HeadBranch name the branch the pull request targets and
 	// the branch it comes from (#860). A stack is worked out from them: B is
 	// stacked on A when B's base branch is A's head branch.

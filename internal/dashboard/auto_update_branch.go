@@ -230,7 +230,7 @@ func (a *Aggregator) forgetStaleAutoUpdateChoices(ctx context.Context, snap Snap
 // UpdateBranch — runAutoUpdateBranch's own per-PR routing, split out only
 // to keep that loop's own branching under gocyclo's threshold.
 func (a *Aggregator) updateBehindPR(ctx context.Context, pr PullRequest, renovateLabel string, renovateAuthors []string) {
-	if isDependabotPR(pr) {
+	if isDependabotPR(pr) && !pr.EditedByOthers {
 		a.rebaseDependabotPR(ctx, pr)
 
 		return

@@ -661,6 +661,15 @@ with a `Settled` chip ("Branch updated"), the `expired` phase ends it with a
 timed-out line, an error toast and Retry, and a record the page never clicked (a
 reload mid-wait) starts the row with the chip.
 
+Dependabot refuses to rebase a branch that holds a commit it didn't write, such
+as a bot refreshing a lock file on it, and answers "can't rebase it". The server
+reads the head branch's commit authors and sets `editedByOthers` on such a pull
+request. It then offers Update branch and Recreate and leaves the Dependabot
+rebase out, and auto-update calls the forge's branch update rather than posting
+the comment. Recreate stays because it is the way to discard the foreign
+commits. A branch of more than 20 commits counts as edited, and the
+unauthenticated REST fallback can't tell, so there it is always false.
+
 A bot `rebase` waits on the bot, not on the dashboard. The request button
 goes (a Renovate request leaves its cancel, a Dependabot one nothing), and the
 chip reads `Rebase requested` with the bot's name and an age that ticks along,
