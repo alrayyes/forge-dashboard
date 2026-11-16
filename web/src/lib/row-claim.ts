@@ -39,6 +39,9 @@ export type RowClaim = {
   actionsOpen: boolean;
   // Why the claim is not confirmed; empty when it is.
   reason: string;
+  // The "earlier answer" sentence alone, for a pill that adds it to its own
+  // words; empty unless the row is carried over.
+  earlier: string;
 };
 
 function carriedOver(lock: LockInfo | null): boolean {
@@ -63,12 +66,14 @@ export function rowClaim({
     return {
       state: 'carried_over',
       actionsOpen,
+      earlier: answer,
       reason: unconfirmed
         ? `${WHY} ${answer}`
         : `Showing data${when}. ${answer}`,
     };
   }
-  if (!unconfirmed) return { state: 'confirmed', actionsOpen, reason: '' };
+  if (!unconfirmed)
+    return { state: 'confirmed', actionsOpen, reason: '', earlier: '' };
 
   let next: string;
   if (lock?.code === 'rate_limited')
@@ -77,5 +82,10 @@ export function rowClaim({
   else
     next =
       'Wait for the forge to finish checking, or open the pull request on the forge.';
-  return { state: 'unknown', actionsOpen, reason: `${WHY} ${next}` };
+  return {
+    state: 'unknown',
+    actionsOpen,
+    reason: `${WHY} ${next}`,
+    earlier: '',
+  };
 }
