@@ -6044,6 +6044,7 @@ components:
           checks,
           mergeStatus,
           behind,
+          editedByOthers,
           headSha,
           kind,
           baseBranch,
@@ -6137,6 +6138,14 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        editedByOthers:
+          type: boolean
+          description: |
+            Whether a Dependabot pull request's head branch holds a commit
+            Dependabot didn't write, such as a bot refreshing a lockfile on it.
+            Dependabot refuses to rebase such a branch, so the pull request
+            offers Update branch instead of Dependabot's Rebase. Always false
+            for any other author. Always present.
         headSha:
           type: string
           description: |
