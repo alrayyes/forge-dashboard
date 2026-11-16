@@ -609,7 +609,10 @@ time, the newest on top, with the `owner/repo#N`, a one-line message, "Show row"
 that filter, if the row is on another page it moves there, and if the pull
 request is merged or closed it says so) and a dismiss button. Success toasts go
 after about six seconds and wait while you hover or focus them. Error toasts
-stay until you dismiss them. The sticky "Activity" control keeps a count and
+stay until you dismiss them. With a finger or a pen, swipe a toast sideways,
+more than about a third of its width, to close it. A shorter swipe springs back,
+and a finger held on a toast pauses its timer. The dismiss button still works,
+and a mouse doesn't drag. The sticky "Activity" control keeps a count and
 opens a panel of in-flight and recent actions per pull request, with "Show row"
 and "Clear finished", so a dismissed toast isn't lost. The control is hidden
 while there is nothing to list (no recent, in-flight or queued action), and

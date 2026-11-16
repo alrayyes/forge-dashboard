@@ -3501,6 +3501,8 @@ a.ci-pill:hover {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* Vertical panning stays with the page; sideways is the swipe (#4020). */
+  touch-action: pan-y;
 }
 
 .feedback-toast[data-kind="error"] {
