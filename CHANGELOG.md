@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.62.0](https://github.com/alrayyes/forge-dashboard/compare/v9.61.4...v9.62.0) (2026-11-16)
+
+
+### Features
+
+* **api:** expose what each forge can do as data ([#4008](https://github.com/alrayyes/forge-dashboard/issues/4008)) ([6eae3c1](https://github.com/alrayyes/forge-dashboard/commit/6eae3c15fed09da2a3957c74fac3b6adc0c72d5f))
+
 ## [9.61.4](https://github.com/alrayyes/forge-dashboard/compare/v9.61.3...v9.61.4) (2026-11-16)
 
 
