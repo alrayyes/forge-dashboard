@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.64.0](https://github.com/alrayyes/forge-dashboard/compare/v9.63.1...v9.64.0) (2026-11-16)
+
+
+### Features
+
+* **feedback:** swipe a toast left or right to close it ([#4057](https://github.com/alrayyes/forge-dashboard/issues/4057)) ([01780c2](https://github.com/alrayyes/forge-dashboard/commit/01780c2ea4fe1808915cd311dfb6a4b9e82dbf36)), closes [#4020](https://github.com/alrayyes/forge-dashboard/issues/4020)
+
 ## [9.63.1](https://github.com/alrayyes/forge-dashboard/compare/v9.63.0...v9.63.1) (2026-11-16)
 
 
