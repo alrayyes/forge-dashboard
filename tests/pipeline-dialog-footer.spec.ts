@@ -175,21 +175,35 @@ test.describe('pipeline dialog footer', () => {
           .getByRole('link', { name: LINK_NAME }),
       ).toHaveCount(0);
       await settledBox(page);
-      const m = await link(page).evaluate((el) => {
-        const a = el.getBoundingClientRect();
-        const f = el.parentElement?.getBoundingClientRect();
-        const s = getComputedStyle(el);
-        return {
-          height: a.height,
-          width: a.width,
-          footerWidth: f?.width ?? 0,
-          border: Number.parseFloat(s.borderTopWidth),
-          background: s.backgroundColor,
-        };
-      });
-      expect(m.height).toBeGreaterThanOrEqual(44);
-      expect(m.border).toBeGreaterThan(0);
-      if (size.width < 761) expect(m.width).toBeGreaterThan(m.footerWidth - 40);
+      // Re-measured until every check holds, so a button still taking its
+      // size after the slide-in doesn't fail the spec on one read.
+      await expect
+        .poll(async () => {
+          const m = await link(page).evaluate((el) => {
+            const a = el.getBoundingClientRect();
+            const f = el.parentElement?.getBoundingClientRect();
+            const s = getComputedStyle(el);
+            return {
+              height: a.height,
+              width: a.width,
+              footerWidth: f?.width ?? 0,
+              border: Number.parseFloat(s.borderTopWidth),
+              background: s.backgroundColor,
+            };
+          });
+          const checks: [string, boolean][] = [
+            ['under 44px high', m.height >= 44],
+            ['no border', m.border > 0],
+            [
+              'not full width',
+              size.width >= 761 || m.width > m.footerWidth - 40,
+            ],
+          ];
+          return checks
+            .filter(([, ok]) => !ok)
+            .map(([what]) => `${what} (${JSON.stringify(m)})`);
+        })
+        .toEqual([]);
       await expect(link(page)).toHaveText('Open run on GitHub');
       await expect(link(page).locator('svg[aria-hidden="true"]')).toHaveCount(
         1,
@@ -259,38 +273,57 @@ test.describe('pipeline dialog footer', () => {
     });
     await open(page, { width: 390, height: 780 }, 40);
     await insideViewport(page);
-    const m = await dialog(page)
-      .locator('.pipeline-dialog-footer')
-      .evaluate((el) => {
-        const s = getComputedStyle(el);
-        const b = el.querySelector('a')?.getBoundingClientRect() as DOMRect;
-        return {
-          padBottom: Number.parseFloat(s.paddingBottom),
-          buttonHeight: b.height,
-          gap: window.innerHeight - b.bottom,
-        };
-      });
-    expect(m.padBottom).toBeGreaterThanOrEqual(12 + inset);
-    expect(m.buttonHeight).toBeGreaterThanOrEqual(44);
-    expect(m.gap).toBeGreaterThanOrEqual(inset);
+    await expect
+      .poll(async () => {
+        const m = await dialog(page)
+          .locator('.pipeline-dialog-footer')
+          .evaluate((el) => {
+            const s = getComputedStyle(el);
+            const b = el.querySelector('a')?.getBoundingClientRect() as DOMRect;
+            return {
+              padBottom: Number.parseFloat(s.paddingBottom),
+              buttonHeight: b.height,
+              gap: window.innerHeight - b.bottom,
+            };
+          });
+        const checks: [string, boolean][] = [
+          ['padding under 12px plus the inset', m.padBottom >= 12 + inset],
+          ['button under 44px high', m.buttonHeight >= 44],
+          ['button closer to the edge than the inset', m.gap >= inset],
+        ];
+        return checks
+          .filter(([, ok]) => !ok)
+          .map(([what]) => `${what} (${JSON.stringify(m)})`);
+      })
+      .toEqual([]);
   });
 
   test('with no inset the footer keeps its 12px padding', async ({ page }) => {
     await open(page, { width: 390, height: 780 }, 40);
-    const pad = await dialog(page)
-      .locator('.pipeline-dialog-footer')
-      .evaluate((el) => getComputedStyle(el).paddingBottom);
-    expect(pad).toBe('12px');
+    await expect(dialog(page).locator('.pipeline-dialog-footer')).toHaveCSS(
+      'padding-bottom',
+      '12px',
+    );
   });
 
   test('on desktop it is at least 24px high and left aligned', async ({
     page,
   }) => {
     await open(page, { width: 1280, height: 800 }, 4);
-    const box = await settledBox(page);
-    const sheet = await dialog(page).boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(24);
-    expect((box?.x ?? 0) - (sheet?.x ?? 0)).toBeLessThan(40);
+    await settledBox(page);
+    await expect
+      .poll(async () => {
+        const box = await link(page).boundingBox();
+        const sheet = await dialog(page).boundingBox();
+        const offset = (box?.x ?? 0) - (sheet?.x ?? 0);
+        return {
+          tallEnough: (box?.height ?? 0) >= 24,
+          leftAligned: offset < 40,
+          height: box?.height,
+          offset,
+        };
+      })
+      .toMatchObject({ tallEnough: true, leftAligned: true });
   });
 
   test('the body scrolls to its last row above the footer', async ({
