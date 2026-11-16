@@ -163,6 +163,10 @@ test.describe('the refs pill on a pull request row', () => {
     await expect(pill).toBeFocused();
     await expect(tip).toBeVisible();
     await expect(tip).toHaveText(sentence);
+    await expect(pill).toHaveAttribute(
+      'aria-describedby',
+      (await tip.getAttribute('id')) ?? 'missing',
+    );
     await expect(pill).toHaveAccessibleDescription(sentence);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
