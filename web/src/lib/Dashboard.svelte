@@ -1124,8 +1124,8 @@
     function mergeStatusPill(
       status: string,
       ci: string,
-      conflict: ConflictFacts = {},
-      forge = "",
+      conflict: ConflictFacts,
+      forge: string,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
@@ -1139,9 +1139,11 @@
         return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
-      const pill = claimed(el("span", `merge-pill ${status}`), { forge });
+      const pill = el("span", `merge-pill ${status}`);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
+      // After the label, so a screen reader hears the state before the note.
+      claimed(pill, { forge });
       const where = conflictWhere(conflict.files ?? []);
       if (status !== "conflicting" || !where) return pill;
       const group = el("span", "merge-state");

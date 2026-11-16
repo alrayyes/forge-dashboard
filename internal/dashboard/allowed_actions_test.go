@@ -561,11 +561,15 @@ func TestAllowedActionsOn_ForgeThatCantBeAsked(t *testing.T) {
 		t.Parallel()
 
 		pr := ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting })
+		found := false
 		for _, a := range dashboard.AllowedActionsOn(pr, nil, down) {
 			if a.Action == dashboard.ActionMerge {
+				found = true
+				require.NotNil(t, a.Blocked)
 				assert.Equal(t, dashboard.ActionForgeUnreachable, a.Blocked.Code)
 			}
 		}
+		assert.True(t, found, "Merge is listed")
 	})
 	t.Run("a forge that answers changes nothing", func(t *testing.T) {
 		t.Parallel()
