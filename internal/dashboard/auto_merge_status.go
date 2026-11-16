@@ -130,12 +130,14 @@ func waitingOnChecks(ci CIStatus) string {
 	}
 }
 
+// forgeName is the forge as a person reads it, from the capability table. A
+// forge the table doesn't know is called by its id.
 func forgeName(f Forge) string {
-	if f == ForgeGitHub {
-		return "GitHub"
+	if c, ok := CapabilitiesOf(f); ok && c.Label != "" {
+		return c.Label
 	}
 
-	return "Forgejo"
+	return string(f)
 }
 
 func lowerFirst(s string) string {
