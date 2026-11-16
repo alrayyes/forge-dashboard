@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
 import { afterEach, describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import {
   advisoryFactsOf,
   FORGE_LABELS,

@@ -64,9 +64,8 @@ const SEED_ADVISORY_FACTS: Record<string, AdvisoryFacts> = {
   forgejo: { source: 'osv', unknownNeedsReason: true },
 };
 
-const ADVISORY_FACTS: Record<string, AdvisoryFacts> = structuredClone(
-  SEED_ADVISORY_FACTS,
-);
+const ADVISORY_FACTS: Record<string, AdvisoryFacts> =
+  structuredClone(SEED_ADVISORY_FACTS);
 
 export function advisoryFactsOf(forge: string): AdvisoryFacts | undefined {
   return ADVISORY_FACTS[forge];

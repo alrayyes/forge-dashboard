@@ -1,6 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
-import { registerForgeCapabilities } from './forges';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   ADVISORY_REASON_TEXT,
   type Advisories,
@@ -18,6 +18,8 @@ import {
   type MainBranch,
   offeredAdvisories,
 } from './main-branches';
+
+afterEach(resetForgeCapabilities);
 
 const URL = 'https://example.com/acme/x/security/dependabot';
 
