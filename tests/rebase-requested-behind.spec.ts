@@ -32,10 +32,13 @@ const ALLOWED = [
   { action: 'close' },
 ];
 
-function request(phase: 'queued' | 'expired') {
+function request(
+  phase: 'queued' | 'rebasing' | 'expired',
+  bot: 'dependabot' | 'renovate' = 'dependabot',
+) {
   const requestedAt = Date.now() - (phase === 'expired' ? 20 * 60_000 : 1_000);
   return {
-    bot: 'dependabot',
+    bot,
     action: 'rebase',
     phase,
     requestedAt: new Date(requestedAt).toISOString(),
@@ -44,7 +47,12 @@ function request(phase: 'queued' | 'expired') {
   };
 }
 
-function pr(number: number, title: string, botRequest?: unknown) {
+function pr(
+  number: number,
+  title: string,
+  botRequest?: unknown,
+  extra: Record<string, unknown> = {},
+) {
   return {
     forge: 'github',
     repo: 'alrayyes/app',
@@ -63,13 +71,30 @@ function pr(number: number, title: string, botRequest?: unknown) {
     status: BEHIND_STATUS,
     allowedActions: ALLOWED,
     botRequest,
+    ...extra,
   };
 }
+
+const MERGE_FIRST = [
+  { ...ALLOWED[0], primary: true },
+  { action: 'dependabot_rebase' },
+  { action: 'close' },
+];
 
 const PRS = [
   pr(1, 'Requested rebase', request('queued')),
   pr(2, 'Timed out rebase', request('expired')),
   pr(3, 'No rebase asked'),
+  pr(5, 'Picked up rebase', request('rebasing')),
+  pr(6, 'Renovate rebase', request('queued', 'renovate'), {
+    author: 'renovate[bot]',
+    allowedActions: [
+      { action: 'cancel_renovate_rebase', primary: true },
+      ALLOWED[0],
+      { action: 'close' },
+    ],
+  }),
+  pr(7, 'Merge first', request('queued'), { allowedActions: MERGE_FIRST }),
   { ...pr(4, 'Up to date'), behind: false, status: undefined },
 ];
 
@@ -119,6 +144,49 @@ for (const width of [360, 1280]) {
       expect(results.violations).toEqual([]);
     });
 
+    test('the requested row keeps its disabled Rebase requested button', async ({
+      page,
+    }) => {
+      const button = row(page, 'Requested rebase').getByRole('button', {
+        name: 'Rebase requested',
+      });
+      await expect(button).toHaveCount(1);
+      await expect(button).toBeDisabled();
+    });
+
+    test('a picked up rebase hides the pill and block too', async ({
+      page,
+    }) => {
+      const r = row(page, 'Picked up rebase');
+      await expect(r.locator('.wait-chip')).toBeVisible();
+      await expect(r.locator('.attr-chip.behind')).toHaveCount(0);
+      await expect(r.locator('.status-area')).toHaveCount(0);
+    });
+
+    test('a pending Renovate rebase hides the pill and block too', async ({
+      page,
+    }) => {
+      const r = row(page, 'Renovate rebase');
+      await expect(r.locator('.wait-chip')).toBeVisible();
+      await expect(r.locator('.attr-chip.behind')).toHaveCount(0);
+      await expect(r.locator('.status-area')).toHaveCount(0);
+    });
+
+    test('a locked Merge on the requested row prints its own reason', async ({
+      page,
+    }) => {
+      const r = row(page, 'Merge first');
+      await expect(r.locator('.status-area')).toHaveCount(0);
+      const merge = r.getByRole('button', { name: 'Merge', exact: true });
+      await expect(merge).toHaveAttribute('aria-disabled', 'true');
+      await expect(r.locator('.row-action-locked')).toContainText(
+        'Bring it up to date to unlock Merge',
+      );
+      const id = await merge.getAttribute('aria-describedby');
+      if (id) await expect(page.locator(`[id="${id}"]`)).toHaveCount(1);
+      await expect(merge).toHaveAccessibleDescription(/Bring it up to date/);
+    });
+
     test('AC3: a timed out request brings the chip and message back', async ({
       page,
     }) => {
@@ -144,7 +212,7 @@ test('AC2: the Out of date quick filter keeps the requested row', async ({
 }) => {
   await open(page, 1280);
   await quickPill(page, 'Out of date').click();
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(3);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(6);
   await expect(row(page, 'Requested rebase')).toHaveCount(1);
 });
 
