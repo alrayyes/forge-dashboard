@@ -24,6 +24,10 @@ type ForgeCapabilities struct {
 	DependabotCommands bool `json:"dependabotCommands"`
 	// AdvisorySource names where the repository advisories come from.
 	AdvisorySource string `json:"advisorySource"`
+	// AdvisoryUnknownNeedsReason is true when an "unknown" advisory answer is
+	// worth saying only if the server names a reason. Without one it usually
+	// means a repository with nothing to check, so a client stays quiet.
+	AdvisoryUnknownNeedsReason bool `json:"advisoryUnknownNeedsReason"`
 	// StatusPageURL is the forge's public status page, or empty when it has none.
 	StatusPageURL string `json:"statusPageUrl"`
 	// RateLimitModel names how the forge budgets requests.
@@ -50,30 +54,32 @@ const (
 // capabilitiesByForge is the one place a forge's abilities are written down.
 var capabilitiesByForge = map[Forge]ForgeCapabilities{
 	ForgeGitHub: {
-		AutoMergeHeldByApp: false,
-		ChecksViaWebhook:   true,
-		ServesRunningLog:   false,
-		ServerLogExcerpts:  false,
-		ApprovalGatedRuns:  true,
-		DependabotCommands: true,
-		AdvisorySource:     AdvisorySourceDependabot,
-		StatusPageURL:      "https://www.githubstatus.com/",
-		RateLimitModel:     RateLimitGraphQLAndREST,
-		IssueRefSyntax:     IssueRefHashOrGHPref,
-		Label:              "GitHub",
+		AutoMergeHeldByApp:         false,
+		ChecksViaWebhook:           true,
+		ServesRunningLog:           false,
+		ServerLogExcerpts:          false,
+		ApprovalGatedRuns:          true,
+		DependabotCommands:         true,
+		AdvisorySource:             AdvisorySourceDependabot,
+		AdvisoryUnknownNeedsReason: false,
+		StatusPageURL:              "https://www.githubstatus.com/",
+		RateLimitModel:             RateLimitGraphQLAndREST,
+		IssueRefSyntax:             IssueRefHashOrGHPref,
+		Label:                      "GitHub",
 	},
 	ForgeForgejo: {
-		AutoMergeHeldByApp: true,
-		ChecksViaWebhook:   false,
-		ServesRunningLog:   true,
-		ServerLogExcerpts:  true,
-		ApprovalGatedRuns:  false,
-		DependabotCommands: false,
-		AdvisorySource:     AdvisorySourceOSV,
-		StatusPageURL:      "",
-		RateLimitModel:     RateLimitRESTOnly,
-		IssueRefSyntax:     IssueRefHash,
-		Label:              "Forgejo",
+		AutoMergeHeldByApp:         true,
+		ChecksViaWebhook:           false,
+		ServesRunningLog:           true,
+		ServerLogExcerpts:          true,
+		ApprovalGatedRuns:          false,
+		DependabotCommands:         false,
+		AdvisorySource:             AdvisorySourceOSV,
+		AdvisoryUnknownNeedsReason: true,
+		StatusPageURL:              "",
+		RateLimitModel:             RateLimitRESTOnly,
+		IssueRefSyntax:             IssueRefHash,
+		Label:                      "Forgejo",
 	},
 }
 

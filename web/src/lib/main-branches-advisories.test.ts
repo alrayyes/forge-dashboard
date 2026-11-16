@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities } from './forges';
 import {
   ADVISORY_REASON_TEXT,
   type Advisories,
@@ -155,7 +156,8 @@ describe('advisoryPill on a partly checked lock file', () => {
   });
 });
 
-const b = (advisories?: Advisories) => ({ advisories }) as MainBranch;
+const b = (advisories?: Advisories) =>
+  ({ forge: 'github', advisories }) as MainBranch;
 const unknown: Advisories = { state: 'unknown', count: 0 };
 const known: Advisories = { state: 'known', count: 0 };
 
@@ -362,5 +364,40 @@ describe('Forgejo cue wording', () => {
     expect(forgejoAdvisoryReasonText('too_many')).toContain('more packages');
     expect(forgejoAdvisoryReasonText('refused')).toBeNull();
     expect(forgejoAdvisoryReasonText(null)).toBeNull();
+  });
+});
+
+describe('a forge the page was not built with', () => {
+  const row = (forge: string, reason?: string) =>
+    ({
+      forge,
+      advisories: { state: 'unknown', count: 0, reason },
+    }) as unknown as MainBranch;
+
+  test('an undescribed forge is not read as GitHub', () => {
+    const rows = [row('nowhere', 'refused')];
+
+    expect(advisoryRowUnreadable(rows[0])).toBe(false);
+    expect(advisoryCoverage(rows, 'github')).toBe('full');
+    expect(advisoryUnknownReason(rows, 'github')).toBeNull();
+    expect(advisoryRowHint(rows[0])).toBe('Advisories unknown');
+  });
+
+  test('a forge described as an OSV source reads like Forgejo', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: true,
+        },
+      },
+    ]);
+
+    expect(advisoryRowUnreadable(row('gitea'))).toBe(false);
+    expect(advisoryRowUnreadable(row('gitea', 'failed'))).toBe(true);
+    expect(advisoryRowHint(row('gitea', 'failed'))).toContain('read failed');
+    expect(advisoryCoverage([row('gitea', 'failed')], 'gitea')).toBe('none');
   });
 });

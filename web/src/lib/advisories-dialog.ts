@@ -1,3 +1,4 @@
+import { advisoryFactsOf } from './forges';
 import { ADVISORY_REASON_TEXT } from './main-branches';
 
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
@@ -175,33 +176,48 @@ export async function readAdvisoryList(
   }
 }
 
-// The words that differ between a GitHub list (Dependabot alerts) and a
-// Forgejo one (OSV matches against lock files).
-export function forgeWords(forge: string) {
-  if (forge === 'forgejo') {
-    return {
-      linkName: 'OSV',
-      foundIn: 'Found in',
-      fileLabel: 'Lock file',
-      dateWord: 'Published',
-      // OSV lists a fix per branch, so these are the versions that fix it
-      // somewhere, not only on the installed version's branch.
-      patchedLabel: 'Fixed in',
-      empty:
-        'No known advisories. OSV lists none for the packages in this repository’s lock files.',
-    };
-  }
-  return {
+// The words that differ by where a list's advisories come from: Dependabot
+// alerts, OSV matches against lock files, or a source this page has no words
+// for. Keyed by the advisory source, never by the forge's name.
+const WORDS_BY_SOURCE: Record<string, ReturnType<typeof neutralWords>> = {
+  osv: {
+    linkName: 'OSV',
+    foundIn: 'Found in',
+    fileLabel: 'Lock file',
+    dateWord: 'Published',
+    // OSV lists a fix per branch, so these are the versions that fix it
+    // somewhere, not only on the installed version's branch.
+    patchedLabel: 'Fixed in',
+    empty:
+      'No known advisories. OSV lists none for the packages in this repository’s lock files.',
+  },
+  dependabot: {
     linkName: 'GitHub',
     foundIn: 'Detected in',
     fileLabel: 'Detected in',
     dateWord: 'Opened',
     patchedLabel: 'Patched in',
     empty: 'No open advisories. Dependabot reports none for this repository.',
+  },
+};
+
+function neutralWords() {
+  return {
+    linkName: 'the advisory',
+    foundIn: 'Found in',
+    fileLabel: 'Found in',
+    dateWord: 'Opened',
+    patchedLabel: 'Fixed in',
+    empty: 'No known advisories for this repository.',
   };
 }
 
-const FORGEJO_UNREADABLE: Record<string, string> = {
+export function forgeWords(forge: string) {
+  const source = advisoryFactsOf(forge)?.source ?? '';
+  return WORDS_BY_SOURCE[source] ?? neutralWords();
+}
+
+const OSV_UNREADABLE: Record<string, string> = {
   not_enabled:
     'Advisories are switched off for Forgejo repositories. Set OSV_ADVISORIES=on to check lock files against OSV; the package names and versions in them are sent to api.osv.dev.',
   failed:
@@ -210,17 +226,21 @@ const FORGEJO_UNREADABLE: Record<string, string> = {
     'A lock file lists more packages, or the repository matches more advisories, than the dashboard reads in one go.',
 };
 
-// Why a list could not be read, in the words of the forge it came from.
+// Why a list could not be read, in the words of the source it came from.
 export function unreadableText(
   forge: string,
   reason: string | undefined,
 ): string {
-  if (forge === 'forgejo') {
+  const source = advisoryFactsOf(forge)?.source;
+  if (source === 'osv') {
     return (
-      (reason && FORGEJO_UNREADABLE[reason]) ||
+      (reason && OSV_UNREADABLE[reason]) ||
       'The dashboard found no lock file it reads on the default branch, so nothing was checked.'
     );
   }
-  const known = ADVISORY_REASON_TEXT as Record<string, string>;
-  return (reason && known[reason]) || 'GitHub did not answer the read.';
+  if (source === 'dependabot') {
+    const known = ADVISORY_REASON_TEXT as Record<string, string>;
+    return (reason && known[reason]) || 'GitHub did not answer the read.';
+  }
+  return 'The forge did not answer the read.';
 }

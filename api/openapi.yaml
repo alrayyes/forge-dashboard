@@ -5906,6 +5906,7 @@ components:
         - approvalGatedRuns
         - dependabotCommands
         - advisorySource
+        - advisoryUnknownNeedsReason
         - statusPageUrl
         - rateLimitModel
         - issueRefSyntax
@@ -5942,6 +5943,13 @@ components:
           description: >-
             Where the repository advisories come from. Open-ended, so a new
             source is not a breaking change; today `dependabot` and `osv`.
+        advisoryUnknownNeedsReason:
+          type: boolean
+          description: >-
+            True when an `unknown` advisory answer is worth showing only if the
+            row names a reason. Without one it usually means a repository with
+            nothing to check. False when every `unknown` answer is a failure to
+            read.
         statusPageUrl:
           type: string
           description: >-

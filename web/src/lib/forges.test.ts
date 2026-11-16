@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { FORGE_LABELS, registerForgeCapabilities } from './forges';
+import {
+  advisoryFactsOf,
+  FORGE_LABELS,
+  registerForgeCapabilities,
+} from './forges';
 
 describe('registerForgeCapabilities', () => {
   test('a forge entry teaches its label from the capabilities the API sent', () => {
@@ -33,5 +37,40 @@ describe('registerForgeCapabilities', () => {
         { forge: 'forgejo', capabilities: { label: 'Forgejo' } },
       ]);
     }
+  });
+});
+
+describe('advisoryFactsOf', () => {
+  test('the shipped forges answer before any read', () => {
+    expect(advisoryFactsOf('github')).toEqual({
+      source: 'dependabot',
+      unknownNeedsReason: false,
+    });
+    expect(advisoryFactsOf('forgejo')).toEqual({
+      source: 'osv',
+      unknownNeedsReason: true,
+    });
+  });
+
+  test('a forge learns its advisory facts from the capabilities the API sent', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: true,
+        },
+      },
+    ]);
+
+    expect(advisoryFactsOf('gitea')).toEqual({
+      source: 'osv',
+      unknownNeedsReason: true,
+    });
+  });
+
+  test('a forge nobody described has no facts, so no default is guessed', () => {
+    expect(advisoryFactsOf('nowhere')).toBeUndefined();
   });
 });
