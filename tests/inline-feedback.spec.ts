@@ -587,14 +587,17 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     toast: Locator,
     steps: number[],
     release: 'up' | 'cancel' | 'hold' = 'up',
+    pointerType: 'touch' | 'pen' | 'mouse' = 'touch',
   ) {
-    await toast.evaluate(
+    // Resolves to whether the toast is still in the page the moment the
+    // gesture ends, before any slide-out has had time to finish.
+    return toast.evaluate(
       (el, args) => {
         const box = el.getBoundingClientRect();
         const init = (x: number, type: string) =>
           new PointerEvent(type, {
             pointerId: 7,
-            pointerType: 'touch',
+            pointerType: args.pointerType,
             isPrimary: true,
             bubbles: true,
             cancelable: true,
@@ -609,8 +612,9 @@ test.describe('inline feedback, toasts and the activity panel', () => {
         if (args.release === 'up') el.dispatchEvent(init(last, 'pointerup'));
         if (args.release === 'cancel')
           el.dispatchEvent(init(last, 'pointercancel'));
+        return el.isConnected;
       },
-      { steps, release },
+      { steps, release, pointerType },
     );
   }
 
@@ -676,6 +680,112 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toast).toBeHidden();
   });
 
+  test('a toast opts out of sideways panning in the browser (touch-action)', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await updateBranch(rowFor(page, 1));
+    await expect(toasts(page).first()).toHaveCSS('touch-action', 'pan-y');
+  });
+
+  test('a mouse drag neither moves nor dismisses a toast, a pen swipe dismisses', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1), makePR(2)]);
+    await updateBranch(rowFor(page, 1));
+    await updateBranch(rowFor(page, 2));
+    await expect(toasts(page)).toHaveCount(2);
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.25, 0.5], 'hold', 'mouse');
+    await expect(toast).toHaveCSS('transform', 'none');
+    await touchDrag(toast, [0.5], 'up', 'mouse');
+    await expect(toasts(page)).toHaveCount(2);
+    await touchDrag(toast, [0.5], 'up', 'pen');
+    await expect(toasts(page)).toHaveCount(1);
+  });
+
+  test('a cancelled gesture past the threshold springs back, it does not dismiss', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.25, 0.5], 'hold');
+    await expect(toast).not.toHaveCSS('transform', 'none');
+    await toast.evaluate((el) =>
+      el.dispatchEvent(
+        new PointerEvent('pointercancel', {
+          pointerId: 7,
+          pointerType: 'touch',
+          bubbles: true,
+        }),
+      ),
+    );
+    await expect(toast).toHaveCSS('transform', 'none');
+    await expect(toasts(page)).toHaveCount(1);
+  });
+
+  test('a spring-back after a short swipe resumes the auto-dismiss timer', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)], { fakeClock: true });
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await expect(toast).toBeVisible();
+    await touchDrag(toast, [0.1, 0.2]);
+    await expect(toast).toHaveCSS('transform', 'none');
+    await page.clock.runFor(7500);
+    await expect(toast).toBeHidden();
+  });
+
+  test('hover or focus ending mid-drag does not restart the paused timer', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)], { fakeClock: true });
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await expect(toast).toBeVisible();
+    await touchDrag(toast, [0.2], 'hold');
+    await toast.evaluate((el) => {
+      el.dispatchEvent(new MouseEvent('mouseleave'));
+      el.dispatchEvent(new FocusEvent('focusout'));
+    });
+    await page.clock.runFor(12_000);
+    await expect(toast).toBeVisible();
+  });
+
+  test('an error toast, which has no timer, can be swiped away too', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(2)], { failing: [2] });
+    await updateBranch(rowFor(page, 2));
+    const toast = toasts(page).first();
+    await expect(toast).toHaveAttribute('data-kind', 'error');
+    await touchDrag(toast, [0.5]);
+    await expect(toasts(page)).toHaveCount(0);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`a swipe works at 390px and axe stays clean, ${scheme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await setup(page, [makePR(1), makePR(2)]);
+      await updateBranch(rowFor(page, 1));
+      await updateBranch(rowFor(page, 2));
+      await expect(toasts(page)).toHaveCount(2);
+      const axe = () =>
+        new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+      expect((await axe()).violations, 'before the swipe').toEqual([]);
+      await touchDrag(toasts(page).first(), [0.25, 0.5]);
+      await expect(toasts(page)).toHaveCount(1);
+      expect((await axe()).violations, 'after the swipe').toEqual([]);
+    });
+  }
+
   test('with prefers-reduced-motion, a swiped toast leaves without a slide', async ({
     page,
   }) => {
@@ -683,8 +793,8 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await setup(page, [makePR(1), makePR(2)], { fakeClock: true });
     await updateBranch(rowFor(page, 1));
     const toast = toasts(page).first();
-    await touchDrag(toast, [0.5]);
-    // No clock movement: a slide would need time to finish first.
+    // Gone in the same task as the gesture, not after a slide-out.
+    expect(await touchDrag(toast, [0.5])).toBe(false);
     await expect(toasts(page)).toHaveCount(0);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
