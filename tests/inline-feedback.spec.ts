@@ -786,6 +786,31 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     });
   }
 
+  test('a touch during the slide-out does not start a second gesture', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.5]);
+    const transform = await toast.evaluate((el) => {
+      const ev = (type: string, x: number) =>
+        new PointerEvent(type, {
+          pointerId: 8,
+          pointerType: 'touch',
+          isPrimary: true,
+          bubbles: true,
+          clientX: x,
+        });
+      const x0 = el.getBoundingClientRect().left;
+      el.dispatchEvent(ev('pointerdown', x0));
+      el.dispatchEvent(ev('pointermove', x0 + 30));
+      return (el as HTMLElement).style.transform;
+    });
+    expect(transform).toContain('120%');
+    await expect(toasts(page)).toHaveCount(0);
+  });
+
   test('with prefers-reduced-motion, a swiped toast leaves without a slide', async ({
     page,
   }) => {

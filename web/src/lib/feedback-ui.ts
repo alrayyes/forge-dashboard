@@ -661,6 +661,7 @@ export function mountFeedbackUI(
     let start: { pointerId: number; x: number } | null = null;
     let dx = 0;
     let moving = false;
+    let leaving = false;
 
     function release(dismiss: boolean) {
       const timer = timers.get(id);
@@ -678,13 +679,14 @@ export function mountFeedbackUI(
         store.dismissToast(id);
         return;
       }
+      leaving = true;
       item.style.transition = 'transform 150ms ease-in';
       item.style.transform = `translateX(${dx < 0 ? '-' : ''}120%)`;
       window.setTimeout(() => store.dismissToast(id), 160);
     }
 
     item.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'mouse' || !e.isPrimary) return;
+      if (leaving || e.pointerType === 'mouse' || !e.isPrimary) return;
       start = { pointerId: e.pointerId, x: e.clientX };
       dx = 0;
       item.style.transition = '';
