@@ -59,7 +59,14 @@ function makePR(): MockPR {
 function snapshot(prs: MockPR[]) {
   return JSON.stringify({
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [
+      {
+        forge: 'github',
+        reachable: true,
+        repoCount: 1,
+        capabilities: { label: 'GitHub' },
+      },
+    ],
     pullRequests: prs,
     issues: [],
   });

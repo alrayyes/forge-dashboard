@@ -11,7 +11,14 @@ const LINK_NAME = 'Open run on GitHub (opens in a new tab)';
 function snapshot() {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [
+      {
+        forge: 'github',
+        reachable: true,
+        repoCount: 1,
+        capabilities: { label: 'GitHub' },
+      },
+    ],
     pullRequests: [
       {
         forge: 'github',

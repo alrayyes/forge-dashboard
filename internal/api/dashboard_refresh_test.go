@@ -88,6 +88,8 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	var snap dashboard.Snapshot
 	require.NoError(t, readJSON(refreshResp, &snap))
 	require.Len(t, snap.Forges, 1)
+	// The answer adds what the forge can do; the rest is what the source reported.
+	wantHealth.Capabilities, _ = dashboard.CapabilitiesOf(dashboard.ForgeGitHub)
 	assert.Equal(t, wantHealth, snap.Forges[0])
 }
 

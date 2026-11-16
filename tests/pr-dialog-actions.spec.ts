@@ -45,7 +45,12 @@ const noReactions = {
 function snapshot(
   prs: Record<string, unknown>[],
   forges: Record<string, unknown>[] = [
-    { forge: 'github', reachable: true, repoCount: 1 },
+    {
+      forge: 'github',
+      reachable: true,
+      repoCount: 1,
+      capabilities: { label: 'GitHub' },
+    },
   ],
 ) {
   return {
@@ -390,6 +395,7 @@ test.describe('a locked action', () => {
       [
         {
           forge: 'forgejo',
+          capabilities: { label: 'Forgejo' },
           reachable: true,
           repoCount: 1,
           rerunChecksBlocked: why,

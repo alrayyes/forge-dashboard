@@ -7,6 +7,7 @@ import { test } from './server-fixture';
 
 const down = (extra: Record<string, unknown> = {}) => ({
   forge: 'github',
+  capabilities: { label: 'GitHub' },
   reachable: false,
   repoCount: 1,
   errorKind: 'unreachable',

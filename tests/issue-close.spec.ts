@@ -59,7 +59,14 @@ async function start(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable, repoCount: 1 }],
+        forges: [
+          {
+            forge: 'github',
+            reachable,
+            repoCount: 1,
+            capabilities: { label: 'GitHub' },
+          },
+        ],
         pullRequests: [],
         issues: state.closed ? [] : [ISSUE],
       }),

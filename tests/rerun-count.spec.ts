@@ -41,7 +41,15 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1, ...opts.health }],
+        forges: [
+          {
+            forge,
+            capabilities: { label: forge === 'forgejo' ? 'Forgejo' : 'GitHub' },
+            reachable: true,
+            repoCount: 1,
+            ...opts.health,
+          },
+        ],
         pullRequests: [pr({ forge })],
         issues: [],
       }),

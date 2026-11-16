@@ -63,7 +63,14 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 1,
+            capabilities: { label: 'GitHub' },
+          },
+        ],
         pullRequests: [pullRequest],
         issues: [issue],
       }),
