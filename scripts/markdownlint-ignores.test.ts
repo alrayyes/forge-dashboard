@@ -14,7 +14,11 @@ test('lint:md ignores the gitignored test-results directory', () => {
     mkdirSync(dir, { recursive: true });
     writeFileSync(path.join(dir, 'error-context.md'), 'no heading\n\n\n');
     const run = Bun.spawnSync(['bunx', 'markdownlint-cli2'], { cwd: root });
-    expect(run.stderr.toString()).not.toContain('test-results');
+    const output = run.stdout.toString() + run.stderr.toString();
+    // The run must have started, or "no finding" proves nothing.
+    expect(output).toContain('markdownlint-cli2');
+    // The banner lists the ignore globs, so look for a finding on a file path.
+    expect(output).not.toMatch(/^test-results\//m);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

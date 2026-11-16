@@ -444,7 +444,9 @@ describe('HTML comments', () => {
     }
   });
 
-  test('a render that goes quadratic on unclosed openers fails that check', async () => {
+  // This pins the helper, not the renderer: a stub that goes quadratic must
+  // push the ratio past the limit, so the check above can fail on a slow render.
+  test('the slowdown check itself fails for a render that goes quadratic', async () => {
     const quadratic = async (src: string) => {
       if (src.includes('-->')) return '';
       const n = src.split('<!--').length;
