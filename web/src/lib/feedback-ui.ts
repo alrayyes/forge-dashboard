@@ -18,6 +18,7 @@ import {
   PHASE_LABELS,
   type Toast,
 } from './feedback';
+import { swipeDismisses } from './swipe';
 import {
   buildWaitChip,
   type Chip,
@@ -85,6 +86,8 @@ type ToastTimer = {
   handle: number | null;
   hovered: boolean;
   focused: boolean;
+  // A finger is on the toast, mid-swipe (#4020).
+  dragging?: boolean;
 };
 
 // The Activity control only shows when it has something to list: a recent or
@@ -565,7 +568,7 @@ export function mountFeedbackUI(
   function startTimer(id: number) {
     const timer = timers.get(id);
     if (!timer || timer.handle !== null) return;
-    if (timer.hovered || timer.focused) return;
+    if (timer.hovered || timer.focused || timer.dragging) return;
     timer.startedAt = Date.now();
     timer.handle = window.setTimeout(
       () => store.dismissToast(id),
@@ -647,7 +650,71 @@ export function mountFeedbackUI(
         startTimer(toast.id);
       });
     }
+    enableSwipe(item, toast.id);
     return item;
+  }
+
+  // Swipe a toast sideways to close it (#4020). Touch and pen only, so a mouse
+  // can still select the message. The close button stays: WCAG 2.5.7.
+  function enableSwipe(item: HTMLElement, id: number) {
+    const SLOP = 8;
+    let start: { pointerId: number; x: number } | null = null;
+    let dx = 0;
+    let moving = false;
+
+    function release(dismiss: boolean) {
+      const timer = timers.get(id);
+      if (timer) timer.dragging = false;
+      start = null;
+      moving = false;
+      if (!dismiss) {
+        if (!prefersReducedMotion())
+          item.style.transition = 'transform 150ms ease-out';
+        item.style.transform = '';
+        startTimer(id);
+        return;
+      }
+      if (prefersReducedMotion()) {
+        store.dismissToast(id);
+        return;
+      }
+      item.style.transition = 'transform 150ms ease-in';
+      item.style.transform = `translateX(${dx < 0 ? '-' : ''}120%)`;
+      window.setTimeout(() => store.dismissToast(id), 160);
+    }
+
+    item.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' || !e.isPrimary) return;
+      start = { pointerId: e.pointerId, x: e.clientX };
+      dx = 0;
+      item.style.transition = '';
+      const timer = timers.get(id);
+      if (timer) {
+        timer.dragging = true;
+        pauseTimer(id);
+      }
+    });
+    item.addEventListener('pointermove', (e) => {
+      if (!start || e.pointerId !== start.pointerId) return;
+      dx = e.clientX - start.x;
+      if (!moving && Math.abs(dx) < SLOP) return;
+      moving = true;
+      try {
+        item.setPointerCapture(e.pointerId);
+      } catch {
+        // A pointer the browser doesn't know can't be captured; the drag
+        // still works while it stays over the toast.
+      }
+      item.style.transform = `translateX(${dx}px)`;
+    });
+    item.addEventListener('pointerup', (e) => {
+      if (!start || e.pointerId !== start.pointerId) return;
+      release(moving && swipeDismisses(dx, item.offsetWidth));
+    });
+    item.addEventListener('pointercancel', (e) => {
+      if (!start || e.pointerId !== start.pointerId) return;
+      release(false);
+    });
   }
 
   function renderToasts() {

@@ -581,6 +581,117 @@ test.describe('inline feedback, toasts and the activity panel', () => {
     await expect(toast).toHaveCSS('transition-duration', /^0s(, 0s)*$/);
   });
 
+  // Playwright has no touch drag, so the gesture is sent as the pointer events
+  // a finger makes (#4020). Each step moves the pointer to `dx` from the start.
+  async function touchDrag(
+    toast: Locator,
+    steps: number[],
+    release: 'up' | 'cancel' | 'hold' = 'up',
+  ) {
+    await toast.evaluate(
+      (el, args) => {
+        const box = el.getBoundingClientRect();
+        const init = (x: number, type: string) =>
+          new PointerEvent(type, {
+            pointerId: 7,
+            pointerType: 'touch',
+            isPrimary: true,
+            bubbles: true,
+            cancelable: true,
+            clientX: x,
+            clientY: box.top + box.height / 2,
+          });
+        const x0 = box.left + box.width / 2;
+        el.dispatchEvent(init(x0, 'pointerdown'));
+        for (const dx of args.steps)
+          el.dispatchEvent(init(x0 + dx * box.width, 'pointermove'));
+        const last = x0 + (args.steps.at(-1) ?? 0) * box.width;
+        if (args.release === 'up') el.dispatchEvent(init(last, 'pointerup'));
+        if (args.release === 'cancel')
+          el.dispatchEvent(init(last, 'pointercancel'));
+      },
+      { steps, release },
+    );
+  }
+
+  for (const [name, dx] of [
+    ['left', -0.5],
+    ['right', 0.5],
+  ] as const) {
+    test(`swiping a toast past a third of its width ${name} removes it`, async ({
+      page,
+    }) => {
+      await setup(page, [makePR(1)]);
+      await updateBranch(rowFor(page, 1));
+      const toast = toasts(page).first();
+      await expect(toast).toBeVisible();
+      await touchDrag(toast, [dx / 2, dx]);
+      await expect(toasts(page)).toHaveCount(0);
+    });
+  }
+
+  test('a shorter swipe springs the toast back and it stays', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.1, 0.2]);
+    await expect(toasts(page)).toHaveCount(1);
+    await expect(toast).toHaveCSS('transform', 'none');
+  });
+
+  test('the close button still dismisses a toast that has been swiped back', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)]);
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.2]);
+    await toast.getByRole('button', { name: /^Dismiss/ }).click();
+    await expect(toasts(page)).toHaveCount(0);
+  });
+
+  test('holding a toast mid-drag pauses its timer, and letting go resumes it', async ({
+    page,
+  }) => {
+    await setup(page, [makePR(1)], { fakeClock: true });
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await expect(toast).toBeVisible();
+    await touchDrag(toast, [0.2], 'hold');
+    await page.clock.runFor(12_000);
+    await expect(toast).toBeVisible();
+
+    await toast.evaluate((el) =>
+      el.dispatchEvent(
+        new PointerEvent('pointercancel', {
+          pointerId: 7,
+          pointerType: 'touch',
+          bubbles: true,
+        }),
+      ),
+    );
+    await page.clock.runFor(7500);
+    await expect(toast).toBeHidden();
+  });
+
+  test('with prefers-reduced-motion, a swiped toast leaves without a slide', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await setup(page, [makePR(1), makePR(2)], { fakeClock: true });
+    await updateBranch(rowFor(page, 1));
+    const toast = toasts(page).first();
+    await touchDrag(toast, [0.5]);
+    // No clock movement: a slide would need time to finish first.
+    await expect(toasts(page)).toHaveCount(0);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   test('has no axe violations with a toast and the panel open', async ({
     page,
   }) => {
