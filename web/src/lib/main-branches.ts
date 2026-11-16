@@ -6,6 +6,7 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
+import { advisoryFactsOf } from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
 import { rowClaim } from './row-claim';
@@ -582,15 +583,15 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
 // an unknown with none is usually a repo with no lock file, and `not_enabled`
 // means advisories are off for the whole forge.
 export type AdvisoryCoverage = 'full' | 'partial' | 'none';
-export type AdvisoryForge = 'github' | 'forgejo';
+export type AdvisoryForge = string;
 
-const rowForge = (b: MainBranch): AdvisoryForge =>
-  b.forge === 'forgejo' ? 'forgejo' : 'github';
-
-// Whether the row's advisories are unknown in a way the page should say.
+// Whether the row's advisories are unknown in a way the page should say. A
+// forge the page has no facts for says nothing, rather than reading like GitHub.
 export function advisoryRowUnreadable(b: MainBranch): boolean {
   if (b.advisories?.state !== 'unknown') return false;
-  if (rowForge(b) === 'github') return true;
+  const facts = advisoryFactsOf(b.forge);
+  if (!facts) return false;
+  if (!facts.unknownNeedsReason) return true;
   const r = b.advisories.reason;
   return !!r && r !== 'not_enabled';
 }
@@ -602,7 +603,7 @@ export function advisoryCoverage(
   let unknown = 0;
   let known = 0;
   for (const b of branches) {
-    if (rowForge(b) !== forge || !b.advisories) continue;
+    if (b.forge !== forge || !b.advisories) continue;
     if (advisoryRowUnreadable(b)) unknown++;
     else if (b.advisories.state !== 'unknown') known++;
   }
@@ -619,7 +620,7 @@ export function advisoryUnknownReason(
 ): Exclude<AdvisoryReason, 'not_enabled'> | null {
   let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
-    if (rowForge(b) !== forge || !advisoryRowUnreadable(b)) continue;
+    if (b.forge !== forge || !advisoryRowUnreadable(b)) continue;
     const r = b.advisories?.reason;
     if (!r || r === 'not_enabled') return null;
     if (shared && shared !== r) return null;
@@ -670,7 +671,7 @@ export function forgejoAdvisoryReasonText(
 
 // The hover hint on one unreadable row's cue. GitHub rows keep the plain label.
 export function advisoryRowHint(b: MainBranch): string {
-  if (rowForge(b) === 'forgejo') {
+  if (advisoryFactsOf(b.forge)?.source === 'osv') {
     const r = b.advisories?.reason;
     if (r === 'failed') return 'Advisories unknown: the read failed';
     if (r === 'too_many') return 'Advisories unknown: too much to read';
