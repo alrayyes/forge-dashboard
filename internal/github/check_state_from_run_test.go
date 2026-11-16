@@ -79,3 +79,19 @@ func TestCheckStateFromCombinedState(t *testing.T) {
 		})
 	}
 }
+
+// The REST fallback reads the same runs the page does: a conclusion nobody can
+// grade is unknown, so it leaves the pull request pending, not red (#4055).
+func TestStatusFromCheckRuns_AnUnknownConclusionIsPending(t *testing.T) {
+	t.Parallel()
+
+	done := func(conclusion string) *ghsdk.CheckRun {
+		return &ghsdk.CheckRun{Status: new("completed"), Conclusion: new(conclusion)}
+	}
+
+	assert.Equal(t, dashboard.CIPending, statusFromCheckRuns([]*ghsdk.CheckRun{done("success"), done("brand_new")}))
+	assert.Equal(t, dashboard.CIFailure, statusFromCheckRuns([]*ghsdk.CheckRun{done("brand_new"), done("failure")}))
+	for _, c := range []string{"failure", "timed_out", "stale", "startup_failure", "action_required"} {
+		assert.Equal(t, dashboard.CIFailure, statusFromCheckRuns([]*ghsdk.CheckRun{done(c)}), c)
+	}
+}

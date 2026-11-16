@@ -4092,7 +4092,7 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 	// Same rule as settleFailedRollup (#722): a real failure wins even
 	// while others run; a cancelled run alone is only pending-stale when
 	// something is still queued or running.
-	var cancelled, running bool
+	var cancelled, running, unknown bool
 	for _, r := range runs {
 		if r.GetStatus() != "completed" {
 			running = true
@@ -4104,11 +4104,15 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 			// counts as passing
 		case "cancelled":
 			cancelled = true
-		default:
+		case "failure", "timed_out", "stale", "startup_failure", "action_required":
 			return dashboard.CIFailure
+		default:
+			// A word nobody can grade is not a failure (#4055): the pill and
+			// the dialog say unknown, and the pull request stays pending.
+			unknown = true
 		}
 	}
-	if running {
+	if running || unknown {
 		return dashboard.CIPending
 	}
 	if cancelled {
