@@ -123,6 +123,18 @@ test('the heading reads the span text without the backticks', async ({
   ).toBeVisible();
 });
 
+test('a digest in the title never breaks mid-digest', async ({ page }) => {
+  // The title lets long words wrap anywhere; a span must opt out. At phone
+  // widths a digest wraps whole to the next line, so the layout test can't
+  // see the rule go missing. Pin the rule itself.
+  await page.setViewportSize({ width: 390, height: 740 });
+  const dialog = await openDialog(page, BUMP);
+  for (const span of await dialog.locator('.details-title code').all()) {
+    await expect(span).toHaveCSS('white-space', 'nowrap');
+    await expect(span).toHaveCSS('overflow-wrap', 'normal');
+  }
+});
+
 test('an odd number of backticks shows as typed', async ({ page }) => {
   const dialog = await openDialog(page, 'bump `a` to `b');
   const title = dialog.locator('.details-title');
