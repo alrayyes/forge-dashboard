@@ -80,6 +80,7 @@
   import {
     FORGE_CLASSES,
     FORGE_LABELS,
+    statusPageUrlOf,
     registerForgeCapabilities,
   } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
@@ -9388,8 +9389,6 @@
     // the rows on screen are and that the page retries on its own, once, with
     // one Retry that forces a refresh. The toolbar draws no chip for the
     // forge. A forge held back by its rate limit has that banner instead.
-    const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
-
     // Keeps the banner's relative age counting between redraws (#3745).
     function tickUnreachableBannerAge() {
       const age = document.querySelector<HTMLElement>(
@@ -9433,6 +9432,7 @@
         down.map((f) => ({
           forge: f.forge,
           label: FORGE_LABELS[f.forge] || f.forge,
+          statusPageUrl: statusPageUrlOf(f.forge),
           errorKind: f.errorKind,
           staleSince: f.staleSince,
           startupGap: isStartupGap(f, recentlyStarted),
@@ -9461,7 +9461,7 @@
       } else {
         text.appendChild(document.createTextNode(` ${copy.detail}`));
       }
-      // GitHub's own report, a second line of the same banner (#3633).
+      // The forge's own report, a second line of the same banner (#3633).
       if (copy.incident) {
         text.appendChild(document.createTextNode(" "));
         text.appendChild(
@@ -9469,18 +9469,21 @@
         );
       }
       row.appendChild(text);
-      // GitHub's own status page says whether the fault is theirs. A
-      // Forgejo instance is self-hosted, so it has none to link (#1301).
+      // A forge's own status page says whether the fault is theirs. A
+      // self-hosted instance has none to link (#1301).
       if (copy.statusLink) {
         const status = el(
           "a",
           "unreachable-banner-retry unreachable-banner-link",
-          "GitHub status",
+          copy.statusLink.label,
         ) as HTMLAnchorElement;
-        status.href = GITHUB_STATUS_PAGE;
+        status.href = copy.statusLink.url;
         status.target = "_blank";
         status.rel = "noopener noreferrer";
-        status.setAttribute("aria-label", "GitHub status (opens in a new tab)");
+        status.setAttribute(
+          "aria-label",
+          `${copy.statusLink.label} (opens in a new tab)`,
+        );
         row.appendChild(status);
       }
       const retry = buttonEl("unreachable-banner-retry", "Retry");
@@ -9626,7 +9629,7 @@
           "p",
           "",
           github
-            ? "GitHub gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out GitHub refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back."
+            ? `${alert.label} gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out ${alert.label} refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`
             : `${alert.label} itself doesn't count requests; a proxy in front of it does. When the proxy's budget runs out it refuses requests until the reset time, so this is a limit on the way to the forge and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
         ),
       );
@@ -9634,7 +9637,7 @@
         const link = el(
           "a",
           "",
-          "GitHub's rate limit rules (opens in a new tab)",
+          `${alert.label}'s rate limit rules (opens in a new tab)`,
         ) as HTMLAnchorElement;
         link.href = GITHUB_RATE_LIMIT_DOCS;
         link.target = "_blank";

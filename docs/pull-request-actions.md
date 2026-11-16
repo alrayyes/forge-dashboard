@@ -396,10 +396,11 @@ place that says a forge is down: the toolbar draws no chip, age line or
 cause line for it, and a healthy forge's pill is untouched. When both forges
 are down it is still one banner, "GitHub and Forgejo are unreachable.", with
 the age of the oldest data. When the cause is a wrong token or instance URL it
-says what to check in Settings instead of "Retrying automatically.". GitHub's
-status link, shown whenever GitHub is down (also in the combined banner),
-opens githubstatus.com in a new tab; a Forgejo instance is self-hosted and has
-no such page.
+says what to check in Settings instead of "Retrying automatically.". A forge's
+status link, named from its label ("GitHub status") and shown whenever a forge
+that has a status page is down (also in the combined banner), opens that page
+in a new tab. The page comes from the forge's `statusPageUrl`: GitHub's is
+githubstatus.com, and a Forgejo instance is self-hosted and has none.
 
 When GitHub can't be reached or answers with a 5xx, the dashboard also asks
 GitHub's status page whether it reports an incident, and the banner adds a

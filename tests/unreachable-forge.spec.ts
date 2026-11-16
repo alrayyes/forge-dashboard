@@ -167,6 +167,30 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     expect(box?.height).toBeGreaterThanOrEqual(44);
   });
 
+  test('the status link follows the label and page the API sends', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        down({
+          capabilities: {
+            label: 'Octo',
+            statusPageUrl: 'https://status.octo.example/',
+          },
+        }),
+      ],
+      [makePR(1)],
+    );
+    await page.goto('/pull-requests.html');
+
+    const link = page
+      .locator('#unreachable-banner')
+      .getByRole('link', { name: /^Octo status/ });
+    await expect(link).toHaveAttribute('href', 'https://status.octo.example/');
+    await expect(link).toHaveAccessibleName('Octo status (opens in a new tab)');
+  });
+
   test('Forgejo has no status page, so the banner has no status link', async ({
     page,
   }) => {
