@@ -90,13 +90,14 @@ ready and waits for a runner (`waiting`). The row says "Waiting on earlier
 jobs." or "Queued for a runner." A blocked job in a run that has failed never
 starts, so it carries no reason and reads "Not started yet." as before, and a
 GitHub check never carries one.
-Each job in a run event carries a `status` (queued, in progress, completed or
-waiting) and, once it has finished, a `conclusion`. The conclusion is the
-forge's own word, not a fixed set: GitHub's `neutral`, `stale` and
+Each job in a run event carries a `status` (queued, in progress, completed,
+waiting or unknown) and, once it has finished, a `conclusion`. The conclusion
+is the forge's own word, not a fixed set: GitHub's `neutral`, `stale` and
 `action_required` arrive as they are, next to `success`, `failure`, `cancelled`,
 `skipped` and `timed_out`. The panel works out the word and glyph it shows from
 those two, so a client of the stream does the same. The panel reads `neutral` as
-passed, and `stale`, `startup_failure` or a word it doesn't know as failed.
+passed, `stale` and `startup_failure` as failed, and a word it doesn't know as
+unknown: neither a failure nor a pass.
 If the stream is down, the panel says so with a Retry button. If the browser
 can't hold a stream open at all, the panel reads the list once when it opens
 and again on Retry, and doesn't follow changes. A change to any

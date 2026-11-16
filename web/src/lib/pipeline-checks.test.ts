@@ -39,6 +39,10 @@ describe('formatCheckDuration', () => {
 });
 
 describe('CHECK_STATE_LABELS', () => {
+  test('words an unknown check as Unknown', () => {
+    expect(CHECK_STATE_LABELS.unknown).toBe('Unknown');
+  });
+
   test('names every state a check can be in', () => {
     expect(Object.keys(CHECK_STATE_LABELS).sort()).toEqual([
       'awaiting_approval',
@@ -50,6 +54,7 @@ describe('CHECK_STATE_LABELS', () => {
       'skipped',
       'success',
       'timed_out',
+      'unknown',
     ]);
   });
 });
@@ -335,8 +340,10 @@ describe('checkState', () => {
       { status: 'completed', conclusion: 'action_required' },
       'awaiting_approval',
     ],
-    [{ status: 'completed', conclusion: 'something_new' }, 'failure'],
-    [{ status: 'completed', conclusion: undefined }, 'failure'],
+    [{ status: 'completed', conclusion: 'something_new' }, 'unknown'],
+    [{ status: 'completed', conclusion: undefined }, 'unknown'],
+    [{ status: 'unknown', conclusion: undefined }, 'unknown'],
+    [{ status: 'something_new', conclusion: undefined }, 'unknown'],
   ];
 
   for (const [over, state] of cases) {

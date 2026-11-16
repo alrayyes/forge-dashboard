@@ -19,7 +19,11 @@ describe('a default branch row with run facts', () => {
   });
 
   test('folds to the counts the server sent', () => {
-    expect(folded.counts).toEqual(row.checks as typeof folded.counts);
+    expect(folded.counts).toEqual({
+      cancelled: 0,
+      held: 0,
+      ...(row.checks as object),
+    } as typeof folded.counts);
   });
 });
 
@@ -36,7 +40,11 @@ describe('a GitHub default branch row with run facts', () => {
   });
 
   test('folds to the counts the server sent', () => {
-    expect(folded.counts).toEqual(github.checks as typeof folded.counts);
+    expect(folded.counts).toEqual({
+      cancelled: 0,
+      held: 0,
+      ...(github.checks as object),
+    } as typeof folded.counts);
   });
 
   test('names the failed job the server would', () => {

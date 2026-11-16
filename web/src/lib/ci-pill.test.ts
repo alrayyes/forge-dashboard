@@ -364,3 +364,37 @@ describe('renderCiPill', () => {
     expect(glyphs('nope')).toEqual([]);
   });
 });
+
+describe('an unknown check in the pill', () => {
+  const model = ciPillModel({
+    cls: 'pending',
+    glyph: 'running',
+    word: 'Running',
+    counts: { passed: 2, running: 0, waiting: 0, failed: 0, unknown: 1 },
+    segmented: true,
+  });
+
+  test('is a segment and is said in words', () => {
+    expect(model.segments).toEqual([
+      { kind: 'passed', n: 2 },
+      { kind: 'unknown', n: 1 },
+    ]);
+    expect(model.name).toBe('Running 2 1: 2 passed, 1 unknown');
+  });
+
+  test('is drawn with its own glyph', async () => {
+    const globals = globalThis as Record<string, unknown>;
+    globals.document = fakeDocument;
+    globals.HTMLButtonElement = FakeNode;
+    try {
+      const { renderCiPill } = await import('./ci-pill');
+      const seg = renderCiPill(model) as unknown as FakeNode;
+      const unknown = seg.find('ci-seg-unknown');
+
+      expect(unknown?.children[0].attrs.get('data-glyph')).toBe('question');
+    } finally {
+      delete globals.document;
+      delete globals.HTMLButtonElement;
+    }
+  });
+});

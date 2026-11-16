@@ -5047,7 +5047,7 @@ components:
 
     CheckCounts:
       type: object
-      required: [passed, running, waiting, failed, skipped]
+      required: [passed, running, waiting, failed, skipped, unknown]
       description: |
         How many checks are in each state, so a client can say how far a
         pipeline is without opening it. It is on every pull request and on
@@ -5060,24 +5060,33 @@ components:
         forge doesn't tell queued from running. A failed pipeline can still have
         checks running or waiting, and says so. A pull request's counts agree
         with its `ci`: one whose `ci` is `pending` has `failed` at 0, and one
-        whose `ci` is `success` has nothing running, waiting or failed. Two
-        kinds of run are therefore in none of the four, as long as something
-        else explains the state. A run held for approval: on a pull request
+        whose `ci` is `success` has nothing running, waiting or failed. On a
+        pull request two kinds of run are therefore in none of the four, as
+        long as something else explains the state. A run held for approval:
         `awaitingWorkflowApproval` says that. A cancelled run: a push or a
         concurrency group superseded it, and the overall state does not read it
-        as a failure while others still run. When a held run (and, on a
-        branch, cancelled ones) is the only reason a pipeline reads as failed,
-        the held run counts as `failed` with the cancelled ones, so a failed
-        pipeline always has a failed count on GitHub. A pull request whose `ci`
-        is `cancelled`, and a branch whose status is `cancelled`, have `failed`
-        at 0; the pull request counts its cancelled runs in `cancelled`. A timed-out or stale check counts as `failed`, a skipped,
+        as a failure while others still run. A pull request whose `ci` is
+        `cancelled` counts its cancelled runs in `cancelled`. A default branch
+        counts every job its pipeline lists, so its cancelled jobs are in
+        `cancelled` and its held runs in `held`, never in `failed`: a failed
+        branch can have a `failed` of 0 when a held or cancelled run is what
+        failed it. A timed-out or stale check counts as `failed`, a skipped,
         neutral or bare completed one as `passed`, on Forgejo too.
+
+        `unknown` is how many checks are in a state the server cannot grade: a
+        status or conclusion the forge added after the server was written. It
+        is none of the others, so a check nobody can name is not hidden in a
+        count that means something. A pull request or branch whose only odd
+        check is unknown is neither failing nor passing: a branch that would
+        read `passed` reads `running` while one is present. The server always
+        sends it; a client that may talk to an older server reads a missing
+        one as zero.
 
         `skipped` is a newer field and says how many of the `passed` checks
         were skipped. It never exceeds `passed`: it is inside `passed`, not
         beside it, so `passed` still counts every check that needs nothing more
-        and the four states still add up to the checks the pipeline lists, bar
-        the blocked jobs of a failed Forgejo run described below. The
+        and the counts still add up to the checks the pipeline lists on a default
+        branch (on a pull request, bar its cancelled and held runs). The
         server always sends it, which is why it is required; a client that may
         talk to an older server may read a missing one as zero. A neutral or bare
         completed check is passed without being skipped. A client that draws the
@@ -5092,10 +5101,10 @@ components:
         the commit's runs that are still going. When a run has failed, a
         pending status of a job in a run that has failed is no wait: its
         needs failed, so Forgejo leaves it blocked and nothing will start it,
-        and it is in none of the four. A default branch holds to the same: it
+        and it is in none of the four. A default branch counts it as `cancelled`: it
         counts the jobs of the workflow runs of the newest commit that has one,
         where a running job is `running`, a queued one `waiting`, and a blocked
-        one `waiting` unless its run has failed, when it is in none of the four. A run
+        one `waiting` unless its run has failed. A run
         whose jobs can't be read counts as one check by its own status. Forgejo
         answers one page of those statuses, and when its total says there are
         more than the page holds a pull request's counts are all zero rather
@@ -5119,20 +5128,36 @@ components:
         skipped:
           type: integer
           minimum: 0
+        unknown:
+          type: integer
+          minimum: 0
         cancelled:
           type: integer
           minimum: 0
           description: |
-            Absent unless the pull request's `ci` is `cancelled`, then how
-            many runs were cancelled. A newer field, so a client treats a
+            On a pull request, absent unless its `ci` is `cancelled`, then how
+            many runs were cancelled. On a default branch, always how many
+            jobs were cancelled, so its counts add up to the jobs the pipeline
+            lists. A newer field, so a client treats a missing one as 0.
+        held:
+          type: integer
+          minimum: 0
+          description: |
+            On a default branch, how many runs are held for approval, so its
+            counts add up. A pull request never sets it: it says so with
+            `awaitingWorkflowApproval`. A newer field, so a client treats a
             missing one as 0.
 
     CheckStatus:
       type: string
-      enum: [queued, in_progress, completed, waiting]
+      enum: [queued, in_progress, completed, waiting, unknown]
       description: |
         How far one job has got, as a fact. The page works out what to show
         from it and `conclusion`.
+
+        "unknown" is a status the forge sent that the server cannot grade, a
+        word added after the server was written. It is not queued and has not
+        failed, and the page shows it as unknown.
 
         "waiting" is a GitHub workflow run held until a maintainer approves
         it. It has no jobs yet, so it is not queued and has not failed; its
@@ -5153,7 +5178,8 @@ components:
         the job (`success`, `failure`, `cancelled`, `skipped`). A legacy
         commit status, which has no conclusion, is sent as `success` or
         `failure`. A client decides what each word means and what to do
-        with one it doesn't know.
+        with one it doesn't know: the page shows it as unknown, not as a
+        failure.
 
         `startup_failure` is a workflow run that never started. It has no
         jobs, so the check carries the workflow's name, `url` is the run's
