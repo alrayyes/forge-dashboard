@@ -39,7 +39,7 @@ func forgejoAutoMergeBoard(t *testing.T, prs ...dashboard.PullRequest) (*httptes
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 
 	require.Eventually(t, func() bool {
-		got, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
+		got, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 
 		return len(got) == len(prs)
 	}, pollBudget, 10*time.Millisecond)
@@ -71,7 +71,7 @@ func postForgejoAction(t *testing.T, srv *httptest.Server, cookie *http.Cookie, 
 func boardPR(t *testing.T, srv *httptest.Server, cookie *http.Cookie) map[string]any {
 	t.Helper()
 
-	prs, _ := fetchDashboardWith(t, srv.URL, cookie, "")["pullRequests"].([]any)
+	prs, _ := fetchDashboardWith(t, srv.URL, cookie, "?includeDrafts=true")["pullRequests"].([]any)
 	for _, p := range prs {
 		if m, ok := p.(map[string]any); ok && int(m["number"].(float64)) == armedNumber {
 			return m
@@ -273,4 +273,32 @@ func TestForgejoAutoMerge_Board_ListsNothingMergedAsAnEmptyArray(t *testing.T) {
 
 	assert.True(t, ok)
 	assert.Empty(t, merged)
+}
+
+// A Forgejo draft is one case with three views: the board's allowed actions,
+// the arm endpoint and the refusal text must all say the same thing (#3973).
+func TestForgejoAutoMerge_Draft_AllowedActionsAndArmEndpointAgree(t *testing.T) {
+	t.Parallel()
+	srv, cookie := forgejoAutoMergeBoard(t, forgejoPR(func(p *dashboard.PullRequest) { p.Draft = true }))
+
+	assert.NotContains(t, allowedActionNames(t, boardPR(t, srv, cookie)), "autoMerge", "the board doesn't offer it")
+
+	resp := postForgejoAction(t, srv, cookie, "/api/v1/pull-requests/auto-merge", "forgejo")
+	defer func() { _ = resp.Body.Close() }()
+	var body map[string]any
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+	assert.Equal(t, http.StatusConflict, resp.StatusCode, "the endpoint refuses it")
+	assert.Equal(t, "Draft pull request. Mark it ready for review to turn on auto-merge.", body["message"])
+
+	armed := forgejoAutoMergeBoardArmed(t, srv, cookie)
+	assert.False(t, armed, "nothing was stored")
+}
+
+func forgejoAutoMergeBoardArmed(t *testing.T, srv *httptest.Server, cookie *http.Cookie) bool {
+	t.Helper()
+
+	on, _ := boardPR(t, srv, cookie)["autoMergeEnabled"].(bool)
+
+	return on
 }
