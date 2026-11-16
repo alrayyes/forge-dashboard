@@ -65,12 +65,17 @@ async function openDialog(page: Page, title: string) {
   return dialog;
 }
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`paired backticks show as inline code (${scheme}, 320px)`, async ({
+for (const [scheme, width] of [
+  ['light', 320],
+  ['dark', 320],
+  ['light', 390],
+  ['dark', 390],
+] as const) {
+  test(`paired backticks show as inline code (${scheme}, ${width}px)`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme: scheme });
-    await page.setViewportSize({ width: 320, height: 740 });
+    await page.setViewportSize({ width, height: 740 });
     const dialog = await openDialog(page, BUMP);
     const title = dialog.locator('.details-title');
 
@@ -105,6 +110,30 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+test('the heading reads the span text without the backticks', async ({
+  page,
+}) => {
+  const dialog = await openDialog(page, BUMP);
+  await expect(
+    dialog.getByRole('heading', {
+      name: 'fix(deps): bump golang from d9b6a1b to dc0963f',
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test('a digest in the title never breaks mid-digest', async ({ page }) => {
+  // The title lets long words wrap anywhere; a span must opt out. At phone
+  // widths a digest wraps whole to the next line, so the layout test can't
+  // see the rule go missing. Pin the rule itself.
+  await page.setViewportSize({ width: 390, height: 740 });
+  const dialog = await openDialog(page, BUMP);
+  for (const span of await dialog.locator('.details-title code').all()) {
+    await expect(span).toHaveCSS('white-space', 'nowrap');
+    await expect(span).toHaveCSS('overflow-wrap', 'normal');
+  }
+});
 
 test('an odd number of backticks shows as typed', async ({ page }) => {
   const dialog = await openDialog(page, 'bump `a` to `b');
