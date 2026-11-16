@@ -7,7 +7,7 @@
 // countChecks and tally in internal/forgejo/main_branch.go), kept in step by
 // the same cases in check-fold.test.ts.
 
-import type { TalliedCounts } from './check-counts';
+import type { BranchCounts } from './check-counts';
 import { type Check, checkState } from './pipeline-checks';
 
 // What a default branch's pill says. `none` is a branch with no job to fold.
@@ -21,9 +21,10 @@ export type BranchStatus =
 
 export type BranchFold = {
   status: BranchStatus;
-  // Every kind is present, zero when nothing is in it. Skipped is inside
-  // passed, as check-counts.ts has it.
-  counts: TalliedCounts;
+  // Every kind is present, zero when nothing is in it, and every job is in
+  // exactly one, so they add up to the jobs listed. Skipped is inside passed,
+  // as check-counts.ts has it.
+  counts: BranchCounts;
   // The names of the jobs counted as failed, in the order they were listed:
   // what a row's Failing: line says. Empty when none failed.
   failing: string[];
@@ -121,25 +122,26 @@ export function foldNewestRuns(
 // pull request's rollup reads the same jobs differently on purpose, so this is
 // the branch's fold alone.
 //
-// A cancelled job is in none of the four counts, and neither is one held for
-// approval, which has a state of its own. A held job outranks passed and
-// cancelled ones: the branch is not done until someone approves it. It does
-// not outrank a failure or a job going, which say more.
-//
-// A status the page cannot grade waits, as the server reads it as queued.
+// A cancelled job and one held for approval each have a count of their own,
+// and a job nobody can grade is counted as unknown, so the counts add up to the
+// jobs listed. A held job outranks passed and cancelled ones: the branch is not
+// done until someone approves it. It does not outrank a failure or a job going,
+// which say more. An unknown job is not a pass, so it keeps the branch from
+// reading passed; it is read as still going until #4063 gives it its own status.
 // Left out of the port: GitHub counts ACTION_REQUIRED as a failure, while
 // checkState reads it as held, for both forges.
 export function foldBranch(checks: readonly Check[]): BranchFold {
-  const counts: TalliedCounts = {
+  const counts: BranchCounts = {
     passed: 0,
     skipped: 0,
     running: 0,
     waiting: 0,
     failed: 0,
+    unknown: 0,
+    cancelled: 0,
+    held: 0,
   };
   const failing: string[] = [];
-  let cancelled = false;
-  let held = false;
 
   for (const check of checks) {
     switch (checkState(check)) {
@@ -159,34 +161,36 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
         failing.push(check.name);
         break;
       case 'cancelled':
-        cancelled = true;
+        counts.cancelled++;
         break;
       case 'awaiting_approval':
-        held = true;
+        counts.held++;
+        break;
+      case 'queued':
+      case 'not_reported':
+        counts.waiting++;
         break;
       default:
-        // queued, and any status checkState cannot grade
-        counts.waiting++;
+        // unknown
+        counts.unknown++;
     }
   }
 
   return {
-    status: statusOf(counts, { cancelled, held }, checks.length),
+    status: statusOf(counts, checks.length),
     counts,
     failing,
   };
 }
 
-function statusOf(
-  counts: TalliedCounts,
-  { cancelled, held }: { cancelled: boolean; held: boolean },
-  total: number,
-): BranchStatus {
+function statusOf(counts: BranchCounts, total: number): BranchStatus {
   if (total === 0) return 'none';
   if (counts.failed > 0) return 'failed';
-  if (counts.running > 0 || counts.waiting > 0) return 'running';
-  if (held) return 'awaiting_approval';
-  if (cancelled) return 'cancelled';
+  if (counts.running > 0 || counts.waiting > 0 || counts.unknown > 0) {
+    return 'running';
+  }
+  if (counts.held > 0) return 'awaiting_approval';
+  if (counts.cancelled > 0) return 'cancelled';
 
   return 'passed';
 }

@@ -11,6 +11,8 @@ const (
 	CheckStatusInProgress CheckStatus = "in_progress"
 	CheckStatusCompleted  CheckStatus = "completed"
 	CheckStatusWaiting    CheckStatus = "waiting"
+	// CheckStatusUnknown is a status the server cannot grade (CheckUnknown).
+	CheckStatusUnknown CheckStatus = "unknown"
 )
 
 // CheckConclusion is how a finished job ended, the other wire fact. It is
@@ -39,6 +41,8 @@ func checkFacts(state CheckState) (CheckStatus, CheckConclusion) {
 		return CheckStatusInProgress, ""
 	case CheckAwaitingApproval:
 		return CheckStatusWaiting, ""
+	case CheckUnknown:
+		return CheckStatusUnknown, ""
 	case CheckSuccess:
 		return CheckStatusCompleted, CheckConclusionSuccess
 	case CheckFailure:

@@ -16,7 +16,7 @@ import (
 // failedWithQueuedJob is a commit whose run 12 failed at stopped and left its
 // only job queued.
 func failedWithQueuedJob(stopped time.Time) forge {
-	f := cancelledPassing("queued")
+	f := cancelledPassing("waiting")
 	f.runs[1] = actionsRun(12, 2, "failure", map[string]any{"stopped": stopped.UTC().Format(time.RFC3339Nano)})
 
 	return f
@@ -99,7 +99,7 @@ func TestListOpenPullRequests_AnEmptyJobListIsReadAgainOnlyWithinTheCatchUpWindo
 // means the read ran ahead of the forge, so it is read again however old.
 func TestListOpenPullRequests_APassingRunWithAJobStillGoingIsReadAgainWhateverItsAge(t *testing.T) {
 	t.Parallel()
-	f := cancelledPassing("in_progress")
+	f := cancelledPassing("running")
 	f.runs[1] = actionsRun(12, 2, "success", map[string]any{"stopped": time.Now().Add(-time.Hour).UTC().Format(time.RFC3339Nano)})
 	s := f.serve(t)
 

@@ -51,10 +51,21 @@ type CheckCounts struct {
 	Running int `json:"running"`
 	Waiting int `json:"waiting"`
 	Failed  int `json:"failed"`
-	// Cancelled is how many runs were cancelled, set only when they are the
-	// whole reason the pull request is not passing (CI is CICancelled). It is
-	// none of the other four, as a cancelled run is everywhere else.
+	// Unknown is how many checks are in a state the server cannot grade: a
+	// status or conclusion the forge added after this code was written. It is
+	// none of the others, so a check nobody can name is not hidden in a count
+	// that means something.
+	Unknown int `json:"unknown"`
+	// Cancelled is how many runs were cancelled. A pull request sets it only
+	// when they are the whole reason it is not passing (CI is CICancelled); a
+	// default branch always counts them, so its counts add up to the jobs the
+	// pipeline lists. It is none of the other counts, as a cancelled run is
+	// everywhere else.
 	Cancelled int `json:"cancelled,omitempty"`
+	// Held is how many runs a default branch holds for approval, so its counts
+	// add up. A pull request never sets it: it says so with its own flag
+	// (AwaitingWorkflowApproval).
+	Held int `json:"held,omitempty"`
 }
 
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as
@@ -109,6 +120,10 @@ const (
 	// CheckAwaitingApproval is a GitHub workflow run held until a maintainer
 	// approves it: it has no jobs yet, so it is neither queued nor failed.
 	CheckAwaitingApproval CheckState = "awaiting_approval"
+	// CheckUnknown is a check whose status or conclusion the server cannot
+	// grade: a word the forge added after this code was written. It is not
+	// queued and not failed, so no count that means either takes it.
+	CheckUnknown CheckState = "unknown"
 )
 
 // WaitingFor says why a queued Forgejo job has not started: it waits on

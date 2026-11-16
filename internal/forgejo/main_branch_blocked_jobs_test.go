@@ -31,7 +31,7 @@ func TestReadMainBranch_JobsBlockedInAFailedRunAreNotWaiting(t *testing.T) {
 
 	got := readBranchChecks(t, "failure", jobsOf("success", "failure", "blocked", "blocked"))
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1, Cancelled: 2}, got)
 }
 
 func TestReadMainBranch_JobsBlockedInARunStillGoingStayWaiting(t *testing.T) {

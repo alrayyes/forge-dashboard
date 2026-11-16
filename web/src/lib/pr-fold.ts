@@ -47,7 +47,10 @@ export function foldPullRequest(
   runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
   const live = withoutBlocked(checks, runs);
-  const { status, counts } = foldBranch(live);
+  const { status, counts: tally } = foldBranch(live);
+  // A pull request's counts leave cancelled and held jobs out: its pill says a
+  // held run with a flag, and a cancelled one only on a Cancelled pill.
+  const { cancelled: _cancelled, held: _held, ...counts } = tally;
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forgeCan(forge, 'approvalGatedRuns') && held) {
