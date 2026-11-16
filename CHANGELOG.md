@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.63.0](https://github.com/alrayyes/forge-dashboard/compare/v9.62.2...v9.63.0) (2026-11-16)
+
+
+### Features
+
+* **web:** show a refs pill's explanation on keyboard focus ([#4050](https://github.com/alrayyes/forge-dashboard/issues/4050)) ([4a85e52](https://github.com/alrayyes/forge-dashboard/commit/4a85e525e37b56e19421b4f4b3ef56ebfa0fe498))
+
 ## [9.62.2](https://github.com/alrayyes/forge-dashboard/compare/v9.62.1...v9.62.2) (2026-11-16)
 
 
