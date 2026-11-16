@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.63.1](https://github.com/alrayyes/forge-dashboard/compare/v9.63.0...v9.63.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **web:** hide Out of date and the behind message once a rebase is requested ([#4052](https://github.com/alrayyes/forge-dashboard/issues/4052)) ([6ffa197](https://github.com/alrayyes/forge-dashboard/commit/6ffa197f417e8b49ce13625a985ba4e96918a48a))
+
 ## [9.63.0](https://github.com/alrayyes/forge-dashboard/compare/v9.62.2...v9.63.0) (2026-11-16)
 
 
