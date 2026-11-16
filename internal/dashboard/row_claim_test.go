@@ -35,6 +35,12 @@ func TestClaimOf(t *testing.T) {
 		})
 	}
 
+	t.Run("a host that is starting is carried over even if flagged reachable", func(t *testing.T) {
+		h := dashboard.ForgeHealth{Reachable: true, Starting: true, StaleSince: &since}
+		c := dashboard.ClaimOf(dashboard.ClaimState, h, true)
+		assert.Equal(t, dashboard.ClaimCarriedOver, c.State)
+		assert.False(t, c.ActionsOpen)
+	})
 	t.Run("an unconfirmed conflict is unknown", func(t *testing.T) {
 		c := dashboard.ClaimOf(dashboard.ClaimConflict, answered, false)
 		assert.Equal(t, dashboard.ClaimUnknown, c.State)

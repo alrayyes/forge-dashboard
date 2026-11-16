@@ -157,8 +157,8 @@ for (const forge of ['forgejo', 'github']) {
   });
 }
 
-// Each pill says it is an earlier answer, with since-when, and its hidden text
-// and name carry the same words.
+// Each pill says it is an earlier answer, with since-when, in its data-claim
+// and title. The starting-host test also checks the hidden text.
 async function expectEarlier(page: Page, since: RegExp) {
   const row = page.locator('#pr-rows > .row');
   for (const selector of PILLS) {
