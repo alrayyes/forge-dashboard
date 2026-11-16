@@ -227,6 +227,59 @@ test.describe('the refs pill on a pull request row', () => {
     await expect(popup.locator('.refs-issue')).toHaveText('Refs #12');
   });
 
+  test('Escape in the pull request pop-up hides a showing tip first, then closes the pop-up', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [], [link(12, 'refs')])],
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .getByRole('button', { name: /Pull request 1/ })
+      .first()
+      .click();
+    const popup = page.getByRole('dialog', { name: /^Pull request details/ });
+    const pill = popup.locator('.refs-issue');
+    const tip = popup.locator('[role="tooltip"]');
+
+    await pill.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expect(tip).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(popup).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(popup).toBeHidden();
+  });
+
+  test('Escape in the pull request pop-up closes it at once when the pill has mouse focus', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [], [link(12, 'refs')])],
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .getByRole('button', { name: /Pull request 1/ })
+      .first()
+      .click();
+    const popup = page.getByRole('dialog', { name: /^Pull request details/ });
+    const pill = popup.locator('.refs-issue');
+
+    // The pop-up was opened with the mouse, so a script's focus is not
+    // :focus-visible and shows no tip.
+    await pill.focus();
+    await expect(pill).toBeFocused();
+    await expect(popup.locator('[role="tooltip"]')).toBeHidden();
+
+    await page.keyboard.press('Escape');
+    await expect(popup).toBeHidden();
+  });
+
   test('has a 44 px hit area on a phone, no sideways scroll and no axe violations with both pills', async ({
     page,
   }) => {
