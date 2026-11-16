@@ -180,18 +180,27 @@ test.describe('phone row status gap (#3834)', () => {
   }) => {
     await page.setViewportSize({ width: 1104, height: 800 });
     const row = await open(page, pr());
-    const cluster = await row.evaluate((r) => {
-      const c = r.querySelector('.attr-cluster');
-      const t = r.querySelector('.title, button.title, a.title');
-      return {
-        display: c ? getComputedStyle(c).display : null,
-        clusterWidth: c?.getBoundingClientRect().width ?? null,
-        titleWidth: t?.getBoundingClientRect().width ?? null,
-      };
-    });
-    expect(cluster.display).not.toBe('none');
-    expect(cluster.clusterWidth).toBeGreaterThan(0);
-    expect(cluster.titleWidth).toBeGreaterThan(0);
+    const read = () =>
+      row.evaluate((r) => {
+        const c = r.querySelector('.attr-cluster');
+        const t = r.querySelector('.title, button.title, a.title');
+        return {
+          display: c ? getComputedStyle(c).display : null,
+          clusterWidth: c?.getBoundingClientRect().width ?? null,
+          titleWidth: t?.getBoundingClientRect().width ?? null,
+        };
+      });
+    await expect
+      .poll(async () => {
+        const c = await read();
+        return (
+          c.display !== null &&
+          c.display !== 'none' &&
+          (c.clusterWidth ?? 0) > 0 &&
+          (c.titleWidth ?? 0) > 0
+        );
+      })
+      .toBe(true);
   });
 
   for (const width of [320, 360, 390, 1280]) {
