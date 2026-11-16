@@ -102,8 +102,8 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for "+forgeName(pr.Forge)+" to say it can merge.")
 	}
 
-	if pr.Forge == ForgeGitHub {
-		return status(AutoMergeWaiting, "", "Checks passed. GitHub merges it as soon as it can.")
+	if forgeMergesArmed(pr.Forge) {
+		return status(AutoMergeWaiting, "", "Checks passed. "+forgeName(pr.Forge)+" merges it as soon as it can.")
 	}
 
 	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")

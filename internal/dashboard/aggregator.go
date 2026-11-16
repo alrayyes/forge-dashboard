@@ -1430,13 +1430,13 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	}
 }
 
-// armedOnGitHub reports whether pr has GitHub's own auto-merge armed. GitHub
+// armedOnForge reports whether pr has the forge's own auto-merge armed, as GitHub's is. The forge
 // merges it by itself once checks pass, so nothing the dashboard does makes it
 // happen and a webhook may never tell the dashboard it did: the repo is polled
 // for as long as the pull request stays armed, which is one scoped query a
 // minute per repo, until it merges and leaves the board (#1505).
-func armedOnGitHub(pr PullRequest) bool {
-	return pr.Forge == ForgeGitHub && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
+func armedOnForge(pr PullRequest) bool {
+	return forgeMergesArmed(pr.Forge) && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 }
 
 // RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —

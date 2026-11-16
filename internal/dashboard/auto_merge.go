@@ -97,7 +97,7 @@ func (a *Aggregator) runAutoMerge(ctx context.Context, snap Snapshot) {
 
 			continue
 		}
-		if pr.Forge != ForgeForgejo || !readyForAutoMerge(pr) {
+		if !appMergesArmed(pr.Forge) || !readyForAutoMerge(pr) {
 			continue
 		}
 		a.autoMergeNow(ctx, pr)
