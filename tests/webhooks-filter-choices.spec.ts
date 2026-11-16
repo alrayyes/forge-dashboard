@@ -22,14 +22,18 @@ test.beforeEach(async ({ page }) => {
   );
 });
 
-function mockDashboard(page: Page, repos: Record<string, unknown>[]) {
+function mockDashboard(
+  page: Page,
+  repos: Record<string, unknown>[],
+  forges: Record<string, unknown>[] = [],
+) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [],
+        forges,
         pullRequests: [],
         issues: [],
         repos,
@@ -48,6 +52,28 @@ const statusValues = (page: Page) =>
     .evaluateAll((os) => os.map((o) => (o as HTMLOptionElement).value));
 
 test.describe('webhooks filter choices (#1427)', () => {
+  test('the forge buttons are named by the label the API sends (#3976)', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+        { forge: 'forgejo', fullName: 'alrayyes/b', hasWebhook: true },
+      ],
+      [
+        { forge: 'github', reachable: true, capabilities: { label: 'Octo' } },
+        { forge: 'forgejo', reachable: true, capabilities: { label: 'Berg' } },
+      ],
+    );
+    await page.goto('/webhooks.html');
+
+    const bar = page.locator('.webhooks-filter-bar');
+    await expect(bar.getByLabel('Octo')).toHaveCount(1);
+    await expect(bar.getByLabel('Berg')).toHaveCount(1);
+    await expect(bar.getByLabel('GitHub')).toHaveCount(0);
+  });
+
   test('a forge with no tracked repo is not offered, and neither is a status no repo has', async ({
     page,
   }) => {

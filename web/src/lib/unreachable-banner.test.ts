@@ -9,6 +9,7 @@ const fmt = {
 const gh: DownForge = {
   forge: 'github',
   label: 'GitHub',
+  statusPageUrl: 'https://www.githubstatus.com/',
   errorKind: 'unreachable',
   staleSince: '2026-01-01T06:28:00Z',
 };
@@ -20,13 +21,68 @@ const fj: DownForge = {
 };
 
 describe('bannerCopy', () => {
+  test('a forge that sends a status page gets the link, named by its label', () => {
+    const third: DownForge = {
+      forge: 'gitea',
+      label: 'Gitea',
+      statusPageUrl: 'https://status.gitea.example/',
+    };
+    expect(bannerCopy([third], fmt).statusLink).toEqual({
+      label: 'Gitea status',
+      url: 'https://status.gitea.example/',
+    });
+  });
+
+  test('the status link is the first down forge that has a page, not the first down forge', () => {
+    const noPage: DownForge = { forge: 'aaa', label: 'Aaa' };
+    const withPage: DownForge = {
+      forge: 'zzz',
+      label: 'Zzz',
+      statusPageUrl: 'https://status.zzz.example/',
+    };
+    expect(bannerCopy([noPage, withPage], fmt).statusLink).toEqual({
+      label: 'Zzz status',
+      url: 'https://status.zzz.example/',
+    });
+  });
+
+  test('a forge whose status page reports nothing does not shadow one that reports', () => {
+    const quiet: DownForge = {
+      forge: 'aaa',
+      label: 'Aaa',
+      providerStatus: { indicator: 'none' },
+    };
+    const loud: DownForge = {
+      forge: 'zzz',
+      label: 'Zzz',
+      providerStatus: { indicator: 'major', incidents: ['Outage'] },
+    };
+    expect(bannerCopy([quiet, loud], fmt).incident).toBe(
+      'Zzz reports an incident: Outage.',
+    );
+  });
+
+  test('the incident sentence names the forge by its label', () => {
+    const third: DownForge = {
+      forge: 'gitea',
+      label: 'Gitea',
+      providerStatus: { indicator: 'major', incidents: ['Git push is slow'] },
+    };
+    expect(bannerCopy([third], fmt).incident).toBe(
+      'Gitea reports an incident: Git push is slow.',
+    );
+  });
+
   test('one forge: named once, age, retrying once, status link for GitHub', () => {
     const c = bannerCopy([gh], fmt);
     expect(c.headline).toBe('GitHub is unreachable.');
     expect(c.detail).toBe(
       'Showing data from T(2026-01-01T06:28:00Z), A(2026-01-01T06:28:00Z). Retrying automatically.',
     );
-    expect(c.statusLink).toBe(true);
+    expect(c.statusLink).toEqual({
+      label: 'GitHub status',
+      url: 'https://www.githubstatus.com/',
+    });
   });
 
   test('the age is split out so the page can tick it alone (#3745)', () => {
@@ -51,7 +107,7 @@ describe('bannerCopy', () => {
   });
 
   test('Forgejo alone has no status link', () => {
-    expect(bannerCopy([fj], fmt).statusLink).toBe(false);
+    expect(bannerCopy([fj], fmt).statusLink).toBeUndefined();
   });
 
   test('both: one sentence naming both, the oldest data, one status link', () => {
@@ -60,7 +116,10 @@ describe('bannerCopy', () => {
     expect(c.detail).toBe(
       'Showing data from T(2026-01-01T06:28:00Z), A(2026-01-01T06:28:00Z). Retrying automatically.',
     );
-    expect(c.statusLink).toBe(true);
+    expect(c.statusLink).toEqual({
+      label: 'GitHub status',
+      url: 'https://www.githubstatus.com/',
+    });
   });
 
   test('no staleSince: no age sentence', () => {
