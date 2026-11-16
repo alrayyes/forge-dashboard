@@ -14,6 +14,13 @@ const HOURGLASS =
   '<path d="M5.8 4.6h4.4M5.8 11.4h4.4M6.2 4.6c0 2 3.6 2 3.6 3.4' +
   's-3.6 1.4-3.6 3.4M9.8 4.6c0 2-3.6 2-3.6 3.4s3.6 1.4 3.6 3.4"/>';
 
+const QUESTION: CheckGlyph[] = [
+  {
+    name: 'question',
+    body: `${RING}<path d="M6.3 6.4c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.3-1.7 2.6M8 10.9v.1"/>`,
+  },
+];
+
 // Running carries both glyphs: the arc spins, the clock stays still when the
 // visitor asks for less motion.
 export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
@@ -31,18 +38,8 @@ export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
     { name: 'pause', body: `${RING}<path d="M6.4 5.6v4.8M9.6 5.6v4.8"/>` },
   ],
   not_reported: [{ name: 'hourglass', body: HOURGLASS }],
-  unknown: [
-    {
-      name: 'question',
-      body: `${RING}<path d="M6.3 6.4c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.3-1.7 2.6M8 10.9v.1"/>`,
-    },
-  ],
-  question: [
-    {
-      name: 'question',
-      body: `${RING}<path d="M6.3 6.4c0-1 .8-1.6 1.7-1.6s1.7.6 1.7 1.5c0 1.2-1.7 1.3-1.7 2.6M8 10.9v.1"/>`,
-    },
-  ],
+  unknown: QUESTION,
+  question: QUESTION,
   skipped: [{ name: 'slash', body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],
   cancelled: [
     {
