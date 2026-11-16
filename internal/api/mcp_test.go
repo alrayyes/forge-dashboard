@@ -233,6 +233,7 @@ func TestMCP_GetMainBranches_ReturnsCheckCountsUnchanged(t *testing.T) {
 		"running": float64(1),
 		"waiting": float64(3),
 		"failed":  float64(2),
+		"unknown": float64(0),
 	}, row["checks"])
 }
 

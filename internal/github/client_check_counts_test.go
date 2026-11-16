@@ -68,6 +68,13 @@ func TestFetch_RollupCheckCounts(t *testing.T) {
 			want:   dashboard.CheckCounts{Passed: 1},
 		},
 		{
+			// A state GitHub adds later is one nobody can grade: it is not a
+			// wait and not a failure, so it is counted on its own.
+			name:   "a state the code does not know counts as unknown",
+			rollup: rollupFixture("PENDING", map[string]int{"SUCCESS": 2, "BRAND_NEW": 1, "IN_PROGRESS": 1}, map[string]int{"ODD": 2}),
+			want:   dashboard.CheckCounts{Passed: 2, Running: 1, Unknown: 3},
+		},
+		{
 			name:   "status contexts are counted beside the runs",
 			rollup: rollupFixture("PENDING", map[string]int{"SUCCESS": 1}, map[string]int{"SUCCESS": 2, "PENDING": 1, "EXPECTED": 1, "FAILURE": 1, "ERROR": 1}),
 			want:   dashboard.CheckCounts{Passed: 3, Waiting: 2, Failed: 2},

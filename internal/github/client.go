@@ -1693,7 +1693,8 @@ func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	return out
 }
 
-// rawCheckCounts is the tally with cancelled and held runs in none of the four.
+// rawCheckCounts is the tally with cancelled and held runs in none of the
+// counts, and every state it cannot grade in unknown.
 func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	if r == nil || r.Contexts == nil {
@@ -1712,6 +1713,12 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 			out.Waiting += c.Count
 		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
 			out.Failed += c.Count
+		case "CANCELLED", "ACTION_REQUIRED":
+			// In none of these: see checkCounts for why.
+		default:
+			// A state GitHub added later is counted on its own, not hidden
+			// in a count that means something.
+			out.Unknown += c.Count
 		}
 	}
 	for _, c := range r.Contexts.StatusContextCountsByState {
@@ -1722,6 +1729,8 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 			out.Waiting += c.Count
 		case "FAILURE", "ERROR":
 			out.Failed += c.Count
+		default:
+			out.Unknown += c.Count
 		}
 	}
 
