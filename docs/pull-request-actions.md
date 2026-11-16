@@ -39,7 +39,11 @@ failing checks), also draws the Update branch the server lists in the row bar,
 beside the main button. A confirmed conflict (the forge says conflicting and, on
 Forgejo, a refusal named it) draws its warning alone: no locked Merge, no locked
 Update branch and no Out of date chip, since none of them unlocks anything the
-warning doesn't name. An unconfirmed Forgejo conflict keeps its live Update
+warning doesn't name. A behind bot pull request whose rebase was just
+requested shows its waiting chip and neither the Out of date chip
+nor the "Behind the base branch" block, since the request already does what
+they ask for. When the request times out ("No reply from Dependabot yet") both
+come back. An unconfirmed Forgejo conflict keeps its live Update
 branch, because updating is how it gets confirmed. The pop-up's footer still
 lists Merge and Update branch locked, each with its reason. A conflict row still
 keeps a Close, the cancel of a pending Renovate rebase and a Merge already
@@ -175,8 +179,9 @@ Attributes are quiet outlined chips with a small icon and no fill or motion,
 in a cluster beside the CI slot, never inside it. `Out of date` is the one
 exception: it is drawn for every pull request that is behind its base and has
 something left to merge, on the overview and the Bots page alike, except on a
-row that already says it another way: a live Update branch button, or a
-confirmed conflict's warning. The pop-up keeps the chip, and the Out of date
+row that already says it another way: a live Update branch button, a
+confirmed conflict's warning, or a requested bot rebase (the waiting chip says
+the fix is under way). The pop-up keeps the chip, and the Out of date
 quick filter and the Update all count still read `behind`. It is drawn in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
