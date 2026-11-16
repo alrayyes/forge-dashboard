@@ -247,6 +247,13 @@ mocked dashboard carries those.
 until `UPDATE_FIXTURES=1 go test ./internal/api -run TestNavCountsFixture`
 regenerates it.
 
+A mocked dashboard answer builds each `forges` entry with `forgeHealth()` from
+`tests/forge-health-helper.ts`, which fills `capabilities` from
+`tests/generated/forge-capabilities.json`. `go test ./internal/dashboard` fails
+when the Go table changes until `UPDATE_FIXTURES=1 go test ./internal/dashboard
+-run TestForgeCapabilitiesFixture` regenerates it. Older specs still write the
+entry by hand and move over as they are touched.
+
 ## Unit tests
 
 A rule that needs no browser is tested without one. `web/src/lib/*.test.ts`
