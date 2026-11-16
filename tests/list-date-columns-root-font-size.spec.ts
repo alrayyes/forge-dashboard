@@ -233,8 +233,8 @@ for (const [name, path, rows] of LISTS) {
     }
     // At 1280 every track is a fixed width, so pin them exactly. Below that the
     // last track is `auto` and holds a text arrow, so its width (and the split
-    // with the 1fr track) follows the fallback font. Pin the track count and
-    // the total, which is what the layout controls.
+    // with the 1fr track) follows the fallback font. Pin the track count, the
+    // total and a bound on the arrow track, which is what the layout controls.
     const px = (tracks: string) => tracks.split(' ').map(parseFloat);
     expect(got['1280']).toBe(TRACKS_100[rows]['1280']);
     for (const width of ['320', '390']) {
