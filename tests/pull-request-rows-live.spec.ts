@@ -270,8 +270,11 @@ test.describe('pull request rows follow their jobs', () => {
     );
     await feed.idle();
 
-    expect(feed.posts.length).toBeGreaterThan(posts);
-    expect(Math.max(...feed.posts.slice(posts))).toBe(CAP - 1);
+    // The observer reports on its own schedule, which a loaded machine
+    // stretches, so wait for the post instead of reading it once.
+    await expect
+      .poll(() => Math.max(0, ...feed.posts.slice(posts)))
+      .toBe(CAP - 1);
   });
 
   // A row that leaves the view lets go of its live jobs and must read the
