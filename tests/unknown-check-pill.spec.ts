@@ -109,3 +109,54 @@ for (const [name, size] of [
     });
   });
 }
+
+// A pull request whose only odd check is unknown reads pending, so the quick
+// filters file it under Running (#4055).
+test('a pull request row draws its unknown check', async ({ page }) => {
+  await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        pullRequests: [
+          {
+            forge: 'github',
+            repo: 'example/service',
+            number: 7,
+            title: 'Odd check',
+            url: 'https://github.com/example/service/pull/7',
+            author: 'someone',
+            draft: false,
+            ci: 'pending',
+            checks: {
+              passed: 3,
+              skipped: 0,
+              running: 0,
+              waiting: 0,
+              failed: 0,
+              unknown: 1,
+            },
+            labels: [],
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            mergeStatus: 'mergeable',
+          },
+        ],
+        issues: [],
+        openIssueCount: 0,
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  const pill = page.locator('#pr-rows > .row .ci-pill').first();
+  await expect(pill.locator('.ci-seg-unknown')).toHaveText('1');
+  await expect(pill).toHaveAttribute(
+    'aria-label',
+    /3 passed, 1 unknown\. Open pipeline$/,
+  );
+});
