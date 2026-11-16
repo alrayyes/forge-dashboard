@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.61.4](https://github.com/alrayyes/forge-dashboard/compare/v9.61.3...v9.61.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **dashboard:** update an edited Dependabot branch instead of asking for a rebase ([#4024](https://github.com/alrayyes/forge-dashboard/issues/4024)) ([9d92253](https://github.com/alrayyes/forge-dashboard/commit/9d92253c5db1fb51496fb3bd42d6873dfd3b321a))
+
 ## [9.61.3](https://github.com/alrayyes/forge-dashboard/compare/v9.61.2...v9.61.3) (2026-11-16)
 
 
