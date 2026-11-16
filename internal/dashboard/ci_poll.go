@@ -171,7 +171,7 @@ type polledPR struct {
 func pendingItems(snap Snapshot) []pendingItem {
 	var items []pendingItem
 	for _, pr := range snap.PullRequests {
-		if pr.CI != CIPending && !armedOnGitHub(pr) {
+		if pr.CI != CIPending && !armedOnForge(pr) {
 			continue
 		}
 		owner, name, ok := strings.Cut(pr.Repo, "/")
@@ -186,7 +186,7 @@ func pendingItems(snap Snapshot) []pendingItem {
 			ref:         PullRequestRef{Forge: pr.Forge, Owner: owner, Name: name, FullName: pr.Repo, Number: pr.Number},
 			kind:        kind,
 			ciPending:   pr.CI == CIPending,
-			armed:       armedOnGitHub(pr),
+			armed:       armedOnForge(pr),
 			headSHA:     pr.HeadSHA,
 			fingerprint: pollFingerprint(pr),
 		})

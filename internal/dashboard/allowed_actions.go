@@ -416,17 +416,18 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	return ActionAvailability{Action: ActionUpdateBranch}, true
 }
 
-// autoMergeOffered: GitHub, or Forgejo where this app holds the intent, and not
+// autoMergeOffered: a forge that merges its own armed pull requests, or one where
+// this app holds the intent, and not
 // when it is already on (nil means the forge can't say, which isn't "on"),
 // when GitHub says it would refuse (nil isn't a refusal, #738), when there is
 // nothing to merge, when conflicts need fixing first, or when the pull request
-// is clean and Merge covers it (#662). A Forgejo draft can't merge yet, so
+// is clean and Merge covers it (#662). An app-held draft can't merge yet, so
 // there is nothing to arm.
 func autoMergeOffered(pr PullRequest) bool {
 	switch {
-	case pr.Forge != ForgeGitHub && pr.Forge != ForgeForgejo:
+	case !appMergesArmed(pr.Forge) && !forgeMergesArmed(pr.Forge):
 		return false
-	case pr.Forge == ForgeForgejo && pr.Draft:
+	case appMergesArmed(pr.Forge) && pr.Draft:
 		return false
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
 		return false

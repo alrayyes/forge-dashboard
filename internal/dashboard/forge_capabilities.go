@@ -97,3 +97,20 @@ func WithCapabilities(forges []ForgeHealth) []ForgeHealth {
 
 	return out
 }
+
+// appMergesArmed is true when this app holds an armed auto-merge for forge and
+// performs the merge itself. False for a forge that merges its own, and for one
+// this build doesn't know.
+func appMergesArmed(forge Forge) bool {
+	c, _ := CapabilitiesOf(forge)
+
+	return c.AutoMergeHeldByApp
+}
+
+// forgeMergesArmed is the other half: a known forge that holds an armed
+// auto-merge itself. Nothing this app does makes it merge.
+func forgeMergesArmed(forge Forge) bool {
+	c, ok := CapabilitiesOf(forge)
+
+	return ok && !c.AutoMergeHeldByApp
+}
