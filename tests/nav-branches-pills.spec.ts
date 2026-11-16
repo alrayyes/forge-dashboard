@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageOf } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -44,7 +45,7 @@ async function open(page: Page, branches: Counts) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         openIssueCount: 0,
