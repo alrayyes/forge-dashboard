@@ -4470,7 +4470,8 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // cancelled, skipped, timed_out, action_required, stale — neutral counts
 // as passing the same way statusFromCheckRuns already treats it;
 // stale counts as failing, since it blocks the
-// pull request the same way a real failure does. The exception is
+// pull request the same way a real failure does. A conclusion not listed here
+// is unknown. The exception is
 // action_required, which reads as awaiting approval: the rollup counts it as held
 // (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
@@ -4481,14 +4482,18 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 // API's lower case words, whichever API they were read from.
 func checkStateOf(status, conclusion string) dashboard.CheckState {
 	if status != "completed" {
-		// Only in_progress has a log to read. Every other status (queued,
-		// waiting, pending, requested, or one GitHub adds later) has not
-		// started, and the rollup counts it as waiting.
-		if status == "in_progress" {
+		// Only in_progress has a log to read. The other statuses GitHub
+		// documents (queued, waiting, pending, requested) have not started,
+		// and the rollup counts them as waiting. Any other word is one the
+		// code cannot grade, which is not a wait.
+		switch status {
+		case "in_progress":
 			return dashboard.CheckRunning
+		case "queued", "waiting", "pending", "requested":
+			return dashboard.CheckQueued
+		default:
+			return dashboard.CheckUnknown
 		}
-
-		return dashboard.CheckQueued
 	}
 	switch conclusion {
 	case "success", "neutral":
@@ -4501,8 +4506,12 @@ func checkStateOf(status, conclusion string) dashboard.CheckState {
 		return dashboard.CheckTimedOut
 	case "action_required":
 		return dashboard.CheckAwaitingApproval
-	default: // "failure", "stale"
+	case "failure", "stale", "startup_failure":
 		return dashboard.CheckFailure
+	default:
+		// A conclusion GitHub added later: not a failure, or a pill would turn
+		// red over a word nobody has read.
+		return dashboard.CheckUnknown
 	}
 }
 
@@ -4528,8 +4537,10 @@ func checkStateFromCombinedState(state string) dashboard.CheckState {
 		return dashboard.CheckSuccess
 	case "failure", "error":
 		return dashboard.CheckFailure
-	default: // "pending"
+	case "pending":
 		return dashboard.CheckRunning
+	default:
+		return dashboard.CheckUnknown
 	}
 }
 

@@ -109,6 +109,10 @@ const (
 	// CheckAwaitingApproval is a GitHub workflow run held until a maintainer
 	// approves it: it has no jobs yet, so it is neither queued nor failed.
 	CheckAwaitingApproval CheckState = "awaiting_approval"
+	// CheckUnknown is a check whose status or conclusion the server cannot
+	// grade: a word the forge added after this code was written. It is not
+	// queued and not failed, so no count that means either takes it.
+	CheckUnknown CheckState = "unknown"
 )
 
 // WaitingFor says why a queued Forgejo job has not started: it waits on
