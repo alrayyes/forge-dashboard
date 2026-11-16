@@ -61,7 +61,8 @@ export function checkRunKey(check: Check): string {
 // two facts the server sends: queued, running, awaiting_approval, or how it
 // ended once it is completed. The conclusion is the forge's own word, so this
 // is where the page decides what each one means: a neutral job passed, a stale
-// or never-started one failed, and a word it doesn't know reads as a failure.
+// or never-started one failed, and a word it doesn't know reads as unknown,
+// which is neither a failure nor a pass.
 export function checkState(
   check: Pick<Check, 'status' | 'conclusion' | 'notReported'>,
 ): string {
@@ -76,7 +77,7 @@ export function checkState(
     case 'completed':
       return concludedState(check.conclusion);
     default:
-      return '';
+      return 'unknown';
   }
 }
 
@@ -91,8 +92,14 @@ function concludedState(conclusion: string | undefined): string {
       return conclusion;
     case 'action_required':
       return 'awaiting_approval';
-    default:
+    case 'failure':
+    case 'stale':
+    case 'startup_failure':
       return 'failure';
+    default:
+      // A word the page was not written for, or none: not a failure it can
+      // name, and not a pass.
+      return 'unknown';
   }
 }
 
@@ -108,6 +115,7 @@ export const CHECK_STATE_LABELS: Record<string, string> = {
   timed_out: 'Timed out',
   awaiting_approval: 'Waiting for approval',
   not_reported: 'Not reported',
+  unknown: 'Unknown',
 };
 
 // How long a finished job ran, from the two timestamps the server sends.

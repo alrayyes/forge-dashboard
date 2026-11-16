@@ -488,7 +488,7 @@ func TestReadMainBranch_FallsBackToTheRunCounts(t *testing.T) {
 		{"mixed", []string{"success", "skipped", "running", "waiting", "blocked", "failure"}, dashboard.CheckCounts{Passed: 2, Skipped: 1, Running: 1, Waiting: 2, Failed: 1}},
 		{"every run skipped", []string{"skipped", "skipped"}, dashboard.CheckCounts{Passed: 2, Skipped: 2}},
 		{"all passed", []string{"success", "success", "success"}, dashboard.CheckCounts{Passed: 3}},
-		{"cancelled counts in none", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1}},
+		{"cancelled counts on its own", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1, Cancelled: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

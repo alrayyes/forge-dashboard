@@ -217,3 +217,39 @@ describe('pillName', () => {
     ).toBe('Failed 8 1 2 3: 8 passed, 1 running, 2 waiting, 3 failed');
   });
 });
+
+describe('checkSegments with unknown, cancelled and held', () => {
+  test('draws each after failed, so every check is in a segment', () => {
+    expect(
+      checkSegments({
+        passed: 4,
+        running: 1,
+        waiting: 1,
+        failed: 1,
+        unknown: 2,
+        cancelled: 3,
+        held: 1,
+      }),
+    ).toEqual([
+      { kind: 'passed', n: 4 },
+      { kind: 'running', n: 1 },
+      { kind: 'waiting', n: 1 },
+      { kind: 'failed', n: 1 },
+      { kind: 'unknown', n: 2 },
+      { kind: 'cancelled', n: 3 },
+      { kind: 'held', n: 1 },
+    ]);
+  });
+
+  test('reads an older answer without them as none', () => {
+    expect(
+      checkSegments({ passed: 1, running: 0, waiting: 0, failed: 0 }),
+    ).toEqual([{ kind: 'passed', n: 1 }]);
+  });
+
+  test('names an unknown count in words', () => {
+    expect(pillName('Running', [{ kind: 'unknown', n: 2 }])).toBe(
+      'Running 2: 2 unknown',
+    );
+  });
+});

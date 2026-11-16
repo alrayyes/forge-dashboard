@@ -52,7 +52,7 @@ describe('foldBranch status', () => {
     });
   }
 
-  test('a conclusion the page does not know reads as a failure', () => {
+  test('a failure the page knows by name reads as a failure', () => {
     const odd: Check = {
       name: 'odd',
       url: '',
@@ -63,13 +63,13 @@ describe('foldBranch status', () => {
     expect(foldBranch([odd]).status).toBe('failed');
   });
 
-  // Go reads a status it does not know as queued, so a job the page cannot
-  // grade is neither passed nor silently dropped.
-  test('a status the page does not know reads as waiting', () => {
+  // A job the page cannot grade is neither passed nor silently dropped: it is
+  // counted as unknown, and the branch is not done.
+  test('a status the page does not know reads as unknown', () => {
     const odd: Check = { name: 'odd', url: '', status: 'pending' };
 
     expect(foldBranch([odd]).status).toBe('running');
-    expect(foldBranch([odd]).counts.waiting).toBe(1);
+    expect(foldBranch([odd]).counts.unknown).toBe(1);
   });
 
   test('no jobs is none, not passed', () => {
@@ -78,14 +78,23 @@ describe('foldBranch status', () => {
 });
 
 // Ports TestReadMainBranch_FallsBackToTheRunCounts: skipped sits inside passed,
-// queued and blocked jobs wait, and a cancelled job is in none of the four.
+// queued and blocked jobs wait, and a cancelled or held job has a count of its own.
 describe('foldBranch counts', () => {
   test('mixed', () => {
     expect(
       foldBranch(
         jobs('success', 'skipped', 'running', 'queued', 'queued', 'failure'),
       ).counts,
-    ).toEqual({ passed: 2, skipped: 1, running: 1, waiting: 2, failed: 1 });
+    ).toEqual({
+      passed: 2,
+      skipped: 1,
+      running: 1,
+      waiting: 2,
+      failed: 1,
+      unknown: 0,
+      cancelled: 0,
+      held: 0,
+    });
   });
 
   test('every job skipped', () => {
@@ -95,6 +104,9 @@ describe('foldBranch counts', () => {
       running: 0,
       waiting: 0,
       failed: 0,
+      unknown: 0,
+      cancelled: 0,
+      held: 0,
     });
   });
 
@@ -105,27 +117,68 @@ describe('foldBranch counts', () => {
       running: 0,
       waiting: 0,
       failed: 0,
+      unknown: 0,
+      cancelled: 0,
+      held: 0,
     });
   });
 
-  test('cancelled counts in none', () => {
+  test('a cancelled job has its own count', () => {
     expect(foldBranch(jobs('success', 'cancelled')).counts).toEqual({
       passed: 1,
       skipped: 0,
       running: 0,
       waiting: 0,
       failed: 0,
+      unknown: 0,
+      cancelled: 1,
+      held: 0,
     });
   });
 
-  test('a held job is in none of the four', () => {
+  test('a held job has its own count', () => {
     expect(foldBranch(jobs('success', 'awaiting_approval')).counts).toEqual({
       passed: 1,
       skipped: 0,
       running: 0,
       waiting: 0,
       failed: 0,
+      unknown: 0,
+      cancelled: 0,
+      held: 1,
     });
+  });
+
+  test('an unknown job is counted and the branch is not passed', () => {
+    const fold = foldBranch(jobs('success', 'something_new'));
+    expect(fold.counts.unknown).toBe(1);
+    expect(fold.status).toBe('running');
+    expect(fold.failing).toEqual([]);
+  });
+
+  test('every job lands in a count, so the counts add up', () => {
+    const fold = foldBranch(
+      jobs(
+        'success',
+        'skipped',
+        'running',
+        'queued',
+        'failure',
+        'cancelled',
+        'awaiting_approval',
+        'odd',
+      ),
+    );
+    const c = fold.counts;
+    expect(
+      c.passed +
+        c.running +
+        c.waiting +
+        c.failed +
+        c.unknown +
+        c.cancelled +
+        c.held,
+    ).toBe(8);
   });
 
   test('a timed-out job counts as failed', () => {
@@ -139,6 +192,9 @@ describe('foldBranch counts', () => {
       running: 0,
       waiting: 0,
       failed: 0,
+      unknown: 0,
+      cancelled: 0,
+      held: 0,
     });
   });
 });

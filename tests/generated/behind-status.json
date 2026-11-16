@@ -19,7 +19,8 @@
         "skipped": 0,
         "running": 0,
         "waiting": 0,
-        "failed": 0
+        "failed": 0,
+        "unknown": 0
       },
       "mergeStatus": "mergeable",
       "behind": true,
@@ -95,7 +96,8 @@
         "skipped": 0,
         "running": 0,
         "waiting": 0,
-        "failed": 0
+        "failed": 0,
+        "unknown": 0
       },
       "mergeStatus": "mergeable",
       "behind": true,

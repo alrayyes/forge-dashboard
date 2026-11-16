@@ -1798,6 +1798,8 @@ func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 			out.Waiting++
 		case gitea.StatusFailure, gitea.StatusError:
 			out.Failed++
+		default:
+			out.Unknown++
 		}
 	}
 
@@ -2001,8 +2003,11 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 		return dashboard.CheckSkipped
 	case "running":
 		return dashboard.CheckRunning
-	default: // "waiting", "blocked", "unknown", or anything unrecognized
+	case "waiting", "blocked", "unknown": // nothing has started
 		return dashboard.CheckQueued
+	default:
+		// A status Forgejo added later: not a wait, so not queued.
+		return dashboard.CheckUnknown
 	}
 }
 

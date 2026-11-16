@@ -67,6 +67,10 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	row.Status = mainBranchStatus(runs)
 	checks := branchChecks(runs, jobs)
 	row.Checks = countChecks(checks)
+	if row.Status == dashboard.MainBranchPassed && row.Checks.Unknown > 0 {
+		// The runs say passed, but a job nobody can grade is not a pass.
+		row.Status = dashboard.MainBranchRunning
+	}
 	row.Runs = dashboard.MainBranchRuns(checks)
 	for i := range row.Runs {
 		row.Runs[i].JobsTruncated = cut[row.Runs[i].RunID]
@@ -217,7 +221,8 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 			failed = true
 		case dashboard.CheckCancelled:
 			cancelled = true
-		case dashboard.CheckRunning, dashboard.CheckQueued:
+		case dashboard.CheckRunning, dashboard.CheckQueued, dashboard.CheckUnknown:
+			// A run nobody can grade is not a pass, and it can still change.
 			running = true
 		}
 	}
@@ -418,9 +423,10 @@ func jobExcerptKeys(repo dashboard.RepoRef, jobs map[int64][]*gitea.ActionWorkfl
 	return keys
 }
 
-// countChecks tallies checks into passed, running, waiting and failed. A
-// cancelled check is in none of the four, as for a pull request: nothing
-// broke, and mainBranchStatus reads it the same way.
+// countChecks tallies checks into passed, running, waiting, failed, unknown,
+// cancelled and held, so the counts add up to the jobs the pipeline lists. A
+// cancelled check is still not a failure: nothing broke, and mainBranchStatus
+// reads it the same way.
 func countChecks(checks []dashboard.Check) dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	for _, c := range checks {
@@ -444,6 +450,12 @@ func tally(out *dashboard.CheckCounts, state dashboard.CheckState) {
 		out.Waiting++
 	case dashboard.CheckFailure:
 		out.Failed++
+	case dashboard.CheckCancelled:
+		out.Cancelled++
+	case dashboard.CheckAwaitingApproval:
+		out.Held++
+	case dashboard.CheckUnknown:
+		out.Unknown++
 	}
 }
 

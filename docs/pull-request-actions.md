@@ -941,12 +941,20 @@ reports no Actions/Workflow runs at all for that commit.
 
 While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,
-waiting, failed, each with its own glyph. A state with no checks is left out. On
-a phone the word goes and the counts stay. The server tallies the counts from
+waiting, failed, then unknown, each with its own glyph. A state with no checks
+is left out. An unknown check is one in a state the server cannot grade, such
+as a status or conclusion the forge added later: it is not a failure and not a
+wait, and a pipeline that would read passed does not while one is present.
+A pull request whose only odd check is unknown is pending, so the Running
+quick filter lists it; there is no filter of its own. On a
+phone the word goes and the counts stay. The server tallies the counts from
 what it already reads to work out the CI state, so on GitHub they cost no extra
-request, and a pull request that has none keeps the plain pill. A run held for
-approval and a cancelled run are in none of the four, because the CI state
-doesn't treat them as failures while others still run. On Forgejo the
+request, and a pull request that has none keeps the plain pill. On a pull
+request a run held for approval and a cancelled run are in none of those
+counts, because the CI state doesn't treat them as failures while others still
+run. A default branch counts every job instead, so a cancelled job and a held
+run have counts of their own and its counts add up to the jobs the pipeline
+lists. On Forgejo the
 statuses only say pending, so when any are pending the server also reads the
 jobs of the runs on the commit that are running (one call for the runs, one
 for each of them, read side by side, at most eight at once), and the jobs in

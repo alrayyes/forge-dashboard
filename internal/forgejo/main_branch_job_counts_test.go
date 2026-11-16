@@ -81,7 +81,7 @@ func TestReadMainBranch_CountsTheJobsOfTheRuns(t *testing.T) {
 		assert.Equal(t, dashboard.CheckCounts{Passed: 2, Waiting: 3}, row.Checks)
 	})
 
-	t.Run("failed jobs count and cancelled ones count in none", func(t *testing.T) {
+	t.Run("failed jobs and cancelled ones each count apart, so the counts add up", func(t *testing.T) {
 		t.Parallel()
 		s := &mainBranchServer{
 			runs: []map[string]any{actionRun(1, "main", "cafef00d", "failure", started, stopped)},
@@ -92,7 +92,37 @@ func TestReadMainBranch_CountsTheJobsOfTheRuns(t *testing.T) {
 		row, err := client.ReadMainBranch(t.Context(), repoA)
 
 		require.NoError(t, err)
-		assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, row.Checks)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1, Cancelled: 1}, row.Checks)
+	})
+
+	t.Run("passed jobs beside a cancelled one add up to every job listed", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "cancelled", started, stopped)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "success", "success", "cancelled")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.MainBranchCancelled, row.Status)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 3, Cancelled: 1}, row.Checks)
+	})
+
+	t.Run("a job in a status nobody can grade counts as unknown and the branch is not passed", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "success", started, stopped)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "something-new")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 1, Unknown: 1}, row.Checks)
+		assert.NotEqual(t, dashboard.MainBranchPassed, row.Status)
 	})
 
 	t.Run("reads the bare array a newer Forgejo answers with", func(t *testing.T) {
