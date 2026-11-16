@@ -178,6 +178,25 @@ One ticket per group, each doing moves with its own mutation proof:
   the label, the unreachable-forge guard, and the `rate_limited` cause line.
   The other tests in the spec stay, since they read the page's banner or its
   live region. The CSV row for `forge-health-budgets` is updated.
+- The fourth move, from `error-pages` and `insights-webhooks-read-failure`:
+  the dashboard's error page and the read-failure alert already had stories,
+  so no component changed. `error-pages` lost the two "Try again" tests, which
+  are now `play` functions on the `ErrorPage` stories, and its journey test
+  gave up the status chip, the way home and the four section links to the same
+  stories. It keeps the title, the headline (so the built `404.html` and
+  `500.html` are known to carry the component), axe at two widths, the layout
+  overflow check and the no-internals check. `insights-webhooks-read-failure`
+  gave up the Retry focus outline to the `ReadFailureAlert` stories, which also
+  pin the alert role, the message, the Retry name and click, and the empty
+  state. The 44px phone target stays in e2e, since it needs a 390px viewport
+  that a story can't set. The wording tests stay: they check that a failed
+  read reaches the alert. About 5.9 s of e2e test time (16 test runs) became
+  about 4.6 s (14), and the stories take about 0.1 s. Each assertion was proven
+  red by breaking the component: the 404 and 500 headlines, the status chip,
+  the home link, a section link, Try again shown on a 404, dropped on a 500 or
+  pointing elsewhere, the alert role, the Retry label, its click, the alert
+  shown when empty, a page's own message, and the Retry focus outline. The CSV
+  rows for both specs are updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
