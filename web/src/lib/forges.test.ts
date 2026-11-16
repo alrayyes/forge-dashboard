@@ -21,12 +21,17 @@ describe('registerForgeCapabilities', () => {
     expect(FORGE_LABELS.github).toBe('GitHub');
     expect(FORGE_LABELS.forgejo).toBe('Forgejo');
 
-    registerForgeCapabilities([
-      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
-    ]);
-    expect(FORGE_LABELS.forgejo).toBe('Codeberg');
-    registerForgeCapabilities([
-      { forge: 'forgejo', capabilities: { label: 'Forgejo' } },
-    ]);
+    try {
+      registerForgeCapabilities([
+        { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+      ]);
+      expect(FORGE_LABELS.forgejo).toBe('Codeberg');
+    } finally {
+      // Put the seed back even when the assertion fails, so a failure here
+      // doesn't leak a label into later tests in the same process.
+      registerForgeCapabilities([
+        { forge: 'forgejo', capabilities: { label: 'Forgejo' } },
+      ]);
+    }
   });
 });

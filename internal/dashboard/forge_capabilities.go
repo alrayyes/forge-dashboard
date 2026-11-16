@@ -85,7 +85,9 @@ func CapabilitiesOf(forge Forge) (ForgeCapabilities, bool) {
 }
 
 // WithCapabilities returns a copy of forges with each entry's capabilities
-// filled in, for a response. The input is left as it was.
+// filled in, for a response. The input is left as it was. A forge the table
+// doesn't know gets the zero value (an empty label), and the web falls back
+// to the forge's id.
 func WithCapabilities(forges []ForgeHealth) []ForgeHealth {
 	out := make([]ForgeHealth, len(forges))
 	for i, f := range forges {
