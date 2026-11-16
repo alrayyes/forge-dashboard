@@ -16,4 +16,17 @@ describe('registerForgeCapabilities', () => {
 
     expect(FORGE_LABELS.plain).toBeUndefined();
   });
+
+  test('the shipped forges are named before any read, and capabilities override', () => {
+    expect(FORGE_LABELS.github).toBe('GitHub');
+    expect(FORGE_LABELS.forgejo).toBe('Forgejo');
+
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    expect(FORGE_LABELS.forgejo).toBe('Codeberg');
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Forgejo' } },
+    ]);
+  });
 });

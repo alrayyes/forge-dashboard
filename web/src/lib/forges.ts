@@ -7,11 +7,15 @@
 // (components.schemas.ForgeCapabilities). Only the part a page reads here.
 export type ForgeCapabilities = { label: string };
 
-// The label of each forge a read has named, read from its capabilities so no
-// page keeps a table of its own. Empty until the first read of the API, and a
-// page that asks before then falls back to the forge's id, as it does for a
-// forge it has not heard of.
-export const FORGE_LABELS: Record<string, string> = {};
+// The label of each forge. Seeded with the two forges the app ships with, so a
+// page that asks before the first read of the API, or a read whose forge entry
+// carries no capabilities, still names them. A read's capabilities override
+// these, and a forge added server-side shows its name through them; one this
+// table has never heard of falls back to its id.
+export const FORGE_LABELS: Record<string, string> = {
+  github: 'GitHub',
+  forgejo: 'Forgejo',
+};
 
 // Learns the labels from the forge entries of a dashboard or Main branches
 // answer. Every read calls it, so a forge added server-side shows its name
