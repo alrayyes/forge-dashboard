@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -34,7 +35,7 @@ async function open(page: Page, path: string, width: number) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+        forges: [forgeHealth('github', { repoCount: 2 })],
         pullRequests: [item(1, 'alrayyes/app'), item(2, 'alrayyes/api')],
         issues: [item(1, 'alrayyes/app'), item(2, 'alrayyes/api')],
         openIssueCount: 2,

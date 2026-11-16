@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // With the filters at one row, or none, the sort and grouping selects are
@@ -41,10 +42,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: [],
         issues: ISSUES,
         openIssueCount: ISSUES.length,
@@ -312,10 +310,7 @@ test.describe('the Releases and Bots pages share the rule (#3886)', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [
-              { forge: 'github', reachable: true, repoCount: 1 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
-            ],
+            forges: [forgeHealth('github'), forgeHealth('forgejo')],
             pullRequests: rows,
             issues: [],
             repos: [],
@@ -426,10 +421,7 @@ async function openPage(page: Page, path: string, kind: string) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: kind === 'issue' ? [] : rows,
         issues: kind === 'issue' ? ISSUES : [],
         openIssueCount: kind === 'issue' ? ISSUES.length : 0,
