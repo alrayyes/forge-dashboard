@@ -40,7 +40,17 @@ export function createTitleHover(
   );
   // Text widths change when a web font arrives, with no box resizing to say so.
   const fonts = typeof document === 'undefined' ? undefined : document.fonts;
-  const recheck = () => apply(titles.keys());
+  const recheck = () => {
+    apply(titles.keys());
+    // The answer above is for the size the box has now, which the observer may
+    // never have reported. It only reports a size that differs from its last
+    // one, so a box that returns to that size before the next frame would keep
+    // this answer. Observing again owes every box a fresh report.
+    for (const el of titles.keys()) {
+      observer.unobserve(el);
+      observer.observe(el);
+    }
+  };
   fonts?.addEventListener?.('loadingdone', recheck);
   void fonts?.ready?.then(recheck);
   return {
