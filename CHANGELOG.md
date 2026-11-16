@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.62.1](https://github.com/alrayyes/forge-dashboard/compare/v9.62.0...v9.62.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **a11y:** name the pipeline dialog with aria-labelledby ([#4036](https://github.com/alrayyes/forge-dashboard/issues/4036)) ([9b14a91](https://github.com/alrayyes/forge-dashboard/commit/9b14a91ba1b8e2ab315fdbf7df1411c4e348e641)), closes [#3880](https://github.com/alrayyes/forge-dashboard/issues/3880)
+
 ## [9.62.0](https://github.com/alrayyes/forge-dashboard/compare/v9.61.4...v9.62.0) (2026-11-16)
 
 
