@@ -1,5 +1,15 @@
 # Changelog
 
+## [9.61.3](https://github.com/alrayyes/forge-dashboard/compare/v9.61.2...v9.61.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump go.opentelemetry.io/otel/trace from 1.44.0 to 1.47.0 ([#4013](https://github.com/alrayyes/forge-dashboard/issues/4013)) ([2bd88bd](https://github.com/alrayyes/forge-dashboard/commit/2bd88bd0aabd2e56a43bdad7f06bfff83e5f0cfb))
+* **deps:** bump golang ([#4012](https://github.com/alrayyes/forge-dashboard/issues/4012)) ([389aac7](https://github.com/alrayyes/forge-dashboard/commit/389aac75dd4a4109fbd628417d0c2a8f6b6ab8aa))
+* **deps:** bump the bun-dependencies group with 8 updates ([#4011](https://github.com/alrayyes/forge-dashboard/issues/4011)) ([aac0bc8](https://github.com/alrayyes/forge-dashboard/commit/aac0bc8dc4ef9b44818418777893f06e1e9bc175))
+* **deps:** bump the go-dependencies group with 2 updates ([#4010](https://github.com/alrayyes/forge-dashboard/issues/4010)) ([f3970c0](https://github.com/alrayyes/forge-dashboard/commit/f3970c0aee2d6da584ac0558acdb0ef41f31bf18))
+
 ## [9.61.2](https://github.com/alrayyes/forge-dashboard/compare/v9.61.1...v9.61.2) (2026-11-14)
 
 
