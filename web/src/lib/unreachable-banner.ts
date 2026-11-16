@@ -74,7 +74,12 @@ function joinLabels(labels: string[]): string {
 // restart still waiting for its first answer is not an outage to blame on the
 // forge.
 function incidentOf(down: DownForge[]): string | undefined {
-  const reporter = down.find((f) => f.providerStatus && !f.startupGap);
+  const reporter = down.find(
+    (f) =>
+      !f.startupGap &&
+      ((f.providerStatus?.incidents?.length ?? 0) > 0 ||
+        (f.providerStatus?.components?.length ?? 0) > 0),
+  );
   const incidents = reporter?.providerStatus?.incidents ?? [];
   const components = reporter?.providerStatus?.components ?? [];
   if (incidents.length > 0) {

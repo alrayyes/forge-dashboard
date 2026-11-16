@@ -33,6 +33,35 @@ describe('bannerCopy', () => {
     });
   });
 
+  test('the status link is the first down forge that has a page, not the first down forge', () => {
+    const noPage: DownForge = { forge: 'aaa', label: 'Aaa' };
+    const withPage: DownForge = {
+      forge: 'zzz',
+      label: 'Zzz',
+      statusPageUrl: 'https://status.zzz.example/',
+    };
+    expect(bannerCopy([noPage, withPage], fmt).statusLink).toEqual({
+      label: 'Zzz status',
+      url: 'https://status.zzz.example/',
+    });
+  });
+
+  test('a forge whose status page reports nothing does not shadow one that reports', () => {
+    const quiet: DownForge = {
+      forge: 'aaa',
+      label: 'Aaa',
+      providerStatus: { indicator: 'none' },
+    };
+    const loud: DownForge = {
+      forge: 'zzz',
+      label: 'Zzz',
+      providerStatus: { indicator: 'major', incidents: ['Outage'] },
+    };
+    expect(bannerCopy([quiet, loud], fmt).incident).toBe(
+      'Zzz reports an incident: Outage.',
+    );
+  });
+
   test('the incident sentence names the forge by its label', () => {
     const third: DownForge = {
       forge: 'gitea',
