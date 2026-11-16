@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
   autoMergeChip,
@@ -12,6 +13,8 @@ import {
   type WaitKind,
   waitChip,
 } from './wait-chip';
+
+afterEach(resetForgeCapabilities);
 
 // The chip's wording lives in one module, so the wording is checked here
 // without a browser. The page wiring is wait-chip.spec.ts.
@@ -256,6 +259,24 @@ describe('autoMergeChip wording', () => {
     expect(chip?.tooltip).toBe(
       'Checks passed. GitHub merges it as soon as it can.',
     );
+  });
+
+  test('a forge that merges itself is named by its label', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { label: 'Octo' } },
+    ]);
+    const chip = autoMergeChip(waiting({ code: '', forge: 'github' }));
+    expect(chip?.detail).toBe('Octo merges it as soon as it can');
+  });
+
+  test('a forge that holds its own auto-merge is named by its label', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const chip = autoMergeChip(
+      waiting({ code: '', forge: 'forgejo', heldBy: 'forge' }),
+    );
+    expect(chip?.detail).toBe('Codeberg merges it when checks pass');
   });
 
   test('a stopped auto-merge is not a wait', () => {
