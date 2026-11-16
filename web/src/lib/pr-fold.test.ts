@@ -1,9 +1,11 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
-import { registerForgeCapabilities } from './forges';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
 import { foldPullRequest, type PullRequestFold } from './pr-fold';
+
+afterEach(resetForgeCapabilities);
 
 function jobs(...states: string[]): Check[] {
   return states.map((state, i) => ({

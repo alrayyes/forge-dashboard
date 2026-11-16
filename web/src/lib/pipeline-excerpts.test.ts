@@ -1,6 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
-import { registerForgeCapabilities } from './forges';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
 import {
   EXCERPT_RETRY_DELAY_MS,
@@ -10,6 +10,8 @@ import {
   newExcerptReads,
   pickExcerptJobs,
 } from './pipeline-excerpts';
+
+afterEach(resetForgeCapabilities);
 
 const FORGEJO = { forge: 'forgejo', fullName: 'a/b' };
 const GITHUB = { forge: 'github', fullName: 'a/b' };

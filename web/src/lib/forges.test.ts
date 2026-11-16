@@ -1,11 +1,14 @@
 import { readFileSync } from 'node:fs';
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import {
   advisoryFactsOf,
   FORGE_LABELS,
   forgeCan,
   registerForgeCapabilities,
+  resetForgeCapabilities,
 } from './forges';
+
+afterEach(resetForgeCapabilities);
 
 describe('registerForgeCapabilities', () => {
   test('a forge entry teaches its label from the capabilities the API sent', () => {
@@ -96,6 +99,11 @@ describe('forgeCan', () => {
       ] as const) {
         expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
       }
+      expect(FORGE_LABELS[forge]).toBe(caps.label as string);
+      expect(advisoryFactsOf(forge)).toEqual({
+        source: caps.advisorySource as string,
+        unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
+      });
     }
   });
 
@@ -111,5 +119,37 @@ describe('forgeCan', () => {
 
     expect(forgeCan('gitea', 'servesRunningLog')).toBe(true);
     expect(forgeCan('gitea', 'serverLogExcerpts')).toBe(false);
+  });
+});
+
+describe('resetForgeCapabilities', () => {
+  test('forgets what reads taught and restores the seed', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          servesRunningLog: true,
+          advisorySource: 'osv',
+        },
+      },
+      {
+        forge: 'forgejo',
+        capabilities: {
+          label: 'Codeberg',
+          servesRunningLog: false,
+          advisorySource: 'other',
+        },
+      },
+    ]);
+
+    resetForgeCapabilities();
+
+    expect(forgeCan('gitea', 'servesRunningLog')).toBe(false);
+    expect(FORGE_LABELS.gitea).toBeUndefined();
+    expect(advisoryFactsOf('gitea')).toBeUndefined();
+    expect(forgeCan('forgejo', 'servesRunningLog')).toBe(true);
+    expect(FORGE_LABELS.forgejo).toBe('Forgejo');
+    expect(advisoryFactsOf('forgejo')?.source).toBe('osv');
   });
 });

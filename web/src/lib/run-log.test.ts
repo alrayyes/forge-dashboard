@@ -1,6 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
-import { registerForgeCapabilities } from './forges';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   canCopyLog,
   checkControl,
@@ -15,6 +15,8 @@ import {
   notePlaces,
   parseLogLines,
 } from './run-log';
+
+afterEach(resetForgeCapabilities);
 
 describe('logUrl', () => {
   test('takes the forge and repository from the repo', () => {
