@@ -195,9 +195,9 @@ func refusalNeedsNoReRead(err error) bool {
 // the order dashboard.autoMergeOffered rules it out.
 func autoMergeNotOffered(pr dashboard.PullRequest) dashboard.ActionRefusal {
 	switch {
-	case pr.Forge != dashboard.ForgeGitHub && pr.Forge != dashboard.ForgeForgejo:
+	case !autoMergeKnownForge(pr.Forge):
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is only available on GitHub and Forgejo."}
-	case pr.Forge == dashboard.ForgeForgejo && pr.Draft:
+	case appHoldsAutoMerge(pr.Forge) && pr.Draft:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Draft pull request. Mark it ready for review to turn on auto-merge."}
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
 		return dashboard.ActionRefusal{Code: dashboard.ActionNotMergeable, Message: "Auto-merge is already on for this pull request."}
@@ -212,4 +212,19 @@ func autoMergeNotOffered(pr dashboard.PullRequest) dashboard.ActionRefusal {
 	default:
 		return dashboard.ActionRefusal{Code: dashboard.ActionReadyToMerge, Message: "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead."}
 	}
+}
+
+// autoMergeKnownForge is true for a forge the capability table lists.
+func autoMergeKnownForge(forge dashboard.Forge) bool {
+	_, ok := dashboard.CapabilitiesOf(forge)
+
+	return ok
+}
+
+// appHoldsAutoMerge is true when this app, not the forge, holds an armed
+// auto-merge on forge.
+func appHoldsAutoMerge(forge dashboard.Forge) bool {
+	c, _ := dashboard.CapabilitiesOf(forge)
+
+	return c.AutoMergeHeldByApp
 }
