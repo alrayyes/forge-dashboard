@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
 // The pills for checks, merge state, behind and auto-merge say what the forge
@@ -45,7 +46,37 @@ function behind(forge: string) {
   };
 }
 
-async function open(page: Page, forge: string, reachable: boolean) {
+const down = (forge: string) => ({
+  forge,
+  reachable: false,
+  repoCount: 1,
+  errorKind: 'unreachable',
+  error: 'timeout',
+  staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
+});
+const up = (forge: string) => ({ forge, reachable: true, repoCount: 1 });
+// Rows from the last run, shown before the forge has been asked this start.
+const starting = (forge: string) => ({
+  forge,
+  reachable: false,
+  starting: true,
+  repoCount: 1,
+  staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
+});
+const limited = (forge: string) => ({
+  ...up(forge),
+  rateLimitREST: rateLimit(
+    5000,
+    0,
+    new Date(Date.now() + 20 * 60_000).toISOString(),
+  ),
+});
+
+async function openWith(
+  page: Page,
+  forges: Record<string, unknown>[],
+  pullRequests: Record<string, unknown>[],
+) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -54,19 +85,8 @@ async function open(page: Page, forge: string, reachable: boolean) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          reachable
-            ? { forge, reachable: true, repoCount: 1 }
-            : {
-                forge,
-                reachable: false,
-                repoCount: 1,
-                errorKind: 'unreachable',
-                error: 'timeout',
-                staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
-              },
-        ],
-        pullRequests: [pr(forge), behind(forge)],
+        forges,
+        pullRequests,
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -74,7 +94,17 @@ async function open(page: Page, forge: string, reachable: boolean) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(
+    pullRequests.length,
+  );
+}
+
+async function open(page: Page, forge: string, reachable: boolean) {
+  await openWith(
+    page,
+    [reachable ? up(forge) : down(forge)],
+    [pr(forge), behind(forge)],
+  );
 }
 
 const PILLS = [
@@ -126,3 +156,91 @@ for (const forge of ['forgejo', 'github']) {
     await expect(row.locator('[data-claim]')).toHaveCount(0);
   });
 }
+
+// Each pill says it is an earlier answer, with since-when, and its hidden text
+// and name carry the same words.
+async function expectEarlier(page: Page, since: RegExp) {
+  const row = page.locator('#pr-rows > .row');
+  for (const selector of PILLS) {
+    const pill = row.locator(selector).first();
+    await expect(pill, selector).toHaveAttribute('data-claim', 'carried_over');
+    await expect(pill, selector).toHaveAttribute('title', since);
+  }
+}
+
+for (const forge of ['forgejo', 'github']) {
+  test(`${forge}: a host that has not been asked since the app started is an earlier answer too`, async ({
+    page,
+  }) => {
+    await openWith(page, [starting(forge)], [pr(forge), behind(forge)]);
+    await expectEarlier(page, /earlier answer from \d+m ago/);
+    // The reason is the claim rule's, not the unreachable banner's wording.
+    await expect(
+      page
+        .locator('#pr-rows > .row')
+        .locator('.attr-chip.behind')
+        .first()
+        .locator('.sr-only'),
+    ).toHaveText(/earlier answer from \d+m ago/);
+  });
+
+  // A row names its forge kind, not its host, so while any host of the kind
+  // can't be asked the row may be one of that host's earlier answers. The
+  // order of the hosts changes nothing.
+  for (const [name, forges] of [
+    ['down first', [down(forge), up(forge)]],
+    ['down last', [up(forge), down(forge)]],
+  ] as const) {
+    test(`${forge}: with one host down and one up (${name}) the pills are still an earlier answer`, async ({
+      page,
+    }) => {
+      await openWith(page, [...forges], [pr(forge), behind(forge)]);
+      await expectEarlier(page, /earlier answer from \d+m ago/);
+    });
+  }
+
+  test(`${forge}: another kind's host being down says nothing about these rows`, async ({
+    page,
+  }) => {
+    const other = forge === 'github' ? 'forgejo' : 'github';
+    await openWith(page, [up(forge), down(other)], [pr(forge), behind(forge)]);
+    await expect(
+      page.locator('#pr-rows > .row .ci-pill').first(),
+    ).toBeVisible();
+    await expect(page.locator('#pr-rows > .row [data-claim]')).toHaveCount(0);
+  });
+}
+
+// The queue cell offers an action for the rate limit's reset, so it is only
+// there while the row is a fresh answer. It reads the same claim the pills do.
+test.describe('the queue cell', () => {
+  const queueable = () => ({
+    ...behind('github'),
+    allowedActions: [{ action: 'close' }, { action: 'update_branch' }],
+  });
+  const queue = (page: Page) =>
+    page.locator('#pr-rows > .row').getByRole('button', { name: /^Queue / });
+
+  test('is offered on a limited host that answers, with no pill called old', async ({
+    page,
+  }) => {
+    await openWith(page, [limited('github')], [queueable()]);
+    await expect(queue(page)).toHaveCount(1);
+    await expect(page.locator('#pr-rows > .row [data-claim]')).toHaveCount(0);
+  });
+
+  for (const [name, other] of [
+    ['unreachable', down('github')],
+    ['starting', starting('github')],
+  ] as const) {
+    test(`is not offered while another host of the kind is ${name}, and the pills say why`, async ({
+      page,
+    }) => {
+      await openWith(page, [limited('github'), other], [queueable()]);
+      await expect(queue(page)).toHaveCount(0);
+      await expect(
+        page.locator('#pr-rows > .row .ci-pill').first(),
+      ).toHaveAttribute('data-claim', 'carried_over');
+    });
+  }
+});
