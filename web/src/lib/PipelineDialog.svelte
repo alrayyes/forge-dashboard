@@ -823,13 +823,15 @@
   bind:this={dialog}
   id="pipeline-dialog"
   class="pipeline-dialog"
-  aria-label="Pipeline checks"
+  aria-labelledby="pipeline-dialog-title"
   onclose={closed}
   onclick={outside}
 >
   <div class="pipeline-dialog-header">
     <div>
-      <h2 class="pipeline-dialog-title">Pipeline checks</h2>
+      <h2 class="pipeline-dialog-title" id="pipeline-dialog-title">
+        Pipeline checks
+      </h2>
       <p class="pipeline-dialog-subtitle">{target?.subtitle ?? ""}</p>
     </div>
     <button
