@@ -116,12 +116,12 @@ describe('foldPullRequest other jobs', () => {
     );
   });
 
-  test('a status the page does not know waits', () => {
+  test('a status the page does not know is unknown, and not a pass', () => {
     const odd: Check = { name: 'odd', url: '', status: 'pending' };
     const fold = foldPullRequest('forgejo', [odd]);
 
     expect(fold?.ci).toBe('pending');
-    expect(fold?.counts.waiting).toBe(1);
+    expect(fold?.counts.unknown).toBe(1);
   });
 });
 
@@ -141,6 +141,7 @@ describe('foldPullRequest on a cancelled run', () => {
           running: 0,
           waiting: 0,
           failed: 0,
+          unknown: 0,
           cancelled: 1,
         },
       });
@@ -167,7 +168,14 @@ describe('foldPullRequest counts', () => {
         'github',
         jobs('success', 'skipped', 'running', 'queued', 'failure'),
       )?.counts,
-    ).toEqual({ passed: 2, skipped: 1, running: 1, waiting: 1, failed: 1 });
+    ).toEqual({
+      passed: 2,
+      skipped: 1,
+      running: 1,
+      waiting: 1,
+      failed: 1,
+      unknown: 0,
+    });
   });
 });
 

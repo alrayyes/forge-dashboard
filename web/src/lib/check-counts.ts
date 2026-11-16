@@ -13,16 +13,27 @@ export type CheckCounts = {
   // The server always sends it; optional here only because an older server
   // does not, which reads as none.
   skipped?: number;
-  // How many checks were cancelled. Beside passed, never inside it, and drawn
-  // only by a Cancelled pill (#3395); the other pills never read it.
+  // How many checks are in a state nothing can grade (#4055). Beside the
+  // others, never inside them. The server always sends it; an older one does
+  // not, which reads as none.
+  unknown?: number;
+  // How many checks were cancelled, beside passed and never inside it. A
+  // branch always has it; a pull request only when its pill is Cancelled
+  // (#3395), which words it after the state.
   cancelled?: number;
+  // How many runs are held for approval. A branch's; a pull request says a
+  // held run with its own flag instead.
+  held?: number;
 };
 
-// What a fold tallies from a job list: every kind but cancelled, which a
-// pull request's fold counts apart.
-export type TalliedCounts = Required<Omit<CheckCounts, 'cancelled'>>;
+// What a fold tallies from a job list for a pull request, which counts its
+// cancelled and held jobs apart.
+export type TalliedCounts = Required<Omit<CheckCounts, 'cancelled' | 'held'>>;
 
-export type CheckKind = Exclude<keyof CheckCounts, 'cancelled'>;
+// A branch's tally: every job lands in exactly one count, so they add up.
+export type BranchCounts = Required<CheckCounts>;
+
+export type CheckKind = keyof CheckCounts;
 
 // The order the pill draws them in and the link's name reads them in: what is
 // done, what is going, what has not started, then what broke.
@@ -32,6 +43,9 @@ export const CHECK_KINDS: readonly CheckKind[] = [
   'running',
   'waiting',
   'failed',
+  'unknown',
+  'cancelled',
+  'held',
 ];
 
 // The glyph each count is drawn with: the shapes the pipeline panel uses for
@@ -42,6 +56,9 @@ export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
   running: 'running',
   waiting: 'queued',
   failed: 'failure',
+  unknown: 'question',
+  cancelled: 'cancelled',
+  held: 'awaiting_approval',
 };
 
 export type CheckSegment = { kind: CheckKind; n: number };
