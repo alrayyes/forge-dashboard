@@ -492,3 +492,43 @@ func TestAllowedActions_UpdateBranchOnAnUnconfirmedConflict(t *testing.T) {
 	assert.Equal(t, dashboard.ActionConflict, update(&yes).Blocked.Code)
 	require.NotNil(t, update(nil).Blocked)
 }
+
+// Dependabot refuses `@dependabot rebase` on a branch carrying a commit it
+// didn't make ("edited by someone other than Dependabot"), so such a pull
+// request offers Update branch, which the forge does for anyone, and Recreate,
+// and no Rebase that can only be refused (#4023).
+func TestAllowedActions_EditedDependabotBranchUpdatesInsteadOfRebasing(t *testing.T) {
+	t.Parallel()
+
+	edited := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "dependabot[bot]"
+		p.Behind = true
+		p.EditedByOthers = true
+	})
+
+	assert.Equal(t, []dashboard.ActionName{dashboard.ActionDependabotRecreate}, dependabotCommands(edited))
+	assert.Contains(t, actionNames(edited), dashboard.ActionUpdateBranch)
+
+	t.Run("a branch only Dependabot touched keeps the rebase and no Update branch", func(t *testing.T) {
+		t.Parallel()
+
+		plain := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = "dependabot[bot]"
+			p.Behind = true
+		})
+
+		assert.Equal(t, []dashboard.ActionName{dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate}, dependabotCommands(plain))
+		assert.NotContains(t, actionNames(plain), dashboard.ActionUpdateBranch)
+	})
+
+	t.Run("an edited branch that is not behind offers no Update branch", func(t *testing.T) {
+		t.Parallel()
+
+		upToDate := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = "dependabot[bot]"
+			p.EditedByOthers = true
+		})
+
+		assert.NotContains(t, actionNames(upToDate), dashboard.ActionUpdateBranch)
+	})
+}
