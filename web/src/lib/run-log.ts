@@ -1,6 +1,7 @@
 // Reading a check's output for the pipeline dialog, and copying it. No DOM here:
 // the dialog says how to select text and which fetch to use.
 
+import { forgeCan } from './forges';
 import { type Check, checkState } from './pipeline-checks';
 
 // The kilobytes the server keeps of a long log. GET /api/v1/checks/log cuts
@@ -202,7 +203,7 @@ export function canCopyLog(
 
 // What a check offers beside its name: nothing, the forge's own page, the
 // output panel, or a plain link. A queued job has no log yet, so only the
-// forge's page. So does a running GitHub job, whose log GitHub serves only
+// forge's page. So does a running job on a forge that serves no running log (GitHub), whose log GitHub serves only
 // once the job finishes. A skipped job never ran; a job with no page has
 // nowhere to go. A held workflow's own page is where the forge's approve
 // button is. Only a job with an id, a page and a repository can open the
@@ -216,11 +217,13 @@ export function checkLinkLabel(text: string, check: string): string {
   return `${text} (opens in a new tab): ${check}`;
 }
 
-// Whether a running job's output can't be read yet: only Forgejo serves a
-// running job's log, and GitHub answers 404 until the job finishes. A checks
-// address that names no forge counts as not Forgejo.
+// Whether a running job's output can't be read yet: a forge that sets
+// servesRunningLog serves it, and GitHub answers 404 until the job finishes. A
+// forge with no capabilities counts as not serving it.
 function runningWithoutLog(state: string, repo: RepoRef | undefined): boolean {
-  return state === 'running' && !!repo && repo.forge !== 'forgejo';
+  return (
+    state === 'running' && !!repo && !forgeCan(repo.forge, 'servesRunningLog')
+  );
 }
 
 export function checkControl(

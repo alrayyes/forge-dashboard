@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { factsOf } from './check-facts-fixture';
+import { registerForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
 import { foldPullRequest, type PullRequestFold } from './pr-fold';
 
@@ -256,5 +257,25 @@ describe('foldPullRequest cancelled count (#3395)', () => {
     expect(fold?.ci).toBe('cancelled');
     expect(fold?.counts.passed).toBe(2);
     expect(fold?.counts.cancelled).toBe(3);
+  });
+});
+
+describe('foldPullRequest by capability (#3974)', () => {
+  test('a forge that sets approvalGatedRuns reads a held run as GitHub does', () => {
+    registerForgeCapabilities([
+      { forge: 'gated', capabilities: { approvalGatedRuns: true } },
+    ]);
+
+    const fold = foldPullRequest('gated', jobs('awaiting_approval'));
+
+    expect(fold?.ci).toBe('failure');
+    expect(fold?.awaiting).toBe(true);
+  });
+
+  test('a forge the page has not heard of reads a held run as pending', () => {
+    const fold = foldPullRequest('nobody', jobs('awaiting_approval'));
+
+    expect(fold?.ci).toBe('pending');
+    expect(fold?.awaiting).toBe(false);
   });
 });

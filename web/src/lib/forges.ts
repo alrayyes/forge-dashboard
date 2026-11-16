@@ -9,7 +9,46 @@ export type ForgeCapabilities = {
   label: string;
   advisorySource: string;
   advisoryUnknownNeedsReason: boolean;
+  // A job's log can be read while it runs.
+  servesRunningLog: boolean;
+  // The failed-job excerpt is read from the log endpoint, not the check list.
+  serverLogExcerpts: boolean;
+  // A run can be held until a person approves it.
+  approvalGatedRuns: boolean;
 };
+
+export type ForgeFlag =
+  | 'servesRunningLog'
+  | 'serverLogExcerpts'
+  | 'approvalGatedRuns';
+
+const FLAGS: ForgeFlag[] = [
+  'servesRunningLog',
+  'serverLogExcerpts',
+  'approvalGatedRuns',
+];
+
+// The flags of the two shipped forges, so a page that asks before the first
+// read behaves as it will after it. tests/generated/forge-capabilities.json
+// is the Go table; forges.test.ts keeps the two equal.
+const FORGE_FLAGS: Record<string, Partial<Record<ForgeFlag, boolean>>> = {
+  github: {
+    servesRunningLog: false,
+    serverLogExcerpts: false,
+    approvalGatedRuns: true,
+  },
+  forgejo: {
+    servesRunningLog: true,
+    serverLogExcerpts: true,
+    approvalGatedRuns: false,
+  },
+};
+
+// Whether forge can do what flag names. False for a forge never heard of or
+// not named: behaviour comes from here, never from the forge's name.
+export function forgeCan(forge: string | undefined, flag: ForgeFlag): boolean {
+  return !!forge && FORGE_FLAGS[forge]?.[flag] === true;
+}
 
 // What a forge's advisories are, as a page needs it: where they come from, and
 // whether an unknown answer is worth saying only when the row names a reason.
@@ -48,6 +87,12 @@ export function registerForgeCapabilities(
   for (const f of forges ?? []) {
     const label = f.capabilities?.label;
     if (label) FORGE_LABELS[f.forge] = label;
+    const flags = { ...FORGE_FLAGS[f.forge] };
+    for (const flag of FLAGS) {
+      const v = f.capabilities?.[flag];
+      if (typeof v === 'boolean') flags[flag] = v;
+    }
+    if (f.capabilities) FORGE_FLAGS[f.forge] = flags;
     const source = f.capabilities?.advisorySource;
     if (source) {
       ADVISORY_FACTS[f.forge] = {

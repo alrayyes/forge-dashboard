@@ -7,6 +7,7 @@
 import type { TalliedCounts } from './check-counts';
 import type { RunFacts } from './check-feed';
 import { foldBranch } from './check-fold';
+import { forgeCan } from './forges';
 import { type Check, checkState } from './pipeline-checks';
 
 export type PullRequestFold = {
@@ -49,7 +50,7 @@ export function foldPullRequest(
   const { status, counts } = foldBranch(live);
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
-  if (forge === 'github' && held) {
+  if (forgeCan(forge, 'approvalGatedRuns') && held) {
     return { ci: 'failure', awaiting: true, counts };
   }
 

@@ -1,7 +1,9 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, test } from 'bun:test';
 import {
   advisoryFactsOf,
   FORGE_LABELS,
+  forgeCan,
   registerForgeCapabilities,
 } from './forges';
 
@@ -72,5 +74,42 @@ describe('advisoryFactsOf', () => {
 
   test('a forge nobody described has no facts, so no default is guessed', () => {
     expect(advisoryFactsOf('nowhere')).toBeUndefined();
+  });
+});
+describe('forgeCan', () => {
+  test('the shipped forges answer as the generated Go table does', () => {
+    const fixture = JSON.parse(
+      readFileSync(
+        new URL(
+          '../../../tests/generated/forge-capabilities.json',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+    ) as { forges: Record<string, Record<string, unknown>> };
+
+    for (const [forge, caps] of Object.entries(fixture.forges)) {
+      for (const flag of [
+        'servesRunningLog',
+        'serverLogExcerpts',
+        'approvalGatedRuns',
+      ] as const) {
+        expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
+      }
+    }
+  });
+
+  test('a forge the page has not heard of can do nothing', () => {
+    expect(forgeCan('unknown', 'servesRunningLog')).toBe(false);
+    expect(forgeCan(undefined, 'servesRunningLog')).toBe(false);
+  });
+
+  test('a read teaches the flags a forge sent', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { servesRunningLog: true } },
+    ]);
+
+    expect(forgeCan('gitea', 'servesRunningLog')).toBe(true);
+    expect(forgeCan('gitea', 'serverLogExcerpts')).toBe(false);
   });
 });
