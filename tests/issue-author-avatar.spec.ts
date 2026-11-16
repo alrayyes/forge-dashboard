@@ -129,14 +129,18 @@ test.describe('Issue row author avatar (#2000)', () => {
     const placeholder = cell.locator('.avatar-placeholder');
     await expect(placeholder).toHaveCount(1);
     await expect(placeholder).toHaveAttribute('aria-hidden', 'true');
-    const box = await placeholder.boundingBox();
-    expect(box?.width).toBe(20);
-    expect(box?.height).toBe(20);
-    expect(
-      await placeholder.evaluate(
-        (el) => getComputedStyle(el, '::before').content,
-      ),
-    ).toBe('"C"');
+    // Retries until the stylesheet has sized and drawn the placeholder.
+    await expect
+      .poll(async () => {
+        const box = await placeholder.boundingBox();
+        return [box?.width, box?.height];
+      })
+      .toEqual([20, 20]);
+    await expect
+      .poll(() =>
+        placeholder.evaluate((el) => getComputedStyle(el, '::before').content),
+      )
+      .toBe('"C"');
   });
 
   test('every author name starts at the same x with or without an avatar (#3868)', async ({
@@ -165,12 +169,9 @@ test.describe('Issue row author avatar (#2000)', () => {
     }) => {
       await page.emulateMedia({ colorScheme: theme });
       await open(page);
-      const [fg, bg] = await author(page, 'No avatar')
-        .locator('.avatar-placeholder')
-        .evaluate((el) => [
-          getComputedStyle(el, '::before').color,
-          getComputedStyle(el).backgroundColor,
-        ]);
+      const placeholder = author(page, 'No avatar').locator(
+        '.avatar-placeholder',
+      );
       const lum = (css: string) => {
         const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => {
           const c = Number(v) / 255;
@@ -178,8 +179,17 @@ test.describe('Issue row author avatar (#2000)', () => {
         });
         return 0.2126 * r + 0.7152 * g + 0.0722 * b;
       };
-      const [hi, lo] = [lum(fg), lum(bg)].sort((a, b) => b - a);
-      expect((hi + 0.05) / (lo + 0.05)).toBeGreaterThanOrEqual(4.5);
+      // Retries until the stylesheet has painted both colours.
+      await expect
+        .poll(async () => {
+          const [fg, bg] = await placeholder.evaluate((el) => [
+            getComputedStyle(el, '::before').color,
+            getComputedStyle(el).backgroundColor,
+          ]);
+          const [hi, lo] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+          return (hi + 0.05) / (lo + 0.05);
+        })
+        .toBeGreaterThanOrEqual(4.5);
     });
   }
 
