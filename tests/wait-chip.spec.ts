@@ -200,7 +200,11 @@ test.describe('the waiting chip on a bot rebase', () => {
     await skew(page, 7_000);
     await expect(ago).toHaveText('7s ago');
 
-    expect(await layout(page)).toEqual(before);
+    // The chip fills its reserved slot. The row only gets shorter: the
+    // "Behind the base branch" block it replaced is gone (#4022).
+    const after = await layout(page);
+    expect(after.slot).toEqual(before.slot);
+    expect(after.row.height).toBeLessThanOrEqual(before.row.height);
     // No way out is offered, so no button.
     await expect(chip.getByRole('button')).toHaveCount(0);
     await expect(firstRow(page)).not.toContainText(OLD_TEXT);

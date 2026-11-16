@@ -34,6 +34,7 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
+  import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
@@ -1237,14 +1238,24 @@
     // Out of date quick filter reads the same two fields. Empty ones get
     // none: there is nothing to update. On a row the chip stays out while the
     // row already says it another way: a live Update branch button is the
-    // signal, and a confirmed conflict shows its warning alone (#3770). The
-    // pop-up keeps the chip.
+    // signal, a confirmed conflict shows its warning alone (#3770), and a
+    // requested rebase shows its wait chip alone (#4022). The pop-up keeps
+    // the chip.
     function behindPill(
       item: PullRequestItem,
       onRow = false,
     ): HTMLElement | null {
-      if (!item.behind || item.empty) return null;
-      if (onRow && (conflictShown(item) || liveUpdateBranch(item))) return null;
+      if (
+        !showsBehindPill({
+          behind: !!item.behind,
+          empty: !!item.empty,
+          onRow,
+          conflictShown: conflictShown(item),
+          liveUpdateBranch: liveUpdateBranch(item),
+          rebaseRequested: rebaseRequested(item),
+        })
+      )
+        return null;
       return claimed(attrChip("behind", "Out of date"), item);
     }
 
@@ -3596,13 +3607,17 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
-    // The pop-up passes withFix false: its footer already lists every action.
+    // The pop-up passes withFix false: its footer already lists every action,
+    // and it keeps the behind message while a rebase is requested.
     function statusArea(
       item: PullRequestItem,
       withFix = true,
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      // The requested rebase is the fix the message asks for (#4022).
+      if (!showsBehindStatus(status.code, rebaseRequested(item), withFix))
+        return null;
       // The pill already says it, and holds the reason (#3965).
       if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
@@ -3658,6 +3673,10 @@
     function statusFixName(item: PullRequestItem): ActionName | null {
       const action = item.status?.action;
       if (!action || isSettled(item)) return null;
+      // The block is left out while the rebase is requested, so the row
+      // draws the button itself (#4022).
+      if (!showsBehindStatus(item.status?.code, rebaseRequested(item), true))
+        return null;
       return fixCellFor(item, action) ? (action as ActionName) : null;
     }
 
@@ -3720,11 +3739,17 @@
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
-        const described = !item.status
-          ? undefined
-          : unconfirmedConflict(item) && item.status.code === "conflict"
-            ? conflictReasonId(item)
-            : statusAreaId(item);
+        const described =
+          !item.status ||
+          !showsBehindStatus(
+            item.status.code,
+            rebaseRequested(item),
+            idScope === "",
+          )
+            ? undefined
+            : unconfirmedConflict(item) && item.status.code === "conflict"
+              ? conflictReasonId(item)
+              : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,
