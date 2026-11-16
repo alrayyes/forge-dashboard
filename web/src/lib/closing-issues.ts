@@ -1,3 +1,4 @@
+import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 
 // The pills on a pull request that link to the issues it will close, and the
@@ -171,7 +172,9 @@ export function closingPills(
     link.textContent = closingPillText(issue, prRepo);
     link.setAttribute('aria-label', closingPillName(issue, prRepo));
     link.title = closingPillTitle(issue);
-    return link;
+    return issue.relation === 'refs'
+      ? addPillTip(link, closingPillTitle(issue))
+      : link;
   };
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
@@ -188,7 +191,7 @@ export function closingPills(
     expanded.add(prKey);
     return extra;
   };
-  more.addEventListener('click', () => reveal()[0]?.focus());
+  more.addEventListener('click', () => focusPill(reveal()[0]));
   wrap.append(more);
   if (expanded.has(prKey)) reveal();
   return wrap;

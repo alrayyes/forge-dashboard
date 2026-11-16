@@ -8,6 +8,7 @@ import {
   type CheckSegment,
   pillName,
 } from './check-counts.js';
+import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
@@ -246,7 +247,9 @@ export function linkedPills(
       linkedPillName(pr, issueRepo, ci, relation),
     );
     link.title = linkedPillTitle(relation);
-    return link;
+    return relation === 'refs'
+      ? addPillTip(link, linkedPillTitle(relation))
+      : link;
   };
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
@@ -260,7 +263,7 @@ export function linkedPills(
     expanded.add(`${issueKey}:${relation}`);
     return extra;
   };
-  more.addEventListener('click', () => reveal()[0]?.focus());
+  more.addEventListener('click', () => focusPill(reveal()[0]));
   wrap.append(more);
   if (expanded.has(`${issueKey}:${relation}`)) reveal();
   return wrap;

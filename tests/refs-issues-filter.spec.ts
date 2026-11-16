@@ -267,6 +267,55 @@ test.describe('the refs pill on an issue row', () => {
     ).toHaveAttribute('title', 'Closes this issue when it merges');
   });
 
+  test('a refs pill shows its explanation on keyboard focus, and Escape dismisses it', async ({
+    page,
+  }) => {
+    await open(page, '/issues.html');
+    const pill = refPills(page, 'Fixed and referenced').first();
+    const tip = pill.locator('xpath=following-sibling::*[@role="tooltip"]');
+    const sentence = 'References this issue, does not close it';
+    await expect(tip).toBeHidden();
+    const before = await pill.boundingBox();
+
+    await pill.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText(sentence);
+    await expect(pill).toHaveAttribute(
+      'aria-describedby',
+      (await tip.getAttribute('id')) ?? 'missing',
+    );
+    await expect(pill).toHaveAccessibleDescription(sentence);
+    // The pill itself doesn't move or grow when the tip shows.
+    expect(await pill.boundingBox()).toEqual(before);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(pill).toBeFocused();
+
+    // Leaving and coming back shows it again.
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expect(tip).toBeVisible();
+  });
+
+  test('a closing pill has no focus tooltip', async ({ page }) => {
+    await open(page, '/issues.html');
+    const pill = closePills(page, 'Fixed and referenced');
+    await pill.focus();
+    await expect(
+      rowOf(page, 'Fixed and referenced').locator('[role="tooltip"]'),
+    ).toHaveCount(2);
+    await expect(pill.locator('xpath=following-sibling::*')).toHaveCount(0);
+  });
+
   test('is in the issue pop-up under Referenced in, with no axe violations', async ({
     page,
   }) => {
