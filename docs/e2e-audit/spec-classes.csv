@@ -49,7 +49,7 @@ dashboard-error-banner.spec.ts,0.93,3,1,C,,0.6
 dashboard.spec.ts,51.2,100,15,C,web/src/lib/dashboard-read.test.ts;web/src/lib/dashboard-read-error.test.ts,43.6
 dependabot-ack.spec.ts,3.583,6,1,C,,3.0
 dependabot-recreate-menu.spec.ts,6.658,11,5,C,,3.6
-error-pages.spec.ts,3.441,6,2,C,,2.3
+error-pages.spec.ts,3.441,4,2,C,ErrorPage.stories.svelte (proven),1.2
 failure-line-stays.spec.ts,3.511,7,3,C,,2.0
 filter-bar-one-control.spec.ts,2.533,6,5,A,,0.4
 filter-bar-overlap.spec.ts,2.431,1,1,A,,0.0
@@ -92,7 +92,7 @@ inline-feedback.spec.ts,13.968,23,16,A,,4.3
 insights-chart-read-failure.spec.ts,1.832,1,1,A,web/src/lib/insights.test.ts,0.0
 insights-hide-title-regex.spec.ts,0.323,1,0,C,web/src/lib/insights.test.ts,0.3
 insights-webhooks-pending.spec.ts,6.676,6,3,A,web/src/lib/insights.test.ts,3.3
-insights-webhooks-read-failure.spec.ts,1.512,4,1,C,web/src/lib/insights.test.ts,1.1
+insights-webhooks-read-failure.spec.ts,1.512,4,1,C,web/src/lib/insights.test.ts;ReadFailureAlert.stories.svelte (proven),0.8
 insights.spec.ts,8.182,27,7,C,web/src/lib/insights.test.ts,6.1
 issue-author-avatar.spec.ts,2.96,8,3,C,,1.9
 issue-close.spec.ts,11.159,15,6,C,,6.7
