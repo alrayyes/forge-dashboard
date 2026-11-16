@@ -1695,9 +1695,7 @@ test.describe('a long check output in phone landscape', () => {
     expect(
       await output.evaluate((el) => el.scrollHeight > el.clientHeight),
     ).toBe(true);
-    expect(
-      await output.evaluate((el) => getComputedStyle(el).overscrollBehaviorY),
-    ).toBe('auto');
+    await expect(output).toHaveCSS('overscroll-behavior-y', 'auto');
 
     // Scrolled to its end, the output passes the wheel on to the body.
     await output.evaluate((el) => {
