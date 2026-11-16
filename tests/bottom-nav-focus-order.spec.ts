@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3263
@@ -17,7 +18,7 @@ async function mock(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         repos: [],
