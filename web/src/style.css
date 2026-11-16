@@ -1849,7 +1849,8 @@ button.title {
 }
 /* A refs pill's explanation, shown on keyboard focus only: the native title
    covers hover. It floats under the pill and takes no room in the row, and
-   Escape hides it for as long as the pill keeps focus. */
+   Escape hides it for as long as the pill keeps focus. The script sets
+   data-tip-shown when focus arrives by keyboard. */
 .pill-tip {
   display: none;
   position: absolute;
@@ -1877,11 +1878,8 @@ button.title {
   min-width: 0;
   max-width: 100%;
 }
-.linked-pr:focus-visible + .pill-tip {
+.pill-tip-host[data-tip-shown] > .pill-tip {
   display: block;
-}
-.pill-tip-host[data-tip-dismissed] > .pill-tip {
-  display: none;
 }
 
 .author {
