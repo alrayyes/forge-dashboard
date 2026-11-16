@@ -106,4 +106,17 @@ func TestDashboard_AfterARestart_ShowsTheSavedSnapshotMarkedStaleNotALoadingStat
 	assert.Equal(t, true, forge["starting"], "the page says starting up, not unreachable")
 	assert.Nil(t, forge["errorKind"])
 	assert.NotNil(t, forge["staleSince"], "the saved rows say when they were fetched")
+
+	// Nothing can run on a row that is an earlier answer, and the reason is the
+	// claim rule's, with since-when (#3994).
+	pr, _ := prs[0].(map[string]any)
+	actions, _ := pr["allowedActions"].([]any)
+	require.NotEmpty(t, actions)
+	for _, a := range actions {
+		blocked, _ := a.(map[string]any)["blocked"].(map[string]any)
+		require.NotNil(t, blocked, "%v", a)
+		assert.Equal(t, "forge_unreachable", blocked["code"])
+		assert.Contains(t, blocked["message"], "earlier answer")
+		assert.NotEmpty(t, blocked["since"])
+	}
 }

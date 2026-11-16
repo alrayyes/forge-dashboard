@@ -35,6 +35,9 @@ const (
 	// is wrong with the request and asking again may work.
 	ActionForgeError ActionCode = "forge_error"
 	ActionStacked    ActionCode = "stacked"
+	// ActionForgeUnreachable: the forge can't be asked, so the row is an
+	// earlier answer and no action can run until it can (#3994).
+	ActionForgeUnreachable ActionCode = "forge_unreachable"
 	// ActionAlreadyRequested: a Renovate rebase is already asked for (its
 	// rebase-check box is ticked), so asking again does nothing.
 	ActionAlreadyRequested ActionCode = "already_requested"

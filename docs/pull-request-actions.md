@@ -221,15 +221,44 @@ reason) or unknown (the forge answered but hasn't said, which only an
 unconfirmed conflict is). The same answer says whether a control may be drawn:
 none is while the forge can't be asked, and none is while its budget is spent
 (the web only; a spent budget says nothing about how old the data is). The
-Dependabot buttons, the actions in the issue dialog, the row controls, and the
-auto-merge, hidden-pull-request and queued-action checks on the server all ask
-it, so a new case lands in all of them at once. A row that carries its own
+Dependabot buttons, the actions in the issue dialog, the row controls, the
+queued-action offer, and the auto-merge, hidden-pull-request and queued-action
+checks on the server all ask it, so a new case lands in all of them at once.
+The pills for checks, merge state, out of date and auto-merge ask it too, as a
+claim of kind `state`: while the forge can't be asked each carries "earlier
+answer from 10m ago" as its tooltip and as text for a screen reader. A row
+names its forge kind, not its host, so a pill reads as carried over when any
+host of the kind can't be asked, while a row's actions stay open as long as one
+host answers. The server's allowed actions ask it with the forge's health
+(`AllowedActionsOn`): while the forge can't be asked every action is listed
+blocked with the code `forge_unreachable`, the rule's reason as the message and
+the since-time as `since`, whatever the earlier answer said. The kinds `state`
+and `action` differ in nothing today; they are kept apart so a rule that needs
+one has a place to land. The sentence for a carried-over row is the same on the
+server and the web, apart from the since-time the web puts in the words and the
+server sends as a field. A row that carries its own
 since-time, a main branch row or a repo marked `staleSince`, asks the same
 rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
 with one is carried over, in the same words and with the same since-time.
 Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
 reserve, the settings page, the snapshot cache, and which forges the aggregator
 asks) are not row claims and read the health directly.
+
+Four limits to know:
+
+- The interactive CI pill carries the words in its accessible name, the other
+  pills in hidden text, and a pill whose caller names it (the one on an issue's
+  linked pull request) only in its tooltip.
+- With two hosts of one kind and one down, a row may be on the healthy host: its
+  controls stay on, yet its pills read as carried over and say "no action can
+  run", so the tooltip can overstate. The page can't tell which host a row is
+  on, so it takes the cautious side for claims.
+- API clients see `forge_unreachable` in place of a row's own blocked code (a
+  `conflict`, say) while the forge is down. It is a blocked reason on an
+  allowed action, never the body of a refused request, so the page's refusal
+  parser doesn't list it.
+- Update branch entries that auto-update would hide stay listed, blocked, since
+  the rule runs after that choice.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the

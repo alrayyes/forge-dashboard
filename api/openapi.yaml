@@ -4164,6 +4164,7 @@ components:
             - permission
             - rate_limited
             - forge_error
+            - forge_unreachable
             - not_rate_limited
             - not_open
             - not_reopenable
@@ -6841,12 +6842,21 @@ components:
                 - blocked_by_protection
                 - stacked
                 - already_requested
+                - forge_unreachable
             message:
               type: string
               description: Plain words, safe to show a person.
             next:
               type: string
               description: What unlocks it, when something does.
+            since:
+              type: string
+              format: date-time
+              description: |
+                Only with `forge_unreachable`: when the rows on show were
+                read. While the forge can't be asked every action is listed
+                blocked with this code, whatever reason the earlier answer
+                gave, and `message` is the same sentence a row's pills use.
 
     PullRequestStatus:
       type: object
@@ -6872,9 +6882,14 @@ components:
             - blocked_by_protection
             - stacked
             - already_requested
+            - forge_unreachable
         message:
           type: string
           description: Plain words, safe to show a person.
+        since:
+          type: string
+          format: date-time
+          description: Set only with `forge_unreachable`, and says when the rows on show were read.
         next:
           type: string
           description: What unlocks it or what to do about it, when there is something.

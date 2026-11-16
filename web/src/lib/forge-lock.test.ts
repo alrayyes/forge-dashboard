@@ -4,6 +4,7 @@ import { describe, expect, mock, test } from 'bun:test';
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
 const {
+  carriedOverLock,
   dependabotBlockedReason,
   forgeLockReason,
   rerunBlockedLock,
@@ -177,5 +178,31 @@ describe('a forge that is still starting up', () => {
     expect(lock?.reason).toMatch(/still loading/i);
     expect(lock?.reason).not.toMatch(/try again/i);
     expect(lock?.reason).not.toMatch(/can't be reached/);
+  });
+});
+
+describe('carriedOverLock', () => {
+  const since = '2026-10-22T11:50:00Z';
+
+  test('is nothing while every host answers, or for another kind', () => {
+    expect(carriedOverLock([host()], 'github')).toBeNull();
+    expect(carriedOverLock([host({ reachable: false })], 'forgejo')).toBeNull();
+    expect(carriedOverLock(undefined, 'github')).toBeNull();
+  });
+
+  test('is set when any host of the kind can not be asked, with its since-time', () => {
+    const down = host({ reachable: false, staleSince: since });
+    expect(carriedOverLock([host(), down], 'github')).toEqual({
+      lock: expect.objectContaining({ code: 'forge_unreachable' }),
+      staleSince: since,
+    });
+    expect(
+      carriedOverLock([host({ starting: true })], 'github')?.lock.code,
+    ).toBe('forge_starting');
+  });
+
+  test('a spent budget says nothing about how old the rows are', () => {
+    const forges = [host({ rateLimitREST: spent('2026-10-22T12:30:00Z') })];
+    expect(carriedOverLock(forges, 'github')).toBeNull();
   });
 });
