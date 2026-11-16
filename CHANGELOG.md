@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.65.0](https://github.com/alrayyes/forge-dashboard/compare/v9.64.0...v9.65.0) (2026-11-16)
+
+
+### Features
+
+* **checks:** show a check that can't be graded as unknown ([#4062](https://github.com/alrayyes/forge-dashboard/issues/4062)) ([525a12a](https://github.com/alrayyes/forge-dashboard/commit/525a12aba68abb6b5bba41194d7f123c9ee151fb)), closes [#4055](https://github.com/alrayyes/forge-dashboard/issues/4055)
+
 ## [9.64.0](https://github.com/alrayyes/forge-dashboard/compare/v9.63.1...v9.64.0) (2026-11-16)
 
 
