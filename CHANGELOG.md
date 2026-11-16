@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.62.2](https://github.com/alrayyes/forge-dashboard/compare/v9.62.1...v9.62.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **web:** re-report title boxes after a font recheck so hover text can't go stale ([#4042](https://github.com/alrayyes/forge-dashboard/issues/4042)) ([c5a0eed](https://github.com/alrayyes/forge-dashboard/commit/c5a0eeda54b35738146a9a4a482c9d009318b2da)), closes [#4038](https://github.com/alrayyes/forge-dashboard/issues/4038)
+
 ## [9.62.1](https://github.com/alrayyes/forge-dashboard/compare/v9.62.0...v9.62.1) (2026-11-16)
 
 
