@@ -97,6 +97,7 @@ describe('forgeCan', () => {
         'servesRunningLog',
         'serverLogExcerpts',
         'approvalGatedRuns',
+        'autoMergeHeldByApp',
       ] as const) {
         expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
       }

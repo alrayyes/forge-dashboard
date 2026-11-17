@@ -17,17 +17,21 @@ export type ForgeCapabilities = {
   serverLogExcerpts: boolean;
   // A run can be held until a person approves it.
   approvalGatedRuns: boolean;
+  // This app, not the forge, holds an armed auto-merge and performs the merge.
+  autoMergeHeldByApp: boolean;
 };
 
 export type ForgeFlag =
   | 'servesRunningLog'
   | 'serverLogExcerpts'
-  | 'approvalGatedRuns';
+  | 'approvalGatedRuns'
+  | 'autoMergeHeldByApp';
 
 const FLAGS: ForgeFlag[] = [
   'servesRunningLog',
   'serverLogExcerpts',
   'approvalGatedRuns',
+  'autoMergeHeldByApp',
 ];
 
 // The flags of the two shipped forges, so a page that asks before the first
@@ -38,11 +42,13 @@ const SEED_FLAGS: Record<string, Partial<Record<ForgeFlag, boolean>>> = {
     servesRunningLog: false,
     serverLogExcerpts: false,
     approvalGatedRuns: true,
+    autoMergeHeldByApp: false,
   },
   forgejo: {
     servesRunningLog: true,
     serverLogExcerpts: true,
     approvalGatedRuns: false,
+    autoMergeHeldByApp: true,
   },
 };
 
@@ -52,6 +58,15 @@ let FORGE_FLAGS = structuredClone(SEED_FLAGS);
 // not named: behaviour comes from here, never from the forge's name.
 export function forgeCan(forge: string | undefined, flag: ForgeFlag): boolean {
   return !!forge && FORGE_FLAGS[forge]?.[flag] === true;
+}
+
+// What a forge said about a flag: undefined when it never did, so a caller can
+// keep a safe default for a forge nobody described.
+export function forgeFlag(
+  forge: string | undefined,
+  flag: ForgeFlag,
+): boolean | undefined {
+  return forge ? FORGE_FLAGS[forge]?.[flag] : undefined;
 }
 
 // What a forge's advisories are, as a page needs it: where they come from, and

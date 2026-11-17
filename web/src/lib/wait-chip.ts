@@ -9,7 +9,7 @@
 // pure; buildWaitChip() draws one. feedback-ui.ts decides when a chip shows
 // for an action, Dashboard.svelte for an armed auto-merge.
 
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, forgeFlag } from './forges';
 
 // How long a wait runs with no change before the chip says so.
 export const STILL_WAITING_MS = 120_000;
@@ -285,8 +285,9 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
     case '':
     case undefined:
       // Forgejo's intent is held here and acted on at the next refresh;
-      // GitHub's own auto-merge merges as soon as it can (#1505).
-      if (input.forge === 'github')
+      // A forge that holds its own auto-merge merges as soon as it can (#1505).
+      // One that never described itself keeps the safe wording below.
+      if (forgeFlag(input.forge, 'autoMergeHeldByApp') === false)
         return words(
           'Merging',
           `${FORGE_LABELS[input.forge] ?? input.forge} merges it as soon as it can`,

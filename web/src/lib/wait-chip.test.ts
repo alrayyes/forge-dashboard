@@ -350,3 +350,37 @@ describe('autoMergeWording (#4072)', () => {
     ).toBe('Auto-merge is waiting for checks to finish.');
   });
 });
+
+describe('autoMergeChip by capability (#3973)', () => {
+  const base = (forge: string): AutoMergeInput => ({
+    state: 'waiting',
+    code: '',
+    message: 'Checks passed.',
+    forge,
+  });
+
+  afterEach(() => resetForgeCapabilities());
+
+  test('a forge that does not hold the merge itself says it merges as soon as it can', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'selfmerge',
+        capabilities: { label: 'Selfmerge', autoMergeHeldByApp: false },
+      },
+    ]);
+    expect(autoMergeChip(base('selfmerge'))?.detail).toBe(
+      'Selfmerge merges it as soon as it can',
+    );
+  });
+
+  test('a forge whose merge the app holds keeps the next-refresh wording', () => {
+    registerForgeCapabilities([
+      { forge: 'held', capabilities: { autoMergeHeldByApp: true } },
+    ]);
+    expect(autoMergeChip(base('held'))?.label).toBe('Merging next');
+  });
+
+  test('a forge never described keeps the safe wording', () => {
+    expect(autoMergeChip(base('nobody'))?.label).toBe('Merging next');
+  });
+});
