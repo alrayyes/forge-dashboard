@@ -561,6 +561,9 @@
   // Draws an issue dialog's header status once its details say whether the
   // forge has the issue closed. Set once the board exists below.
   let issueStateShown: (closed: boolean) => void = () => {};
+  // The dialog opened as an issue found a pull request (#4188): the issue's
+  // own actions and state go. Set once the board exists below.
+  let pullRequestFound: () => void = () => {};
   // A reference in the dialog's text was clicked (#3744), and whether the
   // dashboard tracks a repository. Set once the board exists below.
   let referenceFollowed: (
@@ -2671,6 +2674,17 @@
     issueStateShown = (closed) => {
       if (issueActions.forgeState(closed))
         detailsDialog?.setHeaderState(issueStateElement(closed));
+    };
+
+    pullRequestFound = () => {
+      issueDialog = null;
+      issueActions.dispose();
+      detailsDialog?.setChrome({
+        status: null,
+        feedback: null,
+        option: null,
+        actions: [],
+      });
     };
 
     function issueStatus(item: IssueDialogItem): DetailsStatus {
@@ -11267,6 +11281,7 @@
   onEscape={() => escapeDetails()}
   onClosed={() => detailsClosed()}
   onIssueState={(closed) => issueStateShown(closed)}
+  onPullRequestFound={() => pullRequestFound()}
   onReference={(ref, triggerId) => referenceFollowed(ref, triggerId)}
   trackedRepo={(forge, repo) => repoTracked(forge, repo)}
 />

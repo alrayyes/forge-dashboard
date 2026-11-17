@@ -2558,6 +2558,10 @@ paths:
         The error answers are those of GET /api/v1/pull-requests/details, with
         the same codes. An issue that doesn't exist is a 404, and a forge that
         can't be read is an error, never an empty thread.
+
+        The number may also be a pull request, which GitHub and Forgejo both
+        answer here with `kind: pullRequest`. A number that is neither is a 404
+        in plain words, never the forge's raw error text.
       tags: [dashboard]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -5763,9 +5767,19 @@ components:
 
     IssueDetails:
       type: object
-      required: [state, description, comments, commentCount, commentsTruncated]
+      required:
+        [kind, state, description, comments, commentCount, commentsTruncated]
       description: What the issue dialog shows.
       properties:
+        kind:
+          type: string
+          enum: [issue, pullRequest]
+          description: |
+            What the number turned out to be. A forge shares one number space
+            between issues and pull requests, so a bare number in a description
+            can name either, and this endpoint answers for both. The
+            client decides which dialog to open; a pull request's `state` is
+            `closed` once it is merged as well as when it is closed unmerged.
         state:
           type: string
           enum: [open, closed]

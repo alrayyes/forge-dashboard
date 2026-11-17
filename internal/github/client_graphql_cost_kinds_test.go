@@ -37,12 +37,12 @@ func costAwareGitHub(t *testing.T) *httptest.Server {
 				"nodes":    []map[string]any{},
 			}},
 			"repository": map[string]any{
-				"url":          "https://github.com/alrayyes/a",
-				"pullRequests": map[string]any{"nodes": []map[string]any{}},
-				"issues":       map[string]any{"nodes": []map[string]any{}},
-				"pullRequest":  map[string]any{"comments": map[string]any{"nodes": []map[string]any{}}},
-				"issue":        map[string]any{"comments": map[string]any{"nodes": []map[string]any{}}},
-				"release":      map[string]any{"tagName": "v1", "publishedAt": "2026-09-14T16:00:00Z"},
+				"url":                "https://github.com/alrayyes/a",
+				"pullRequests":       map[string]any{"nodes": []map[string]any{}},
+				"issues":             map[string]any{"nodes": []map[string]any{}},
+				"pullRequest":        map[string]any{"comments": map[string]any{"nodes": []map[string]any{}}},
+				"issueOrPullRequest": map[string]any{"comments": map[string]any{"nodes": []map[string]any{}}},
+				"release":            map[string]any{"tagName": "v1", "publishedAt": "2026-09-14T16:00:00Z"},
 			},
 		}
 		if strings.Contains(body.Query, "rateLimit") {
