@@ -5633,8 +5633,8 @@ components:
           enum: [issue, pullRequest]
           description: |
             What the number turned out to be. A forge shares one number space
-            between issues and pull requests, so a reference such as `#12` can
-            name either, and this endpoint answers for both (#4188). The
+            between issues and pull requests, so a bare number in a description
+            can name either, and this endpoint answers for both. The
             client decides which dialog to open; a pull request's `state` is
             `closed` once it is merged as well as when it is closed unmerged.
         state:

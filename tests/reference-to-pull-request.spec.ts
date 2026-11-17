@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
@@ -183,4 +184,20 @@ test.describe('a reference to a pull request opens it (#4188)', () => {
     );
     await expect(issueDialog(page)).not.toContainText(/graphql/i);
   });
+
+  for (const width of [360, 1280]) {
+    test(`the retargeted dialog has no axe violations at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page, 'issues', 'Fixed by #4177');
+      await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+      await expect(prDialog(page)).toContainText('The linked change.');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
 });
