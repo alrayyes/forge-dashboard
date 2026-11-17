@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { wireClearBox } from "#lib/clear-box.js";
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import ReadFailureAlert from "#lib/ReadFailureAlert.svelte";
@@ -192,6 +193,12 @@
   let labelHost: HTMLDivElement | undefined = $state();
   const picks = new SharedPicks((key) => repoLogos.get(key));
   let sharedTitleDatalist: HTMLDataListElement | undefined = $state();
+  let titleBox: HTMLInputElement | undefined = $state();
+  let titleClear: HTMLButtonElement | undefined = $state();
+  // Clear button and Escape empty the title box alone (#4144).
+  $effect(() =>
+    titleBox && titleClear ? wireClearBox(titleBox, titleClear) : undefined,
+  );
   let filterBarEl: HTMLDivElement | undefined = $state();
   // Saved picks this page does not offer, said out loud with a way to drop
   // each (#1620).
@@ -768,16 +775,37 @@
         </label>
       </fieldset>
       <div id="shared-repo-filter" bind:this={repoHost}></div>
-      <input
-        class="col-filter"
-        data-col="title"
-        type="text"
-        maxlength={Filters.MAX_TITLE}
-        placeholder="Title"
-        aria-label="Filter by title"
-        list="shared-title-options"
-        autocomplete="off"
-      />
+      <span class="search-wrap">
+        <input
+          class="col-filter"
+          id="insights-title-filter"
+          data-col="title"
+          type="text"
+          maxlength={Filters.MAX_TITLE}
+          placeholder="Title"
+          aria-label="Filter by title"
+          list="shared-title-options"
+          autocomplete="off"
+          bind:this={titleBox}
+        />
+        <button
+          type="button"
+          class="search-clear"
+          aria-label="Clear title filter"
+          aria-controls="insights-title-filter"
+          bind:this={titleClear}
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
+      </span>
       <datalist id="shared-title-options" bind:this={sharedTitleDatalist}
       ></datalist>
       <div id="shared-author-filter" bind:this={authorHost}></div>
