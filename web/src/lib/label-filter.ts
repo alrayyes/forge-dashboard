@@ -289,6 +289,12 @@ export function mountPickFilter(
   const panel = node('div', 'label-filter-panel');
   panel.id = `${id}-panel`;
   panel.hidden = true;
+  // A press on a row's name, picture or padding lands on no focusable thing
+  // inside the panel, so the browser gives focus to the nearest focusable
+  // ancestor. A touch does that after pointerup, so the pointer-held flag
+  // below is already clear by then (#4093). Make the panel that ancestor, so
+  // focus stays inside the control. -1 keeps it out of the Tab order.
+  panel.tabIndex = -1;
 
   const group = node('fieldset', 'label-filter-group');
   group.appendChild(node('legend', 'label-filter-legend', cfg.legend));
