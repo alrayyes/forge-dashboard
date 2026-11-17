@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.72.1](https://github.com/alrayyes/forge-dashboard/compare/v9.72.0...v9.72.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **filters:** ignore a saved forge pick no forge pill offers ([#4170](https://github.com/alrayyes/forge-dashboard/issues/4170)) ([5e0fe5d](https://github.com/alrayyes/forge-dashboard/commit/5e0fe5d921c947d6bdfce863e083852c7039a27c)), closes [#4167](https://github.com/alrayyes/forge-dashboard/issues/4167)
+
 ## [9.72.0](https://github.com/alrayyes/forge-dashboard/compare/v9.71.0...v9.72.0) (2026-11-17)
 
 
