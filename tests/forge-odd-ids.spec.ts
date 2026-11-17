@@ -168,6 +168,8 @@ test.describe('a forge named like an inherited key (#4179)', () => {
     const rows = page.locator('[data-testid="main-branch-row"]');
     await expect(rows).toHaveCount(2);
     await expect(page.locator('.forge-badge')).toHaveText(IDS_ANY_ORDER);
+    for (const badge of await page.locator('.forge-badge').all())
+      await expect(badge).toHaveAttribute('class', /^forge-badge\s*$/);
     await expect(page.locator('.mb-pill[aria-pressed]')).toContainText([
       'constructor',
       '__proto__',
