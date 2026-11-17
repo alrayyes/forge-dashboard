@@ -89,6 +89,10 @@
     pageDescription,
     scheduledOnCopy,
   } from "#lib/forge-copy.js";
+  import {
+    appHoldsAutoMerge,
+    forgeHoldsArmed,
+  } from "#lib/auto-merge-adapter.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
@@ -1412,7 +1416,7 @@
       if (pr.autoMergeEnabled !== true) return null;
       // On Forgejo this app does the merging, not the forge, and the chip
       // says so in words (it has no GitHub-style setting to point at).
-      if (pr.forge === "forgejo") {
+      if (appHoldsAutoMerge(pr.forge)) {
         const chip = attrChip("auto-merge", "Auto-merge on");
         const note = holderNote(pr);
         if (note) chip.appendChild(el("span", "pill-note", note));
@@ -3137,7 +3141,7 @@
     // the merging itself. Said once under each Forgejo group heading, with a
     // way to the full explanation.
     function groupAutoMergeCallout(forgeName: string): HTMLElement | null {
-      if (forgeName !== "forgejo") return null;
+      if (!appHoldsAutoMerge(forgeName)) return null;
       const note = el("p", "group-callout", autoMergeGroupNote(forgeName));
       const link = el("a", "", "Settings") as HTMLAnchorElement;
       link.href = "/settings.html#forgejo-auto-merge";
@@ -3998,7 +4002,7 @@
 
     // A Forgejo merge the server says the forge holds: Cancel removes that.
     function forgeHolds(item: PullRequestItem): boolean {
-      return item.forge === "forgejo" && item.autoMergeHeldBy === "forge";
+      return forgeHoldsArmed(item);
     }
 
     function doCancelAutoMerge(item: PullRequestItem) {

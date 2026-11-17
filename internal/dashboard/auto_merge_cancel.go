@@ -29,7 +29,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 			continue
 		}
 		key := dependabotPRKey(pr)
-		if appMergesArmed(pr.Forge) && intents == nil && !intentsFailed {
+		if AppMergesArmed(pr.Forge) && intents == nil && !intentsFailed {
 			loaded, err := cfg.store.AutoMergeIntents(ctx)
 			if err != nil {
 				// A Forgejo pull request can't be told to be armed without the
@@ -39,7 +39,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 			}
 			intents = loaded
 		}
-		if intentsFailed && appMergesArmed(pr.Forge) {
+		if intentsFailed && AppMergesArmed(pr.Forge) {
 			continue
 		}
 		if !armedOn(pr, key, intents) || !cfg.beginCancel(pr) {
@@ -53,7 +53,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 // the pull request, or this app's intent where the app holds it.
 func armedOn(pr PullRequest, key string, intents map[string]struct{}) bool {
 	switch {
-	case appMergesArmed(pr.Forge):
+	case AppMergesArmed(pr.Forge):
 		_, armed := intents[key]
 
 		return armed

@@ -176,7 +176,7 @@ func (appHeldAutoMerge) cancel(w http.ResponseWriter, r *http.Request, deps Deps
 // user armed it here. The forge's own scheduled merge is already on the pull
 // request, from the issue timeline (#1571).
 func withAutoMergeIntent(pr dashboard.PullRequest, intents map[string]struct{}) dashboard.PullRequest {
-	if !appHoldsAutoMerge(pr.Forge) {
+	if !dashboard.AppMergesArmed(pr.Forge) {
 		return pr
 	}
 	if _, armed := intents[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)]; armed {

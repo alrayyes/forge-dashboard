@@ -416,34 +416,42 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	return ActionAvailability{Action: ActionUpdateBranch}, true
 }
 
-// autoMergeOffered: a forge that merges its own armed pull requests, or one where
-// this app holds the intent, and not
-// when it is already on (nil means the forge can't say, which isn't "on"),
-// when GitHub says it would refuse (nil isn't a refusal, #738), when there is
-// nothing to merge, when conflicts need fixing first, or when the pull request
-// is clean and Merge covers it (#662). An app-held draft can't merge yet, so
-// there is nothing to arm.
+// autoMergeOffered is whether Auto-merge is on a pull request's list: it isn't
+// when AutoMergeBlock has a reason.
 func autoMergeOffered(pr PullRequest) bool {
+	_, blocked := AutoMergeBlock(pr)
+
+	return !blocked
+}
+
+// AutoMergeBlock is the one rule for arming auto-merge: why it can't be armed
+// on pr, in the order that matters, or false when it can. The action list and
+// the arm endpoint's refusal both read it, so they can't disagree. Not armable:
+// a forge this build doesn't know, an app-held draft (nothing to merge yet), one
+// already on, one the forge says it would refuse (nil isn't a refusal, #738),
+// nothing to merge, conflicts to fix first, a stacked pull request (#860), or
+// one that is clean so Merge covers it (#662).
+func AutoMergeBlock(pr PullRequest) (ActionRefusal, bool) {
 	switch {
-	case !appMergesArmed(pr.Forge) && !forgeMergesArmed(pr.Forge):
-		return false
-	case appMergesArmed(pr.Forge) && pr.Draft:
-		return false
+	case !AppMergesArmed(pr.Forge) && !forgeMergesArmed(pr.Forge):
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Auto-merge is only available on GitHub and Forgejo."}, true
+	case AppMergesArmed(pr.Forge) && pr.Draft:
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Draft pull request. Mark it ready for review to turn on auto-merge."}, true
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
-		return false
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Auto-merge is already on for this pull request."}, true
 	case pr.AutoMergeAllowed != nil && !*pr.AutoMergeAllowed:
-		return false
-	case pr.Empty, pr.MergeStatus == MergeConflicting:
-		return false
+		return ActionRefusal{Code: ActionAutoMergeNotAllowed, Message: "Auto-merge isn't allowed for this pull request. Turn it on in the repo's settings."}, true
+	case pr.Empty:
+		return ActionRefusal{Code: ActionAlreadyUpToDate, Message: "Already up to date with the target branch, so there is nothing to merge."}, true
+	case pr.MergeStatus == MergeConflicting:
+		return ActionRefusal{Code: ActionConflict, Message: "Merge conflict. Resolve it on the forge first."}, true
 	case pr.StackedOn != nil:
-		// Its base is the parent's branch, which has nothing to wait for, so
-		// GitHub offers no auto-merge either (#860).
-		return false
+		return ActionRefusal{Code: ActionStacked, Message: "Stacked on another pull request. Merge that one first."}, true
 	case pr.MergeStatus == MergeMergeable && pr.CI == CISuccess && !pr.Behind:
-		return false
+		return ActionRefusal{Code: ActionReadyToMerge, Message: "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead."}, true
 	}
 
-	return true
+	return ActionRefusal{}, false
 }
 
 // editedDependabotPR: a Dependabot pull request Dependabot won't rebase because

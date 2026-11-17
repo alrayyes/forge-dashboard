@@ -148,10 +148,10 @@ func answersDependabot(forge Forge) bool {
 	return c.DependabotCommands
 }
 
-// appMergesArmed is true when this app holds an armed auto-merge for forge and
+// AppMergesArmed is true when this app holds an armed auto-merge for forge and
 // performs the merge itself. False for a forge that merges its own, and for one
 // this build doesn't know.
-func appMergesArmed(forge Forge) bool {
+func AppMergesArmed(forge Forge) bool {
 	c, _ := CapabilitiesOf(forge)
 
 	return c.AutoMergeHeldByApp
