@@ -1,10 +1,12 @@
 package api_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/base64"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -393,4 +395,24 @@ func connBodyText(t *testing.T, resp *http.Response) string {
 	}
 
 	return sb.String()
+}
+
+// Not parallel: it swaps the process-wide logger to read what the handlers log.
+func TestConnections_NeverLogOrAnswerWithACodeStateSecretOrToken(t *testing.T) {
+	var logs bytes.Buffer
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	c := newConnFixture(t, true)
+	state := c.begin(t)
+	refused := c.callback(t, "code=stolen-code&state="+url.QueryEscape(state))
+	refusedBody := connBodyText(t, refused)
+	c.connect(t)
+	c.callback(t, "code=good-code&state=replayed")
+
+	for _, secret := range []string{"stolen-code", "good-code", state, "client-secret", connAccessTok, connRefreshTk} {
+		assert.NotContains(t, logs.String(), secret, "log")
+		assert.NotContains(t, refusedBody, secret, "answer")
+	}
 }
