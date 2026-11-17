@@ -608,7 +608,7 @@ export function advisoryRowUnreadable(b: MainBranch): boolean {
 
 export function advisoryCoverage(
   branches: readonly MainBranch[],
-  forge: AdvisoryForge = 'github',
+  forge: AdvisoryForge,
 ): AdvisoryCoverage {
   let unknown = 0;
   let known = 0;
@@ -638,7 +638,7 @@ export function advisoryCoverageByForge(
 // it is sure.
 export function advisoryUnknownReason(
   branches: readonly MainBranch[],
-  forge: AdvisoryForge = 'github',
+  forge: AdvisoryForge,
 ): Exclude<AdvisoryReason, 'not_enabled'> | null {
   let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
