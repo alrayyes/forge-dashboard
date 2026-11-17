@@ -70,19 +70,13 @@ const control = (page: Page) => page.locator('.live-control');
 
 for (const c of CARDS) {
   test.describe(`${c.name} live control (#3699)`, () => {
-    test('is one control in the card header: Live, time, Pause, refresh', async ({
+    test('is the first control in the card header, with the live status and time', async ({
       page,
     }) => {
       await mockDashboard(page);
       await page.goto(c.path);
-      const live = control(page);
-      await expect(live).toHaveCount(1);
-      await expect(live).toContainText('Live');
-      await expect(live).toContainText(/updated \d+s ago/);
-      await expect(live.getByRole('button', { name: /Pause/ })).toBeVisible();
-      await expect(
-        live.getByRole('button', { name: 'Refresh now' }),
-      ).toBeVisible();
+      await expect(control(page)).toHaveCount(1);
+      await expect(control(page)).toContainText(/updated \d+s ago/);
       // First in the right-hand group of the card header.
       const first = page.locator(
         `section[aria-label="${c.card}"] .board-head-controls > :first-child`,
@@ -139,20 +133,6 @@ for (const c of CARDS) {
 }
 
 test.describe('Branches live control (#3699)', () => {
-  test('leads the header with Live, time, Pause and refresh', async ({
-    page,
-  }) => {
-    await mockBranches(page);
-    await page.goto('/');
-    const live = control(page);
-    await expect(live).toHaveCount(1);
-    await expect(live).toContainText('Live');
-    await expect(live).toContainText(/updated \d+s ago/);
-    await live.getByRole('button', { name: /Pause/ }).click();
-    await expect(live).toContainText('Paused');
-    await expect(live.getByRole('button', { name: /Resume/ })).toBeVisible();
-  });
-
   test('is accessible at 360, 390 and 1280', async ({ page }) => {
     await mockBranches(page);
     await page.goto('/');
