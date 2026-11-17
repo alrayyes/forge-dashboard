@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.69.4](https://github.com/alrayyes/forge-dashboard/compare/v9.69.3...v9.69.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** put a locked Merge and Update branch side by side on a phone ([#4107](https://github.com/alrayyes/forge-dashboard/issues/4107)) ([78561bf](https://github.com/alrayyes/forge-dashboard/commit/78561bf44d57fbf8be7ff17a89c21c893f96a47c))
+
 ## [9.69.3](https://github.com/alrayyes/forge-dashboard/compare/v9.69.2...v9.69.3) (2026-11-17)
 
 
