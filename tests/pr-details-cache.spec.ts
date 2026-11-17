@@ -545,3 +545,61 @@ test.describe('what the dialog keeps and drops', () => {
     await expect(dialog(page)).not.toContainText('Old body.');
   });
 });
+
+test('a read already out when the reader closes the pull request is not remembered', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+  await page.route('**/api/v1/dashboard*', (r: Route) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests: [{ ...pr, allowedActions: [{ action: 'close' }] }],
+        issues: [],
+      }),
+    }),
+  );
+  await page.route('**/api/v1/pull-requests/close', (r) =>
+    r.fulfill({ status: 204 }),
+  );
+  await page.route('**/api/v1/pull-requests/reopen', (r) =>
+    r.fulfill({ status: 204 }),
+  );
+  const held = await holdDetails(page);
+  await page.goto('/pull-requests.html');
+  await trigger(page).click();
+  await held.answer({ payload: details('Old body.') });
+  await expect(dialog(page)).toContainText('Old body.');
+  await page.keyboard.press('Escape');
+  // The reopen shows the cached body while its refresh is still out.
+  await trigger(page).click();
+  await expect(dialog(page)).toContainText('Old body.');
+  await dialog(page)
+    .getByRole('button', { name: 'Close pull request', exact: true })
+    .click();
+  await dialog(page)
+    .getByRole('button', { name: 'Confirm close pull request?', exact: true })
+    .click();
+  await expect(
+    dialog(page).getByRole('button', { name: 'Reopen pull request' }),
+  ).toBeVisible();
+  await dialog(page)
+    .getByRole('button', { name: 'Reopen pull request' })
+    .click();
+  await expect(
+    dialog(page).getByRole('button', {
+      name: 'Close pull request',
+      exact: true,
+    }),
+  ).toBeVisible();
+  // The refresh answers with what it read before the close.
+  await held.answer({ payload: details('Read before the close.') });
+  await expect(dialog(page)).toContainText('Read before the close.');
+  await page.keyboard.press('Escape');
+  await trigger(page).click();
+  await expect(dialog(page)).not.toContainText('Read before the close.');
+});
