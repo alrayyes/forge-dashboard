@@ -12,8 +12,9 @@ import (
 // cancelEmptyAutoMerges takes an armed auto-merge back off a pull request that
 // has gone empty (#1375): its branch landed on the base some other way, so
 // there is nothing left for auto-merge to wait for, and left on it would try to
-// merge an empty commit. GitHub's own auto-merge is turned off with
-// disablePullRequestAutoMerge; Forgejo's is this app's intent, which is dropped.
+// merge an empty commit. A forge's own auto-merge is turned off on the forge
+// (disablePullRequestAutoMerge on GitHub); one the app holds is its intent,
+// which is dropped.
 // The reason is kept for the row. A pull request that is not armed, or is not
 // empty, is never touched.
 func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
@@ -28,7 +29,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 			continue
 		}
 		key := dependabotPRKey(pr)
-		if pr.Forge == ForgeForgejo && intents == nil && !intentsFailed {
+		if appMergesArmed(pr.Forge) && intents == nil && !intentsFailed {
 			loaded, err := cfg.store.AutoMergeIntents(ctx)
 			if err != nil {
 				// A Forgejo pull request can't be told to be armed without the
@@ -38,7 +39,7 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 			}
 			intents = loaded
 		}
-		if intentsFailed && pr.Forge == ForgeForgejo {
+		if intentsFailed && appMergesArmed(pr.Forge) {
 			continue
 		}
 		if !armedOn(pr, key, intents) || !cfg.beginCancel(pr) {
@@ -48,16 +49,16 @@ func (a *Aggregator) cancelEmptyAutoMerges(ctx context.Context, snap Snapshot) {
 	}
 }
 
-// armedOn reports whether auto-merge is on for pr: GitHub's own, read from the
-// pull request, or this app's Forgejo intent.
+// armedOn reports whether auto-merge is on for pr: the forge's own, read from
+// the pull request, or this app's intent where the app holds it.
 func armedOn(pr PullRequest, key string, intents map[string]struct{}) bool {
-	switch pr.Forge {
-	case ForgeGitHub:
-		return pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
-	case ForgeForgejo:
+	switch {
+	case appMergesArmed(pr.Forge):
 		_, armed := intents[key]
 
 		return armed
+	case forgeMergesArmed(pr.Forge):
+		return pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 	}
 
 	return false
@@ -70,11 +71,11 @@ func (a *Aggregator) cancelAutoMerge(ctx context.Context, pr PullRequest, key st
 		return
 	}
 
-	switch pr.Forge {
-	case ForgeGitHub:
+	switch {
+	case forgeMergesArmed(pr.Forge):
 		var disabler PullRequestAutoMergeDisabler
 		for _, src := range a.sources {
-			if d, can := src.(PullRequestAutoMergeDisabler); can && src.Forge() == ForgeGitHub {
+			if d, can := src.(PullRequestAutoMergeDisabler); can && src.Forge() == pr.Forge {
 				disabler = d
 			}
 		}
