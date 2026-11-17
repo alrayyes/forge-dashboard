@@ -403,16 +403,18 @@ can't fire a tracking pixel when the dialog opens.
   other host to the saved Forgejo instance, which refuses a host that isn't its
   own. A Forgejo avatar on a third-party host, Gravatar and Libravatar included,
   therefore shows the initial instead.
-- The page repeats the list in `web/src/lib/image-source.ts` only to skip a
-  pointless request and show a link instead. The server is the one that
-  enforces it.
+- The page repeats the rules in `web/src/lib/image-source.ts` only to skip a
+  pointless request and show a link instead. It reads them from each forge's
+  image policy in `web/src/lib/forges.ts` (fixed hosts or the item's own
+  instance, and whether attachments are signed), not from a forge name. The
+  server is the one that enforces them.
 - Every response carries `Content-Security-Policy: img-src 'self'`
   (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
   refuses a direct image load from any other host. None of the hosts listed earlier
   appears in it, because the server fetches them and the browser never does.
   The image route sends its own stricter policy over it. A Go test checks the
   policy against the proxy's host list, and against the hosts
-  `web/src/lib/image-source.ts` and `web/src/lib/avatar.ts` send through it.
+  `web/src/lib/forges.ts` and `web/src/lib/avatar.ts` send through it.
 
 ### What the passkey login covers
 

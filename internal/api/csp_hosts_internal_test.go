@@ -47,7 +47,7 @@ var githubUserContentHost = regexp.MustCompile(`'([a-z-]+\.githubusercontent\.co
 // hosts. A host it asks for that the proxy refuses is a broken picture.
 func TestGithubImageHosts_CoverEveryHostThePageSendsThroughTheProxy(t *testing.T) {
 	t.Parallel()
-	for _, file := range []string{"../../web/src/lib/image-source.ts", "../../web/src/lib/avatar.ts"} {
+	for _, file := range []string{"../../web/src/lib/forges.ts", "../../web/src/lib/avatar.ts"} {
 		src, err := os.ReadFile(file) //nolint:gosec // a fixed path to a source file in this repo
 		require.NoError(t, err)
 		found := githubUserContentHost.FindAllStringSubmatch(string(src), -1)

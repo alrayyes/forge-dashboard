@@ -68,6 +68,7 @@ const singleUserSpecs = [
   '**/filter-choices-pills.spec.ts',
   '**/filter-pick-panel-focus.spec.ts',
   '**/pick-row-click.spec.ts',
+  '**/pick-row-mouse.spec.ts',
   '**/focusout-closers.spec.ts',
   '**/filter-choices-static.spec.ts',
   '**/filter-choices-held.spec.ts',
