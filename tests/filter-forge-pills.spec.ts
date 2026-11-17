@@ -77,4 +77,22 @@ test.describe('a forge the server reports gets a pill (#3978)', () => {
     await expect(page.getByText('Pull request 1 on github')).toBeHidden();
     await expect(page.getByText('Pull request 2 on forgejo')).toBeHidden();
   });
+
+  test('a saved gitea pick is pressed again after a reload, with its chip', async ({
+    page,
+  }) => {
+    await open(page);
+    await quickPill(page, 'Gitea', 'forge').click();
+    await expect(page.getByText('Pull request 1 on github')).toBeHidden();
+
+    await page.reload();
+    // Gitea is only known once the read reports it, so the pill is drawn after
+    // mount and has to pick up the saved state when it arrives.
+    await expect(quickPill(page, 'Gitea', 'forge')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
+    await expect(page.locator('.filter-chip-label')).toHaveText('Forge Gitea');
+    await expect(page.getByText('Pull request 3 on gitea')).toBeVisible();
+  });
 });
