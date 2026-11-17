@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { flushRequests } from './flush-requests-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The two-step confirm on Merge and Close: an explicit way out, dismissal on
@@ -39,7 +40,7 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
 function snapshot(prs: unknown[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: prs,
     issues: [],
   };

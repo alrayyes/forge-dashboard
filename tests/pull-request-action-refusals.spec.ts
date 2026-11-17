@@ -5,6 +5,7 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Close, Update branch, Enable auto-merge, and the Dependabot and Renovate
@@ -55,7 +56,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(prs: MockPR[]) {
   return JSON.stringify({
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: prs,
     issues: [],
   });
