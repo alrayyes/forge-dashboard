@@ -84,7 +84,8 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 }
 
 // knownForges lists the keys of capabilitiesByForge in the order a page shows
-// them. A new forge is one entry here and one in the table.
+// them. A new forge is one entry here and one in capabilitiesByForge;
+// TestForges_MatchTheCapabilityTable fails if only one of them is written.
 var knownForges = []Forge{ForgeGitHub, ForgeForgejo}
 
 // Forges lists every forge this build knows, in display order. It is a copy.
