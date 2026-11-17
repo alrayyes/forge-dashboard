@@ -17,6 +17,7 @@ export type MainBranchStatus =
   | 'passed'
   | 'cancelled'
   | 'awaiting_approval'
+  | 'unknown'
   | 'none';
 
 export type MainBranchCommit = {
@@ -107,6 +108,7 @@ export function countMainBranches(
     running: 0,
     cancelled: 0,
     awaitingApproval: 0,
+    unknown: 0,
     none: 0,
     total: rows.length,
   };
@@ -116,6 +118,7 @@ export function countMainBranches(
       case 'passed':
       case 'running':
       case 'cancelled':
+      case 'unknown':
         counts[status]++;
         break;
       case 'awaiting_approval':
@@ -146,6 +149,7 @@ export function branchNavCount(counts: MainBranchCounts): NavCount {
     cancelled: counts.cancelled,
     none: counts.none,
     awaitingApproval: counts.awaitingApproval,
+    unknown: counts.unknown,
   };
 }
 
@@ -248,6 +252,7 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   passed: 'Passed',
   cancelled: 'Cancelled',
   awaiting_approval: 'Waiting for approval',
+  unknown: 'Unknown',
   none: 'No pipeline',
 };
 
@@ -264,6 +269,9 @@ export const CI_SLOT: Partial<
   // The pull request row's held run: the failure pill recoloured to the warning
   // pair by .awaiting, with the pause glyph (#1280).
   awaiting_approval: { cls: 'failure awaiting', glyphs: 'awaiting_approval' },
+  // A job nobody can grade: the neutral pair and the question glyph the
+  // pipeline panel uses for it, never a pass or a failure (#4063).
+  unknown: { cls: 'unknown', glyphs: 'unknown' },
 };
 
 // The statuses whose pill says how far the pipeline got (#2074): one that ran,
@@ -272,6 +280,7 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
   'failed',
   'running',
   'passed',
+  'unknown',
 ]);
 
 // What a row's CI pill says. While the pipeline dialog holds a job list for the
@@ -487,6 +496,7 @@ export const MAIN_BRANCH_STATUSES = [
   'passed',
   'cancelled',
   'awaiting_approval',
+  'unknown',
   'none',
 ];
 const FORGES = ['all', 'github', 'forgejo'];

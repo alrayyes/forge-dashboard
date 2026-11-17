@@ -156,6 +156,25 @@
             ><circle cx="12" cy="12" r="10" /><path d="M10 9v6M14 9v6" /></svg
           >{part.n}</span
         >
+      {:else if part.kind === "unknown"}
+        <!-- The question mark the row and the pipeline panel use for a job
+           nobody can grade, in neutral ink (#4063). -->
+        <span class="nav-count nav-unknown"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><path
+              d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"
+            /><line x1="12" x2="12.01" y1="17" y2="17" /></svg
+          >{part.n}</span
+        >
       {:else if part.kind === "none" || part.kind === "noChecks"}
         <!-- A dashed circle: no run to be good or bad. Neutral ink. -->
         <span class="nav-count nav-none nav-{part.kind}"
