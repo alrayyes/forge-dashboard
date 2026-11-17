@@ -207,6 +207,18 @@ describe('the known forges', () => {
     expect(isKnownForge('gitea')).toBe(true);
   });
 
+  test('a forge id is matched exactly, case included', () => {
+    expect(isKnownForge('GitHub')).toBe(false);
+    expect(isKnownForge('github ')).toBe(false);
+  });
+
+  test('the list handed out is a copy', () => {
+    forgeIds().push('gitlab');
+
+    expect(forgeIds()).toEqual(['github', 'forgejo']);
+    expect(isKnownForge('gitlab')).toBe(false);
+  });
+
   test('reset forgets a taught forge', () => {
     registerForgeCapabilities([{ forge: 'gitea' }]);
     resetForgeCapabilities();
