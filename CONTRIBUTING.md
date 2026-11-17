@@ -264,7 +264,12 @@ the generated fixture.
 
 A rule that needs no browser is tested without one. `web/src/lib/*.test.ts`
 runs under `bun test` (`bun run test:unit`): about 10 ms for a module, no
-server, no Chromium. Today that's `insights.ts` (the age buckets and repo
+server, no Chromium. CI runs the suite twice, the second time with
+`--randomize`: modules keep state between tests, so a test that leaves some
+behind passes in file order and fails at random. A red random run prints its
+seed; `bun test web/src scripts --randomize --seed=<seed>` repeats it.
+
+Today that's `insights.ts` (the age buckets and repo
 ranking behind the Insights page), `failure-details.ts`,
 `hidden-pull-requests.ts`, `confirm-arm.ts`, `filters.ts` (the choices a
 filter offers) and the wording half of `wait-chip.ts`. Move a rule here when it

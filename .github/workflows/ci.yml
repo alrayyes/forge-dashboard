@@ -732,6 +732,10 @@ jobs:
         run: bun run lint:specs
       - name: unit tests
         run: bun run test:unit
+      # Test files share module state, so an order that only some runs hit
+      # hides a leak (#4206). bun prints the seed; rerun with --seed=<it>.
+      - name: unit tests, random order
+        run: bun run test:unit --randomize
 
   # rules/dependencies.md: bun audit, the way govulncheck covers Go. A pull
   # request fails only on what it introduces over its base; the action retries

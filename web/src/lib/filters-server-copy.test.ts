@@ -9,11 +9,23 @@ import {
   leavePage,
   loadState,
   releaseAllHeld,
+  resetTouched,
   type SharedFilterState,
   takeMigratedStatus,
   touchAll,
   touchKey,
 } from './filters';
+
+// The touched keys live in the filters module, so they outlive a test and
+// reach whichever test runs next, in this file or another. A test that touches
+// a key clears it in its own afterEach. This guard fails the test that forgot,
+// instead of an unrelated one under a random order (#4206).
+const clearTouched = () => resetTouched();
+afterEach(() => {
+  const left = hasTouched();
+  resetTouched();
+  expect(left, 'a test left a touched filter key behind').toBe(false);
+});
 
 // The server copy of "Hide Dependency Dashboard" is '' when the box is off.
 // That has to replace the page's default of '1', or a second browser would
@@ -42,6 +54,7 @@ describe('applyServerState with the hide Dependency Dashboard choice', () => {
 // A filter changed while the saved copy loads is newer than the copy, so the
 // late copy must not overwrite it (#1713).
 describe('applyServerState with keys the user touched', () => {
+  afterEach(clearTouched);
   const fresh = (): SharedFilterState => ({
     shared: {},
     pr: {},
@@ -162,8 +175,10 @@ describe('applyServerState with keys the user touched', () => {
 // pill it matches, so it neither disappears nor filters out of sight. A pill or
 // a forge already picked wins, and the old key never stays in the state.
 describe('a saved CI status after the pulldown went', () => {
+  afterEach(clearTouched);
   // Keys touched by an earlier test would keep the user's value.
   beforeEach(() => {
+    Object.assign(globalThis, { document: { cookie: '' } });
     loadState();
   });
 
@@ -231,6 +246,7 @@ describe('a saved CI status after the pulldown went', () => {
 // The single quick pill became four groups (#3734). A saved pr.quick moves to
 // the key of the group its value belongs to, once.
 describe('the saved quick pill becomes a per-group pick', () => {
+  afterEach(clearTouched);
   const fresh = (): SharedFilterState => ({
     shared: {},
     pr: {},
