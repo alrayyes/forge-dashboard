@@ -1058,6 +1058,12 @@ button of its own (named "Copy output: {check}"). The `Failed step` line stays.
 While the output is loading or failed to load, the panel has no Copy button and
 the excerpt and its button stay.
 
+Opening the output of a job that finished more than 30 seconds ago a second time
+costs no forge request: the server keeps its log in memory (up to 32 MB, the
+least recently opened going first), named by the job, its attempt and its finish
+time, so a rerun reads afresh. A running job's log is never kept, and neither is
+a read that failed. The browser still asks each time (`Cache-Control: no-store`).
+
 A row's controls sit in one row at its right edge: the text `Show output` or
 `Hide output` with a chevron, then `Copy` and `Open job` as 44-pixel icon buttons.
 Their accessible names start with their words ("Copy output: {check}", "Open

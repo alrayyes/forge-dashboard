@@ -71,6 +71,8 @@ type Deps struct {
 
 	// skipped is set by NewMux, shared by the image and settings handlers.
 	skipped *skippedAvatars
+	// jobLogs keeps the logs of finished jobs, set by NewMux.
+	jobLogs *jobLogCache
 
 	// Database and Dashboard back GET /readyz. Either may be nil, in which
 	// case that check is skipped.
@@ -130,6 +132,7 @@ type Deps struct {
 //nolint:funlen // a route table: one statement per route, which splitting would only scatter
 func NewMux(deps Deps) http.Handler {
 	deps.skipped = newSkippedAvatars(deps.SkippedAvatarTTL, time.Now)
+	deps.jobLogs = newJobLogCache(jobLogCacheBytes)
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", handleHealth)

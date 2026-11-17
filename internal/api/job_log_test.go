@@ -3,10 +3,14 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -23,6 +27,7 @@ type fakeJobLogSource struct {
 	lastOwner string
 	lastName  string
 	lastJob   int64
+	calls     atomic.Int64
 }
 
 func (f *fakeJobLogSource) Forge() dashboard.Forge { return f.forge }
@@ -37,6 +42,7 @@ func (f *fakeJobLogSource) Fetch(_ context.Context) dashboard.Result {
 }
 
 func (f *fakeJobLogSource) JobLog(_ context.Context, owner, name string, jobID int64) (dashboard.JobLog, error) {
+	f.calls.Add(1)
 	f.lastOwner, f.lastName, f.lastJob = owner, name, jobID
 
 	return f.log, f.err
@@ -476,4 +482,137 @@ func TestJobLog_Excerpt_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testi
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 	assert.Zero(t, source.lastExJob)
+}
+
+func getJobLogWith(t *testing.T, srvURL string, sessionCookie *http.Cookie, extra url.Values) *http.Response {
+	t.Helper()
+	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "jobId": {"4242"}}
+	maps.Copy(q, extra)
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/checks/log?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+
+	return resp
+}
+
+func finishedAgo(d time.Duration) string { return time.Now().Add(-d).UTC().Format(time.RFC3339) }
+
+// openLog reads the log once and returns the response with its body drained.
+func openLog(t *testing.T, srvURL string, c *http.Cookie, extra url.Values) (http.Header, dashboard.JobLog) {
+	t.Helper()
+	resp := getJobLogWith(t, srvURL, c, extra)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body dashboard.JobLog
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+
+	return resp.Header, body
+}
+
+func TestJobLog_FinishedJob_SecondOpenComesFromMemory(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "done\n"}}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	q := url.Values{"attempt": {"1"}, "finishedAt": {finishedAgo(time.Hour)}}
+
+	_, first := openLog(t, srvURL, c, q)
+	header, second := openLog(t, srvURL, c, q)
+
+	assert.EqualValues(t, 1, source.calls.Load(), "the forge is asked once")
+	assert.Equal(t, first, second)
+	assert.Equal(t, "no-store", header.Get("Cache-Control"), "the browser still never keeps it")
+}
+
+func TestJobLog_RerunReadsFresh(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	finished := finishedAgo(time.Hour)
+
+	openLog(t, srvURL, c, url.Values{"attempt": {"1"}, "finishedAt": {finished}})
+	openLog(t, srvURL, c, url.Values{"attempt": {"2"}, "finishedAt": {finished}})
+	openLog(t, srvURL, c, url.Values{"attempt": {"2"}, "finishedAt": {finishedAgo(30 * time.Minute)}})
+
+	assert.EqualValues(t, 3, source.calls.Load())
+}
+
+func TestJobLog_NeverCachesWithoutASettledFinishTime(t *testing.T) {
+	t.Parallel()
+
+	for name, q := range map[string]url.Values{
+		"a running job sends no finish time": {},
+		"a job that only just finished":      {"finishedAt": {finishedAgo(time.Second)}},
+		"a finish time in the future":        {"finishedAt": {time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
+			srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+			openLog(t, srvURL, c, q)
+			openLog(t, srvURL, c, q)
+
+			assert.EqualValues(t, 2, source.calls.Load())
+		})
+	}
+}
+
+func TestJobLog_FailedReadIsNotKept(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, err: errors.New("boom")}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	q := url.Values{"finishedAt": {finishedAgo(time.Hour)}}
+
+	resp := getJobLogWith(t, srvURL, c, q)
+	_ = resp.Body.Close()
+	assert.Equal(t, http.StatusBadGateway, resp.StatusCode)
+	source.err = nil
+	source.log = dashboard.JobLog{Text: "now it works"}
+
+	_, body := openLog(t, srvURL, c, q)
+
+	assert.Equal(t, "now it works", body.Text)
+}
+
+func TestJobLog_BadFinishTime_Returns400(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	for name, q := range map[string]url.Values{
+		"finishedAt":   {"finishedAt": {"yesterday"}},
+		"attempt text": {"attempt": {"x"}},
+		"attempt <0":   {"attempt": {"-1"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			resp := getJobLogWith(t, srvURL, c, q)
+			defer func() { _ = resp.Body.Close() }()
+			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		})
+	}
+	assert.Zero(t, source.calls.Load())
+}
+
+func TestJobLog_UntrackedRepoIsRefusedEvenWhenTheLogIsKept(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	q := url.Values{"finishedAt": {finishedAgo(time.Hour)}}
+	openLog(t, srvURL, c, q)
+
+	q.Set("fullName", "other/repo")
+	resp := getJobLogWith(t, srvURL, c, q)
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
