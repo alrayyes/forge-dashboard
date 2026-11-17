@@ -329,6 +329,7 @@ export function mountPickFilter(
     if (refocus) button.focus();
   }
 
+  let pressing = false;
   button.addEventListener('click', () => {
     if (panel.hidden) {
       panel.hidden = false;
@@ -337,6 +338,8 @@ export function mountPickFilter(
     } else close(false);
   });
   host.addEventListener('keydown', (event) => {
+    // A key means the press is over, even if its pointerup never arrived.
+    pressing = false;
     if (event.key === 'Escape' && !panel.hidden) {
       // The panel closes, not the Filters sheet around it.
       event.stopPropagation();
@@ -348,7 +351,6 @@ export function mountPickFilter(
   // press, which inside the phone's scrolling Filters sheet is the sheet and
   // not the panel. That is not the reader leaving, and closing the panel on
   // it swallowed the click that was about to tick the row (#4093).
-  let pressing = false;
   host.addEventListener('pointerdown', () => {
     pressing = true;
     const done = () => {

@@ -157,6 +157,23 @@ for (const size of sizes) {
       await expect(button).toHaveAttribute('aria-expanded', 'false');
     });
 
+    test('a press whose pointerup never arrives does not stop Tab closing the panel', async ({
+      page,
+    }) => {
+      const host = await open(page, FEW);
+      const button = host.locator('#shared-repo-filter-button');
+      await host
+        .locator('.label-filter-option')
+        .first()
+        .dispatchEvent('pointerdown');
+      await host.getByRole('checkbox').first().focus();
+      for (let i = 0; i < 8; i++) {
+        if ((await button.getAttribute('aria-expanded')) === 'false') break;
+        await page.keyboard.press('Tab');
+      }
+      await expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
+
     for (const scheme of ['light', 'dark'] as const) {
       test(`${scheme}: no axe-core violations with the panel open`, async ({
         page,
