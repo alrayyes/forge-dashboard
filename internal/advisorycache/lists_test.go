@@ -3,6 +3,7 @@ package advisorycache_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -140,4 +141,23 @@ func TestLists_AColdFailureIsTheFailureNotAnEmptyKnownList(t *testing.T) {
 
 	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
 	assert.Equal(t, 2, r.calls, "a failure is not kept: the next open asks again")
+}
+
+func TestLists_KeepsNoMoreThanMaxListsAndTheNewestSurvives(t *testing.T) {
+	t.Parallel()
+	lists, _ := newLists()
+
+	for i := range advisorycache.MaxLists + 1 {
+		lists.Put(fmt.Sprintf("repo-%d", i), known("a"), advisorycache.TTL)
+	}
+
+	kept := 0
+	for i := range advisorycache.MaxLists + 1 {
+		if _, _, ok := lists.Get(fmt.Sprintf("repo-%d", i)); ok {
+			kept++
+		}
+	}
+	assert.LessOrEqual(t, kept, advisorycache.MaxLists)
+	_, _, ok := lists.Get(fmt.Sprintf("repo-%d", advisorycache.MaxLists))
+	assert.True(t, ok, "the list just written is kept")
 }
