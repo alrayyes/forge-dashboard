@@ -175,3 +175,26 @@ describe('imageSourceFor a forge with its own policy', () => {
     ).toBeNull();
   });
 });
+
+describe('imageSourceFor signed attachments', () => {
+  const src = imageSourceFor('github', null, { fullName: 'o/r', number: 7 });
+
+  test('names the item only for the exact signed prefix', () => {
+    const raw = 'https://github.com/o/r/raw/main/a.png';
+    expect(src(raw)).toBe(proxied('github', raw));
+    expect(src('https://github.com/user-attachmentsX/1')).toBe(
+      proxied('github', 'https://github.com/user-attachmentsX/1'),
+    );
+    expect(src('https://github.com/user-attachments/assets/1')).toContain(
+      'fullName=',
+    );
+  });
+});
+
+describe('imageSourceFor a forge name that is an object property', () => {
+  test.each(['constructor', 'toString', '__proto__'])('refuses %s', (forge) => {
+    expect(
+      imageSourceFor(forge, 'https://git.example')('https://git.example/a.png'),
+    ).toBeNull();
+  });
+});

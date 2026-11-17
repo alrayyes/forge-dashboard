@@ -142,7 +142,9 @@ const IMAGE_POLICIES: Record<string, ImagePolicy> =
 // The image rules of forge, or undefined for one nobody described: its images
 // are then never asked for.
 export function imagePolicyOf(forge: string): ImagePolicy | undefined {
-  return IMAGE_POLICIES[forge];
+  return Object.hasOwn(IMAGE_POLICIES, forge)
+    ? IMAGE_POLICIES[forge]
+    : undefined;
 }
 
 export function registerImagePolicy(forge: string, policy: ImagePolicy) {
