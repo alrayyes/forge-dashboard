@@ -64,9 +64,9 @@ const autoMergedKeep = 10 * time.Minute
 
 // AutoMergeStatusOf explains an armed pull request. Its sentences say "the
 // forge", never a forge's name: the page words that with the forge's label
-// (#4072). A refusal of the current
-// version outranks what the fields say, since it is what actually happened
-// when the merge was tried. A rate limit only waits.
+// (#4072). A refusal of the current version outranks what the fields say,
+// since it is what actually happened when the merge was tried. A rate limit
+// only waits.
 func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatus {
 	status := func(state AutoMergeState, code ActionCode, message string) AutoMergeStatus {
 		return AutoMergeStatus{State: state, Code: code, Message: message}
