@@ -25,13 +25,18 @@ function pr(number: number, forge: string) {
   };
 }
 
-async function open(page: Page, baseURL: string | undefined, saved: string) {
+async function open(
+  page: Page,
+  baseURL: string | undefined,
+  saved: string,
+  extra: Record<string, string> = {},
+) {
   await page.context().addCookies([
     {
       name: 'forge-board-filters',
       value: encodeURIComponent(
         JSON.stringify({
-          shared: { forge: saved },
+          shared: { forge: saved, ...extra },
           pr: {},
           issue: {},
           view: {},
@@ -90,5 +95,75 @@ test.describe('a saved forge pick nothing reports (#4167)', () => {
     await expect(page.locator('.filter-chip-label')).toHaveText(
       'Forge Forgejo',
     );
+  });
+});
+
+test.describe('a saved forge pick nothing reports, elsewhere on the page (#4171)', () => {
+  test('keeps Group by forge offered and the saved grouping', async ({
+    page,
+    baseURL,
+  }) => {
+    await open(page, baseURL, 'gitea', { groupBy: 'forge' });
+    await expect(page.getByText('Pull request 1 on github')).toBeVisible();
+    const group = page.locator('#shared-group-select');
+    await expect(group).toHaveValue('forge');
+    await expect(group.locator('option[value="forge"]')).not.toHaveAttribute(
+      'hidden',
+      /.*/,
+    );
+  });
+
+  test('leaves Clear filters disabled with no chip', async ({
+    page,
+    baseURL,
+  }) => {
+    await open(page, baseURL, 'gitea');
+    await expect(page.getByText('Pull request 1 on github')).toBeVisible();
+    await expect(page.locator('.filter-chip-label')).toHaveCount(0);
+    await expect(
+      page.getByRole('button', { name: 'Clear filters' }),
+    ).toBeDisabled();
+  });
+
+  test('a pick a pill offers still hides the option and resets the grouping', async ({
+    page,
+    baseURL,
+  }) => {
+    await open(page, baseURL, 'forgejo', { groupBy: 'forge' });
+    await expect(page.getByText('Pull request 2 on forgejo')).toBeVisible();
+    await expect(page.locator('#shared-group-select')).toHaveValue('');
+    await expect(
+      page.locator('#shared-group-select option[value="forge"]'),
+    ).toBeHidden();
+  });
+});
+
+test.describe('a saved forge pick nothing reports, on Insights (#4171)', () => {
+  test('checks the All radio', async ({ page, baseURL }) => {
+    await page.context().addCookies([
+      {
+        name: 'forge-board-filters',
+        value: JSON.stringify({ shared: { forge: 'gitea' } }),
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github'), forgeHealth('forgejo')],
+          pullRequests: [pr(1, 'github'), pr(2, 'forgejo')],
+          issues: [],
+        }),
+      }),
+    );
+    await page.goto('/insights.html');
+    await expect(page.locator('#repo-pr-ranking .rank-row')).not.toHaveCount(0);
+    await expect(
+      page.locator('input[data-col="forge"][value=""]'),
+    ).toBeChecked();
   });
 });

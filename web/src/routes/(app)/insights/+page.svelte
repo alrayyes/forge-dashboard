@@ -245,9 +245,12 @@
     filterBarEl
       .querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
-        const value = sharedState.shared[(c as HTMLElement).dataset.col ?? ""];
+        const col = (c as HTMLElement).dataset.col ?? "";
+        const value = sharedState.shared[col];
         if (c instanceof HTMLInputElement && c.type === "radio") {
-          c.checked = c.value === (value || "");
+          // A forge pick no button offers reads as All (#4171).
+          const shown = col === "forge" ? Filters.effectiveForge(value) : value;
+          c.checked = c.value === (shown || "");
           return;
         }
         if (!value) return;

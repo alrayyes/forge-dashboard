@@ -255,6 +255,15 @@ export function activePill(state: SharedFilterState, group: PillGroup): string {
   return 'all';
 }
 
+// The forge pick in effect: a saved pick no forge pill offers reads as All,
+// the way activePill reads it, so every reader of the pick agrees (#4167,
+// #4171).
+export function effectiveForge(pick: string | undefined): string {
+  return pick && (PILL_GROUPS.forge as readonly string[]).includes(pick)
+    ? pick
+    : '';
+}
+
 // The pill in effect on a page. The issues page ignores the pull-request-only
 // groups (#827), so only the forge group is in effect there.
 export function effectivePill(
@@ -1376,11 +1385,7 @@ export function failingFilters(
 ): string[] {
   const repoKey = `${item.forge}:${item.repo}`.toLowerCase();
   const failing: string[] = [];
-  // A pick no forge pill offers reads as All in the pills and chips (see
-  // activePill), so it filters as All too (#4167).
-  const forge = (PILL_GROUPS.forge as readonly string[]).includes(shared.forge)
-    ? shared.forge
-    : '';
+  const forge = effectiveForge(shared.forge);
   if (forge && item.forge !== forge) failing.push('forge');
   if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
@@ -1791,7 +1796,9 @@ export function filtersAreDefault(
   },
 ): boolean {
   return (
-    Object.keys(state.shared).every((k) => !state.shared[k]) &&
+    Object.keys(state.shared).every((k) =>
+      k === 'forge' ? !effectiveForge(state.shared[k]) : !state.shared[k],
+    ) &&
     !state.pr.ci &&
     !state.pr.merge &&
     !state.pr.review &&

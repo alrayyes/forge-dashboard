@@ -7870,7 +7870,9 @@
         'option[value="forge"]',
       );
       if (!forgeOption) return;
-      const forgeFilterActive = Boolean(sharedState.shared.forge);
+      const forgeFilterActive = Boolean(
+        Filters.effectiveForge(sharedState.shared.forge),
+      );
       forgeOption.hidden = forgeFilterActive;
       if (forgeFilterActive && sharedState.shared.groupBy === "forge") {
         sharedState.shared.groupBy = "";
