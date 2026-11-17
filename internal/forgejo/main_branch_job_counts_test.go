@@ -125,6 +125,21 @@ func TestReadMainBranch_CountsTheJobsOfTheRuns(t *testing.T) {
 		assert.Equal(t, dashboard.MainBranchUnknown, row.Status)
 	})
 
+	t.Run("an unknown job beside a cancelled one reads unknown, not cancelled", func(t *testing.T) {
+		t.Parallel()
+		s := &mainBranchServer{
+			runs: []map[string]any{actionRun(1, "main", "cafef00d", "cancelled", started, stopped)},
+			jobs: map[string][]map[string]any{"1": jobsOf("success", "cancelled", "something-new")},
+		}
+		client := s.start(t)
+
+		row, err := client.ReadMainBranch(t.Context(), repoA)
+
+		require.NoError(t, err)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1, Unknown: 1}, row.Checks)
+		assert.Equal(t, dashboard.MainBranchUnknown, row.Status)
+	})
+
 	t.Run("reads the bare array a newer Forgejo answers with", func(t *testing.T) {
 		t.Parallel()
 		s := &mainBranchServer{

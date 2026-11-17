@@ -72,6 +72,18 @@ func TestFetch_MainBranch_CarriesTheCheckCounts(t *testing.T) {
 		assert.Equal(t, dashboard.CheckCounts{Passed: 2, Cancelled: 1}, row.Checks)
 	})
 
+	t.Run("an unknown check beside a cancelled one reads unknown, not cancelled", func(t *testing.T) {
+		t.Parallel()
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("FAILURE", map[string]int{"SUCCESS": 1, "CANCELLED": 1, "BRAND_NEW": 1},
+			checkRun("lint", "SUCCESS", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z"),
+			checkRun("secrets", "CANCELLED", "2026-10-10T09:01:00Z", "2026-10-10T09:01:05Z"),
+		)))
+
+		assert.Equal(t, dashboard.MainBranchUnknown, row.Status)
+		assert.Equal(t, dashboard.CheckCounts{Passed: 1, Cancelled: 1, Unknown: 1}, row.Checks)
+	})
+
 	t.Run("a held run is what failed, and the cancelled runs beside it are counted apart", func(t *testing.T) {
 		t.Parallel()
 
