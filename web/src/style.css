@@ -5622,6 +5622,35 @@ footer a[aria-current="page"] {
   max-width: 100%;
 }
 
+/* A locked entry in the menu prints its reason (#4187). Its button and note
+   start at the menu's left edge, under Rebase, instead of the right edge a
+   locked Merge uses. */
+.split-button-menu .row-action-locked-visible {
+  align-items: flex-start;
+}
+.split-button-menu .row-action-note {
+  align-items: flex-start;
+  text-align: left;
+}
+/* The locked Rebase's info badge sits on the bar's outer corner, clear of the
+   chevron, and its hover bubble steps aside while the menu prints the same
+   reason, so the words show once. The bubble stays in the tree and keeps
+   opacity 0, since it is still what the button is described by. */
+.split-button-bar > .row-action-locked .row-action-locked-hint {
+  right: auto;
+  left: -5px;
+}
+.split-button:has(.split-button-menu .row-action-note)
+  .split-button-bar
+  .row-action-locked:hover
+  .row-action-reason,
+.split-button:has(.split-button-menu .row-action-note)
+  .split-button-bar
+  .row-action-locked:focus-within
+  .row-action-reason {
+  opacity: 0;
+}
+
 /* A check's output, opened under it by Show output. */
 .run-output {
   flex: 1 1 100%;
