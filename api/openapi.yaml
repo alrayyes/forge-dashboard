@@ -713,7 +713,11 @@ paths:
         The browser goes there; Forgejo sends it back to
         `GET /api/v1/connections/forgejo/callback`. Fails with 409 when an
         instance is already connected: the instance is locked until
-        `DELETE /api/v1/connections/forgejo`. Replaces pasting a Forgejo token (#3951).
+        `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
+        refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
+        token (#3951). Needs `FORGEJO_OAUTH_CLIENT_ID` and
+        `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+        `SettingsResponse.forgejoOAuthConfigured`.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       requestBody:
@@ -751,8 +755,9 @@ paths:
       operationId: disconnectForgejo
       summary: Unlink the Forgejo account
       description: |
-        Deletes the stored token pair and clears the saved instance URL and
-        account name. Passkey sign-in is unaffected.
+        Deletes the stored token pair. When a pasted Forgejo token is saved,
+        the instance URL and account name stay and the dashboard goes back to
+        that token; otherwise both are cleared. Passkey sign-in is unaffected.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:
@@ -772,12 +777,15 @@ paths:
         Checks `state` (single use, ten minutes), exchanges `code` with the
         PKCE verifier, stores the token pair encrypted, and redirects the
         browser to `/settings`. A missing, wrong, used or expired `state`
-        answers 400 and stores nothing.
+        answers 400 and stores nothing. So does a refused code, a bad PKCE
+        verifier, or an error the forge sent back in the query. Nothing is
+        stored when the account name can't be read either (502).
       tags: [settings]
       security: [{ bearerAuth: [] }]
       parameters:
-        - { name: code, in: query, required: true, schema: { type: string } }
-        - { name: state, in: query, required: true, schema: { type: string } }
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
       responses:
         "303":
           description: Linked. Redirects to `/settings`.
@@ -789,6 +797,12 @@ paths:
                 $ref: "#/components/schemas/Error"
         "401":
           description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The token was granted but the instance wouldn't say whose account it is. Nothing is stored.
           content:
             application/json:
               schema:
@@ -4412,6 +4426,8 @@ components:
           forgejoUrl,
           forgejoUsername,
           forgejoTokenSet,
+          forgejoOAuthConfigured,
+          forgejoOAuthConnected,
           webhookToken,
           webhookSecret,
           renovateRebaseLabel,
@@ -4458,6 +4474,18 @@ components:
         forgejoTokenSet:
           type: boolean
           description: Whether a Forgejo token is currently saved.
+        forgejoOAuthConfigured:
+          type: boolean
+          description: |
+            Whether this server has a Forgejo OAuth client (`FORGEJO_OAUTH_CLIENT_ID`
+            and `FORGEJO_OAUTH_CLIENT_SECRET`), so `POST /api/v1/connections/forgejo`
+            can work at all.
+        forgejoOAuthConnected:
+          type: boolean
+          description: |
+            Whether a Forgejo account is linked with OAuth. Like `forgejoTokenSet`
+            it says only that one is on file; the access and refresh tokens are
+            never returned. A linked account wins over a pasted token.
         webhookToken:
           type: string
           description: |
