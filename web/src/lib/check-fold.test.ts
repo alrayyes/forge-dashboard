@@ -68,7 +68,7 @@ describe('foldBranch status', () => {
   test('a status the page does not know reads as unknown', () => {
     const odd: Check = { name: 'odd', url: '', status: 'pending' };
 
-    expect(foldBranch([odd]).status).toBe('running');
+    expect(foldBranch([odd]).status).toBe('unknown');
     expect(foldBranch([odd]).counts.unknown).toBe(1);
   });
 
@@ -152,8 +152,13 @@ describe('foldBranch counts', () => {
   test('an unknown job is counted and the branch is not passed', () => {
     const fold = foldBranch(jobs('success', 'something_new'));
     expect(fold.counts.unknown).toBe(1);
-    expect(fold.status).toBe('running');
+    expect(fold.status).toBe('unknown');
     expect(fold.failing).toEqual([]);
+  });
+
+  test('a job still going outranks an unknown one', () => {
+    expect(foldBranch(jobs('running', 'something_new')).status).toBe('running');
+    expect(foldBranch(jobs('failure', 'something_new')).status).toBe('failed');
   });
 
   test('every job lands in a count, so the counts add up', () => {

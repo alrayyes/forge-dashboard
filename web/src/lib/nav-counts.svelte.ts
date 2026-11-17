@@ -29,6 +29,7 @@ export type NavCount = {
   none?: number;
   noChecks?: number;
   awaitingApproval?: number;
+  unknown?: number;
 };
 
 export type NavCounts = {

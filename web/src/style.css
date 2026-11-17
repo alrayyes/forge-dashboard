@@ -576,6 +576,11 @@ header,
 .nav-none {
   color: var(--ink-2);
 }
+/* Unknown (#4063): neither a pass nor a failure, so the neutral ink. The
+   question glyph carries it, not the colour. */
+.nav-unknown {
+  color: var(--ink-2);
+}
 .nav-count svg {
   flex: none;
 }
@@ -2145,6 +2150,13 @@ a.ci-pill:hover {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* Unknown (#4063): a job nobody can grade is neither a pass nor a failure, and
+   nothing says it is going, so the neutral pair the pipeline panel gives the
+   state. The word and the question glyph carry it, not the colour. */
+.ci-pill.unknown {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
+}
 /* The counts after Cancelled (#3395): words, so they need no glyph. A phone
    keeps the passed count and drops the cancelled one; the pill's name and its
    tooltip say both. */
@@ -2212,11 +2224,17 @@ a.ci-pill:hover {
 .ci-pill.success .ci-seg-label {
   color: var(--good);
 }
+.ci-pill.unknown .ci-seg-label {
+  color: var(--ink-2);
+}
 .ci-pill.failure .ci-seg-label {
   color: var(--critical);
 }
 .ci-pill.success.segmented {
   box-shadow: inset 0 0 0 1px var(--good);
+}
+.ci-pill.unknown.segmented {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .ci-pill.failure.segmented {
   box-shadow: inset 0 0 0 1px var(--critical);
