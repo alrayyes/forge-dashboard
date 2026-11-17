@@ -267,7 +267,7 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 		return &old
 	}
 	if refusal != nil {
-		c.advisories.lists.Put(key, list, advisorycache.Retry)
+		v.ListReadAt = c.advisories.lists.Put(key, list, advisorycache.Retry).ReadAt
 		if c.advisories.putRefusal(key, v, refusal.String()) {
 			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
 				"status", refusal.status, "message", refusal.message)

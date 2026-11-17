@@ -186,8 +186,9 @@ func TestListAdvisories_KeepsAScoreWhenNoCVSSBlockHasAVector(t *testing.T) {
 
 // countingForge serves one repo's alerts and counts how often it is asked.
 type countingForge struct {
-	alertReads atomic.Int64
-	failAlerts atomic.Bool
+	alertReads   atomic.Int64
+	failAlerts   atomic.Bool
+	refuseAlerts atomic.Bool
 }
 
 func (f *countingForge) client(t *testing.T) *github.Client {
@@ -201,6 +202,12 @@ func (f *countingForge) client(t *testing.T) *github.Client {
 	})
 	mux.HandleFunc("/repos/alrayyes/a/dependabot/alerts", func(w http.ResponseWriter, _ *http.Request) {
 		f.alertReads.Add(1)
+		if f.refuseAlerts.Load() {
+			w.WriteHeader(http.StatusForbidden)
+			writeJSON(t, w, map[string]any{"message": "nope"})
+
+			return
+		}
 		if f.failAlerts.Load() {
 			http.Error(w, "boom", http.StatusInternalServerError)
 
@@ -264,4 +271,24 @@ func TestListAdvisories_RefreshReadsAgainAndAFailureKeepsTheLastGoodList(t *test
 	assert.Equal(t, dashboard.ReasonFailed, got.RefreshFailed)
 	assert.Len(t, got.Advisories, 2, "never an empty list")
 	assert.Equal(t, first.ReadAt, got.ReadAt)
+}
+
+func TestListAdvisories_AfterARowThatGitHubRefusedCostsNoForgeCall(t *testing.T) {
+	t.Parallel()
+	forge := &countingForge{}
+	forge.refuseAlerts.Store(true)
+	client := forge.client(t)
+	result := client.Fetch(t.Context())
+	require.Len(t, result.MainBranches, 1)
+	row := result.MainBranches[0].Advisories
+	require.NotNil(t, row)
+	require.Equal(t, dashboard.ReasonRefused, row.Reason)
+	afterRow := forge.alertReads.Load()
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.ReasonRefused, got.Reason)
+	assert.Equal(t, afterRow, forge.alertReads.Load(), "the refusal is kept, so the open asks nothing")
+	assert.Equal(t, got.ReadAt, row.ListReadAt)
 }
