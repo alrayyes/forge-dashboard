@@ -96,6 +96,69 @@ test.describe('webhooks filter choices (#1427)', () => {
     ).toHaveCount(1);
   });
 
+  test('the buttons keep the forge order, and the picked one is checked (#3976)', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        { forge: 'gitea', fullName: 'alrayyes/c', hasWebhook: true },
+        { forge: 'forgejo', fullName: 'alrayyes/b', hasWebhook: true },
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+      ],
+      [
+        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
+        {
+          forge: 'forgejo',
+          reachable: true,
+          capabilities: { label: 'Forgejo' },
+        },
+        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+      ],
+    );
+    await page.goto('/webhooks.html');
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(3);
+
+    const bar = page.locator('.webhooks-filter-bar');
+    await expect(bar.locator('.forge-segmented label')).toHaveText([
+      'All',
+      'GitHub',
+      'Forgejo',
+      'Gitea',
+    ]);
+    await forgeRadio(page, 'forgejo').check();
+    await expect(forgeRadio(page, 'forgejo')).toBeChecked();
+    await expect(forgeRadio(page, 'github')).not.toBeChecked();
+    await expect(forgeRadio(page, 'gitea')).not.toBeChecked();
+  });
+
+  test('a registered forge with no repo gets no button, and the others stay (#3976)', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+        { forge: 'forgejo', fullName: 'alrayyes/b', hasWebhook: true },
+      ],
+      [
+        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
+        {
+          forge: 'forgejo',
+          reachable: true,
+          capabilities: { label: 'Forgejo' },
+        },
+        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+      ],
+    );
+    await page.goto('/webhooks.html');
+    await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
+
+    await expect(forgeRadio(page, 'github')).toHaveCount(1);
+    await expect(forgeRadio(page, 'forgejo')).toHaveCount(1);
+    await expect(forgeRadio(page, 'gitea')).toHaveCount(0);
+  });
+
   test('a forge with no tracked repo is not offered, and neither is a status no repo has', async ({
     page,
   }) => {
