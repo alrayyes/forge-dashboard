@@ -162,6 +162,11 @@ whatever the last full refresh did. The next failed full refresh then carries
 the rows over as read at that moment, not at the old time. A repo a webhook
 refreshed during a failure is not marked again by the next failed full refresh.
 
+The server log names the cause of each failed full refresh: `full refresh failed`
+carries the forge and a `cause` (the error kind, such as `rate_limited` or
+`unreachable`), and `full refresh ran past the pass deadline` names a forge that
+was only slow.
+
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board

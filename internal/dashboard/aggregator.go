@@ -1015,6 +1015,7 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 				}
 			}
 			for i := range pending {
+				slog.Warn("full refresh ran past the pass deadline", "forge", a.sources[i].Forge())
 				results[i] = sourceResult{asked: true}
 				results[i].Health = a.unreachableFrom(earlier, i)
 			}
@@ -1138,6 +1139,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for i, sr := range results {
 		r := sr.Result
 		forge := a.sources[i].Forge()
+		logFailedRefresh(sr, forge)
 		r = settleOrHold(r, sr.asked, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
 		noteProviderStatus(ctx, &r.Health, a.sources[i])
@@ -1169,6 +1171,14 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// logFailedRefresh names the cause of a full refresh that asked forge and got no
+// answer, so a report of old rows can be traced from the log (#3869).
+func logFailedRefresh(sr sourceResult, forge Forge) {
+	if sr.asked && !sr.Health.Reachable {
+		slog.Warn("full refresh failed", "forge", forge, "cause", sr.Health.ErrorKind, "error", sr.Health.Error)
+	}
 }
 
 // ForgeFailureThreshold is how many fetches in a row must fail, whatever the

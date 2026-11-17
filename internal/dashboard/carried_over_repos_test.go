@@ -122,3 +122,21 @@ func TestAggregator_AScopedRefreshWhileFullRefreshesFail(t *testing.T) {
 		assert.NotNil(t, repoNamed(t, agg, "o/b").StaleSince)
 	})
 }
+
+// A full refresh that fails says why in the server log, so a report of old rows
+// can be traced to a cause without catching the next failure live (#3869).
+func TestAggregator_AFailedFullRefreshLogsItsCause(t *testing.T) {
+	logs := withCapturedLogs(t)
+	src := &fakeSource{result: dashboard.Result{Health: dashboard.ForgeHealth{
+		Forge: dashboard.ForgeGitHub, Reachable: false,
+		Error: "rate limited", ErrorKind: dashboard.ForgeErrorRateLimited,
+	}}}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+
+	agg.Refresh(t.Context())
+
+	logged := logs.String()
+	assert.Contains(t, logged, "full refresh failed")
+	assert.Contains(t, logged, "forge=github")
+	assert.Contains(t, logged, "cause=rate_limited")
+}
