@@ -22,8 +22,8 @@
     saveState,
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
-  import { noReposCopy } from "#lib/forge-copy.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { noReposCopy, permissionsNotReportedCopy } from "#lib/forge-copy.js";
+  import { FORGE_CLASSES, FORGE_LABELS, forgeCan } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
@@ -1474,10 +1474,9 @@
                             <a href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
-                          {:else if repo.webhookLockedByConnection && repo.forge === "forgejo"}
-                            Forgejo didn't report your access on this repo, so
-                            the dashboard can't tell if you can manage its
-                            webhooks. <a href="/settings.html#webhooks"
+                          {:else if repo.webhookLockedByConnection && forgeCan(repo.forge, "reportsRepoPermissions")}
+                            {permissionsNotReportedCopy(repo.forge)}
+                            <a href="/settings.html#webhooks"
                               >Set it up manually</a
                             >.
                           {:else if repo.webhookLockedByConnection}

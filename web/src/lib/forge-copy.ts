@@ -48,6 +48,11 @@ export function noReposCopy(): string {
   return `Nothing tracked yet — save ${forges} credentials in Settings first.`;
 }
 
+// The Webhooks row of a repo the forge listed without the user's permissions.
+export function permissionsNotReportedCopy(forge: string): string {
+  return `${name(forge)} didn't report your access on this repo, so the dashboard can't tell if you can manage its webhooks.`;
+}
+
 export type PageView = 'issues' | 'releases' | 'bots' | 'pulls';
 
 export function pageDescription(view: PageView): string {

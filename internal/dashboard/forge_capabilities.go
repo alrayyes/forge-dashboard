@@ -28,6 +28,11 @@ type ForgeCapabilities struct {
 	// worth saying only if the server names a reason. Without one it usually
 	// means a repository with nothing to check, so a client stays quiet.
 	AdvisoryUnknownNeedsReason bool `json:"advisoryUnknownNeedsReason"`
+	// ReportsRepoPermissions is true when the forge sends the signed-in user's
+	// permissions with each repo it lists, so a repo that arrives without them
+	// is the forge's omission and says nothing about the user's role. False
+	// when the dashboard finds out by trying the endpoint instead.
+	ReportsRepoPermissions bool `json:"reportsRepoPermissions"`
 	// StatusPageURL is the forge's public status page, or empty when it has none.
 	StatusPageURL string `json:"statusPageUrl"`
 	// RateLimitModel names how the forge budgets requests.
@@ -70,6 +75,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		DependabotCommands:         true,
 		AdvisorySource:             AdvisorySourceDependabot,
 		AdvisoryUnknownNeedsReason: false,
+		ReportsRepoPermissions:     false,
 		StatusPageURL:              "https://www.githubstatus.com/",
 		RateLimitModel:             RateLimitGraphQLAndREST,
 		IssueRefSyntax:             IssueRefHashOrGHPref,
@@ -94,6 +100,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		DependabotCommands:         false,
 		AdvisorySource:             AdvisorySourceOSV,
 		AdvisoryUnknownNeedsReason: true,
+		ReportsRepoPermissions:     true,
 		StatusPageURL:              "",
 		RateLimitModel:             RateLimitRESTOnly,
 		IssueRefSyntax:             IssueRefHash,

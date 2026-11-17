@@ -101,6 +101,7 @@ describe('forgeCan', () => {
         'serverLogExcerpts',
         'approvalGatedRuns',
         'autoMergeHeldByApp',
+        'reportsRepoPermissions',
       ] as const) {
         expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
       }
@@ -116,6 +117,17 @@ describe('forgeCan', () => {
   test('a forge the page has not heard of can do nothing', () => {
     expect(forgeCan('unknown', 'servesRunningLog')).toBe(false);
     expect(forgeCan(undefined, 'servesRunningLog')).toBe(false);
+  });
+
+  test('a registered third forge says whether it reports repo permissions', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { reportsRepoPermissions: true } },
+      { forge: 'other', capabilities: { reportsRepoPermissions: false } },
+    ]);
+
+    expect(forgeCan('gitea', 'reportsRepoPermissions')).toBe(true);
+    expect(forgeCan('other', 'reportsRepoPermissions')).toBe(false);
+    expect(forgeCan('never-heard-of', 'reportsRepoPermissions')).toBe(false);
   });
 
   test('a read teaches the flags a forge sent', () => {
