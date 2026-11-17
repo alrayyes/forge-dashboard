@@ -8,7 +8,10 @@ import { test } from './server-fixture';
 // the pair share a line at every phone width, 320px included. The 52px wait
 // slot above the bar stays (#1229); only the bar's own height is pinned here.
 const TAP = 44;
-const WIDTHS = [320, 360, 390, 412];
+// 330 and 333 fit only because of the narrow rule; 340 and 341 sit either side
+// of its breakpoint.
+const WIDTHS = [320, 330, 333, 340, 341, 360, 390, 412];
+const BREAKPOINT = 340;
 
 function pr(overrides: Record<string, unknown> = {}) {
   return {
@@ -137,6 +140,12 @@ for (const [name, extra] of Object.entries(shapes)) {
         expect(b.x, msg).toBeGreaterThanOrEqual(a.x + a.w);
         expect(m.barHeight, msg).toBeLessThanOrEqual(TAP + 10 + 1 + 4 + 1);
       }
+      // The narrow rule applies at the breakpoint and not above it.
+      const merge = m.buttons.find((b) => b.label === 'Merge');
+      if (merge) {
+        if (width > BREAKPOINT) expect(merge.w, msg).toBeCloseTo(120, 0);
+        else expect(merge.w, msg).toBeLessThanOrEqual(100.5);
+      }
       if (m.buttons.length === 1 && m.barHeight > 0) {
         expect(m.barHeight, msg).toBeLessThanOrEqual(TAP + 10 + 1 + 4 + 1);
       }
@@ -196,4 +205,49 @@ test('axe finds nothing on the locked Merge + Update row in light and dark', asy
       expect(results.violations).toEqual([]);
     });
   }
+});
+
+const OWN_NOTE = {
+  ci: 'success',
+  behind: true,
+  allowedActions: [
+    {
+      action: 'merge',
+      blocked: {
+        code: 'review_required',
+        message: 'A review is required',
+        next: 'Ask for an approval',
+      },
+    },
+    { action: 'update_branch' },
+  ],
+};
+
+for (const width of [320, 390]) {
+  test(`${width}px: a locked Merge that prints its own note keeps the full line`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 844 });
+    const row = await open(page, pr(OWN_NOTE));
+    await expect(row.locator('.row-action-locked-visible')).toBeVisible();
+    const m = await measure(page);
+    const wrap = await row.locator('.row-action-locked-visible').boundingBox();
+    const bar = await row.locator('.row-action-bar').boundingBox();
+    const msg = JSON.stringify({ m, wrap, bar });
+    expect(wrap?.width, msg).toBeGreaterThanOrEqual((bar?.width ?? 0) - 1);
+    const update = m.buttons.find((b) => b.label === 'Update branch');
+    const merge = m.buttons.find((b) => b.label === 'Merge');
+    // Update branch wraps under the note, not beside it.
+    expect(update?.y, msg).toBeGreaterThan((merge?.y ?? 0) + (merge?.h ?? 0));
+    expect(m.overflow, msg).toBe(false);
+  });
+}
+
+test('1280px: the desktop row bar is untouched', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const row = await open(page, pr(shapes['locked Merge + Update branch']));
+  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'contents');
+  const m = await measure(page);
+  expect(m.buttons.length).toBeGreaterThan(0);
+  for (const b of m.buttons) expect(b.h).toBeLessThan(TAP);
 });
