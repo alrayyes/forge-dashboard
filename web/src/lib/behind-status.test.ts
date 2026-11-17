@@ -26,7 +26,10 @@ describe('an armed pull request that is behind, as the server sends it', () => {
     expect(strict.behind).toBe(true);
     expect(chip?.label).toBe('Waiting for update');
     expect(chip?.detail).toBe('The branch must be up to date');
-    expect(chip?.tooltip).toBe(strict.autoMerge.message);
+    // The server says "the forge"; the page names it from the label (#4072).
+    expect(chip?.tooltip).toBe(
+      strict.autoMerge.message.replace('The forge', 'GitHub'),
+    );
     expect(strict.allowedActions.map((a) => a.action)).toContain(
       'update_branch',
     );
