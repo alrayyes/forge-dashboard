@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.71.0](https://github.com/alrayyes/forge-dashboard/compare/v9.70.1...v9.71.0) (2026-11-17)
+
+
+### Features
+
+* **web:** say in Settings that italic pills reference an issue and upright ones close it ([#4127](https://github.com/alrayyes/forge-dashboard/issues/4127)) ([c97e7c7](https://github.com/alrayyes/forge-dashboard/commit/c97e7c7b648e366f1a94cd15d3a2e9d6a1052a4d)), closes [#3999](https://github.com/alrayyes/forge-dashboard/issues/3999)
+
+## [9.70.1](https://github.com/alrayyes/forge-dashboard/compare/v9.70.0...v9.70.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** name the Copy button for the word it shows ([#4134](https://github.com/alrayyes/forge-dashboard/issues/4134)) ([478ec29](https://github.com/alrayyes/forge-dashboard/commit/478ec297c39272121d826d87f43d1f7b171f7b8b)), closes [#4122](https://github.com/alrayyes/forge-dashboard/issues/4122)
+
 ## [9.70.0](https://github.com/alrayyes/forge-dashboard/compare/v9.69.4...v9.70.0) (2026-11-17)
 
 

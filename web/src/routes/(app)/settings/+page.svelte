@@ -2174,6 +2174,11 @@
               Save button below, which also saves any unsaved GitHub and Forgejo
               changes.
             </p>
+            <p class="field-hint" id="pill-style-hint">
+              Pull request pills on an issue show how it is linked. Upright
+              means the pull request closes the issue, italic means it only
+              references it and does not close it.
+            </p>
             <label class="check-row">
               <input
                 type="checkbox"

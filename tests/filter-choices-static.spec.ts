@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
@@ -40,7 +41,7 @@ async function open(page: Page, path: string, pullRequests: unknown[]) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests,
         issues: [],
         openIssueCount: 0,
@@ -157,7 +158,7 @@ test.describe('forge buttons on Insights (#1427)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr(1)],
           issues: [],
           openIssueCount: 0,
