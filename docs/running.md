@@ -171,8 +171,10 @@ noisy near the edge. It is lower than the peak because the soft limit above
 makes the runtime collect hard, and a container at its floor spends that time
 in the garbage collector. Whether a start survives there depends on timing: at
 1000 repos, 64 MiB held in two of four repeat runs and was OOM-killed twice in
-the other two (48 and 56 MiB always failed), so the table gives 64 to 96 MiB,
-and the 500-repo figure is as soft. The 256 MiB recommendation is about 1.4
+the other two (48 and 56 MiB always failed), so the table gives 64 to 96 MiB.
+The 96 MiB upper end was not measured at 1000 repos. It is inferred from the
+2000-repo run, where 96 MiB was killed and 128 MiB held. The 500-repo figure is
+as soft. The 256 MiB recommendation is about 1.4
 times the 180 MiB peak of the largest synthetic account here (2000 repos) and
 twice its 128 MiB floor, and leaves the room real bodies and check lists need,
 so it stands.
