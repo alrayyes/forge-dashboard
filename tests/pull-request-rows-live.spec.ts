@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { closeStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Pull requests page follows the jobs of the first rows it draws, so a row
@@ -36,7 +37,7 @@ async function serveBoard(page: Page, count: number) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: Array.from({ length: count }, (_, i) => pr(i + 1)),
         issues: [],
       }),
@@ -94,7 +95,7 @@ test.describe('pull request rows follow their jobs', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: Array.from({ length: ROWS }, (_, i) => pr(i + 1)),
           issues: [],
         }),
@@ -309,7 +310,7 @@ test.describe('pull request rows follow their jobs', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr(1)],
           issues: [],
         }),
