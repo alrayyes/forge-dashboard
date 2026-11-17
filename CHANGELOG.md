@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.69.3](https://github.com/alrayyes/forge-dashboard/compare/v9.69.2...v9.69.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** keep what a webhook set when a full refresh settles after it ([#4112](https://github.com/alrayyes/forge-dashboard/issues/4112)) ([8533b3f](https://github.com/alrayyes/forge-dashboard/commit/8533b3f45ea520922712f9cc35f66737d48ce72a))
+
 ## [9.69.2](https://github.com/alrayyes/forge-dashboard/compare/v9.69.1...v9.69.2) (2026-11-17)
 
 
