@@ -41,7 +41,7 @@ func TestAutoMergeRules_FollowTheCapabilityNotTheForgeName(t *testing.T) {
 	assert.False(t, armedOnForge(armed), "an app-held one is merged by the app, not polled for")
 	assert.False(t, armedOnForge(PullRequest{Forge: "nope", AutoMergeEnabled: &on}))
 
-	assert.True(t, appMergesArmed(heldByApp))
-	assert.False(t, appMergesArmed(heldByForge))
-	assert.False(t, appMergesArmed("nope"))
+	assert.True(t, AppMergesArmed(heldByApp))
+	assert.False(t, AppMergesArmed(heldByForge))
+	assert.False(t, AppMergesArmed("nope"))
 }
