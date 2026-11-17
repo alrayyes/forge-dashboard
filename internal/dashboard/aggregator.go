@@ -707,7 +707,13 @@ func (a *Aggregator) mergeReposFrom(ctx context.Context, forge Forge, seq uint64
 		return
 	}
 	merged.Repos = withoutStale(merged.Repos, forge, fetched)
-	merged.Forges = clearStartingWhenFresh(merged.Forges, merged.Repos, forge)
+	forges, changed := clearMarkWhenFresh(merged.Forges, merged.Repos, forge)
+	if changed {
+		// Every repo on show is current as of now, so the next failed full
+		// refresh carries them over as read now, not at the last full read.
+		a.lastGood[forge] = time.Now().UTC()
+	}
+	merged.Forges = forges
 	a.snap = merged
 	a.mu.Unlock()
 
@@ -1009,6 +1015,7 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 				}
 			}
 			for i := range pending {
+				slog.Warn("full refresh ran past the pass deadline", "forge", a.sources[i].Forge())
 				results[i] = sourceResult{asked: true}
 				results[i].Health = a.unreachableFrom(earlier, i)
 			}
@@ -1132,6 +1139,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for i, sr := range results {
 		r := sr.Result
 		forge := a.sources[i].Forge()
+		logFailedRefresh(sr, forge)
 		r = settleOrHold(r, sr.asked, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
 		noteProviderStatus(ctx, &r.Health, a.sources[i])
@@ -1163,6 +1171,14 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// logFailedRefresh names the cause of a full refresh that asked forge and got no
+// answer, so a report of old rows can be traced from the log (#3869).
+func logFailedRefresh(sr sourceResult, forge Forge) {
+	if sr.asked && !sr.Health.Reachable {
+		slog.Warn("full refresh failed", "forge", forge, "cause", sr.Health.ErrorKind, "error", sr.Health.Error)
+	}
 }
 
 // ForgeFailureThreshold is how many fetches in a row must fail, whatever the
@@ -1259,6 +1275,7 @@ func settleSource(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.
 		// had, and say how old that is.
 		r = carryOver(r, earlier, forge)
 		r.Health.StaleSince = &at
+		r.Repos = markCarriedRepos(r.Repos, earlier, forge, at)
 	}
 
 	return r
@@ -1526,6 +1543,21 @@ func carryOver(res Result, earlier Snapshot, forge Forge) Result {
 	return res
 }
 
+// markCarriedRepos is repos with each repo that has no stale mark marked as last
+// read at since, when forge has just failed: the rows it carries over are old,
+// and each repo says so, so a scoped refresh can make one current while the
+// others stay marked (#3869). A forge that was already failing keeps its repos
+// as they were: a repo without a mark is one a scoped refresh made current since,
+// and marking it again would call it old. It copies the slice: the snapshot's
+// own is shared with readers.
+func markCarriedRepos(repos []Repo, earlier Snapshot, forge Forge, since time.Time) []Repo {
+	if prev, ok := healthOf(earlier, forge); ok && !prev.Reachable {
+		return repos
+	}
+
+	return markReposStale(Result{Repos: repos}, since, true).Repos
+}
+
 // withoutStale is repos with StaleSince cleared on the rows of forge's repos
 // named in fullNames. It leaves FailingSince: a scoped refresh fetches what a
 // webhook told it about, not what the full refresh keeps failing on, so only a
@@ -1680,27 +1712,35 @@ func keepRows(repos, current []Repo, newer map[repoKey]bool) []Repo {
 	return out
 }
 
-// clearStartingWhenFresh ends a forge's start-up mark once a scoped refresh has
-// replaced every saved repo it showed: the forge answered, and nothing on
-// screen is from the last run any more. While another repo still carries its
-// saved rows the mark stays, since those rows are still old. forges is never
-// edited in place; a reader may hold it.
-func clearStartingWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) []ForgeHealth {
-	i := slices.IndexFunc(forges, func(h ForgeHealth) bool { return h.Forge == forge && h.Starting })
+// clearMarkWhenFresh ends a forge's mark once a scoped refresh has replaced
+// every repo it showed from an earlier answer: the start-up mark of a forge
+// showing the last run's rows, or the failure mark of a forge whose full
+// refresh failed. The forge answered for each of its repos, and nothing on
+// screen is old any more. While another repo still carries an earlier answer the
+// mark stays, since those rows are still old. forges is never edited in place; a
+// reader may hold it.
+func clearMarkWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) (out []ForgeHealth, cleared bool) {
+	i := slices.IndexFunc(forges, func(h ForgeHealth) bool {
+		return h.Forge == forge && (h.Starting || (!h.Reachable && h.StaleSince != nil))
+	})
 	if i < 0 {
-		return forges
+		return forges, false
 	}
 	if slices.ContainsFunc(repos, func(r Repo) bool {
 		return r.Forge == forge && ClaimOfRow(ClaimState, r.StaleSince).State == ClaimCarriedOver
 	}) {
-		return forges
+		return forges, false
 	}
-	out := slices.Clone(forges)
+	out = slices.Clone(forges)
 	out[i].Starting = false
 	out[i].Reachable = true
 	out[i].StaleSince = nil
+	out[i].Error = ""
+	out[i].ErrorKind = ""
+	out[i].UpstreamStatus = 0
+	out[i].ProviderStatus = nil
 
-	return out
+	return out, true
 }
 
 // noteBlockedActions records on a forge's health what its source says it
