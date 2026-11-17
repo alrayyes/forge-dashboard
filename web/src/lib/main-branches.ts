@@ -6,7 +6,7 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
-import { advisoryFactsOf, forgeIds, isKnownForge } from './forges';
+import { advisoryFactsOf, forgeIds, isKnownForge, ownOf } from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
 import { rowClaim } from './row-claim';
@@ -734,7 +734,10 @@ export const ADVISORY_WORDS_BY_SOURCE: Record<string, AdvisorySourceWords> = {
 // The words for a forge's advisory source, neutral for one nobody wrote.
 export function advisoryWordsFor(forge: string): AdvisorySourceWords {
   const source = advisoryFactsOf(forge)?.source;
-  return (source && ADVISORY_WORDS_BY_SOURCE[source]) || NEUTRAL_ADVISORY_WORDS;
+  return (
+    (source && ownOf(ADVISORY_WORDS_BY_SOURCE, source)) ||
+    NEUTRAL_ADVISORY_WORDS
+  );
 }
 
 // Whether the row's pill opens the advisories dialog on this page.

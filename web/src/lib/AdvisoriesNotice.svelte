@@ -3,7 +3,7 @@
   // at all: what it was, as far as the server knows, and the page that explains
   // how to fix it. The page decides when to show it; this says what it says.
   // The wording is keyed by the forge's advisory source, not by its name.
-  import { FORGE_LABELS } from "#lib/forges.js";
+  import { forgeLabelOf } from "#lib/forges.js";
   import {
     advisoryReasonNeedsGrant,
     advisoryWordsFor,
@@ -21,7 +21,7 @@
   } = $props();
 
   const words = $derived(advisoryWordsFor(forge));
-  const label = $derived(FORGE_LABELS[forge] ?? forge);
+  const label = $derived(forgeLabelOf(forge));
   // The permission steps, and the page that explains them, are said only when a
   // grant could fix it: no cause named, or one a grant fixes.
   const grantApplies = $derived(!reason || advisoryReasonNeedsGrant(reason));
