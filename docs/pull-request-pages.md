@@ -112,7 +112,9 @@ filters** empties it.
 Once the box holds text, a **Clear title filter** button appears inside it, in
 place of the `/` hint. It and Escape (with focus in the box) empty the box and
 reset the title filter alone: the other filters stay as they are, and focus
-stays in the box. Escape on an empty box does nothing.
+stays in the box. Escape on an empty box does nothing. The Insights title box
+has the same button and Escape, and so does the search box on Main branches
+(button label **Clear search**, see [Main branches](main-branches.md)).
 
 ## Short lists
 

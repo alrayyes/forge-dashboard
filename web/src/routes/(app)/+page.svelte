@@ -21,6 +21,7 @@
     firstRefreshLoading,
     firstRefreshPending,
   } from "#lib/first-refresh.js";
+  import { wireClearBox } from "#lib/clear-box.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { setBranchNavCount } from "#lib/nav-counts.svelte.js";
   import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
@@ -469,6 +470,12 @@
     filter.advisories = advisories;
     save(["advisories"]);
   }
+  let searchBox: HTMLInputElement | undefined = $state();
+  let searchClear: HTMLButtonElement | undefined = $state();
+  // Clear button and Escape empty the search alone (#4144).
+  $effect(() =>
+    searchBox && searchClear ? wireClearBox(searchBox, searchClear) : undefined,
+  );
   function setQuery(event: Event) {
     filter.query = (event.currentTarget as HTMLInputElement).value;
     save(["query"], true);
@@ -643,6 +650,18 @@
       background: var(--surface-sunken);
       border: 1px solid var(--control-border);
       border-radius: var(--radius);
+    }
+    /* The clear button (#4144) sits inside the box, so the wrap takes the
+       box's place in the bar and the box fills it. */
+    .mb-search-wrap {
+      position: relative;
+      display: flex;
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+    .mb-search-wrap .mb-search {
+      flex: 1 1 auto;
+      padding-right: 32px;
     }
     .mb-search::placeholder {
       color: var(--ink-3);
@@ -934,10 +953,20 @@
         flex-direction: column;
         align-items: stretch;
       }
-      .mb-search {
+      .mb-search-wrap {
+        flex: none;
+        width: 100%;
+      }
+      .mb-search-wrap .mb-search {
         flex: none;
         box-sizing: border-box;
         width: 100%;
+        padding-right: 44px;
+      }
+      .mb-search-wrap .search-clear {
+        width: 44px;
+        height: 44px;
+        right: 0;
       }
       /* The capsule is about 200px wide. Beside the name it leaves the name
          102px and breaks it inside a word, so on a phone it sits above. */
@@ -1118,14 +1147,35 @@
             {/if}
           </div>
         {/if}
-        <input
-          type="search"
-          class="mb-search"
-          aria-label="Search repositories, commits, authors and failing jobs"
-          placeholder="Search repos, authors, jobs"
-          value={filter.query}
-          oninput={setQuery}
-        />
+        <span class="search-wrap mb-search-wrap">
+          <input
+            type="search"
+            id="mb-search"
+            class="mb-search"
+            aria-label="Search repositories, commits, authors and failing jobs"
+            placeholder="Search repos, authors, jobs"
+            value={filter.query}
+            oninput={setQuery}
+            bind:this={searchBox}
+          />
+          <button
+            type="button"
+            class="search-clear"
+            aria-label="Clear search"
+            aria-controls="mb-search"
+            bind:this={searchClear}
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </span>
       </div>
 
       {#if visible.length === 0}

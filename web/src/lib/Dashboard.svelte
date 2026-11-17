@@ -50,6 +50,7 @@
   } from "#lib/auto-update.js";
   import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
+  import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
@@ -8824,22 +8825,8 @@
     // The box's own input handler then resets just that filter. Whether the
     // button shows is CSS, off the placeholder, so it follows a restored value
     // too.
-    function clearTitleBox() {
-      if (!titleSearch || titleSearch.value === "") return false;
-      titleSearch.value = "";
-      titleSearch.dispatchEvent(new Event("input", { bubbles: true }));
-      return true;
-    }
-    titleSearch?.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && clearTitleBox()) e.preventDefault();
-    });
     const titleClear = document.getElementById("title-filter-clear");
-    // A press must not pull focus off the box (Firefox moves it otherwise).
-    titleClear?.addEventListener("mousedown", (e) => e.preventDefault());
-    titleClear?.addEventListener("click", () => {
-      clearTitleBox();
-      titleSearch?.focus();
-    });
+    if (titleSearch && titleClear) wireClearBox(titleSearch, titleClear);
 
     const sharedGroupSelect = document.getElementById(
       "shared-group-select",

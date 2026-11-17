@@ -80,9 +80,12 @@ each forge in the toggle, is offered only when a row would show under it, given
 the search and the other pill, so none leads to an empty list; the one that is
 active always stays, so it can be cleared. A forge toggle and a search box
 narrow the list further; search matches the repo, branch, commit, author, and
-failing job names. The filter is saved with the other pages' filters, in the
-shared filter cookie and in the copy on the server, so it is still set after a
-reload and in another browser.
+failing job names. Once the box holds text, a **Clear search** button appears
+inside it, and Escape with focus in the box does the same: both empty the
+search alone, leave the other filters as they are, and keep focus in the box.
+On a phone the button is a 44px target. The filter is saved with the other
+pages' filters, in the shared filter cookie and in the copy on the server, so it
+is still set after a reload and in another browser.
 
 An advisories group (Any, Has advisories, No advisories) sits beside the forge
 toggle once some row has an answer, and follows the same rule: a choice is
