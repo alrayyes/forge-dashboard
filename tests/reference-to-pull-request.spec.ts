@@ -335,6 +335,22 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
       await expect(shell).toBeVisible();
       await expect(shell.locator('.details-skeleton')).toBeVisible();
       const before = await spots(shell);
+      // Every change to the page on the way, not only where it ends up.
+      await page.evaluate(() => {
+        const w = window as unknown as { __refTops: number[] };
+        w.__refTops = [];
+        new MutationObserver(() => {
+          const top = document
+            .querySelector('dialog.details-dialog[open] .details-ref')
+            ?.getBoundingClientRect().top;
+          if (top !== undefined) w.__refTops.push(top);
+        }).observe(document.body, {
+          subtree: true,
+          childList: true,
+          attributes: true,
+          characterData: true,
+        });
+      });
       release();
       await expect(
         prDialog(page).getByRole('heading', {
@@ -344,6 +360,12 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
       await expect(prDialog(page).locator('.details-skeleton')).toBeHidden();
       const after = await spots(prDialog(page));
 
+      const tops = await page.evaluate(
+        () => (window as unknown as { __refTops: number[] }).__refTops,
+      );
+      expect(tops.length).toBeGreaterThan(0);
+      for (const top of tops)
+        expect(Math.abs(top - (before.ref ?? 0))).toBeLessThanOrEqual(1);
       for (const key of ['dialog', 'ref', 'title', 'close'] as const)
         expect(
           Math.abs((after[key] ?? 0) - (before[key] ?? 0)),
