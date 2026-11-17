@@ -62,12 +62,22 @@ const SEED_FLAGS: Record<string, Partial<Record<ForgeFlag, boolean>>> = {
   },
 };
 
+// The value a registry holds for key, never one inherited from
+// Object.prototype: a forge id comes from the server, and `constructor` or
+// `__proto__` must read as a forge nobody described.
+export function ownOf<T>(
+  registry: Record<string, T>,
+  key: string,
+): T | undefined {
+  return Object.hasOwn(registry, key) ? registry[key] : undefined;
+}
+
 let FORGE_FLAGS = structuredClone(SEED_FLAGS);
 
 // Whether forge can do what flag names. False for a forge never heard of or
 // not named: behaviour comes from here, never from the forge's name.
 export function forgeCan(forge: string | undefined, flag: ForgeFlag): boolean {
-  return !!forge && FORGE_FLAGS[forge]?.[flag] === true;
+  return !!forge && ownOf(FORGE_FLAGS, forge)?.[flag] === true;
 }
 
 const SEED_RATE_LIMIT_MODELS: Record<string, string> = {
@@ -79,7 +89,7 @@ let RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
 
 // How a forge budgets requests, or '' for one nobody described.
 export function rateLimitModelOf(forge: string | undefined): string {
-  return (forge && RATE_LIMIT_MODELS[forge]) || '';
+  return (forge && ownOf(RATE_LIMIT_MODELS, forge)) || '';
 }
 
 // What a forge said about a flag: undefined when it never did, so a caller can
@@ -88,7 +98,7 @@ export function forgeFlag(
   forge: string | undefined,
   flag: ForgeFlag,
 ): boolean | undefined {
-  return forge ? FORGE_FLAGS[forge]?.[flag] : undefined;
+  return forge ? ownOf(FORGE_FLAGS, forge)?.[flag] : undefined;
 }
 
 // What a forge's advisories are, as a page needs it: where they come from, and
@@ -107,7 +117,7 @@ const ADVISORY_FACTS: Record<string, AdvisoryFacts> =
   structuredClone(SEED_ADVISORY_FACTS);
 
 export function advisoryFactsOf(forge: string): AdvisoryFacts | undefined {
-  return ADVISORY_FACTS[forge];
+  return ownOf(ADVISORY_FACTS, forge);
 }
 
 // Which images a forge's text may embed, and how the server must fetch them
@@ -142,9 +152,7 @@ const IMAGE_POLICIES: Record<string, ImagePolicy> =
 // The image rules of forge, or undefined for one nobody described: its images
 // are then never asked for.
 export function imagePolicyOf(forge: string): ImagePolicy | undefined {
-  return Object.hasOwn(IMAGE_POLICIES, forge)
-    ? IMAGE_POLICIES[forge]
-    : undefined;
+  return ownOf(IMAGE_POLICIES, forge);
 }
 
 export function registerImagePolicy(forge: string, policy: ImagePolicy) {
@@ -167,6 +175,11 @@ const SEED_LABELS: Record<string, string> = {
 const SEED_FORGE_IDS = ['github', 'forgejo'];
 
 let FORGE_IDS = [...SEED_FORGE_IDS];
+
+// The label to show for a forge: its own name when nobody gave it one.
+export function forgeLabelOf(forge: string): string {
+  return ownOf(FORGE_LABELS, forge) || forge;
+}
 
 export function forgeIds(): string[] {
   return [...FORGE_IDS];
@@ -196,7 +209,7 @@ const STATUS_PAGES: Record<string, string> = { ...SEED_STATUS_PAGES };
 
 // Where to link a forge's own status report, or '' when it has none.
 export function statusPageUrlOf(forge: string): string {
-  return STATUS_PAGES[forge] ?? '';
+  return ownOf(STATUS_PAGES, forge) ?? '';
 }
 
 // Learns the labels from the forge entries of a dashboard or Main branches

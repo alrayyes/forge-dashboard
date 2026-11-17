@@ -17,7 +17,7 @@
   // close button and a click on the backdrop close it, and focus goes back to
   // the control that opened it.
   import { tick } from "svelte";
-  import { FORGE_LABELS } from "#lib/forges.js";
+  import { forgeLabelOf } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import { ago, httpHref } from "#lib/main-branches.js";
   import { formatDateTime } from "#lib/time.svelte.js";
@@ -58,9 +58,7 @@
       ? null
       : (items.find((i) => i.number === selected) ?? null),
   );
-  const forgeName = $derived(
-    target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
-  );
+  const forgeName = $derived(target ? forgeLabelOf(target.forge) : "");
   const words = $derived(forgeWords(target?.forge ?? ""));
   const FILTERS: { key: SeverityFilter; label: string }[] = [
     { key: "all", label: "All open" },

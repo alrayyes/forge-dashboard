@@ -2,10 +2,10 @@
 // server-side reads right with no edit here (#4073). Behaviour never branches
 // on these strings; they are wording only.
 
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, forgeLabelOf } from './forges';
 
 function name(forge: string): string {
-  return FORGE_LABELS[forge] || forge;
+  return forgeLabelOf(forge);
 }
 
 export function approveLinkCopy(forge: string): {

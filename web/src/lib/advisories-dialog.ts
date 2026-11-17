@@ -1,4 +1,4 @@
-import { advisoryFactsOf } from './forges';
+import { advisoryFactsOf, ownOf } from './forges';
 import { ADVISORY_WORDS_BY_SOURCE } from './main-branches';
 
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
@@ -214,7 +214,7 @@ function neutralWords() {
 
 export function forgeWords(forge: string) {
   const source = advisoryFactsOf(forge)?.source ?? '';
-  return WORDS_BY_SOURCE[source] ?? neutralWords();
+  return ownOf(WORDS_BY_SOURCE, source) ?? neutralWords();
 }
 
 const OSV_UNREADABLE: Record<string, string> = {
@@ -234,7 +234,7 @@ export function unreadableText(
   const source = advisoryFactsOf(forge)?.source;
   if (source === 'osv') {
     return (
-      (reason && OSV_UNREADABLE[reason]) ||
+      (reason && ownOf(OSV_UNREADABLE, reason)) ||
       'The dashboard found no lock file it reads on the default branch, so nothing was checked.'
     );
   }
@@ -243,7 +243,9 @@ export function unreadableText(
       string,
       string
     >;
-    return (reason && known[reason]) || 'GitHub did not answer the read.';
+    return (
+      (reason && ownOf(known, reason)) || 'GitHub did not answer the read.'
+    );
   }
   return 'The forge did not answer the read.';
 }
