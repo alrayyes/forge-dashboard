@@ -241,6 +241,26 @@ describe('checkSegments with unknown, cancelled and held', () => {
     ]);
   });
 
+  test('draws the jobs that never started after waiting, in words', () => {
+    const segments = checkSegments({
+      passed: 1,
+      running: 0,
+      waiting: 1,
+      failed: 1,
+      notStarted: 2,
+    });
+
+    expect(segments).toEqual([
+      { kind: 'passed', n: 1 },
+      { kind: 'waiting', n: 1 },
+      { kind: 'notStarted', n: 2 },
+      { kind: 'failed', n: 1 },
+    ]);
+    expect(pillName('Failed', segments)).toBe(
+      'Failed 1 1 2 1: 1 passed, 1 waiting, 2 not started, 1 failed',
+    );
+  });
+
   test('reads an older answer without them as none', () => {
     expect(
       checkSegments({ passed: 1, running: 0, waiting: 0, failed: 0 }),

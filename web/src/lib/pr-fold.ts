@@ -1,10 +1,10 @@
 // Folds the jobs a pull request's pipeline dialog lists into the pill its row
 // draws, so the row and the dialog cannot disagree while the dialog is open.
 // It sits on foldBranch's grading of each job and only maps the result onto
-// what a pull request's pill says: pending, failure, success or cancelled, the counts,
-// and a held job as a flag of its own. No DOM here.
+// what a pull request's pill says: pending, failure, success or cancelled, the
+// counts, and a held job as a flag of its own. No DOM here.
 
-import type { TalliedCounts } from './check-counts';
+import type { BranchCounts } from './check-counts';
 import type { RunFacts } from './check-feed';
 import { foldBranch } from './check-fold';
 import { forgeCan } from './forges';
@@ -15,8 +15,9 @@ export type PullRequestFold = {
   // The server's awaitingWorkflowApproval: GitHub sets it for any held run.
   // Forgejo never does.
   awaiting: boolean;
-  // Cancelled is set on a cancelled fold only (#3395).
-  counts: TalliedCounts & { cancelled?: number };
+  // Every job is in exactly one count, cancelled and held ones included, so
+  // the counts add up to the jobs the dialog lists (#4064).
+  counts: BranchCounts & { notStarted: number };
 };
 
 // Returns null where there is nothing to fold: no jobs. A row given null keeps
@@ -36,8 +37,10 @@ export type PullRequestFold = {
 //
 // A queued job of a run the forge says has failed is not waiting: Forgejo
 // leaves a job whose needs failed blocked in the finished run and reports it
-// as pending, and nothing will start it. `runs` are the run facts that came
-// with the jobs. A rerun is another attempt, so its queued jobs still wait.
+// as pending, and nothing will start it. It is counted as not started, apart
+// from the waiting ones, so the counts add up to the jobs the dialog lists.
+// `runs` are the run facts that came with the jobs. A rerun is another
+// attempt, so its queued jobs still wait.
 //
 // Left to the server: failingOnlyForApproval, which quick filters and
 // auto-merge status read from the snapshot while this pill is live.
@@ -46,11 +49,9 @@ export function foldPullRequest(
   checks: readonly Check[],
   runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
-  const live = withoutBlocked(checks, runs);
+  const { live, blocked } = splitBlocked(checks, runs);
   const { status, counts: tally } = foldBranch(live);
-  // A pull request's counts leave cancelled and held jobs out: its pill says a
-  // held run with a flag, and a cancelled one only on a Cancelled pill.
-  const { cancelled: _cancelled, held: _held, ...counts } = tally;
+  const counts = { ...tally, notStarted: blocked };
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forgeCan(forge, 'approvalGatedRuns') && held) {
@@ -68,32 +69,26 @@ export function foldPullRequest(
     case 'passed':
       return { ci: 'success', awaiting: false, counts };
     case 'cancelled':
-      return {
-        ci: 'cancelled',
-        awaiting: false,
-        counts: {
-          ...counts,
-          cancelled: live.filter((c) => checkState(c) === 'cancelled').length,
-        },
-      };
+      return { ci: 'cancelled', awaiting: false, counts };
     default:
       return null;
   }
 }
 
-// The jobs that can still change, leaving out the queued ones of a failed run.
-function withoutBlocked(
+// The jobs that can still change, and how many queued ones of a failed run
+// nothing will start. The second are counted apart, not folded.
+function splitBlocked(
   checks: readonly Check[],
   runs: readonly RunFacts[],
-): readonly Check[] {
+): { live: readonly Check[]; blocked: number } {
   const failed = runs.filter(
     (r) =>
       checkState({ status: r.status ?? '', conclusion: r.conclusion }) ===
       'failure',
   );
-  if (failed.length === 0) return checks;
+  if (failed.length === 0) return { live: checks, blocked: 0 };
 
-  return checks.filter(
+  const live = checks.filter(
     (c) =>
       checkState(c) !== 'queued' ||
       !failed.some(
@@ -103,4 +98,6 @@ function withoutBlocked(
           r.runAttempt === c.runAttempt,
       ),
   );
+
+  return { live, blocked: checks.length - live.length };
 }
