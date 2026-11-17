@@ -4909,13 +4909,26 @@
       });
       if (decision.kind === "hidden") return null;
       if (decision.kind === "confirm") return recreateConfirmCell(item);
-      if (decision.kind === "locked")
+      if (decision.kind === "locked") {
+        // The row's status block already says the same words (a stale forge
+        // blocks every action with the reason it gives Merge), so the pair is
+        // described by it and prints no second copy (#4187).
+        const reason =
+          typeof decision.lock === "string"
+            ? decision.lock
+            : decision.lock.reason;
+        const described =
+          idScope === "" && item.status && item.status.message === reason
+            ? statusAreaId(item)
+            : undefined;
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
           decision.lock,
           undefined,
-          decision.printNote ? "" : undefined,
+          decision.printNote && !described ? "" : undefined,
+          described,
         );
+      }
 
       const queued = decision.queued;
       const button = buttonEl(
