@@ -9100,11 +9100,16 @@
       if (filterSheetClear) filterSheetClear.disabled = filtersAreDefault();
       // The button's name changes with the count, but a button isn't
       // announced for that; the live region says it (#4076).
-      if (filterSheetCount)
-        filterSheetCount.textContent =
+      // Written only when it differs: a rewrite of the same text can make
+      // some screen readers say it again.
+      if (filterSheetCount) {
+        const countText =
           visibleResultCount === 1
             ? "1 result"
             : `${visibleResultCount} results`;
+        if (filterSheetCount.textContent !== countText)
+          filterSheetCount.textContent = countText;
+      }
 
       // Only rebuilt when what's shown would change, so a chip the reader
       // is about to tap isn't replaced under their finger by a refresh.

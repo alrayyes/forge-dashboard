@@ -260,6 +260,40 @@ for (const size of [
       await expect(count).toHaveText('5 results');
     });
 
+    test('the live region is not rewritten when the count is unchanged (#4076)', async ({
+      page,
+    }) => {
+      await filtersButton(page).click();
+      const count = sheet(page).locator('#filter-sheet-count');
+      await expect(count).toHaveText('5 results');
+      await count.evaluate((node) => {
+        const w = window as unknown as { __countMutations: number };
+        w.__countMutations = 0;
+        new MutationObserver((records) => {
+          w.__countMutations += records.length;
+        }).observe(node, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      });
+      // A new sort re-renders the board without changing the count.
+      const sort = sheet(page).locator('#pr-sort-select');
+      const other = await sort.evaluate(
+        (el: HTMLSelectElement) =>
+          Array.from(el.options).find((o) => o.value !== el.value)?.value,
+      );
+      await sort.selectOption(other as string);
+      await settle(page);
+      expect(
+        await page.evaluate(
+          () =>
+            (window as unknown as { __countMutations: number })
+              .__countMutations,
+        ),
+      ).toBe(0);
+    });
+
     test('has no axe violations after Clear all with the sheet open (#4076)', async ({
       page,
     }) => {
