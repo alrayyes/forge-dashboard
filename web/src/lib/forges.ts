@@ -19,19 +19,24 @@ export type ForgeCapabilities = {
   approvalGatedRuns: boolean;
   // This app, not the forge, holds an armed auto-merge and performs the merge.
   autoMergeHeldByApp: boolean;
+  // The forge sends the user's permissions with each repo it lists, so a repo
+  // without them is the forge's omission, not the user's role.
+  reportsRepoPermissions: boolean;
 };
 
 export type ForgeFlag =
   | 'servesRunningLog'
   | 'serverLogExcerpts'
   | 'approvalGatedRuns'
-  | 'autoMergeHeldByApp';
+  | 'autoMergeHeldByApp'
+  | 'reportsRepoPermissions';
 
 const FLAGS: ForgeFlag[] = [
   'servesRunningLog',
   'serverLogExcerpts',
   'approvalGatedRuns',
   'autoMergeHeldByApp',
+  'reportsRepoPermissions',
 ];
 
 // The flags of the two shipped forges, so a page that asks before the first
@@ -43,12 +48,14 @@ const SEED_FLAGS: Record<string, Partial<Record<ForgeFlag, boolean>>> = {
     serverLogExcerpts: false,
     approvalGatedRuns: true,
     autoMergeHeldByApp: false,
+    reportsRepoPermissions: false,
   },
   forgejo: {
     servesRunningLog: true,
     serverLogExcerpts: true,
     approvalGatedRuns: false,
     autoMergeHeldByApp: true,
+    reportsRepoPermissions: true,
   },
 };
 

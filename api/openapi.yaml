@@ -5957,6 +5957,7 @@ components:
         - dependabotCommands
         - advisorySource
         - advisoryUnknownNeedsReason
+        - reportsRepoPermissions
         - statusPageUrl
         - rateLimitModel
         - issueRefSyntax
@@ -6003,6 +6004,13 @@ components:
             row names a reason. Without one it usually means a repository with
             nothing to check. False when every `unknown` answer is a failure to
             read.
+        reportsRepoPermissions:
+          type: boolean
+          description: >-
+            True when the forge sends the signed-in user's permissions with
+            each repo it lists, so a repo that arrives without them is the
+            forge's omission and says nothing about the user's role. False
+            when the dashboard finds out by trying the endpoint instead.
         statusPageUrl:
           type: string
           description: >-
