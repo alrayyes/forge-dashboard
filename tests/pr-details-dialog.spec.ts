@@ -304,21 +304,25 @@ test.describe('pull request details dialog', () => {
 
         await expect(links).toHaveCount(1);
 
-        const b = await links.first().boundingBox();
-        expect(b?.height).toBeGreaterThanOrEqual(44);
-        expect(b?.width).toBeGreaterThanOrEqual(44);
-        expect((b?.x ?? 0) + (b?.width ?? 0)).toBeLessThanOrEqual(390);
+        await expect
+          .poll(async () => {
+            const b = await links.first().boundingBox();
+            return {
+              tall: (b?.height ?? 0) >= 44,
+              wide: (b?.width ?? 0) >= 44,
+              inside: (b?.x ?? 0) + (b?.width ?? 0) <= 390,
+            };
+          })
+          .toEqual({ tall: true, wide: true, inside: true });
 
         await expect(links.first()).toHaveCSS(
           'text-decoration-line',
           'underline',
         );
 
-        const overflow = await d.evaluate(
-          (el) => el.scrollWidth - el.clientWidth,
-        );
-
-        expect(overflow).toBe(0);
+        await expect
+          .poll(() => d.evaluate((el) => el.scrollWidth - el.clientWidth))
+          .toBe(0);
 
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -553,9 +557,12 @@ test.describe('pull request details dialog', () => {
     await expect(items.nth(1)).not.toContainText('edited');
     const img = items.nth(0).locator('img.avatar');
     await expect(img).toHaveAttribute('alt', '');
-    const box = await img.boundingBox();
-    expect(box?.width).toBe(32);
-    expect(box?.height).toBe(32);
+    await expect
+      .poll(async () => {
+        const box = await img.boundingBox();
+        return [box?.width, box?.height];
+      })
+      .toEqual([32, 32]);
     // No avatar for a deleted account: an initial in a circle.
     await expect(items.nth(1).locator('.avatar')).toHaveText('?');
   });
@@ -822,29 +829,45 @@ test.describe('pull request details dialog', () => {
     );
     await page.goto('/pull-requests.html');
     // The trigger's hit area is the whole row (its stretched overlay).
-    const rowBox = await page.locator('#pr-rows .row').first().boundingBox();
-    expect(rowBox?.height).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => {
+        const rowBox = await page
+          .locator('#pr-rows .row')
+          .first()
+          .boundingBox();
+        return rowBox?.height ?? 0;
+      })
+      .toBeGreaterThanOrEqual(44);
     await trigger(page).click();
     const d = dialog(page);
     await expect(d).toBeVisible();
-    const box = await d.boundingBox();
-    expect(box?.width).toBe(360);
-    expect(box?.height).toBe(740);
-    const overflow = await d.evaluate((el) => {
-      const body = el.querySelector('.details-body') as HTMLElement;
-      return [
-        el.scrollWidth - el.clientWidth,
-        body.scrollWidth - body.clientWidth,
-      ];
-    });
-    expect(overflow).toEqual([0, 0]);
+    await expect
+      .poll(async () => {
+        const box = await d.boundingBox();
+        return [box?.width, box?.height];
+      })
+      .toEqual([360, 740]);
+    await expect
+      .poll(() =>
+        d.evaluate((el) => {
+          const body = el.querySelector('.details-body') as HTMLElement;
+          return [
+            el.scrollWidth - el.clientWidth,
+            body.scrollWidth - body.clientWidth,
+          ];
+        }),
+      )
+      .toEqual([0, 0]);
     for (const control of [
       d.getByRole('button', { name: 'Close details' }),
       d.getByRole('link', { name: /Open on GitHub/ }),
     ]) {
-      const b = await control.boundingBox();
-      expect(b?.height).toBeGreaterThanOrEqual(44);
-      expect(b?.width).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(async () => {
+          const b = await control.boundingBox();
+          return [(b?.height ?? 0) >= 44, (b?.width ?? 0) >= 44];
+        })
+        .toEqual([true, true]);
     }
   });
 
@@ -1060,11 +1083,17 @@ test.describe('pull request details dialog', () => {
         { pending: 'Running', failure: 'Failed', success: 'Passed' }[ci],
       );
       // The slot sits above the title, the attributes below it.
-      const slotBox = await slot.boundingBox();
-      const titleBox = await d.locator('.details-title').boundingBox();
-      const attrBox = await d.locator('.attr-cluster').boundingBox();
-      expect(slotBox?.y).toBeLessThan(titleBox?.y ?? 0);
-      expect(attrBox?.y).toBeGreaterThan(titleBox?.y ?? 0);
+      await expect
+        .poll(async () => {
+          const slotBox = await slot.boundingBox();
+          const titleBox = await d.locator('.details-title').boundingBox();
+          const attrBox = await d.locator('.attr-cluster').boundingBox();
+          return {
+            slotAbove: (slotBox?.y ?? Infinity) < (titleBox?.y ?? 0),
+            attrsBelow: (attrBox?.y ?? -Infinity) > (titleBox?.y ?? 0),
+          };
+        })
+        .toEqual({ slotAbove: true, attrsBelow: true });
       // A header badge is not a second pipeline button.
       await expect(d.locator('button.ci-pill')).toHaveCount(0);
     });
@@ -1197,28 +1226,41 @@ test.describe('pull request details dialog', () => {
     await page.goto('/bots.html');
     await trigger(page).click();
     const d = dialog(page);
-    const overflow = await d.evaluate((el) => {
-      const header = el.querySelector('.details-header') as HTMLElement;
-      return [
-        el.scrollWidth - el.clientWidth,
-        header.scrollWidth - header.clientWidth,
-      ];
-    });
-    expect(overflow).toEqual([0, 0]);
-    const slot = await d.locator('.details-status .ci-slot').boundingBox();
-    const close = await d
-      .getByRole('button', { name: 'Close details' })
-      .boundingBox();
-    const attrs = await d.locator('.attr-cluster').boundingBox();
-    const title = await d.locator('.details-title').boundingBox();
-    expect(slot?.y).toBeLessThan(title?.y ?? 0);
-    expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
-      close?.x ?? 0,
-    );
-    expect(attrs?.y).toBeGreaterThan(
-      (title?.y ?? 0) + (title?.height ?? 0) - 1,
-    );
-    expect((attrs?.x ?? 0) + (attrs?.width ?? 0)).toBeLessThanOrEqual(360);
+    await expect
+      .poll(() =>
+        d.evaluate((el) => {
+          const header = el.querySelector('.details-header') as HTMLElement;
+          return [
+            el.scrollWidth - el.clientWidth,
+            header.scrollWidth - header.clientWidth,
+          ];
+        }),
+      )
+      .toEqual([0, 0]);
+    await expect
+      .poll(async () => {
+        const slot = await d.locator('.details-status .ci-slot').boundingBox();
+        const close = await d
+          .getByRole('button', { name: 'Close details' })
+          .boundingBox();
+        const attrs = await d.locator('.attr-cluster').boundingBox();
+        const title = await d.locator('.details-title').boundingBox();
+        return {
+          slotAboveTitle: (slot?.y ?? Infinity) < (title?.y ?? 0),
+          slotLeftOfClose:
+            (slot?.x ?? 0) + (slot?.width ?? 0) <= (close?.x ?? 0),
+          attrsBelowTitle:
+            (attrs?.y ?? -Infinity) >
+            (title?.y ?? 0) + (title?.height ?? 0) - 1,
+          attrsInside: (attrs?.x ?? 0) + (attrs?.width ?? 0) <= 360,
+        };
+      })
+      .toEqual({
+        slotAboveTitle: true,
+        slotLeftOfClose: true,
+        attrsBelowTitle: true,
+        attrsInside: true,
+      });
   });
 
   test(`has no axe-core violations with the dialog open (light and dark)`, async ({
