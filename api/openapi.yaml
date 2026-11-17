@@ -7400,7 +7400,8 @@ components:
 
     MainBranchStatus:
       type: string
-      enum: [failed, passed, running, cancelled, awaiting_approval, none]
+      enum:
+        [failed, passed, running, cancelled, awaiting_approval, unknown, none]
       description: |
         The result of the latest pipeline on a default branch's newest
         commit, across all its workflows. "failed" when any job failed,
@@ -7409,8 +7410,11 @@ components:
         was cancelled (a newer push or a person stopped it, so nothing broke),
         "awaiting_approval" when GitHub holds the commit's workflow runs until
         a maintainer approves them (they create no check runs, so nothing
-        runs), "passed" when all finished green, "none" when the commit has
-        no pipeline at all (or the repository has no commit yet).
+        runs), "unknown" when nothing failed and nothing is running but a job
+        is in a state the server cannot grade (it is not a pass, and nothing
+        says it is still going), "passed" when all finished green, "none" when
+        the commit has no pipeline at all (or the repository has no commit
+        yet).
 
         This is the server's answer, and the CI poll and the MCP tools read
         it. The page folds the branch's `runs` into the pill, the counts and
