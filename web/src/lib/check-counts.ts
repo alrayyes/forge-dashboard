@@ -24,10 +24,16 @@ export type CheckCounts = {
   // How many runs are held for approval. A branch's; a pull request says a
   // held run with its own flag instead.
   held?: number;
+  // How many jobs are queued in a run that has already failed, so nothing will
+  // start them (Forgejo, a pull request only). Neither waiting nor failed, so
+  // they are counted apart and the counts add up to the jobs listed (#4064).
+  notStarted?: number;
 };
 
-// A branch's tally: every job lands in exactly one count, so they add up.
-export type BranchCounts = Required<CheckCounts>;
+// A branch's tally: every job lands in exactly one count, so they add up. A
+// branch has no failed run to leave jobs behind, so it never counts
+// not-started ones.
+export type BranchCounts = Required<Omit<CheckCounts, 'notStarted'>>;
 
 export type CheckKind = keyof CheckCounts;
 
@@ -38,6 +44,7 @@ export const CHECK_KINDS: readonly CheckKind[] = [
   'skipped',
   'running',
   'waiting',
+  'notStarted',
   'failed',
   'unknown',
   'cancelled',
@@ -55,7 +62,17 @@ export const CHECK_KIND_GLYPH: Record<CheckKind, string> = {
   unknown: 'question',
   cancelled: 'cancelled',
   held: 'awaiting_approval',
+  notStarted: 'not_started',
 };
+
+// The words a count is said in where the key is not itself a word.
+const KIND_WORD: Partial<Record<CheckKind, string>> = {
+  notStarted: 'not started',
+};
+
+export function kindWord(kind: CheckKind): string {
+  return KIND_WORD[kind] ?? kind;
+}
 
 export type CheckSegment = { kind: CheckKind; n: number };
 
@@ -116,7 +133,7 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
 // words. The word is the pill's own: Running, Passed or Failed.
 export function pillName(label: string, segments: CheckSegment[]): string {
   const visible = [label, ...segments.map((s) => String(s.n))].join(' ');
-  const words = segments.map((s) => `${s.n} ${s.kind}`).join(', ');
+  const words = segments.map((s) => `${s.n} ${kindWord(s.kind)}`).join(', ');
 
   return `${visible}: ${words}`;
 }

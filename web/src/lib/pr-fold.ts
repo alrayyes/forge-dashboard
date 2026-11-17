@@ -17,7 +17,7 @@ export type PullRequestFold = {
   awaiting: boolean;
   // Every job is in exactly one count, cancelled and held ones included, so
   // the counts add up to the jobs the dialog lists (#4064).
-  counts: BranchCounts;
+  counts: BranchCounts & { notStarted: number };
 };
 
 // Returns null where there is nothing to fold: no jobs. A row given null keeps
@@ -37,8 +37,10 @@ export type PullRequestFold = {
 //
 // A queued job of a run the forge says has failed is not waiting: Forgejo
 // leaves a job whose needs failed blocked in the finished run and reports it
-// as pending, and nothing will start it. `runs` are the run facts that came
-// with the jobs. A rerun is another attempt, so its queued jobs still wait.
+// as pending, and nothing will start it. It is counted as not started, apart
+// from the waiting ones, so the counts add up to the jobs the dialog lists.
+// `runs` are the run facts that came with the jobs. A rerun is another
+// attempt, so its queued jobs still wait.
 //
 // Left to the server: failingOnlyForApproval, which quick filters and
 // auto-merge status read from the snapshot while this pill is live.
@@ -47,8 +49,9 @@ export function foldPullRequest(
   checks: readonly Check[],
   runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
-  const live = withoutBlocked(checks, runs);
-  const { status, counts } = foldBranch(live);
+  const { live, blocked } = splitBlocked(checks, runs);
+  const { status, counts: tally } = foldBranch(live);
+  const counts = { ...tally, notStarted: blocked };
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forgeCan(forge, 'approvalGatedRuns') && held) {
@@ -72,19 +75,20 @@ export function foldPullRequest(
   }
 }
 
-// The jobs that can still change, leaving out the queued ones of a failed run.
-function withoutBlocked(
+// The jobs that can still change, and how many queued ones of a failed run
+// nothing will start. The second are counted apart, not folded.
+function splitBlocked(
   checks: readonly Check[],
   runs: readonly RunFacts[],
-): readonly Check[] {
+): { live: readonly Check[]; blocked: number } {
   const failed = runs.filter(
     (r) =>
       checkState({ status: r.status ?? '', conclusion: r.conclusion }) ===
       'failure',
   );
-  if (failed.length === 0) return checks;
+  if (failed.length === 0) return { live: checks, blocked: 0 };
 
-  return checks.filter(
+  const live = checks.filter(
     (c) =>
       checkState(c) !== 'queued' ||
       !failed.some(
@@ -94,4 +98,6 @@ function withoutBlocked(
           r.runAttempt === c.runAttempt,
       ),
   );
+
+  return { live, blocked: checks.length - live.length };
 }

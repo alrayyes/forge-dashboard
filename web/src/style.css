@@ -2282,10 +2282,11 @@ a.ci-pill:hover {
 .ci-seg-failed {
   color: var(--critical);
 }
-/* Unknown, cancelled and held are not outcomes the page can name as a pass or
+/* Unknown, not started, cancelled and held are not outcomes the page can name as a pass or
    a failure, so they read in the quiet inks the dialog gives the same states
    (#4055). */
 .ci-seg-unknown,
+.ci-seg-notStarted,
 .ci-seg-cancelled {
   color: var(--ink-2);
 }

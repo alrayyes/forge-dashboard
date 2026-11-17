@@ -145,6 +145,7 @@ describe('foldPullRequest on a cancelled run', () => {
           unknown: 0,
           cancelled: 1,
           held: 0,
+          notStarted: 0,
         },
       });
     }
@@ -179,6 +180,7 @@ describe('foldPullRequest counts', () => {
       unknown: 0,
       cancelled: 0,
       held: 0,
+      notStarted: 0,
     });
   });
 });
@@ -259,6 +261,17 @@ describe('foldPullRequest counts add up to the jobs listed (#4064)', () => {
 // pending for it. The run's own facts say the run is over, so nothing will
 // start that job: it is no wait, and the pill is a plain failure.
 describe('foldPullRequest, blocked jobs of a failed run', () => {
+  const sum = (c?: Record<string, number>) =>
+    c
+      ? c.passed +
+        c.running +
+        c.waiting +
+        c.failed +
+        c.unknown +
+        c.cancelled +
+        c.held +
+        c.notStarted
+      : 0;
   const failedRun = {
     runId: 455,
     runAttempt: 1,
@@ -281,6 +294,19 @@ describe('foldPullRequest, blocked jobs of a failed run', () => {
     expect(fold?.ci).toBe('failure');
     expect(fold?.counts.waiting).toBe(0);
     expect(fold?.counts.failed).toBe(1);
+  });
+
+  test('they are counted as not started, so the counts add up (#4064)', () => {
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'blocked' }),
+      inRun({ ...jobs('queued')[0], name: 'blocked too' }),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [failedRun]);
+
+    expect(fold?.ci).toBe('failure');
+    expect(fold?.counts.notStarted).toBe(2);
+    expect(sum(fold?.counts)).toBe(checks.length);
   });
 
   test('a queued job of a run still going keeps waiting', () => {

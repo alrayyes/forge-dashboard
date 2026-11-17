@@ -2,8 +2,9 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
-// A pull request's pill counts a cancelled and a held run beside the others,
-// so its segments add up to the checks its pipeline lists in every mix. The
+// A pull request's pill counts a cancelled and a held run, and a Forgejo job
+// that never started, beside the others, so its segments add up to the checks
+// its pipeline lists in every mix. The
 // server tallies the counts; the page is fed them here and only draws them.
 
 type Counts = Partial<Record<string, number>>;
@@ -72,6 +73,14 @@ const ROWS = [
     segments: ['1', '1', '2'],
     forge: 'forgejo',
   },
+  {
+    title: 'Forgejo failed with jobs not started',
+    total: 6,
+    counts: { passed: 2, failed: 1, notStarted: 3 },
+    ci: 'failure',
+    segments: ['2', '3', '1'],
+    forge: 'forgejo',
+  },
 ];
 
 const PRS = ROWS.map((r, i) =>
@@ -133,7 +142,7 @@ for (const [name, viewport] of [
       }
     });
 
-    test('a cancelled and a held count are not colour alone', async ({
+    test('a cancelled, held and not started count are not colour alone', async ({
       page,
     }) => {
       await open(page);
@@ -146,6 +155,14 @@ for (const [name, viewport] of [
       await expect(
         pill(page, 'Passed beside a held').locator('.ci-seg-held .check-glyph'),
       ).not.toHaveCount(0);
+      await expect(
+        pill(page, 'Forgejo failed with jobs not started').locator(
+          '.ci-seg-notStarted .check-glyph',
+        ),
+      ).not.toHaveCount(0);
+      await expect(
+        pill(page, 'Forgejo failed with jobs not started'),
+      ).toHaveAttribute('aria-label', /2 passed, 3 not started, 1 failed/);
       await expect(pill(page, 'Failed with a cancel')).toHaveAttribute(
         'aria-label',
         /5 passed, 1 failed, 2 cancelled/,
