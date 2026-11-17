@@ -6,6 +6,7 @@ import {
   type Advisories,
   advisoryCounts,
   advisoryCoverage,
+  advisoryCoverageByForge,
   advisoryPill,
   advisoryReasonNeedsGrant,
   advisoryRowHint,
@@ -401,5 +402,48 @@ describe('a forge the page was not built with', () => {
     expect(advisoryRowUnreadable(row('gitea', 'failed'))).toBe(true);
     expect(advisoryRowHint(row('gitea', 'failed'))).toContain('read failed');
     expect(advisoryCoverage([row('gitea', 'failed')], 'gitea')).toBe('none');
+  });
+});
+
+describe('advisoryCoverageByForge', () => {
+  const unk = (forge: string) =>
+    ({
+      forge,
+      advisories: { state: 'unknown', count: 0 },
+    }) as unknown as MainBranch;
+  const ok = (forge: string) =>
+    ({
+      forge,
+      advisories: { state: 'known', count: 0 },
+    }) as unknown as MainBranch;
+
+  test('keys each forge the rows name, so the page never picks by name', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: false,
+        },
+      },
+    ]);
+    const by = advisoryCoverageByForge([
+      unk('github'),
+      ok('github'),
+      unk('gitea'),
+      ok('forgejo'),
+    ]);
+
+    expect(by.github).toBe('partial');
+    expect(by.gitea).toBe('none');
+    expect(by.forgejo).toBe('full');
+  });
+
+  test('a forge with no advisory facts is absent, not github', () => {
+    const by = advisoryCoverageByForge([unk('nowhere'), ok('github')]);
+
+    expect(by.nowhere).toBe('full');
+    expect(by.github).toBe('full');
   });
 });

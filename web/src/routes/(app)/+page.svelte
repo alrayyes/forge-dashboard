@@ -63,6 +63,7 @@
     httpHref,
     advisoryPill,
     advisoryCoverage,
+    advisoryCoverageByForge,
     advisoryCounts,
     offeredAdvisories,
     type AdvisoryFilter,
@@ -175,6 +176,7 @@
   const advisoryState = $derived(advisoryCoverage(branches));
   const advisoryReason = $derived(advisoryUnknownReason(branches));
   const forgejoAdvisoryState = $derived(advisoryCoverage(branches, "forgejo"));
+  const advisoryStateByForge = $derived(advisoryCoverageByForge(branches));
   const forgejoAdvisoryReason = $derived(
     advisoryUnknownReason(branches, "forgejo"),
   );
@@ -1219,7 +1221,7 @@
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
-                  {#if (b.forge === "forgejo" ? forgejoAdvisoryState : advisoryState) === "partial" && advisoryRowUnreadable(b)}
+                  {#if advisoryStateByForge[b.forge] === "partial" && advisoryRowUnreadable(b)}
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"
