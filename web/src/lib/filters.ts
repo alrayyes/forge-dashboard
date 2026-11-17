@@ -89,7 +89,11 @@ export type QuickFilter = (typeof QUICK_FILTERS)[number];
 // states overlap with merge state, so one group would bring back the choice of
 // only one.
 export const PILL_GROUPS = {
-  forge: ['github', 'forgejo'],
+  // The forges the server reports (forges.ts), read when asked: a forge added
+  // server-side is a pill without a change here (#3978).
+  get forge(): readonly string[] {
+    return forgeIds();
+  },
   ci: ['failing', 'running', 'passing', 'no-checks'],
   merge: ['conflicting', 'out-of-date'],
   review: ['ready', 'needs-review', 'review-requested'],
@@ -102,10 +106,8 @@ export const PILL_GROUP_LABELS: Record<PillGroup, string> = {
   merge: 'Merge',
   review: 'Review',
 };
-// The text on a pill, and after the group name in its active-filter chip.
+// The text on a fixed pill. A forge pill's text is the forge's own label.
 export const PILL_LABELS: Record<string, string> = {
-  github: 'GitHub',
-  forgejo: 'Forgejo',
   failing: 'Failing',
   running: 'Running',
   passing: 'Passing',
@@ -116,6 +118,12 @@ export const PILL_LABELS: Record<string, string> = {
   'needs-review': 'Needs review',
   'review-requested': 'Review requested',
 };
+
+// The text on a pill, and after the group name in its active-filter chip: a
+// forge's label from forges.ts, else the fixed pill's, else the name itself.
+export function pillLabel(pill: string): string {
+  return FORGE_LABELS[pill] ?? PILL_LABELS[pill] ?? pill;
+}
 
 // The group a pill is in; 'all' and unknown names have none, read as forge
 // for a lookup that must return something.
@@ -274,7 +282,7 @@ export function setPill(
     : '';
 }
 
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, forgeIds } from './forges';
 import {
   carriesAny,
   joinLabels,

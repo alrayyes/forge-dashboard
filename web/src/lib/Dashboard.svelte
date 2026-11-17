@@ -12,6 +12,20 @@
     view === "releases" ? "release" : view === "bots" ? "dependency" : null,
   );
   const pullsView = $derived(view !== "issues");
+  // The Forge group's pills: every forge the server reports, with its label
+  // (#3978). State, so a forge a read adds draws its pill; the script's own
+  // pill wiring is told through pillsDrawn once the markup has caught up.
+  const forgePillList = () =>
+    forgeIds().map((id) => ({ id, label: Filters.pillLabel(id) }));
+  let forgePills = $state(forgePillList());
+  let pillClick: (button: HTMLButtonElement) => void = () => {};
+  let pillsDrawn: () => void = () => {};
+  function refreshForgePills() {
+    const next = forgePillList();
+    if (JSON.stringify(next) === JSON.stringify(forgePills)) return;
+    forgePills = next;
+    tick().then(() => pillsDrawn());
+  }
   // What the loading line names on this view (#3602).
   const loadingSubject = $derived(
     view === "issues"
@@ -23,7 +37,7 @@
           : "pull requests",
   );
 
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { BACKGROUND_READ_HEADER } from "#lib/presence-browser.js";
   import PullRequestDetailsDialog, {
     type DetailsChrome,
@@ -81,6 +95,7 @@
   import {
     FORGE_CLASSES,
     FORGE_LABELS,
+    forgeIds,
     statusPageUrlOf,
     registerForgeCapabilities,
   } from "#lib/forges.js";
@@ -8674,14 +8689,14 @@
     // Four groups (Forge, CI, Merge, Review) of toggle buttons with
     // aria-pressed: one active per group, combined with AND. The pill logic
     // itself lives in #lib/filters (setPill/activePill).
-    const quickPills = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
-    );
+    // Read each time: a forge a read adds draws a pill after mount (#3978).
     function syncQuickPills() {
       // The issues page has no pull-request-only pills, and they don't
       // filter issues, so they are not what's in effect there (#827).
       const picks = pillPicks();
-      for (const b of quickPills)
+      for (const b of document.querySelectorAll<HTMLButtonElement>(
+        ".quick-pill",
+      ))
         b.setAttribute(
           "aria-pressed",
           String(
@@ -8693,19 +8708,21 @@
           ),
         );
     }
-    for (const b of quickPills) {
-      b.addEventListener("click", () => {
-        const group = b.closest<HTMLElement>("[data-group]")?.dataset
-          .group as Filters.PillGroup;
-        setQuickPill(sharedState, group, b.dataset.pill ?? "all");
-        prBoard.resetPage();
-        issueBoard.resetPage();
-        updateSharedFilterOptions();
-        Filters.saveState(sharedState);
-        syncQuickPills();
-        renderBoth();
-      });
-    }
+    pillClick = (b) => {
+      const group = b.closest<HTMLElement>("[data-group]")?.dataset
+        .group as Filters.PillGroup;
+      setQuickPill(sharedState, group, b.dataset.pill ?? "all");
+      prBoard.resetPage();
+      issueBoard.resetPage();
+      updateSharedFilterOptions();
+      Filters.saveState(sharedState);
+      syncQuickPills();
+      renderBoth();
+    };
+    pillsDrawn = () => {
+      updateSharedFilterOptions();
+      syncQuickPills();
+    };
     syncQuickPills();
 
     function pickGroup() {
@@ -9010,7 +9027,7 @@
         const pick = Filters.effectivePill(sharedState, group, !pullsView);
         if (pick === "all") continue;
         chips.push({
-          label: `${Filters.PILL_GROUP_LABELS[group]} ${Filters.PILL_LABELS[pick] ?? pick}`,
+          label: `${Filters.PILL_GROUP_LABELS[group]} ${Filters.pillLabel(pick)}`,
           clear: () =>
             document
               .querySelector<HTMLButtonElement>(
@@ -10213,6 +10230,7 @@
       followReadInterval(data.readIntervalSeconds);
 
       registerForgeCapabilities(data.forges);
+      refreshForgePills();
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
         lastForges.filter((f) => isUnreachable(f)).map((f) => f.forge),
@@ -10608,16 +10626,31 @@
           type="button"
           class="quick-pill"
           data-pill="all"
-          aria-pressed="true">All</button
+          aria-pressed="true"
+          onclick={(e) => pillClick(e.currentTarget)}>All</button
         >
-        {#each Filters.PILL_GROUPS[group] as pill (pill)}
-          <button
-            type="button"
-            class="quick-pill"
-            data-pill={pill}
-            aria-pressed="false">{Filters.PILL_LABELS[pill]}</button
-          >
-        {/each}
+        {#if group === "forge"}
+          {#each forgePills as pill (pill.id)}
+            <button
+              type="button"
+              class="quick-pill"
+              data-pill={pill.id}
+              aria-pressed="false"
+              onclick={(e) => pillClick(e.currentTarget)}>{pill.label}</button
+            >
+          {/each}
+        {:else}
+          {#each Filters.PILL_GROUPS[group] as pill (pill)}
+            <button
+              type="button"
+              class="quick-pill"
+              data-pill={pill}
+              aria-pressed="false"
+              onclick={(e) => pillClick(e.currentTarget)}
+              >{Filters.pillLabel(pill)}</button
+            >
+          {/each}
+        {/if}
       </div>
     {/if}
   {/each}
