@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerImagePolicy, resetForgeCapabilities } from './forges';
 import { imageSourceFor } from './image-source';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3405
@@ -128,4 +129,49 @@ test('an item with no repository address gets no images', () => {
   expect(
     imageSourceFor('forgejo', null)('https://git.example/a.png'),
   ).toBeNull();
+});
+
+// The host policy is the forge's, not image-source.ts's: a forge added to the
+// capability table follows it with no edit to the image path (#4156).
+describe('imageSourceFor a forge with its own policy', () => {
+  afterEach(resetForgeCapabilities);
+
+  test('allows exactly the hosts the forge names, over https', () => {
+    registerImagePolicy('gitea', { hosts: ['cdn.gitea.test'] });
+    const src = imageSourceFor('gitea', 'https://git.example/o/r');
+    const url = 'https://cdn.gitea.test/a.png';
+    expect(src(url)).toBe(proxied('gitea', url));
+    expect(src('https://git.example/a.png')).toBeNull();
+    expect(src('http://cdn.gitea.test/a.png')).toBeNull();
+    expect(src('https://cdn.gitea.test:8443/a.png')).toBeNull();
+  });
+
+  test("allows the item's own origin when the forge names no hosts", () => {
+    registerImagePolicy('gitea', { hosts: [] });
+    const src = imageSourceFor('gitea', 'https://git.example/o/r');
+    const url = 'https://git.example/attachments/abc';
+    expect(src(url)).toBe(proxied('gitea', url));
+    expect(src('https://other.test/a.png')).toBeNull();
+  });
+
+  test('names the item only where the forge signs attachments', () => {
+    registerImagePolicy('gitea', {
+      hosts: ['files.gitea.test'],
+      signedAttachmentPrefix: 'https://files.gitea.test/att/',
+    });
+    const src = imageSourceFor('gitea', null, { fullName: 'o/r', number: 7 });
+    const att = 'https://files.gitea.test/att/1';
+    expect(src(att)).toBe(`${proxied('gitea', att)}&fullName=o%2Fr&number=7`);
+    const plain = 'https://files.gitea.test/other/1';
+    expect(src(plain)).toBe(proxied('gitea', plain));
+  });
+
+  test('knows nothing of an unregistered forge', () => {
+    expect(
+      imageSourceFor(
+        'gitea',
+        'https://git.example',
+      )('https://git.example/a.png'),
+    ).toBeNull();
+  });
 });

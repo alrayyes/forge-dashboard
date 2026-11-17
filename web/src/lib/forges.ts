@@ -95,6 +95,45 @@ export function advisoryFactsOf(forge: string): AdvisoryFacts | undefined {
   return ADVISORY_FACTS[forge];
 }
 
+// Which images a forge's text may embed, and how the server must fetch them
+// (#4156). `hosts` are the fixed public hosts, reached over https on the
+// default port; empty means the item's own instance, whatever origin its
+// repository lives on. `signedAttachmentPrefix` is the address prefix of an
+// attachment the forge serves only at a signed link the server finds in the
+// item's rendered body, so the page must name the item; absent when none is.
+// The server holds the same rules and is the one that enforces them.
+export type ImagePolicy = {
+  hosts: readonly string[];
+  signedAttachmentPrefix?: string;
+};
+
+const SEED_IMAGE_POLICIES: Record<string, ImagePolicy> = {
+  github: {
+    hosts: [
+      'github.com',
+      'user-images.githubusercontent.com',
+      'private-user-images.githubusercontent.com',
+      'raw.githubusercontent.com',
+      'gist.githubusercontent.com',
+    ],
+    signedAttachmentPrefix: 'https://github.com/user-attachments/',
+  },
+  forgejo: { hosts: [] },
+};
+
+const IMAGE_POLICIES: Record<string, ImagePolicy> =
+  structuredClone(SEED_IMAGE_POLICIES);
+
+// The image rules of forge, or undefined for one nobody described: its images
+// are then never asked for.
+export function imagePolicyOf(forge: string): ImagePolicy | undefined {
+  return IMAGE_POLICIES[forge];
+}
+
+export function registerImagePolicy(forge: string, policy: ImagePolicy) {
+  IMAGE_POLICIES[forge] = policy;
+}
+
 // The label of each forge. Seeded with the two forges the app ships with, so a
 // page that asks before the first read of the API, or a read whose forge entry
 // carries no capabilities, still names them. A read's capabilities override
@@ -188,6 +227,8 @@ export function resetForgeCapabilities() {
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
   for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];
   Object.assign(FORGE_LABELS, SEED_LABELS);
+  for (const k of Object.keys(IMAGE_POLICIES)) delete IMAGE_POLICIES[k];
+  Object.assign(IMAGE_POLICIES, structuredClone(SEED_IMAGE_POLICIES));
   for (const k of Object.keys(STATUS_PAGES)) delete STATUS_PAGES[k];
   Object.assign(STATUS_PAGES, SEED_STATUS_PAGES);
 }
