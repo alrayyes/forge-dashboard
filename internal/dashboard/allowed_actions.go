@@ -96,7 +96,7 @@ func allowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
-	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
+	if answersDependabot(pr.Forge) && isDependabotPR(pr) {
 		out = append(out, dependabotActions(pr)...)
 	}
 	if isRenovatePR(pr, renovateAuthors) {

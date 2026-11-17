@@ -140,6 +140,14 @@ func WithCapabilities(forges []ForgeHealth) []ForgeHealth {
 	return out
 }
 
+// answersDependabot is true when a "@dependabot" comment on forge does
+// anything. False for a forge this build doesn't know.
+func answersDependabot(forge Forge) bool {
+	c, _ := CapabilitiesOf(forge)
+
+	return c.DependabotCommands
+}
+
 // appMergesArmed is true when this app holds an armed auto-merge for forge and
 // performs the merge itself. False for a forge that merges its own, and for one
 // this build doesn't know.
