@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,6 +61,7 @@ func sampleIssueDetails() dashboard.IssueDetails {
 	none := dashboard.Reaction{Logins: []string{}}
 
 	return dashboard.IssueDetails{
+		Kind:  dashboard.ItemKindIssue,
 		State: dashboard.IssueStateClosed,
 		Description: dashboard.DetailsBody{
 			Text: "The page loses its place.", Format: dashboard.FormatMarkdown,
@@ -233,4 +235,17 @@ func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
 	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
 	require.Len(t, body.Comments, 1)
 	assert.Equal(t, "https://git.example.org/demo-a", body.Comments[0].Author["url"])
+}
+
+// The page picks its dialog from kind, so a response without one is a broken
+// contract: the spec must keep it required, with exactly these two values.
+func TestContract_IssueDetailsKindIsRequired(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	schema := doc.Components.Schemas["IssueDetails"].Value
+
+	assert.Contains(t, schema.Required, "kind")
+	assert.Equal(t, []any{"issue", "pullRequest"}, schema.Properties["kind"].Value.Enum)
 }

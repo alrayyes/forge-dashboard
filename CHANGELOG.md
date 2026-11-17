@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.73.0](https://github.com/alrayyes/forge-dashboard/compare/v9.72.4...v9.73.0) (2026-11-17)
+
+
+### Features
+
+* link a Forgejo account over OAuth ([#4191](https://github.com/alrayyes/forge-dashboard/issues/4191)) ([983aa16](https://github.com/alrayyes/forge-dashboard/commit/983aa16db8f6bd1accbbaf620ee5bf04684199b7))
+
 ## [9.72.4](https://github.com/alrayyes/forge-dashboard/compare/v9.72.3...v9.72.4) (2026-11-17)
 
 

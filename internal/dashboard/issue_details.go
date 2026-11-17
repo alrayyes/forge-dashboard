@@ -12,10 +12,22 @@ const (
 	IssueStateClosed IssueState = "closed"
 )
 
+// ItemKind says what a number turned out to be. A forge shares one number
+// space between issues and pull requests, so a reference to #12 can be either.
+type ItemKind string
+
+const (
+	// ItemKindIssue is an issue.
+	ItemKindIssue ItemKind = "issue"
+	// ItemKindPullRequest is a pull request.
+	ItemKindPullRequest ItemKind = "pullRequest"
+)
+
 // IssueDetails is what the issue dialog shows: the description and the
 // conversation, read the way a pull request's are. Matches
 // components.schemas.IssueDetails.
 type IssueDetails struct {
+	Kind              ItemKind         `json:"kind"`
 	State             IssueState       `json:"state"`
 	Description       DetailsBody      `json:"description"`
 	Comments          []DetailsComment `json:"comments"`
