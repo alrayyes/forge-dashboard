@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.69.2](https://github.com/alrayyes/forge-dashboard/compare/v9.69.1...v9.69.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** clear a failed forge's mark once webhooks have refreshed every repo ([#4106](https://github.com/alrayyes/forge-dashboard/issues/4106)) ([47ada8d](https://github.com/alrayyes/forge-dashboard/commit/47ada8d3ad3943232c82ce609cdd660fd95c2a08)), closes [#3869](https://github.com/alrayyes/forge-dashboard/issues/3869)
+
 ## [9.69.1](https://github.com/alrayyes/forge-dashboard/compare/v9.69.0...v9.69.1) (2026-11-17)
 
 

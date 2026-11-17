@@ -29,6 +29,8 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			RateLimitModel:             "graphql_and_rest",
 			IssueRefSyntax:             "hash_or_gh_prefix",
 			Label:                      "GitHub",
+			BotLoginSuffix:             "[bot]",
+			BotProfilePages:            map[string]string{"dependabot": "dependabot", "renovate": "apps/renovate"},
 		}},
 		{dashboard.ForgeForgejo, dashboard.ForgeCapabilities{
 			AutoMergeHeldByApp:         true,
@@ -54,12 +56,12 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			require.True(t, ok)
 			assert.Equal(t, tc.want, got)
 
-			// Every text capability is filled in. The status page is the one
-			// that may be empty, which says the forge has none.
+			// Every text capability is filled in. The status page and the bot
+			// suffix may be empty: the forge has no status page, or no bot accounts.
 			v := reflect.ValueOf(got)
 			for i := range v.NumField() {
 				name := v.Type().Field(i).Name
-				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" {
+				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" && name != "BotLoginSuffix" {
 					assert.NotEmpty(t, v.Field(i).String(), name)
 				}
 			}

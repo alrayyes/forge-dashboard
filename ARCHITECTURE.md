@@ -29,12 +29,18 @@ One Go binary serves all of it. `web/` builds to static files that
 
 - **Adapters** turn a forge's answer into `dashboard.PullRequest`, `Issue` and
   `Repo`. Nothing outside them knows what a GraphQL node looks like.
+  They also read a webhook delivery's signature and ID headers
+  (`WebhookSignature`, `WebhookDelivery`), so the webhook handler holds no
+  header names of either forge.
 - **Forge capabilities** are one `dashboard.ForgeCapabilities` value per forge
   (`internal/dashboard/forge_capabilities.go`): who holds an armed auto-merge,
   whether check results arrive by webhook, which logs the forge serves, where
   advisories come from, its status page, its rate-limit model, how it spells an
-  issue reference, and its label. Each forge's health in the dashboard and Main
-  branches answers carries it as `capabilities`, so a client asks what a forge
+  issue reference, its label, and (server-side only, not in the API) how its
+  bot logins are spelled and which bot profile pages exist, so
+  `dashboard.ProfileURL` has no forge branch. Each forge's health in the
+  dashboard and Main branches answers carries it as `capabilities`, so a
+  client asks what a forge
   can do instead of testing its name, and the web pages read a forge's label
   from it. `Forge.Valid()` and `dashboard.Forges()` answer from this table
   (a test fails if the display order and the table disagree), so request

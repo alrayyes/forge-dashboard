@@ -5838,7 +5838,9 @@ components:
             forge has not been asked yet since the app started (see
             starting), and the pull requests, issues and repos in the
             response are the last good ones, fetched at this time, instead of
-            none. Absent when the data
+            none. Cleared, with the forge reading as reachable again, once a
+            webhook refresh has made every repo of the forge current, even
+            while full refreshes keep failing. Absent when the data
             is current, and for a forge that has never fetched successfully,
             which has nothing to show. A forge that has not answered counts
             as failed, so a hung forge does not hold back the others: after
