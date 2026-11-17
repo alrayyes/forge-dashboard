@@ -10,6 +10,7 @@ import {
   advisoryPill,
   advisoryPillOpensDialog,
   advisoryReasonNeedsGrant,
+  advisoryReasonText,
   advisoryRowHint,
   advisoryRowUnreadable,
   advisoryUnknownReason,
@@ -535,5 +536,22 @@ describe('advisoryCoverageByForge', () => {
 
     expect(by.nowhere).toBe('full');
     expect(by.github).toBe('full');
+  });
+});
+
+describe('advisoryReasonText', () => {
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'a server reason of %s has no wording',
+    (reason) => {
+      expect(advisoryReasonText('github', reason)).toBeUndefined();
+      expect(advisoryReasonText('forgejo', reason)).toBeUndefined();
+      expect(advisoryReasonText('nobody', reason)).toBeUndefined();
+    },
+  );
+
+  test('a reason the source wrote words for reads as them', () => {
+    expect(advisoryReasonText('forgejo', 'failed')).toBe(
+      advisoryWordsFor('forgejo').reasons.failed,
+    );
   });
 });

@@ -385,3 +385,12 @@ describe('autoMergeChip by capability (#3973)', () => {
     expect(autoMergeChip(base('nobody'))?.label).toBe('Merging next');
   });
 });
+const ODD = ['constructor', 'toString', '__proto__', 'hasOwnProperty'];
+
+describe('autoMergeWording forge names', () => {
+  test.each(ODD)('a forge named %s is called by its own id', (forge) => {
+    expect(autoMergeWording('Waiting for the forge.', forge)).toBe(
+      `Waiting for ${forge}.`,
+    );
+  });
+});

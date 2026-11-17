@@ -740,6 +740,19 @@ export function advisoryWordsFor(forge: string): AdvisorySourceWords {
   );
 }
 
+// The wording for one cause of unreadable advisories, or undefined for a cause
+// the forge's source has none for. The reason comes from the server, so
+// `constructor` is a cause nobody wrote words for.
+export function advisoryReasonText(
+  forge: string,
+  reason: string,
+): string | undefined {
+  return ownOf(
+    advisoryWordsFor(forge).reasons as Record<string, string>,
+    reason,
+  );
+}
+
 // Whether the row's pill opens the advisories dialog on this page.
 export function advisoryPillOpensDialog(
   forge: string,
