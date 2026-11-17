@@ -23,7 +23,12 @@
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
   import { noReposCopy, permissionsNotReportedCopy } from "#lib/forge-copy.js";
-  import { FORGE_CLASSES, FORGE_LABELS, forgeCan } from "#lib/forges.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    forgeCan,
+    forgeIds,
+  } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
@@ -1213,40 +1218,23 @@
             />
             <span>All</span>
           </label>
-          {#if forgeChoices.has("github")}
+          {#each forgeIds().filter((f) => forgeChoices.has(f)) as forge (forge)}
             <label>
               <input
                 type="radio"
                 name="webhooks-forge"
                 class="webhooks-filter"
                 data-filter="forge"
-                value="github"
-                checked={filterForge === "github"}
+                value={forge}
+                checked={filterForge === forge}
                 onchange={() => {
-                  filterForge = "github";
+                  filterForge = forge;
                   onFilterChange("forge");
                 }}
               />
-              <span>{FORGE_LABELS.github}</span>
+              <span>{FORGE_LABELS[forge] ?? forge}</span>
             </label>
-          {/if}
-          {#if forgeChoices.has("forgejo")}
-            <label>
-              <input
-                type="radio"
-                name="webhooks-forge"
-                class="webhooks-filter"
-                data-filter="forge"
-                value="forgejo"
-                checked={filterForge === "forgejo"}
-                onchange={() => {
-                  filterForge = "forgejo";
-                  onFilterChange("forge");
-                }}
-              />
-              <span>{FORGE_LABELS.forgejo}</span>
-            </label>
-          {/if}
+          {/each}
         </fieldset>
         <input
           class="col-filter webhooks-filter"
