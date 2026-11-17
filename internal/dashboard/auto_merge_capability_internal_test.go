@@ -45,13 +45,3 @@ func TestAutoMergeRules_FollowTheCapabilityNotTheForgeName(t *testing.T) {
 	assert.False(t, appMergesArmed(heldByForge))
 	assert.False(t, appMergesArmed("nope"))
 }
-
-func TestForgeName_IsTheCapabilityLabel(t *testing.T) {
-	// Not parallel: it edits the shared table.
-	withForge(t, "thirdforge", ForgeCapabilities{Label: "Thirdforge"})
-
-	assert.Equal(t, "GitHub", forgeName(ForgeGitHub))
-	assert.Equal(t, "Forgejo", forgeName(ForgeForgejo))
-	assert.Equal(t, "Thirdforge", forgeName("thirdforge"))
-	assert.Equal(t, "nope", forgeName("nope"), "an unknown forge is called by its id")
-}

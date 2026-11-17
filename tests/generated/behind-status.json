@@ -147,7 +147,7 @@
       "autoMerge": {
         "state": "waiting",
         "code": "behind",
-        "message": "Auto-merge is waiting for the branch to be updated. GitHub requires it to be up to date before it merges."
+        "message": "Auto-merge is waiting for the branch to be updated. The forge requires it to be up to date before it merges."
       },
       "autoUpdate": {
         "enabled": false,

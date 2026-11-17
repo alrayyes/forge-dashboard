@@ -54,3 +54,6 @@ func (a *Aggregator) DebounceRememberedForTest() int {
 
 	return len(a.debounce.lastFired)
 }
+
+// MergeRefusalForTest exposes mergeRefusal to the external tests.
+func MergeRefusalForTest(err error) ActionRefusal { return mergeRefusal(err) }

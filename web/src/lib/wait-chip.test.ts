@@ -4,6 +4,7 @@ import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
   autoMergeChip,
+  autoMergeWording,
   queuedChip,
   SETTLED_MS,
   STILL_WAITING_MS,
@@ -251,13 +252,30 @@ describe('autoMergeChip wording', () => {
       waiting({
         code: undefined,
         forge: 'github',
-        message: 'Checks passed. GitHub merges it as soon as it can.',
+        message: 'Checks passed. The forge merges it as soon as it can.',
       }),
     );
     expect(chip?.label).toBe('Merging');
     expect(chip?.detail).toBe('GitHub merges it as soon as it can');
     expect(chip?.tooltip).toBe(
       'Checks passed. GitHub merges it as soon as it can.',
+    );
+  });
+
+  test('the tooltip names the forge from its label, not from the server (#4072)', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const chip = autoMergeChip(
+      waiting({
+        code: 'behind',
+        forge: 'forgejo',
+        message:
+          'Auto-merge is waiting for the branch to be updated. The forge requires it to be up to date before it merges.',
+      }),
+    );
+    expect(chip?.tooltip).toBe(
+      'Auto-merge is waiting for the branch to be updated. Codeberg requires it to be up to date before it merges.',
     );
   });
 
@@ -296,5 +314,39 @@ describe('queuedChip wording', () => {
     expect(chip.action).toBe('cancel');
     expect(chip.resets).toBe(true);
     expect(chip.tooltip).toContain('14:32 CEST');
+  });
+});
+
+describe('autoMergeWording (#4072)', () => {
+  test('puts the forge label where the server says "the forge"', () => {
+    expect(
+      autoMergeWording(
+        'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.',
+        'github',
+      ),
+    ).toBe(
+      'Auto-merge stopped: merge conflict. Resolve it on GitHub and it carries on.',
+    );
+    expect(
+      autoMergeWording(
+        'Auto-merge is waiting for the forge to say it can merge.',
+        'forgejo',
+      ),
+    ).toBe('Auto-merge is waiting for Forgejo to say it can merge.');
+    expect(
+      autoMergeWording(
+        'Checks passed. The forge merges it as soon as it can.',
+        'github',
+      ),
+    ).toBe('Checks passed. GitHub merges it as soon as it can.');
+  });
+
+  test('a forge with no label is called by its id, and a message without the phrase is untouched', () => {
+    expect(autoMergeWording('Resolve it on the forge.', 'sourcehut')).toBe(
+      'Resolve it on sourcehut.',
+    );
+    expect(
+      autoMergeWording('Auto-merge is waiting for checks to finish.', 'github'),
+    ).toBe('Auto-merge is waiting for checks to finish.');
   });
 });

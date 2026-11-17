@@ -62,9 +62,11 @@ type AutoMergeCancelled struct {
 // autoMergedKeep is how long a merge stays in the report.
 const autoMergedKeep = 10 * time.Minute
 
-// AutoMergeStatusOf explains an armed pull request. A refusal of the current
-// version outranks what the fields say, since it is what actually happened
-// when the merge was tried. A rate limit only waits.
+// AutoMergeStatusOf explains an armed pull request. Its sentences say "the
+// forge", never a forge's name: the page words that with the forge's label
+// (#4072). A refusal of the current version outranks what the fields say,
+// since it is what actually happened when the merge was tried. A rate limit
+// only waits.
 func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatus {
 	status := func(state AutoMergeState, code ActionCode, message string) AutoMergeStatus {
 		return AutoMergeStatus{State: state, Code: code, Message: message}
@@ -80,9 +82,9 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 
 	switch {
 	case pr.MergeStatus == MergeConflicting:
-		return status(AutoMergeStopped, ActionConflict, "Auto-merge stopped: merge conflict. Resolve it on "+forgeName(pr.Forge)+" and it carries on.")
+		return status(AutoMergeStopped, ActionConflict, "Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.")
 	case pr.CI == CIFailure && pr.FailingOnlyForApproval:
-		return status(AutoMergeWaiting, ActionBlockedByProtection, "Auto-merge is waiting for workflow approval. Approve the runs on "+forgeName(pr.Forge)+" and it carries on.")
+		return status(AutoMergeWaiting, ActionBlockedByProtection, "Auto-merge is waiting for workflow approval. Approve the runs on the forge and it carries on.")
 	case pr.CI == CIFailure:
 		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed. It carries on once checks pass.")
 	case pr.Empty:
@@ -95,15 +97,15 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		// The forge won't merge a behind branch here, and doesn't update it
 		// itself, so it waits until someone does (#3428). Without the rule a
 		// behind branch merges as soon as checks pass, so it isn't blamed.
-		return status(AutoMergeWaiting, ActionBehind, "Auto-merge is waiting for the branch to be updated. "+forgeName(pr.Forge)+" requires it to be up to date before it merges.")
+		return status(AutoMergeWaiting, ActionBehind, "Auto-merge is waiting for the branch to be updated. The forge requires it to be up to date before it merges.")
 	case waitingOnChecks(pr.CI) != "":
 		return status(AutoMergeWaiting, ActionChecksPending, waitingOnChecks(pr.CI))
 	case pr.MergeStatus != MergeMergeable:
-		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for "+forgeName(pr.Forge)+" to say it can merge.")
+		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for the forge to say it can merge.")
 	}
 
 	if forgeMergesArmed(pr.Forge) {
-		return status(AutoMergeWaiting, "", "Checks passed. "+forgeName(pr.Forge)+" merges it as soon as it can.")
+		return status(AutoMergeWaiting, "", "Checks passed. The forge merges it as soon as it can.")
 	}
 
 	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")
@@ -128,16 +130,6 @@ func waitingOnChecks(ci CIStatus) string {
 	default:
 		return ""
 	}
-}
-
-// forgeName is the forge as a person reads it, from the capability table. A
-// forge the table doesn't know is called by its id.
-func forgeName(f Forge) string {
-	if c, ok := CapabilitiesOf(f); ok && c.Label != "" {
-		return c.Label
-	}
-
-	return string(f)
 }
 
 func lowerFirst(s string) string {
@@ -188,12 +180,12 @@ func (s *Service) AutoMergeReport() AutoMergeReport {
 	return agg.AutoMergeReport()
 }
 
-// mergeRefusal explains a refused merge. A "not allowed" from Forgejo
+// mergeRefusal explains a refused merge. A "not allowed" from a forge
 // comes with the same status as an unmergeable pull request, so the
 // text decides.
 func mergeRefusal(err error) ActionRefusal {
 	if strings.Contains(strings.ToLower(err.Error()), "not allowed to merge") {
-		return ActionRefusal{Code: ActionPermission, Message: "The token saved for Forgejo isn't allowed to merge this pull request. Check its permissions in Settings."}
+		return ActionRefusal{Code: ActionPermission, Message: "The token saved for the forge isn't allowed to merge this pull request. Check its permissions in Settings."}
 	}
 
 	return ClassifyActionRefusal(err, nil)
