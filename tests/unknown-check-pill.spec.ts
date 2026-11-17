@@ -12,6 +12,12 @@ const JOBS = [
   { name: 'build', status: 'completed', conclusion: 'cancelled', jobId: 2 },
   { name: 'scan', status: 'completed', conclusion: 'brand_new', jobId: 3 },
   { name: 'deploy', status: 'waiting', jobId: 4 },
+  {
+    name: 'verify',
+    status: 'unknown',
+    reportedStatus: 'brand_new_status',
+    jobId: 5,
+  },
 ].map((job) => ({ ...job, url: '' }));
 
 const ROW = {
@@ -36,7 +42,7 @@ const ROW = {
     running: 0,
     waiting: 0,
     failed: 0,
-    unknown: 1,
+    unknown: 2,
     cancelled: 1,
     held: 1,
   },
@@ -85,7 +91,7 @@ for (const [name, size] of [
     }) => {
       const pill = await open(page);
       const label = (await pill.getAttribute('aria-label')) ?? '';
-      expect(label).toContain('1 unknown');
+      expect(label).toContain('2 unknown');
       expect(label).toContain('1 cancelled');
       expect(label).toContain('1 held');
 
@@ -94,7 +100,7 @@ for (const [name, size] of [
         .getByRole('dialog', { name: /pipeline/i })
         .getByRole('listitem');
       await expect(items).toHaveCount(JOBS.length);
-      await expect(items.filter({ hasText: 'Unknown' })).toHaveCount(1);
+      await expect(items.filter({ hasText: 'Unknown' })).toHaveCount(2);
       await expect(items.filter({ hasText: 'Failed' })).toHaveCount(0);
     });
 
@@ -104,10 +110,38 @@ for (const [name, size] of [
       await expect(pill).not.toContainText('Running');
     });
 
+    test('the dialog names the word the forge sent, in text and tooltip', async ({
+      page,
+    }) => {
+      const pill = await open(page);
+      await pill.click();
+      const dialog = page.getByRole('dialog', { name: /pipeline/i });
+      const status = dialog.getByRole('listitem').filter({ hasText: 'verify' });
+      await expect(status).toContainText('Unknown');
+      await expect(status.getByTestId('check-forge-word')).toHaveText(
+        'brand_new_status',
+      );
+      await expect(status.locator('.pipeline-check-status')).toHaveAttribute(
+        'title',
+        /brand_new_status/,
+      );
+      const scan = dialog.getByRole('listitem').filter({ hasText: 'scan' });
+      await expect(scan.getByTestId('check-forge-word')).toHaveText(
+        'brand_new',
+      );
+      const fits = await dialog.evaluate(
+        (el) => el.scrollWidth <= el.clientWidth,
+      );
+      expect(fits).toBe(true);
+    });
+
     test('has no axe violations, light and dark', async ({ page }) => {
       for (const scheme of ['light', 'dark'] as const) {
         await page.emulateMedia({ colorScheme: scheme });
-        await open(page);
+        await (await open(page)).click();
+        await expect(
+          page.getByTestId('check-forge-word').first(),
+        ).toBeVisible();
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
           .analyze();

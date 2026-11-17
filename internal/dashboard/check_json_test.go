@@ -218,3 +218,31 @@ func TestWithFacts_KeepsANilListNil(t *testing.T) {
 
 	assert.Nil(t, dashboard.WithFacts(nil))
 }
+
+// A status the server cannot grade is sent with the forge's own word, since
+// the status alone says only "unknown". Any other check sends none.
+func TestWithFacts_SendsTheForgesWordForAnUnknownStatusOnly(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name  string
+		state dashboard.CheckState
+		want  any
+	}{
+		{"unknown keeps the word", dashboard.CheckUnknown, "brand_new_status"},
+		{"queued drops it", dashboard.CheckQueued, nil},
+		{"success drops it", dashboard.CheckSuccess, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			checks := dashboard.WithFacts([]dashboard.Check{{Name: "b", State: tc.state, ReportedStatus: "brand_new_status", URL: "https://x/1"}})
+			raw, err := json.Marshal(checks[0])
+			require.NoError(t, err)
+			var got map[string]any
+			require.NoError(t, json.Unmarshal(raw, &got))
+
+			assert.Equal(t, tc.want, got["reportedStatus"])
+		})
+	}
+}

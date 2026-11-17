@@ -4347,6 +4347,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				URL:   r.GetHTMLURL(),
 
 				ReportedConclusion: reportedConclusion(r),
+				ReportedStatus:     dashboard.UnknownWord(checkStateFromRun(r), r.GetStatus()),
 				JobID:              r.GetID(),
 				StartedAt:          runTime(r.StartedAt),
 				CompletedAt:        runTime(r.CompletedAt),
@@ -4374,7 +4375,9 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		checks = append(checks, dashboard.Check{
 			Name:  s.GetContext(),
 			State: checkStateFromCombinedState(s.GetState()),
-			URL:   s.GetTargetURL(),
+			// The legacy status carries its word in the state.
+			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(s.GetState()), s.GetState()),
+			URL:            s.GetTargetURL(),
 		})
 	}
 

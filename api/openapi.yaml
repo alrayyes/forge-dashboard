@@ -5203,6 +5203,14 @@ components:
           $ref: "#/components/schemas/CheckStatus"
         conclusion:
           $ref: "#/components/schemas/CheckConclusion"
+        reportedStatus:
+          type: string
+          examples: [brand_new_status]
+          description: |
+            The forge's own word for the job's status, sent only when `status`
+            is "unknown", so a client can name what it cannot grade. Absent
+            for every other status. A finished job's own word is its
+            `conclusion`.
         waitingFor:
           type: string
           enum: [jobs, runner]

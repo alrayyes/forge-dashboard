@@ -12,6 +12,9 @@ export type Check = {
   // grades them into what it shows (checkState).
   status: string;
   conclusion?: string;
+  // The forge's own word for a status the server cannot grade; sent only
+  // while status is 'unknown'.
+  reportedStatus?: string;
   // Why a queued Forgejo job has not started: it needs earlier jobs, or it
   // waits for a runner. Absent for GitHub and for any job not queued.
   waitingFor?: 'jobs' | 'runner';
@@ -101,6 +104,25 @@ function concludedState(conclusion: string | undefined): string {
       // name, and not a pass.
       return 'unknown';
   }
+}
+
+// The forge's own word for a check the page shows as unknown, so the dialog
+// can name it: the conclusion of a finished job, or the status of one that
+// has not finished. Empty when the check is not unknown or the forge gave
+// none. Cleaned and cut short, since it is the forge's text.
+export function checkUnknownWord(check: Check): string {
+  if (checkState(check) !== 'unknown') return '';
+  const word =
+    check.status === 'completed' ? check.conclusion : check.reportedStatus;
+
+  // Line breaks, control and direction-override characters would reorder or
+  // break the row, so they read as spaces. The cut is by whole characters, so
+  // an emoji is never split.
+  const plain = (word ?? '')
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
+    .trim();
+
+  return Array.from(plain).slice(0, 40).join('');
 }
 
 // The per-check labels, keyed by checkState.

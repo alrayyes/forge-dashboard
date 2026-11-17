@@ -2107,6 +2107,15 @@ a.ci-pill:hover {
   width: 100%;
 }
 
+/* The forge's own word for a check the page cannot grade, beside the Unknown
+   label. It wraps on a narrow screen rather than pushing the row wider. */
+.pipeline-check-word {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+  font-size: 0.71875rem;
+  color: var(--ink-2);
+}
 /* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
    (higher specificity, earlier) sets only background -- never width/
    height/border-radius/flex, so no property actually collides. */
