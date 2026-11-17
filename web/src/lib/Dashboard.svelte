@@ -49,6 +49,12 @@
     autoUpdateControl,
   } from "#lib/auto-update.js";
   import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
+  import {
+    detailsCache,
+    detailsKey,
+    detailsPrefetcher,
+    type DetailsRef,
+  } from "#lib/details-cache.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
@@ -951,6 +957,7 @@
       onLabelClick: (name: string) => void,
       activeLabel: string,
       onOpen: (triggerId: string) => void,
+      detailsRef?: DetailsRef,
     ): HTMLElement {
       const wrap = el("div", "title-cell");
       // The real, keyboard-focusable link — a "stretched link" (see
@@ -971,8 +978,19 @@
       const wasDrag = dragGuard(title);
       title.addEventListener("click", (event) => {
         if (wasDrag(event)) return;
+        detailsPrefetcher.leave();
         onOpen(title.id);
       });
+      // Stay on the title for a moment and its details are read early (#4194).
+      if (detailsRef) {
+        const ref = detailsRef;
+        title.addEventListener("pointerenter", () =>
+          detailsPrefetcher.enter(ref),
+        );
+        title.addEventListener("focus", () => detailsPrefetcher.enter(ref));
+        title.addEventListener("pointerleave", () => detailsPrefetcher.leave());
+        title.addEventListener("blur", () => detailsPrefetcher.leave());
+      }
       // The ellipsis truncation lives on this inner span, not .title
       // itself — overflow:hidden on .title would clip its own ::after
       // stretched overlay down to .title's box instead of letting it
@@ -2032,6 +2050,14 @@
     function doReopen(closed: ClosedInDialog) {
       const { item, key } = closed;
       closed.phase = "reopening";
+      detailsCache.delete(
+        detailsKey({
+          forge: item.forge,
+          repo: item.repo,
+          subject: "pull-request",
+          number: item.number,
+        }),
+      );
       const fkey = `reopen:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -2328,6 +2354,10 @@
       showClosed: (closed) =>
         detailsDialog?.setHeaderState(issueStateElement(closed)),
       refresh: () => {
+        // The user's own comment, close or reopen: never show details from
+        // before it (#4194).
+        detailsDialog?.forget();
+        void detailsDialog?.reload();
         refreshDashboardNow().catch(() => {});
       },
       announce: (text) => feedback.announce(text),
@@ -2818,6 +2848,12 @@
         isPR
           ? (triggerId) => openDetailsDialog(item as PullRequestItem, triggerId)
           : (triggerId) => openIssueDialog(item as IssueItem, triggerId),
+        {
+          forge: item.forge,
+          repo: item.repo,
+          subject: isPR ? "pull-request" : "issue",
+          number: item.number,
+        },
       );
       row.appendChild(titleCellEl);
       if (isPR) {
@@ -4460,6 +4496,14 @@
         })
         .then(() => {
           delete closeState[key];
+          detailsCache.delete(
+            detailsKey({
+              forge: item.forge,
+              repo: item.repo,
+              subject: "pull-request",
+              number: item.number,
+            }),
+          );
           // From the dialog the close is announced once, with the way back.
           const inDialog = dialogKey === key;
           feedback.update(fkey, {

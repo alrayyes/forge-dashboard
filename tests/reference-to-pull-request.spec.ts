@@ -185,6 +185,40 @@ test.describe('a reference to a pull request opens it (#4188)', () => {
     await expect(issueDialog(page)).not.toContainText(/graphql/i);
   });
 
+  test('a second open of a reference to a pull request is a pull request at once', async ({
+    page,
+  }) => {
+    await open(page, 'issues', 'Fixed by #4177');
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+    await expect(prDialog(page)).toContainText('The linked change.');
+    await page.keyboard.press('Escape');
+
+    // Only what was remembered can say what it is before the read returns.
+    await page.evaluate(() => {
+      const w = window as unknown as { __labels: string[] };
+      w.__labels = [];
+      new MutationObserver(() => {
+        const d = document.querySelector('dialog.details-dialog[open]');
+        const label = d?.getAttribute('aria-label') ?? '';
+        if (label.includes('#4177')) w.__labels.push(label);
+      }).observe(document.body, {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['aria-label', 'open'],
+      });
+    });
+    await page.getByRole('button', { name: /^#12 / }).click();
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+    await expect(prDialog(page)).toBeVisible();
+    const labels = await page.evaluate(
+      () => (window as unknown as { __labels: string[] }).__labels,
+    );
+    expect(labels.length).toBeGreaterThan(0);
+    expect(labels.every((l) => l.startsWith('Pull request details'))).toBe(
+      true,
+    );
+  });
+
   for (const width of [360, 1280]) {
     test(`the retargeted dialog has no axe violations at ${width}px`, async ({
       page,
