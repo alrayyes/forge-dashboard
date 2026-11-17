@@ -168,11 +168,13 @@ const known: Advisories = { state: 'known', count: 0 };
 
 describe('advisoryCoverage', () => {
   test('every row that has an answer is unknown: one notice', () => {
-    expect(advisoryCoverage([b(unknown), b(unknown), b()])).toBe('none');
+    expect(advisoryCoverage([b(unknown), b(unknown), b()], 'github')).toBe(
+      'none',
+    );
   });
 
   test('some known, some unknown: a quiet cue on the unknown rows', () => {
-    expect(advisoryCoverage([b(unknown), b(known)])).toBe('partial');
+    expect(advisoryCoverage([b(unknown), b(known)], 'github')).toBe('partial');
   });
 
   test('Forgejo rows without a reason never raise the GitHub notice or a cue', () => {
@@ -181,10 +183,12 @@ describe('advisoryCoverage', () => {
     const gh = (a?: Advisories) =>
       ({ forge: 'github', advisories: a }) as MainBranch;
     // A Forgejo repo with no lockfile is unknown, and says nothing about GitHub.
-    expect(advisoryCoverage([fj(unknown), fj(unknown)])).toBe('full');
-    expect(advisoryCoverage([gh(known), fj(unknown)])).toBe('full');
-    expect(advisoryCoverage([gh(unknown), fj(known)])).toBe('none');
-    expect(advisoryUnknownReason([fj(unknown), gh(unknown)])).toBeNull();
+    expect(advisoryCoverage([fj(unknown), fj(unknown)], 'github')).toBe('full');
+    expect(advisoryCoverage([gh(known), fj(unknown)], 'github')).toBe('full');
+    expect(advisoryCoverage([gh(unknown), fj(known)], 'github')).toBe('none');
+    expect(
+      advisoryUnknownReason([fj(unknown), gh(unknown)], 'github'),
+    ).toBeNull();
   });
 
   test('a Forgejo row unknown for a reason counts, one with none or not_enabled does not', () => {
@@ -208,7 +212,7 @@ describe('advisoryCoverage', () => {
       'none',
     );
     // The GitHub cue is not about Forgejo rows, and the other way round.
-    expect(advisoryCoverage([fj(why('failed'))])).toBe('full');
+    expect(advisoryCoverage([fj(why('failed'))], 'github')).toBe('full');
     expect(advisoryCoverage([b(why('failed')), b(known)], 'forgejo')).toBe(
       'full',
     );
@@ -229,9 +233,9 @@ describe('advisoryCoverage', () => {
   });
 
   test('all known, or no source at all, has nothing to say', () => {
-    expect(advisoryCoverage([b(known), b()])).toBe('full');
-    expect(advisoryCoverage([b(), b()])).toBe('full');
-    expect(advisoryCoverage([])).toBe('full');
+    expect(advisoryCoverage([b(known), b()], 'github')).toBe('full');
+    expect(advisoryCoverage([b(), b()], 'github')).toBe('full');
+    expect(advisoryCoverage([], 'github')).toBe('full');
   });
 });
 
@@ -244,22 +248,27 @@ describe('advisoryUnknownReason', () => {
 
   test('names the cause every unknown row shares', () => {
     expect(
-      advisoryUnknownReason([b(why('throttled')), b(why('throttled')), b()]),
+      advisoryUnknownReason(
+        [b(why('throttled')), b(why('throttled')), b()],
+        'github',
+      ),
     ).toBe('throttled');
   });
 
   test('says nothing when the unknown rows disagree', () => {
     expect(
-      advisoryUnknownReason([b(why('throttled')), b(why('refused'))]),
+      advisoryUnknownReason([b(why('throttled')), b(why('refused'))], 'github'),
     ).toBeNull();
   });
 
   test('says nothing when any unknown row has no reason', () => {
-    expect(advisoryUnknownReason([b(why('refused')), b(unknown)])).toBeNull();
+    expect(
+      advisoryUnknownReason([b(why('refused')), b(unknown)], 'github'),
+    ).toBeNull();
   });
 
   test('ignores known rows and says nothing without unknown ones', () => {
-    expect(advisoryUnknownReason([b(known), b()])).toBeNull();
+    expect(advisoryUnknownReason([b(known), b()], 'github')).toBeNull();
   });
 
   test('names the one cause Forgejo rows share, for the Forgejo notice only', () => {
@@ -274,7 +283,7 @@ describe('advisoryUnknownReason', () => {
     expect(
       advisoryUnknownReason([fj('failed'), fj('too_many')], 'forgejo'),
     ).toBeNull();
-    expect(advisoryUnknownReason([fj('failed')])).toBeNull();
+    expect(advisoryUnknownReason([fj('failed')], 'github')).toBeNull();
   });
 
   test('only a refusal or switched-off alerts point at the permission steps', () => {
@@ -469,6 +478,20 @@ describe('a forge the page was not built with', () => {
     expect(advisoryRowUnreadable(row('gitea', 'failed'))).toBe(true);
     expect(advisoryRowHint(row('gitea', 'failed'))).toContain('read failed');
     expect(advisoryCoverage([row('gitea', 'failed')], 'gitea')).toBe('none');
+  });
+});
+
+describe('a missing forge is not read as GitHub', () => {
+  const gh = {
+    forge: 'github',
+    advisories: { state: 'unknown', count: 0, reason: 'refused' },
+  } as unknown as MainBranch;
+
+  test('coverage and reason name no forge by default', () => {
+    // Callers always say which forge; a lost argument must not become github.
+    const missing = undefined as unknown as string;
+    expect(advisoryCoverage([gh], missing)).toBe('full');
+    expect(advisoryUnknownReason([gh], missing)).toBeNull();
   });
 });
 
