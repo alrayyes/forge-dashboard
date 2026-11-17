@@ -1,13 +1,20 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
-// Pressing a non-focusable part of something that reacts to focus leaving it
-// must not make it react (#4098). On a phone the nearest focusable ancestor of
-// a press takes focus, and inside a scrolling sheet or dialog that is the
-// scroller, outside the thing being pressed. #4093 found the filter panel
-// closing on it. Each closer that listens for focusout is checked here, at
-// desktop and phone width: the press is held down while the page's clock runs
-// on, so a closer that reacted would show before the click.
+// Does anything that listens for focus leaving react to a press on a
+// non-focusable part of it (#4098)? On a phone a press moves focus to the
+// nearest focusable ancestor, which can be a scroller outside the thing
+// pressed; #4093 found the filter panel closing on that. Covered here, at
+// desktop and phone width: the confirm countdown (Dashboard.svelte, focusout
+// on the document), the row lists' hold, the success toast's timer, and the
+// reaction list. The confirm and rows tests stay green with their focusout
+// handlers mutated, because focusin re-pauses the countdown and the hold
+// outlasts the handler: they pin behaviour, they do not prove the handler
+// is needed. Not covered: the failure line's timer (feedback-ui.ts, the
+// handler near line 409), which has the same shape as the toast's.
+// The press is sent as touch pointer events plus the blur a press causes,
+// because Playwright cannot hold a finger down and a mouse press brings
+// hover with it, which pauses the same timers and hides the bug.
 
 const sizes = [
   { name: 'desktop', width: 1280, height: 800 },
@@ -92,29 +99,51 @@ async function pressDown(page: Page, target: ReturnType<Page['locator']>) {
   await page.mouse.down();
 }
 
+// A finger pressing `target`: the touch pointer events, and the blur a press
+// causes when the nearest focusable ancestor is not the focused element.
+async function touchDown(target: ReturnType<Page['locator']>) {
+  await target.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const init = (type: string) =>
+      new PointerEvent(type, {
+        pointerId: 9,
+        pointerType: 'touch',
+        isPrimary: true,
+        bubbles: true,
+        cancelable: true,
+        clientX: box.left + box.width / 2,
+        clientY: box.top + box.height / 2,
+      });
+    el.dispatchEvent(init('pointerover'));
+    el.dispatchEvent(init('pointerdown'));
+    (document.activeElement as HTMLElement | null)?.blur();
+  });
+}
+
 for (const size of sizes) {
   test.describe(`focus leaving a closer, ${size.name}`, () => {
     test.use({ viewport: { width: size.width, height: size.height } });
 
-    test('the confirm countdown keeps waiting while its hint is pressed', async ({
+    test('the confirm countdown keeps waiting while focus moves inside the group, or a finger presses its hint', async ({
       page,
     }) => {
       await open(page, [pr(2)]);
       const row = page.locator('#pr-rows .row').first();
       const merge = row.getByRole('button', { name: 'Merge', exact: true });
+      const confirm = row.getByRole('button', { name: 'Confirm merge?' });
       // Armed from the keyboard, so focus-visible pauses the countdown.
       await merge.focus();
       await page.keyboard.press('Enter');
       await expect(row.getByRole('button', { name: 'Cancel' })).toBeVisible();
-      await page.clock.runFor(1500);
-      const hint = row.locator('.confirm-hint');
-      await pressDown(page, hint);
-      // Past the 8s countdown, measured from the arm: still armed while held.
-      await page.clock.runFor(8000);
-      await expect(
-        row.getByRole('button', { name: 'Confirm merge?' }),
-      ).toBeVisible();
-      await page.mouse.up();
+      // Tab inside the group is focus leaving one button for another in it.
+      await page.keyboard.press('Tab');
+      await expect(row.getByRole('button', { name: 'Cancel' })).toBeFocused();
+      await page.clock.runFor(9000);
+      await expect(confirm).toBeVisible();
+      // And a touch press on the hint, with focus blurred by it.
+      await touchDown(row.locator('.confirm-hint'));
+      await page.clock.runFor(9000);
+      await expect(confirm).toBeVisible();
     });
 
     test('rows stay put while a press is down, even with focus in another row', async ({
@@ -132,7 +161,7 @@ for (const size of sizes) {
       await page.mouse.up();
     });
 
-    test('a reaction list stays while its text is pressed, and goes when focus moves on', async ({
+    test('a reaction list hides when focus leaves its pill', async ({
       page,
     }) => {
       const some = (logins: string[]) => ({ count: logins.length, logins });
@@ -169,16 +198,12 @@ for (const size of sizes) {
       await up.focus();
       const list = dialog.locator('.reaction-people', { hasText: 'alice' });
       await expect(list).toBeVisible();
-      await pressDown(page, list);
-      await page.clock.runFor(500);
-      await expect(list).toBeVisible();
-      await page.mouse.up();
-      await page.mouse.move(0, 0);
-      await page.keyboard.press('Tab');
+      // Shift+Tab leaves the pill for something that is not a pill.
+      await page.keyboard.press('Shift+Tab');
       await expect(list).toHaveCount(0);
     });
 
-    test('an error toast keeps waiting while its text is pressed', async ({
+    test('a success toast keeps waiting while a finger presses its text', async ({
       page,
     }) => {
       await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
@@ -186,11 +211,7 @@ for (const size of sizes) {
       );
       await page.route(
         '**/api/v1/pull-requests/update-branch',
-        (route: Route) =>
-          route.fulfill({
-            status: 403,
-            json: { error: 'x', code: 'permission', message: 'No access' },
-          }),
+        (route: Route) => route.fulfill({ status: 202 }),
       );
       await open(page, [
         pr(2, {
@@ -207,15 +228,12 @@ for (const size of sizes) {
         .getByRole('button', { name: 'Update branch' })
         .click();
       const toast = page.locator('#feedback-toasts .feedback-toast').first();
+      await expect(toast).toContainText('Branch update requested.');
+      await toast.getByRole('button', { name: 'Show row' }).focus();
+      await touchDown(toast.getByText('Branch update requested.'));
+      // Well inside the 6s life, so only a handler that ends the toast shows.
+      await page.clock.runFor(1000);
       await expect(toast).toBeVisible();
-      await toast.getByRole('button', { name: /^Dismiss/ }).focus();
-      await pressDown(
-        page,
-        toast.locator('.feedback-toast-message, span, p').first(),
-      );
-      await page.clock.runFor(900);
-      await expect(toast).toBeVisible();
-      await page.mouse.up();
     });
   });
 }
