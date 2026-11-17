@@ -34,9 +34,18 @@ export function autoMergeGroupNote(forge: string): string {
   return `Auto-merge on ${n} is handled by Forge Dashboard, not ${n} itself. Manage it in `;
 }
 
-export function forgeNameList(names: readonly string[]): string {
+export function forgeNameList(
+  names: readonly string[],
+  conjunction = 'and',
+): string {
   if (names.length <= 1) return names.join('');
-  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+  return `${names.slice(0, -1).join(', ')} ${conjunction} ${names[names.length - 1]}`;
+}
+
+// The Webhooks page's empty state.
+export function noReposCopy(): string {
+  const forges = forgeNameList(Object.values(FORGE_LABELS), 'or');
+  return `Nothing tracked yet — save ${forges} credentials in Settings first.`;
 }
 
 export type PageView = 'issues' | 'releases' | 'bots' | 'pulls';
