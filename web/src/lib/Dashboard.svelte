@@ -176,6 +176,7 @@
   } from "#lib/hidden-pull-requests.js";
   import {
     autoMergeChip,
+    autoMergeWording,
     buildWaitChip,
     queuedChip,
     requestedAnnouncement,
@@ -1504,7 +1505,11 @@
       if (pr.autoMerge?.state !== "stopped") return null;
       const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
       line.appendChild(el("strong", "", "Stopped: "));
-      line.appendChild(document.createTextNode(pr.autoMerge.message));
+      line.appendChild(
+        document.createTextNode(
+          autoMergeWording(pr.autoMerge.message, pr.forge),
+        ),
+      );
       return line;
     }
 

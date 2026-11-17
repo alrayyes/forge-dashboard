@@ -21,7 +21,12 @@ function armedBehind(overrides: MockPR = {}): MockPR {
   return { ...fixture.pullRequests.strict, ...overrides };
 }
 
-const strictMessage = fixture.pullRequests.strict.autoMerge.message;
+// The server says "the forge"; the page names it from the capability label
+// (#4072), and the fixture's pull request is on GitHub.
+const strictMessage = fixture.pullRequests.strict.autoMerge.message.replace(
+  'The forge',
+  'GitHub',
+);
 const cancelledMessage = fixture.pullRequests.notStrict.autoMerge.message;
 
 async function open(page: Page, pr: MockPR) {
@@ -95,7 +100,7 @@ test.describe('an armed pull request that is behind (#3428)', () => {
           state: 'stopped',
           code: 'conflict',
           message:
-            'Auto-merge stopped: merge conflict. Resolve it on GitHub and it carries on.',
+            'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.',
         },
         allowedActions: [
           {
@@ -112,7 +117,7 @@ test.describe('an armed pull request that is behind (#3428)', () => {
     );
 
     await expect(row(page).locator('.auto-merge-status')).toContainText(
-      'Stopped: Auto-merge stopped: merge conflict.',
+      'Stopped: Auto-merge stopped: merge conflict. Resolve it on GitHub and it carries on.',
     );
     await expect(row(page)).toContainText('Auto-merge');
   });
