@@ -966,9 +966,12 @@ what it already reads to work out the CI state, so on GitHub they cost no extra
 request, and a pull request that has none keeps the plain pill. A cancelled job
 and a run held for approval are not failures while others still run, so they
 have counts of their own, on a pull request and a default branch alike, and the
-counts add up to the jobs the pipeline lists in every mix but one: on Forgejo, a
-job left blocked in a run that has already failed is in no count, since nothing
-will start it. On Forgejo a held job is not told from a waiting one, so it stays
+counts add up to the jobs the pipeline lists in every mix. On Forgejo a job left
+blocked in a run that has already failed, which nothing will start, is counted
+as not started: it is no wait, so it isn't waiting, and no failure, so a failed
+pull request stays failed. The pill words it "not started" and draws it with a
+dashed ring after the waiting count.
+On Forgejo a held job is not told from a waiting one, so it stays
 in the waiting count. Its statuses only say pending, so when any are pending the
 server also reads the jobs of the runs on the commit that are running (one call
 for the runs, one for each of them, read side by side, at most eight at once),
