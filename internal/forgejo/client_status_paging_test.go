@@ -3,7 +3,9 @@ package forgejo_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -24,6 +26,12 @@ type pagedForge struct {
 	stateOf func(page []map[string]string) string
 	// failPage is a page the forge answers with a 500, or 0 for none.
 	failPage int
+	// pageSize is how many statuses the forge puts on a page, or 0 for
+	// statusPageSize.
+	pageSize int
+	// totalHeader is the X-Total-Count the forge sends, or nil for the true
+	// number. An empty string sends no header.
+	totalHeader *string
 }
 
 func statusesOf(n int, state string) []map[string]string {
@@ -39,7 +47,22 @@ func statusesOf(n int, state string) []map[string]string {
 // combined-status requests it has answered.
 func (f pagedForge) serve(t *testing.T) (*forgejo.Client, *atomic.Int32) {
 	t.Helper()
+	client, reads, _ := f.serveRecorded(t)
+
+	return client, reads
+}
+
+// serveRecorded is serve, and also returns the raw query of every
+// combined-status request, in the order they came.
+func (f pagedForge) serveRecorded(t *testing.T) (*forgejo.Client, *atomic.Int32, func() []string) {
+	t.Helper()
 	reads := &atomic.Int32{}
+	var mu sync.Mutex
+	var queries []string
+	size := statusPageSize
+	if f.pageSize > 0 {
+		size = f.pageSize
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
@@ -56,6 +79,9 @@ func (f pagedForge) serve(t *testing.T) (*forgejo.Client, *atomic.Int32) {
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, r *http.Request) {
 		reads.Add(1)
+		mu.Lock()
+		queries = append(queries, r.URL.RawQuery)
+		mu.Unlock()
 		page, err := strconv.Atoi(r.URL.Query().Get("page"))
 		if err != nil || page < 1 {
 			page = 1
@@ -65,15 +91,27 @@ func (f pagedForge) serve(t *testing.T) (*forgejo.Client, *atomic.Int32) {
 
 			return
 		}
-		from := min((page-1)*statusPageSize, len(f.statuses))
-		chunk := f.statuses[from:min(from+statusPageSize, len(f.statuses))]
-		w.Header().Set("X-Total-Count", strconv.Itoa(len(f.statuses)))
+		from := min((page-1)*size, len(f.statuses))
+		chunk := f.statuses[from:min(from+size, len(f.statuses))]
+		switch {
+		case f.totalHeader == nil:
+			w.Header().Set("X-Total-Count", strconv.Itoa(len(f.statuses)))
+		case *f.totalHeader != "":
+			w.Header().Set("X-Total-Count", *f.totalHeader)
+		}
 		writeJSON(t, w, map[string]any{"state": f.stateOf(chunk), "statuses": chunk, "total_count": len(chunk)})
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
-	return forgejo.NewClient(srv.URL, "test-token", ""), reads
+	recorded := func() []string {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return slices.Clone(queries)
+	}
+
+	return forgejo.NewClient(srv.URL, "test-token", ""), reads, recorded
 }
 
 func (f pagedForge) pullRequest(t *testing.T) (dashboard.PullRequest, *atomic.Int32) {
@@ -154,4 +192,80 @@ func TestListOpenPullRequests_ALaterPageThatFailsKeepsTheFirstPagesState(t *test
 	got, _ := pagedForge{statuses: statuses, stateOf: pendingState, failPage: 2}.pullRequest(t)
 
 	assert.Equal(t, dashboard.CIPending, got.CI)
+}
+
+// The walk reads at most 20 pages of 50, so 1000 statuses are the most it
+// tallies. One more and the counts would undercount, so they are dropped while
+// the combined state stays.
+func TestListOpenPullRequests_ThousandStatusesAreCounted(t *testing.T) {
+	t.Parallel()
+
+	got, reads := pagedForge{statuses: statusesOf(1000, "success"), stateOf: pendingState, pageSize: 50}.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1000}, got.Checks)
+	assert.EqualValues(t, 20, reads.Load())
+}
+
+func TestListOpenPullRequests_MoreThanAThousandStatusesZeroTheCountsAndKeepTheState(t *testing.T) {
+	t.Parallel()
+
+	got, reads := pagedForge{statuses: statusesOf(1001, "success"), stateOf: pendingState, pageSize: 50}.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{}, got.Checks)
+	assert.Equal(t, dashboard.CIPending, got.CI)
+	assert.EqualValues(t, 20, reads.Load(), "the walk stops at the page cap")
+}
+
+// A forge that sends no X-Total-Count, or one that isn't a number, gives the
+// walk no total to go on: it reads the first page and takes it as the whole.
+func TestListOpenPullRequests_AFullFirstPageWithoutAUsableTotalIsTakenAsWhole(t *testing.T) {
+	t.Parallel()
+	for name, header := range map[string]string{"missing": "", "garbage": "lots"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			statuses := append(statusesOf(30, "success"), statusesOf(1, "pending")...)
+
+			got, reads := pagedForge{statuses: statuses, stateOf: pendingState, totalHeader: &header}.pullRequest(t)
+
+			assert.Equal(t, dashboard.CheckCounts{Passed: 30}, got.Checks)
+			assert.EqualValues(t, 1, reads.Load())
+		})
+	}
+}
+
+// The first page is the one that can't be skipped: without it the row has no
+// state and no counts at all.
+func TestListOpenPullRequests_APageOneThatFailsLeavesNoStateAndNoCounts(t *testing.T) {
+	t.Parallel()
+
+	got, _ := pagedForge{statuses: statusesOf(5, "success"), stateOf: pendingState, failPage: 1}.pullRequest(t)
+
+	assert.Equal(t, dashboard.CINone, got.CI)
+	assert.Equal(t, dashboard.CheckCounts{}, got.Checks)
+}
+
+// A total higher than what the forge holds can't loop the walk: an empty page
+// ends it, and what was read stands as whole.
+func TestListOpenPullRequests_EmptyLaterPagesEndAWalkWhoseTotalIsTooHigh(t *testing.T) {
+	t.Parallel()
+	total := "500"
+	statuses := append(statusesOf(30, "success"), statusesOf(1, "pending")...)
+
+	got, reads := pagedForge{statuses: statuses, stateOf: pendingState, totalHeader: &total}.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 30, Waiting: 1}, got.Checks)
+	assert.EqualValues(t, 3, reads.Load(), "pages 1 and 2 hold statuses, page 3 is empty")
+}
+
+// Every request asks for 50 to a page. The fake forge ignores it, so the
+// request itself is the only place to see it.
+func TestListOpenPullRequests_StatusRequestsAskForFiftyAPage(t *testing.T) {
+	t.Parallel()
+	statuses := append(statusesOf(30, "success"), statusesOf(1, "pending")...)
+	client, _, queries := pagedForge{statuses: statuses, stateOf: pendingState}.serveRecorded(t)
+
+	_, err := client.ListOpenPullRequests(t.Context(), "alrayyes", "a", "alrayyes/a")
+	require.NoError(t, err)
+
+	assert.Equal(t, []string{"page=1&limit=50", "page=2&limit=50"}, queries())
 }

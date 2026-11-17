@@ -1,8 +1,9 @@
-// Reading the log excerpt of Forgejo's failed checks after the list is on
+// Reading the log excerpt of failed checks after the list is on
 // screen. The list carries no excerpt on Forgejo, since that would read a log
 // while it is built; the dialog asks for the newest few as it shows them. No
 // DOM here.
 
+import { forgeCan } from './forges';
 import { type Check, checkRunKey, checkState } from './pipeline-checks';
 import { logUrl, type RepoRef } from './run-log';
 
@@ -31,12 +32,14 @@ export function newExcerptReads(): ExcerptReads {
 }
 
 // The log endpoint's excerpt for one job, or null where the list already
-// carries the excerpt (GitHub) or no repository is named.
+// carries the excerpt (a forge without serverLogExcerpts) or no repository is named.
 export function excerptUrl(
   repo: RepoRef | undefined,
   jobId: number,
 ): string | null {
-  const url = repo?.forge === 'forgejo' ? logUrl(repo, jobId) : null;
+  const url = forgeCan(repo?.forge, 'serverLogExcerpts')
+    ? logUrl(repo, jobId)
+    : null;
 
   return url ? `${url}&excerpt=true` : null;
 }

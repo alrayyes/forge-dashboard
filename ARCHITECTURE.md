@@ -29,6 +29,23 @@ One Go binary serves all of it. `web/` builds to static files that
 
 - **Adapters** turn a forge's answer into `dashboard.PullRequest`, `Issue` and
   `Repo`. Nothing outside them knows what a GraphQL node looks like.
+  They also read a webhook delivery's signature and ID headers
+  (`WebhookSignature`, `WebhookDelivery`), so the webhook handler holds no
+  header names of either forge.
+- **Forge capabilities** are one `dashboard.ForgeCapabilities` value per forge
+  (`internal/dashboard/forge_capabilities.go`): who holds an armed auto-merge,
+  whether check results arrive by webhook, which logs the forge serves, where
+  advisories come from, its status page, its rate-limit model, how it spells an
+  issue reference, its label, and (server-side only, not in the API) how its
+  bot logins are spelled and which bot profile pages exist, so
+  `dashboard.ProfileURL` has no forge branch. Each forge's health in the
+  dashboard and Main branches answers carries it as `capabilities`, so a
+  client asks what a forge
+  can do instead of testing its name, and the web pages read a forge's label
+  from it. `Forge.Valid()` and `dashboard.Forges()` answer from this table
+  (a test fails if the display order and the table disagree), so request
+  checks and forge lists need no edit for a new forge. Adding a forge means
+  filling in this value and the order list, besides its adapter.
 - **The aggregator** refreshes the instance's one snapshot in the
   background, so a request reads the last good snapshot and never blocks on a
   forge. A webhook from a forge refreshes one repo early.
@@ -342,11 +359,12 @@ can't fire a tracking pixel when the dialog opens.
   documentation (including 3fff::/20), class E, NAT64, 6to4, and the
   192.88.99.0/24 relay, the 0.0.0.0/8 "this network" block, the 100::/64
   discard prefix, the 100:0:0:1::/64 dummy prefix, the 5f00::/16 segment
-  routing block, and all of 2001::/23 except the entries the registry marks
-  globally reachable, plus IPv4-mapped forms of these) is refused on the
-  resolved address. The reachable entries of 2001::/23 stay allowed: three
-  single addresses (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of
-  2001:1::/32), AMT, AS112-v6, ORCHIDv2, and the drone remote ID tags. The
+  routing block, the fec0::/10 deprecated site-local block, and all of
+  2001::/23 except the entries the registry marks globally reachable, plus
+  IPv4-mapped forms of these) is refused on the resolved address. The
+  reachable entries of 2001::/23 stay allowed: three single addresses
+  (2001:1::1, 2001:1::2 and 2001:1::3, not the rest of 2001:1::/32), AMT,
+  AS112-v6, ORCHIDv2, and the drone remote ID tags. The
   exception is the configured Forgejo instance, which is often on a private
   network.
 - Only PNG, JPEG, GIF and WebP pass, by sniffing the bytes rather than trusting
@@ -385,16 +403,18 @@ can't fire a tracking pixel when the dialog opens.
   other host to the saved Forgejo instance, which refuses a host that isn't its
   own. A Forgejo avatar on a third-party host, Gravatar and Libravatar included,
   therefore shows the initial instead.
-- The page repeats the list in `web/src/lib/image-source.ts` only to skip a
-  pointless request and show a link instead. The server is the one that
-  enforces it.
+- The page repeats the rules in `web/src/lib/image-source.ts` only to skip a
+  pointless request and show a link instead. It reads them from each forge's
+  image policy in `web/src/lib/forges.ts` (fixed hosts or the item's own
+  instance, and whether attachments are signed), not from a forge name. The
+  server is the one that enforces them.
 - Every response carries `Content-Security-Policy: img-src 'self'`
   (`contentSecurityPolicy` in `internal/api/server.go`), so the browser itself
   refuses a direct image load from any other host. None of the hosts listed earlier
   appears in it, because the server fetches them and the browser never does.
   The image route sends its own stricter policy over it. A Go test checks the
   policy against the proxy's host list, and against the hosts
-  `web/src/lib/image-source.ts` and `web/src/lib/avatar.ts` send through it.
+  `web/src/lib/forges.ts` and `web/src/lib/avatar.ts` send through it.
 
 ### What the passkey login covers
 

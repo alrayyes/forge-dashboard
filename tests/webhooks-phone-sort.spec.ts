@@ -82,8 +82,9 @@ test.describe('webhooks sort on a phone', () => {
       await page.setViewportSize({ width, height: 844 });
       const select = page.locator('#webhooks-sort-select');
       await expect(select).toBeVisible();
-      const box = await select.boundingBox();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(async () => (await select.boundingBox())?.height ?? 0)
+        .toBeGreaterThanOrEqual(44);
     }
   });
 

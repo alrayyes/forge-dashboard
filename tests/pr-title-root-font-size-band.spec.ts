@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3849
@@ -22,7 +23,7 @@ async function routeDashboard(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           {
             forge: 'github',
@@ -94,6 +95,23 @@ const measure = (page: Page, rows: string) =>
     };
   }, rows);
 
+// Re-measures until every check holds, so a row still settling after a render
+// under load doesn't fail the spec on a one-shot read.
+async function expectMeasure(
+  page: Page,
+  rows: string,
+  checks: (m: Awaited<ReturnType<typeof measure>>) => [string, boolean][],
+) {
+  await expect
+    .poll(async () => {
+      const m = await measure(page, rows);
+      return checks(m)
+        .filter(([, ok]) => !ok)
+        .map(([what]) => `${what} (${JSON.stringify(m)})`);
+    })
+    .toEqual([]);
+}
+
 const PR = '#pr-rows';
 const ISSUES = '#issue-rows';
 
@@ -103,9 +121,10 @@ for (const percent of [150, 175]) {
       page,
     }) => {
       await open(page, '/pull-requests.html', PR, percent, width);
-      const m = await measure(page, PR);
-      expect(m.title, 'title width').toBeGreaterThanOrEqual(200);
-      expect(m.scroll, 'row scrolls sideways').toBeLessThanOrEqual(m.client);
+      await expectMeasure(page, PR, (m) => [
+        ['title is under 200px', m.title >= 200],
+        ['row scrolls sideways', m.scroll <= m.client],
+      ]);
     });
   }
 
@@ -114,9 +133,10 @@ for (const percent of [150, 175]) {
     page,
   }) => {
     await open(page, '/pull-requests.html', PR, percent, 1280);
-    const m = await measure(page, PR);
-    expect(m.tracks.split(' ')).toHaveLength(7);
-    expect(m.title).toBeGreaterThanOrEqual(200);
+    await expectMeasure(page, PR, (m) => [
+      ['not seven tracks', m.tracks.split(' ').length === 7],
+      ['title is under 200px', m.title >= 200],
+    ]);
   });
 
   // The Issues list was already fine; the later switch is for pull requests.
@@ -124,36 +144,48 @@ for (const percent of [150, 175]) {
     page,
   }) => {
     await open(page, '/issues.html', ISSUES, percent, 1150);
-    const m = await measure(page, ISSUES);
-    expect(m.tracks.split(' ')).toHaveLength(6);
+    await expectMeasure(page, ISSUES, (m) => [
+      ['not six tracks', m.tracks.split(' ').length === 6],
+      ['title is under 300px', m.title >= 300],
+    ]);
     await expect(
       page.locator(`${ISSUES} > .row .created`).first(),
     ).toBeVisible();
-    expect(m.title).toBeGreaterThanOrEqual(300);
   });
 }
 
 test('Pull requests: the tracks are unchanged at 100%', async ({ page }) => {
-  const got: Record<number, number> = {};
+  // Phone, then compact up to 1103px, then the full seven tracks.
+  const expected: Record<number, number> = {
+    320: 2,
+    390: 2,
+    761: 4,
+    1103: 4,
+    1104: 7,
+    1280: 7,
+  };
   for (const width of [320, 390, 761, 1103, 1104, 1280]) {
     await open(page, '/pull-requests.html', PR, 100, width);
-    got[width] = (await measure(page, PR)).tracks.split(' ').length;
+    await expect
+      .poll(async () => (await measure(page, PR)).tracks.split(' ').length)
+      .toBe(expected[width]);
   }
-  // Phone, then compact up to 1103px, then the full seven tracks.
-  expect(got).toEqual({ 320: 2, 390: 2, 761: 4, 1103: 4, 1104: 7, 1280: 7 });
 });
 
 test('Pull requests: the 100% track widths at 1104px and 1280px are unchanged', async ({
   page,
 }) => {
   await open(page, '/pull-requests.html', PR, 100, 1280);
-  const m = await measure(page, PR);
-  expect(m.tracks).toBe('280px 268px 96px 82px 82px 280px 22px');
+  await expect
+    .poll(async () => (await measure(page, PR)).tracks)
+    .toBe('280px 268px 96px 82px 82px 280px 22px');
   await open(page, '/pull-requests.html', PR, 100, 1104);
-  const n = await measure(page, PR);
-  expect(
-    n.tracks.split(' ').slice(0, 1).concat(n.tracks.split(' ').slice(2)),
-  ).toEqual(['280px', '96px', '82px', '82px', '280px', '22px']);
+  await expect
+    .poll(async () => {
+      const tracks = (await measure(page, PR)).tracks.split(' ');
+      return tracks.slice(0, 1).concat(tracks.slice(2));
+    })
+    .toEqual(['280px', '96px', '82px', '82px', '280px', '22px']);
 });
 
 for (const [name, path, rows] of [

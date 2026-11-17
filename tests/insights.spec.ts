@@ -752,7 +752,9 @@ test.describe('insights page', () => {
       const box = await title.boundingBox();
       expect(box?.height).toBe(44);
       const previous = await title.evaluate((el) => {
-        const prev = el.previousElementSibling as HTMLElement;
+        // The input sits in its search wrap, beside the clear button (#4144).
+        const wrap = el.closest('.search-wrap') as HTMLElement;
+        const prev = wrap.previousElementSibling as HTMLElement;
         return prev.getBoundingClientRect().bottom;
       });
       expect((box?.y ?? 0) - previous).toBe(8);

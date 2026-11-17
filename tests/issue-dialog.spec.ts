@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
@@ -72,7 +73,7 @@ async function mockDashboard(page: Page, issue: object = ISSUE) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [issue],
       }),
@@ -295,7 +296,7 @@ test.describe('an issue row opens its dialog', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues:
             forgeState === 'open'

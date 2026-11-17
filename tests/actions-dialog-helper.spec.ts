@@ -40,7 +40,14 @@ async function mock(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [
+          {
+            forge: 'github',
+            reachable: true,
+            repoCount: 1,
+            capabilities: { label: 'GitHub' },
+          },
+        ],
         pullRequests: [makePR(42), makePR(43)],
         issues: [],
       }),

@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
 import {
   EXCERPT_RETRY_DELAY_MS,
@@ -9,6 +10,8 @@ import {
   newExcerptReads,
   pickExcerptJobs,
 } from './pipeline-excerpts';
+
+afterEach(resetForgeCapabilities);
 
 const FORGEJO = { forge: 'forgejo', fullName: 'a/b' };
 const GITHUB = { forge: 'github', fullName: 'a/b' };
@@ -21,6 +24,18 @@ const failed = (jobId: number, extra: Partial<Check> = {}): Check => ({
   jobId,
   runAttempt: 1,
   ...extra,
+});
+
+describe('excerptUrl by capability', () => {
+  test('a forge that sets serverLogExcerpts is asked for one (#3974)', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { serverLogExcerpts: true } },
+    ]);
+
+    expect(excerptUrl({ forge: 'gitea', fullName: 'a/b' }, 7)).toBe(
+      '/api/v1/checks/log?forge=gitea&fullName=a%2Fb&jobId=7&excerpt=true',
+    );
+  });
 });
 
 describe('excerptUrl', () => {

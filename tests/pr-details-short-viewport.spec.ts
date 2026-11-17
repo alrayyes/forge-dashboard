@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3271
@@ -49,7 +50,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pr],
         issues: [],
         repos: [],
@@ -104,30 +105,39 @@ for (const size of [
     await page.setViewportSize(size);
     const dialog = await open(page);
 
-    const body = await dialog.locator('.details-body').boundingBox();
-    expect(body?.height).toBeGreaterThanOrEqual(120);
+    await expect
+      .poll(
+        async () =>
+          (await dialog.locator('.details-body').boundingBox())?.height,
+      )
+      .toBeGreaterThanOrEqual(120);
 
     const buttons = dialog.locator('.details-footer').getByRole('button');
     expect(await buttons.count()).toBeGreaterThanOrEqual(3);
     for (const button of await buttons.all()) {
       await button.scrollIntoViewIfNeeded();
-      const box = await button.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
-      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
-        size.height + 1,
-      );
-      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
-      expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-        size.width + 1,
-      );
+      await expect
+        .poll(async () => {
+          const box = await button.boundingBox();
+          if (!box) return 'missing';
+          return {
+            y: box.y >= 0,
+            bottom: box.y + box.height <= size.height + 1,
+            x: box.x >= 0,
+            right: box.x + box.width <= size.width + 1,
+          };
+        })
+        .toEqual({ y: true, bottom: true, x: true, right: true });
     }
 
-    const overflowX = await page.evaluate(() => {
-      const d = document.querySelector('.details-dialog') as HTMLElement;
-      return d.scrollWidth - d.clientWidth;
-    });
-    expect(overflowX).toBeLessThanOrEqual(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const d = document.querySelector('.details-dialog') as HTMLElement;
+          return d.scrollWidth - d.clientWidth;
+        }),
+      )
+      .toBeLessThanOrEqual(0);
   });
 }
 
@@ -138,10 +148,14 @@ test('844x390: the dialog fills its 90vh cap and the body is no smaller than bef
 }) => {
   await page.setViewportSize({ width: 844, height: 390 });
   const dialog = await open(page);
-  const body = await dialog.locator('.details-body').boundingBox();
-  const box = await dialog.boundingBox();
-  expect(body?.height).toBeGreaterThanOrEqual(150);
-  expect(box?.height).toBeGreaterThanOrEqual(Math.floor(390 * 0.9) - 1);
+  await expect
+    .poll(
+      async () => (await dialog.locator('.details-body').boundingBox())?.height,
+    )
+    .toBeGreaterThanOrEqual(150);
+  await expect
+    .poll(async () => (await dialog.boundingBox())?.height)
+    .toBeGreaterThanOrEqual(Math.floor(390 * 0.9) - 1);
 });
 
 test('390x844 portrait: the body still takes more than half the height', async ({
@@ -149,8 +163,11 @@ test('390x844 portrait: the body still takes more than half the height', async (
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const dialog = await open(page);
-  const body = await dialog.locator('.details-body').boundingBox();
-  expect(body?.height).toBeGreaterThan(844 / 2);
+  await expect
+    .poll(
+      async () => (await dialog.locator('.details-body').boundingBox())?.height,
+    )
+    .toBeGreaterThan(844 / 2);
 });
 
 // https://github.com/alrayyes/forge-dashboard/issues/3404
@@ -171,13 +188,17 @@ for (const size of [
     });
     const buttons = dialog.locator('.details-footer').getByRole('button');
     for (const button of await buttons.all()) {
-      const box = await button.boundingBox();
-      expect(box).not.toBeNull();
-      expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
-      expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
-        size.height + 1,
-      );
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(async () => {
+          const box = await button.boundingBox();
+          if (!box) return 'missing';
+          return {
+            y: box.y >= 0,
+            bottom: box.y + box.height <= size.height + 1,
+            tall: box.height >= 44,
+          };
+        })
+        .toEqual({ y: true, bottom: true, tall: true });
     }
   });
 }
@@ -194,7 +215,7 @@ test('320x500 issue dialog: scrolled to the end, both actions are on screen', as
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [
           {
@@ -247,8 +268,12 @@ test('320x500 issue dialog: scrolled to the end, both actions are on screen', as
   const buttons = dialog.locator('.details-actions button');
   expect(await buttons.count()).toBe(2);
   for (const button of await buttons.all()) {
-    const box = await button.boundingBox();
-    expect(box?.y ?? -1).toBeGreaterThanOrEqual(0);
-    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(501);
+    await expect
+      .poll(async () => {
+        const box = await button.boundingBox();
+        if (!box) return 'missing';
+        return { y: box.y >= 0, bottom: box.y + box.height <= 501 };
+      })
+      .toEqual({ y: true, bottom: true });
   }
 });

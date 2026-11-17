@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -225,4 +226,53 @@ func TestAutoMergeStatusOf_CancelledOnly_SaysTheRunWasCancelled(t *testing.T) {
 	got := dashboard.AutoMergeStatusOf(amPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CICancelled }), nil)
 
 	assert.Equal(t, "Auto-merge is waiting: the only run left was cancelled. It carries on once a run passes.", got.Message)
+}
+
+// The server sends facts, the page words them with the forge's label (#4072),
+// so no sentence carries a forge's name, whichever forge the pull request is on.
+func TestAutoMergeStatusOf_NeverNamesAForge(t *testing.T) {
+	t.Parallel()
+
+	behind := true
+	cases := map[string]func(*dashboard.PullRequest){
+		"conflict": func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting },
+		"approval": func(p *dashboard.PullRequest) {
+			p.CI, p.AwaitingWorkflowApproval, p.FailingOnlyForApproval = dashboard.CIFailure, true, true
+		},
+		"behind":        func(p *dashboard.PullRequest) { p.Behind, p.BaseRequiresUpToDate = true, &behind },
+		"not mergeable": func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown },
+		"checks passed": nil,
+	}
+
+	for _, forge := range []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo} {
+		for name, mutate := range cases {
+			t.Run(string(forge)+"/"+name, func(t *testing.T) {
+				t.Parallel()
+
+				pr := amPR(func(p *dashboard.PullRequest) {
+					p.Forge = forge
+					if mutate != nil {
+						mutate(p)
+					}
+				})
+
+				got := dashboard.AutoMergeStatusOf(pr, nil)
+
+				assert.NotContains(t, got.Message, "GitHub")
+				assert.NotContains(t, got.Message, "Forgejo")
+				if name != "checks passed" || forge == dashboard.ForgeGitHub {
+					assert.Contains(t, strings.ToLower(got.Message), "the forge")
+				}
+			})
+		}
+	}
+}
+
+func TestMergeRefusal_PermissionDoesNotNameAForge(t *testing.T) {
+	t.Parallel()
+
+	got := dashboard.MergeRefusalForTest(errors.New("not allowed to merge"))
+
+	assert.Equal(t, dashboard.ActionPermission, got.Code)
+	assert.NotContains(t, got.Message, "Forgejo")
 }

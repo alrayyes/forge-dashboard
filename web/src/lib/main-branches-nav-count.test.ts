@@ -3,9 +3,12 @@ import { describe, expect, test } from 'bun:test';
 import {
   branchNavCount,
   countMainBranches,
+  MAIN_BRANCH_STATUSES,
   type MainBranchCounts,
+  type MainBranchStatus,
   statusCount,
 } from './main-branches';
+import { pillParts } from './nav-labels';
 
 // The Branches nav pill and the Main branches page chips are two readings of
 // one tally. The page reads /api/v1/main-branches on its own timer and the pill
@@ -21,6 +24,7 @@ const counts: MainBranchCounts = {
   running: 4,
   cancelled: 0,
   awaitingApproval: 0,
+  unknown: 2,
   none: 6,
 };
 
@@ -33,6 +37,8 @@ describe('branchNavCount', () => {
       running: 4,
       none: 6,
       awaitingApproval: 0,
+      unknown: 2,
+      cancelled: 0,
     });
   });
 });
@@ -59,4 +65,29 @@ describe('a row and the pills that count it', () => {
       rows.filter((r) => r.status === 'failed').length,
     );
   });
+});
+
+// A status the page can filter by has to land in a part of the pill, or the
+// parts stop adding up to the total (#2024, #3958).
+describe('every status the page filters by is a part of the pill', () => {
+  const statuses = MAIN_BRANCH_STATUSES.filter(
+    (s): s is MainBranchStatus => s !== 'all',
+  );
+
+  test('one branch of each status: the parts add up to the total', () => {
+    const tally = countMainBranches(statuses.map((status) => ({ status })));
+    const nav = branchNavCount(tally);
+    const parts = pillParts(nav);
+
+    expect(nav.total).toBe(statuses.length);
+    expect(parts.reduce((n, p) => n + p.n, 0)).toBe(nav.total);
+  });
+
+  for (const status of statuses) {
+    test(`a ${status} branch is drawn in the pill`, () => {
+      const nav = branchNavCount(countMainBranches([{ status }]));
+
+      expect(pillParts(nav).reduce((n, p) => n + p.n, 0)).toBe(1);
+    });
+  }
 });

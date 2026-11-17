@@ -36,20 +36,26 @@ bot pull request that is ready to merge keeps Merge as its main button and draws
 its rebase beside it, or the cancel while a Renovate rebase is requested. A
 behind person's pull request whose row button is Merge, or none (ready to merge,
 failing checks), also draws the Update branch the server lists in the row bar,
-beside the main button. A confirmed conflict (the forge says conflicting and, on
-Forgejo, a refusal named it) draws its warning alone: no locked Merge, no locked
-Update branch and no Out of date chip, since none of them unlocks anything the
-warning doesn't name. An unconfirmed Forgejo conflict keeps its live Update
-branch, because updating is how it gets confirmed. The pop-up's footer still
-lists Merge and Update branch locked, each with its reason. A conflict row still
-keeps a Close, the cancel of a pending Renovate rebase and a Merge already
-confirming or running. A pull request that is behind the base branch is the one
-case where a locked Merge is not the row's button: the row draws no button of
-its own, because the cure (Update branch, or the bot's rebase) sits inside the
-status block on top of it, and the greyed Merge is in the pop-up. A behind bot
-pull request whose Merge is held back by something else too (checks running,
-say) draws its rebase on the row. Every other action is in the pop-up's footer,
-one click away, and there is no "More actions" menu.
+beside the main button. On a phone the two share one line, and shrink a little
+at 320px before they would wrap. A locked Merge that prints its own reason takes
+the full line, so Update branch sits under it. A confirmed conflict (the forge
+says conflicting and, on Forgejo, a refusal named it) draws its warning alone:
+no locked Merge, no locked Update branch and no Out of date chip, since none of
+them unlocks anything the warning doesn't name. A behind bot pull request whose
+rebase was just requested shows its waiting chip and neither the Out of date
+chip nor the "Behind the base branch" block, since the request already does what
+they ask for. When the request times out ("No reply from Dependabot yet") both
+come back. An unconfirmed Forgejo conflict keeps its live Update branch, because
+updating is how it gets confirmed. The pop-up's footer still lists Merge and
+Update branch locked, each with its reason. A conflict row still keeps a Close,
+the cancel of a pending Renovate rebase and a Merge already confirming or
+running. A pull request that is behind the base branch is the one case where a
+locked Merge is not the row's button: the row draws no button of its own,
+because the cure (Update branch, or the bot's rebase) sits inside the status
+block on top of it, and the greyed Merge is in the pop-up. A behind bot pull
+request whose Merge is held back by something else too (checks running, say)
+draws its rebase on the row. Every other action is in the pop-up's footer, one
+click away, and there is no "More actions" menu.
 
 When runs wait for someone to approve them, that is the reason Merge gives,
 ahead of being behind the base branch, whatever the merge state the forge
@@ -150,11 +156,19 @@ auto-merge armed, the status line says it is waiting for workflow approval, not
 that a check failed.
 
 Every link in the pipeline panel that leaves the dashboard opens a new tab and
-ends in an external-link icon. A job with output reads "Open job on GitHub" (or
-Forgejo) and opens that job's page. The footer holds one outlined button,
+ends in an external-link icon. Every job row, whatever its status, opens its
+page from the same trailing icon button, after the Copy button when there is
+one. Its tooltip and accessible name carry the words: "Open job on GitHub" (or
+Forgejo) for a job with output, "Watch on GitHub" for a running one, "Open on
+GitHub" for a queued one, "Approve on GitHub" for a held one and "Open check
+page" for a check from an external status. The footer holds one outlined button,
 "Open run on GitHub", pinned under a divider so it stays on screen however long
-the list is; it opens the run page. A held workflow reads "Approve on" followed
-by the forge's name.
+the list is; it opens the run page. When a pull request's checks belong to
+several runs (more than one workflow, or a re-run), one link can't open them
+all, so the button says which it opens: "Open latest failed run on GitHub" for
+the newest run with a failed check (even when a newer run passed), or "Open
+latest run on GitHub" when nothing failed. A held workflow reads "Approve on"
+followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
@@ -171,8 +185,9 @@ Attributes are quiet outlined chips with a small icon and no fill or motion,
 in a cluster beside the CI slot, never inside it. `Out of date` is the one
 exception: it is drawn for every pull request that is behind its base and has
 something left to merge, on the overview and the Bots page alike, except on a
-row that already says it another way: a live Update branch button, or a
-confirmed conflict's warning. The pop-up keeps the chip, and the Out of date
+row that already says it another way: a live Update branch button, a
+confirmed conflict's warning, or a requested bot rebase (the waiting chip says
+the fix is under way). The pop-up keeps the chip, and the Out of date
 quick filter and the Update all count still read `behind`. It is drawn in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
@@ -188,14 +203,73 @@ once, even inside the window, and names the files git reported ("In a.txt,
 docs/b.md"). If the flag is still false for the same head and base after the
 window and no refusal named a conflict, the row says "Conflict not confirmed",
 since the flag is false for a stuck check too. That pill is a button: a tap
-shows the reason, and Update branch stays available on it, because a refused
-update is how it gets confirmed. Either way the status is `conflicting` for the
+shows the reason, and Update branch stays available on it when the row offers
+one (a behind pull request), because a refused update is how it gets confirmed.
+The words are said once: the pill carries them, the row's status block stays
+out, and the locked Merge is described by the pill's reason. The reason names
+only what the row can do: "Use Update branch to find out" when the row has the
+button, otherwise "Wait for the forge to finish checking, or open the pull
+request on the forge". While the forge is unreachable or its budget is spent the
+row draws no controls and the rows are its earlier answer, so the reason says
+that, and the banner says how old the data is. The API's blocked reason for
+Merge follows the same rule: it names Update branch only when the pull request
+lists it. None of this depends on the forge: the words come from the one rule
+below. Either way the status is `conflicting` for the
 Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
 On a phone the CI slot sits at the top right and the attributes take a line of
 their own.
+
+What a row may claim while its forge can't be asked is decided in one place,
+`rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in
+`internal/dashboard/row_claim.go` where the server decides. It reads the forge's
+health and never its name, so a Forgejo row and a GitHub row get the same words.
+Each claim is one of three: confirmed (the forge answered), carried over (the
+forge can't be asked, so the row is an earlier answer, with since-when and the
+reason) or unknown (the forge answered but hasn't said, which only an
+unconfirmed conflict is). The same answer says whether a control may be drawn:
+none is while the forge can't be asked, and none is while its budget is spent
+(the web only; a spent budget says nothing about how old the data is). The
+Dependabot buttons, the actions in the issue dialog, the row controls, the
+queued-action offer, and the auto-merge, hidden-pull-request and queued-action
+checks on the server all ask it, so a new case lands in all of them at once.
+The pills for checks, merge state, out of date and auto-merge ask it too, as a
+claim of kind `state`: while the forge can't be asked each carries "earlier
+answer from 10m ago" as its tooltip and as text for a screen reader. A row
+names its forge kind, not its host, so a pill reads as carried over when any
+host of the kind can't be asked, while a row's actions stay open as long as one
+host answers. The server's allowed actions ask it with the forge's health
+(`AllowedActionsOn`): while the forge can't be asked every action is listed
+blocked with the code `forge_unreachable`, the rule's reason as the message and
+the since-time as `since`, whatever the earlier answer said. The kinds `state`
+and `action` differ in nothing today; they are kept apart so a rule that needs
+one has a place to land. The sentence for a carried-over row is the same on the
+server and the web, apart from the since-time the web puts in the words and the
+server sends as a field. A row that carries its own
+since-time, a main branch row or a repo marked `staleSince`, asks the same
+rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
+with one is carried over, in the same words and with the same since-time.
+Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
+reserve, the settings page, the snapshot cache, and which forges the aggregator
+asks) are not row claims and read the health directly.
+
+Four limits to know:
+
+- The interactive CI pill carries the words in its accessible name, the other
+  pills in hidden text, and a pill whose caller names it (the one on an issue's
+  linked pull request) only in its tooltip.
+- With two hosts of one kind and one down, a row may be on the healthy host: its
+  controls stay on, yet its pills read as carried over and say "no action can
+  run", so the tooltip can overstate. The page can't tell which host a row is
+  on, so it takes the cautious side for claims.
+- API clients see `forge_unreachable` in place of a row's own blocked code (a
+  `conflict`, say) while the forge is down. It is a blocked reason on an
+  allowed action, never the body of a refused request, so the page's refusal
+  parser doesn't list it.
+- Update branch entries that auto-update would hide stay listed, blocked, since
+  the rule runs after that choice.
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
@@ -328,10 +402,11 @@ place that says a forge is down: the toolbar draws no chip, age line or
 cause line for it, and a healthy forge's pill is untouched. When both forges
 are down it is still one banner, "GitHub and Forgejo are unreachable.", with
 the age of the oldest data. When the cause is a wrong token or instance URL it
-says what to check in Settings instead of "Retrying automatically.". GitHub's
-status link, shown whenever GitHub is down (also in the combined banner),
-opens githubstatus.com in a new tab; a Forgejo instance is self-hosted and has
-no such page.
+says what to check in Settings instead of "Retrying automatically.". A forge's
+status link, named from its label ("GitHub status") and shown whenever a forge
+that has a status page is down (also in the combined banner), opens that page
+in a new tab. The page comes from the forge's `statusPageUrl`: GitHub's is
+githubstatus.com, and a Forgejo instance is self-hosted and has none.
 
 When GitHub can't be reached or answers with a 5xx, the dashboard also asks
 GitHub's status page whether it reports an incident, and the banner adds a
@@ -467,9 +542,10 @@ On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
 (below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
-field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo", and
-when the server doesn't say who holds it the chip has no note, since the page
-never guesses. After each refresh the server merges an armed
+field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo" (the
+forge's label, so another forge says its own name), and when the server
+doesn't say who holds it the chip has no note, since the page never guesses.
+After each refresh the server merges an armed
 pull request once its checks have passed and Forgejo says it can merge, with
 the repo's own merge method, the same as Merge. A pull request you didn't arm
 is never merged. Checks that fail, conflicts, a draft, a stack parent that
@@ -541,7 +617,10 @@ time, the newest on top, with the `owner/repo#N`, a one-line message, "Show row"
 that filter, if the row is on another page it moves there, and if the pull
 request is merged or closed it says so) and a dismiss button. Success toasts go
 after about six seconds and wait while you hover or focus them. Error toasts
-stay until you dismiss them. The sticky "Activity" control keeps a count and
+stay until you dismiss them. With a finger or a pen, swipe a toast sideways,
+more than about a third of its width, to close it. A shorter swipe springs back,
+and a finger held on a toast pauses its timer. The dismiss button still works,
+and a mouse doesn't drag. The sticky "Activity" control keeps a count and
 opens a panel of in-flight and recent actions per pull request, with "Show row"
 and "Clear finished", so a dismissed toast isn't lost. The control is hidden
 while there is nothing to list (no recent, in-flight or queued action), and
@@ -572,6 +651,11 @@ the server says Forgejo itself holds the merge (it merges when checks pass),
 and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
 merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
 Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
+
+The server's auto-merge sentences never name a forge. Where one would, it says
+"the forge" and the page swaps in the forge's capability label (GitHub,
+Forgejo), in the chip's tooltip and in the stopped line. The server sends the
+facts and the code, the page owns the wording.
 
 An armed pull request that is behind says whether that is what holds it. Where
 the base branch needs the branch to be current before a merge (GitHub's `strict`
@@ -626,6 +710,15 @@ after that each snapshot decides. A snapshot without the record finishes the row
 with a `Settled` chip ("Branch updated"), the `expired` phase ends it with a
 timed-out line, an error toast and Retry, and a record the page never clicked (a
 reload mid-wait) starts the row with the chip.
+
+Dependabot refuses to rebase a branch that holds a commit it didn't write, such
+as a bot refreshing a lock file on it, and answers "can't rebase it". The server
+reads the head branch's commit authors and sets `editedByOthers` on such a pull
+request. It then offers Update branch and Recreate and leaves the Dependabot
+rebase out, and auto-update calls the forge's branch update rather than posting
+the comment. Recreate stays because it is the way to discard the foreign
+commits. A branch of more than 20 commits counts as edited, and the
+unauthenticated REST fallback can't tell, so there it is always false.
 
 A bot `rebase` waits on the bot, not on the dashboard. The request button
 goes (a Renovate request leaves its cancel, a Dependabot one nothing), and the
@@ -860,19 +953,33 @@ reports no Actions/Workflow runs at all for that commit.
 
 While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,
-waiting, failed, each with its own glyph. A state with no checks is left out. On
-a phone the word goes and the counts stay. The server tallies the counts from
+waiting, failed, then unknown, each with its own glyph. A state with no checks
+is left out. An unknown check is one in a state the server cannot grade, such
+as a status or conclusion the forge added later: it is not a failure and not a
+wait, and a pipeline that would read passed does not while one is present.
+In the pipeline dialog an unknown check names the word the forge sent, beside
+the label and in its tooltip, so you can tell what it was. A forge that sent
+no word shows the label alone.
+A pull request whose only odd check is unknown is pending, so the Running
+quick filter lists it; there is no filter of its own. On a
+phone the word goes and the counts stay. The server tallies the counts from
 what it already reads to work out the CI state, so on GitHub they cost no extra
-request, and a pull request that has none keeps the plain pill. A run held for
-approval and a cancelled run are in none of the four, because the CI state
-doesn't treat them as failures while others still run. On Forgejo the
-statuses only say pending, so when any are pending the server also reads the
-jobs of the runs on the commit that are running (one call for the runs, one
-for each of them, read side by side, at most eight at once), and the jobs in
-progress show as running. A queued or blocked run isn't read, a running pull
-request run (any `pull_request` event) leaves the running push run out so no job
-counts twice, and a commit with no pending check makes no extra call. Runs are
-matched to the commit ignoring the case of its SHA.
+request, and a pull request that has none keeps the plain pill. A cancelled job
+and a run held for approval are not failures while others still run, so they
+have counts of their own, on a pull request and a default branch alike, and the
+counts add up to the jobs the pipeline lists in every mix. On Forgejo a job left
+blocked in a run that has already failed, which nothing will start, is counted
+as not started: it is no wait, so it isn't waiting, and no failure, so a failed
+pull request stays failed. The pill words it "not started" and draws it with a
+dashed ring after the waiting count.
+On Forgejo a held job is not told from a waiting one, so it stays
+in the waiting count. Its statuses only say pending, so when any are pending the
+server also reads the jobs of the runs on the commit that are running (one call
+for the runs, one for each of them, read side by side, at most eight at once),
+and the jobs in progress show as running. A queued or blocked run isn't read, a
+running pull request run (any `pull_request` event) leaves the running push run
+out so no job counts twice, and a commit with no pending check makes no extra
+call. Runs are matched to the commit ignoring the case of its SHA.
 
 A pull request whose only trouble is a cancelled job reads Cancelled: the same
 word and grey pill a main branch uses, and the word the pipeline panel gives the
@@ -880,8 +987,9 @@ job. Nothing broke, so it is not Failed. On GitHub, whose combined state calls a
 cancelled run a failure, the server reads the rollup itself: with no failed or
 timed-out check, no failed status, no run held for approval and nothing running,
 the row's `ci` is `cancelled`, `checks.failed` is 0 and `checks.cancelled`
-counts the cancelled runs. A real failure beside it stays Failed and counts only
-itself, and a cancelled run beside one still going stays Running. The pill
+counts the cancelled runs. A real failure beside it stays Failed, and a
+cancelled run beside one still going stays Running; either way the cancelled
+runs are counted in `checks.cancelled` beside the others. The pill
 says how far the run got: `Cancelled · 4 passed, 9 cancelled` (`Cancelled · 13
 cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
 Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
@@ -889,15 +997,16 @@ of 13 checks.` The branch pill stays the word alone; the count is in
 `checks.cancelled`. A Cancelled row is not in the Failing pill or the
 Failed number of the menu pill, and it is not a pass either, so Ready, Merge and
 auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
-failure status, and the server leaves those out of the failed count. When that
-leaves no failed check and nothing waiting, the row reads Cancelled too, with
-`checks.cancelled` counting the cancelled jobs beside the jobs that passed
-before the stop. A run that was re-run and passed has no failure statuses left,
-so it reads Passed. The page folds the jobs the panel lists the way a branch
-does, and the row follows the panel: a cancelled job beside one still going is
-Running, beside a real failure it is Failed, and beside passed jobs alone it is
-Cancelled, counting how many of them passed and how many were cancelled. Close
-the panel and the row goes back to what the server sent.
+failure status, and the server leaves those out of the failed count and counts
+them as cancelled. When that leaves no failed check and nothing waiting, the
+row reads Cancelled too, with `checks.cancelled` counting the cancelled jobs
+beside the jobs that passed before the stop. A run that was re-run and passed
+has no failure statuses left, so it reads Passed. The page folds the jobs the
+panel lists the way a branch does, and the row follows the panel: a cancelled
+job beside one still going is Running, beside a real failure it is Failed, and
+beside passed jobs alone it is Cancelled, counting how many of them passed and
+how many were cancelled. Close the panel and the row goes back to what the
+server sent.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the
@@ -1221,8 +1330,13 @@ their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or
-one switched on for itself. One switched off for itself, or one a draft or
-release-please pull request keeps out of the automatic update, still counts.
+one switched on for itself. A pull request whose forge is out of API budget,
+can't be reached or is still starting isn't counted either, since the row draws
+no `Update branch` while the forge is read-only and the banner says why. A row
+whose `Update branch` an earlier click locked with a reason still draws it, so
+it still counts. One
+switched off for itself, or one a draft or release-please pull request keeps out
+of the automatic update, still counts.
 
 Pressing it opens a confirm dialog with a tick box for each pull request, all
 ticked. Clear a box to leave that one out. `Update` then updates the ticked ones

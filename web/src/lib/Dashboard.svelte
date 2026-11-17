@@ -12,6 +12,20 @@
     view === "releases" ? "release" : view === "bots" ? "dependency" : null,
   );
   const pullsView = $derived(view !== "issues");
+  // The Forge group's pills: every forge the server reports, with its label
+  // (#3978). State, so a forge a read adds draws its pill; the script's own
+  // pill wiring is told through pillsDrawn once the markup has caught up.
+  const forgePillList = () =>
+    forgeIds().map((id) => ({ id, label: Filters.pillLabel(id) }));
+  let forgePills = $state(forgePillList());
+  let pillClick: (button: HTMLButtonElement) => void = () => {};
+  let pillsDrawn: () => void = () => {};
+  function refreshForgePills() {
+    const next = forgePillList();
+    if (JSON.stringify(next) === JSON.stringify(forgePills)) return;
+    forgePills = next;
+    tick().then(() => pillsDrawn());
+  }
   // What the loading line names on this view (#3602).
   const loadingSubject = $derived(
     view === "issues"
@@ -23,7 +37,7 @@
           : "pull requests",
   );
 
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { BACKGROUND_READ_HEADER } from "#lib/presence-browser.js";
   import PullRequestDetailsDialog, {
     type DetailsChrome,
@@ -34,7 +48,9 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
+  import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
+  import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
@@ -44,11 +60,31 @@
     type FeedSource,
     type RunFacts,
   } from "#lib/check-feed.js";
+  import {
+    clearFilterFor,
+    releaseHeldPick,
+    resetFilters,
+    setDrafts,
+    setGroupBy,
+    setHideDependencyDashboard,
+    setHideTitleRegex,
+    setPaused,
+    setQuickPill,
+    setSegment,
+    setSharedControl,
+    setSort,
+  } from "#lib/filter-wiring.js";
   import * as Filters from "#lib/filters.js";
-  import { choicesChange, offerAction, shownList } from "#lib/shown-list.js";
+  import {
+    choicesChange,
+    landShown,
+    offerAction,
+    shownList,
+  } from "#lib/shown-list.js";
   import {
     labelKey,
     repoName,
+    initialOf,
     choiceText,
     type PickChoice,
     pickImageNode,
@@ -56,7 +92,23 @@
     toggleLabel,
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    forgeIds,
+    statusPageUrlOf,
+    registerForgeCapabilities,
+  } from "#lib/forges.js";
+  import {
+    approveLinkCopy,
+    autoMergeGroupNote,
+    pageDescription,
+    scheduledOnCopy,
+  } from "#lib/forge-copy.js";
+  import {
+    appHoldsAutoMerge,
+    forgeHoldsArmed,
+  } from "#lib/auto-merge-adapter.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
@@ -150,6 +202,7 @@
   } from "#lib/hidden-pull-requests.js";
   import {
     autoMergeChip,
+    autoMergeWording,
     buildWaitChip,
     queuedChip,
     requestedAnnouncement,
@@ -165,8 +218,10 @@
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
+    rateLimitWhy,
   } from "#lib/rate-limit.js";
-  import { isReadOnlyLock, type LockInfo } from "#lib/lock-info.js";
+  import type { LockInfo } from "#lib/lock-info.js";
+  import { type RowClaim, rowClaim } from "#lib/row-claim.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -177,6 +232,7 @@
   import { anyRowHoldsTheBoard } from "#lib/row-action-in-flight.js";
   import {
     type ForgeHealthEntry,
+    carriedOverLock,
     dependabotBlockedReason,
     rerunBlockedLock,
     forgeLockReason,
@@ -985,6 +1041,42 @@
       });
       return { status, awaiting, model };
     }
+    // What a row may claim about the facts its forge reported (behind, checks,
+    // merge state, auto-merge): the one rule a row's actions ask, given the
+    // forge's health, never its name (#3994).
+    function stateClaim(item: { forge: string }): RowClaim {
+      const earlier = carriedOverLock(lastForges, item.forge);
+      return rowClaim({
+        kind: "state",
+        lock: earlier?.lock ?? null,
+        since: earlier?.staleSince
+          ? relativeTime(earlier.staleSince)
+          : undefined,
+      });
+    }
+
+    // A pill that reports a forge's fact, marked as an earlier answer while the
+    // forge can't be asked: the reason as its tooltip and as text for a screen
+    // reader, since a tooltip is not announced.
+    // A pill with a name of its own (the pipeline button) gets the words in
+    // that name; one whose caller sets the name (announce false) gets the
+    // tooltip only.
+    function claimed<T extends HTMLElement>(
+      pill: T,
+      item: { forge: string },
+      announce = true,
+    ): T {
+      const claim = stateClaim(item);
+      if (claim.state !== "carried_over") return pill;
+      pill.dataset.claim = claim.state;
+      const { earlier } = claim;
+      pill.title = pill.title ? `${pill.title}. ${earlier}` : earlier;
+      const name = pill.getAttribute("aria-label");
+      if (name) pill.setAttribute("aria-label", `${name} ${earlier}`);
+      else if (announce) pill.appendChild(el("span", "sr-only", ` ${earlier}`));
+      return pill;
+    }
+
     // announce false leaves the words to a name the caller sets, as the pill
     // on an issue row does: the hidden line would otherwise repeat in its text.
     function ciPill(
@@ -997,11 +1089,15 @@
       // openPipelineDialog's "close" handler refocuses it by this id once a
       // later render has rebuilt the row.
       const open = status !== "none" && interactive;
-      return renderCiPill(model, {
-        onOpen: open ? () => openPipelineDialog(item) : undefined,
-        id: `pipeline-trigger-${domSafeId(prKey(item))}`,
+      return claimed(
+        renderCiPill(model, {
+          onOpen: open ? () => openPipelineDialog(item) : undefined,
+          id: `pipeline-trigger-${domSafeId(prKey(item))}`,
+          announce,
+        }),
+        item,
         announce,
-      });
+      );
     }
 
     // The pipeline on the pill of the pull request that will close an issue:
@@ -1023,18 +1119,12 @@
     // held runs (#1280). Nothing here approves anything.
     function approveOnGithubLink(item: PullRequestItem): HTMLElement | null {
       if (item.awaitingWorkflowApproval !== true) return null;
-      const link = el(
-        "a",
-        "approve-link",
-        "Approve on GitHub",
-      ) as HTMLAnchorElement;
+      const copy = approveLinkCopy(item.forge);
+      const link = el("a", "approve-link", copy.text) as HTMLAnchorElement;
       link.href = `${item.url.replace(/\/+$/, "")}/checks`;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.setAttribute(
-        "aria-label",
-        "Approve on GitHub (opens the checks page in a new tab)",
-      );
+      link.setAttribute("aria-label", copy.ariaLabel);
       return link;
     }
 
@@ -1062,18 +1152,26 @@
     function mergeStatusPill(
       status: string,
       ci: string,
-      conflict: ConflictFacts = {},
+      conflict: ConflictFacts,
+      forge: string,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
       // Forgejo's flag stayed false and no refusal named a conflict (#3308).
-      if (status === "conflicting" && conflict.confirmed === false)
-        return unconfirmedConflictPill();
+      if (
+        status === "conflicting" &&
+        conflict.confirmed === false &&
+        conflict.reason &&
+        conflict.reasonId
+      )
+        return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
       const pill = el("span", `merge-pill ${status}`);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
+      // After the label, so a screen reader hears the state before the note.
+      claimed(pill, { forge });
       const where = conflictWhere(conflict.files ?? []);
       if (status !== "conflicting" || !where) return pill;
       const group = el("span", "merge-state");
@@ -1082,10 +1180,42 @@
       return group;
     }
 
-    type ConflictFacts = { confirmed?: boolean; files?: string[] };
+    type ConflictFacts = {
+      confirmed?: boolean;
+      files?: string[];
+      // The unconfirmed pill's reason and the id Merge is described by (#3965).
+      reason?: string;
+      reasonId?: string;
+    };
 
     function conflictFacts(item: PullRequestItem): ConflictFacts {
-      return { confirmed: item.conflictConfirmed, files: item.conflictFiles };
+      const facts: ConflictFacts = {
+        confirmed: item.conflictConfirmed,
+        files: item.conflictFiles,
+      };
+      if (unconfirmedConflict(item)) {
+        facts.reasonId = conflictReasonId(item);
+        facts.reason = rowClaim({
+          kind: "conflict",
+          lock: proactiveActionLockReason(item.forge),
+          answered: false,
+          updateOffered: liveUpdateBranch(item),
+        }).reason;
+      }
+      return facts;
+    }
+
+    // The forge's flag stayed false and no refusal named a conflict (#3308).
+    // The pill says it, with its reason; Merge is described by that reason
+    // instead of the row's status block saying the same words again (#3965).
+    function unconfirmedConflict(item: PullRequestItem): boolean {
+      return (
+        item.mergeStatus === "conflicting" && item.conflictConfirmed === false
+      );
+    }
+
+    function conflictReasonId(item: PullRequestItem): string {
+      return `${idScope}conflict-reason-${domSafeId(prKey(item))}`;
     }
 
     // "In a.txt, b.md and 2 more": where a refused merge or update said the
@@ -1097,24 +1227,20 @@
       return more > 0 ? `In ${shown} and ${more} more` : `In ${shown}`;
     }
 
-    let unconfirmedReasonCount = 0;
-
     // "Conflict not confirmed" and the reason one tap away. The server leaves
     // it at that: the forge's flag has been false past the check window, which
     // it is for a conflict and also for a check that never finishes.
-    function unconfirmedConflictPill(): HTMLElement {
-      const id = `conflict-reason-${++unconfirmedReasonCount}`;
+    function unconfirmedConflictPill(
+      reasonText: string,
+      id: string,
+    ): HTMLElement {
       const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
       pill.type = "button";
       pill.setAttribute("aria-expanded", "false");
       pill.setAttribute("aria-controls", id);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode("Conflict not confirmed"));
-      const reason = el(
-        "span",
-        "merge-where",
-        "The forge says this can't merge, and says the same while it is still checking. No merge or update has been refused with a conflict yet. Update the branch to find out.",
-      );
+      const reason = el("span", "merge-where", reasonText);
       reason.id = id;
       reason.hidden = true;
       pill.addEventListener("click", (event) => {
@@ -1135,15 +1261,25 @@
     // Out of date quick filter reads the same two fields. Empty ones get
     // none: there is nothing to update. On a row the chip stays out while the
     // row already says it another way: a live Update branch button is the
-    // signal, and a confirmed conflict shows its warning alone (#3770). The
-    // pop-up keeps the chip.
+    // signal, a confirmed conflict shows its warning alone (#3770), and a
+    // requested rebase shows its wait chip alone (#4022). The pop-up keeps
+    // the chip.
     function behindPill(
       item: PullRequestItem,
       onRow = false,
     ): HTMLElement | null {
-      if (!item.behind || item.empty) return null;
-      if (onRow && (conflictShown(item) || liveUpdateBranch(item))) return null;
-      return attrChip("behind", "Out of date");
+      if (
+        !showsBehindPill({
+          behind: !!item.behind,
+          empty: !!item.empty,
+          onRow,
+          conflictShown: conflictShown(item),
+          liveUpdateBranch: liveUpdateBranch(item),
+          rebaseRequested: rebaseRequested(item),
+        })
+      )
+        return null;
+      return claimed(attrChip("behind", "Out of date"), item);
     }
 
     // A conflict a person has to fix by hand: the forge says conflicting and,
@@ -1282,10 +1418,12 @@
 
     // Who holds a Forgejo auto-merge, in the chip's note. An unnamed holder
     // gets no note at all (#1596).
-    const HOLDER_NOTE: Record<string, string> = {
-      dashboard: "Managed by Forge Dashboard",
-      forge: "Scheduled on Forgejo",
-    };
+    function holderNote(pr: PullRequestItem): string | undefined {
+      if (pr.autoMergeHeldBy === "dashboard")
+        return "Managed by Forge Dashboard";
+      if (pr.autoMergeHeldBy === "forge") return scheduledOnCopy(pr.forge).note;
+      return undefined;
+    }
 
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
@@ -1295,13 +1433,13 @@
       if (pr.autoMergeEnabled !== true) return null;
       // On Forgejo this app does the merging, not the forge, and the chip
       // says so in words (it has no GitHub-style setting to point at).
-      if (pr.forge === "forgejo") {
+      if (appHoldsAutoMerge(pr.forge)) {
         const chip = attrChip("auto-merge", "Auto-merge on");
-        const note = HOLDER_NOTE[pr.autoMergeHeldBy ?? ""];
+        const note = holderNote(pr);
         if (note) chip.appendChild(el("span", "pill-note", note));
-        return chip;
+        return claimed(chip, pr);
       }
-      return attrChip("auto-merge", "Auto-merge");
+      return claimed(attrChip("auto-merge", "Auto-merge"), pr);
     }
 
     // The attribute tier (#1563): something set on the pull request that
@@ -1390,7 +1528,11 @@
       if (pr.autoMerge?.state !== "stopped") return null;
       const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
       line.appendChild(el("strong", "", "Stopped: "));
-      line.appendChild(document.createTextNode(pr.autoMerge.message));
+      line.appendChild(
+        document.createTextNode(
+          autoMergeWording(pr.autoMerge.message, pr.forge),
+        ),
+      );
       return line;
     }
 
@@ -1526,6 +1668,7 @@
         item.mergeStatus,
         item.ci,
         conflictFacts(item),
+        item.forge,
       );
       if (merge) state.appendChild(merge);
       const attributes = attributeCluster(item);
@@ -1534,7 +1677,9 @@
       // The dialog keeps saying a pull request is out of date even when it
       // is empty, which the row's badge leaves out.
       if (item.behind && !attributes.querySelector(".behind"))
-        attributes.appendChild(attrChip("behind", "Out of date"));
+        attributes.appendChild(
+          claimed(attrChip("behind", "Out of date"), item),
+        );
       if (item.kind === "release") {
         const version = releaseVersion(item.title);
         if (version)
@@ -2572,6 +2717,11 @@
         group.append(
           el("span", "mentioned-by-label", "Referenced in"),
           referenced,
+          el(
+            "span",
+            "mentioned-by-hint",
+            "Italic: these reference the issue, they do not close it.",
+          ),
         );
         attributes.appendChild(group);
       }
@@ -2722,10 +2872,6 @@
       }
       if (isPR) {
         row.dataset.prKey = prKey(item);
-        if (updatedMarkers.has(prKey(item)))
-          titleCellEl.appendChild(
-            el("span", "updated-just-now", "Updated just now"),
-          );
       }
 
       const meta = el("div", "row-meta");
@@ -2738,22 +2884,28 @@
       const avatar = avatarSrc(
         (item as PullRequestItem | IssueItem).authorAvatarUrl,
       );
-      if (avatar) {
-        // Decorative: the name beside it already says who. A failed load
-        // drops the image and leaves the name alone.
-        const img = el("img", "author-avatar") as HTMLImageElement;
-        img.src = avatar;
-        img.alt = "";
-        img.width = 20;
-        img.height = 20;
-        img.loading = "lazy";
-        img.referrerPolicy = "no-referrer";
-        img.addEventListener("error", () => {
-          img.remove();
-          authorCell.classList.remove("has-avatar");
-        });
+      if (item.author) {
+        // Decorative: the name beside it already says who. The box is 20px
+        // whether it holds the image or the initial, so every name starts at
+        // the same x (#3868). A failed load swaps the image for the initial
+        // in place.
+        const placeholder = el("span", "author-avatar avatar-placeholder");
+        placeholder.setAttribute("aria-hidden", "true");
+        placeholder.dataset.initial = initialOf(item.author);
+        let box: HTMLElement = placeholder;
+        if (avatar) {
+          const img = el("img", "author-avatar") as HTMLImageElement;
+          img.src = avatar;
+          img.alt = "";
+          img.width = 20;
+          img.height = 20;
+          img.loading = "lazy";
+          img.referrerPolicy = "no-referrer";
+          img.addEventListener("error", () => img.replaceWith(placeholder));
+          box = img;
+        }
         authorCell.classList.add("has-avatar");
-        authorCell.replaceChildren(img, nameSpan);
+        authorCell.replaceChildren(box, nameSpan);
       }
       // The avatar and the name are one link to the person's page on the
       // forge, not two links to the same place. It sits above the row's
@@ -2795,6 +2947,7 @@
           pr.mergeStatus,
           pr.ci,
           conflictFacts(pr),
+          pr.forge,
         );
         if (conflictPill) statusCell.appendChild(conflictPill);
         const reviewActivity = reviewPill(pr, (triggerId) =>
@@ -3005,12 +3158,8 @@
     // the merging itself. Said once under each Forgejo group heading, with a
     // way to the full explanation.
     function groupAutoMergeCallout(forgeName: string): HTMLElement | null {
-      if (forgeName !== "forgejo") return null;
-      const note = el(
-        "p",
-        "group-callout",
-        "Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself. Manage it in ",
-      );
+      if (!appHoldsAutoMerge(forgeName)) return null;
+      const note = el("p", "group-callout", autoMergeGroupNote(forgeName));
       const link = el("a", "", "Settings") as HTMLAnchorElement;
       link.href = "/settings.html#forgejo-auto-merge";
       note.appendChild(link);
@@ -3228,7 +3377,7 @@
     // failed click (a 429 the snapshot hadn't shown yet) still draws, with
     // its reason.
     function readOnlyBecauseRateLimited(reason: LockInfo | null): boolean {
-      return isReadOnlyLock(reason);
+      return !rowClaim({ kind: "action", lock: reason }).actionsOpen;
     }
 
     // "GitHub API rate limit reached. Actions resume at 14:32 (in 12
@@ -3483,13 +3632,19 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
-    // The pop-up passes withFix false: its footer already lists every action.
+    // The pop-up passes withFix false: its footer already lists every action,
+    // and it keeps the behind message while a rebase is requested.
     function statusArea(
       item: PullRequestItem,
       withFix = true,
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      // The requested rebase is the fix the message asks for (#4022).
+      if (!showsBehindStatus(status.code, rebaseRequested(item), withFix))
+        return null;
+      // The pill already says it, and holds the reason (#3965).
+      if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
@@ -3543,6 +3698,10 @@
     function statusFixName(item: PullRequestItem): ActionName | null {
       const action = item.status?.action;
       if (!action || isSettled(item)) return null;
+      // The block is left out while the rebase is requested, so the row
+      // draws the button itself (#4022).
+      if (!showsBehindStatus(item.status?.code, rebaseRequested(item), true))
+        return null;
       return fixCellFor(item, action) ? (action as ActionName) : null;
     }
 
@@ -3605,7 +3764,17 @@
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
-        const described = item.status ? statusAreaId(item) : undefined;
+        const described =
+          !item.status ||
+          !showsBehindStatus(
+            item.status.code,
+            rebaseRequested(item),
+            idScope === "",
+          )
+            ? undefined
+            : unconfirmedConflict(item) && item.status.code === "conflict"
+              ? conflictReasonId(item)
+              : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,
@@ -3850,18 +4019,15 @@
 
     // A Forgejo merge the server says the forge holds: Cancel removes that.
     function forgeHolds(item: PullRequestItem): boolean {
-      return item.forge === "forgejo" && item.autoMergeHeldBy === "forge";
+      return forgeHoldsArmed(item);
     }
 
     function doCancelAutoMerge(item: PullRequestItem) {
       const key = prKey(item);
       const onForge = forgeHolds(item);
-      const cancelled = onForge
-        ? "Merge scheduled on Forgejo cancelled."
-        : "Auto-merge cancelled.";
-      const cancelling = onForge
-        ? "Cancelling the merge scheduled on Forgejo…"
-        : "Cancelling auto-merge…";
+      const held = scheduledOnCopy(item.forge);
+      const cancelled = onForge ? held.cancelled : "Auto-merge cancelled.";
+      const cancelling = onForge ? held.cancelling : "Cancelling auto-merge…";
       cancelAutoMergeState[key] = { phase: "requesting" };
       const fkey = `cancel-auto-merge:${key}`;
       feedback.start({
@@ -3972,11 +4138,11 @@
           requesting
             ? "Disarming auto-merge"
             : forgeHolds(item)
-              ? "Disarm the merge scheduled on Forgejo"
+              ? scheduledOnCopy(item.forge).disarmLabel
               : "Disarm auto-merge",
         );
       if (forgeHolds(item))
-        button.title = "Cancels the merge scheduled on Forgejo.";
+        button.title = scheduledOnCopy(item.forge).cancelTitle;
       button.type = "button";
       markPending(button, requesting);
       // The label changes while the request runs, so the slot is how a redraw
@@ -4515,6 +4681,17 @@
         .then(() => requested);
     }
 
+    // The row draws no Update branch: its forge is read-only (budget spent,
+    // unreachable, starting) and no click has locked the button with a reason
+    // of its own. The row and Update all both ask this, so a count never
+    // promises a button the board lacks (#3971).
+    function updateBranchHidden(item: PullRequestItem): boolean {
+      return (
+        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      );
+    }
+
     // Only rendered when the forge reports this pull request as behind
     // its base, so it can show alongside the merge button rather than
     // instead of it. A conflicting pull request gets it locked, with the
@@ -4527,11 +4704,7 @@
       // each snapshot, so the real button comes back by itself (#701).
       const updateBranch = findAction(item, "update_branch");
       if (!updateBranch) return null;
-      if (
-        (updateBranchState[prKey(item)]?.phase ?? "idle") === "idle" &&
-        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
-      )
-        return null;
+      if (updateBranchHidden(item)) return null;
       if (updateBranch.blocked)
         return lockedActionButton(
           "Update branch",
@@ -4971,10 +5144,6 @@
     let latestIssues: IssueItem[] | null = null;
     let rawIssues: IssueItem[] = [];
     let latestIssuesAsked = false;
-
-    // How long "Updated just now" stays on a row changed in place.
-    const UPDATED_MARKER_MS = 2500;
-    const updatedMarkers = new Set<string>();
 
     // Whether a re-render now would be felt: a row action is in flight (or
     // an armed confirm waits for its second click), or a modal other than
@@ -5574,21 +5743,6 @@
       livePaused = updatesPaused();
     }
 
-    function markUpdated(keys: string[]) {
-      for (const key of keys) {
-        updatedMarkers.add(key);
-        setTimeout(() => {
-          updatedMarkers.delete(key);
-          document
-            .querySelectorAll<HTMLElement>("#pr-rows .row")
-            .forEach((row) => {
-              if (row.dataset.prKey === key)
-                row.querySelector(".updated-just-now")?.remove();
-            });
-        }, UPDATED_MARKER_MS);
-      }
-    }
-
     // Applies whatever is pending (or just re-sorts what's shown) without
     // rendering; the caller renders once. Called before any user-driven
     // filter, sort or page change.
@@ -5605,18 +5759,19 @@
     function applyPendingNow(offer = true) {
       const sorted = Filters.sortItems(rawPRs, sharedState.view.sort);
       retireFailuresOfRemoved(sorted);
-      const before = prShown.items;
-      prShown.land(sorted);
-      if (offer) offerWhatIsShown(choicesChange(before, prShown.items));
+      landShown(prShown, sorted, offer, offerWhatIsShown);
       prBoard.replaceItems(prShown.items);
       latestPRs = null;
       latestIsUserAsked = false;
     }
 
     function applyPendingIssuesNow(offer = true) {
-      const before = issueShown.items;
-      issueShown.land(Filters.sortItems(rawIssues, sharedState.view.sort));
-      if (offer) offerWhatIsShown(choicesChange(before, issueShown.items));
+      landShown(
+        issueShown,
+        Filters.sortItems(rawIssues, sharedState.view.sort),
+        offer,
+        offerWhatIsShown,
+      );
       issueBoard.replaceItems(issueShown.items);
       latestIssues = null;
       latestIssuesAsked = false;
@@ -5963,7 +6118,7 @@
       }
       if (structural > 0 && !pointerRestsOnList()) {
         // Rows came, went or moved and nothing would be disturbed: the whole
-        // snapshot lands in one render, a changed row marked as usual. Only
+        // snapshot lands in one render. Only
         // what the filters show is announced.
         const onList = (items: PullRequestItem[]) =>
           items.filter((item) =>
@@ -5982,7 +6137,6 @@
         retireFailuresOfRemoved(next);
         prShown.land(next);
         latestPRs = null;
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
         if (view !== "issues") announceListUpdate(shownDiff);
 
@@ -5993,7 +6147,6 @@
       if (diff.changed.length > 0) {
         const fresh = new Map(latestPRs.map((p) => [prKey(p), p]));
         prShown.land(prShown.items.map((p) => fresh.get(prKey(p)) ?? p));
-        markUpdated(diff.changed);
         keepFocusAcross(() => prBoard.setItems(prShown.items, true));
       }
       if (structural === 0) latestPRs = null;
@@ -6357,6 +6510,8 @@
     function currentUpdatePlan() {
       return updateAllPlan(visiblePullRows, {
         updating: (item) => updateBranchState[prKey(item)]?.phase === "queued",
+        // Rows that draw no Update branch are not offered either (#3971).
+        controlsHidden: updateBranchHidden,
       });
     }
 
@@ -7033,8 +7188,7 @@
       if (lock?.code !== "rate_limited") return null;
       // With a host of this kind down, the row may be on that host, and a
       // queued action would wait for a reset that doesn't bring it back.
-      if (lastForges.some((f) => f.forge === item.forge && isUnreachable(f)))
-        return null;
+      if (stateClaim(item).state === "carried_over") return null;
       const action = queueableAction(item);
       if (!action) return null;
       const resets = lock.resetsAt ?? "";
@@ -7716,7 +7870,9 @@
         'option[value="forge"]',
       );
       if (!forgeOption) return;
-      const forgeFilterActive = Boolean(sharedState.shared.forge);
+      const forgeFilterActive = Boolean(
+        Filters.effectiveForge(sharedState.shared.forge),
+      );
       forgeOption.hidden = forgeFilterActive;
       if (forgeFilterActive && sharedState.shared.groupBy === "forge") {
         sharedState.shared.groupBy = "";
@@ -8298,9 +8454,10 @@
         hideDependencyDashboardCheckbox.checked =
           extraState.hideDependencyDashboard === "1";
         hideDependencyDashboardCheckbox.addEventListener("change", () => {
-          extraState.hideDependencyDashboard =
-            hideDependencyDashboardCheckbox.checked ? "1" : "";
-          Filters.touchKey("issue", "hideDependencyDashboard");
+          setHideDependencyDashboard(
+            sharedState,
+            hideDependencyDashboardCheckbox.checked,
+          );
           state.page = 1;
           Filters.saveState(sharedState);
           // What it hides or shows changes which repos, authors and labels
@@ -8320,8 +8477,7 @@
         titleRegexInput.value = extraState.hideTitleRegex ?? "";
         titleRegexInput.addEventListener("input", () => {
           onUserChange?.();
-          extraState.hideTitleRegex = titleRegexInput.value;
-          Filters.touchKey("issue", "hideTitleRegex");
+          setHideTitleRegex(sharedState, titleRegexInput.value);
           state.page = 1;
           Filters.saveState(sharedState, "hideTitleRegex");
           updateSharedFilterOptions();
@@ -8428,8 +8584,7 @@
     );
 
     togglePause = () => {
-      sharedState.view.paused = updatesPaused() ? "" : "1";
-      Filters.touchKey("view", "paused");
+      setPaused(sharedState, !updatesPaused());
       Filters.saveState(sharedState);
       syncPauseControl();
       announceText(
@@ -8445,8 +8600,7 @@
     };
     syncPauseControl();
     showDraftsButton?.addEventListener("click", () => {
-      sharedState.view.drafts = draftsOn() ? "" : "1";
-      Filters.touchKey("view", "drafts");
+      setDrafts(sharedState, !draftsOn());
       Filters.saveState(sharedState);
       syncDraftsPreference();
     });
@@ -8495,9 +8649,7 @@
             c instanceof HTMLInputElement && c.type === "radio"
               ? c.value
               : c.value.trim().toLowerCase();
-          sharedState.shared[col] = value;
-          Filters.touchKey("shared", col);
-          Filters.releaseHeld("shared", col);
+          setSharedControl(sharedState, col, value);
           prBoard.resetPage();
           issueBoard.resetPage();
           // Repo/Author/Label options (and "Group by forge") are scoped
@@ -8539,14 +8691,14 @@
     // Four groups (Forge, CI, Merge, Review) of toggle buttons with
     // aria-pressed: one active per group, combined with AND. The pill logic
     // itself lives in #lib/filters (setPill/activePill).
-    const quickPills = Array.from(
-      document.querySelectorAll<HTMLButtonElement>(".quick-pill"),
-    );
+    // Read each time: a forge a read adds draws a pill after mount (#3978).
     function syncQuickPills() {
       // The issues page has no pull-request-only pills, and they don't
       // filter issues, so they are not what's in effect there (#827).
       const picks = pillPicks();
-      for (const b of quickPills)
+      for (const b of document.querySelectorAll<HTMLButtonElement>(
+        ".quick-pill",
+      ))
         b.setAttribute(
           "aria-pressed",
           String(
@@ -8558,20 +8710,21 @@
           ),
         );
     }
-    for (const b of quickPills) {
-      b.addEventListener("click", () => {
-        const group = b.closest<HTMLElement>("[data-group]")?.dataset
-          .group as Filters.PillGroup;
-        Filters.setPill(sharedState, group, b.dataset.pill ?? "all");
-        Filters.touchKey(group === "forge" ? "shared" : "pr", group);
-        prBoard.resetPage();
-        issueBoard.resetPage();
-        updateSharedFilterOptions();
-        Filters.saveState(sharedState);
-        syncQuickPills();
-        renderBoth();
-      });
-    }
+    pillClick = (b) => {
+      const group = b.closest<HTMLElement>("[data-group]")?.dataset
+        .group as Filters.PillGroup;
+      setQuickPill(sharedState, group, b.dataset.pill ?? "all");
+      prBoard.resetPage();
+      issueBoard.resetPage();
+      updateSharedFilterOptions();
+      Filters.saveState(sharedState);
+      syncQuickPills();
+      renderBoth();
+    };
+    pillsDrawn = () => {
+      updateSharedFilterOptions();
+      syncQuickPills();
+    };
     syncQuickPills();
 
     function pickGroup() {
@@ -8620,10 +8773,6 @@
         .querySelector<HTMLButtonElement>(`.${groupClass} [data-${attr}="any"]`)
         ?.click();
     }
-    function setPick(group: Record<string, string>, key: string, v: string) {
-      if (v === "any") delete group[key];
-      else group[key] = v;
-    }
     // On and Off filter on what the forge says; the choice is the pull request
     // board's own (sharedState.pr), so it combines with a quick pill.
     const syncAutoMerge = wireSegment(
@@ -8631,8 +8780,7 @@
       "am",
       () => sharedState.pr.autoMerge,
       (v) => {
-        setPick(sharedState.pr, "autoMerge", v);
-        Filters.touchKey("pr", "autoMerge");
+        setSegment(sharedState, "pr", "autoMerge", v);
       },
       () => prBoard.resetPage(),
     );
@@ -8643,8 +8791,7 @@
       "ref",
       () => pickGroup()[refsKey()],
       (v) => {
-        setPick(pickGroup(), refsKey(), v);
-        Filters.touchKey(pullsView ? "pr" : "issue", refsKey());
+        setSegment(sharedState, pullsView ? "pr" : "issue", refsKey(), v);
       },
       () => {
         prBoard.resetPage();
@@ -8677,12 +8824,18 @@
     }
     document.addEventListener("keydown", onSlashShortcut);
 
+    // Clear button and Escape empty the title box and nothing else (#4077).
+    // The box's own input handler then resets just that filter. Whether the
+    // button shows is CSS, off the placeholder, so it follows a restored value
+    // too.
+    const titleClear = document.getElementById("title-filter-clear");
+    if (titleSearch && titleClear) wireClearBox(titleSearch, titleClear);
+
     const sharedGroupSelect = document.getElementById(
       "shared-group-select",
     ) as HTMLSelectElement | null;
     sharedGroupSelect?.addEventListener("change", () => {
-      sharedState.shared.groupBy = sharedGroupSelect.value || "";
-      Filters.touchKey("shared", "groupBy");
+      setGroupBy(sharedState, sharedGroupSelect.value || "");
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -8696,8 +8849,7 @@
     ) as HTMLSelectElement | null;
     if (sortSelect) sortSelect.value = sharedState.view.sort || "";
     sortSelect?.addEventListener("change", () => {
-      sharedState.view.sort = sortSelect.value;
-      Filters.touchKey("view", "sort");
+      setSort(sharedState, sortSelect.value);
       prBoard.resetPage();
       issueBoard.resetPage();
       Filters.saveState(sharedState);
@@ -8833,6 +8985,7 @@
     const filterSheetClear = document.getElementById(
       "filter-sheet-clear",
     ) as HTMLButtonElement | null;
+    const filterSheetCount = document.getElementById("filter-sheet-count");
     const activeFiltersEl = document.getElementById("active-filters");
     let filterControlsHome: {
       parent: HTMLElement;
@@ -8876,7 +9029,7 @@
         const pick = Filters.effectivePill(sharedState, group, !pullsView);
         if (pick === "all") continue;
         chips.push({
-          label: `${Filters.PILL_GROUP_LABELS[group]} ${Filters.PILL_LABELS[pick] ?? pick}`,
+          label: `${Filters.PILL_GROUP_LABELS[group]} ${Filters.pillLabel(pick)}`,
           clear: () =>
             document
               .querySelector<HTMLButtonElement>(
@@ -8960,9 +9113,7 @@
     function renderHeldNote() {
       if (!heldPicksEl) return;
       Filters.renderHeldPicks(heldPicksEl, (pick) => {
-        Filters.releaseHeld(pick.group, pick.key);
-        Filters.touchKey(pick.group, pick.key);
-        Filters.saveState(sharedState);
+        releaseHeldPick(sharedState, pick);
         updateClearFiltersButton();
       });
     }
@@ -8979,6 +9130,18 @@
             ? "Show 1 result"
             : `Show ${visibleResultCount} results`;
       if (filterSheetClear) filterSheetClear.disabled = filtersAreDefault();
+      // The button's name changes with the count, but a button isn't
+      // announced for that; the live region says it (#4076).
+      // Written only when it differs: a rewrite of the same text can make
+      // some screen readers say it again.
+      if (filterSheetCount) {
+        const countText =
+          visibleResultCount === 1
+            ? "1 result"
+            : `${visibleResultCount} results`;
+        if (filterSheetCount.textContent !== countText)
+          filterSheetCount.textContent = countText;
+      }
 
       // Only rebuilt when what's shown would change, so a chip the reader
       // is about to tap isn't replaced under their finger by a refresh.
@@ -9071,9 +9234,7 @@
           continue;
         }
         const group = prKeys.includes(filter) ? "pr" : "shared";
-        Filters.touchKey(group, filter);
-        sharedState[group][filter] = "";
-        Filters.releaseHeld(group, filter);
+        clearFilterFor(sharedState, group, filter);
       }
       if (failing.length > 0) {
         syncQuickPills();
@@ -9106,27 +9267,12 @@
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {
-      // Mutated in place, not reassigned: createBoard's own extraState
-      // closures (sharedState.pr, sharedState.issue) captured these
-      // exact objects at setup time, and a reassignment here would
-      // leave them pointing at the old, still-filtered one.
-      for (const k of Object.keys(sharedState.shared))
-        delete sharedState.shared[k];
-      for (const k of Object.keys(sharedState.pr)) delete sharedState.pr[k];
-      // The page's own saved values for a field the Settings page replaced
-      // stay: they come back when the setting is turned off (#1630).
-      const keptDependencyDashboard = sharedState.issue.hideDependencyDashboard;
-      const keptTitleRegex = sharedState.issue.hideTitleRegex;
-      for (const k of Object.keys(sharedState.issue))
-        delete sharedState.issue[k];
-      sharedState.issue.hideDependencyDashboard =
-        settingsHideDependencyDashboard
-          ? (keptDependencyDashboard ?? "1")
-          : "1";
-      if (settingsIgnoreTitles && keptTitleRegex)
-        sharedState.issue.hideTitleRegex = keptTitleRegex;
-      Filters.releaseAllHeld();
-      Filters.touchAll();
+      // Emptied in place: createBoard's own extraState closures captured
+      // these objects at setup time.
+      resetFilters(sharedState, {
+        hideDependencyDashboard: settingsHideDependencyDashboard,
+        ignoreTitles: settingsIgnoreTitles,
+      });
       syncQuickPills();
       syncAutoMerge();
       syncRefs();
@@ -9288,8 +9434,6 @@
     // the rows on screen are and that the page retries on its own, once, with
     // one Retry that forces a refresh. The toolbar draws no chip for the
     // forge. A forge held back by its rate limit has that banner instead.
-    const GITHUB_STATUS_PAGE = "https://www.githubstatus.com/";
-
     // Keeps the banner's relative age counting between redraws (#3745).
     function tickUnreachableBannerAge() {
       const age = document.querySelector<HTMLElement>(
@@ -9333,6 +9477,7 @@
         down.map((f) => ({
           forge: f.forge,
           label: FORGE_LABELS[f.forge] || f.forge,
+          statusPageUrl: statusPageUrlOf(f.forge),
           errorKind: f.errorKind,
           staleSince: f.staleSince,
           startupGap: isStartupGap(f, recentlyStarted),
@@ -9361,7 +9506,7 @@
       } else {
         text.appendChild(document.createTextNode(` ${copy.detail}`));
       }
-      // GitHub's own report, a second line of the same banner (#3633).
+      // The forge's own report, a second line of the same banner (#3633).
       if (copy.incident) {
         text.appendChild(document.createTextNode(" "));
         text.appendChild(
@@ -9369,18 +9514,21 @@
         );
       }
       row.appendChild(text);
-      // GitHub's own status page says whether the fault is theirs. A
-      // Forgejo instance is self-hosted, so it has none to link (#1301).
+      // A forge's own status page says whether the fault is theirs. A
+      // self-hosted instance has none to link (#1301).
       if (copy.statusLink) {
         const status = el(
           "a",
           "unreachable-banner-retry unreachable-banner-link",
-          "GitHub status",
+          copy.statusLink.label,
         ) as HTMLAnchorElement;
-        status.href = GITHUB_STATUS_PAGE;
+        status.href = copy.statusLink.url;
         status.target = "_blank";
         status.rel = "noopener noreferrer";
-        status.setAttribute("aria-label", "GitHub status (opens in a new tab)");
+        status.setAttribute(
+          "aria-label",
+          `${copy.statusLink.label} (opens in a new tab)`,
+        );
         row.appendChild(status);
       }
       const retry = buttonEl("unreachable-banner-retry", "Retry");
@@ -9503,12 +9651,8 @@
     }
 
     // "Why?" under a read-only row (#735): what the limit is, so it isn't
-    // taken for a fault in the dashboard. GitHub publishes its rules, so it
-    // links to them. Forgejo's limit comes from a proxy in front of it, with
-    // nothing to link to.
-    const GITHUB_RATE_LIMIT_DOCS =
-      "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api";
-
+    // taken for a fault in the dashboard. The wording follows the forge's
+    // rateLimitModel (rateLimitWhy).
     function whyDisclosure(alert: {
       forge: string;
       label: string;
@@ -9520,23 +9664,15 @@
         `Why? About ${alert.label}'s rate limit`,
       );
       details.appendChild(summary);
-      const github = alert.forge === "github";
-      details.appendChild(
-        el(
-          "p",
-          "",
-          github
-            ? "GitHub gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out GitHub refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back."
-            : `${alert.label} itself doesn't count requests; a proxy in front of it does. When the proxy's budget runs out it refuses requests until the reset time, so this is a limit on the way to the forge and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
-        ),
-      );
-      if (github) {
+      const why = rateLimitWhy(alert.forge, alert.label);
+      details.appendChild(el("p", "", why.text));
+      if (why.docsUrl) {
         const link = el(
           "a",
           "",
-          "GitHub's rate limit rules (opens in a new tab)",
+          `${alert.label}'s rate limit rules (opens in a new tab)`,
         ) as HTMLAnchorElement;
-        link.href = GITHUB_RATE_LIMIT_DOCS;
+        link.href = why.docsUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         details.appendChild(link);
@@ -10095,6 +10231,8 @@
       }
       followReadInterval(data.readIntervalSeconds);
 
+      registerForgeCapabilities(data.forges);
+      refreshForgePills();
       renderForgeHealth(data.forges || []);
       const wasUnreachable = new Set(
         lastForges.filter((f) => isUnreachable(f)).map((f) => f.forge),
@@ -10490,16 +10628,31 @@
           type="button"
           class="quick-pill"
           data-pill="all"
-          aria-pressed="true">All</button
+          aria-pressed="true"
+          onclick={(e) => pillClick(e.currentTarget)}>All</button
         >
-        {#each Filters.PILL_GROUPS[group] as pill (pill)}
-          <button
-            type="button"
-            class="quick-pill"
-            data-pill={pill}
-            aria-pressed="false">{Filters.PILL_LABELS[pill]}</button
-          >
-        {/each}
+        {#if group === "forge"}
+          {#each forgePills as pill (pill.id)}
+            <button
+              type="button"
+              class="quick-pill"
+              data-pill={pill.id}
+              aria-pressed="false"
+              onclick={(e) => pillClick(e.currentTarget)}>{pill.label}</button
+            >
+          {/each}
+        {:else}
+          {#each Filters.PILL_GROUPS[group] as pill (pill)}
+            <button
+              type="button"
+              class="quick-pill"
+              data-pill={pill}
+              aria-pressed="false"
+              onclick={(e) => pillClick(e.currentTarget)}
+              >{Filters.pillLabel(pill)}</button
+            >
+          {/each}
+        {/if}
       </div>
     {/if}
   {/each}
@@ -10557,13 +10710,11 @@
   >
   <meta
     name="description"
-    content={view === "issues"
-      ? "Open issues across your GitHub and Forgejo repositories, in one list."
-      : view === "releases"
-        ? "Release pull requests waiting to ship across your GitHub and Forgejo repositories, with Merge and Update branch on each."
-        : view === "bots"
-          ? "Dependabot and Renovate pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."
-          : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
+    content={pageDescription(
+      view === "issues" || view === "releases" || view === "bots"
+        ? view
+        : "pulls",
+    )}
   />
 </svelte:head>
 
@@ -10666,6 +10817,23 @@
           autocomplete="off"
         />
         <kbd class="search-hint" aria-hidden="true">/</kbd>
+        <button
+          type="button"
+          class="search-clear"
+          id="title-filter-clear"
+          aria-label="Clear title filter"
+          aria-controls="title-filter"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </span>
       <datalist id="shared-title-options"></datalist>
       <button
@@ -10812,6 +10980,12 @@
       <button type="button" class="filter-sheet-show" id="filter-sheet-show"
         >Show results</button
       >
+      <span
+        class="sr-only"
+        id="filter-sheet-count"
+        role="status"
+        aria-live="polite"
+      ></span>
     </div>
   </dialog>
 

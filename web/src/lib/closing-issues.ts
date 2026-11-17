@@ -1,3 +1,5 @@
+import { isKnownForge } from './forges';
+import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 
 // The pills on a pull request that link to the issues it will close, and the
@@ -41,8 +43,17 @@ export const closingPillClass = (issue: ClosingIssue) =>
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
 export function closingPillName(issue: ClosingIssue, prRepo: string) {
-  return `${closingPillText(issue, prRepo)}, opens the issue`;
+  const text = closingPillText(issue, prRepo);
+  return issue.relation === 'refs'
+    ? `${text}, references, does not close, opens the issue`
+    : `${text}, opens the issue`;
 }
+
+/** The pill's tooltip: what it does to the issue, which the italic alone doesn't say. */
+export const closingPillTitle = (issue: ClosingIssue) =>
+  issue.relation === 'refs'
+    ? 'References the issue, does not close it'
+    : 'Closes the issue when it merges';
 
 /** The pills a row shows, and the ones kept behind the count. */
 export function splitClosing<T extends ClosingIssue>(list: T[]) {
@@ -55,8 +66,6 @@ export type IssueAddress = {
   number: number;
 };
 
-const FORGES = new Set(['github', 'forgejo']);
-
 /**
  * Reads `?issue=forge/owner/name/number`, the form the server writes. Null for
  * a missing or malformed one, so a stray value opens nothing.
@@ -67,7 +76,7 @@ export function parseIssueAddress(search: string): IssueAddress | null {
   const parts = value.split('/');
   if (parts.length !== 4) return null;
   const [forge, owner, name, raw] = parts;
-  if (!FORGES.has(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
+  if (!isKnownForge(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
     return null;
   const number = Number(raw);
   if (number < 1) return null;
@@ -161,7 +170,10 @@ export function closingPills(
     }
     link.textContent = closingPillText(issue, prRepo);
     link.setAttribute('aria-label', closingPillName(issue, prRepo));
-    return link;
+    link.title = closingPillTitle(issue);
+    return issue.relation === 'refs'
+      ? addPillTip(link, closingPillTitle(issue))
+      : link;
   };
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
@@ -178,7 +190,7 @@ export function closingPills(
     expanded.add(prKey);
     return extra;
   };
-  more.addEventListener('click', () => reveal()[0]?.focus());
+  more.addEventListener('click', () => focusPill(reveal()[0]));
   wrap.append(more);
   if (expanded.has(prKey)) reveal();
   return wrap;

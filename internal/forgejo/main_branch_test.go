@@ -427,6 +427,11 @@ func TestReadMainBranch_EachStatus(t *testing.T) {
 		{"cancelled beside a success", []string{"cancelled", "success"}, dashboard.MainBranchCancelled},
 		{"cancelled beside a failure", []string{"cancelled", "failure"}, dashboard.MainBranchFailed},
 		{"cancelled beside a run still going", []string{"cancelled", "running"}, dashboard.MainBranchRunning},
+		{"a run nobody can grade alone", []string{"brand-new"}, dashboard.MainBranchUnknown},
+		{"a run nobody can grade beside a success", []string{"brand-new", "success"}, dashboard.MainBranchUnknown},
+		{"a run nobody can grade beside a cancelled one", []string{"brand-new", "cancelled"}, dashboard.MainBranchUnknown},
+		{"a run still going outranks one nobody can grade", []string{"brand-new", "running"}, dashboard.MainBranchRunning},
+		{"a failure outranks a run nobody can grade", []string{"brand-new", "failure"}, dashboard.MainBranchFailed},
 		{"skipped alone", []string{"skipped"}, dashboard.MainBranchPassed},
 		{"running", []string{"running"}, dashboard.MainBranchRunning},
 		{"waiting", []string{"waiting"}, dashboard.MainBranchRunning},
@@ -488,7 +493,7 @@ func TestReadMainBranch_FallsBackToTheRunCounts(t *testing.T) {
 		{"mixed", []string{"success", "skipped", "running", "waiting", "blocked", "failure"}, dashboard.CheckCounts{Passed: 2, Skipped: 1, Running: 1, Waiting: 2, Failed: 1}},
 		{"every run skipped", []string{"skipped", "skipped"}, dashboard.CheckCounts{Passed: 2, Skipped: 2}},
 		{"all passed", []string{"success", "success", "success"}, dashboard.CheckCounts{Passed: 3}},
-		{"cancelled counts in none", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1}},
+		{"cancelled counts on its own", []string{"success", "cancelled"}, dashboard.CheckCounts{Passed: 1, Cancelled: 1}},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -20,9 +20,11 @@
 // which sends the page to sign-in), cleared by the next answer. It does not
 // settle anything: it only lets a page say the data did not load (#3212).
 
+import { type ForgeCapabilities, registerForgeCapabilities } from './forges';
+
 export type DashboardReadData = {
   repos?: unknown[];
-  forges?: unknown[];
+  forges?: { forge: string; capabilities?: Partial<ForgeCapabilities> }[];
   pullRequests?: unknown[];
   issues?: unknown[];
   settingsHiddenIssueCount?: number;
@@ -76,6 +78,7 @@ export function settleDashboardRead(
 ) {
   if (dashboardRead.latched) return;
   if (data) {
+    registerForgeCapabilities(data.forges);
     dashboardRead.data = data;
     dashboardRead.status = 200;
     dashboardRead.state = 'answered';

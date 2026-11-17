@@ -1329,22 +1329,23 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 }
 
 // excuseCancelled takes the failure statuses of cancelled jobs out of the
-// failed count. When that leaves nothing failed, the excused jobs never ran, so
-// a row with nothing waiting is no pass: it reads Cancelled with the jobs
-// counted beside the ones that passed (#3378).
+// failed count and counts them as cancelled, beside the others, so the counts
+// add up to the jobs listed (#4064). When that leaves nothing failed, the
+// excused jobs never ran, so a row with nothing waiting is no pass: it reads
+// Cancelled (#3378).
 func (c *Client) excuseCancelled(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, state dashboard.CIStatus, counts dashboard.CheckCounts) (dashboard.CIStatus, dashboard.CheckCounts) {
 	n := c.cancelledFailures(ctx, owner, name, runs, statuses)
 	if n == 0 {
 		return state, counts
 	}
 	counts.Failed -= n
+	counts.Cancelled = n
 	if counts.Failed > 0 {
 		return state, counts
 	}
 	state = stateWithoutFailures(counts, statuses)
 	if state == dashboard.CISuccess || state == dashboard.CINone {
 		state = dashboard.CICancelled
-		counts.Cancelled = n
 	}
 
 	return state, counts
@@ -1362,10 +1363,13 @@ func settledState(state dashboard.CIStatus, counts dashboard.CheckCounts, status
 }
 
 // splitWaiting takes what the pending statuses don't wait on out of the
-// waiting count: the jobs blocked in a run that failed, and the ones running.
+// waiting count: the jobs blocked in a run that failed, which are counted as
+// not started so every job is in one count (#4064), and the ones running.
 func (c *Client) splitWaiting(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
 	if counts.Waiting > 0 {
-		counts.Waiting -= min(blockedInFailedRuns(runs, statuses), counts.Waiting)
+		blocked := min(blockedInFailedRuns(runs, statuses), counts.Waiting)
+		counts.Waiting -= blocked
+		counts.NotStarted += blocked
 	}
 	if counts.Waiting > 0 {
 		counts = c.splitRunning(ctx, owner, name, runs, counts)
@@ -1798,6 +1802,8 @@ func checkCountsOf(statuses []*gitea.Status) dashboard.CheckCounts {
 			out.Waiting++
 		case gitea.StatusFailure, gitea.StatusError:
 			out.Failed++
+		default:
+			out.Unknown++
 		}
 	}
 
@@ -1911,6 +1917,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				RunAttempt: j.RunAttempt,
 
 				ReportedConclusion: reportedConclusion(j.Status),
+				ReportedStatus:     dashboard.UnknownWord(checkStateFromWorkflowStatus(j.Status), j.Status),
 			}, j), run.ID, workflowName(run), run.RunNumber)
 			checks = append(checks, withRunFacts(check, run.Status, run.StartedAt, run.CompletedAt))
 			probes = append(probes, workflowContext(run, j.Name))
@@ -2001,8 +2008,11 @@ func checkStateFromWorkflowStatus(status string) dashboard.CheckState {
 		return dashboard.CheckSkipped
 	case "running":
 		return dashboard.CheckRunning
-	default: // "waiting", "blocked", "unknown", or anything unrecognized
+	case "waiting", "blocked", "unknown": // nothing has started
 		return dashboard.CheckQueued
+	default:
+		// A status Forgejo added later: not a wait, so not queued.
+		return dashboard.CheckUnknown
 	}
 }
 

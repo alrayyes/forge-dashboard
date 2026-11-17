@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Paired backticks in the details pop-up title show as inline code.
@@ -18,7 +19,7 @@ async function openDialog(page: Page, title: string) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           {
             forge: 'github',
@@ -65,12 +66,17 @@ async function openDialog(page: Page, title: string) {
   return dialog;
 }
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`paired backticks show as inline code (${scheme}, 320px)`, async ({
+for (const [scheme, width] of [
+  ['light', 320],
+  ['dark', 320],
+  ['light', 390],
+  ['dark', 390],
+] as const) {
+  test(`paired backticks show as inline code (${scheme}, ${width}px)`, async ({
     page,
   }) => {
     await page.emulateMedia({ colorScheme: scheme });
-    await page.setViewportSize({ width: 320, height: 740 });
+    await page.setViewportSize({ width, height: 740 });
     const dialog = await openDialog(page, BUMP);
     const title = dialog.locator('.details-title');
 
@@ -88,16 +94,15 @@ for (const scheme of ['light', 'dark'] as const) {
     );
 
     // A digest never breaks mid-word.
-    for (const box of await spans.evaluateAll((els) =>
-      els.map((el) => el.getClientRects().length),
-    )) {
-      expect(box).toBe(1);
-    }
+    await expect
+      .poll(() =>
+        spans.evaluateAll((els) => els.map((el) => el.getClientRects().length)),
+      )
+      .toEqual([1, 1]);
 
-    const overflow = await dialog.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
-    expect(overflow).toBe(0);
+    await expect
+      .poll(() => dialog.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -105,6 +110,30 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+test('the heading reads the span text without the backticks', async ({
+  page,
+}) => {
+  const dialog = await openDialog(page, BUMP);
+  await expect(
+    dialog.getByRole('heading', {
+      name: 'fix(deps): bump golang from d9b6a1b to dc0963f',
+      exact: true,
+    }),
+  ).toBeVisible();
+});
+
+test('a digest in the title never breaks mid-digest', async ({ page }) => {
+  // The title lets long words wrap anywhere; a span must opt out. At phone
+  // widths a digest wraps whole to the next line, so the layout test can't
+  // see the rule go missing. Pin the rule itself.
+  await page.setViewportSize({ width: 390, height: 740 });
+  const dialog = await openDialog(page, BUMP);
+  for (const span of await dialog.locator('.details-title code').all()) {
+    await expect(span).toHaveCSS('white-space', 'nowrap');
+    await expect(span).toHaveCSS('overflow-wrap', 'normal');
+  }
+});
 
 test('an odd number of backticks shows as typed', async ({ page }) => {
   const dialog = await openDialog(page, 'bump `a` to `b');

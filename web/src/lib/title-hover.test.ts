@@ -43,6 +43,7 @@ function fakeObserver() {
   const observed = new Set<unknown>();
   let callback: (entries: { target: unknown }[]) => void = () => {};
   const instances: unknown[] = [];
+  const observeCalls: unknown[] = [];
   let disconnected = false;
   class FakeObserver {
     constructor(cb: (entries: { target: unknown }[]) => void) {
@@ -50,6 +51,7 @@ function fakeObserver() {
       instances.push(this);
     }
     observe(t: unknown) {
+      observeCalls.push(t);
       observed.add(t);
     }
     unobserve(t: unknown) {
@@ -63,6 +65,7 @@ function fakeObserver() {
   return {
     ctor: FakeObserver as unknown as typeof ResizeObserver,
     observed,
+    observeCalls,
     instances,
     fire: (...targets: unknown[]) =>
       callback(targets.map((target) => ({ target }))),
@@ -126,5 +129,26 @@ describe('recheck', () => {
     el.scrollWidth = 150;
     hover.recheck();
     expect(el.attrs.get('title')).toBe('T');
+  });
+});
+
+// A real ResizeObserver reports a box only when its size differs from the last
+// size it reported. A recheck decides at whatever size the box has right now,
+// which may be one the observer never reported; if the box then returns to the
+// last reported size, nothing fires and the recheck's answer stays wrong.
+// Observing again owes the box a fresh report on the next frame.
+describe('recheck and the observer', () => {
+  test('asks the observer for a fresh report of every tracked title', () => {
+    const ro = fakeObserver();
+    const hover = createTitleHover(ro.ctor);
+    const a = box(100, 100);
+    const b = box(100, 100);
+    hover.track(a as unknown as HTMLElement, 'A');
+    hover.track(b as unknown as HTMLElement, 'B');
+    ro.observeCalls.length = 0;
+    hover.recheck();
+    expect(ro.observeCalls).toEqual([a, b]);
+    expect(ro.observed.has(a)).toBe(true);
+    expect(ro.observed.has(b)).toBe(true);
   });
 });

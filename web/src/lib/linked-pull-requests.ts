@@ -8,6 +8,8 @@ import {
   type CheckSegment,
   pillName,
 } from './check-counts.js';
+import { isKnownForge } from './forges';
+import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
@@ -75,7 +77,7 @@ export function linkedPillName(
   relation: Relation = 'closes',
 ) {
   const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
-  const says = relation === 'refs' ? 'references' : relation;
+  const says = relation === 'refs' ? 'references, does not close' : relation;
   if (!ci) return `Pull request ${head}, ${says} this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
@@ -95,6 +97,13 @@ export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
   ]
     .filter(Boolean)
     .join(' ');
+}
+
+/** The pill's tooltip: what the pull request does to the issue, which the italic alone doesn't say. */
+export function linkedPillTitle(relation: Relation) {
+  if (relation === 'closes') return 'Closes this issue when it merges';
+  const verb = relation === 'refs' ? 'References' : 'Mentions';
+  return `${verb} this issue, does not close it`;
 }
 
 const MORE_WORDING: Record<Relation, string> = {
@@ -119,8 +128,6 @@ export type PullRequestAddress = {
   number: number;
 };
 
-const FORGES = new Set(['github', 'forgejo']);
-
 /**
  * Reads `?pr=forge/owner/name/number`, the form the server writes. Null for a
  * missing or malformed one, so a stray value opens nothing.
@@ -133,7 +140,7 @@ export function parsePullRequestAddress(
   const parts = value.split('/');
   if (parts.length !== 4) return null;
   const [forge, owner, name, raw] = parts;
-  if (!FORGES.has(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
+  if (!isKnownForge(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
     return null;
   const number = Number(raw);
   if (number < 1) return null;
@@ -238,7 +245,10 @@ export function linkedPills(
       'aria-label',
       linkedPillName(pr, issueRepo, ci, relation),
     );
-    return link;
+    link.title = linkedPillTitle(relation);
+    return relation === 'refs'
+      ? addPillTip(link, linkedPillTitle(relation))
+      : link;
   };
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
@@ -252,7 +262,7 @@ export function linkedPills(
     expanded.add(`${issueKey}:${relation}`);
     return extra;
   };
-  more.addEventListener('click', () => reveal()[0]?.focus());
+  more.addEventListener('click', () => focusPill(reveal()[0]));
   wrap.append(more);
   if (expanded.has(`${issueKey}:${relation}`)) reveal();
   return wrap;

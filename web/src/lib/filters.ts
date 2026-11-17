@@ -89,7 +89,11 @@ export type QuickFilter = (typeof QUICK_FILTERS)[number];
 // states overlap with merge state, so one group would bring back the choice of
 // only one.
 export const PILL_GROUPS = {
-  forge: ['github', 'forgejo'],
+  // The forges the server reports (forges.ts), read when asked: a forge added
+  // server-side is a pill without a change here (#3978).
+  get forge(): readonly string[] {
+    return forgeIds();
+  },
   ci: ['failing', 'running', 'passing', 'no-checks'],
   merge: ['conflicting', 'out-of-date'],
   review: ['ready', 'needs-review', 'review-requested'],
@@ -102,10 +106,8 @@ export const PILL_GROUP_LABELS: Record<PillGroup, string> = {
   merge: 'Merge',
   review: 'Review',
 };
-// The text on a pill, and after the group name in its active-filter chip.
+// The text on a fixed pill. A forge pill's text is the forge's own label.
 export const PILL_LABELS: Record<string, string> = {
-  github: 'GitHub',
-  forgejo: 'Forgejo',
   failing: 'Failing',
   running: 'Running',
   passing: 'Passing',
@@ -116,6 +118,12 @@ export const PILL_LABELS: Record<string, string> = {
   'needs-review': 'Needs review',
   'review-requested': 'Review requested',
 };
+
+// The text on a pill, and after the group name in its active-filter chip: a
+// forge's label from forges.ts, else the fixed pill's, else the name itself.
+export function pillLabel(pill: string): string {
+  return FORGE_LABELS[pill] ?? PILL_LABELS[pill] ?? pill;
+}
 
 // The group a pill is in; 'all' and unknown names have none, read as forge
 // for a lookup that must return something.
@@ -247,6 +255,15 @@ export function activePill(state: SharedFilterState, group: PillGroup): string {
   return 'all';
 }
 
+// The forge pick in effect: a saved pick no forge pill offers reads as All,
+// the way activePill reads it, so every reader of the pick agrees (#4167,
+// #4171).
+export function effectiveForge(pick: string | undefined): string {
+  return pick && (PILL_GROUPS.forge as readonly string[]).includes(pick)
+    ? pick
+    : '';
+}
+
 // The pill in effect on a page. The issues page ignores the pull-request-only
 // groups (#827), so only the forge group is in effect there.
 export function effectivePill(
@@ -274,7 +291,7 @@ export function setPill(
     : '';
 }
 
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, forgeIds } from './forges';
 import {
   carriesAny,
   joinLabels,
@@ -1368,7 +1385,8 @@ export function failingFilters(
 ): string[] {
   const repoKey = `${item.forge}:${item.repo}`.toLowerCase();
   const failing: string[] = [];
-  if (shared.forge && item.forge !== shared.forge) failing.push('forge');
+  const forge = effectiveForge(shared.forge);
+  if (forge && item.forge !== forge) failing.push('forge');
   if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
@@ -1778,7 +1796,9 @@ export function filtersAreDefault(
   },
 ): boolean {
   return (
-    Object.keys(state.shared).every((k) => !state.shared[k]) &&
+    Object.keys(state.shared).every((k) =>
+      k === 'forge' ? !effectiveForge(state.shared[k]) : !state.shared[k],
+    ) &&
     !state.pr.ci &&
     !state.pr.merge &&
     !state.pr.review &&

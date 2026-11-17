@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Cancelled pill says how many checks passed and how many were cancelled,
@@ -41,7 +42,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('forgejo')],
         pullRequests: PRS,
         issues: [],
         openIssueCount: 0,

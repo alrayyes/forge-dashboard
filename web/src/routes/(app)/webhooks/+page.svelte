@@ -22,11 +22,20 @@
     saveState,
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { noReposCopy, permissionsNotReportedCopy } from "#lib/forge-copy.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    forgeCan,
+    forgeIds,
+  } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
   import { formatTime } from "#lib/time.svelte.js";
-  import { saveWebhooksFilter } from "#lib/filter-wiring.js";
+  import {
+    saveWebhooksControl,
+    type WebhooksControl,
+  } from "#lib/filter-wiring.js";
   import { webhooksFilterFromState } from "#lib/webhooks-filter.js";
 
   type RateLimit = {
@@ -287,7 +296,7 @@
     if (key !== "forge" && key !== "fullName" && key !== "hasWebhook") return;
     sortKey = key;
     sortDir = dir === "desc" ? "desc" : "asc";
-    onFilterChange(["sort", "dir"]);
+    onFilterChange("sort");
   }
 
   // True while the table is drawn as cards and its header is clipped to 1px.
@@ -310,7 +319,7 @@
       sortKey = key;
       sortDir = "asc";
     }
-    onFilterChange(["sort", "dir"]);
+    onFilterChange("sort");
   }
 
   // The filters are saved with the other pages' (#1620): the cookie at once
@@ -329,7 +338,7 @@
 
   function currentFilter() {
     return {
-      forge: filterForge as "" | "github" | "forgejo",
+      forge: filterForge,
       repo: filterRepo,
       status: filterStatus as "" | "confirmed" | "pending",
       sort: sortKey,
@@ -348,8 +357,8 @@
 
   // The key is touched before the save, so a server copy still loading does
   // not overwrite it (#1713).
-  function save(keys: string[], freeText = false) {
-    saved = saveWebhooksFilter(saved, currentFilter(), keys, freeText);
+  function save(control: WebhooksControl) {
+    saved = saveWebhooksControl(saved, currentFilter(), control);
   }
 
   const filtersAreDefault = $derived(
@@ -371,17 +380,17 @@
     filterStatus = "";
     sortKey = "fullName";
     sortDir = "asc";
-    onFilterChange(["forge", "repo", "status", "sort", "dir"]);
+    onFilterChange("clear");
     setStatus(FILTERS_CLEARED);
     if (byKeyboard) document.getElementById("webhooks-repo-filter")?.focus();
   }
 
-  function onFilterChange(keys: string[], freeText = false) {
+  function onFilterChange(control: WebhooksControl) {
     page = 1;
     // A result is about the list as it was; once a filter changes it is
     // stale.
     setStatus("");
-    save(keys, freeText);
+    save(control);
   }
 
   function setStatus(message: string, kind: "" | "error" = "", detail = "") {
@@ -1167,8 +1176,7 @@
       <!-- The alert above says why; an empty card must not read as a result. -->
     {:else if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
-        Nothing tracked yet — save GitHub or Forgejo credentials in Settings
-        first.
+        {noReposCopy()}
       </p>
     {:else if loaded}
       <p
@@ -1205,45 +1213,28 @@
               checked={filterForge === ""}
               onchange={() => {
                 filterForge = "";
-                onFilterChange(["forge"]);
+                onFilterChange("forge");
               }}
             />
             <span>All</span>
           </label>
-          {#if forgeChoices.has("github")}
+          {#each forgeIds().filter((f) => forgeChoices.has(f)) as forge (forge)}
             <label>
               <input
                 type="radio"
                 name="webhooks-forge"
                 class="webhooks-filter"
                 data-filter="forge"
-                value="github"
-                checked={filterForge === "github"}
+                value={forge}
+                checked={filterForge === forge}
                 onchange={() => {
-                  filterForge = "github";
-                  onFilterChange(["forge"]);
+                  filterForge = forge;
+                  onFilterChange("forge");
                 }}
               />
-              <span>GitHub</span>
+              <span>{FORGE_LABELS[forge] ?? forge}</span>
             </label>
-          {/if}
-          {#if forgeChoices.has("forgejo")}
-            <label>
-              <input
-                type="radio"
-                name="webhooks-forge"
-                class="webhooks-filter"
-                data-filter="forge"
-                value="forgejo"
-                checked={filterForge === "forgejo"}
-                onchange={() => {
-                  filterForge = "forgejo";
-                  onFilterChange(["forge"]);
-                }}
-              />
-              <span>Forgejo</span>
-            </label>
-          {/if}
+          {/each}
         </fieldset>
         <input
           class="col-filter webhooks-filter"
@@ -1256,7 +1247,7 @@
           bind:value={filterRepo}
           oninput={(e) => {
             filterRepo = e.currentTarget.value;
-            onFilterChange(["repo"], true);
+            onFilterChange("repo");
           }}
         />
         <select
@@ -1267,7 +1258,7 @@
           bind:value={filterStatus}
           onchange={(e) => {
             filterStatus = e.currentTarget.value;
-            onFilterChange(["status"]);
+            onFilterChange("status");
           }}
         >
           <option value="">All statuses</option>
@@ -1420,7 +1411,10 @@
                   </span>
                 </td>
                 <td role="cell" data-label="Repo"
-                  ><RepoLogo url={repo.logoUrl} />{#if repo.url}<a
+                  ><RepoLogo
+                    url={repo.logoUrl}
+                    name={repo.fullName}
+                  />{#if repo.url}<a
                       class="repo-link"
                       href={repo.url}
                       title={repo.fullName}
@@ -1468,10 +1462,9 @@
                             <a href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
-                          {:else if repo.webhookLockedByConnection && repo.forge === "forgejo"}
-                            Forgejo didn't report your access on this repo, so
-                            the dashboard can't tell if you can manage its
-                            webhooks. <a href="/settings.html#webhooks"
+                          {:else if repo.webhookLockedByConnection && forgeCan(repo.forge, "reportsRepoPermissions")}
+                            {permissionsNotReportedCopy(repo.forge)}
+                            <a href="/settings.html#webhooks"
                               >Set it up manually</a
                             >.
                           {:else if repo.webhookLockedByConnection}
@@ -1657,7 +1650,7 @@
                   <span class="dot"></span>
                   {FORGE_LABELS[repo.forge] ?? repo.forge}
                 </span>
-                <RepoLogo url={repo.logoUrl} />
+                <RepoLogo url={repo.logoUrl} name={repo.fullName} />
                 {#if repo.url}
                   <a
                     class="repo-link"

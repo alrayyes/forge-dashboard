@@ -11,6 +11,8 @@ const (
 	CheckStatusInProgress CheckStatus = "in_progress"
 	CheckStatusCompleted  CheckStatus = "completed"
 	CheckStatusWaiting    CheckStatus = "waiting"
+	// CheckStatusUnknown is a status the server cannot grade (CheckUnknown).
+	CheckStatusUnknown CheckStatus = "unknown"
 )
 
 // CheckConclusion is how a finished job ended, the other wire fact. It is
@@ -39,6 +41,8 @@ func checkFacts(state CheckState) (CheckStatus, CheckConclusion) {
 		return CheckStatusInProgress, ""
 	case CheckAwaitingApproval:
 		return CheckStatusWaiting, ""
+	case CheckUnknown:
+		return CheckStatusUnknown, ""
 	case CheckSuccess:
 		return CheckStatusCompleted, CheckConclusionSuccess
 	case CheckFailure:
@@ -52,6 +56,17 @@ func checkFacts(state CheckState) (CheckStatus, CheckConclusion) {
 	default:
 		return "", ""
 	}
+}
+
+// UnknownWord is the forge's own word for a check whose state the server
+// cannot grade, for Check.ReportedStatus, so the page can name it. A check it
+// can grade needs none.
+func UnknownWord(state CheckState, word string) string {
+	if state != CheckUnknown {
+		return ""
+	}
+
+	return word
 }
 
 // StatusFacts is the status and conclusion to send for something in state,
@@ -78,6 +93,9 @@ func WithFacts(checks []Check) []Check {
 	out := make([]Check, len(checks))
 	for i, c := range checks {
 		c.Status, c.Conclusion = StatusFacts(c.State, c.ReportedConclusion)
+		if c.Status != CheckStatusUnknown {
+			c.ReportedStatus = ""
+		}
 		out[i] = c
 	}
 

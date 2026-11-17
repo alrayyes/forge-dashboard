@@ -1,8 +1,10 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
   autoMergeChip,
+  autoMergeWording,
   queuedChip,
   SETTLED_MS,
   STILL_WAITING_MS,
@@ -12,6 +14,8 @@ import {
   type WaitKind,
   waitChip,
 } from './wait-chip';
+
+afterEach(resetForgeCapabilities);
 
 // The chip's wording lives in one module, so the wording is checked here
 // without a browser. The page wiring is wait-chip.spec.ts.
@@ -248,7 +252,7 @@ describe('autoMergeChip wording', () => {
       waiting({
         code: undefined,
         forge: 'github',
-        message: 'Checks passed. GitHub merges it as soon as it can.',
+        message: 'Checks passed. The forge merges it as soon as it can.',
       }),
     );
     expect(chip?.label).toBe('Merging');
@@ -256,6 +260,41 @@ describe('autoMergeChip wording', () => {
     expect(chip?.tooltip).toBe(
       'Checks passed. GitHub merges it as soon as it can.',
     );
+  });
+
+  test('the tooltip names the forge from its label, not from the server (#4072)', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const chip = autoMergeChip(
+      waiting({
+        code: 'behind',
+        forge: 'forgejo',
+        message:
+          'Auto-merge is waiting for the branch to be updated. The forge requires it to be up to date before it merges.',
+      }),
+    );
+    expect(chip?.tooltip).toBe(
+      'Auto-merge is waiting for the branch to be updated. Codeberg requires it to be up to date before it merges.',
+    );
+  });
+
+  test('a forge that merges itself is named by its label', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { label: 'Octo' } },
+    ]);
+    const chip = autoMergeChip(waiting({ code: '', forge: 'github' }));
+    expect(chip?.detail).toBe('Octo merges it as soon as it can');
+  });
+
+  test('a forge that holds its own auto-merge is named by its label', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const chip = autoMergeChip(
+      waiting({ code: '', forge: 'forgejo', heldBy: 'forge' }),
+    );
+    expect(chip?.detail).toBe('Codeberg merges it when checks pass');
   });
 
   test('a stopped auto-merge is not a wait', () => {
@@ -275,5 +314,74 @@ describe('queuedChip wording', () => {
     expect(chip.action).toBe('cancel');
     expect(chip.resets).toBe(true);
     expect(chip.tooltip).toContain('14:32 CEST');
+  });
+});
+
+describe('autoMergeWording (#4072)', () => {
+  test('puts the forge label where the server says "the forge"', () => {
+    expect(
+      autoMergeWording(
+        'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.',
+        'github',
+      ),
+    ).toBe(
+      'Auto-merge stopped: merge conflict. Resolve it on GitHub and it carries on.',
+    );
+    expect(
+      autoMergeWording(
+        'Auto-merge is waiting for the forge to say it can merge.',
+        'forgejo',
+      ),
+    ).toBe('Auto-merge is waiting for Forgejo to say it can merge.');
+    expect(
+      autoMergeWording(
+        'Checks passed. The forge merges it as soon as it can.',
+        'github',
+      ),
+    ).toBe('Checks passed. GitHub merges it as soon as it can.');
+  });
+
+  test('a forge with no label is called by its id, and a message without the phrase is untouched', () => {
+    expect(autoMergeWording('Resolve it on the forge.', 'sourcehut')).toBe(
+      'Resolve it on sourcehut.',
+    );
+    expect(
+      autoMergeWording('Auto-merge is waiting for checks to finish.', 'github'),
+    ).toBe('Auto-merge is waiting for checks to finish.');
+  });
+});
+
+describe('autoMergeChip by capability (#3973)', () => {
+  const base = (forge: string): AutoMergeInput => ({
+    state: 'waiting',
+    code: '',
+    message: 'Checks passed.',
+    forge,
+    draft: false,
+  });
+
+  afterEach(() => resetForgeCapabilities());
+
+  test('a forge that does not hold the merge itself says it merges as soon as it can', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'selfmerge',
+        capabilities: { label: 'Selfmerge', autoMergeHeldByApp: false },
+      },
+    ]);
+    expect(autoMergeChip(base('selfmerge'))?.detail).toBe(
+      'Selfmerge merges it as soon as it can',
+    );
+  });
+
+  test('a forge whose merge the app holds keeps the next-refresh wording', () => {
+    registerForgeCapabilities([
+      { forge: 'held', capabilities: { autoMergeHeldByApp: true } },
+    ]);
+    expect(autoMergeChip(base('held'))?.label).toBe('Merging next');
+  });
+
+  test('a forge never described keeps the safe wording', () => {
+    expect(autoMergeChip(base('nobody'))?.label).toBe('Merging next');
   });
 });

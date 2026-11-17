@@ -218,31 +218,33 @@ test.describe('row status grammar (#1563)', () => {
         ]);
         const chip = firstRow(page).locator('.attr-chip.auto-merge');
         await expect(chip).toContainText('Managed by Forge Dashboard');
-        const fit = await chip.evaluate((el) => {
-          const box = el.getBoundingClientRect();
-          const cluster = (
-            el.parentElement as HTMLElement
-          ).getBoundingClientRect();
-          const inside = (r: DOMRect, outer: DOMRect) =>
-            r.left >= outer.left - 0.5 &&
-            r.right <= outer.right + 0.5 &&
-            r.top >= outer.top - 0.5 &&
-            r.bottom <= outer.bottom + 0.5;
-          return {
-            chipInCluster: box.right <= cluster.right + 0.5,
-            clipped: el.scrollWidth > el.clientWidth,
-            children: [...el.children].map((c) =>
-              inside(c.getBoundingClientRect(), box),
-            ),
-            noteWidth: (el.querySelector('.pill-note') as HTMLElement)
-              .scrollWidth,
-            note: (el.querySelector('.pill-note') as HTMLElement).clientWidth,
-          };
+        const fit = () =>
+          chip.evaluate((el) => {
+            const box = el.getBoundingClientRect();
+            const cluster = (
+              el.parentElement as HTMLElement
+            ).getBoundingClientRect();
+            const inside = (r: DOMRect, outer: DOMRect) =>
+              r.left >= outer.left - 0.5 &&
+              r.right <= outer.right + 0.5 &&
+              r.top >= outer.top - 0.5 &&
+              r.bottom <= outer.bottom + 0.5;
+            const note = el.querySelector('.pill-note') as HTMLElement;
+            return {
+              chipInCluster: box.right <= cluster.right + 0.5,
+              clipped: el.scrollWidth > el.clientWidth,
+              childrenInside: [...el.children].every((c) =>
+                inside(c.getBoundingClientRect(), box),
+              ),
+              noteFits: note.scrollWidth <= note.clientWidth,
+            };
+          });
+        await expect.poll(fit).toEqual({
+          chipInCluster: true,
+          clipped: false,
+          childrenInside: true,
+          noteFits: true,
         });
-        expect(fit.chipInCluster).toBe(true);
-        expect(fit.clipped).toBe(false);
-        expect(fit.children.every(Boolean)).toBe(true);
-        expect(fit.noteWidth).toBeLessThanOrEqual(fit.note);
       });
     }
   }
@@ -251,28 +253,33 @@ test.describe('row status grammar (#1563)', () => {
   // warning colour on purpose (out-of-date-filter.spec.ts holds it to that).
   test('no other attribute chip uses a state colour', async ({ page }) => {
     await open(page, [everything()], '/bots.html');
-    const colours = await firstRow(page)
-      .locator('.attr-chip:not(.behind)')
-      .evaluateAll((els) => {
-        const probe = document.createElement('span');
-        const resolve = (token: string) => {
-          probe.style.color = `var(${token})`;
-          document.body.appendChild(probe);
-          const value = getComputedStyle(probe).color;
-          probe.remove();
-          return value;
-        };
-        const states = ['--good', '--warning', '--critical', '--queued'].map(
-          resolve,
-        );
-        return els.map((el) => ({
-          text: el.textContent,
-          colour: getComputedStyle(el).color,
-          isState: states.includes(getComputedStyle(el).color),
-        }));
-      });
-    expect(colours.length).toBe(2);
-    for (const c of colours) expect(c.isState, c.text ?? '').toBe(false);
+    const read = () =>
+      firstRow(page)
+        .locator('.attr-chip:not(.behind)')
+        .evaluateAll((els) => {
+          const probe = document.createElement('span');
+          const resolve = (token: string) => {
+            probe.style.color = `var(${token})`;
+            document.body.appendChild(probe);
+            const value = getComputedStyle(probe).color;
+            probe.remove();
+            return value;
+          };
+          const states = ['--good', '--warning', '--critical', '--queued'].map(
+            resolve,
+          );
+          return els.map((el) => ({
+            text: el.textContent ?? '',
+            isState: states.includes(getComputedStyle(el).color),
+          }));
+        });
+    // Both chips are drawn and neither takes a state colour.
+    await expect
+      .poll(async () => {
+        const chips = await read();
+        return { count: chips.length, state: chips.filter((c) => c.isState) };
+      })
+      .toEqual({ count: 2, state: [] });
   });
 
   test('draft, out of date and auto-merge sit in the attribute cluster', async ({

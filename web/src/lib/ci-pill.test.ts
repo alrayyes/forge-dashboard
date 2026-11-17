@@ -364,3 +364,53 @@ describe('renderCiPill', () => {
     expect(glyphs('nope')).toEqual([]);
   });
 });
+
+describe('an unknown check in the pill', () => {
+  const model = ciPillModel({
+    cls: 'pending',
+    glyph: 'running',
+    word: 'Running',
+    counts: { passed: 2, running: 0, waiting: 0, failed: 0, unknown: 1 },
+    segmented: true,
+  });
+
+  test('is a segment and is said in words', () => {
+    expect(model.segments).toEqual([
+      { kind: 'passed', n: 2 },
+      { kind: 'unknown', n: 1 },
+    ]);
+    expect(model.name).toBe('Running 2 1: 2 passed, 1 unknown');
+  });
+
+  test('is drawn with its own glyph', async () => {
+    const globals = globalThis as Record<string, unknown>;
+    globals.document = fakeDocument;
+    globals.HTMLButtonElement = FakeNode;
+    try {
+      const { renderCiPill } = await import('./ci-pill');
+      const seg = renderCiPill(model) as unknown as FakeNode;
+      const unknown = seg.find('ci-seg-unknown');
+
+      expect(unknown?.children[0].attrs.get('data-glyph')).toBe('question');
+    } finally {
+      delete globals.document;
+      delete globals.HTMLButtonElement;
+    }
+  });
+});
+
+describe('a branch whose only odd job is unknown (#4063)', () => {
+  test('the pill words it Unknown and counts the job, never as running', () => {
+    const m = ciPillModel({
+      cls: 'unknown',
+      glyph: 'unknown',
+      word: 'Unknown',
+      counts: { passed: 3, running: 0, waiting: 0, failed: 0, unknown: 1 },
+      segmented: true,
+    });
+
+    expect(m.classes).toBe('ci-pill unknown segmented');
+    expect(m.live).toBe(false);
+    expect(m.name).toBe('Unknown 3 1: 3 passed, 1 unknown');
+  });
+});

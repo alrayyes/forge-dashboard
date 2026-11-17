@@ -68,6 +68,10 @@ describe('the Branches filter as saved state', () => {
     );
   });
 
+  test('the unknown status is kept, not reset to its default (#4063)', () => {
+    expect(filterFromState({ status: 'unknown' }).status).toBe('unknown');
+  });
+
   test('a status pill reads its own count, awaiting approval from awaitingApproval (#2024)', () => {
     const counts = {
       failed: 0,
@@ -75,11 +79,13 @@ describe('the Branches filter as saved state', () => {
       running: 4,
       cancelled: 0,
       awaitingApproval: 1,
+      unknown: 2,
       none: 0,
       total: 8,
     };
     expect(statusCount(counts, 'awaiting_approval')).toBe(1);
     expect(statusCount(counts, 'running')).toBe(4);
+    expect(statusCount(counts, 'unknown')).toBe(2);
     expect(statusCount(counts, 'all')).toBe(8);
   });
 
@@ -169,5 +175,22 @@ describe('a Branches key the user touched', () => {
       branches: { status: 'failed', forge: 'forgejo' },
     });
     expect(state.branches).toEqual({ status: 'passed', forge: 'forgejo' });
+  });
+});
+
+describe('the Branches forge filter from saved state', () => {
+  test('a registered third forge restores, an unknown one falls back to all', async () => {
+    const { registerForgeCapabilities, resetForgeCapabilities } = await import(
+      './forges'
+    );
+    const { filterFromState } = await import('./main-branches');
+    try {
+      expect(filterFromState({ forge: 'gitea' }).forge).toBe('all');
+      registerForgeCapabilities([{ forge: 'gitea' }]);
+      expect(filterFromState({ forge: 'gitea' }).forge).toBe('gitea');
+      expect(filterFromState({ forge: 'nope' }).forge).toBe('all');
+    } finally {
+      resetForgeCapabilities();
+    }
   });
 });

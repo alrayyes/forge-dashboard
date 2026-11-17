@@ -88,8 +88,10 @@ pages take a number in their title box the same way.
 A row shows the avatar of whoever filed the issue to the left of their name, the
 same as a pull request row. It is the forge's own HTTPS image, fetched by this
 server and passed on, so your browser never contacts the forge for it. When the
-forge sends none, the URL isn't HTTPS, or the image can't load, the row shows
-the name alone. On Forgejo the avatar must be on the saved instance's host and
+forge sends none, the URL isn't HTTPS, or the image can't load, the row draws
+the person's initial on a neutral circle in the same 20px box, so every name
+starts at the same place. The initial is decorative: a screen reader hears the
+name once. On Forgejo the avatar must be on the saved instance's host and
 scheme, so a Gravatar or Libravatar one shows the initial. The narrow layout
 drops the author column, avatar included.
 
@@ -199,7 +201,16 @@ and the pills are absent when no pull request mentions the issue. The rows don't
 show them. Pull requests that reference the issue are on the rows and in the
 pop-up under "Referenced in", drawn with a dotted outline and italic text,
 after the closing pills; a row shows two of several and a count that opens the
-rest. How a mention is read is in [Tickets a pull request
+rest. Upright means the pull request closes the issue, italic means it only
+references it. A pill says so in its tooltip ("References this issue, does
+not close it") and in its accessible name. The same sentence shows under the
+pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
+and the pill keeps focus. The pop-up spells it out under
+"Referenced in" ("Italic: these reference the issue, they do not close it.")
+so a phone reader gets it without hover. Settings repeats it under
+Behaviour, in the Issues card: upright means the pull request closes the
+issue, italic means it only references it and does not close it. How a
+mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
 ## Opening an issue from its address

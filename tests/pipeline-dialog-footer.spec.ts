@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The run link sits in a footer under a divider, outside the scrolling body, so
@@ -11,7 +12,7 @@ const LINK_NAME = 'Open run on GitHub (opens in a new tab)';
 function snapshot() {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github', { capabilities: { label: 'GitHub' } })],
     pullRequests: [
       {
         forge: 'github',
@@ -51,10 +52,11 @@ async function open(
   size: { width: number; height: number },
   count: number,
   scheme: 'light' | 'dark' = 'light',
+  list: () => unknown[] = () => jobs(count),
 ) {
   await page.setViewportSize(size);
   await page.emulateMedia({ colorScheme: scheme });
-  await serveChecks(page, () => jobs(count));
+  await serveChecks(page, list);
   await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -148,47 +150,174 @@ test.describe('pipeline dialog footer', () => {
     await insideViewport(page);
   });
 
-  test('it is a real outlined button, full width and 44px high on a phone', async ({
+  for (const size of [
+    { width: 360, height: 640 },
+    { width: 390, height: 780 },
+    { width: 1280, height: 800 },
+  ]) {
+    test(`it is a real outlined button, 44px high, full width on a phone, at ${size.width}x${size.height}`, async ({
+      page,
+    }) => {
+      await open(page, size, 40);
+      const footer = dialog(page).locator('.pipeline-dialog-footer');
+      await expect(footer.getByRole('link', { name: LINK_NAME })).toHaveCount(
+        1,
+      );
+      await expect(
+        dialog(page)
+          .locator('.pipeline-dialog-body')
+          .getByRole('link', { name: LINK_NAME }),
+      ).toHaveCount(0);
+      await settledBox(page);
+      // Re-measured until every check holds, so a button still taking its
+      // size after the slide-in doesn't fail the spec on one read.
+      await expect
+        .poll(async () => {
+          const m = await link(page).evaluate((el) => {
+            const a = el.getBoundingClientRect();
+            const f = el.parentElement?.getBoundingClientRect();
+            const s = getComputedStyle(el);
+            return {
+              height: a.height,
+              width: a.width,
+              footerWidth: f?.width ?? 0,
+              border: Number.parseFloat(s.borderTopWidth),
+              background: s.backgroundColor,
+            };
+          });
+          const checks: [string, boolean][] = [
+            ['under 44px high', m.height >= 44],
+            ['no border', m.border > 0],
+            [
+              'not full width',
+              size.width >= 761 || m.width > m.footerWidth - 40,
+            ],
+          ];
+          return checks
+            .filter(([, ok]) => !ok)
+            .map(([what]) => `${what} (${JSON.stringify(m)})`);
+        })
+        .toEqual([]);
+      await expect(link(page)).toHaveText('Open run on GitHub');
+      await expect(link(page).locator('svg[aria-hidden="true"]')).toHaveCount(
+        1,
+      );
+      await expect(link(page)).toHaveAttribute('target', '_blank');
+      await expect(link(page)).toHaveAttribute('rel', /noopener/);
+    });
+  }
+
+  const RUN = 'https://github.com/example/app/actions/runs';
+  const job = (run: number, conclusion: string) => ({
+    name: `job-${run}`,
+    status: 'completed',
+    conclusion,
+    url: `${RUN}/${run}/job/1`,
+  });
+
+  test('several runs with a failure link the failed run and say so', async ({
     page,
   }) => {
-    await open(page, { width: 390, height: 780 }, 40);
-    const footer = dialog(page).locator('.pipeline-dialog-footer');
-    await expect(footer.getByRole('link', { name: LINK_NAME })).toHaveCount(1);
-    await expect(
-      dialog(page)
-        .locator('.pipeline-dialog-body')
-        .getByRole('link', { name: LINK_NAME }),
-    ).toHaveCount(0);
-    await settledBox(page);
-    const m = await link(page).evaluate((el) => {
-      const a = el.getBoundingClientRect();
-      const f = el.parentElement?.getBoundingClientRect();
-      const s = getComputedStyle(el);
-      return {
-        height: a.height,
-        width: a.width,
-        footerWidth: f?.width ?? 0,
-        border: Number.parseFloat(s.borderTopWidth),
-        background: s.backgroundColor,
-      };
+    await open(page, SIZES[2], 2, 'light', () => [
+      job(7, 'failure'),
+      job(9, 'success'),
+    ]);
+    const failedLink = dialog(page).getByRole('link', {
+      name: 'Open latest failed run on GitHub (opens in a new tab)',
     });
-    expect(m.height).toBeGreaterThanOrEqual(44);
-    expect(m.border).toBeGreaterThan(0);
-    expect(m.width).toBeGreaterThan(m.footerWidth - 40);
-    await expect(link(page)).toHaveText('Open run on GitHub');
-    await expect(link(page).locator('svg[aria-hidden="true"]')).toHaveCount(1);
-    await expect(link(page)).toHaveAttribute('target', '_blank');
-    await expect(link(page)).toHaveAttribute('rel', /noopener/);
+    await expect(failedLink).toHaveAttribute('href', `${RUN}/7`);
+    await expect(failedLink).toHaveText('Open latest failed run on GitHub');
+    await expect(dialog(page).getByText(/whole run/i)).toHaveCount(0);
+  });
+
+  test('several runs with nothing failed link the newest and say latest', async ({
+    page,
+  }) => {
+    await open(page, SIZES[2], 2, 'light', () => [
+      job(7, 'success'),
+      job(9, 'success'),
+    ]);
+    const latest = dialog(page).getByRole('link', {
+      name: 'Open latest run on GitHub (opens in a new tab)',
+    });
+    await expect(latest).toHaveAttribute('href', `${RUN}/9`);
+  });
+
+  test('no run id means no run link', async ({ page }) => {
+    await open(page, SIZES[2], 1, 'light', () => [
+      {
+        name: 'external',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://ci.example/build/1',
+      },
+    ]);
+    await expect(dialog(page).locator('.pipeline-dialog-footer a')).toHaveCount(
+      0,
+    );
+  });
+
+  test('a bottom safe-area inset pads the footer and keeps the button whole', async ({
+    page,
+  }) => {
+    const inset = 34;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setSafeAreaInsetsOverride', {
+      insets: { bottom: inset },
+    });
+    await open(page, { width: 390, height: 780 }, 40);
+    await insideViewport(page);
+    await expect
+      .poll(async () => {
+        const m = await dialog(page)
+          .locator('.pipeline-dialog-footer')
+          .evaluate((el) => {
+            const s = getComputedStyle(el);
+            const b = el.querySelector('a')?.getBoundingClientRect() as DOMRect;
+            return {
+              padBottom: Number.parseFloat(s.paddingBottom),
+              buttonHeight: b.height,
+              gap: window.innerHeight - b.bottom,
+            };
+          });
+        const checks: [string, boolean][] = [
+          ['padding under 12px plus the inset', m.padBottom >= 12 + inset],
+          ['button under 44px high', m.buttonHeight >= 44],
+          ['button closer to the edge than the inset', m.gap >= inset],
+        ];
+        return checks
+          .filter(([, ok]) => !ok)
+          .map(([what]) => `${what} (${JSON.stringify(m)})`);
+      })
+      .toEqual([]);
+  });
+
+  test('with no inset the footer keeps its 12px padding', async ({ page }) => {
+    await open(page, { width: 390, height: 780 }, 40);
+    await expect(dialog(page).locator('.pipeline-dialog-footer')).toHaveCSS(
+      'padding-bottom',
+      '12px',
+    );
   });
 
   test('on desktop it is at least 24px high and left aligned', async ({
     page,
   }) => {
     await open(page, { width: 1280, height: 800 }, 4);
-    const box = await settledBox(page);
-    const sheet = await dialog(page).boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(24);
-    expect((box?.x ?? 0) - (sheet?.x ?? 0)).toBeLessThan(40);
+    await settledBox(page);
+    await expect
+      .poll(async () => {
+        const box = await link(page).boundingBox();
+        const sheet = await dialog(page).boundingBox();
+        const offset = (box?.x ?? 0) - (sheet?.x ?? 0);
+        return {
+          tallEnough: (box?.height ?? 0) >= 24,
+          leftAligned: offset < 40,
+          height: box?.height,
+          offset,
+        };
+      })
+      .toMatchObject({ tallEnough: true, leftAligned: true });
   });
 
   test('the body scrolls to its last row above the footer', async ({

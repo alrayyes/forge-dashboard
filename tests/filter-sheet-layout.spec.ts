@@ -261,11 +261,18 @@ test('keyboard focus follows the visual order and shows a ring in the Issues she
       await page.keyboard.press('Tab');
       await refs.nth(i).focus();
     }
-    const ring = await refs.nth(i).evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2;
-    });
-    expect(ring, `choice ${i}`).toBe(true);
+    await expect
+      .poll(
+        () =>
+          refs.nth(i).evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return (
+              cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 2
+            );
+          }),
+        { message: `choice ${i} draws a focus ring` },
+      )
+      .toBe(true);
   }
 });
 
@@ -294,11 +301,11 @@ test('the Auto-merge choices in the sheet are 44px targets that keep their size 
   // Content-sized with the segment's own padding, not stretched to share the
   // row like the Refs choices.
   for (let i = 0; i < 3; i++) {
-    const style = await choices.nth(i).evaluate((el) => {
-      const cs = getComputedStyle(el);
-      return { grow: cs.flexGrow, padding: cs.paddingLeft };
-    });
-    expect(style, `choice ${i}`).toEqual({ grow: '0', padding: '11px' });
+    await expect(choices.nth(i), `choice ${i}`).toHaveCSS('flex-grow', '0');
+    await expect(choices.nth(i), `choice ${i}`).toHaveCSS(
+      'padding-left',
+      '11px',
+    );
   }
   const sheet = (await page.locator('dialog#filter-sheet').boundingBox())!;
   expect(before.reduce((n, b) => n + b.w, 0)).toBeLessThan(sheet.width * 0.6);

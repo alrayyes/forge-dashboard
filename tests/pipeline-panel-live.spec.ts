@@ -4,6 +4,7 @@ import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The pipeline panel draws the job lists the server sends on the dashboard
@@ -51,7 +52,7 @@ function pr(ci: string, checks: Counts, forge = 'github') {
 function snapshot(item: ReturnType<typeof pr>) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: [item],
     issues: [],
   };
@@ -256,7 +257,7 @@ test.describe('pipeline panel updates live', () => {
     await expect(row.locator('.ci-seg-waiting')).toHaveCount(0);
   });
 
-  test('a pull request dialog links to the newest run, as a branch does', async ({
+  test('a pull request dialog with several runs links the newest, and says latest', async ({
     page,
   }) => {
     await open(page, RUNNING_FORGEJO, [
@@ -273,7 +274,7 @@ test.describe('pipeline panel updates live', () => {
       },
     ]);
     const link = dialog(page).getByRole('link', {
-      name: 'Open run on Forgejo (opens in a new tab)',
+      name: 'Open latest run on Forgejo (opens in a new tab)',
     });
     await expect(link).toHaveAttribute(
       'href',

@@ -25,7 +25,8 @@ import { test } from './server-fixture';
 // Releases and Bots are the same Dashboard.svelte as Pull requests and store
 // under the same keys, so they are not repeated (#3498). Controls that are
 // deliberately not remembered get a negative assertion. Branches is covered by
-// main-branches-server-copy.spec.ts and Insights by filter-late-copy.spec.ts.
+// main-branches-server-copy.spec.ts and Insights by the unit tests of
+// filter-wiring.ts.
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
 // A control that is not there fails in seconds, naming its locator, instead of

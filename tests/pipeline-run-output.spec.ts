@@ -4,6 +4,7 @@ import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { pushStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const pr = {
@@ -51,7 +52,7 @@ async function setup(
       url: `${runUrl}0`,
     },
   ],
-  forge = 'github',
+  forge: 'github' | 'forgejo' = 'github',
 ): Promise<string[]> {
   const asked: string[] = [];
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -61,7 +62,7 @@ async function setup(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1 }],
+        forges: [forgeHealth(forge)],
         pullRequests: [{ ...pr, forge }],
         issues: [],
       }),
@@ -287,24 +288,17 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(output).toHaveCount(0);
   });
 
-  test('a cut log says so', async ({ page }) => {
+  // The wording, the job link and the colours of each answer are stories
+  // (CheckRunOutput.stories.svelte); what stays is the dialog around them. The
+  // refused read's axe run covers the error's colours, as every error shares them.
+  test('a cut log passes axe in the dialog', async ({ page }) => {
     await setup(page, {
       status: 200,
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const note = dialog.locator('.run-output-note');
-    await expect(note).toContainText('Showing the last 256 KB of this output.');
-    const link = note.getByRole('link', {
-      name: checkLinkName('Open job on GitHub for the rest', 'build'),
-    });
-    await expect(link).toHaveText('Open job on GitHub for the rest');
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    await expect(dialog.locator('.run-output-note')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')
@@ -312,42 +306,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('a missing output says so and links to the job', async ({ page }) => {
-    await setup(page, { status: 404, body: { error: 'gone' } });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText(
-      'GitHub has no output for this check. It may have expired.',
-    );
-    const link = error.getByRole('link', {
-      name: checkLinkName('Open job on GitHub', 'build'),
-    });
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
-
-    const results = await new AxeBuilder({ page })
-      .include('#pipeline-dialog')
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
-
-  test('a rate limit keeps its message and has no job link', async ({
-    page,
-  }) => {
-    await setup(page, { status: 429, body: {} });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText('is limiting requests right now');
-    await expect(error.getByRole('link')).toHaveCount(0);
-  });
-
-  test('a refused read is a plain message, not the raw error', async ({
+  test('a refused read leaves the row with its Copy output and no icon buttons, and passes axe', async ({
     page,
   }) => {
     await setup(page, {
@@ -356,17 +315,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText(
-      "The saved GitHub token can't read this output.",
-    );
-    const link = error.getByRole('link', {
-      name: checkLinkName('Open job on GitHub', 'build'),
-    });
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
-    await expect(dialog).not.toContainText('Resource not accessible');
+    await expect(dialog.locator('.run-output-error')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')
@@ -1669,4 +1618,52 @@ test.describe('a copy pressed while the output loads', () => {
       });
     }
   }
+});
+
+test.describe('a long check output in phone landscape', () => {
+  test('stays inside the visible dialog body and hands the scroll on at its edges', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 844, height: 390 });
+    const text = Array.from({ length: 400 }, (_, i) => `line ${i + 1}`).join(
+      '\n',
+    );
+    await setup(page, { status: 200, body: { text, truncated: false } });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output).toContainText('line 1');
+    await expect(output).toHaveAttribute('tabindex', '0');
+
+    const body = dialog.locator('.pipeline-dialog-body');
+    const outputBox = await output.boundingBox();
+    const bodyBox = await body.boundingBox();
+    expect(outputBox?.height).toBeLessThanOrEqual(bodyBox?.height ?? 0);
+    // It is still a scroll region of its own, not grown to fit the log.
+    expect(
+      await output.evaluate((el) => el.scrollHeight > el.clientHeight),
+    ).toBe(true);
+    await expect(output).toHaveCSS('overscroll-behavior-y', 'auto');
+
+    // Scrolled to its end, the output passes the wheel on to the body.
+    await output.evaluate((el) => {
+      el.scrollTop = el.scrollHeight;
+    });
+    const before = await body.evaluate((el) => el.scrollTop);
+    const box = await output.boundingBox();
+    await page.mouse.move(
+      (box?.x ?? 0) + (box?.width ?? 0) / 2,
+      (box?.y ?? 0) + (box?.height ?? 0) / 2,
+    );
+    await page.mouse.wheel(0, 200);
+    await expect
+      .poll(() => body.evaluate((el) => el.scrollTop))
+      .toBeGreaterThan(before);
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
 });

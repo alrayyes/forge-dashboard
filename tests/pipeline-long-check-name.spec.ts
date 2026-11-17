@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { factsOf } from './check-facts';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -25,7 +26,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           {
             forge: 'github',
@@ -78,16 +79,24 @@ for (const scheme of ['light', 'dark'] as const) {
         .locator('.pipeline-check-name', { hasText: LONG })
         .first();
       await expect(name).toBeVisible();
-      const cut = await name.evaluate(
-        (el) =>
-          el.scrollWidth > el.clientWidth + 1 ||
-          el.scrollHeight > el.clientHeight + 1,
-      );
-      expect(cut, 'the name is cut off').toBe(false);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > window.innerWidth,
-      );
-      expect(overflow).toBe(false);
+      await expect
+        .poll(
+          () =>
+            name.evaluate(
+              (el) =>
+                el.scrollWidth > el.clientWidth + 1 ||
+                el.scrollHeight > el.clientHeight + 1,
+            ),
+          { message: 'the name is cut off' },
+        )
+        .toBe(false);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth > window.innerWidth,
+          ),
+        )
+        .toBe(false);
       const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
       expect(results.violations).toEqual([]);
     });

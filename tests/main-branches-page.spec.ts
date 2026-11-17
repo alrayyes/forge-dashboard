@@ -21,6 +21,7 @@ function row(
     | 'passed'
     | 'cancelled'
     | 'awaiting_approval'
+    | 'unknown'
     | 'none',
   overrides: Record<string, unknown> = {},
 ) {
@@ -69,6 +70,7 @@ function snapshot(rows: ReturnType<typeof row>[]) {
       running: count('running'),
       cancelled: count('cancelled'),
       awaitingApproval: count('awaiting_approval'),
+      unknown: count('unknown'),
       none: count('none'),
       total: branches.length,
     },
@@ -196,14 +198,25 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(tab).toBeVisible();
     await expect(tab).toHaveAttribute('aria-current', 'page');
     // Every tab still fits inside the bar.
-    const bar = await page.locator('.bottom-nav').boundingBox();
     const tabs = page.locator('.bottom-nav a');
     for (let i = 0; i < (await tabs.count()); i++) {
-      const box = await tabs.nth(i).boundingBox();
-      expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
-      expect((box?.x ?? 999) + (box?.width ?? 999)).toBeLessThanOrEqual(
-        (bar?.width ?? 0) + 0.5,
-      );
+      await expect
+        .poll(async () => (await tabs.nth(i).boundingBox())?.x ?? -1, {
+          message: `tab ${i} starts inside the bar`,
+        })
+        .toBeGreaterThanOrEqual(0);
+      await expect
+        .poll(
+          async () => {
+            const bar = await page.locator('.bottom-nav').boundingBox();
+            const box = await tabs.nth(i).boundingBox();
+            return (
+              (box?.x ?? 999) + (box?.width ?? 999) - ((bar?.width ?? 0) + 0.5)
+            );
+          },
+          { message: `tab ${i} ends inside the bar` },
+        )
+        .toBeLessThanOrEqual(0);
     }
   });
 
@@ -492,10 +505,15 @@ test.describe('Main branches page (#1224, #1279)', () => {
           (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
             .violations,
         ).toEqual([]);
-        const box = await dialog(page).boundingBox();
-        expect((box?.x ?? -1) + (box?.width ?? 0)).toBeLessThanOrEqual(
-          size.width,
-        );
+        await expect
+          .poll(
+            async () => {
+              const box = await dialog(page).boundingBox();
+              return (box?.x ?? -1) + (box?.width ?? 0);
+            },
+            { message: `${theme} dialog fits ${size.width}px` },
+          )
+          .toBeLessThanOrEqual(size.width);
       }
     }
     await setTheme(page, 'light');
@@ -827,16 +845,27 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await page.goto('/');
     const pill = rows(page).first().locator('.ci-slot .ci-pill');
     await expect(pill).toBeVisible();
-    expect((await pill.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(32);
+    await expect
+      .poll(async () => (await pill.boundingBox())?.height ?? 0, {
+        message: 'status pill is 32px tall on desktop',
+      })
+      .toBeGreaterThanOrEqual(32);
     for (const n of [0, 2, 3]) {
-      const box = await rows(page)
-        .nth(n)
-        .locator('.ci-slot .ci-pill')
-        .boundingBox();
-      expect(box?.width ?? 0).toBeGreaterThanOrEqual(32);
+      await expect
+        .poll(
+          async () =>
+            (await rows(page).nth(n).locator('.ci-slot .ci-pill').boundingBox())
+              ?.width ?? 0,
+          { message: `row ${n} status pill is 32px wide on desktop` },
+        )
+        .toBeGreaterThanOrEqual(32);
     }
     await page.setViewportSize({ width: 390, height: 844 });
-    expect((await pill.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => (await pill.boundingBox())?.height ?? 0, {
+        message: 'status pill is 44px tall on a phone',
+      })
+      .toBeGreaterThanOrEqual(44);
   });
 
   test('a repo with no pipeline says no run was found and has no commit to show', async ({
@@ -973,12 +1002,17 @@ test.describe('Main branches page (#1224, #1279)', () => {
           (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
             .violations,
         ).toEqual([]);
-        const overflow = await page.evaluate(
-          () =>
-            document.documentElement.scrollWidth -
-            document.documentElement.clientWidth,
-        );
-        expect(overflow).toBeLessThanOrEqual(0);
+        await expect
+          .poll(
+            () =>
+              page.evaluate(
+                () =>
+                  document.documentElement.scrollWidth -
+                  document.documentElement.clientWidth,
+              ),
+            { message: `${theme} page does not overflow at ${size.width}px` },
+          )
+          .toBeLessThanOrEqual(0);
       }
     }
     await setTheme(page, 'light');
@@ -997,8 +1031,11 @@ test.describe('Main branches page (#1224, #1279)', () => {
       pill(page, /^Failing \d/),
       pill(page, /^All 6$/),
     ]) {
-      const box = await control.boundingBox();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(async () => (await control.boundingBox())?.height ?? 0, {
+          message: 'phone control is at least 44px tall',
+        })
+        .toBeGreaterThanOrEqual(44);
     }
   });
 
@@ -1021,25 +1058,64 @@ test.describe('Main branches page (#1224, #1279)', () => {
       { n: 2, word: 'Running', cls: 'pending', glyph: 'arc' },
       { n: 3, word: 'Passed', cls: 'success', glyph: 'check' },
     ];
-    const slots = [];
-    const pills = [];
     for (const c of cases) {
       const pill = slotOf(page, c.n).locator('.ci-pill');
       await expect(pill).toHaveText(c.word);
       await expect(pill).toHaveClass(new RegExp(`\\b${c.cls}\\b`));
       await expect(pill.locator(`svg[data-glyph="${c.glyph}"]`)).toBeAttached();
       await expect(pill.locator('.dot')).toHaveCount(0);
-      slots.push(await slotOf(page, c.n).boundingBox());
-      pills.push(await pill.boundingBox());
     }
+    const readBoxes = async () => {
+      const slots = [];
+      const pills = [];
+      for (const c of cases) {
+        slots.push(await slotOf(page, c.n).boundingBox());
+        pills.push(await slotOf(page, c.n).locator('.ci-pill').boundingBox());
+      }
+      const card = await rows(page).first().boundingBox();
+      return { slots, pills, card };
+    };
     // Same size in every state; the slot sits top right of its card.
-    expect(new Set(slots.map((b) => `${b?.width}x${b?.height}`)).size).toBe(1);
-    expect(new Set(pills.map((b) => `${b?.width}x${b?.height}`)).size).toBe(1);
-    const card = await rows(page).first().boundingBox();
-    expect((slots[0]?.x ?? 0) + (slots[0]?.width ?? 0)).toBeGreaterThan(
-      (card?.x ?? 0) + (card?.width ?? 0) - 24,
-    );
-    expect(slots[0]?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+    await expect
+      .poll(
+        async () => {
+          const { slots } = await readBoxes();
+          return new Set(slots.map((b) => `${b?.width}x${b?.height}`)).size;
+        },
+        { message: 'every state shares one slot size' },
+      )
+      .toBe(1);
+    await expect
+      .poll(
+        async () => {
+          const { pills } = await readBoxes();
+          return new Set(pills.map((b) => `${b?.width}x${b?.height}`)).size;
+        },
+        { message: 'every state shares one pill size' },
+      )
+      .toBe(1);
+    await expect
+      .poll(
+        async () => {
+          const { slots, card } = await readBoxes();
+          return (
+            (slots[0]?.x ?? 0) +
+            (slots[0]?.width ?? 0) -
+            ((card?.x ?? 0) + (card?.width ?? 0) - 24)
+          );
+        },
+        { message: 'the slot sits at the right edge of its card' },
+      )
+      .toBeGreaterThan(0);
+    await expect
+      .poll(
+        async () => {
+          const { slots, card } = await readBoxes();
+          return (slots[0]?.y ?? 0) - ((card?.y ?? 0) + 24);
+        },
+        { message: 'the slot sits at the top of its card' },
+      )
+      .toBeLessThan(0);
   });
 
   test('a cancelled branch says Cancelled in words, links its run, and is not counted as failing (#1950)', async ({
@@ -1119,6 +1195,45 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await setTheme(page, 'light');
   });
 
+  test('a branch with an unknown job reads Unknown, with its own filter pill (#4063)', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([
+        row('acme/odd', 'unknown'),
+        row('acme/ok', 'passed'),
+        row('acme/going', 'running'),
+      ]),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(3);
+
+    const odd = rows(page).filter({ hasText: 'acme/odd' });
+    const control = odd.getByRole('button', {
+      name: /Unknown\. Open pipeline/,
+    });
+    await expect(control).toHaveText('Unknown');
+    await expect(control.locator('svg[data-glyph="question"]')).toBeAttached();
+
+    await expect(pill(page, /^Unknown \d/)).toContainText('1');
+    await expect(pill(page, /^Running \d/)).toContainText('1');
+    await pill(page, /^Unknown \d/).click();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('acme/odd');
+
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(1);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+    }
+    await setTheme(page, 'light');
+  });
+
   test('the repo link carries the full owner/name as hover text (#1961)', async ({
     page,
   }) => {
@@ -1159,14 +1274,33 @@ test.describe('Main branches page (#1224, #1279)', () => {
         };
       });
     // Right edge on the slot's right edge, as tall as the pills.
-    const slotBox = await slotOf(page, 5).boundingBox();
-    const noteBox = await note.boundingBox();
-    const pillBox = await slotOf(page, 0).locator('.ci-pill').boundingBox();
-    expect((noteBox?.x ?? 0) + (noteBox?.width ?? 0)).toBeCloseTo(
-      (slotBox?.x ?? 0) + (slotBox?.width ?? 0),
-      0,
-    );
-    expect(noteBox?.height).toBe(pillBox?.height);
+    const readNoteBoxes = async () => ({
+      slotBox: await slotOf(page, 5).boundingBox(),
+      noteBox: await note.boundingBox(),
+      pillBox: await slotOf(page, 0).locator('.ci-pill').boundingBox(),
+    });
+    await expect
+      .poll(
+        async () => {
+          const { slotBox, noteBox } = await readNoteBoxes();
+          return Math.abs(
+            (noteBox?.x ?? 0) +
+              (noteBox?.width ?? 0) -
+              ((slotBox?.x ?? 0) + (slotBox?.width ?? 0)),
+          );
+        },
+        { message: 'the note ends on the slot right edge' },
+      )
+      .toBeLessThan(0.5);
+    await expect
+      .poll(
+        async () => {
+          const { noteBox, pillBox } = await readNoteBoxes();
+          return noteBox?.height === pillBox?.height;
+        },
+        { message: 'the note is as tall as the pills' },
+      )
+      .toBe(true);
     await expect.poll(readStyle).toEqual({
       background: 'rgba(0, 0, 0, 0)',
       border: '1px',
@@ -1210,21 +1344,44 @@ test.describe('Main branches page (#1224, #1279)', () => {
 
         await expect(rows(page)).toHaveCount(6);
 
-        const overflow = await page.evaluate(
-          () => document.documentElement.scrollWidth - window.innerWidth,
-        );
+        await expect
+          .poll(
+            () =>
+              page.evaluate(
+                () => document.documentElement.scrollWidth - window.innerWidth,
+              ),
+            { message: `${theme} page does not overflow at 360px` },
+          )
+          .toBeLessThanOrEqual(0);
 
-        expect(overflow).toBeLessThanOrEqual(0);
+        const readCardAndSlot = async () => ({
+          card: await rows(page).first().boundingBox(),
+          slot: await slotOf(page, 0).boundingBox(),
+        });
 
-        const card = await rows(page).first().boundingBox();
+        await expect
+          .poll(
+            async () => {
+              const { card, slot } = await readCardAndSlot();
+              return (
+                (slot?.x ?? 0) +
+                (slot?.width ?? 0) -
+                ((card?.x ?? 0) + (card?.width ?? 0) + 1)
+              );
+            },
+            { message: `${theme} slot stays inside its card` },
+          )
+          .toBeLessThanOrEqual(0);
 
-        const slot = await slotOf(page, 0).boundingBox();
-
-        expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
-          (card?.x ?? 0) + (card?.width ?? 0) + 1,
-        );
-
-        expect(slot?.y ?? 0).toBeLessThan((card?.y ?? 0) + 24);
+        await expect
+          .poll(
+            async () => {
+              const { card, slot } = await readCardAndSlot();
+              return (slot?.y ?? 0) - ((card?.y ?? 0) + 24);
+            },
+            { message: `${theme} slot sits at the top of its card` },
+          )
+          .toBeLessThan(0);
 
         const results = await new AxeBuilder({ page })
           .withTags([...AXE_TAGS, 'wcag22aa'])

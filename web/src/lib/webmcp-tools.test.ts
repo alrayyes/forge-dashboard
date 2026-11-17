@@ -1,6 +1,7 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import type { CheckFeedMessage, Subject } from './check-feed';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import { createWebMCPTools } from './webmcp-tools';
 
 // The WebMCP read tools, with no browser: each one calls the endpoint the
@@ -758,5 +759,24 @@ describe('WebMCP set_pull_request_auto_update', () => {
     };
     expect(schema.required).toEqual(['forge', 'fullName', 'number']);
     expect(schema.properties.enabled.type).toEqual(['boolean', 'null']);
+  });
+});
+
+describe('the forge a tool accepts', () => {
+  afterEach(resetForgeCapabilities);
+
+  test('names the forges the server reported, in the schema and the error', async () => {
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+    const { tool } = setup();
+    const t = tool('get_main_branch_checks');
+
+    expect(
+      (t.inputSchema as { properties: { forge: { enum: string[] } } })
+        .properties.forge.enum,
+    ).toContain('gitea');
+    await expect(
+      t.execute({ forge: 'gitlab', fullName: 'acme/api' }),
+    ).rejects.toThrow('forge must be "github", "forgejo" or "gitea"');
+    await t.execute({ forge: 'gitea', fullName: 'acme/api' });
   });
 });

@@ -45,7 +45,12 @@ cancelled run beside one still going is Running. A GitHub branch whose newest
 commit has workflow runs held until someone approves them reads "Waiting for
 approval" with a pause glyph, the same one the pull request row uses: nothing
 has run and nothing has failed, and the pipeline panel lists the held workflows
-with a link to GitHub's approve button. A held run beside check runs that all
+with a link to GitHub's approve button. A branch with a job the dashboard cannot
+grade, because the forge reported a state it has no word for, and nothing failed
+or still going, reads "Unknown" with a question-mark glyph in a neutral grey, not
+Running: nothing says it is going, and it is not a pass. The pill still counts
+the passed jobs beside the unknown one, and a job still going or failed
+outranks it. A held run beside check runs that all
 passed still reads as Passed on a branch, unlike a pull request row: a branch
 reads as waiting only when its newest commit has no check run at all. A held run
 nobody approves keeps the branch on Waiting for approval until the next push. A
@@ -66,16 +71,21 @@ the main control on the row. The "No pipeline" note is plain, not a button,
 since there is no pipeline to open. The page orders the rows, latest commit
 first, whatever order the server sends them in.
 
-The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval, No
-pipeline) keep their filter names, like the quick pills on the pull request
-board, and carry a count the page works out from the rows it lists. A pill, and
+The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval,
+Unknown, No pipeline) keep their filter names, like the quick pills on the
+pull request board, and carry a count the page works out from the rows it lists.
+The Branches item in the navigation draws the same counts, the unknown ones with
+the question-mark glyph and an "unknown" in its spoken name. A pill, and
 each forge in the toggle, is offered only when a row would show under it, given
 the search and the other pill, so none leads to an empty list; the one that is
 active always stays, so it can be cleared. A forge toggle and a search box
 narrow the list further; search matches the repo, branch, commit, author, and
-failing job names. The filter is saved with the other pages' filters, in the
-shared filter cookie and in the copy on the server, so it is still set after a
-reload and in another browser.
+failing job names. Once the box holds text, a **Clear search** button appears
+inside it, and Escape with focus in the box does the same: both empty the
+search alone, leave the other filters as they are, and keep focus in the box.
+On a phone the button is a 44px target. The filter is saved with the other
+pages' filters, in the shared filter cookie and in the copy on the server, so it
+is still set after a reload and in another browser.
 
 An advisories group (Any, Has advisories, No advisories) sits beside the forge
 toggle once some row has an answer, and follows the same rule: a choice is
@@ -291,9 +301,9 @@ endpoint does.
 `GET /api/v1/main-branches` answers the CI status of every tracked repo's
 default branch, so a broken main shows up without opening each repo. One row per
 repo: its default branch, the status of the pipeline on the newest commit
-(`failed`, `passed`, `running`, `cancelled`, `awaiting_approval` or `none`), the
-commit (short SHA, subject, author), the names of the failed jobs, when the
-pipeline finished and how long it ran, a link to the run, and the repository's
+(`failed`, `passed`, `running`, `cancelled`, `awaiting_approval`, `unknown` or
+`none`), the commit (short SHA, subject, author), the names of the failed jobs,
+when the pipeline finished and how long it ran, a link to the run, and the repository's
 latest published release (`latestRelease`, its tag and the page of its notes, or
 null) and its open dependency advisories (`advisories`: `state`, `count`, the
 `highest` severity and a `url` to the alerts). A Forgejo repo's
@@ -363,8 +373,10 @@ cheaply:
   live jobs instead.
 
 A forge that can't be reached keeps its last known rows, each marked `stale`
-with the time it was last fetched, and so does a forge whose rate-limit budget
-is spent (the refresh skips it until the reset; see
+with the time it was last fetched (hover the chip for the reason, worded as on
+a pull request row; see
+[Pull request actions](pull-request-actions.md)), and so does a forge whose
+rate-limit budget is spent (the refresh skips it until the reset; see
 [Rate limits](rate-limits.md)). A repo whose read failed while
 its forge answered keeps its own earlier row the same way. A repo with no
 pipeline on its newest commit, an empty repo, or a Forgejo instance without

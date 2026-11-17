@@ -94,11 +94,13 @@
     blockingFirst,
     CHECK_STATE_LABELS,
     checkRunKey,
+    checkUnknownWord,
     checkState,
     checkDurationSeconds,
     formatCheckDuration,
     groupChecks,
     isBlocking,
+    runLinkNoun,
     runPageUrl,
     type Check,
   } from "#lib/pipeline-checks.js";
@@ -579,9 +581,19 @@
     new Map(checkKeys(checks).map((key, i) => [checks[i], key])),
   );
   const groups = $derived(groupChecks(checks));
-  // The board's own run address, else the newest run the checks name, so a
-  // pull request links to its run as a branch does. None, no link.
-  const runLink = $derived(target?.runUrl || runPageUrl(checks));
+  // The board's own run address, else the run the checks name (the failed
+  // one when there are several), so a pull request links to a run as a branch
+  // does. None, no link.
+  const runLink = $derived(
+    target?.runUrl
+      ? { url: target.runUrl, kind: "run" as const }
+      : runPageUrl(checks),
+  );
+  const runLinkText = $derived(
+    target && runLink
+      ? `Open ${runLinkNoun(runLink.kind)} on ${forgeLabel(target)}`
+      : "",
+  );
   const failed = $derived(
     checks.some((c) => {
       const state = checkState(c);
@@ -664,8 +676,12 @@
       {@const hint = checkHint(check, target?.repo)}
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
+      {@const word = checkUnknownWord(check)}
       <li class="pipeline-check">
-        <span class="pipeline-check-status {state}">
+        <span
+          class="pipeline-check-status {state}"
+          title={word ? `Unknown: the forge reported "${word}"` : undefined}
+        >
           {#each CHECK_GLYPHS[state] ?? [] as g (g.name)}
             <svg
               viewBox="0 0 16 16"
@@ -682,6 +698,11 @@
           {/each}
           {CHECK_STATE_LABELS[state] || state}
         </span>
+        {#if word}
+          <code class="pipeline-check-word" data-testid="check-forge-word"
+            >{word}</code
+          >
+        {/if}
         <span class="pipeline-check-name">{check.name}</span>
         {#if secs !== undefined}
           <span class="pipeline-check-duration"
@@ -707,14 +728,19 @@
                no log to read yet (queued, or running on GitHub) links to the
                forge's own page. -->
           {@const linkText = checkLinkText(control, state, forge)}
-          <a
-            class="pipeline-check-link"
-            href={check.url}
-            target="_blank"
-            rel="noopener"
-            aria-label={checkLinkLabel(linkText, check.name)}
-            >{linkText}<ExternalLinkIcon /></a
-          >
+          <!-- The same trailing slot and icon button as a row with output, so
+               a row's actions sit in one place whatever its status (#3878). -->
+          <div class="run-actions">
+            <a
+              class="run-icon-btn"
+              href={check.url}
+              target="_blank"
+              rel="noopener"
+              title={linkText}
+              aria-label={checkLinkLabel(linkText, check.name)}
+              ><ExternalLinkIcon /></a
+            >
+          </div>
         {/if}
         {#if hint}
           <p class="pipeline-check-hint">{hint}</p>
@@ -812,13 +838,15 @@
   bind:this={dialog}
   id="pipeline-dialog"
   class="pipeline-dialog"
-  aria-label="Pipeline checks"
+  aria-labelledby="pipeline-dialog-title"
   onclose={closed}
   onclick={outside}
 >
   <div class="pipeline-dialog-header">
     <div>
-      <h2 class="pipeline-dialog-title">Pipeline checks</h2>
+      <h2 class="pipeline-dialog-title" id="pipeline-dialog-title">
+        Pipeline checks
+      </h2>
       <p class="pipeline-dialog-subtitle">{target?.subtitle ?? ""}</p>
     </div>
     <button
@@ -896,11 +924,11 @@
     <div class="pipeline-dialog-footer">
       <a
         class="pipeline-run-button"
-        href={runLink}
+        href={runLink.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="Open run on {forgeLabel(target)} (opens in a new tab)"
-        >Open run on {forgeLabel(target)}<ExternalLinkIcon /></a
+        aria-label="{runLinkText} (opens in a new tab)"
+        >{runLinkText}<ExternalLinkIcon /></a
       >
     </div>
   {/if}

@@ -292,6 +292,20 @@ var (
 // alone.
 var errReadyzStatus = errors.New("readyz check failed")
 
+// readyzURL resolves the loopback /readyz URL from ADDR (default ":8080")
+// without dialling, so a test can pin the default whatever is listening on
+// the machine.
+func readyzURL() (string, error) {
+	addr := envOr("ADDR", ":8080")
+
+	_, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "", fmt.Errorf("parse addr %q: %w", addr, err)
+	}
+
+	return "http://127.0.0.1:" + port + "/readyz", nil
+}
+
 // runHealthcheck exists for the container's own HEALTHCHECK: the image is
 // distroless (no shell, no curl, no wget), so there's nothing else inside it
 // that could exec a probe. Reads the same ADDR this process would otherwise
@@ -300,17 +314,15 @@ var errReadyzStatus = errors.New("readyz check failed")
 // service_healthy and the deploy pipeline act on, so it has to mean "can
 // serve", not just "started". /healthz stays the cheap liveness answer.
 func runHealthcheck() error {
-	addr := envOr("ADDR", ":8080")
-
-	_, port, err := net.SplitHostPort(addr)
+	url, err := readyzURL()
 	if err != nil {
-		return fmt.Errorf("parse addr %q: %w", addr, err)
+		return err
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1:"+port+"/readyz", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return fmt.Errorf("build request: %w", err)
 	}

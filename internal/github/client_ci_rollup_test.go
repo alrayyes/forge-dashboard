@@ -40,6 +40,17 @@ func cancelledCount(t *testing.T, c dashboard.CheckCounts) int {
 	return m["cancelled"]
 }
 
+// heldCount is checks.held as the wire carries it.
+func heldCount(t *testing.T, c dashboard.CheckCounts) int {
+	t.Helper()
+	raw, err := json.Marshal(c)
+	require.NoError(t, err)
+	var m map[string]int
+	require.NoError(t, json.Unmarshal(raw, &m))
+
+	return m["held"]
+}
+
 func rollupFixture(state string, runs, statuses map[string]int) map[string]any {
 	return map[string]any{
 		"state": state,
@@ -421,17 +432,17 @@ func TestFetch_RollupCancelledBesideARealFailure_CountsOnlyTheFailure(t *testing
 
 		assert.Equal(t, dashboard.CIFailure, pr.CI, state)
 		assert.Equal(t, 1, pr.Checks.Failed, state)
-		assert.Zero(t, cancelledCount(t, pr.Checks), state)
+		assert.Equal(t, 2, cancelledCount(t, pr.Checks), state)
 	}
 
 	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
 		map[string]int{"CANCELLED": 2}, map[string]int{"ERROR": 1}))
 	assert.Equal(t, dashboard.CIFailure, pr.CI)
 	assert.Equal(t, 1, pr.Checks.Failed)
-	assert.Zero(t, cancelledCount(t, pr.Checks))
+	assert.Equal(t, 2, cancelledCount(t, pr.Checks))
 }
 
-func TestFetch_RollupCancelledBesideARunningCheck_IsPendingWithNoCancelledCount(t *testing.T) {
+func TestFetch_RollupCancelledBesideARunningCheck_IsPendingAndCountsTheCancelledRun(t *testing.T) {
 	t.Parallel()
 
 	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
@@ -439,5 +450,21 @@ func TestFetch_RollupCancelledBesideARunningCheck_IsPendingWithNoCancelledCount(
 
 	assert.Equal(t, dashboard.CIPending, pr.CI)
 	assert.Zero(t, pr.Checks.Failed)
-	assert.Zero(t, cancelledCount(t, pr.Checks))
+	assert.Equal(t, 1, cancelledCount(t, pr.Checks))
+}
+
+// A held run and a cancelled one are counted beside the others in every mix, so
+// the counts add up to the checks listed (#4064). The held flag is still said
+// apart.
+func TestFetch_RollupHeldAndCancelledRuns_AreCountedBesideTheRest(t *testing.T) {
+	t.Parallel()
+
+	pr := pullRequestFromGraphQLRollup(t, rollupFixture("FAILURE",
+		map[string]int{"ACTION_REQUIRED": 2, "CANCELLED": 1, "SUCCESS": 3}, nil))
+
+	assert.Equal(t, 2, heldCount(t, pr.Checks))
+	assert.Equal(t, 1, cancelledCount(t, pr.Checks))
+	assert.Zero(t, pr.Checks.Failed, "a held or cancelled run is not a failed one")
+	assert.Equal(t, 3, pr.Checks.Passed)
+	assert.True(t, pr.AwaitingWorkflowApproval)
 }

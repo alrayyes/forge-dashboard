@@ -1,6 +1,9 @@
 package dashboard
 
-import "strconv"
+import (
+	"strconv"
+	"time"
+)
 
 // ActionName is one thing a client can do to a pull request. Matches
 // components.schemas.AllowedAction.action.
@@ -43,6 +46,9 @@ type Blocked struct {
 	Code    ActionCode `json:"code"`
 	Message string     `json:"message"`
 	Next    string     `json:"next,omitempty"`
+	// Since is when the rows on show were read, set only with
+	// ActionForgeUnreachable and only when the dashboard knows.
+	Since *time.Time `json:"since,omitempty"`
 }
 
 // AllowedActions works out which actions a pull request offers, from the
@@ -51,11 +57,32 @@ type Blocked struct {
 // client: a rate-limited or unreachable forge, a missing token, an action
 // already in flight.
 func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
+	return AllowedActionsOn(pr, renovateAuthors, ForgeHealth{Reachable: true})
+}
+
+// AllowedActionsOn is AllowedActions for a pull request whose forge has the
+// given health. While the forge can't be asked the row is an earlier answer
+// and no action can run, so every action is blocked with the reason the claim
+// rule gives, whatever the earlier answer said (#3994). Nothing else of the forge's
+// health, a spent budget included, is read here.
+func AllowedActionsOn(pr PullRequest, renovateAuthors []string, h ForgeHealth) []ActionAvailability {
+	out := allowedActions(pr, renovateAuthors)
+	if claim := ClaimOf(ClaimAction, h, true); !claim.ActionsOpen {
+		for i := range out {
+			out[i].Primary = false
+			out[i].Blocked = &Blocked{Code: ActionForgeUnreachable, Message: claim.Reason, Since: claim.Since}
+		}
+	}
+
+	return out
+}
+
+func allowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailability {
 	out := []ActionAvailability{}
 	// An empty pull request can't become mergeable by waiting, so it offers no
 	// Merge at all, only Close. PullRequestStatus says why (#1375).
 	if !pr.Empty {
-		out = append(out, mergeAvailability(pr))
+		out = append(out, mergeAvailability(pr, renovateAuthors))
 	}
 	out = append(out, ActionAvailability{Action: ActionClose})
 	if a, ok := updateBranchAvailability(pr, renovateAuthors); ok {
@@ -69,12 +96,8 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	if pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
 		out = append(out, ActionAvailability{Action: ActionCancelAutoMerge})
 	}
-	if pr.Forge == ForgeGitHub && isDependabotPR(pr) {
-		// A command Dependabot has yet to act on can't be withdrawn, so while one
-		// is pending neither is offered; the wait chip says what is going on.
-		if !botRequestPending(pr, BotDependabot) {
-			out = append(out, ActionAvailability{Action: ActionDependabotRebase}, ActionAvailability{Action: ActionDependabotRecreate})
-		}
+	if answersDependabot(pr.Forge) && isDependabotPR(pr) {
+		out = append(out, dependabotActions(pr)...)
 	}
 	if isRenovatePR(pr, renovateAuthors) {
 		out = append(out, renovateRebaseActions(pr)...)
@@ -100,6 +123,24 @@ func AllowedActions(pr PullRequest, renovateAuthors []string) []ActionAvailabili
 	markPrimary(pr, out)
 
 	return out
+}
+
+// dependabotActions: the commands Dependabot answers. A command it has yet to
+// act on can't be withdrawn, so while one is pending neither is offered; the
+// wait chip says what is going on. It refuses a rebase on a branch someone else
+// committed to (#4023), so only Recreate, which discards those commits, is
+// offered there.
+func dependabotActions(pr PullRequest) []ActionAvailability {
+	if botRequestPending(pr, BotDependabot) {
+		return nil
+	}
+
+	var out []ActionAvailability
+	if !pr.EditedByOthers {
+		out = append(out, ActionAvailability{Action: ActionDependabotRebase})
+	}
+
+	return append(out, ActionAvailability{Action: ActionDependabotRecreate})
 }
 
 // mergeHeldForApproval: Merge is offered and gives the approval as its reason.
@@ -270,7 +311,7 @@ func renovateRebaseActions(pr PullRequest) []ActionAvailability {
 // mergeAvailability is Merge's rules in the order they apply. Merge is blocked
 // rather than hidden while waiting or fixing something can unlock it. Only an
 // empty pull request, which nothing can unlock, is left without it.
-func mergeAvailability(pr PullRequest) ActionAvailability {
+func mergeAvailability(pr PullRequest, renovateAuthors []string) ActionAvailability {
 	switch {
 	case pr.StackedOn != nil:
 		// Merging it would land it in the parent's branch, not the base it
@@ -282,7 +323,7 @@ func mergeAvailability(pr PullRequest) ActionAvailability {
 			"Merge unlocks once "+parent+" merges and this pull request is retargeted.")
 	case pr.MergeStatus == MergeConflicting && pr.ConflictConfirmed != nil && !*pr.ConflictConfirmed:
 		// Only the forge's flag, false for a while, says so (#3308).
-		return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out")
+		return unconfirmedConflictMerge(pr, renovateAuthors)
 	case pr.MergeStatus == MergeConflicting:
 		return mergeBlocked(ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge")
 	case pr.MergeStatus == MergeChecking:
@@ -344,6 +385,17 @@ func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	return ActionAvailability{Action: ActionMerge}
 }
 
+// unconfirmedConflictMerge is Merge's block for a conflict only the forge's
+// flag reports. Update branch is how it gets confirmed, so it is named only
+// when the pull request offers it (#3965).
+func unconfirmedConflictMerge(pr PullRequest, renovateAuthors []string) ActionAvailability {
+	if _, offered := updateBranchAvailability(pr, renovateAuthors); offered {
+		return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out")
+	}
+
+	return mergeBlocked(ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge")
+}
+
 // updateBranchAvailability: only a pull request that is behind and has
 // something to merge. Dependabot and Renovate pull requests use their own
 // rebase instead; release-please keeps this one.
@@ -351,7 +403,7 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	if !pr.Behind || pr.Empty {
 		return ActionAvailability{}, false
 	}
-	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) {
+	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) && !editedDependabotPR(pr) {
 		return ActionAvailability{}, false
 	}
 	if conflictKnown(pr) {
@@ -364,31 +416,47 @@ func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionA
 	return ActionAvailability{Action: ActionUpdateBranch}, true
 }
 
-// autoMergeOffered: GitHub, or Forgejo where this app holds the intent, and not
-// when it is already on (nil means the forge can't say, which isn't "on"),
-// when GitHub says it would refuse (nil isn't a refusal, #738), when there is
-// nothing to merge, when conflicts need fixing first, or when the pull request
-// is clean and Merge covers it (#662). A Forgejo draft can't merge yet, so
-// there is nothing to arm.
+// autoMergeOffered is whether Auto-merge is on a pull request's list: it isn't
+// when AutoMergeBlock has a reason.
 func autoMergeOffered(pr PullRequest) bool {
+	_, blocked := AutoMergeBlock(pr)
+
+	return !blocked
+}
+
+// AutoMergeBlock is the one rule for arming auto-merge: why it can't be armed
+// on pr, in the order that matters, or false when it can. The action list and
+// the arm endpoint's refusal both read it, so they can't disagree. Not armable:
+// a forge this build doesn't know, an app-held draft (nothing to merge yet), one
+// already on, one the forge says it would refuse (nil isn't a refusal, #738),
+// nothing to merge, conflicts to fix first, a stacked pull request (#860), or
+// one that is clean so Merge covers it (#662).
+func AutoMergeBlock(pr PullRequest) (ActionRefusal, bool) {
 	switch {
-	case pr.Forge != ForgeGitHub && pr.Forge != ForgeForgejo:
-		return false
-	case pr.Forge == ForgeForgejo && pr.Draft:
-		return false
+	case !AppMergesArmed(pr.Forge) && !forgeMergesArmed(pr.Forge):
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Auto-merge is only available on GitHub and Forgejo."}, true
+	case AppMergesArmed(pr.Forge) && pr.Draft:
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Draft pull request. Mark it ready for review to turn on auto-merge."}, true
 	case pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled:
-		return false
+		return ActionRefusal{Code: ActionNotMergeable, Message: "Auto-merge is already on for this pull request."}, true
 	case pr.AutoMergeAllowed != nil && !*pr.AutoMergeAllowed:
-		return false
-	case pr.Empty, pr.MergeStatus == MergeConflicting:
-		return false
+		return ActionRefusal{Code: ActionAutoMergeNotAllowed, Message: "Auto-merge isn't allowed for this pull request. Turn it on in the repo's settings."}, true
+	case pr.Empty:
+		return ActionRefusal{Code: ActionAlreadyUpToDate, Message: "Already up to date with the target branch, so there is nothing to merge."}, true
+	case pr.MergeStatus == MergeConflicting:
+		return ActionRefusal{Code: ActionConflict, Message: "Merge conflict. Resolve it on the forge first."}, true
 	case pr.StackedOn != nil:
-		// Its base is the parent's branch, which has nothing to wait for, so
-		// GitHub offers no auto-merge either (#860).
-		return false
+		return ActionRefusal{Code: ActionStacked, Message: "Stacked on another pull request. Merge that one first."}, true
 	case pr.MergeStatus == MergeMergeable && pr.CI == CISuccess && !pr.Behind:
-		return false
+		return ActionRefusal{Code: ActionReadyToMerge, Message: "This pull request is already ready to merge, so there's nothing for auto-merge to wait for. Use Merge instead."}, true
 	}
 
-	return true
+	return ActionRefusal{}, false
+}
+
+// editedDependabotPR: a Dependabot pull request Dependabot won't rebase because
+// someone else committed to its branch. The forge's own branch update works
+// there, so it is that pull request's way to catch up (#4023).
+func editedDependabotPR(pr PullRequest) bool {
+	return isDependabotPR(pr) && pr.EditedByOthers
 }

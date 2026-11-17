@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import {
   type AdvisoryItem,
   type AdvisoryList,
@@ -13,6 +13,9 @@ import {
   severityCounts,
   unreadableText,
 } from './advisories-dialog';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
+
+afterEach(resetForgeCapabilities);
 
 const item = (over: Partial<AdvisoryItem> = {}): AdvisoryItem => ({
   number: 1,
@@ -228,5 +231,31 @@ describe('unreadableText', () => {
   test('a GitHub cause keeps the permission advice', () => {
     expect(unreadableText('github', 'refused')).toContain('Dependabot');
     expect(unreadableText('github', 'throttled')).toContain('rate limiting');
+  });
+});
+
+describe('wording follows the advisory source, not the forge name', () => {
+  test('a forge described as an OSV source gets the OSV words', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: true,
+        },
+      },
+    ]);
+
+    expect(forgeWords('gitea').linkName).toBe('OSV');
+    expect(unreadableText('gitea', 'failed')).toContain('OSV could not');
+  });
+
+  test('an undescribed forge gets neither GitHub nor OSV words', () => {
+    const w = forgeWords('nowhere');
+    expect(JSON.stringify(w)).not.toMatch(/GitHub|Dependabot|OSV/);
+    expect(unreadableText('nowhere', 'refused')).not.toMatch(
+      /GitHub|Dependabot|OSV/,
+    );
   });
 });

@@ -5,6 +5,7 @@
     "skipped": 1,
     "running": 1,
     "waiting": 1,
+    "unknown": 0,
     "failed": 1
   },
   "runs": [

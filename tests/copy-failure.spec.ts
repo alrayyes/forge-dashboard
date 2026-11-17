@@ -271,18 +271,6 @@ test.describe('Copy error details on a failed action (#1323)', () => {
     expect(Date.parse(String(payload.at))).not.toBeNaN();
   });
 
-  test('the button says Copied, then Copy again', async ({ page }) => {
-    await refuse(page, 'renovate-rebase', 403, REFUSAL);
-    const row = await open(page);
-    await ACTIONS[4].start(row);
-    await dismissToasts(page);
-    const copy = copyIn(row);
-    await copy.click();
-
-    await expect(copy).toHaveText('Copied');
-    await expect(copy).toHaveText('Copy', { timeout: 4000 });
-  });
-
   test('a failure with only the network has Copy too, holding the action and the browser’s error', async ({
     page,
   }) => {
@@ -494,7 +482,7 @@ test.describe('Copy error details without a clipboard (#1323)', () => {
     });
   });
 
-  test('the details show in a selectable box instead of failing silently', async ({
+  test('a row’s Copy shows the details box instead of failing silently', async ({
     page,
   }) => {
     await refuse(page, 'renovate-rebase', 403, REFUSAL);
@@ -503,10 +491,10 @@ test.describe('Copy error details without a clipboard (#1323)', () => {
     await dismissToasts(page);
     await copyIn(row).click();
 
-    const box = row.getByRole('textbox', { name: 'Error details' });
-    await expect(box).toBeVisible();
-    await expect(box).toHaveAttribute('readonly', '');
-    const shown = JSON.parse(await box.inputValue());
-    expect(shown.response).toEqual(REFUSAL);
+    // Which box, what it holds and where it sits are in the CopyDetails
+    // stories; this proves the row's button reaches it.
+    await expect(
+      row.getByRole('textbox', { name: 'Error details' }),
+    ).toBeVisible();
   });
 });

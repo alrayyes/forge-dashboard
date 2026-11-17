@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
@@ -54,7 +55,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: PRS,
         issues: [],
         openIssueCount: 0,
@@ -109,26 +110,97 @@ test.describe('Pull request row author avatar (#1913)', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('no avatar shows the name alone', async ({ page }) => {
+  test('no avatar draws the initial on a circle and the name once', async ({
+    page,
+  }) => {
     await open(page);
     const cell = author(page, 'No avatar');
     await expect(cell).toHaveText('claude');
     await expect(cell.locator('img')).toHaveCount(0);
+    const placeholder = cell.locator('.avatar-placeholder');
+    await expect(placeholder).toHaveCount(1);
+    await expect(placeholder).toHaveAttribute('aria-hidden', 'true');
+    // Retries until the stylesheet has sized and drawn the placeholder.
+    await expect
+      .poll(async () => {
+        const box = await placeholder.boundingBox();
+        return [box?.width, box?.height];
+      })
+      .toEqual([20, 20]);
+    await expect
+      .poll(() =>
+        placeholder.evaluate((el) => getComputedStyle(el, '::before').content),
+      )
+      .toBe('"C"');
   });
+
+  test('every author name starts at the same x with or without an avatar (#3868)', async ({
+    page,
+  }) => {
+    await open(page);
+    const xs: number[] = [];
+    for (const title of [
+      'With avatar',
+      'No avatar',
+      'Plain http avatar',
+      'Broken avatar',
+    ]) {
+      const box = await author(page, title)
+        .locator('.author-name')
+        .boundingBox();
+      xs.push(Math.round(box?.x ?? -1));
+    }
+    expect(new Set(xs).size).toBe(1);
+    expect(xs[0]).toBeGreaterThan(0);
+  });
+
+  for (const theme of ['light', 'dark'] as const) {
+    test(`the placeholder initial has 4.5:1 contrast in ${theme} mode (#3868)`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await open(page);
+      const placeholder = author(page, 'No avatar').locator(
+        '.avatar-placeholder',
+      );
+      const lum = (css: string) => {
+        const [r, g, b] = (css.match(/[\d.]+/g) ?? []).slice(0, 3).map((v) => {
+          const c = Number(v) / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      };
+      // Retries until the stylesheet has painted both colours.
+      await expect
+        .poll(async () => {
+          const [fg, bg] = await placeholder.evaluate((el) => [
+            getComputedStyle(el, '::before').color,
+            getComputedStyle(el).backgroundColor,
+          ]);
+          const [hi, lo] = [lum(fg), lum(bg)].sort((x, y) => y - x);
+          return (hi + 0.05) / (lo + 0.05);
+        })
+        .toBeGreaterThanOrEqual(4.5);
+    });
+  }
 
   test('an http avatar is never loaded', async ({ page }) => {
     await open(page);
     await expect(author(page, 'Plain http avatar').locator('img')).toHaveCount(
       0,
     );
+    await expect(
+      author(page, 'Plain http avatar').locator('.avatar-placeholder'),
+    ).toHaveCount(1);
   });
 
-  test('an avatar that fails to load falls back to the name alone', async ({
+  test('an avatar that fails to load swaps to the placeholder in place', async ({
     page,
   }) => {
     await open(page);
     const cell = author(page, 'Broken avatar');
     await expect(cell.locator('img')).toHaveCount(0);
+    await expect(cell.locator('.avatar-placeholder')).toHaveCount(1);
     await expect(cell).toHaveText('claude');
   });
 });

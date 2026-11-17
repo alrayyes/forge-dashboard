@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"sort"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -188,7 +189,20 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 			p.MergeStatus = dashboard.MergeConflicting
 			no := false
 			p.ConflictConfirmed = &no
+		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge"},
+		{"conflict the forge has not confirmed, behind with Update branch on offer", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			p.Behind = true
+			no := false
+			p.ConflictConfirmed = &no
 		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Update the branch to find out"},
+		{"conflict the forge has not confirmed, behind but Renovate rebases it", func(p *dashboard.PullRequest) {
+			p.MergeStatus = dashboard.MergeConflicting
+			p.Behind = true
+			p.Author = "renovate[bot]"
+			no := false
+			p.ConflictConfirmed = &no
+		}, dashboard.ActionConflict, "Conflict not confirmed", "The forge hasn't confirmed it. Wait for it to finish checking, or open the pull request on the forge"},
 		{"conflict a refusal named", func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeConflicting
 			yes := true
@@ -478,4 +492,89 @@ func TestAllowedActions_UpdateBranchOnAnUnconfirmedConflict(t *testing.T) {
 	require.NotNil(t, update(&yes).Blocked)
 	assert.Equal(t, dashboard.ActionConflict, update(&yes).Blocked.Code)
 	require.NotNil(t, update(nil).Blocked)
+}
+
+// Dependabot refuses `@dependabot rebase` on a branch carrying a commit it
+// didn't make ("edited by someone other than Dependabot"), so such a pull
+// request offers Update branch, which the forge does for anyone, and Recreate,
+// and no Rebase that can only be refused (#4023).
+func TestAllowedActions_EditedDependabotBranchUpdatesInsteadOfRebasing(t *testing.T) {
+	t.Parallel()
+
+	edited := ghPR(func(p *dashboard.PullRequest) {
+		p.Author = "dependabot[bot]"
+		p.Behind = true
+		p.EditedByOthers = true
+	})
+
+	assert.Equal(t, []dashboard.ActionName{dashboard.ActionDependabotRecreate}, dependabotCommands(edited))
+	assert.Contains(t, actionNames(edited), dashboard.ActionUpdateBranch)
+
+	t.Run("a branch only Dependabot touched keeps the rebase and no Update branch", func(t *testing.T) {
+		t.Parallel()
+
+		plain := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = "dependabot[bot]"
+			p.Behind = true
+		})
+
+		assert.Equal(t, []dashboard.ActionName{dashboard.ActionDependabotRebase, dashboard.ActionDependabotRecreate}, dependabotCommands(plain))
+		assert.NotContains(t, actionNames(plain), dashboard.ActionUpdateBranch)
+	})
+
+	t.Run("an edited branch that is not behind offers no Update branch", func(t *testing.T) {
+		t.Parallel()
+
+		upToDate := ghPR(func(p *dashboard.PullRequest) {
+			p.Author = "dependabot[bot]"
+			p.EditedByOthers = true
+		})
+
+		assert.NotContains(t, actionNames(upToDate), dashboard.ActionUpdateBranch)
+	})
+}
+
+// While the forge can't be asked, no action can run, and the reason comes from
+// the one claim rule (#3994).
+func TestAllowedActionsOn_ForgeThatCantBeAsked(t *testing.T) {
+	t.Parallel()
+
+	since := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	down := dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false, StaleSince: &since}
+	claim := dashboard.ClaimOf(dashboard.ClaimAction, down, true)
+
+	for _, forge := range []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo} {
+		pr := ghPR(func(p *dashboard.PullRequest) { p.Forge = forge; p.Behind = true })
+		down.Forge = forge
+		actions := dashboard.AllowedActionsOn(pr, nil, down)
+		require.NotEmpty(t, actions)
+		for _, a := range actions {
+			require.NotNil(t, a.Blocked, "%s %s", forge, a.Action)
+			assert.Equal(t, dashboard.ActionForgeUnreachable, a.Blocked.Code)
+			assert.Equal(t, claim.Reason, a.Blocked.Message)
+			assert.Equal(t, claim.Since, a.Blocked.Since)
+			assert.False(t, a.Primary)
+		}
+	}
+
+	t.Run("the claim's reason outranks one the earlier answer had", func(t *testing.T) {
+		t.Parallel()
+
+		pr := ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting })
+		found := false
+		for _, a := range dashboard.AllowedActionsOn(pr, nil, down) {
+			if a.Action == dashboard.ActionMerge {
+				found = true
+				require.NotNil(t, a.Blocked)
+				assert.Equal(t, dashboard.ActionForgeUnreachable, a.Blocked.Code)
+			}
+		}
+		assert.True(t, found, "Merge is listed")
+	})
+	t.Run("a forge that answers changes nothing", func(t *testing.T) {
+		t.Parallel()
+
+		pr := ghPR(nil)
+		assert.Equal(t, dashboard.AllowedActions(pr, nil), dashboard.AllowedActionsOn(pr, nil, dashboard.ForgeHealth{Reachable: true}))
+	})
 }

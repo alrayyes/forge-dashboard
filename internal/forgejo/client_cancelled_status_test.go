@@ -223,7 +223,8 @@ func TestListOpenPullRequests_AJobThatFailedStillCountsAsFailed(t *testing.T) {
 }
 
 // Two jobs of one run, one cancelled and one failed: only the cancelled one is
-// excused, whatever the jobs are called.
+// excused from the failed count, whatever the jobs are called, and it is counted
+// as cancelled so the counts add up to the jobs listed (#4064).
 func TestListOpenPullRequests_ACancelledJobBesideARealFailureLeavesTheFailure(t *testing.T) {
 	t.Parallel()
 	f := cancelledPassing("cancelled")
@@ -232,7 +233,7 @@ func TestListOpenPullRequests_ACancelledJobBesideARealFailureLeavesTheFailure(t 
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1, Cancelled: 1}, got.Checks)
 }
 
 func TestListOpenPullRequests_ACancelledJobBesideARealFailureStillFailsTheRow(t *testing.T) {
@@ -254,6 +255,7 @@ func TestListOpenPullRequests_ACancelledJobBesideAPendingCheckLeavesTheRowPendin
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CIPending, got.CI)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 1, Cancelled: 1}, got.Checks)
 }
 
 func TestListOpenPullRequests_ACancelledJobBesideAWarningLeavesTheRowPending(t *testing.T) {
@@ -308,7 +310,7 @@ func TestListOpenPullRequests_AnUnreadableRunDoesNotHideAnotherRunsCancelledJob(
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1, Cancelled: 1}, got.Checks)
 }
 
 // A status that points at a run the list doesn't hold, such as one past the
@@ -523,7 +525,7 @@ func TestListOpenPullRequests_ACancelledRunBesideARealFailureStillReadsFailed(t 
 	got := f.pullRequest(t)
 
 	assert.Equal(t, dashboard.CIFailure, got.CI)
-	assert.Equal(t, dashboard.CheckCounts{Passed: 4, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 4, Failed: 1, Cancelled: 8}, got.Checks)
 }
 
 // A re-run replaces the statuses of the cancelled jobs, so nothing is left to

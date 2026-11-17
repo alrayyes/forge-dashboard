@@ -576,8 +576,12 @@ test.describe('bot rebase pickup with another row still queued', () => {
 
     await expect(rowFor(42).locator('.wait-chip-label')).toHaveText('Rebasing');
     await expect(rowFor(42).getByText('Out of date')).toHaveCount(0);
-    // The other row is untouched, still where it was.
-    await expect(rowFor(43).getByText('Out of date')).toBeVisible();
+    // The other row is untouched, still where it was: asked for and waiting,
+    // so it says that and not that it is out of date (#4022).
+    await expect(rowFor(43).locator('.wait-chip-label')).toHaveText(
+      'Rebase requested',
+    );
+    await expect(rowFor(43).getByText('Out of date')).toHaveCount(0);
     await expect(rows.nth(0)).toContainText('#42');
     await expect(rows.nth(1)).toContainText('#43');
     await expect(page.locator('#list-updates-status')).toHaveText('');

@@ -151,6 +151,7 @@ test.describe('pill groups combine (#3734)', () => {
       .getByRole('button', { name: 'Failing' })
       .click();
     await sheet.getByRole('button', { name: 'Clear all' }).click();
+    await expect(sheet).toBeVisible();
     await expect(rows(page)).toHaveCount(PRS.length);
     for (const group of ['forge', 'ci'] as const)
       await expect(

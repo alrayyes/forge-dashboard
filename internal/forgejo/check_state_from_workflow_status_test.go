@@ -3,6 +3,7 @@ package forgejo
 import (
 	"testing"
 
+	gitea "code.gitea.io/sdk/gitea"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +15,7 @@ import (
 // and a job in them offers no "Show output".
 func TestCheckStateFromWorkflowStatusNotStartedIsQueued(t *testing.T) {
 	t.Parallel()
-	for _, status := range []string{"unknown", "waiting", "blocked", "something-new"} {
+	for _, status := range []string{"unknown", "waiting", "blocked"} {
 		t.Run(status, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, dashboard.CheckQueued, checkStateFromWorkflowStatus(status))
@@ -25,4 +26,18 @@ func TestCheckStateFromWorkflowStatusNotStartedIsQueued(t *testing.T) {
 func TestCheckStateFromWorkflowStatusRunningIsRunning(t *testing.T) {
 	t.Parallel()
 	assert.Equal(t, dashboard.CheckRunning, checkStateFromWorkflowStatus("running"))
+}
+
+// A status Forgejo adds later is one nobody can grade: it is not a wait, so it
+// reads unknown instead of queued.
+func TestCheckStateFromWorkflowStatusUnrecognizedIsUnknown(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, dashboard.CheckUnknown, checkStateFromWorkflowStatus("something-new"))
+}
+
+// A commit status Forgejo adds later is counted on its own, not as a wait.
+func TestCheckCountsOfUnrecognizedStatusIsUnknown(t *testing.T) {
+	t.Parallel()
+	got := checkCountsOf([]*gitea.Status{{State: "success"}, {State: "pending"}, {State: "something-new"}})
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 1, Unknown: 1}, got)
 }

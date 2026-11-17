@@ -109,6 +109,13 @@ too, so `2024` finds a pull request with 2024 in its title. It is the same box
 as the title search, so it is remembered with the other filters and **Clear
 filters** empties it.
 
+Once the box holds text, a **Clear title filter** button appears inside it, in
+place of the `/` hint. It and Escape (with focus in the box) empty the box and
+reset the title filter alone: the other filters stay as they are, and focus
+stays in the box. Escape on an empty box does nothing. The Insights title box
+has the same button and Escape, and so does the search box on Main branches
+(button label **Clear search**, see [Main branches](main-branches.md)).
+
 ## Short lists
 
 A page with one row, or none, has nothing to search or sort, so the filter bar,
@@ -175,11 +182,13 @@ Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
 relation, closing first, then refs, then plain mentions.
 
 A row shows a "Refs" pill for each, after the "Closes" ones. It is drawn with a
-dashed outline and no fill, so it reads apart from a closing pill by more than
-its word. It behaves like a closing pill: the first two show, a count opens the
-rest, a press opens the ticket's pop-up in place and Escape returns focus to
-the pill, and on a phone the hit area is 44 pixels. The pull request's pop-up lists
-them among the attributes too.
+dotted outline and no fill, so it reads apart from a closing pill by more than
+its word. Its tooltip and accessible name say it references the ticket and
+doesn't close it. The tooltip also shows under the pill on keyboard focus, and
+Escape hides it. It behaves like a closing pill: the first two show, a count
+opens the rest, a press opens the ticket's pop-up in place and Escape returns
+focus to the pill, and on a phone the hit area is 44 pixels. The pull
+request's pop-up lists them among the attributes too.
 
 ## Tickets a pull request mentions
 
@@ -188,10 +197,11 @@ its description, or a link to a ticket in its title. The server reads the title
 and description on both forges and lists what it finds, without a closing
 reference, in `GET /api/v1/dashboard` as `mentionsIssues`, always present. A
 mention is what GitHub and Forgejo both turn into a link: `#12`,
-`owner/repo#12`, the address of an issue or pull request page on the forge, and
-on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not
-mentions, while emphasis and table markup around one (`**#12**`, `_#12_`,
-`|#12|`) is fine. Code and HTML comments are skipped, as they are for closing
+`owner/repo#12`, the address of an issue or pull request page on the forge, and,
+where the forge's `issueRefSyntax` capability is `hash_or_gh_prefix` (GitHub),
+`GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not mentions,
+while emphasis and table markup around one (`**#12**`, `_#12_`, `|#12|`) is
+fine. Code and HTML comments are skipped, as they are for closing
 references, and a quoted line still counts. The text of a link is skipped too,
 whether it is written in Markdown (also the reference style) or as an HTML
 anchor, since a dependency update's release notes are full of links such as
@@ -237,7 +247,9 @@ HTTPS image, fetched by this server and passed on, so your browser never
 contacts the forge for it. On Forgejo that works only when the image is on the
 same host and scheme as the saved instance; a Gravatar or Libravatar avatar
 shows the initial instead. When the forge sends none, the URL isn't HTTPS, or
-the image can't load, the row shows the name alone. The narrow layout drops the
+the image can't load, the row draws the author's initial on a neutral circle in
+the same 20px box, so every name starts at the same place. The initial is
+decorative: a screen reader hears the name once. The narrow layout drops the
 author column, avatar included.
 
 The avatar and the name are one link to the author's page on the forge, opening
@@ -257,9 +269,11 @@ generated card GitHub makes for a repository with no image is never shown, and
 neither is the owner's avatar. The image is the forge's own HTTPS image, which
 this server fetches and passes on. On Forgejo that works only when the image is
 on the same host and scheme as the saved instance, so a Gravatar or Libravatar
-avatar shows the initial instead. A repository with no logo, an image that isn't
-HTTPS or one that can't load shows the name alone. The unauthenticated
-username-only listing carries no images, so it shows none.
+avatar shows the initial instead. On the Repositories page, a repository with
+no logo, an image that isn't HTTPS or one that can't load shows the repository's
+initial in the same 16px box, so names line up. On a row the name is shown
+alone, since the repository column has no room to spare for the box. The
+unauthenticated username-only listing carries no images, so it shows none.
 
 ## Long repository names
 

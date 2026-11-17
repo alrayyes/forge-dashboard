@@ -1658,42 +1658,31 @@ func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
 	return commits[0].Commit.StatusCheckRollup.checkCounts()
 }
 
-// checkCounts sorts every check run and status context into passed, running,
-// waiting or failed, so the counts and the overall state (ci) agree: a pending
-// pull request never carries a failed count.
+// checkCounts sorts every check run and status context into one count, so the
+// counts add up to the checks the pipeline lists and agree with the overall
+// state (ci): a pending pull request never carries a failed count.
 //
-// Two kinds of run are in none of the four, for the reason ci() gives them
-// their own handling. A run held as ACTION_REQUIRED is awaiting approval, which
-// has its own flag and its own pill (#1280, #1933). A cancelled run is not a
-// failure while others still run: a push or a concurrency group superseded it
-// (#722, #1950), and settleFailedRollup reads such a rollup as pending, so
-// counting it as failed would put a red count under Running.
+// A cancelled run and a run held as ACTION_REQUIRED have counts of their own
+// beside the others. Neither is a failure, for the reason ci() gives them their
+// own handling: a held run is awaiting approval, which has its own flag and its
+// own pill (#1280, #1933), and a cancelled one was superseded by a push or a
+// concurrency group (#722, #1950). Counted as failed they would put a red count
+// under Running. Counted nowhere, the segments add up to fewer checks than the
+// dialog lists (#4064).
 //
 // COMPLETED counts as passed: GitHub reports a finished run under its
 // conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
 // its own, and a failing one is a state of its own that is counted as failed.
 func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	out := r.rawCheckCounts()
-	ci := r.pullRequestCI()
-	if ci == dashboard.CICancelled {
-		// Nothing failed: the cancelled runs are counted as what they are.
-		out.Cancelled = r.runsInState("CANCELLED")
-
-		return out
-	}
-	// A failing rollup with no failed check is failing because a run is held
-	// for approval, and cancelled runs beside it are counted as failed so the
-	// pill has a number. Cancelled runs alone are not failing (#3301), and
-	// returned above. A held run is not counted: a pull request says that with
-	// its own flag.
-	if out.Failed == 0 && ci == dashboard.CIFailure {
-		out.Failed = r.runsInState("CANCELLED")
-	}
+	out.Cancelled = r.runsInState("CANCELLED")
+	out.Held = r.runsInState("ACTION_REQUIRED")
 
 	return out
 }
 
-// rawCheckCounts is the tally with cancelled and held runs in none of the four.
+// rawCheckCounts is the tally with cancelled and held runs left out, which
+// checkCounts adds, and every state it cannot grade in unknown.
 func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	if r == nil || r.Contexts == nil {
@@ -1712,6 +1701,12 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 			out.Waiting += c.Count
 		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
 			out.Failed += c.Count
+		case "CANCELLED", "ACTION_REQUIRED":
+			// Counted apart by checkCounts.
+		default:
+			// A state GitHub added later is counted on its own, not hidden
+			// in a count that means something.
+			out.Unknown += c.Count
 		}
 	}
 	for _, c := range r.Contexts.StatusContextCountsByState {
@@ -1722,6 +1717,8 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 			out.Waiting += c.Count
 		case "FAILURE", "ERROR":
 			out.Failed += c.Count
+		default:
+			out.Unknown += c.Count
 		}
 	}
 
@@ -1960,6 +1957,21 @@ type graphqlPullRequest struct {
 	Commits   struct {
 		Nodes []prCommitNode `json:"nodes"`
 	} `json:"commits"`
+	// BranchCommits is the branch's first commits with their authors, read
+	// only to tell whether someone other than the pull request's bot wrote one.
+	BranchCommits struct {
+		TotalCount int `json:"totalCount"`
+		Nodes      []struct {
+			Commit struct {
+				Author struct {
+					Name string `json:"name"`
+					User *struct {
+						Login string `json:"login"`
+					} `json:"user"`
+				} `json:"author"`
+			} `json:"commit"`
+		} `json:"nodes"`
+	} `json:"branchCommits"`
 }
 
 type graphqlIssue struct {
@@ -2147,6 +2159,10 @@ query($cursor: String, $since: DateTime) {
             }
             createdAt
             updatedAt
+            branchCommits: commits(first: 20) {
+              totalCount
+              nodes { commit { author { name user { login } } } }
+            }
             commits(last: 1) {
               nodes {
                 commit {
@@ -2271,6 +2287,10 @@ const appRepoFieldsTemplate = `
         }
         createdAt
         updatedAt
+        branchCommits: commits(first: 20) {
+          totalCount
+          nodes { commit { author { name user { login } } } }
+        }
         commits(last: 1) {
           nodes {
             commit {
@@ -3284,6 +3304,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		Title:                    p.Title,
 		URL:                      p.URL,
 		Author:                   authorLogin(p.Author),
+		EditedByOthers:           editedByOthers(p),
 		AuthorAvatarURL:          authorAvatarURL(p.Author),
 		Draft:                    p.IsDraft,
 		Labels:                   labelsFromNodes(p.Labels.Nodes),
@@ -3598,6 +3619,10 @@ const pullRequestFields = `        number
         }
         createdAt
         updatedAt
+        branchCommits: commits(first: 20) {
+          totalCount
+          nodes { commit { author { name user { login } } } }
+        }
         commits(last: 1) {
           nodes {
             commit {
@@ -4055,7 +4080,7 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 	// Same rule as settleFailedRollup (#722): a real failure wins even
 	// while others run; a cancelled run alone is only pending-stale when
 	// something is still queued or running.
-	var cancelled, running bool
+	var cancelled, running, unknown bool
 	for _, r := range runs {
 		if r.GetStatus() != "completed" {
 			running = true
@@ -4067,11 +4092,15 @@ func statusFromCheckRuns(runs []*ghsdk.CheckRun) dashboard.CIStatus {
 			// counts as passing
 		case "cancelled":
 			cancelled = true
-		default:
+		case "failure", "timed_out", "stale", "startup_failure", "action_required":
 			return dashboard.CIFailure
+		default:
+			// A word nobody can grade is not a failure (#4055): the pill and
+			// the dialog say unknown, and the pull request stays pending.
+			unknown = true
 		}
 	}
-	if running {
+	if running || unknown {
 		return dashboard.CIPending
 	}
 	if cancelled {
@@ -4306,6 +4335,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				URL:   r.GetHTMLURL(),
 
 				ReportedConclusion: reportedConclusion(r),
+				ReportedStatus:     dashboard.UnknownWord(checkStateFromRun(r), r.GetStatus()),
 				JobID:              r.GetID(),
 				StartedAt:          runTime(r.StartedAt),
 				CompletedAt:        runTime(r.CompletedAt),
@@ -4333,7 +4363,9 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		checks = append(checks, dashboard.Check{
 			Name:  s.GetContext(),
 			State: checkStateFromCombinedState(s.GetState()),
-			URL:   s.GetTargetURL(),
+			// The legacy status carries its word in the state.
+			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(s.GetState()), s.GetState()),
+			URL:            s.GetTargetURL(),
 		})
 	}
 
@@ -4442,7 +4474,8 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 // cancelled, skipped, timed_out, action_required, stale — neutral counts
 // as passing the same way statusFromCheckRuns already treats it;
 // stale counts as failing, since it blocks the
-// pull request the same way a real failure does. The exception is
+// pull request the same way a real failure does. A conclusion not listed here
+// is unknown. The exception is
 // action_required, which reads as awaiting approval: the rollup counts it as held
 // (awaitingApproval), so the panel and the pill tell one story (#1933).
 func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
@@ -4453,14 +4486,18 @@ func checkStateFromRun(r *ghsdk.CheckRun) dashboard.CheckState {
 // API's lower case words, whichever API they were read from.
 func checkStateOf(status, conclusion string) dashboard.CheckState {
 	if status != "completed" {
-		// Only in_progress has a log to read. Every other status (queued,
-		// waiting, pending, requested, or one GitHub adds later) has not
-		// started, and the rollup counts it as waiting.
-		if status == "in_progress" {
+		// Only in_progress has a log to read. The other statuses GitHub
+		// documents (queued, waiting, pending, requested) have not started,
+		// and the rollup counts them as waiting. Any other word is one the
+		// code cannot grade, which is not a wait.
+		switch status {
+		case "in_progress":
 			return dashboard.CheckRunning
+		case "queued", "waiting", "pending", "requested":
+			return dashboard.CheckQueued
+		default:
+			return dashboard.CheckUnknown
 		}
-
-		return dashboard.CheckQueued
 	}
 	switch conclusion {
 	case "success", "neutral":
@@ -4473,8 +4510,12 @@ func checkStateOf(status, conclusion string) dashboard.CheckState {
 		return dashboard.CheckTimedOut
 	case "action_required":
 		return dashboard.CheckAwaitingApproval
-	default: // "failure", "stale"
+	case "failure", "stale", "startup_failure":
 		return dashboard.CheckFailure
+	default:
+		// A conclusion GitHub added later: not a failure, or a pill would turn
+		// red over a word nobody has read.
+		return dashboard.CheckUnknown
 	}
 }
 
@@ -4500,8 +4541,10 @@ func checkStateFromCombinedState(state string) dashboard.CheckState {
 		return dashboard.CheckSuccess
 	case "failure", "error":
 		return dashboard.CheckFailure
-	default: // "pending"
+	case "pending":
 		return dashboard.CheckRunning
+	default:
+		return dashboard.CheckUnknown
 	}
 }
 
@@ -4647,4 +4690,36 @@ func (c *Client) logger() *slog.Logger {
 	}
 
 	return slog.Default()
+}
+
+// editedByOthers: a Dependabot pull request whose branch holds a commit
+// Dependabot didn't write. Dependabot refuses to rebase such a branch, so the
+// dashboard offers Update branch instead (#4023). It is false for any other
+// author, where several commit authors are ordinary, and true when the branch
+// has more commits than the query read, since it can't be vouched for.
+func editedByOthers(p graphqlPullRequest) bool {
+	author := botSlug(authorLogin(p.Author))
+	if author != "dependabot" {
+		return false
+	}
+	if p.BranchCommits.TotalCount > len(p.BranchCommits.Nodes) {
+		return true
+	}
+	for _, n := range p.BranchCommits.Nodes {
+		who := n.Commit.Author.Name
+		if n.Commit.Author.User != nil {
+			who = n.Commit.Author.User.Login
+		}
+		if botSlug(who) != author {
+			return true
+		}
+	}
+
+	return false
+}
+
+// botSlug is a login without its "[bot]" suffix, since GraphQL names a bot's
+// pull request author "dependabot" but its commits "dependabot[bot]".
+func botSlug(login string) string {
+	return strings.TrimSuffix(strings.ToLower(login), "[bot]")
 }

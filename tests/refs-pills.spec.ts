@@ -129,7 +129,7 @@ test.describe('the refs pill on a pull request row', () => {
 
     await expect(refs(page, 1)).toHaveText('Refs #12');
     await expect(refs(page, 1)).toHaveAccessibleName(
-      'Refs #12, opens the issue',
+      'Refs #12, references, does not close, opens the issue',
     );
     await expect(closes(page, 1)).toHaveText('Closes #10');
     await expect(refs(page, 2)).toHaveCount(0);
@@ -143,6 +143,40 @@ test.describe('the refs pill on a pull request row', () => {
         return a !== '' && b !== '' && a !== b;
       })
       .toBe(true);
+  });
+
+  test('shows its explanation on keyboard focus and Escape dismisses it', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [link(10, 'closes')], [link(12, 'refs')])],
+    });
+    await page.goto('/pull-requests.html');
+
+    const pill = refs(page, 1);
+    const tip = row(page, 1).locator('[role="tooltip"]');
+    const sentence = 'References the issue, does not close it';
+    await expect(tip).toBeHidden();
+    await pill.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expect(tip).toBeVisible();
+    await expect(tip).toHaveText(sentence);
+    await expect(pill).toHaveAttribute(
+      'aria-describedby',
+      (await tip.getAttribute('id')) ?? 'missing',
+    );
+    await expect(pill).toHaveAccessibleDescription(sentence);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(pill).toBeFocused();
+    await expect(tip).toHaveCount(1);
   });
 
   test('names the repository for a cross-repo reference', async ({ page }) => {
@@ -191,6 +225,59 @@ test.describe('the refs pill on a pull request row', () => {
 
     const popup = page.getByRole('dialog', { name: /^Pull request details/ });
     await expect(popup.locator('.refs-issue')).toHaveText('Refs #12');
+  });
+
+  test('Escape in the pull request pop-up hides a showing tip first, then closes the pop-up', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [], [link(12, 'refs')])],
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .getByRole('button', { name: /Pull request 1/ })
+      .first()
+      .click();
+    const popup = page.getByRole('dialog', { name: /^Pull request details/ });
+    const pill = popup.locator('.refs-issue');
+    const tip = popup.locator('[role="tooltip"]');
+
+    await pill.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expect(tip).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(tip).toBeHidden();
+    await expect(popup).toBeVisible();
+
+    await page.keyboard.press('Escape');
+    await expect(popup).toBeHidden();
+  });
+
+  test('Escape in the pull request pop-up closes it at once when the pill has mouse focus', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [pullRequest(1, [], [link(12, 'refs')])],
+    });
+    await page.goto('/pull-requests.html');
+    await page
+      .getByRole('button', { name: /Pull request 1/ })
+      .first()
+      .click();
+    const popup = page.getByRole('dialog', { name: /^Pull request details/ });
+    const pill = popup.locator('.refs-issue');
+
+    // The pop-up was opened with the mouse, so a script's focus is not
+    // :focus-visible and shows no tip.
+    await pill.focus();
+    await expect(pill).toBeFocused();
+    await expect(popup.locator('[role="tooltip"]')).toBeHidden();
+
+    await page.keyboard.press('Escape');
+    await expect(popup).toBeHidden();
   });
 
   test('has a 44 px hit area on a phone, no sideways scroll and no axe violations with both pills', async ({

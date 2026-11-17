@@ -816,3 +816,27 @@ func TestAggregator_Refresh_DependabotRebaseThenOnlyCancelled_WaitsThenRecreates
 		"alrayyes/a#1: " + dashboard.DependabotRecreateComment,
 	}, src.comments())
 }
+
+// Dependabot refuses a rebase on a branch someone else committed to, so
+// auto-update uses the forge's own branch update there and never posts a
+// command that can only be refused (#4023).
+func TestAggregator_Refresh_BehindEditedDependabotPR_UpdatesBranchAndPostsNoComment(t *testing.T) {
+	t.Parallel()
+
+	src := &fakeCommenterAndUpdaterSource{fakeBranchUpdaterSource: fakeBranchUpdaterSource{fakeSource: fakeSource{result: dashboard.Result{ //nolint:modernize // fakeCommenterAndUpdaterSource also carries commentMu/commented; an unkeyed literal would need every field, not just the embedded one
+		Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true},
+		PullRequests: []dashboard.PullRequest{
+			{Forge: dashboard.ForgeGitHub, Repo: "alrayyes/a", Number: 1, Behind: true, Author: "dependabot", EditedByOthers: true},
+		},
+	}}}}
+	lister := &fakeAutoUpdateBranchLister{
+		enabled: map[string]struct{}{"github/alrayyes/a": {}},
+	}
+
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.EnableAutoUpdateBranch(lister)
+	agg.Refresh(t.Context())
+
+	assert.Empty(t, src.comments())
+	assert.Equal(t, []string{"alrayyes/a#1"}, src.updatedBranches())
+}

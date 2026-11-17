@@ -1,5 +1,261 @@
 # Changelog
 
+## [9.72.4](https://github.com/alrayyes/forge-dashboard/compare/v9.72.3...v9.72.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **forges:** read forge and advisory lookups as own keys only ([#4177](https://github.com/alrayyes/forge-dashboard/issues/4177)) ([cc1ec09](https://github.com/alrayyes/forge-dashboard/commit/cc1ec0900e5ea8f853b40801cd60fc57c3421fe6)), closes [#3975](https://github.com/alrayyes/forge-dashboard/issues/3975)
+
+## [9.72.3](https://github.com/alrayyes/forge-dashboard/compare/v9.72.2...v9.72.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **filters:** read a stale forge pick as All for Group by and Clear filters ([#4173](https://github.com/alrayyes/forge-dashboard/issues/4173)) ([2d464c1](https://github.com/alrayyes/forge-dashboard/commit/2d464c13d27aa0b2d80c2d7a004b0223f0f2d129)), closes [#4171](https://github.com/alrayyes/forge-dashboard/issues/4171)
+
+## [9.72.2](https://github.com/alrayyes/forge-dashboard/compare/v9.72.1...v9.72.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** keep focus in a pick panel when a touch lands on a row's name ([#4162](https://github.com/alrayyes/forge-dashboard/issues/4162)) ([dcba446](https://github.com/alrayyes/forge-dashboard/commit/dcba446123922ae2fe155e65dcfd7fa79dfa6ca5)), closes [#4093](https://github.com/alrayyes/forge-dashboard/issues/4093)
+
+## [9.72.1](https://github.com/alrayyes/forge-dashboard/compare/v9.72.0...v9.72.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **filters:** ignore a saved forge pick no forge pill offers ([#4170](https://github.com/alrayyes/forge-dashboard/issues/4170)) ([5e0fe5d](https://github.com/alrayyes/forge-dashboard/commit/5e0fe5d921c947d6bdfce863e083852c7039a27c)), closes [#4167](https://github.com/alrayyes/forge-dashboard/issues/4167)
+
+## [9.72.0](https://github.com/alrayyes/forge-dashboard/compare/v9.71.0...v9.72.0) (2026-11-17)
+
+
+### Features
+
+* **web:** clear button and Escape on the Insights title and Branches search boxes ([#4154](https://github.com/alrayyes/forge-dashboard/issues/4154)) ([27286b3](https://github.com/alrayyes/forge-dashboard/commit/27286b31ef010d4c1eb840b2772426914b550f92))
+
+## [9.71.0](https://github.com/alrayyes/forge-dashboard/compare/v9.70.1...v9.71.0) (2026-11-17)
+
+
+### Features
+
+* **web:** say in Settings that italic pills reference an issue and upright ones close it ([#4127](https://github.com/alrayyes/forge-dashboard/issues/4127)) ([c97e7c7](https://github.com/alrayyes/forge-dashboard/commit/c97e7c7b648e366f1a94cd15d3a2e9d6a1052a4d)), closes [#3999](https://github.com/alrayyes/forge-dashboard/issues/3999)
+
+## [9.70.1](https://github.com/alrayyes/forge-dashboard/compare/v9.70.0...v9.70.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** name the Copy button for the word it shows ([#4134](https://github.com/alrayyes/forge-dashboard/issues/4134)) ([478ec29](https://github.com/alrayyes/forge-dashboard/commit/478ec297c39272121d826d87f43d1f7b171f7b8b)), closes [#4122](https://github.com/alrayyes/forge-dashboard/issues/4122)
+
+## [9.70.0](https://github.com/alrayyes/forge-dashboard/compare/v9.69.4...v9.70.0) (2026-11-17)
+
+
+### Features
+
+* **checks:** count cancelled and held checks so pill totals add up ([#4092](https://github.com/alrayyes/forge-dashboard/issues/4092)) ([59d55e1](https://github.com/alrayyes/forge-dashboard/commit/59d55e111850cba0fa6234d4293753e7f9df3425))
+
+## [9.69.4](https://github.com/alrayyes/forge-dashboard/compare/v9.69.3...v9.69.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** put a locked Merge and Update branch side by side on a phone ([#4107](https://github.com/alrayyes/forge-dashboard/issues/4107)) ([78561bf](https://github.com/alrayyes/forge-dashboard/commit/78561bf44d57fbf8be7ff17a89c21c893f96a47c))
+
+## [9.69.3](https://github.com/alrayyes/forge-dashboard/compare/v9.69.2...v9.69.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** keep what a webhook set when a full refresh settles after it ([#4112](https://github.com/alrayyes/forge-dashboard/issues/4112)) ([8533b3f](https://github.com/alrayyes/forge-dashboard/commit/8533b3f45ea520922712f9cc35f66737d48ce72a))
+
+## [9.69.2](https://github.com/alrayyes/forge-dashboard/compare/v9.69.1...v9.69.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** clear a failed forge's mark once webhooks have refreshed every repo ([#4106](https://github.com/alrayyes/forge-dashboard/issues/4106)) ([47ada8d](https://github.com/alrayyes/forge-dashboard/commit/47ada8d3ad3943232c82ce609cdd660fd95c2a08)), closes [#3869](https://github.com/alrayyes/forge-dashboard/issues/3869)
+
+## [9.69.1](https://github.com/alrayyes/forge-dashboard/compare/v9.69.0...v9.69.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** keep a multi-select panel open while a row is pressed ([#4095](https://github.com/alrayyes/forge-dashboard/issues/4095)) ([2d6c000](https://github.com/alrayyes/forge-dashboard/commit/2d6c000c4ab04215534e8ee1dffa1ddbb78ba36a))
+
+## [9.69.0](https://github.com/alrayyes/forge-dashboard/compare/v9.68.0...v9.69.0) (2026-11-17)
+
+
+### Features
+
+* **web:** name the forge's raw word for an unknown check ([#4091](https://github.com/alrayyes/forge-dashboard/issues/4091)) ([5667e30](https://github.com/alrayyes/forge-dashboard/commit/5667e3030dde914a1262a9959bdd2875f2a4cb2e)), closes [#4066](https://github.com/alrayyes/forge-dashboard/issues/4066)
+
+## [9.68.0](https://github.com/alrayyes/forge-dashboard/compare/v9.67.0...v9.68.0) (2026-11-17)
+
+
+### Features
+
+* **branches:** give an unknown job its own branch status ([#4086](https://github.com/alrayyes/forge-dashboard/issues/4086)) ([8ba971a](https://github.com/alrayyes/forge-dashboard/commit/8ba971a608c4a97fae6d99bae4cf2c3449e41ba2)), closes [#4063](https://github.com/alrayyes/forge-dashboard/issues/4063)
+* **web:** add a clear button and Escape to the title or number box ([#4083](https://github.com/alrayyes/forge-dashboard/issues/4083)) ([7f84cd9](https://github.com/alrayyes/forge-dashboard/commit/7f84cd9af26ced8051ca41f1f830da4b36108dc3)), closes [#4077](https://github.com/alrayyes/forge-dashboard/issues/4077)
+
+## [9.67.0](https://github.com/alrayyes/forge-dashboard/compare/v9.66.0...v9.67.0) (2026-11-17)
+
+
+### Features
+
+* **checks:** one action layout for every row in the pipeline dialog ([#4080](https://github.com/alrayyes/forge-dashboard/issues/4080)) ([59a0113](https://github.com/alrayyes/forge-dashboard/commit/59a01131da94405c586c99cec7db57494db9061b))
+
+## [9.66.0](https://github.com/alrayyes/forge-dashboard/compare/v9.65.1...v9.66.0) (2026-11-17)
+
+
+### Features
+
+* auto-merge status messages name the forge from the page ([#4079](https://github.com/alrayyes/forge-dashboard/issues/4079)) ([b3c2b1a](https://github.com/alrayyes/forge-dashboard/commit/b3c2b1adc2d6d76138608c03c9957904071476ff))
+
+## [9.65.1](https://github.com/alrayyes/forge-dashboard/compare/v9.65.0...v9.65.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** announce the result count in the Filters sheet and pin Clear all staying open ([#4078](https://github.com/alrayyes/forge-dashboard/issues/4078)) ([5017483](https://github.com/alrayyes/forge-dashboard/commit/50174833709ed4e1ede3f771b2df400fd9674893))
+
+## [9.65.0](https://github.com/alrayyes/forge-dashboard/compare/v9.64.0...v9.65.0) (2026-11-16)
+
+
+### Features
+
+* **checks:** show a check that can't be graded as unknown ([#4062](https://github.com/alrayyes/forge-dashboard/issues/4062)) ([525a12a](https://github.com/alrayyes/forge-dashboard/commit/525a12aba68abb6b5bba41194d7f123c9ee151fb)), closes [#4055](https://github.com/alrayyes/forge-dashboard/issues/4055)
+
+## [9.64.0](https://github.com/alrayyes/forge-dashboard/compare/v9.63.1...v9.64.0) (2026-11-16)
+
+
+### Features
+
+* **feedback:** swipe a toast left or right to close it ([#4057](https://github.com/alrayyes/forge-dashboard/issues/4057)) ([01780c2](https://github.com/alrayyes/forge-dashboard/commit/01780c2ea4fe1808915cd311dfb6a4b9e82dbf36)), closes [#4020](https://github.com/alrayyes/forge-dashboard/issues/4020)
+
+## [9.63.1](https://github.com/alrayyes/forge-dashboard/compare/v9.63.0...v9.63.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **web:** hide Out of date and the behind message once a rebase is requested ([#4052](https://github.com/alrayyes/forge-dashboard/issues/4052)) ([6ffa197](https://github.com/alrayyes/forge-dashboard/commit/6ffa197f417e8b49ce13625a985ba4e96918a48a))
+
+## [9.63.0](https://github.com/alrayyes/forge-dashboard/compare/v9.62.2...v9.63.0) (2026-11-16)
+
+
+### Features
+
+* **web:** show a refs pill's explanation on keyboard focus ([#4050](https://github.com/alrayyes/forge-dashboard/issues/4050)) ([4a85e52](https://github.com/alrayyes/forge-dashboard/commit/4a85e525e37b56e19421b4f4b3ef56ebfa0fe498))
+
+## [9.62.2](https://github.com/alrayyes/forge-dashboard/compare/v9.62.1...v9.62.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **web:** re-report title boxes after a font recheck so hover text can't go stale ([#4042](https://github.com/alrayyes/forge-dashboard/issues/4042)) ([c5a0eed](https://github.com/alrayyes/forge-dashboard/commit/c5a0eeda54b35738146a9a4a482c9d009318b2da)), closes [#4038](https://github.com/alrayyes/forge-dashboard/issues/4038)
+
+## [9.62.1](https://github.com/alrayyes/forge-dashboard/compare/v9.62.0...v9.62.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **a11y:** name the pipeline dialog with aria-labelledby ([#4036](https://github.com/alrayyes/forge-dashboard/issues/4036)) ([9b14a91](https://github.com/alrayyes/forge-dashboard/commit/9b14a91ba1b8e2ab315fdbf7df1411c4e348e641)), closes [#3880](https://github.com/alrayyes/forge-dashboard/issues/3880)
+
+## [9.62.0](https://github.com/alrayyes/forge-dashboard/compare/v9.61.4...v9.62.0) (2026-11-16)
+
+
+### Features
+
+* **api:** expose what each forge can do as data ([#4008](https://github.com/alrayyes/forge-dashboard/issues/4008)) ([6eae3c1](https://github.com/alrayyes/forge-dashboard/commit/6eae3c15fed09da2a3957c74fac3b6adc0c72d5f))
+
+## [9.61.4](https://github.com/alrayyes/forge-dashboard/compare/v9.61.3...v9.61.4) (2026-11-16)
+
+
+### Bug Fixes
+
+* **dashboard:** update an edited Dependabot branch instead of asking for a rebase ([#4024](https://github.com/alrayyes/forge-dashboard/issues/4024)) ([9d92253](https://github.com/alrayyes/forge-dashboard/commit/9d92253c5db1fb51496fb3bd42d6873dfd3b321a))
+
+## [9.61.3](https://github.com/alrayyes/forge-dashboard/compare/v9.61.2...v9.61.3) (2026-11-16)
+
+
+### Bug Fixes
+
+* **deps:** bump go.opentelemetry.io/otel/trace from 1.44.0 to 1.47.0 ([#4013](https://github.com/alrayyes/forge-dashboard/issues/4013)) ([2bd88bd](https://github.com/alrayyes/forge-dashboard/commit/2bd88bd0aabd2e56a43bdad7f06bfff83e5f0cfb))
+* **deps:** bump golang ([#4012](https://github.com/alrayyes/forge-dashboard/issues/4012)) ([389aac7](https://github.com/alrayyes/forge-dashboard/commit/389aac75dd4a4109fbd628417d0c2a8f6b6ab8aa))
+* **deps:** bump the bun-dependencies group with 8 updates ([#4011](https://github.com/alrayyes/forge-dashboard/issues/4011)) ([aac0bc8](https://github.com/alrayyes/forge-dashboard/commit/aac0bc8dc4ef9b44818418777893f06e1e9bc175))
+* **deps:** bump the go-dependencies group with 2 updates ([#4010](https://github.com/alrayyes/forge-dashboard/issues/4010)) ([f3970c0](https://github.com/alrayyes/forge-dashboard/commit/f3970c0aee2d6da584ac0558acdb0ef41f31bf18))
+
+## [9.61.2](https://github.com/alrayyes/forge-dashboard/compare/v9.61.1...v9.61.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** leave rows with no drawn Update branch out of Update all ([#4001](https://github.com/alrayyes/forge-dashboard/issues/4001)) ([3717078](https://github.com/alrayyes/forge-dashboard/commit/3717078dd842b2ebe05ace2202c57189f0f8af84))
+
+## [9.61.1](https://github.com/alrayyes/forge-dashboard/compare/v9.61.0...v9.61.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **imageproxy:** refuse the deprecated site-local range fec0::/10 ([#4003](https://github.com/alrayyes/forge-dashboard/issues/4003)) ([87abf65](https://github.com/alrayyes/forge-dashboard/commit/87abf651aaf3ca1767bce5b313e399ab7ce8a2ab)), closes [#3919](https://github.com/alrayyes/forge-dashboard/issues/3919)
+
+## [9.61.0](https://github.com/alrayyes/forge-dashboard/compare/v9.60.2...v9.61.0) (2026-11-14)
+
+
+### Features
+
+* **web:** explain why a linked pull request pill is italic ([#3997](https://github.com/alrayyes/forge-dashboard/issues/3997)) ([171d2a5](https://github.com/alrayyes/forge-dashboard/commit/171d2a5b4bbb2a86a3d8646799000ddf02701f0f))
+
+## [9.60.2](https://github.com/alrayyes/forge-dashboard/compare/v9.60.1...v9.60.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* count cancelled runs as a part of the Pull requests, Releases and Bots nav pills ([#3991](https://github.com/alrayyes/forge-dashboard/issues/3991)) ([edaeb18](https://github.com/alrayyes/forge-dashboard/commit/edaeb18ab9e926ddb5a959d867b6c6982d777434))
+
+## [9.60.1](https://github.com/alrayyes/forge-dashboard/compare/v9.60.0...v9.60.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** say Conflict not confirmed once, with a reason the row can act on ([#3970](https://github.com/alrayyes/forge-dashboard/issues/3970)) ([b93747a](https://github.com/alrayyes/forge-dashboard/commit/b93747add93c98dc4052f1f8c1793be6f50646c2))
+
+## [9.60.0](https://github.com/alrayyes/forge-dashboard/compare/v9.59.4...v9.60.0) (2026-11-14)
+
+
+### Features
+
+* **web:** draw an initial placeholder when an author avatar is missing ([#3984](https://github.com/alrayyes/forge-dashboard/issues/3984)) ([e896fea](https://github.com/alrayyes/forge-dashboard/commit/e896fea993b7de00d271ac29fb1206635f79b6c9)), closes [#3868](https://github.com/alrayyes/forge-dashboard/issues/3868)
+
+## [9.59.4](https://github.com/alrayyes/forge-dashboard/compare/v9.59.3...v9.59.4) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** draw cancelled branches in the Branches nav pill ([#3966](https://github.com/alrayyes/forge-dashboard/issues/3966)) ([7c9d23d](https://github.com/alrayyes/forge-dashboard/commit/7c9d23d1789fe0b9dde8ad1715af4ae997290e44)), closes [#3958](https://github.com/alrayyes/forge-dashboard/issues/3958)
+
+## [9.59.3](https://github.com/alrayyes/forge-dashboard/compare/v9.59.2...v9.59.3) (2026-11-14)
+
+
+### Bug Fixes
+
+* **pipeline-dialog:** name the run the link opens when checks span several runs ([#3964](https://github.com/alrayyes/forge-dashboard/issues/3964)) ([cbba7c8](https://github.com/alrayyes/forge-dashboard/commit/cbba7c87f1cf5033f3edfa410584fde4f9421e81)), closes [#3877](https://github.com/alrayyes/forge-dashboard/issues/3877)
+
+## [9.59.2](https://github.com/alrayyes/forge-dashboard/compare/v9.59.1...v9.59.2) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** size the check output to the dialog body in phone landscape ([#3959](https://github.com/alrayyes/forge-dashboard/issues/3959)) ([4c31f42](https://github.com/alrayyes/forge-dashboard/commit/4c31f42d9721cf91a8848d48226207e71cd6c27f)), closes [#3879](https://github.com/alrayyes/forge-dashboard/issues/3879)
+
+## [9.59.1](https://github.com/alrayyes/forge-dashboard/compare/v9.59.0...v9.59.1) (2026-11-14)
+
+
+### Bug Fixes
+
+* **web:** clear the bottom safe-area inset in the checks dialog footer ([#3950](https://github.com/alrayyes/forge-dashboard/issues/3950)) ([6bc4d5c](https://github.com/alrayyes/forge-dashboard/commit/6bc4d5c72655b181ff129fcd25a873688d6f17dd)), closes [#3895](https://github.com/alrayyes/forge-dashboard/issues/3895)
+
 ## [9.59.0](https://github.com/alrayyes/forge-dashboard/compare/v9.58.3...v9.59.0) (2026-11-14)
 
 

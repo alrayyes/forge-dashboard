@@ -139,7 +139,7 @@ func refuseNonPublic(_, address string, _ syscall.RawConn) error {
 // specialPurpose are the ranges net/netip counts as global unicast but that
 // reach a private network or a translator: shared address space (CGNAT,
 // Tailscale), benchmarking, the documentation ranges, class E, NAT64, 6to4,
-// the discard and dummy IPv6 prefixes and SRv6 SIDs, per the IANA
+// the discard and dummy IPv6 prefixes, SRv6 SIDs and deprecated site-local, per the IANA
 // special-purpose registries.
 //
 // 2001::/23 is not listed here. The registry marks the whole block not
@@ -152,6 +152,7 @@ var specialPurpose = []netip.Prefix{
 	netip.MustParsePrefix("100::/64"),
 	netip.MustParsePrefix("100:0:0:1::/64"),
 	netip.MustParsePrefix("5f00::/16"),
+	netip.MustParsePrefix("fec0::/10"),
 	netip.MustParsePrefix("3fff::/20"),
 	netip.MustParsePrefix("100.64.0.0/10"),
 	netip.MustParsePrefix("198.18.0.0/15"),

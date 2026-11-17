@@ -192,6 +192,17 @@ type branchContext struct {
 	TargetURL string `json:"targetUrl"`
 }
 
+// unknownIsNotAPass keeps a branch from reading passed or cancelled while a
+// check nobody can grade is on it. Nothing says that check is going, so the row
+// reads unknown, not running (#4063).
+func unknownIsNotAPass(status dashboard.MainBranchStatus, counts dashboard.CheckCounts) dashboard.MainBranchStatus {
+	if (status == dashboard.MainBranchPassed || status == dashboard.MainBranchCancelled) && counts.Unknown > 0 {
+		return dashboard.MainBranchUnknown
+	}
+
+	return status
+}
+
 // mainBranchFrom maps a repo's defaultBranchRef onto its default-branch row.
 // ref is nil for a repo with no commit yet.
 func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *graphqlBranchRef) dashboard.MainBranch {
@@ -245,6 +256,7 @@ func mainBranchFrom(fullName, repoURL string, release *graphqlRelease, ref *grap
 		}
 	}
 	row.Checks = branchCheckCounts(rollup, row.Status)
+	row.Status = unknownIsNotAPass(row.Status, row.Checks)
 	if url := branchRunURL(checks, row.Status); url != "" {
 		row.RunURL = url
 	}
@@ -279,13 +291,19 @@ func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 // another app, or a legacy commit status.
 func (c branchContext) asCheck() dashboard.Check {
 	if c.Typename == "StatusContext" {
-		return dashboard.Check{Name: c.Context, State: checkStateFromCombinedState(strings.ToLower(c.State)), URL: c.TargetURL}
+		return dashboard.Check{
+			Name:           c.Context,
+			State:          checkStateFromCombinedState(strings.ToLower(c.State)),
+			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(strings.ToLower(c.State)), strings.ToLower(c.State)),
+			URL:            c.TargetURL,
+		}
 	}
 
 	check := dashboard.Check{
 		Name:               c.Name,
 		State:              checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)),
 		ReportedConclusion: reportedWord(c.Status, c.Conclusion),
+		ReportedStatus:     dashboard.UnknownWord(checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)), strings.ToLower(c.Status)),
 		URL:                c.page(),
 		JobID:              c.DatabaseID,
 		StartedAt:          timePtr(c.StartedAt),
@@ -328,20 +346,14 @@ func timePtr(t time.Time) *time.Time {
 	return &t
 }
 
-// branchCheckCounts is the rollup's counts for a branch in its final status. A
-// cancelled branch has nothing failed, like a cancelled run anywhere. A failed
-// branch with nothing counted as failed has a held run, which it reads as a
-// failure and names as the failing job, or else cancelled runs with nothing
-// running to replace them; a pull request says a held run with its own flag.
-func branchCheckCounts(rollup *statusCheckRollup, status dashboard.MainBranchStatus) dashboard.CheckCounts {
+// branchCheckCounts is the rollup's counts for a default branch. It counts
+// every check its pipeline lists, so the numbers add up: a cancelled run and a
+// run held for approval have counts of their own beside the others (a pull
+// request leaves them out, and says a held run with its own flag).
+func branchCheckCounts(rollup *statusCheckRollup, _ dashboard.MainBranchStatus) dashboard.CheckCounts {
 	counts := rollup.rawCheckCounts()
-	if status != dashboard.MainBranchFailed || counts.Failed > 0 {
-		return counts
-	}
-	counts.Failed = rollup.runsInState("ACTION_REQUIRED")
-	if counts.Failed == 0 {
-		counts.Failed = rollup.runsInState("CANCELLED")
-	}
+	counts.Cancelled = rollup.runsInState("CANCELLED")
+	counts.Held = rollup.runsInState("ACTION_REQUIRED")
 
 	return counts
 }

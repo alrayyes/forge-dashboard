@@ -123,10 +123,15 @@ test('nothing overflows and axe is clean in light and dark at 390, 820 and 1280p
     for (const width of [390, 820, 1280]) {
       const where = `${scheme} ${width}px`;
       await open(page, width, scheme);
-      const fits = await page.evaluate(
-        () => document.documentElement.scrollWidth <= innerWidth,
-      );
-      expect(fits, where).toBe(true);
+      await expect
+        .poll(
+          () =>
+            page.evaluate(
+              () => document.documentElement.scrollWidth <= innerWidth,
+            ),
+          { message: where },
+        )
+        .toBe(true);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();

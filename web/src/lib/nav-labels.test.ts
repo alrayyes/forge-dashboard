@@ -80,6 +80,21 @@ describe('headerLabel', () => {
     );
   });
 
+  test('names the branches with an unknown job after the held ones, so the parts add up (#4063)', () => {
+    expect(
+      headerLabel('Branches', {
+        total: 6,
+        failed: 0,
+        running: 1,
+        passed: 3,
+        awaitingApproval: 1,
+        unknown: 1,
+      }),
+    ).toBe(
+      '6 3 1 1 1, Branches, 6 total, 3 passing, 1 running, 1 waiting for approval, 1 unknown',
+    );
+  });
+
   test('names the pull requests without checks last, so the parts add up (#3241)', () => {
     expect(
       headerLabel('Bots', {
@@ -227,5 +242,50 @@ describe('pillParts', () => {
         `${expected.join(' ')} X`,
       );
     }
+  });
+
+  test('draws cancelled branches after the passing ones, so the parts add up (#3958)', () => {
+    const count = { total: 6, failed: 2, passed: 3, cancelled: 1 };
+    expect(pillParts(count)).toEqual([
+      { kind: 'failed', n: 2, words: 'failing' },
+      { kind: 'passed', n: 3, words: 'passing' },
+      { kind: 'cancelled', n: 1, words: 'cancelled' },
+    ]);
+    expect(headerLabel('Branches', count)).toBe(
+      '6 2 3 1, Branches, 6 total, 2 failing, 3 passing, 1 cancelled',
+    );
+    expect(tabLabel('Branches', count)).toBe(
+      '6 2 3 1 Branches, 2 failing, 3 passing, 1 cancelled',
+    );
+  });
+
+  test('draws and speaks nothing extra for zero cancelled (#1439)', () => {
+    const count = { total: 5, failed: 2, passed: 3, cancelled: 0 };
+    expect(pillParts(count).map((p) => p.kind)).toEqual(['failed', 'passed']);
+    expect(headerLabel('Branches', count)).not.toContain('cancelled');
+  });
+
+  test('draws cancelled pull requests on Pull requests, Releases and Bots too (#3967)', () => {
+    const count = {
+      total: 9,
+      failed: 2,
+      passed: 3,
+      cancelled: 2,
+      noChecks: 1,
+      running: 1,
+    };
+    expect(pillParts(count).map((p) => [p.kind, p.n])).toEqual([
+      ['failed', 2],
+      ['passed', 3],
+      ['cancelled', 2],
+      ['running', 1],
+      ['noChecks', 1],
+    ]);
+    expect(headerLabel('Pull requests', count)).toBe(
+      '9 2 3 2 1 1, Pull requests, 9 total, 2 failing, 3 passing, 2 cancelled, 1 running, 1 without checks',
+    );
+    expect(tabLabel('PRs', count)).toBe(
+      '9 2 3 2 1 1 PRs, 2 failing, 3 passing, 2 cancelled, 1 running, 1 without checks',
+    );
   });
 });

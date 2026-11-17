@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The issue dialog lists the pull requests that will close the issue, drawn
@@ -72,7 +73,7 @@ async function mockBoard(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests,
         issues: issues(),
       }),
@@ -414,7 +415,7 @@ test('the dialog lists the referencing pull requests under Referenced in, after 
     /^Pull request #12.*, closes this issue$/,
   );
   await expect(dialogPills(page).last()).toHaveAccessibleName(
-    /^Pull request #13.*, references this issue$/,
+    /^Pull request #13.*, references, does not close this issue$/,
   );
 
   list = [issue(1, [linked(12)], [linked(13), linked(14)])];

@@ -4254,6 +4254,7 @@ components:
             - permission
             - rate_limited
             - forge_error
+            - forge_unreachable
             - not_rate_limited
             - not_open
             - not_reopenable
@@ -4949,7 +4950,10 @@ components:
             is simply waiting for the next refresh to merge it.
         message:
           type: string
-          description: Plain words, safe to show a person.
+          description: |
+            Plain words, safe to show a person. A sentence that would name the
+            forge says "the forge" instead, and the page puts the forge's
+            label (`ForgeCapabilities.label`) in its place.
 
     AutoMergedPullRequest:
       type: object
@@ -5152,7 +5156,7 @@ components:
 
     CheckCounts:
       type: object
-      required: [passed, running, waiting, failed, skipped]
+      required: [passed, running, waiting, failed, skipped, unknown]
       description: |
         How many checks are in each state, so a client can say how far a
         pipeline is without opening it. It is on every pull request and on
@@ -5165,24 +5169,32 @@ components:
         forge doesn't tell queued from running. A failed pipeline can still have
         checks running or waiting, and says so. A pull request's counts agree
         with its `ci`: one whose `ci` is `pending` has `failed` at 0, and one
-        whose `ci` is `success` has nothing running, waiting or failed. Two
-        kinds of run are therefore in none of the four, as long as something
-        else explains the state. A run held for approval: on a pull request
-        `awaitingWorkflowApproval` says that. A cancelled run: a push or a
-        concurrency group superseded it, and the overall state does not read it
-        as a failure while others still run. When a held run (and, on a
-        branch, cancelled ones) is the only reason a pipeline reads as failed,
-        the held run counts as `failed` with the cancelled ones, so a failed
-        pipeline always has a failed count on GitHub. A pull request whose `ci`
-        is `cancelled`, and a branch whose status is `cancelled`, have `failed`
-        at 0; the pull request counts its cancelled runs in `cancelled`. A timed-out or stale check counts as `failed`, a skipped,
+        whose `ci` is `success` has nothing running, waiting or failed. On a
+        pull request or branch a cancelled run and a run held for approval
+        have counts of their own, `cancelled` and `held`, and are never in
+        `failed`: a push or a concurrency group superseded a cancelled run, and
+        the overall state does not read it as a failure while others still run.
+        A held run is also said by `awaitingWorkflowApproval`. Every check the
+        pipeline lists is in exactly one count, so the counts add up to the
+        jobs the pipeline lists, on a pull request and a default branch alike.
+        A failed branch can have a `failed` of 0 when a held or cancelled run is what
+        failed it. A timed-out or stale check counts as `failed`, a skipped,
         neutral or bare completed one as `passed`, on Forgejo too.
+
+        `unknown` is how many checks are in a state the server cannot grade: a
+        status or conclusion the forge added after the server was written. It
+        is none of the others, so a check nobody can name is not hidden in a
+        count that means something. A pull request or branch whose only odd
+        check is unknown is neither failing nor passing: a branch that would
+        read `passed` reads `running` while one is present. The server always
+        sends it; a client that may talk to an older server reads a missing
+        one as zero.
 
         `skipped` is a newer field and says how many of the `passed` checks
         were skipped. It never exceeds `passed`: it is inside `passed`, not
         beside it, so `passed` still counts every check that needs nothing more
-        and the four states still add up to the checks the pipeline lists, bar
-        the blocked jobs of a failed Forgejo run described below. The
+        and the counts still add up to the checks the pipeline lists, on a pull
+        request and a default branch alike. The
         server always sends it, which is why it is required; a client that may
         talk to an older server may read a missing one as zero. A neutral or bare
         completed check is passed without being skipped. A client that draws the
@@ -5194,13 +5206,13 @@ components:
         for a pull request and a branch alike; on Forgejo a pull request counts
         the statuses of the combined commit status, which only say pending, and
         takes the running ones out of the pending count by reading the jobs of
-        the commit's runs that are still going. When a run has failed, a
-        pending status of a job in a run that has failed is no wait: its
-        needs failed, so Forgejo leaves it blocked and nothing will start it,
-        and it is in none of the four. A default branch holds to the same: it
-        counts the jobs of the workflow runs of the newest commit that has one,
+        the commit's runs that are still going. A pending status of a job in a
+        run that has failed is no wait: its needs failed, so Forgejo leaves it
+        blocked and nothing will start it, and it counts as `notStarted`, not
+        `waiting`. A default branch counts the jobs of the workflow runs of the
+        newest commit that has one,
         where a running job is `running`, a queued one `waiting`, and a blocked
-        one `waiting` unless its run has failed, when it is in none of the four. A run
+        one `waiting` unless its run has failed. A run
         whose jobs can't be read counts as one check by its own status. Forgejo
         answers one page of those statuses, and when its total says there are
         more than the page holds a pull request's counts are all zero rather
@@ -5224,20 +5236,48 @@ components:
         skipped:
           type: integer
           minimum: 0
+        unknown:
+          type: integer
+          minimum: 0
         cancelled:
           type: integer
           minimum: 0
           description: |
-            Absent unless the pull request's `ci` is `cancelled`, then how
-            many runs were cancelled. A newer field, so a client treats a
-            missing one as 0.
+            How many runs were cancelled, on a pull request and a default
+            branch alike, so the counts add up to the jobs the pipeline lists.
+            Absent when none were. A newer field, so a client treats a missing
+            one as 0.
+        held:
+          type: integer
+          minimum: 0
+          description: |
+            How many runs are held for approval, so the counts add up. A pull
+            request also says so with `awaitingWorkflowApproval`. Forgejo does
+            not tell a held job from a waiting one, so it never sets this: the
+            job is in `waiting`. Absent when none are. A newer field, so a
+            client treats a missing one as 0.
+        notStarted:
+          type: integer
+          minimum: 0
+          description: |
+            How many jobs are queued in a run that has already failed, so
+            nothing will start them. Forgejo leaves a job whose needs failed
+            blocked in the finished run and says pending for it. It is neither
+            `waiting` nor `failed`, so a failed pull request stays failed and
+            the counts still add up. Only Forgejo pull requests set it. Absent
+            when none are. A newer field, so a client treats a missing one as
+            0.
 
     CheckStatus:
       type: string
-      enum: [queued, in_progress, completed, waiting]
+      enum: [queued, in_progress, completed, waiting, unknown]
       description: |
         How far one job has got, as a fact. The page works out what to show
         from it and `conclusion`.
+
+        "unknown" is a status the forge sent that the server cannot grade, a
+        word added after the server was written. It is not queued and has not
+        failed, and the page shows it as unknown.
 
         "waiting" is a GitHub workflow run held until a maintainer approves
         it. It has no jobs yet, so it is not queued and has not failed; its
@@ -5258,7 +5298,8 @@ components:
         the job (`success`, `failure`, `cancelled`, `skipped`). A legacy
         commit status, which has no conclusion, is sent as `success` or
         `failure`. A client decides what each word means and what to do
-        with one it doesn't know.
+        with one it doesn't know: the page shows it as unknown, not as a
+        failure.
 
         `startup_failure` is a workflow run that never started. It has no
         jobs, so the check carries the workflow's name, `url` is the run's
@@ -5279,6 +5320,14 @@ components:
           $ref: "#/components/schemas/CheckStatus"
         conclusion:
           $ref: "#/components/schemas/CheckConclusion"
+        reportedStatus:
+          type: string
+          examples: [brand_new_status]
+          description: |
+            The forge's own word for the job's status, sent only when `status`
+            is "unknown", so a client can name what it cannot grade. Absent
+            for every other status. A finished job's own word is its
+            `conclusion`.
         waitingFor:
           type: string
           enum: [jobs, runner]
@@ -5882,7 +5931,7 @@ components:
 
     ForgeHealth:
       type: object
-      required: [forge, reachable, repoCount]
+      required: [forge, reachable, repoCount, capabilities]
       properties:
         forge:
           $ref: "#/components/schemas/Forge"
@@ -5906,7 +5955,9 @@ components:
             forge has not been asked yet since the app started (see
             starting), and the pull requests, issues and repos in the
             response are the last good ones, fetched at this time, instead of
-            none. Absent when the data
+            none. Cleared, with the forge reading as reachable again, once a
+            webhook refresh has made every repo of the forge current, even
+            while full refreshes keep failing. Absent when the data
             is current, and for a forge that has never fetched successfully,
             which has nothing to show. A forge that has not answered counts
             as failed, so a hung forge does not hold back the others: after
@@ -5994,6 +6045,95 @@ components:
             nothing there, when it can't be read, and for Forgejo, which has no
             such page. A client says "GitHub reports an incident" and leaves
             the cause of a failure with no incident to the forge's own error.
+        capabilities:
+          $ref: "#/components/schemas/ForgeCapabilities"
+
+    ForgeCapabilities:
+      type: object
+      description: >-
+        What one forge can do, as facts a client reads instead of testing the
+        forge's name. A forge this service learns to talk to is one more set of
+        values here, so a client that reads these needs no change for it.
+      required:
+        - autoMergeHeldByApp
+        - checksViaWebhook
+        - servesRunningLog
+        - serverLogExcerpts
+        - approvalGatedRuns
+        - dependabotCommands
+        - advisorySource
+        - advisoryUnknownNeedsReason
+        - reportsRepoPermissions
+        - statusPageUrl
+        - rateLimitModel
+        - issueRefSyntax
+        - label
+      properties:
+        autoMergeHeldByApp:
+          type: boolean
+          description: >-
+            True when this app holds an armed auto-merge and merges the pull
+            request itself once its checks pass. False when the forge holds it
+            and merges on its own.
+        checksViaWebhook:
+          type: boolean
+          description: >-
+            True when the forge reports check results by webhook, so a pending
+            run is polled only when no event arrived. False when results are
+            found by polling.
+        servesRunningLog:
+          type: boolean
+          description: True when a job's log can be read while the job runs.
+        serverLogExcerpts:
+          type: boolean
+          description: >-
+            True when a failed job's excerpt is read from the log endpoint
+            (`excerpt=true`). False when the check list already carries it.
+        approvalGatedRuns:
+          type: boolean
+          description: True when a run can be held until a person approves it.
+        dependabotCommands:
+          type: boolean
+          description: True when a `@dependabot` comment does anything on this forge.
+        advisorySource:
+          type: string
+          description: >-
+            Where the repository advisories come from. Open-ended, so a new
+            source is not a breaking change; today `dependabot` and `osv`. A
+            client keys its advisory wording (notice text, unreadable reasons)
+            by this value, not by the forge's name, and says something neutral
+            for a source it has no words for.
+        advisoryUnknownNeedsReason:
+          type: boolean
+          description: >-
+            True when an `unknown` advisory answer is worth showing only if the
+            row names a reason. Without one it usually means a repository with
+            nothing to check. False when every `unknown` answer is a failure to
+            read.
+        reportsRepoPermissions:
+          type: boolean
+          description: >-
+            True when the forge sends the signed-in user's permissions with
+            each repo it lists, so a repo that arrives without them is the
+            forge's omission and says nothing about the user's role. False
+            when the dashboard finds out by trying the endpoint instead.
+        statusPageUrl:
+          type: string
+          description: >-
+            The forge's public status page, or an empty string when it has none.
+        rateLimitModel:
+          type: string
+          description: >-
+            How the forge budgets requests. Open-ended; today
+            `graphql_and_rest` (two separate allowances) and `rest`.
+        issueRefSyntax:
+          type: string
+          description: >-
+            The forms the forge's text uses to reference an issue. Open-ended;
+            today `hash_or_gh_prefix` (a hash sign or a `GH-` prefix before the number) and `hash` (the hash sign only).
+        label:
+          type: string
+          description: The forge's name as a person reads it, such as `GitHub`.
 
     ProviderStatus:
       type: object
@@ -6150,6 +6290,7 @@ components:
           checks,
           mergeStatus,
           behind,
+          editedByOthers,
           headSha,
           kind,
           baseBranch,
@@ -6243,6 +6384,14 @@ components:
             get recomputed just because the base moved), so folding this
             into mergeStatus would force picking one and losing the
             other.
+        editedByOthers:
+          type: boolean
+          description: |
+            Whether a Dependabot pull request's head branch holds a commit
+            Dependabot didn't write, such as a bot refreshing a lockfile on it.
+            Dependabot refuses to rebase such a branch, so the pull request
+            offers Update branch instead of Dependabot's Rebase. Always false
+            for any other author. Always present.
         headSha:
           type: string
           description: |
@@ -6938,12 +7087,21 @@ components:
                 - blocked_by_protection
                 - stacked
                 - already_requested
+                - forge_unreachable
             message:
               type: string
               description: Plain words, safe to show a person.
             next:
               type: string
               description: What unlocks it, when something does.
+            since:
+              type: string
+              format: date-time
+              description: |
+                Only with `forge_unreachable`: when the rows on show were
+                read. While the forge can't be asked every action is listed
+                blocked with this code, whatever reason the earlier answer
+                gave, and `message` is the same sentence a row's pills use.
 
     PullRequestStatus:
       type: object
@@ -6969,9 +7127,14 @@ components:
             - blocked_by_protection
             - stacked
             - already_requested
+            - forge_unreachable
         message:
           type: string
           description: Plain words, safe to show a person.
+        since:
+          type: string
+          format: date-time
+          description: Set only with `forge_unreachable`, and says when the rows on show were read.
         next:
           type: string
           description: What unlocks it or what to do about it, when there is something.
@@ -7127,13 +7290,13 @@ components:
 
     NavPullRequestCount:
       type: object
-      required: [total, running, failed, passed, noChecks]
+      required: [total, running, failed, passed, cancelled, noChecks]
       description: |
-        A pull request page's numbers. `running`, `failed` and
-        `passed` count the pull requests whose CI is pending, failing and
-        succeeded, and `noChecks` those with no checks at all. One held for
-        workflow approval is in `total` only, so the numbers need not add up.
-        All five are always present.
+        A pull request page's numbers. `running`, `failed`, `passed` and
+        `cancelled` count the pull requests whose CI is pending, failing,
+        succeeded and cancelled, and `noChecks` those with no checks at all.
+        One held for workflow approval is in `total` only, so the numbers
+        need not add up. All six are always present.
       properties:
         total:
           type: integer
@@ -7156,6 +7319,12 @@ components:
           type: integer
           minimum: 0
           description: How many of them have CI that succeeded.
+        cancelled:
+          type: integer
+          minimum: 0
+          description: |
+            How many of them have CI whose only non-passing runs were
+            cancelled. Not counted as `failed`: nothing broke.
         noChecks:
           type: integer
           minimum: 0
@@ -7189,7 +7358,7 @@ components:
         under `bots`, the rest under `pullRequests`). Always present, with
         zeros when there is nothing. A client hides a page's whole nav item at
         zero total, and a state's number at zero. Every page except Issues also
-        carries `running` and `passed`. The Branches badge isn't here: a
+        carries `running`, `passed` and `cancelled`. The Branches badge isn't here: a
         client counts the rows of `mainBranchPage`.
       required: [pullRequests, issues, releases, bots]
       properties:
@@ -7369,7 +7538,8 @@ components:
 
     MainBranchStatus:
       type: string
-      enum: [failed, passed, running, cancelled, awaiting_approval, none]
+      enum:
+        [failed, passed, running, cancelled, awaiting_approval, unknown, none]
       description: |
         The result of the latest pipeline on a default branch's newest
         commit, across all its workflows. "failed" when any job failed,
@@ -7378,8 +7548,11 @@ components:
         was cancelled (a newer push or a person stopped it, so nothing broke),
         "awaiting_approval" when GitHub holds the commit's workflow runs until
         a maintainer approves them (they create no check runs, so nothing
-        runs), "passed" when all finished green, "none" when the commit has
-        no pipeline at all (or the repository has no commit yet).
+        runs), "unknown" when nothing failed and nothing is running but a job
+        is in a state the server cannot grade (it is not a pass, and nothing
+        says it is still going), "passed" when all finished green, "none" when
+        the commit has no pipeline at all (or the repository has no commit
+        yet).
 
         This is the server's answer, and the CI poll and the MCP tools read
         it. The page folds the branch's `runs` into the pill, the counts and

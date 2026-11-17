@@ -6,8 +6,10 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
+import { advisoryFactsOf, forgeIds, isKnownForge, ownOf } from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
+import { rowClaim } from './row-claim';
 
 export type MainBranchStatus =
   | 'failed'
@@ -15,6 +17,7 @@ export type MainBranchStatus =
   | 'passed'
   | 'cancelled'
   | 'awaiting_approval'
+  | 'unknown'
   | 'none';
 
 export type MainBranchCommit = {
@@ -105,6 +108,7 @@ export function countMainBranches(
     running: 0,
     cancelled: 0,
     awaitingApproval: 0,
+    unknown: 0,
     none: 0,
     total: rows.length,
   };
@@ -114,6 +118,7 @@ export function countMainBranches(
       case 'passed':
       case 'running':
       case 'cancelled':
+      case 'unknown':
         counts[status]++;
         break;
       case 'awaiting_approval':
@@ -141,15 +146,31 @@ export function branchNavCount(counts: MainBranchCounts): NavCount {
     failed: counts.failed,
     running: counts.running,
     passed: counts.passed,
+    cancelled: counts.cancelled,
     none: counts.none,
     awaitingApproval: counts.awaitingApproval,
+    unknown: counts.unknown,
   };
 }
 
 // A row carried over from an earlier refresh. The server sends the time and
 // nothing else, so there is one fact and no second field to disagree.
 export function isStale(b: Pick<MainBranch, 'staleSince'>): boolean {
-  return b.staleSince != null;
+  return mainBranchClaim(b).state === 'carried_over';
+}
+
+// What a main branch row may claim: the same rowClaim a pull request row asks,
+// given the row's own since-time, so its reason reads the same (#3993).
+export function mainBranchClaim(
+  b: Pick<MainBranch, 'staleSince'>,
+  since?: string,
+) {
+  return rowClaim({
+    kind: 'state',
+    lock: null,
+    staleSince: b.staleSince,
+    since,
+  });
 }
 
 // The rows newest default-branch commit first, whatever their status. A row
@@ -204,7 +225,7 @@ export function supersedes(
 }
 
 export type StatusPill = 'all' | MainBranchStatus;
-export type ForgeFilter = 'all' | 'github' | 'forgejo';
+export type ForgeFilter = string;
 
 // Any row, only rows with open advisories, or only rows known to have none.
 // A row whose answer is unknown, or that has none, is under neither of the
@@ -231,6 +252,7 @@ export const STATUS_LABEL: Record<MainBranchStatus, string> = {
   passed: 'Passed',
   cancelled: 'Cancelled',
   awaiting_approval: 'Waiting for approval',
+  unknown: 'Unknown',
   none: 'No pipeline',
 };
 
@@ -247,6 +269,9 @@ export const CI_SLOT: Partial<
   // The pull request row's held run: the failure pill recoloured to the warning
   // pair by .awaiting, with the pause glyph (#1280).
   awaiting_approval: { cls: 'failure awaiting', glyphs: 'awaiting_approval' },
+  // A job nobody can grade: the neutral pair and the question glyph the
+  // pipeline panel uses for it, never a pass or a failure (#4063).
+  unknown: { cls: 'unknown', glyphs: 'unknown' },
 };
 
 // The statuses whose pill says how far the pipeline got (#2074): one that ran,
@@ -255,6 +280,7 @@ export const SEGMENTED_STATUSES: ReadonlySet<MainBranchStatus> = new Set([
   'failed',
   'running',
   'passed',
+  'unknown',
 ]);
 
 // What a row's CI pill says. While the pipeline dialog holds a job list for the
@@ -421,20 +447,20 @@ export function offeredForges(
   filter: MainBranchFilter,
 ): Set<ForgeFilter> {
   const offered = new Set<ForgeFilter>(['all', filter.forge]);
-  // The API only sends github or forgejo. Another forge would be counted
-  // under All forges but get no pill of its own.
+  // A forge the server reports is registered when the page reads, so
+  // forgeIds() lists it and the page gives it a pill.
   for (const b of applyFilter(branches, { ...filter, forge: 'all' }))
     offered.add(b.forge as ForgeFilter);
   return offered;
 }
 
-// Per-forge counts for the toggle, from the rows themselves.
-export function forgeCounts(branches: MainBranch[]) {
-  return {
-    all: branches.length,
-    github: branches.filter((b) => b.forge === 'github').length,
-    forgejo: branches.filter((b) => b.forge === 'forgejo').length,
-  };
+// Per-forge counts for the toggle, from the rows themselves: one key for
+// each forge forgeIds() lists, so a forge the server added is counted too.
+export function forgeCounts(branches: MainBranch[]): Record<string, number> {
+  const counts: Record<string, number> = { all: branches.length };
+  for (const forge of forgeIds())
+    counts[forge] = branches.filter((b) => b.forge === forge).length;
+  return counts;
 }
 
 // "12 min ago", "3 h ago", "2 d ago".
@@ -463,27 +489,28 @@ export function duration(seconds: number | null): string {
 // `branches` group of plain strings in the shared cookie for the first paint
 // and in the server copy for a second browser. These two convert between that
 // group and the filter, and a stale or hand-edited value reads as its default.
-const STATUSES = [
+export const MAIN_BRANCH_STATUSES = [
   'all',
   'failed',
   'running',
   'passed',
   'cancelled',
   'awaiting_approval',
+  'unknown',
   'none',
 ];
-const FORGES = ['all', 'github', 'forgejo'];
 const ADVISORY_CHOICES = ['all', 'has', 'none'];
 
 export function filterFromState(
   saved: Record<string, string> | undefined,
 ): MainBranchFilter {
-  const status = STATUSES.includes(saved?.status ?? '')
+  const status = MAIN_BRANCH_STATUSES.includes(saved?.status ?? '')
     ? (saved?.status as StatusPill)
     : 'all';
-  const forge = FORGES.includes(saved?.forge ?? '')
-    ? (saved?.forge as ForgeFilter)
-    : 'all';
+  const forge =
+    saved?.forge === 'all' || isKnownForge(saved?.forge)
+      ? (saved?.forge as ForgeFilter)
+      : 'all';
   const advisories = ADVISORY_CHOICES.includes(saved?.advisories ?? '')
     ? (saved?.advisories as AdvisoryFilter)
     : 'all';
@@ -566,27 +593,27 @@ export function advisoryPill(a: Advisories | undefined): AdvisoryPill | null {
 // an unknown with none is usually a repo with no lock file, and `not_enabled`
 // means advisories are off for the whole forge.
 export type AdvisoryCoverage = 'full' | 'partial' | 'none';
-export type AdvisoryForge = 'github' | 'forgejo';
+export type AdvisoryForge = string;
 
-const rowForge = (b: MainBranch): AdvisoryForge =>
-  b.forge === 'forgejo' ? 'forgejo' : 'github';
-
-// Whether the row's advisories are unknown in a way the page should say.
+// Whether the row's advisories are unknown in a way the page should say. A
+// forge the page has no facts for says nothing, rather than reading like GitHub.
 export function advisoryRowUnreadable(b: MainBranch): boolean {
   if (b.advisories?.state !== 'unknown') return false;
-  if (rowForge(b) === 'github') return true;
+  const facts = advisoryFactsOf(b.forge);
+  if (!facts) return false;
+  if (!facts.unknownNeedsReason) return true;
   const r = b.advisories.reason;
   return !!r && r !== 'not_enabled';
 }
 
 export function advisoryCoverage(
   branches: readonly MainBranch[],
-  forge: AdvisoryForge = 'github',
+  forge: AdvisoryForge,
 ): AdvisoryCoverage {
   let unknown = 0;
   let known = 0;
   for (const b of branches) {
-    if (rowForge(b) !== forge || !b.advisories) continue;
+    if (b.forge !== forge || !b.advisories) continue;
     if (advisoryRowUnreadable(b)) unknown++;
     else if (b.advisories.state !== 'unknown') known++;
   }
@@ -594,16 +621,28 @@ export function advisoryCoverage(
   return known === 0 ? 'none' : 'partial';
 }
 
+// The coverage of every forge the rows name, so a page looks a row's forge up
+// instead of choosing between two by name.
+export function advisoryCoverageByForge(
+  branches: readonly MainBranch[],
+): Record<string, AdvisoryCoverage> {
+  const by: Record<string, AdvisoryCoverage> = {};
+  for (const forge of new Set(branches.map((b) => b.forge))) {
+    by[forge] = advisoryCoverage(branches, forge);
+  }
+  return by;
+}
+
 // The one cause every unreadable row of a forge shares, or null when the rows
 // disagree or the server named none. The page notice names a cause only when
 // it is sure.
 export function advisoryUnknownReason(
   branches: readonly MainBranch[],
-  forge: AdvisoryForge = 'github',
+  forge: AdvisoryForge,
 ): Exclude<AdvisoryReason, 'not_enabled'> | null {
   let shared: Exclude<AdvisoryReason, 'not_enabled'> | null = null;
   for (const b of branches) {
-    if (rowForge(b) !== forge || !advisoryRowUnreadable(b)) continue;
+    if (b.forge !== forge || !advisoryRowUnreadable(b)) continue;
     const r = b.advisories?.reason;
     if (!r || r === 'not_enabled') return null;
     if (shared && shared !== r) return null;
@@ -612,49 +651,107 @@ export function advisoryUnknownReason(
   return shared;
 }
 
-// What the notice says for a cause. Whether the owner has anything to do
-// differs by cause: a rate limit clears by itself, a refusal needs a token.
-export const ADVISORY_REASON_TEXT: Record<
-  Exclude<AdvisoryReason, 'not_enabled'>,
-  string
-> = {
-  refused:
-    'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
-  switched_off:
-    "GitHub says Dependabot alerts are switched off on the repository, or the credential can't see it.",
-  throttled:
-    'GitHub is rate limiting the dashboard. This clears by itself, and no permission needs changing.',
-  failed:
-    'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
-  too_many:
-    'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
+export type AdvisoryNoticeReason = Exclude<AdvisoryReason, 'not_enabled'>;
+
+// What the page says about one advisory source, keyed by the source the forge's
+// capabilities name (advisorySource), never by the forge's own name. A forge
+// whose source has no entry gets NEUTRAL_ADVISORY_WORDS, so it never reads like
+// GitHub.
+export type AdvisorySourceWords = {
+  // The notice's data-testid.
+  testId: string;
+  // What the notice says for a cause. Whether the owner has anything to do
+  // differs by cause: a rate limit clears by itself, a refusal needs a token.
+  reasons: Partial<Record<AdvisoryNoticeReason, string>>;
+  // Said when the rows share no cause, or the cause has no sentence above.
+  fallback: string;
+  // Says how a permission is granted, for the causes a grant fixes.
+  grantNote: string | null;
+  // The page that explains the notice, or null for none.
+  help: { href: string; text: (label: string) => string } | null;
+  // The row's pill opens the advisories dialog only when it also has a url.
+  dialogNeedsUrl: boolean;
 };
 
-// What the Forgejo notice says for a cause. Forgejo has no permission to grant:
-// advisories come from the lock files through OSV.
-export const FORGEJO_ADVISORY_REASON_TEXT: Record<
-  Extract<AdvisoryReason, 'failed' | 'too_many'>,
-  string
-> = {
-  failed:
-    'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. The dashboard tries again shortly.',
-  too_many:
-    'A lock file lists more packages, or a repository matches more advisories, than the dashboard reads in one go, so it shows no count rather than a short one.',
+const MAIN_BRANCHES_DOC =
+  'https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md';
+
+export const NEUTRAL_ADVISORY_WORDS: AdvisorySourceWords = {
+  testId: 'other-advisories-notice',
+  reasons: {},
+  fallback: 'The forge did not answer the read.',
+  grantNote: null,
+  help: null,
+  dialogNeedsUrl: true,
 };
 
-// The notice text for a shared Forgejo cause, or null when the cause is not one
-// Forgejo can report (the caller then falls back to the generic sentence).
-export function forgejoAdvisoryReasonText(
-  r: AdvisoryReason | null,
-): string | null {
-  return r === 'failed' || r === 'too_many'
-    ? FORGEJO_ADVISORY_REASON_TEXT[r]
-    : null;
+export const ADVISORY_WORDS_BY_SOURCE: Record<string, AdvisorySourceWords> = {
+  // Dependabot alerts: the permission is the usual cause.
+  dependabot: {
+    testId: 'advisories-notice',
+    reasons: {
+      refused:
+        'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
+      switched_off:
+        "GitHub says Dependabot alerts are switched off on the repository, or the credential can't see it.",
+      throttled:
+        'GitHub is rate limiting the dashboard. This clears by itself, and no permission needs changing.',
+      failed:
+        'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
+      too_many:
+        'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
+    },
+    fallback:
+      'Most likely the credential lacks the Dependabot alerts permission (read-only), or alerts are switched off on the repo. A rate limit or a GitHub error looks the same.',
+    grantNote:
+      'A permission you just accepted can take up to an hour and a quarter to show; saving Settings reads them again at once.',
+    help: {
+      href: `${MAIN_BRANCHES_DOC}#when-advisories-cant-be-read`,
+      text: () => 'How to grant it',
+    },
+    dialogNeedsUrl: true,
+  },
+  // OSV over the lock files: no permission to grant.
+  osv: {
+    testId: 'forgejo-advisories-notice',
+    reasons: {
+      failed:
+        'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. The dashboard tries again shortly.',
+      too_many:
+        'A lock file lists more packages, or a repository matches more advisories, than the dashboard reads in one go, so it shows no count rather than a short one.',
+    },
+    fallback:
+      'OSV may be unreachable, or a lock file could not be read, was over 8 megabytes or lists too many packages.',
+    grantNote: null,
+    help: {
+      href: `${MAIN_BRANCHES_DOC}#forgejo-advisories`,
+      text: (label) => `How ${label} advisories are read`,
+    },
+    dialogNeedsUrl: false,
+  },
+};
+
+// The words for a forge's advisory source, neutral for one nobody wrote.
+export function advisoryWordsFor(forge: string): AdvisorySourceWords {
+  const source = advisoryFactsOf(forge)?.source;
+  return (
+    (source && ownOf(ADVISORY_WORDS_BY_SOURCE, source)) ||
+    NEUTRAL_ADVISORY_WORDS
+  );
+}
+
+// Whether the row's pill opens the advisories dialog on this page.
+export function advisoryPillOpensDialog(
+  forge: string,
+  pill: Pick<AdvisoryPill, 'href'>,
+): boolean {
+  if (!advisoryFactsOf(forge)) return false;
+  return !advisoryWordsFor(forge).dialogNeedsUrl || !!pill.href;
 }
 
 // The hover hint on one unreadable row's cue. GitHub rows keep the plain label.
 export function advisoryRowHint(b: MainBranch): string {
-  if (rowForge(b) === 'forgejo') {
+  if (advisoryFactsOf(b.forge)?.source === 'osv') {
     const r = b.advisories?.reason;
     if (r === 'failed') return 'Advisories unknown: the read failed';
     if (r === 'too_many') return 'Advisories unknown: too much to read';

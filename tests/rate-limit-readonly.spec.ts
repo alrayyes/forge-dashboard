@@ -178,6 +178,28 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     ).toEqual([]);
   });
 
+  test('the explanation names the forge by the label the API sends', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        github({
+          capabilities: { label: 'Octo' },
+          rateLimitREST: spent(),
+          rateLimitGraphQL: spent(),
+        }),
+      ],
+      [makePR()],
+    );
+    await page.goto('/pull-requests.html');
+
+    const banner = page.locator('#rate-limit-banner');
+    await banner.getByText('Why?', { exact: true }).click();
+    await expect(banner).toContainText('Octo gives each token');
+    await expect(banner).not.toContainText('GitHub');
+  });
+
   test('for Forgejo the explanation names the proxy, not GitHub’s rules', async ({
     page,
   }) => {

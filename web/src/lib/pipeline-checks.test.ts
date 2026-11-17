@@ -8,10 +8,12 @@ import {
   checkDurationSeconds,
   checkRunKey,
   checkState,
+  checkUnknownWord,
   formatCheckDuration,
   groupChecks,
   isBlocking,
   rerunnableCounts,
+  runLinkNoun,
   runPageUrl,
 } from './pipeline-checks';
 
@@ -38,6 +40,10 @@ describe('formatCheckDuration', () => {
 });
 
 describe('CHECK_STATE_LABELS', () => {
+  test('words an unknown check as Unknown', () => {
+    expect(CHECK_STATE_LABELS.unknown).toBe('Unknown');
+  });
+
   test('names every state a check can be in', () => {
     expect(Object.keys(CHECK_STATE_LABELS).sort()).toEqual([
       'awaiting_approval',
@@ -49,6 +55,7 @@ describe('CHECK_STATE_LABELS', () => {
       'skipped',
       'success',
       'timed_out',
+      'unknown',
     ]);
   });
 });
@@ -220,22 +227,85 @@ describe('runPageUrl', () => {
     const checks = [
       check({ url: 'https://github.com/o/r/actions/runs/123/job/456' }),
     ];
-    expect(runPageUrl(checks)).toBe('https://github.com/o/r/actions/runs/123');
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://github.com/o/r/actions/runs/123',
+      kind: 'run',
+    });
   });
 
   test('trims a Forgejo job page to its run page', () => {
     const checks = [
       check({ url: 'https://f.example/o/r/actions/runs/7/jobs/2' }),
     ];
-    expect(runPageUrl(checks)).toBe('https://f.example/o/r/actions/runs/7');
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/7',
+      kind: 'run',
+    });
   });
 
-  test('takes the newest run when jobs span several', () => {
+  test('several jobs of one run are still one run', () => {
+    const checks = [
+      check({ url: 'https://f.example/o/r/actions/runs/7/jobs/2' }),
+      check({ url: 'https://f.example/o/r/actions/runs/7/jobs/3' }),
+    ];
+    expect(runPageUrl(checks)?.kind).toBe('run');
+  });
+
+  test('several runs link the newest failed run, named as such', () => {
+    const checks = [
+      check({
+        conclusion: 'failure',
+        url: 'https://f.example/o/r/actions/runs/7/jobs/2',
+      }),
+      check({ url: 'https://f.example/o/r/actions/runs/9/jobs/0' }),
+    ];
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/7',
+      kind: 'failed-run',
+    });
+  });
+
+  test('several runs with several failed ones link the newest of those', () => {
+    const checks = [
+      check({
+        conclusion: 'timed_out',
+        url: 'https://f.example/o/r/actions/runs/5/jobs/2',
+      }),
+      check({
+        conclusion: 'failure',
+        url: 'https://f.example/o/r/actions/runs/7/jobs/2',
+      }),
+      check({ url: 'https://f.example/o/r/actions/runs/9/jobs/0' }),
+    ];
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/7',
+      kind: 'failed-run',
+    });
+  });
+
+  test('an older failed run still wins over a newer passing re-run', () => {
+    const checks = [
+      check({
+        conclusion: 'failure',
+        url: 'https://f.example/o/r/actions/runs/7/jobs/2',
+      }),
+      check({ url: 'https://f.example/o/r/actions/runs/9/jobs/0' }),
+    ];
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/7',
+      kind: 'failed-run',
+    });
+  });
+
+  test('several runs with nothing failed link the newest, named latest', () => {
     const checks = [
       check({ url: 'https://f.example/o/r/actions/runs/7/jobs/2' }),
       check({ url: 'https://f.example/o/r/actions/runs/9/jobs/0' }),
     ];
-    expect(runPageUrl(checks)).toBe('https://f.example/o/r/actions/runs/9');
+    expect(runPageUrl(checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/9',
+      kind: 'latest-run',
+    });
   });
 
   test('is undefined for a third-party status or no checks', () => {
@@ -243,6 +313,14 @@ describe('runPageUrl', () => {
     expect(runPageUrl(third)).toBeUndefined();
     expect(runPageUrl([check({ url: '' })])).toBeUndefined();
     expect(runPageUrl([])).toBeUndefined();
+  });
+});
+
+describe('runLinkNoun', () => {
+  test('names what each kind opens', () => {
+    expect(runLinkNoun('run')).toBe('run');
+    expect(runLinkNoun('failed-run')).toBe('latest failed run');
+    expect(runLinkNoun('latest-run')).toBe('latest run');
   });
 });
 
@@ -263,8 +341,10 @@ describe('checkState', () => {
       { status: 'completed', conclusion: 'action_required' },
       'awaiting_approval',
     ],
-    [{ status: 'completed', conclusion: 'something_new' }, 'failure'],
-    [{ status: 'completed', conclusion: undefined }, 'failure'],
+    [{ status: 'completed', conclusion: 'something_new' }, 'unknown'],
+    [{ status: 'completed', conclusion: undefined }, 'unknown'],
+    [{ status: 'unknown', conclusion: undefined }, 'unknown'],
+    [{ status: 'something_new', conclusion: undefined }, 'unknown'],
   ];
 
   for (const [over, state] of cases) {
@@ -312,5 +392,64 @@ describe('rerunnableCounts', () => {
       check({ conclusion: 'cancelled' }),
     ]);
     expect(counts).toEqual({ rerun: 0, skipped: 0 });
+  });
+});
+
+describe('checkUnknownWord', () => {
+  test('is the forge word the server sent for an unknown status', () => {
+    expect(
+      checkUnknownWord(
+        check({
+          status: 'unknown',
+          conclusion: undefined,
+          reportedStatus: 'brand_new_status',
+        }),
+      ),
+    ).toBe('brand_new_status');
+  });
+
+  test('is the conclusion for a finished job the page cannot grade', () => {
+    expect(checkUnknownWord(check({ conclusion: 'something_new' }))).toBe(
+      'something_new',
+    );
+  });
+
+  test('is empty when the forge gave no word', () => {
+    expect(
+      checkUnknownWord(check({ status: 'unknown', conclusion: undefined })),
+    ).toBe('');
+    expect(checkUnknownWord(check({ conclusion: undefined }))).toBe('');
+  });
+
+  test('is empty for a check the page can grade', () => {
+    expect(
+      checkUnknownWord(check({ status: 'queued', reportedStatus: 'queued' })),
+    ).toBe('');
+    expect(checkUnknownWord(check({ conclusion: 'failure' }))).toBe('');
+  });
+
+  test('cuts by whole characters, never inside an emoji', () => {
+    const word = checkUnknownWord(
+      check({ status: 'unknown', reportedStatus: `${'x'.repeat(39)}😀tail` }),
+    );
+
+    expect(word).toBe(`${'x'.repeat(39)}😀`);
+    expect(word.isWellFormed()).toBe(true);
+  });
+
+  test('turns line breaks and control characters into spaces', () => {
+    expect(
+      checkUnknownWord(
+        check({ status: 'unknown', reportedStatus: 'a\nb\u202Ec\u0000d' }),
+      ),
+    ).toBe('a b c d');
+  });
+
+  test('keeps a long word to a readable length', () => {
+    expect(
+      checkUnknownWord(
+        check({ status: 'unknown', reportedStatus: 'x'.repeat(100) }),
+      ).length,
+    ).toBeLessThanOrEqual(40);
   });
 });

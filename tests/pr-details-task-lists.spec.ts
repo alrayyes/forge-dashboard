@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Task list items in the details pop-up show as read-only checkboxes.
@@ -31,7 +32,7 @@ async function openDialog(page: Page, description = DESCRIPTION) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           {
             forge: 'github',
@@ -125,12 +126,12 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(text).toContainText('Not a task: [x] mid-sentence.');
 
     // The checkbox sits next to its text and the sheet doesn't scroll sideways.
-    const overflow = await dialog.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
-    expect(overflow).toBe(0);
-    const box = await done.boundingBox();
-    expect(box?.width).toBeGreaterThanOrEqual(12);
+    await expect
+      .poll(() => dialog.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
+    await expect
+      .poll(async () => (await done.boundingBox())?.width)
+      .toBeGreaterThanOrEqual(12);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -149,23 +150,30 @@ for (const scheme of ['light', 'dark'] as const) {
     const dialog = await openDialog(page, `- [x] ${inline}\n\n${inline}`);
     const label = dialog.locator('label.task');
     await expect(label).toHaveCount(1);
-    const task = await label.boundingBox();
-    const para = await dialog
-      .locator('.details-body .markdown > p')
-      .first()
-      .boundingBox();
-    if (!task || !para) throw new Error('missing boxes');
+    const paragraph = dialog.locator('.details-body .markdown > p').first();
     // The same text as a plain paragraph is the baseline: a flex label made
     // one-word columns and was far taller. One extra line covers the indent.
-    expect(task.height).toBeLessThanOrEqual(para.height + 22);
+    await expect
+      .poll(async () => {
+        const task = await label.boundingBox();
+        const para = await paragraph.boundingBox();
+        if (!task || !para) return Infinity;
+        return task.height - para.height;
+      })
+      .toBeLessThanOrEqual(22);
     // The text stays whole: no flex-item gaps inside the words.
     await expect(label).toContainText('foocodebar and embaz plus a linktail');
     // The box sits on the first line.
-    const box = await label.locator('input').boundingBox();
-    expect(box && box.y - task.y).toBeLessThan(12);
-    expect(await dialog.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(
-      0,
-    );
+    await expect
+      .poll(async () => {
+        const task = await label.boundingBox();
+        const box = await label.locator('input').boundingBox();
+        return task && box ? box.y - task.y : Infinity;
+      })
+      .toBeLessThan(12);
+    await expect
+      .poll(() => dialog.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
   });
 }
 

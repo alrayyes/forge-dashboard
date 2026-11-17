@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import {
+    FORGE_CLASSES,
+    FORGE_LABELS,
+    forgeIds,
+    registerForgeCapabilities,
+  } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { runSignature } from "#lib/pipeline-live.js";
   import type { Check } from "#lib/pipeline-checks.js";
@@ -16,9 +21,11 @@
     firstRefreshLoading,
     firstRefreshPending,
   } from "#lib/first-refresh.js";
+  import { wireClearBox } from "#lib/clear-box.js";
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { setBranchNavCount } from "#lib/nav-counts.svelte.js";
   import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
+  import AdvisoriesNotice from "#lib/AdvisoriesNotice.svelte";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -45,6 +52,7 @@
     ago,
     applyFilter,
     isStale,
+    mainBranchClaim,
     sortMainBranches,
     DEFAULT_FILTER,
     duration,
@@ -56,16 +64,14 @@
     filterToState,
     httpHref,
     advisoryPill,
-    advisoryCoverage,
+    advisoryCoverageByForge,
+    advisoryPillOpensDialog,
     advisoryCounts,
     offeredAdvisories,
     type AdvisoryFilter,
     advisoryUnknownReason,
-    advisoryReasonNeedsGrant,
     advisoryRowUnreadable,
-    forgejoAdvisoryReasonText,
     advisoryRowHint,
-    ADVISORY_REASON_TEXT,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -169,11 +175,16 @@
   const forgeOffered = $derived(offeredForges(branches, filter));
   const advisoryOffered = $derived(offeredAdvisories(branches, filter));
   const advisoryTally = $derived(advisoryCounts(branches));
-  const advisoryState = $derived(advisoryCoverage(branches));
-  const advisoryReason = $derived(advisoryUnknownReason(branches));
-  const forgejoAdvisoryState = $derived(advisoryCoverage(branches, "forgejo"));
-  const forgejoAdvisoryReason = $derived(
-    advisoryUnknownReason(branches, "forgejo"),
+  // The forges whose advisories can't be read at all, each with the one cause
+  // its rows share, so the notices come from the rows, not from a forge's name.
+  const advisoryStateByForge = $derived(advisoryCoverageByForge(branches));
+  const advisoryNotices = $derived(
+    Object.entries(advisoryStateByForge)
+      .filter(([, state]) => state === "none")
+      .map(([forge]) => ({
+        forge,
+        reason: advisoryUnknownReason(branches, forge),
+      })),
   );
   const staleSplit = $derived(
     splitStaleRows(branches.filter(isStale), data?.forges),
@@ -206,6 +217,7 @@
     { key: "running", label: "Running" },
     { key: "cancelled", label: "Cancelled" },
     { key: "awaiting_approval", label: "Waiting for approval" },
+    { key: "unknown", label: "Unknown" },
     { key: "none", label: "No pipeline" },
   ];
 
@@ -352,6 +364,7 @@
   let refreshError = $state<string | null>(null);
   let held: MainBranches | null = null;
   function apply(next: MainBranches, asked = false) {
+    registerForgeCapabilities(next.forges);
     if (paused && !asked) {
       held = next;
       return;
@@ -457,6 +470,12 @@
     filter.advisories = advisories;
     save(["advisories"]);
   }
+  let searchBox: HTMLInputElement | undefined = $state();
+  let searchClear: HTMLButtonElement | undefined = $state();
+  // Clear button and Escape empty the search alone (#4144).
+  $effect(() =>
+    searchBox && searchClear ? wireClearBox(searchBox, searchClear) : undefined,
+  );
   function setQuery(event: Event) {
     filter.query = (event.currentTarget as HTMLInputElement).value;
     save(["query"], true);
@@ -553,34 +572,6 @@
       color: var(--ink-2);
       margin: 0 0 16px;
     }
-    .mb-banner,
-    .mb-note {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      padding: 12px 14px;
-      margin: 0 0 16px;
-      border: 1px solid var(--border);
-      border-left-width: 4px;
-      border-radius: var(--radius);
-      background: var(--surface);
-      font-size: 0.84375rem;
-    }
-    .mb-banner {
-      border-left-color: var(--warning);
-      background: var(--warning-bg);
-    }
-    /* An author display: flex beats the UA's [hidden] { display: none }. */
-    .mb-banner[hidden] {
-      display: none;
-    }
-    .mb-note.good {
-      border-left-color: var(--good);
-    }
-    .mb-note p,
-    .mb-banner p {
-      margin: 0;
-    }
     .mb-bar {
       display: flex;
       flex-wrap: wrap;
@@ -659,6 +650,18 @@
       background: var(--surface-sunken);
       border: 1px solid var(--control-border);
       border-radius: var(--radius);
+    }
+    /* The clear button (#4144) sits inside the box, so the wrap takes the
+       box's place in the bar and the box fills it. */
+    .mb-search-wrap {
+      position: relative;
+      display: flex;
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+    .mb-search-wrap .mb-search {
+      flex: 1 1 auto;
+      padding-right: 32px;
     }
     .mb-search::placeholder {
       color: var(--ink-3);
@@ -950,10 +953,20 @@
         flex-direction: column;
         align-items: stretch;
       }
-      .mb-search {
+      .mb-search-wrap {
+        flex: none;
+        width: 100%;
+      }
+      .mb-search-wrap .mb-search {
         flex: none;
         box-sizing: border-box;
         width: 100%;
+        padding-right: 44px;
+      }
+      .mb-search-wrap .search-clear {
+        width: 44px;
+        height: 44px;
+        right: 0;
       }
       /* The capsule is about 200px wide. Beside the name it leaves the name
          102px and breaks it inside a word, so on a phone it sits above. */
@@ -1054,59 +1067,9 @@
       </div>
     {/if}
 
-    {#if advisoryState === "none"}
-      <div class="mb-banner" role="status" data-testid="advisories-notice">
-        <p>
-          Advisories can't be read for your GitHub repositories, so none are
-          shown.
-          {#if advisoryReason}
-            {ADVISORY_REASON_TEXT[advisoryReason]}
-          {:else}
-            Most likely the credential lacks the Dependabot alerts permission
-            (read-only), or alerts are switched off on the repo. A rate limit or
-            a GitHub error looks the same.
-          {/if}
-          {#if !advisoryReason || advisoryReasonNeedsGrant(advisoryReason)}
-            A permission you just accepted can take up to an hour and a quarter
-            to show; saving Settings reads them again at once. <a
-              href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
-              target="_blank"
-              rel="noopener noreferrer"
-              >How to grant it<span class="sr-only">
-                (opens in a new tab)</span
-              ></a
-            >.
-          {/if}
-        </p>
-      </div>
-    {/if}
-
-    {#if forgejoAdvisoryState === "none"}
-      <div
-        class="mb-banner"
-        role="status"
-        data-testid="forgejo-advisories-notice"
-      >
-        <p>
-          Advisories can't be read for your Forgejo repositories, so none are
-          shown.
-          {#if forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
-            {forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
-          {:else}
-            OSV may be unreachable, or a lock file could not be read, was over 8
-            megabytes or lists too many packages.
-          {/if}
-          <a
-            href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#forgejo-advisories"
-            target="_blank"
-            rel="noopener noreferrer"
-            >How Forgejo advisories are read<span class="sr-only">
-              (opens in a new tab)</span
-            ></a
-          >.
-        </p>
-      </div>
-    {/if}
+    {#each advisoryNotices as notice (notice.forge)}
+      <AdvisoriesNotice forge={notice.forge} reason={notice.reason} />
+    {/each}
 
     {#if branchesAwaitingFlag(firstRefresh.settled, counts.total)}
       <p class="mb-loading" data-testid="branches-awaiting-flag">
@@ -1143,7 +1106,7 @@
             aria-pressed={filter.forge === "all"}
             onclick={() => setForge("all")}>All forges</button
           >
-          {#each (["github", "forgejo"] as const).filter( (f) => forgeOffered.has(f) ) as forge (forge)}
+          {#each forgeIds().filter((f) => forgeOffered.has(f)) as forge (forge)}
             <button
               type="button"
               class="mb-pill"
@@ -1184,14 +1147,35 @@
             {/if}
           </div>
         {/if}
-        <input
-          type="search"
-          class="mb-search"
-          aria-label="Search repositories, commits, authors and failing jobs"
-          placeholder="Search repos, authors, jobs"
-          value={filter.query}
-          oninput={setQuery}
-        />
+        <span class="search-wrap mb-search-wrap">
+          <input
+            type="search"
+            id="mb-search"
+            class="mb-search"
+            aria-label="Search repositories, commits, authors and failing jobs"
+            placeholder="Search repos, authors, jobs"
+            value={filter.query}
+            oninput={setQuery}
+            bind:this={searchBox}
+          />
+          <button
+            type="button"
+            class="search-clear"
+            aria-label="Clear search"
+            aria-controls="mb-search"
+            bind:this={searchClear}
+          >
+            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+              <path
+                d="M4 4l8 8M12 4l-8 8"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.75"
+                stroke-linecap="round"
+              />
+            </svg>
+          </button>
+        </span>
       </div>
 
       {#if visible.length === 0}
@@ -1255,7 +1239,12 @@
                     ><span class="dot"></span>{FORGE_LABELS[b.forge] ??
                       b.forge}</span
                   >
-                  {#if isStale(b)}<span class="mb-chip mb-stale">stale</span
+                  {#if isStale(b)}<span
+                      class="mb-chip mb-stale"
+                      title={mainBranchClaim(
+                        b,
+                        b.staleSince ? formatTime(b.staleSince) : undefined,
+                      ).reason}>stale</span
                     >{/if}
                   {#if b.latestRelease && httpHref(b.latestRelease.url)}
                     {@const release = b.latestRelease}
@@ -1283,7 +1272,7 @@
                       ><span class="mb-release-tag">{release.tag}</span></button
                     >
                   {/if}
-                  {#if (b.forge === "forgejo" ? forgejoAdvisoryState : advisoryState) === "partial" && advisoryRowUnreadable(b)}
+                  {#if advisoryStateByForge[b.forge] === "partial" && advisoryRowUnreadable(b)}
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"
@@ -1296,7 +1285,7 @@
                   {#if adv}
                     <!-- Severity is the word beside the count; the colour
                       only echoes it. -->
-                    {#if (adv.href && b.forge === "github") || b.forge === "forgejo"}
+                    {#if advisoryPillOpensDialog(b.forge, adv)}
                       <!-- A pill opens the list of the row's advisories here;
                         a GitHub dialog links on to GitHub, a Forgejo one to
                         OSV's page for each advisory. -->

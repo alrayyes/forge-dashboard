@@ -9,6 +9,8 @@
 // pure; buildWaitChip() draws one. feedback-ui.ts decides when a chip shows
 // for an action, Dashboard.svelte for an armed auto-merge.
 
+import { FORGE_LABELS, forgeFlag } from './forges';
+
 // How long a wait runs with no change before the chip says so.
 export const STILL_WAITING_MS = 120_000;
 
@@ -239,7 +241,7 @@ export function queuedChip(input: {
 export type AutoMergeInput = {
   state: 'waiting' | 'stopped';
   code?: string;
-  // The server's own sentence, kept as the tooltip.
+  // The server's own sentence, kept as the tooltip with the forge's label in.
   message: string;
   draft: boolean;
   // Who merges an armed pull request that has nothing left to wait for.
@@ -248,6 +250,14 @@ export type AutoMergeInput = {
   // never guessed from other fields (#1596).
   heldBy?: 'dashboard' | 'forge';
 };
+
+// The server's auto-merge sentence with the forge named from its label. The
+// server says "the forge" and sends no forge name (#4072); the page owns the
+// word, as it does for the chip's own detail line.
+export function autoMergeWording(message: string, forge: string): string {
+  const label = FORGE_LABELS[forge] ?? forge;
+  return message.replace(/\bthe forge\b/i, () => label);
+}
 
 // An armed Forgejo auto-merge that is waiting. A stopped one needs a person,
 // so it is no wait and gets no chip.
@@ -258,7 +268,7 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
     icon: 'hourglass' as const,
     label,
     detail,
-    tooltip: input.message,
+    tooltip: autoMergeWording(input.message, input.forge),
     showAgo: false,
     countdown: false,
     action: 'disarm' as const,
@@ -275,13 +285,20 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
     case '':
     case undefined:
       // Forgejo's intent is held here and acted on at the next refresh;
-      // GitHub's own auto-merge merges as soon as it can (#1505).
-      if (input.forge === 'github')
-        return words('Merging', 'GitHub merges it as soon as it can');
+      // A forge that holds its own auto-merge merges as soon as it can (#1505).
+      // One that never described itself keeps the safe wording below.
+      if (forgeFlag(input.forge, 'autoMergeHeldByApp') === false)
+        return words(
+          'Merging',
+          `${FORGE_LABELS[input.forge] ?? input.forge} merges it as soon as it can`,
+        );
       // Only a merge the server says Forgejo holds is merged by Forgejo;
       // unknown keeps the safe, historic wording (#1596).
       return input.heldBy === 'forge'
-        ? words('Merging', 'Forgejo merges it when checks pass')
+        ? words(
+            'Merging',
+            `${FORGE_LABELS[input.forge] ?? input.forge} merges it when checks pass`,
+          )
         : words('Merging next', 'On the next refresh');
     default:
       return input.draft

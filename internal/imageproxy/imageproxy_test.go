@@ -353,6 +353,8 @@ func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 		"this network":            "0.0.0.1",
 		"discard prefix":          "[100::1]",
 		"6to4 relay anycast":      "192.88.99.1",
+		"site-local":              "[fec0::1]",
+		"site-local, far end":     "[feff:ffff::1]",
 		"Teredo":                  "[2001:0:4136:e378:8000:63bf:3fff:fdd2]",
 		"IPv6 benchmarking":       "[2001:2::1]",
 		"deprecated ORCHID":       "[2001:10::1]",
@@ -387,16 +389,38 @@ func TestFetch_RefusesSpecialPurposeAddresses(t *testing.T) {
 func TestRefuseNonPublic_UnmapsAnIPv4MappedAddress(t *testing.T) {
 	t.Parallel()
 	for name, address := range map[string]string{
-		"mapped loopback":     "[::ffff:127.0.0.1]:80",
-		"mapped TEST-NET-1":   "[::ffff:192.0.2.1]:80",
-		"mapped shared space": "[::ffff:100.64.0.1]:80",
-		"mapped this network": "[::ffff:0.0.0.1]:80",
-		"mapped 6to4 relay":   "[::ffff:192.88.99.1]:80",
+		"mapped loopback":      "[::ffff:127.0.0.1]:80",
+		"mapped TEST-NET-1":    "[::ffff:192.0.2.1]:80",
+		"mapped shared space":  "[::ffff:100.64.0.1]:80",
+		"mapped this network":  "[::ffff:0.0.0.1]:80",
+		"mapped 6to4 relay":    "[::ffff:192.88.99.1]:80",
+		"mapped 0.0.0.0/8 top": "[::ffff:0.255.255.255]:80",
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			require.Error(t, imageproxy.RefuseNonPublic(address))
+		})
+	}
+}
+
+// Public addresses next to a blocked range stay allowed.
+func TestRefuseNonPublic_AllowsPublicAddressesBesideBlockedRanges(t *testing.T) {
+	t.Parallel()
+	for name, address := range map[string]string{
+		"1.1.1.1":               "1.1.1.1:80",
+		"8.8.8.8":               "8.8.8.8:80",
+		"just past 0.0.0.0/8":   "1.0.0.1:80",
+		"just below 6to4 relay": "192.88.98.1:80",
+		"just past 6to4 relay":  "192.88.100.1:80",
+		"just past discard":     "[100:0:0:2::1]:80",
+		"below site-local":      "[2fff::1]:80",
+		"public IPv6":           "[2606:4700:4700::1111]:80",
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			require.NoError(t, imageproxy.RefuseNonPublic(address))
 		})
 	}
 }

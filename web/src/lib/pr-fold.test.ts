@@ -1,8 +1,12 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { type CheckCounts, checkSegments } from './check-counts';
 import { factsOf } from './check-facts-fixture';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
 import { foldPullRequest, type PullRequestFold } from './pr-fold';
+
+afterEach(resetForgeCapabilities);
 
 function jobs(...states: string[]): Check[] {
   return states.map((state, i) => ({
@@ -113,12 +117,12 @@ describe('foldPullRequest other jobs', () => {
     );
   });
 
-  test('a status the page does not know waits', () => {
+  test('a status the page does not know is unknown, and not a pass', () => {
     const odd: Check = { name: 'odd', url: '', status: 'pending' };
     const fold = foldPullRequest('forgejo', [odd]);
 
     expect(fold?.ci).toBe('pending');
-    expect(fold?.counts.waiting).toBe(1);
+    expect(fold?.counts.unknown).toBe(1);
   });
 });
 
@@ -138,7 +142,10 @@ describe('foldPullRequest on a cancelled run', () => {
           running: 0,
           waiting: 0,
           failed: 0,
+          unknown: 0,
           cancelled: 1,
+          held: 0,
+          notStarted: 0,
         },
       });
     }
@@ -164,7 +171,89 @@ describe('foldPullRequest counts', () => {
         'github',
         jobs('success', 'skipped', 'running', 'queued', 'failure'),
       )?.counts,
-    ).toEqual({ passed: 2, skipped: 1, running: 1, waiting: 1, failed: 1 });
+    ).toEqual({
+      passed: 2,
+      skipped: 1,
+      running: 1,
+      waiting: 1,
+      failed: 1,
+      unknown: 0,
+      cancelled: 0,
+      held: 0,
+      notStarted: 0,
+    });
+  });
+});
+
+// Every job is in exactly one count, so the segments a pill draws add up to the
+// jobs its dialog lists, in every mix and on every forge (#4064).
+describe('foldPullRequest counts add up to the jobs listed (#4064)', () => {
+  const sum = (counts: CheckCounts): number => {
+    const segments = checkSegments(counts);
+    expect(segments.every((s) => s.n > 0)).toBe(true);
+
+    return segments.reduce((total, s) => total + s.n, 0);
+  };
+
+  const cases: [string, string[]][] = [
+    ['passed beside a cancelled job', ['success', 'success', 'cancelled']],
+    ['a cancelled job beside a running one', ['cancelled', 'running']],
+    ['a cancelled job beside a failure', ['cancelled', 'failure', 'success']],
+    ['a held job beside a success', ['awaiting_approval', 'success']],
+    ['a held job beside a failure', ['awaiting_approval', 'failure']],
+    ['a held job beside a cancelled one', ['awaiting_approval', 'cancelled']],
+    ['a held job beside a queued one', ['awaiting_approval', 'queued']],
+    [
+      'skipped beside cancelled and held',
+      ['skipped', 'cancelled', 'awaiting_approval'],
+    ],
+  ];
+
+  for (const [name, states] of cases) {
+    test(name, () => {
+      for (const forge of ['github', 'forgejo']) {
+        const fold = foldPullRequest(forge, jobs(...states));
+        expect(sum((fold as PullRequestFold).counts)).toBe(states.length);
+      }
+    });
+  }
+
+  test('a cancelled and a held job have their own counts', () => {
+    const fold = foldPullRequest(
+      'github',
+      jobs('success', 'cancelled', 'awaiting_approval'),
+    );
+
+    expect(fold?.counts.cancelled).toBe(1);
+    expect(fold?.counts.held).toBe(1);
+    expect(fold?.awaiting).toBe(true);
+  });
+
+  // Every sequence of up to five jobs drawn from every state a job can be in.
+  test('always, for every mix of states', () => {
+    const states = [
+      'success',
+      'skipped',
+      'running',
+      'queued',
+      'failure',
+      'timed_out',
+      'cancelled',
+      'awaiting_approval',
+    ];
+    const mixes: string[][] = [[]];
+    for (let size = 0; size < 5; size++) {
+      for (const mix of mixes.filter((m) => m.length === size)) {
+        for (const state of states) mixes.push([...mix, state]);
+      }
+    }
+
+    for (const mix of mixes.filter((m) => m.length > 0)) {
+      for (const forge of ['github', 'forgejo']) {
+        const fold = foldPullRequest(forge, jobs(...mix));
+        expect(sum((fold as PullRequestFold).counts)).toBe(mix.length);
+      }
+    }
   });
 });
 
@@ -172,6 +261,17 @@ describe('foldPullRequest counts', () => {
 // pending for it. The run's own facts say the run is over, so nothing will
 // start that job: it is no wait, and the pill is a plain failure.
 describe('foldPullRequest, blocked jobs of a failed run', () => {
+  const sum = (c?: Record<string, number>) =>
+    c
+      ? c.passed +
+        c.running +
+        c.waiting +
+        c.failed +
+        c.unknown +
+        c.cancelled +
+        c.held +
+        c.notStarted
+      : 0;
   const failedRun = {
     runId: 455,
     runAttempt: 1,
@@ -194,6 +294,19 @@ describe('foldPullRequest, blocked jobs of a failed run', () => {
     expect(fold?.ci).toBe('failure');
     expect(fold?.counts.waiting).toBe(0);
     expect(fold?.counts.failed).toBe(1);
+  });
+
+  test('they are counted as not started, so the counts add up (#4064)', () => {
+    const checks = [
+      inRun(jobs('failure')[0]),
+      inRun({ ...jobs('queued')[0], name: 'blocked' }),
+      inRun({ ...jobs('queued')[0], name: 'blocked too' }),
+    ];
+    const fold = foldPullRequest('forgejo', checks, [failedRun]);
+
+    expect(fold?.ci).toBe('failure');
+    expect(fold?.counts.notStarted).toBe(2);
+    expect(sum(fold?.counts)).toBe(checks.length);
   });
 
   test('a queued job of a run still going keeps waiting', () => {
@@ -256,5 +369,25 @@ describe('foldPullRequest cancelled count (#3395)', () => {
     expect(fold?.ci).toBe('cancelled');
     expect(fold?.counts.passed).toBe(2);
     expect(fold?.counts.cancelled).toBe(3);
+  });
+});
+
+describe('foldPullRequest by capability (#3974)', () => {
+  test('a forge that sets approvalGatedRuns reads a held run as GitHub does', () => {
+    registerForgeCapabilities([
+      { forge: 'gated', capabilities: { approvalGatedRuns: true } },
+    ]);
+
+    const fold = foldPullRequest('gated', jobs('awaiting_approval'));
+
+    expect(fold?.ci).toBe('failure');
+    expect(fold?.awaiting).toBe(true);
+  });
+
+  test('a forge the page has not heard of reads a held run as pending', () => {
+    const fold = foldPullRequest('nobody', jobs('awaiting_approval'));
+
+    expect(fold?.ci).toBe('pending');
+    expect(fold?.awaiting).toBe(false);
   });
 });

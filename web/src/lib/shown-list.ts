@@ -72,3 +72,16 @@ export function choicesChange(
   if (x.rest !== y.rest) return 'all';
   return x.titles !== y.titles ? 'titles' : 'none';
 }
+
+// A waiting list lands. The choices follow the list on screen, so they are
+// offered again unless the caller does that itself after this (#1427).
+export function landShown<T extends FilterableItem>(
+  shown: { items: T[]; land(next: T[]): void },
+  next: T[],
+  offer: boolean,
+  offerChange: (change: 'none' | 'titles' | 'all') => void,
+): void {
+  const before = shown.items;
+  shown.land(next);
+  if (offer) offerChange(choicesChange(before, shown.items));
+}

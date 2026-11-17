@@ -109,54 +109,72 @@ for (const scheme of ['light', 'dark'] as const) {
       await expect(rerun).toBeVisible();
       await expect(page.locator('section.board > .update-all')).toHaveCount(0);
 
-      const m = await page.evaluate(() => {
-        const r = (s: string) =>
-          document.querySelector(s)!.getBoundingClientRect();
-        const css = (s: string) => getComputedStyle(document.querySelector(s)!);
-        const surface = getComputedStyle(document.body)
-          .getPropertyValue('--surface')
-          .trim();
-        return {
-          controls: r('.board-head-controls'),
-          head: r('.board-head'),
-          live: r('.live-control'),
-          update: r('#update-all-button'),
-          rerun: r('#rerun-all-button'),
-          count: r('#pr-count'),
-          color: css('#update-all-button').color,
-          bg: css('#update-all-button').backgroundColor,
-          border: css('#update-all-button').borderTopColor,
-          surfaceVar: surface,
-          scrollW: document.documentElement.scrollWidth,
-          innerW: window.innerWidth,
-        };
-      });
-      // Inside the header, after the live control.
-      expect(m.update.top).toBeGreaterThanOrEqual(m.head.top);
-      expect(m.update.bottom).toBeLessThanOrEqual(m.head.bottom + 8);
-      expect(m.scrollW).toBeLessThanOrEqual(m.innerW);
-      // Contrast: text 4.5:1, border 3:1 against the button's own fill.
-      expect(ratio(m.color, m.bg)).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(m.border, m.bg)).toBeGreaterThanOrEqual(3);
-      if (width <= 760) {
-        // Stacked: one per line, full width, at least 44px.
-        expect(m.update.height).toBeGreaterThanOrEqual(44);
-        expect(m.rerun.height).toBeGreaterThanOrEqual(44);
-        expect(m.rerun.top).toBeGreaterThanOrEqual(m.update.bottom);
-        expect(m.update.width).toBeGreaterThan(width - 80);
-        // The live control is 261px wide, so the count follows it on the same
-        // line when there is room and on the next when there isn't; either
-        // way both come before the buttons.
-        expect(m.count.top).toBeGreaterThanOrEqual(m.live.top);
-        expect(m.update.top).toBeGreaterThan(m.count.bottom - 1);
-        expect(m.update.top).toBeGreaterThan(m.live.bottom - 1);
-      } else {
-        // Desktop: live control, then the buttons, then the count, one line.
-        expect(m.update.left).toBeGreaterThan(m.live.right - 1);
-        expect(m.rerun.left).toBeGreaterThan(m.update.right - 1);
-        expect(m.count.left).toBeGreaterThan(m.rerun.right - 1);
-        expect(m.update.height).toBeGreaterThanOrEqual(28);
-      }
+      const read = () =>
+        page.evaluate(() => {
+          const r = (s: string) =>
+            document.querySelector(s)!.getBoundingClientRect();
+          const css = (s: string) =>
+            getComputedStyle(document.querySelector(s)!);
+          const surface = getComputedStyle(document.body)
+            .getPropertyValue('--surface')
+            .trim();
+          return {
+            controls: r('.board-head-controls'),
+            head: r('.board-head'),
+            live: r('.live-control'),
+            update: r('#update-all-button'),
+            rerun: r('#rerun-all-button'),
+            count: r('#pr-count'),
+            color: css('#update-all-button').color,
+            bg: css('#update-all-button').backgroundColor,
+            border: css('#update-all-button').borderTopColor,
+            surfaceVar: surface,
+            scrollW: document.documentElement.scrollWidth,
+            innerW: window.innerWidth,
+          };
+        });
+      // Re-read until every check holds, so a header still laying out after
+      // the render doesn't fail the spec on one read.
+      await expect
+        .poll(async () => {
+          const m = await read();
+          const checks: [string, boolean][] = [
+            // Inside the header, after the live control.
+            ['update above the header', m.update.top >= m.head.top],
+            ['update below the header', m.update.bottom <= m.head.bottom + 8],
+            ['page scrolls sideways', m.scrollW <= m.innerW],
+            // Contrast: text 4.5:1, border 3:1 against the button's own fill.
+            ['text contrast under 4.5', ratio(m.color, m.bg) >= 4.5],
+            ['border contrast under 3', ratio(m.border, m.bg) >= 3],
+          ];
+          if (width <= 760) {
+            // Stacked: one per line, full width, at least 44px.
+            checks.push(
+              ['update under 44px', m.update.height >= 44],
+              ['rerun under 44px', m.rerun.height >= 44],
+              ['rerun not below update', m.rerun.top >= m.update.bottom],
+              ['update not full width', m.update.width > width - 80],
+              // The live control is 261px wide, so the count follows it on
+              // the same line when there is room and on the next when there
+              // isn't; either way both come before the buttons.
+              ['count above the live control', m.count.top >= m.live.top],
+              ['update not below the count', m.update.top > m.count.bottom - 1],
+              ['update not below live', m.update.top > m.live.bottom - 1],
+            );
+          } else {
+            // Desktop: live control, then the buttons, then the count.
+            checks.push(
+              ['update not after live', m.update.left > m.live.right - 1],
+              ['rerun not after update', m.rerun.left > m.update.right - 1],
+              ['count not after rerun', m.count.left > m.rerun.right - 1],
+              ['update under 28px', m.update.height >= 28],
+            );
+          }
+          return checks
+            .filter(([, ok]) => !ok)
+            .map(([what]) => `${what} (${JSON.stringify(m)})`);
+        })
+        .toEqual([]);
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
         .analyze();
@@ -172,7 +190,9 @@ for (const scheme of ['light', 'dark'] as const) {
     await open(page, '/bots.html', bots);
     const rebase = page.getByRole('button', { name: /^Rebase all/ });
     await expect(rebase).toBeVisible();
-    expect((await rebase.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => (await rebase.boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
     await expect(page.locator('section.board > .rebase-all')).toHaveCount(0);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -214,25 +234,35 @@ for (const width of [390, 1280]) {
     await open(page, '/pull-requests.html', [pr(1), pr(2)], undefined, 2);
     await expect(page.locator('#hidden-prs-toggle')).toBeVisible();
     await expect(page.locator('#update-all-button')).toBeVisible();
-    const order = await page.evaluate(() => {
-      const items = [
-        ...document.querySelectorAll<HTMLElement>(
-          '.board-head-controls button, .board-head-controls a',
-        ),
-      ].filter((el) => el.getClientRects().length > 0);
-      const dom = items.map((el) => el.id || el.textContent?.trim() || '?');
-      const visual = [...items]
-        .sort((a, b) => {
-          const ra = a.getBoundingClientRect();
-          const rb = b.getBoundingClientRect();
-          // Same line within a few pixels counts as one row.
-          return Math.abs(ra.top - rb.top) > 8
-            ? ra.top - rb.top
-            : ra.left - rb.left;
-        })
-        .map((el) => el.id || el.textContent?.trim() || '?');
-      return { dom, visual };
-    });
+    const readOrder = () =>
+      page.evaluate(() => {
+        const items = [
+          ...document.querySelectorAll<HTMLElement>(
+            '.board-head-controls button, .board-head-controls a',
+          ),
+        ].filter((el) => el.getClientRects().length > 0);
+        const dom = items.map((el) => el.id || el.textContent?.trim() || '?');
+        const visual = [...items]
+          .sort((a, b) => {
+            const ra = a.getBoundingClientRect();
+            const rb = b.getBoundingClientRect();
+            // Same line within a few pixels counts as one row.
+            return Math.abs(ra.top - rb.top) > 8
+              ? ra.top - rb.top
+              : ra.left - rb.left;
+          })
+          .map((el) => el.id || el.textContent?.trim() || '?');
+        return { dom, visual };
+      });
+    // Re-read until the DOM and visual orders agree, so a header still
+    // laying out doesn't fail it on one read.
+    await expect
+      .poll(async () => {
+        const o = await readOrder();
+        return o.dom.join('|') === o.visual.join('|') ? 'same' : o;
+      })
+      .toBe('same');
+    const order = await readOrder();
     expect(order.dom).toContain('update-all-button');
     expect(order.dom).toContain('hidden-prs-toggle');
     expect(order.dom).toEqual(order.visual);
@@ -296,40 +326,53 @@ for (const scheme of ['light', 'dark'] as const) {
     const button = page.locator('#rebase-all-button');
     await expect(button).toBeVisible();
     await expect(button).toHaveAttribute('aria-disabled', 'true');
-    const m = await button.evaluate((el) => {
-      const c = getComputedStyle(el);
-      return {
-        color: c.color,
-        bg: c.backgroundColor,
-        border: c.borderTopColor,
-        style: c.borderTopStyle,
-        accent: getComputedStyle(document.documentElement)
-          .getPropertyValue('--accent')
-          .trim(),
-        // The tokens, resolved, so the test names the colours and not only
-        // a ratio any grey could pass.
-        ink2: resolve('--ink-2'),
-        ink3: resolve('--ink-3'),
-      };
-      function resolve(token: string) {
-        const probe = document.createElement('i');
-        probe.style.color = `var(${token})`;
-        document.body.append(probe);
-        const value = getComputedStyle(probe).color;
-        probe.remove();
-        return value;
-      }
-    });
-    expect(m.style).toBe('dashed');
-    expect(m.color).toBe(m.ink2);
-    expect(m.border).toBe(m.ink3);
-    expect(ratio(m.color, m.bg)).toBeGreaterThanOrEqual(4.5);
-    expect(ratio(m.border, m.bg)).toBeGreaterThanOrEqual(3);
+    const read = () =>
+      button.evaluate((el) => {
+        const c = getComputedStyle(el);
+        return {
+          color: c.color,
+          bg: c.backgroundColor,
+          border: c.borderTopColor,
+          style: c.borderTopStyle,
+          accent: getComputedStyle(document.documentElement)
+            .getPropertyValue('--accent')
+            .trim(),
+          // The tokens, resolved, so the test names the colours and not only
+          // a ratio any grey could pass.
+          ink2: resolve('--ink-2'),
+          ink3: resolve('--ink-3'),
+        };
+        function resolve(token: string) {
+          const probe = document.createElement('i');
+          probe.style.color = `var(${token})`;
+          document.body.append(probe);
+          const value = getComputedStyle(probe).color;
+          probe.remove();
+          return value;
+        }
+      });
+    // Re-read until the dashed, tokened button settles, so a late theme
+    // paint doesn't fail it on one read.
+    await expect
+      .poll(async () => {
+        const m = await read();
+        const checks: [string, boolean][] = [
+          ['border not dashed', m.style === 'dashed'],
+          ['text is not ink-2', m.color === m.ink2],
+          ['border is not ink-3', m.border === m.ink3],
+          ['text contrast under 4.5', ratio(m.color, m.bg) >= 4.5],
+          ['border contrast under 3', ratio(m.border, m.bg) >= 3],
+        ];
+        return checks
+          .filter(([, ok]) => !ok)
+          .map(([what]) => `${what} (${JSON.stringify(m)})`);
+      })
+      .toEqual([]);
     // Not the accent of an available button.
     const live = page.locator('#rerun-all-button');
     await expect(live).toBeVisible();
     const accent = await live.evaluate((el) => getComputedStyle(el).color);
-    expect(m.color).not.toBe(accent);
+    await expect.poll(async () => (await read()).color !== accent).toBe(true);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -342,40 +385,48 @@ test('both actions and the Hidden toggle fit 320px without overlap', async ({
 }) => {
   await page.setViewportSize({ width: 320, height: 800 });
   await open(page, '/pull-requests.html', [pr(1), pr(2)], undefined, 2);
-  const boxes = await page.evaluate(() =>
-    [
-      '.live-control',
-      '#hidden-prs-toggle',
-      '#pr-count',
-      '#update-all-button',
-      '#rerun-all-button',
-    ].map((s) => {
-      const r = document.querySelector(s)?.getBoundingClientRect();
-      return {
-        s,
-        l: r?.left ?? 0,
-        r: r?.right ?? 0,
-        t: r?.top ?? 0,
-        b: r?.bottom ?? 0,
-      };
-    }),
-  );
-  for (const [i, a] of boxes.entries())
-    for (const b of boxes.slice(i + 1))
-      expect(
-        a.r <= b.l + 0.5 ||
-          b.r <= a.l + 0.5 ||
-          a.b <= b.t + 0.5 ||
-          b.b <= a.t + 0.5,
-        `${a.s} overlaps ${b.s}`,
-      ).toBe(true);
-  expect(
-    await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth <=
+  // Re-read until nothing overlaps and the page doesn't scroll sideways.
+  await expect
+    .poll(async () => {
+      const boxes = await page.evaluate(() =>
+        [
+          '.live-control',
+          '#hidden-prs-toggle',
+          '#pr-count',
+          '#update-all-button',
+          '#rerun-all-button',
+        ].map((s) => {
+          const r = document.querySelector(s)?.getBoundingClientRect();
+          return {
+            s,
+            l: r?.left ?? 0,
+            r: r?.right ?? 0,
+            t: r?.top ?? 0,
+            b: r?.bottom ?? 0,
+          };
+        }),
+      );
+      const problems: string[] = [];
+      for (const [i, a] of boxes.entries())
+        for (const b of boxes.slice(i + 1))
+          if (
+            !(
+              a.r <= b.l + 0.5 ||
+              b.r <= a.l + 0.5 ||
+              a.b <= b.t + 0.5 ||
+              b.b <= a.t + 0.5
+            )
+          )
+            problems.push(`${a.s} overlaps ${b.s} (${JSON.stringify([a, b])})`);
+      const [scrollW, clientW] = await page.evaluate(() => [
+        document.documentElement.scrollWidth,
         document.documentElement.clientWidth,
-    ),
-  ).toBe(true);
+      ]);
+      if (scrollW > clientW)
+        problems.push(`page scrolls sideways (${scrollW} > ${clientW})`);
+      return problems;
+    })
+    .toEqual([]);
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
@@ -389,19 +440,28 @@ test('forced colors keep the buttons visible with a border', async ({
   await page.setViewportSize({ width: 1280, height: 900 });
   await open(page, '/pull-requests.html', [pr(1), pr(2)]);
   for (const id of ['#update-all-button', '#rerun-all-button']) {
-    const m = await page.locator(id).evaluate((el) => {
-      const c = getComputedStyle(el);
-      return {
-        width: Number.parseFloat(c.borderTopWidth),
-        style: c.borderTopStyle,
-        color: c.color,
-        bg: c.backgroundColor,
-      };
-    });
-    expect(m.width).toBeGreaterThanOrEqual(1);
-    expect(m.style).not.toBe('none');
-    // Forced colors map text and fill to different system colors.
-    expect(m.color).not.toBe(m.bg);
+    await expect
+      .poll(async () => {
+        const m = await page.locator(id).evaluate((el) => {
+          const c = getComputedStyle(el);
+          return {
+            width: Number.parseFloat(c.borderTopWidth),
+            style: c.borderTopStyle,
+            color: c.color,
+            bg: c.backgroundColor,
+          };
+        });
+        // Forced colors map text and fill to different system colors.
+        const checks: [string, boolean][] = [
+          ['border under 1px', m.width >= 1],
+          ['no border style', m.style !== 'none'],
+          ['text and fill match', m.color !== m.bg],
+        ];
+        return checks
+          .filter(([, ok]) => !ok)
+          .map(([what]) => `${id}: ${what} (${JSON.stringify(m)})`);
+      })
+      .toEqual([]);
   }
 });
 
@@ -421,10 +481,19 @@ for (const size of [
     const rerun = page.locator('#rerun-all-button');
     await expect(update).toBeVisible();
     await expect(rerun).toBeVisible();
-    const u = (await update.boundingBox())!;
-    const r = (await rerun.boundingBox())!;
-    expect(Math.abs(u.y - r.y)).toBeLessThan(2);
-    const row = (await page.locator('#pr-rows > .row').first().boundingBox())!;
-    expect(row.y + 24).toBeLessThanOrEqual(size.height);
+    await expect
+      .poll(async () => {
+        const u = await update.boundingBox();
+        const r = await rerun.boundingBox();
+        const row = await page.locator('#pr-rows > .row').first().boundingBox();
+        return {
+          sameLine: Math.abs((u?.y ?? 0) - (r?.y ?? 99)) < 2,
+          rowShows: (row?.y ?? size.height) + 24 <= size.height,
+          updateY: u?.y,
+          rerunY: r?.y,
+          rowY: row?.y,
+        };
+      })
+      .toMatchObject({ sameLine: true, rowShows: true });
   });
 }

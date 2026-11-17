@@ -149,6 +149,24 @@ test.describe('settings groups', () => {
       .toBe(true);
   });
 
+  test('Behaviour says upright pull request pills close an issue and italic ones only reference it, and passes axe', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#behaviour');
+    const note = page.locator('#pill-style-hint');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('Upright means the pull request closes');
+    await expect(note).toContainText('italic means it only references');
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(overflow).toBe(false);
+  });
+
   test('the GitHub token help names the Dependabot alerts permission as optional', async ({
     page,
   }) => {
@@ -239,18 +257,29 @@ test.describe('settings groups', () => {
     for (const g of GROUPS) {
       const link = groupLink(page, g.label);
       await expect(link).toBeInViewport({ ratio: 1 });
-      const box = await link.boundingBox();
-      expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
-      expect(box?.width ?? 0).toBeGreaterThanOrEqual(44);
+      await expect
+        .poll(
+          async () => {
+            const box = await link.boundingBox();
+            const height = box?.height ?? 0;
+            const width = box?.width ?? 0;
+            return { ok: height >= 44 && width >= 44, height, width };
+          },
+          { message: `${g.label} link size` },
+        )
+        .toMatchObject({ ok: true });
     }
     await groupLink(page, 'Integrations and security').click();
     await expect(cardHeading(page, 'Passkeys')).toBeVisible();
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 
   test.describe('per-card saves still work', () => {

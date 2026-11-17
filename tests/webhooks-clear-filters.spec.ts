@@ -75,9 +75,12 @@ test.describe('webhooks: Clear filters', () => {
     await page.locator('#webhooks-status-filter').selectOption('pending');
     await expect(clear(page)).toBeEnabled();
     // A target big enough to hit (WCAG 2.5.8 asks for 24 px).
-    const box = await clear(page).boundingBox();
-    expect(box?.height).toBeGreaterThanOrEqual(24);
-    expect(box?.width).toBeGreaterThanOrEqual(24);
+    await expect
+      .poll(async () => (await clear(page).boundingBox())?.height)
+      .toBeGreaterThanOrEqual(24);
+    await expect
+      .poll(async () => (await clear(page).boundingBox())?.width)
+      .toBeGreaterThanOrEqual(24);
     await page.locator('#webhooks-status-filter').selectOption('');
     await expect(clear(page)).toBeDisabled();
 
@@ -198,9 +201,12 @@ test('on a phone the button is a 44 px target', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await open(page);
   await page.locator('#webhooks-status-filter').selectOption('pending');
-  const box = await clear(page).boundingBox();
-  expect(box?.height).toBeGreaterThanOrEqual(44);
-  expect(box?.width).toBeGreaterThanOrEqual(44);
+  await expect
+    .poll(async () => (await clear(page).boundingBox())?.height)
+    .toBeGreaterThanOrEqual(44);
+  await expect
+    .poll(async () => (await clear(page).boundingBox())?.width)
+    .toBeGreaterThanOrEqual(44);
   // Focus lands on the repo search after a keyboard clear, at phone width too,
   // and the status line announces it.
   await clear(page).focus();

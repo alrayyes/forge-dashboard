@@ -1,7 +1,9 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   canCopyLog,
+  checkControl,
   copyLog,
   copyPending,
   copyStatus,
@@ -13,6 +15,8 @@ import {
   notePlaces,
   parseLogLines,
 } from './run-log';
+
+afterEach(resetForgeCapabilities);
 
 describe('logUrl', () => {
   test('takes the forge and repository from the repo', () => {
@@ -609,5 +613,40 @@ describe('parseLogLines', () => {
       '',
       'b',
     ]);
+  });
+});
+
+describe('checkControl on a running job', () => {
+  const running = {
+    status: 'in_progress',
+    conclusion: '',
+    jobId: 5,
+    url: 'https://x/5',
+  };
+
+  test('GitHub serves no running log, so it opens on the forge', () => {
+    expect(checkControl(running, { forge: 'github', fullName: 'a/b' })).toBe(
+      'open-on-forge',
+    );
+  });
+
+  test('Forgejo serves it, so the output opens', () => {
+    expect(checkControl(running, { forge: 'forgejo', fullName: 'a/b' })).toBe(
+      'output',
+    );
+  });
+
+  test('no repository names no log, so the job is a plain link', () => {
+    expect(checkControl(running, undefined)).toBe('link');
+  });
+
+  test('a forge that sets servesRunningLog is readable (#3974)', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { servesRunningLog: true } },
+    ]);
+
+    expect(checkControl(running, { forge: 'gitea', fullName: 'a/b' })).toBe(
+      'output',
+    );
   });
 });

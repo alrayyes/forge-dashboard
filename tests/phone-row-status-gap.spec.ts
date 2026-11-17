@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3834: on a phone a plain pull request row showed about 170px of blank
@@ -49,7 +50,7 @@ const BEHIND = {
 function snapshot(pullRequest: unknown) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: [pullRequest],
     issues: [],
     repos: [],
@@ -180,18 +181,28 @@ test.describe('phone row status gap (#3834)', () => {
   }) => {
     await page.setViewportSize({ width: 1104, height: 800 });
     const row = await open(page, pr());
-    const cluster = await row.evaluate((r) => {
-      const c = r.querySelector('.attr-cluster');
-      const t = r.querySelector('.title, button.title, a.title');
-      return {
-        display: c ? getComputedStyle(c).display : null,
-        clusterWidth: c?.getBoundingClientRect().width ?? null,
-        titleWidth: t?.getBoundingClientRect().width ?? null,
-      };
-    });
-    expect(cluster.display).not.toBe('none');
-    expect(cluster.clusterWidth).toBeGreaterThan(0);
-    expect(cluster.titleWidth).toBeGreaterThan(0);
+    const read = () =>
+      row.evaluate((r) => {
+        const c = r.querySelector('.attr-cluster');
+        const t = r.querySelector('.title, button.title, a.title');
+        return {
+          display: c ? getComputedStyle(c).display : null,
+          clusterWidth: c?.getBoundingClientRect().width ?? null,
+          titleWidth: t?.getBoundingClientRect().width ?? null,
+        };
+      });
+    await expect
+      .poll(async () => {
+        const c = await read();
+        const ok =
+          c.display !== null &&
+          c.display !== 'none' &&
+          (c.clusterWidth ?? 0) > 0 &&
+          (c.titleWidth ?? 0) > 0;
+        // The measured values name what failed, as the old assertions did.
+        return ok ? 'ok' : JSON.stringify(c);
+      })
+      .toBe('ok');
   });
 
   for (const width of [320, 360, 390, 1280]) {
@@ -211,28 +222,42 @@ test.describe('phone row status gap (#3834)', () => {
           .analyze();
         expect(results.violations).toEqual([]);
 
-        const boxes = await row.evaluate((r) => {
-          const rowBox = r.getBoundingClientRect();
-          return [...r.querySelectorAll('.status-cell button, .status-cell a')]
-            .map((e) => {
-              const b = e.getBoundingClientRect();
-              return {
-                name: e.className,
-                w: b.width,
-                h: b.height,
-                inside:
-                  b.left >= rowBox.left - 0.5 && b.right <= rowBox.right + 0.5,
-              };
-            })
-            .filter((b) => b.h > 0);
-        });
-        expect(boxes.length).toBeGreaterThan(0);
-        for (const b of boxes) {
-          expect(b.inside, JSON.stringify(b)).toBe(true);
-          if (width <= 390 && /row-action/.test(b.name)) {
-            expect(b.h, JSON.stringify(b)).toBeGreaterThanOrEqual(44);
-          }
-        }
+        const boxes = () =>
+          row.evaluate((r) => {
+            const rowBox = r.getBoundingClientRect();
+            return [
+              ...r.querySelectorAll('.status-cell button, .status-cell a'),
+            ]
+              .map((e) => {
+                const b = e.getBoundingClientRect();
+                return {
+                  name: e.className,
+                  w: b.width,
+                  h: b.height,
+                  inside:
+                    b.left >= rowBox.left - 0.5 &&
+                    b.right <= rowBox.right + 0.5,
+                };
+              })
+              .filter((b) => b.h > 0);
+          });
+        // Re-measured until the buttons sit inside the row and, on a phone,
+        // are tall enough, so a row still settling does not fail it.
+        await expect
+          .poll(async () => {
+            const found = await boxes();
+            return {
+              any: found.length > 0,
+              misfits: found
+                .filter(
+                  (b) =>
+                    !b.inside ||
+                    (width <= 390 && /row-action/.test(b.name) && b.h < 44),
+                )
+                .map((b) => JSON.stringify(b)),
+            };
+          })
+          .toEqual({ any: true, misfits: [] });
       });
     }
   }

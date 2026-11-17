@@ -2,15 +2,9 @@
 // (#3405). The page never asks a forge or a third party for it: it asks this
 // server, which fetches it with the saved token and passes the bytes on. This
 // decides which addresses are worth asking for; the server holds the same
-// list and is the one that enforces it, so a refusal here is only a saved
+// rules and is the one that enforces it, so a refusal here is only a saved
 // round trip and a link instead of a broken picture.
-const GITHUB_HOSTS = new Set([
-  'github.com',
-  'user-images.githubusercontent.com',
-  'private-user-images.githubusercontent.com',
-  'raw.githubusercontent.com',
-  'gist.githubusercontent.com',
-]);
+import { type ImagePolicy, imagePolicyOf } from './forges';
 
 export type ImageSource = (src: string) => string | null;
 
@@ -36,9 +30,14 @@ function parse(raw: string): URL | null {
   }
 }
 
-function proxied(forge: string, src: string, item?: ImageItem): string {
+function proxied(
+  forge: string,
+  policy: ImagePolicy,
+  src: string,
+  item?: ImageItem,
+): string {
   const base = `/api/v1/images?forge=${forge}&url=${encodeURIComponent(src)}`;
-  if (!item || forge !== 'github' || !isAttachment(src)) return base;
+  if (!item || !isSignedAttachment(policy, src)) return base;
   const which =
     item.comment !== undefined
       ? `comment=${encodeURIComponent(item.comment)}`
@@ -48,32 +47,29 @@ function proxied(forge: string, src: string, item?: ImageItem): string {
   return `${base}&fullName=${encodeURIComponent(item.fullName)}&${which}`;
 }
 
-function isAttachment(src: string): boolean {
-  const u = parse(src);
+function isSignedAttachment(policy: ImagePolicy, src: string): boolean {
   return (
-    u?.hostname === 'github.com' && u.pathname.startsWith('/user-attachments/')
+    policy.signedAttachmentPrefix !== undefined &&
+    (parse(src)?.href.startsWith(policy.signedAttachmentPrefix) ?? false)
   );
 }
 
-// `repoUrl` is the repository the text belongs to. A Forgejo item may embed
-// images from its own instance only; a GitHub item from GitHub's own hosts.
+// `repoUrl` is the repository the text belongs to. What a forge's item may
+// embed is the forge's image policy: its fixed hosts, or, with none named, its
+// own instance.
 export function imageSourceFor(
   forge: string,
   repoUrl: string | null | undefined,
   item?: ImageItem,
 ): ImageSource {
   const home = repoUrl ? parse(repoUrl) : null;
+  const policy = imagePolicyOf(forge);
   return (src) => {
     const u = parse(src);
-    if (!u) return null;
-    if (forge === 'github') {
-      return u.protocol === 'https:' && !u.port && GITHUB_HOSTS.has(u.hostname)
-        ? proxied(forge, src, item)
-        : null;
-    }
-    if (forge === 'forgejo' && home && u.origin === home.origin) {
-      return proxied(forge, src);
-    }
-    return null;
+    if (!u || !policy) return null;
+    const allowed = policy.hosts.length
+      ? u.protocol === 'https:' && !u.port && policy.hosts.includes(u.hostname)
+      : !!home && u.origin === home.origin;
+    return allowed ? proxied(forge, policy, src, item) : null;
   };
 }

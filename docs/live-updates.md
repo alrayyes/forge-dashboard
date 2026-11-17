@@ -4,10 +4,9 @@ The board polls on the schedule in `readIntervalSeconds` (30 seconds today, set
 by the server, or 2 until your first refresh has finished) and takes pushes
 over a live stream, but
 rows don't move under you. A change to a row's own content (CI,
-merge status, behind, labels, title) updates that row where it stands and
-marks it "Updated just now" for a couple of seconds; it never reorders the
-list. Rows that are added, removed or reordered land by themselves in one
-render, with nothing to press. They wait only while something would be
+merge status, behind, labels, title) updates that row where it stands; it never
+reorders the list. Rows that are added, removed or reordered land by themselves
+in one render, with nothing to press. They wait only while something would be
 disturbed, and land the moment it ends: a row action is in flight (or a Merge is
 waiting for its second click), a pop-up other than the
 pull request pop-up is open, the mouse rests on the list (until you move away,
@@ -91,13 +90,14 @@ ready and waits for a runner (`waiting`). The row says "Waiting on earlier
 jobs." or "Queued for a runner." A blocked job in a run that has failed never
 starts, so it carries no reason and reads "Not started yet." as before, and a
 GitHub check never carries one.
-Each job in a run event carries a `status` (queued, in progress, completed or
-waiting) and, once it has finished, a `conclusion`. The conclusion is the
-forge's own word, not a fixed set: GitHub's `neutral`, `stale` and
+Each job in a run event carries a `status` (queued, in progress, completed,
+waiting or unknown) and, once it has finished, a `conclusion`. The conclusion
+is the forge's own word, not a fixed set: GitHub's `neutral`, `stale` and
 `action_required` arrive as they are, next to `success`, `failure`, `cancelled`,
 `skipped` and `timed_out`. The panel works out the word and glyph it shows from
 those two, so a client of the stream does the same. The panel reads `neutral` as
-passed, and `stale`, `startup_failure` or a word it doesn't know as failed.
+passed, `stale` and `startup_failure` as failed, and a word it doesn't know as
+unknown: neither a failure nor a pass.
 If the stream is down, the panel says so with a Retry button. If the browser
 can't hold a stream open at all, the panel reads the list once when it opens
 and again on Retry, and doesn't follow changes. A change to any
@@ -149,6 +149,25 @@ you can tell how stale the data is during an outage. With both forges down it
 counts from the oldest data. A screen reader isn't told again as it counts: the
 banner's live region is rewritten only when the banner itself changes (a forge,
 its error, its stale time or the time zone).
+
+## When full refreshes fail but webhooks keep landing
+
+A full refresh that fails (the repo list can't be read, the pass runs past its
+deadline, a rate limit) carries every repo's rows over and marks each repo as
+last read at the time of the last good refresh. A webhook still refreshes the
+one repo it names, and that repo's mark clears. The forge stays marked
+unreachable while any repo holds only carried-over rows. Once a webhook has
+refreshed every repo, the forge reads as reachable again and its error is gone,
+whatever the last full refresh did. The next failed full refresh then carries
+the rows over as read at that moment, not at the old time. A repo a webhook
+refreshed during a failure is not marked again by the next failed full refresh.
+This holds when a failed full refresh is still running as the webhooks land: the
+webhooks' work stands when it finishes, and the forge stays reachable.
+
+The server log names the cause of each failed full refresh: `full refresh failed`
+carries the forge and a `cause` (the error kind, such as `rate_limited` or
+`unreachable`), and `full refresh ran past the pass deadline` names a forge that
+was only slow.
 
 ## The first load after a restart
 
@@ -202,32 +221,33 @@ Every item in the navigation shows how many items its page lists, and how many
 of them are failing. It is one pill: a neutral **total**, then the outcomes,
 failing (red) and passing (green), then a thin divider and the state, running
 (amber, a spinner, or a still clock under reduced motion). Each count has its
-own glyph so colour is never the only signal. Branches counts default
-branches. Pull requests, Releases and Bots count their pull requests (without
-the ones that belong to another of the three). All four show those three
-counts, in that order. The divider appears only when a running count follows an
-outcome, and not on a phone. A pull request with no checks gets a neutral
-count with a dashed circle, last, worded "without checks"; it is not counted
-as running. One held for workflow approval is in the total only, so those
-numbers needn't add up. Branches adds a neutral count with the same dashed
-circle for the branches with no pipeline, so its numbers do add up. A zero is
-never drawn. The total is left out when it would only repeat the pill's single
-count (2 running of 2 shows "2 running", not "2 2"); with two categories, or
-one that falls short of the total, it stays. The link's name says the same in
-words, in the same order,
-after the numbers as drawn: "15 2 10 3, Pull requests, 15 total,
-2 failing, 10 passing, 3 running", and "7 2 3 1 1, Branches, 7 total, 2 failing,
-3 passing, 1 running, 1 without a pipeline". On
-a phone the total sits on its own line before the counts, and with three-digit
-numbers each count takes a line, so the busy tabs grow to about 110px. Issues
-counts open issues, without Renovate's Dependency Dashboard or what your
-settings hide, and has no failed count. The server works the numbers out from
-the same lists the pages show (`navCounts` on `/api/v1/dashboard`), so a page
-agrees with its icon, and a hidden pull request is in neither. The dashboard
-pages set them from each snapshot. The other signed-in pages (Branches,
-Insights, Settings and the rest) load them and ask again every 30 seconds
-while the tab is visible, so a refresh or a webhook changes them without a
-reload.
+own glyph so colour is never the only signal. Branches counts default branches.
+Pull requests, Releases and Bots count their pull requests (without the ones
+that belong to another of the three). All four show the failing, passing and
+running counts. The divider appears only when a running count follows an
+outcome, and not on a phone. A pull request with no checks gets a neutral count
+with a dashed circle, last, worded "without checks"; it is not counted as
+running. One held for workflow approval is in the total only, so those numbers
+needn't add up. All four draw a stop glyph in neutral ink for what was
+cancelled, shown after passing: a pull request whose only non-passing runs were
+cancelled, or a branch whose last run was. Branches adds a neutral count with
+the same dashed circle for the branches with no pipeline, so its numbers do add
+up. A zero is never drawn. The total is left out when it would only repeat the
+pill's single count (2 running of 2 shows "2 running", not "2 2"); with two
+categories, or one that falls short of the total, it stays. The link's name says
+the same in words, in the same order, after the numbers as drawn: "15 2 10 3,
+Pull requests, 15 total, 2 failing, 10 passing, 3 running", and "8 2 3 1 1 1,
+Branches, 8 total, 2 failing, 3 passing, 1 cancelled, 1 running, 1 without a
+pipeline". On a phone the total sits on its own line before the counts, and with
+three-digit numbers each count takes a line, so the busy tabs grow to about
+110px. Issues counts open issues, without Renovate's Dependency Dashboard or
+what your settings hide, and has no failed count. The server works the numbers
+out from the same lists the pages show (`navCounts` on `/api/v1/dashboard`), so
+a page agrees with its icon, and a hidden pull request is in neither. The
+dashboard pages set them from each snapshot. The other signed-in pages
+(Branches, Insights, Settings and the rest) load them and ask again every 30
+seconds while the tab is visible, so a refresh or a webhook changes them without
+a reload.
 
 A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
@@ -255,12 +275,12 @@ The menu runs Branches, Pull requests, Releases, Bots, Issues, then the rest.
 
 `GET /api/v1/dashboard` and its stream carry `navCounts`, the numbers behind the
 navigation badges for Pull requests, Releases and Bots: a `total` and how many
-have CI `running`, `failed` and `passed`, or `noChecks` when it has none; and
-for Issues a `total` only. One held for workflow approval counts in the total
-alone, so the numbers need not add up. They count what each page shows when it
-opens. Pull requests leave out ignored repos, drafts and hidden ones (even
-while Show drafts or Show hidden is on). They are always present, zero when
-nothing is there.
+have CI `running`, `failed`, `passed` and `cancelled`, or `noChecks` when it has
+none; and for Issues a `total` only. One held for workflow approval counts in
+the total alone, so the numbers need not add up. They count what each page shows
+when it opens. Pull requests leave out ignored repos, drafts and hidden ones
+(even while Show drafts or Show hidden is on). They are always present, zero
+when nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge
@@ -436,7 +456,8 @@ can tap to remove without opening anything.
 groups, Show drafts, sort, group, repo, author, label, created, and updated.
 Filters apply as you change them, and the sheet's **Show N results** button,
 which closes it, says what you would see, so a refresh can't change something
-you are editing.
-**Clear all** resets everything. Escape, the close button, or a tap outside
+you are editing. A screen reader announces the count as it changes.
+**Clear all** resets everything and leaves the sheet open on the full list; it
+is off while no filter is on. Escape, the close button, or a tap outside
 closes the sheet and returns focus to the Filters button. On wider screens
 nothing changes except that the title filter now sits first in the bar.

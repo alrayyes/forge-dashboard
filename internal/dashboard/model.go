@@ -51,10 +51,26 @@ type CheckCounts struct {
 	Running int `json:"running"`
 	Waiting int `json:"waiting"`
 	Failed  int `json:"failed"`
-	// Cancelled is how many runs were cancelled, set only when they are the
-	// whole reason the pull request is not passing (CI is CICancelled). It is
-	// none of the other four, as a cancelled run is everywhere else.
+	// Unknown is how many checks are in a state the server cannot grade: a
+	// status or conclusion the forge added after this code was written. It is
+	// none of the others, so a check nobody can name is not hidden in a count
+	// that means something.
+	Unknown int `json:"unknown"`
+	// Cancelled is how many runs were cancelled, for a pull request and a
+	// default branch alike, so the counts add up to the jobs the pipeline lists.
+	// It is none of the other counts, as a cancelled run is everywhere else.
 	Cancelled int `json:"cancelled,omitempty"`
+	// Held is how many runs are held for approval, so the counts add up. A pull
+	// request also says so with its own flag (AwaitingWorkflowApproval). Forgejo
+	// does not tell a held job from a waiting one, so it never sets this.
+	Held int `json:"held,omitempty"`
+	// NotStarted is how many jobs are queued in a run that has already failed,
+	// so nothing will start them. Forgejo leaves a job whose needs failed
+	// blocked in the finished run and says pending for it. It is no wait, so it
+	// is not Waiting, and no failure, so it is not Failed: it is a count of its
+	// own, which keeps the counts adding up and a failed pull request failed.
+	// Only Forgejo sets it.
+	NotStarted int `json:"notStarted,omitempty"`
 }
 
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as
@@ -109,6 +125,10 @@ const (
 	// CheckAwaitingApproval is a GitHub workflow run held until a maintainer
 	// approves it: it has no jobs yet, so it is neither queued nor failed.
 	CheckAwaitingApproval CheckState = "awaiting_approval"
+	// CheckUnknown is a check whose status or conclusion the server cannot
+	// grade: a word the forge added after this code was written. It is not
+	// queued and not failed, so no count that means either takes it.
+	CheckUnknown CheckState = "unknown"
 )
 
 // WaitingFor says why a queued Forgejo job has not started: it waits on
@@ -135,6 +155,11 @@ type Check struct {
 	// State on the way out; the page works out what to show from them.
 	Status     CheckStatus     `json:"status"`
 	Conclusion CheckConclusion `json:"conclusion,omitempty"`
+	// ReportedStatus is the forge's own word for a status the server cannot
+	// grade, so the page can name it. WithFacts keeps it only while the
+	// status is "unknown" and drops it otherwise. A finished job's word is
+	// its Conclusion.
+	ReportedStatus string `json:"reportedStatus,omitempty"`
 	// State is the server's own one-word reading of the job, which decides
 	// rerun, cancel and the main branch counts. It is not on the wire.
 	State CheckState `json:"-"`
@@ -285,6 +310,11 @@ type PullRequest struct {
 	// field stays orthogonal there too, for the same reason CI sits
 	// beside MergeStatus rather than inside it: one fact per field.
 	Behind bool `json:"behind"`
+	// EditedByOthers is true when the head branch holds a commit its author
+	// didn't make, such as a bot refreshing a lockfile on a Dependabot branch.
+	// Dependabot refuses to rebase such a branch, so its pull request offers
+	// Update branch instead (#4023). False when the forge can't say.
+	EditedByOthers bool `json:"editedByOthers"`
 	// BaseBranch and HeadBranch name the branch the pull request targets and
 	// the branch it comes from (#860). A stack is worked out from them: B is
 	// stacked on A when B's base branch is A's head branch.
@@ -534,6 +564,9 @@ type ForgeHealth struct {
 	// while the forge is unreachable and the page names an incident on
 	// something the dashboard uses (#3633). Absent otherwise.
 	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
+	// Capabilities is what this forge can do, filled in when a response is
+	// built (WithCapabilities), so no refresh path has to set it.
+	Capabilities ForgeCapabilities `json:"capabilities"`
 }
 
 // ProviderStatus matches components.schemas.ProviderStatus: facts from a

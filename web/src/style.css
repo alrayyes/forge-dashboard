@@ -568,7 +568,17 @@ header,
 .nav-passed {
   color: var(--good);
 }
+/* Cancelled (#3958): nothing broke, so the neutral ink, like the cancelled
+   pill on a row. The stop glyph carries it, not the colour. */
+.nav-cancelled {
+  color: var(--ink-2);
+}
 .nav-none {
+  color: var(--ink-2);
+}
+/* Unknown (#4063): neither a pass nor a failure, so the neutral ink. The
+   question glyph carries it, not the colour. */
+.nav-unknown {
   color: var(--ink-2);
 }
 .nav-count svg {
@@ -1487,28 +1497,6 @@ select.col-filter {
   }
 }
 
-/* The marker is words, so it doesn't rely on colour or motion; the fade
-   only plays for people who haven't asked for reduced motion. */
-.updated-just-now {
-  font-size: 0.6875rem;
-  font-weight: 600;
-  color: var(--ink-2);
-  white-space: nowrap;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .updated-just-now {
-    animation: updated-fade 2.5s ease-out;
-  }
-}
-@keyframes updated-fade {
-  from {
-    background: var(--warning-bg);
-  }
-  to {
-    background: transparent;
-  }
-}
-
 /* A segmented control, not tabs — it reshapes what's already on screen
    rather than navigating anywhere, and stays fully visible at rest so the
    active forge is never hidden behind a closed dropdown the way the old
@@ -1836,7 +1824,8 @@ button.title {
   align-items: baseline;
   gap: 4px 6px;
 }
-.mentioned-by-label {
+.mentioned-by-label,
+.mentioned-by-hint {
   color: var(--ink-2);
   font-size: 0.85em;
 }
@@ -1863,6 +1852,40 @@ button.title {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
+/* A refs pill's explanation, shown on keyboard focus only: the native title
+   covers hover. It floats under the pill and takes no room in the row, and
+   Escape hides it for as long as the pill keeps focus. The script sets
+   data-tip-shown when focus arrives by keyboard. */
+.pill-tip {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  font-size: 0.6875rem;
+  font-style: normal;
+  color: var(--ink-2);
+  white-space: normal;
+  text-decoration: none;
+  pointer-events: none;
+}
+.pill-tip-host {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  min-width: 0;
+  max-width: 100%;
+}
+.pill-tip-host[data-tip-shown] > .pill-tip {
+  display: block;
+}
 
 .author {
   font-size: 0.78125rem;
@@ -1883,6 +1906,32 @@ button.title {
   height: 20px;
   border-radius: 50%;
   object-fit: cover;
+}
+/* No image to show (none, refused, or failed to load): the initial on a
+   neutral circle in the same 20px box, so names keep their x (#3868). The
+   letter is generated content, so it is neither selectable nor part of the
+   cell's text. --ink on --surface-sunken, as the filter chips. */
+.avatar-placeholder,
+.logo-placeholder {
+  display: inline-block;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  text-align: center;
+}
+.avatar-placeholder {
+  font-size: 0.6875rem;
+  line-height: 18px;
+}
+.logo-placeholder {
+  font-size: 0.625rem;
+  line-height: 14px;
+}
+.avatar-placeholder::before,
+.logo-placeholder::before {
+  content: attr(data-initial);
 }
 .author-name {
   display: block;
@@ -2058,6 +2107,15 @@ a.ci-pill:hover {
   width: 100%;
 }
 
+/* The forge's own word for a check the page cannot grade, beside the Unknown
+   label. It wraps on a narrow screen rather than pushing the row wider. */
+.pipeline-check-word {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+  font-size: 0.71875rem;
+  color: var(--ink-2);
+}
 /* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
    (higher specificity, earlier) sets only background -- never width/
    height/border-radius/flex, so no property actually collides. */
@@ -2100,6 +2158,13 @@ a.ci-pill:hover {
 .ci-pill.none {
   background: var(--neutral-bg);
   color: var(--ink-3);
+}
+/* Unknown (#4063): a job nobody can grade is neither a pass nor a failure, and
+   nothing says it is going, so the neutral pair the pipeline panel gives the
+   state. The word and the question glyph carry it, not the colour. */
+.ci-pill.unknown {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
 }
 /* The counts after Cancelled (#3395): words, so they need no glyph. A phone
    keeps the passed count and drops the cancelled one; the pill's name and its
@@ -2168,11 +2233,17 @@ a.ci-pill:hover {
 .ci-pill.success .ci-seg-label {
   color: var(--good);
 }
+.ci-pill.unknown .ci-seg-label {
+  color: var(--ink-2);
+}
 .ci-pill.failure .ci-seg-label {
   color: var(--critical);
 }
 .ci-pill.success.segmented {
   box-shadow: inset 0 0 0 1px var(--good);
+}
+.ci-pill.unknown.segmented {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .ci-pill.failure.segmented {
   box-shadow: inset 0 0 0 1px var(--critical);
@@ -2210,6 +2281,17 @@ a.ci-pill:hover {
 }
 .ci-seg-failed {
   color: var(--critical);
+}
+/* Unknown, not started, cancelled and held are not outcomes the page can name
+   as a pass or a failure, so they read in the quiet inks the dialog gives the
+   same states (#4055). */
+.ci-seg-unknown,
+.ci-seg-notStarted,
+.ci-seg-cancelled {
+  color: var(--ink-2);
+}
+.ci-seg-held {
+  color: var(--queued);
 }
 @media (max-width: 760px) {
   /* The word goes on a phone and the glyphs and counts stay, so the pill is as
@@ -2423,6 +2505,8 @@ a.ci-pill:hover {
   border: none;
   font-family: inherit;
   cursor: pointer;
+  /* The row no longer prints a status block beside it to stretch it (#3965). */
+  min-height: 24px;
 }
 .merge-pill.unconfirmed .dot {
   background: var(--warning);
@@ -3455,6 +3539,8 @@ a.ci-pill:hover {
   background: var(--surface);
   color: var(--ink);
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* Vertical panning stays with the page; sideways is the swipe (#4020). */
+  touch-action: pan-y;
 }
 
 .feedback-toast[data-kind="error"] {
@@ -3807,6 +3893,19 @@ footer a.mono:focus-visible {
     display: flex;
     width: 100%;
   }
+  /* A locked Merge whose reason sits in the status above takes its content
+     width like a live one, so Update branch can sit beside it instead of
+     under it (#4099). One that prints its own note keeps the full line. */
+  .row-action-bar .row-action-locked:not(.row-action-locked-visible) {
+    width: auto;
+    flex: 0 1 auto;
+  }
+  .row-action-bar
+    .row-action-locked:not(.row-action-locked-visible)
+    > .row-action {
+    min-width: 120px;
+    padding-inline: 20px;
+  }
   .row-action-bar .row-action-group > .row-action {
     flex: 1 1 0;
     width: auto;
@@ -3819,6 +3918,18 @@ footer a.mono:focus-visible {
     flex: 0 1 auto;
     min-width: 120px;
     padding-inline: 20px;
+  }
+  /* At 320px the bar is 246px and two 120px minimums plus the gap need more,
+     so the pair gives up a little width before it would wrap (#4099). */
+  @media (max-width: 340px) {
+    .row-action-bar > .row-action,
+    .row-action-bar
+      .row-action-locked:not(.row-action-locked-visible)
+      > .row-action,
+    .row-action-bar .row-action-group:not(.confirm-group) > .row-action {
+      min-width: 100px;
+      padding-inline: 14px;
+    }
   }
   .row-action-bar .row-action-locked-visible {
     align-items: stretch;
@@ -3994,7 +4105,7 @@ footer a.mono:focus-visible {
    list never pushes it off screen (#3876). */
 .pipeline-dialog-footer {
   flex: none;
-  padding: 12px 18px;
+  padding: 12px 18px calc(12px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--border);
   background: var(--surface);
 }
@@ -4115,7 +4226,8 @@ footer a.mono:focus-visible {
   background: var(--queued-bg);
   color: var(--queued);
 }
-.pipeline-check-status.cancelled {
+.pipeline-check-status.cancelled,
+.pipeline-check-status.unknown {
   background: var(--neutral-bg);
   color: var(--ink-2);
 }
@@ -4458,7 +4570,42 @@ button.pipeline-check-link:disabled {
 .filter-bar .search-wrap .col-filter {
   flex: 1 1 auto;
   min-width: 0;
-  padding-right: 28px;
+  padding-right: 32px;
+}
+/* A type=search box draws its own clear control in WebKit and Blink; the
+   button below replaces it (#4144). */
+.search-wrap input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
+/* The clear button sits where the "/" hint does and takes its place once the
+   box holds text. :placeholder-shown is true while it is empty, so there is
+   no state to keep in step (#4077). */
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--ink);
+}
+.search-wrap:has(input:placeholder-shown) .search-clear {
+  display: none;
+}
+.search-wrap:has(.col-filter:not(:placeholder-shown)) .search-hint {
+  display: none;
 }
 .search-hint {
   position: absolute;
@@ -4505,12 +4652,10 @@ button.pipeline-check-link:disabled {
   button.ci-pill {
     min-height: 44px;
   }
-  /* Conflict not confirmed (#3308): the pill stays small to read, the hit
-     area is a pseudo-element, as for a label chip. */
-  .merge-pill.unconfirmed::after {
-    content: "";
-    position: absolute;
-    inset: -10px -2px;
+  /* Conflict not confirmed (#3308, #3965): a tap target on a phone, as the CI
+     pill is. A pseudo-element can't reach 44px between its neighbours. */
+  .merge-pill.unconfirmed {
+    min-height: 44px;
   }
 }
 
@@ -4543,8 +4688,23 @@ button.pipeline-check-link:disabled {
     flex: 1 1 auto;
     min-width: 0;
   }
-  .filter-bar-top .search-wrap .col-filter {
+  /* Straight in the bar (Insights), the wrap would keep its 260px basis as a
+     height in this column (#4144). */
+  .filter-bar > .search-wrap {
+    flex: 0 0 auto;
+    min-width: 0;
+    /* The bar wraps, so a column line is as wide as its widest item: the
+       input's own width at a large text size. A set width stops that. */
+    width: 100%;
+  }
+  .filter-bar .search-wrap .col-filter {
     min-height: 44px;
+    padding-right: 44px;
+  }
+  .filter-bar .search-clear {
+    width: 44px;
+    height: 44px;
+    right: 0;
   }
   .filters-trigger {
     display: inline-flex;
@@ -5557,8 +5717,11 @@ footer a[aria-current="page"] {
 .run-output-text {
   margin: 4px 0 0;
   padding: 8px 10px;
-  max-height: 320px;
+  /* Never taller than half the viewport, so in phone landscape it fits the
+     dialog body, and it passes the scroll on to the body at its edges (#3879). */
+  max-height: min(320px, 50dvh);
   overflow: auto;
+  overscroll-behavior: auto;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   line-height: 1.45;
@@ -5989,4 +6152,35 @@ footer a[aria-current="page"] {
 .sheet-pills[hidden],
 .filter-sheet .sheet-pills[hidden] {
   display: none;
+}
+
+/* The banners and notes on the Branches page. They live here rather than in
+   the page, so the notice component renders with them in a story too. */
+.mb-banner,
+.mb-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.84375rem;
+}
+.mb-banner {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+/* An author display: flex beats the UA's [hidden] { display: none }. */
+.mb-banner[hidden] {
+  display: none;
+}
+.mb-note.good {
+  border-left-color: var(--good);
+}
+.mb-note p,
+.mb-banner p {
+  margin: 0;
 }

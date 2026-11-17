@@ -9,7 +9,8 @@ import (
 
 // A job whose needs failed never starts: Forgejo leaves it blocked in a run
 // that has already finished, and says pending for it. That is not a wait, so
-// the row must not count it as one, or draw a failed pill as still running
+// the row must not count it as one, or draw a failed pill as still running.
+// It is counted as not started instead, so the counts add up (#4064)
 // (forge-board-cloud-api#121, run 455: test and lint failed, seven jobs behind
 // them blocked).
 
@@ -33,7 +34,7 @@ func TestListOpenPullRequests_JobsBlockedInAFinishedRunAreNotWaiting(t *testing.
 
 	got := blockedBehindFailures("failure").pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1, NotStarted: 2}, got.Checks)
 }
 
 func TestListOpenPullRequests_JobsBlockedInAFinishedRunStillFailTheRow(t *testing.T) {
@@ -76,7 +77,7 @@ func TestListOpenPullRequests_APendingStatusOfNoRunStaysWaiting(t *testing.T) {
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 1, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 1, Failed: 1, NotStarted: 2}, got.Checks)
 }
 
 // Only a run that failed explains a blocked job. One that was cancelled has had
@@ -88,7 +89,7 @@ func TestListOpenPullRequests_JobsBlockedInACancelledRunStayWaiting(t *testing.T
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 2}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 2, Cancelled: 1}, got.Checks)
 }
 
 // Of several finished runs, only the failed one's blocked jobs are no wait.
@@ -104,7 +105,7 @@ func TestListOpenPullRequests_OnlyTheFailedRunsBlockedJobsAreNoWait(t *testing.T
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 2, Waiting: 1, Failed: 1}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 2, Waiting: 1, Failed: 1, NotStarted: 2}, got.Checks)
 }
 
 // A failure that is a cancelled job is excused, and the jobs blocked behind it

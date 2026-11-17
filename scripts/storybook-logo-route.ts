@@ -1,7 +1,7 @@
 // RepoLogo only loads https URLs, so its stories point at a host that does not
 // exist. The browser is handed one mark for the one path "With a logo" asks
 // for. Any other path on the host (the "Logo fails to load" story) is aborted,
-// so that story really fails and RepoLogo drops the image.
+// so that story really fails and RepoLogo shows the initial.
 export const LOGO_HOST = 'logos.example.test';
 export const LOGO_PATH = '/forge-dashboard.svg';
 

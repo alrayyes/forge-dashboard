@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { choicesOf, pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
@@ -41,7 +42,7 @@ const TWO = [...ONE, pr(2, 'claude')];
 
 const snapshot = (prs: unknown[]) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  forges: [forgeHealth('github')],
   pullRequests: prs,
   issues: [],
 });

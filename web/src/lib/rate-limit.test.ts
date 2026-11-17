@@ -1,10 +1,18 @@
 /// <reference types="bun" />
-import { describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 
 // rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
 mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
-const { isRateLimited, isRunningLow, rateLimitSeverity, showsOnOverview } =
-  await import('./rate-limit');
+const {
+  isRateLimited,
+  isRunningLow,
+  rateLimitSeverity,
+  rateLimitWhy,
+  showsOnOverview,
+} = await import('./rate-limit');
+const { registerForgeCapabilities, resetForgeCapabilities } = await import(
+  './forges'
+);
 
 const now = Date.parse('2030-01-01T12:00:00Z');
 const future = '2030-01-01T12:10:00Z';
@@ -111,5 +119,39 @@ describe('showsOnOverview', () => {
     expect(showsOnOverview(at(999), now)).toBe(true);
     expect(showsOnOverview(at(100), now)).toBe(true);
     expect(showsOnOverview(at(0), now)).toBe(true);
+  });
+});
+
+describe('rateLimitWhy', () => {
+  afterEach(resetForgeCapabilities);
+
+  test('a forge with its own request budget says so and links to its rules', () => {
+    const why = rateLimitWhy('github', 'GitHub');
+
+    expect(why.text).toContain('gives each token a request budget');
+    expect(why.docsUrl).toContain('docs.github.com');
+  });
+
+  test('a forge behind a proxy blames the proxy and links nowhere', () => {
+    const why = rateLimitWhy('forgejo', 'Forgejo');
+
+    expect(why.text).toContain('a proxy in front of it does');
+    expect(why.docsUrl).toBeNull();
+  });
+
+  test('a third forge follows its rate limit model, not its name', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'graphql_and_rest' } },
+      { forge: 'plain', capabilities: { rateLimitModel: 'rest' } },
+    ]);
+
+    expect(rateLimitWhy('gitea', 'Gitea').text).toContain(
+      'gives each token a request budget',
+    );
+    expect(rateLimitWhy('plain', 'Plain').docsUrl).toBeNull();
+  });
+
+  test('a forge nobody described gets the proxy wording', () => {
+    expect(rateLimitWhy('nowhere', 'Nowhere').docsUrl).toBeNull();
   });
 });

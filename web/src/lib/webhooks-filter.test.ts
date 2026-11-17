@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   DEFAULT_WEBHOOKS_FILTER,
   webhooksFilterFromState,
@@ -44,5 +45,15 @@ describe('the Webhooks filter in the saved state', () => {
     expect(
       webhooksFilterFromState({ repo: 'x'.repeat(500) }).repo,
     ).toHaveLength(200);
+  });
+});
+
+describe("the Webhooks filter and the server's forges", () => {
+  afterEach(resetForgeCapabilities);
+
+  test('a forge the server reported is a valid saved filter', () => {
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+
+    expect(webhooksFilterFromState({ forge: 'gitea' }).forge).toBe('gitea');
   });
 });

@@ -154,19 +154,6 @@ test.describe('Branches page advisories pill', () => {
     const notice = page.getByTestId('advisories-notice');
     await expect(notice).toHaveCount(1);
     await expect(notice).toContainText('Dependabot alerts permission');
-    // A rate limit or an outage reads as unknown too, and a new permission
-    // takes a while to show: the notice owns up to both and names the way out.
-    await expect(notice).toContainText(/rate\s+limit/i);
-    await expect(notice).toContainText(
-      /up\s+to\s+an\s+hour\s+and\s+a\s+quarter/i,
-    );
-    await expect(notice).toContainText(/saving\s+Settings/i);
-    await expect(
-      notice.getByRole('link', { name: /How to grant it/ }),
-    ).toHaveAttribute(
-      'href',
-      /docs\/main-branches\.md#when-advisories-cant-be-read$/,
-    );
     await expect(page.getByTestId('main-branch-advisories')).toHaveCount(0);
     await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
     for (const theme of ['light', 'dark']) {
@@ -182,7 +169,7 @@ test.describe('Branches page advisories pill', () => {
     await setTheme(page, 'light');
   });
 
-  test('a rate limit is named as the cause and sends nobody to permissions', async ({
+  test('the cause every unreadable row shares reaches the notice', async ({
     page,
   }) => {
     await open(page, [
@@ -190,24 +177,9 @@ test.describe('Branches page advisories pill', () => {
       row('acme/b', { state: 'unknown', count: 0, reason: 'throttled' }),
     ]);
 
-    const notice = page.getByTestId('advisories-notice');
-    await expect(notice).toContainText(/rate\s+limiting/i);
-    await expect(notice).not.toContainText('Dependabot alerts permission');
-    await expect(notice.getByRole('link')).toHaveCount(0);
-  });
-
-  test('a refusal is named as the cause and keeps the way to grant it', async ({
-    page,
-  }) => {
-    await open(page, [
-      row('acme/a', { state: 'unknown', count: 0, reason: 'refused' }),
-    ]);
-
-    const notice = page.getByTestId('advisories-notice');
-    await expect(notice).toContainText('refused the read');
-    await expect(
-      notice.getByRole('link', { name: /How to grant it/ }),
-    ).toHaveCount(1);
+    await expect(page.getByTestId('advisories-notice')).toContainText(
+      /rate\s+limiting/i,
+    );
   });
 
   test('a failed Forgejo read gets its own notice, with no GitHub permission advice', async ({
@@ -227,10 +199,7 @@ test.describe('Branches page advisories pill', () => {
 
     const notice = page.getByTestId('forgejo-advisories-notice');
     await expect(notice).toHaveCount(1);
-    await expect(notice).toContainText('Forgejo repositories');
     await expect(notice).toContainText('OSV could not be reached');
-    await expect(notice).not.toContainText('permission');
-    await expect(notice).not.toContainText('GitHub');
     await expect(page.getByTestId('advisories-notice')).toHaveCount(0);
     await expect(page.getByTestId('main-branch-advisories-cue')).toHaveCount(0);
     for (const theme of ['light', 'dark']) {

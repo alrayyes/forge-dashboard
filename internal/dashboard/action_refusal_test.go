@@ -447,3 +447,26 @@ func TestClassifyActionRefusalFor_UpdateBranchHeadMoved_IsNotAConflict(t *testin
 	assert.Equal(t, "The branch changed while updating. Refresh and try again.", got.Message)
 	assert.NotEqual(t, dashboard.ActionConflict, got.Code)
 }
+
+// forge_unreachable is the board's own answer for a row it can't confirm
+// (#3994). A forge that did answer, with a 409 or any other refusal, is never
+// reported that way, and neither is one that can't be reached mid-click.
+func TestClassifyActionRefusal_NeverAnswersForgeUnreachable(t *testing.T) {
+	t.Parallel()
+
+	for _, kind := range []dashboard.ForgeErrorKind{
+		dashboard.ForgeErrorConflict,
+		dashboard.ForgeErrorUnreachable,
+		dashboard.ForgeErrorUpstream,
+		dashboard.ForgeErrorUnauthorized,
+		dashboard.ForgeErrorRateLimited,
+		dashboard.ForgeErrorNotFound,
+		dashboard.ForgeErrorUnknown,
+	} {
+		for _, state := range []*dashboard.PullRequestState{nil, {}, {Conflicting: true}, {Behind: true}} {
+			got := dashboard.ClassifyActionRefusal(refusal(kind, "github: PUT x: Pull Request is not mergeable"), state)
+
+			assert.NotEqual(t, dashboard.ActionForgeUnreachable, got.Code, "kind %v, state %+v", kind, state)
+		}
+	}
+}

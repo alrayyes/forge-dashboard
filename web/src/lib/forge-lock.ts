@@ -4,7 +4,7 @@
 // letting a click fail.
 
 import { isUnreachable } from './forge-starting';
-import { FORGE_LABELS } from './forges';
+import { FORGE_LABELS, type ForgeCapabilities } from './forges';
 import {
   isRateLimited,
   type RateLimit,
@@ -18,12 +18,16 @@ export type ForgeHealthEntry = {
   reachable: boolean;
   // Rows are the saved ones and no fetch has answered since the app started.
   starting?: boolean;
+  // When the rows shown for this forge were last read, while it can't be asked.
+  staleSince?: string;
   rateLimitREST?: RateLimit;
   rateLimitGraphQL?: RateLimit;
   // Why Dependabot would refuse a command through this credential.
   dependabotCommandsBlocked?: string;
   // Why this forge can't rerun checks: an old Forgejo has no route for it.
   rerunChecksBlocked?: string;
+  // What the forge can do; the label is where the pages read its name.
+  capabilities?: ForgeCapabilities;
 };
 
 export type ForgeLock = {
@@ -89,6 +93,24 @@ export function forgeLockReason(
       (a, b) => Date.parse(a.resetsAt ?? '') - Date.parse(b.resetsAt ?? ''),
     );
   return limited[0] ?? locks[0];
+}
+
+// What the facts a row reports (behind, checks, merge state, auto-merge) are
+// judged by: a lock when any host of the kind can't be asked, since a row names
+// its kind, not its host, and may be one of that host's earlier answers. Unlike
+// forgeLockReason a spent budget is not here: it says nothing about the age of
+// the rows. Hand the lock to rowClaim with the since-time (#3994).
+export function carriedOverLock(
+  forges: readonly ForgeHealthEntry[] | undefined,
+  forge: string,
+): { lock: ForgeLock; staleSince?: string } | null {
+  for (const h of forges ?? []) {
+    if (h.forge !== forge) continue;
+    const lock = lockOf(h, 'rest', 0);
+    if (lock?.code === 'forge_starting' || lock?.code === 'forge_unreachable')
+      return { lock, staleSince: h.staleSince };
+  }
+  return null;
 }
 
 // The first limit of one budget that is still ahead among the hosts of a

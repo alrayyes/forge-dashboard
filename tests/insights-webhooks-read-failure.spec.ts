@@ -108,9 +108,7 @@ for (const p of PAGES) {
       await expect(page.getByRole('alert')).toHaveCount(0);
     });
 
-    test('Retry has a visible focus outline and a 44px target on a phone', async ({
-      page,
-    }) => {
+    test('Retry is a 44px target on a phone', async ({ page }) => {
       await serve(page, 'http500');
       await page.setViewportSize({ width: 390, height: 844 });
       await page.goto(p.url);
@@ -121,15 +119,8 @@ for (const p of PAGES) {
       await expect(retry).toBeVisible();
       const box = await retry.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
-
-      await retry.focus();
-      await expect(retry).toBeFocused();
-      await expect(retry).not.toHaveCSS('outline-style', 'none');
-      await expect
-        .poll(() =>
-          retry.evaluate((el) => parseFloat(getComputedStyle(el).outlineWidth)),
-        )
-        .toBeGreaterThanOrEqual(2);
+      // Its focus outline is asserted in the ReadFailureAlert story, which
+      // runs the same component and stylesheet without a server.
     });
   });
 }

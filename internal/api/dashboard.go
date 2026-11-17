@@ -480,6 +480,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	board.autoMergeReport = deps.Service.AutoMergeReport()
 	board.refreshInterval = deps.Service.RefreshInterval()
 	board.now = time.Now()
+	board.forges = snap.Forges
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
@@ -496,7 +497,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
-		Forges:         snap.Forges,
+		Forges:         dashboard.WithCapabilities(snap.Forges),
 		PullRequests:   pullRequests,
 		Issues:         issues,
 		OpenIssueCount: openIssues,
@@ -538,7 +539,10 @@ type boardSettings struct {
 	// the failing-for-good cutoff is a multiple of.
 	refreshInterval time.Duration
 	// now is the one clock the payload is built against.
-	now              time.Time
+	now time.Time
+	// forges is each host's health, which the claim rule reads for a row's
+	// allowed actions (#3994).
+	forges           []dashboard.ForgeHealth
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
@@ -628,7 +632,7 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 		// refresh schedule, so only a still-stale row says it is failing.
 		var failingSince *time.Time
 		forGood := false
-		if r.StaleSince != nil {
+		if dashboard.ClaimOfRow(dashboard.ClaimState, r.StaleSince).State == dashboard.ClaimCarriedOver {
 			failingSince = r.FailingSince
 			forGood = dashboard.FailingForGood(r, b.refreshInterval, b.now)
 		}
@@ -761,7 +765,7 @@ func indexSnapshot(snap dashboard.Snapshot) snapshotIndex {
 		idx.open[settings.AutoMergeKey(string(pr.Forge), pr.Repo, pr.Number)] = struct{}{}
 	}
 	for _, f := range snap.Forges {
-		idx.reachable[f.Forge] = f.Reachable
+		idx.reachable[f.Forge] = dashboard.ClaimOf(dashboard.ClaimState, f, true).State == dashboard.ClaimConfirmed
 	}
 	for _, r := range snap.Repos {
 		idx.tracked[settings.WebhookDeliveryKey(string(r.Forge), r.FullName)] = struct{}{}
@@ -792,7 +796,7 @@ func (idx snapshotIndex) closed(forge, repo string, number int) bool {
 // offer: auto-update skips it, so nothing else will bring it up to date
 // (#1104). Merge's "behind" reason then says who does.
 func (b boardSettings) allowedActions(pr dashboard.PullRequest) []dashboard.ActionAvailability {
-	actions := dashboard.AllowedActions(pr, b.renovateAuthors)
+	actions := dashboard.AllowedActionsOn(pr, b.renovateAuthors, dashboard.ForgeHealthOf(b.forges, pr.Forge))
 	_, repoAuto := b.autoUpdateBranch[settings.WebhookDeliveryKey(string(pr.Forge), pr.Repo)]
 	if dashboard.KindOf(pr, b.renovateAuthors) == dashboard.KindRelease {
 		if !repoAuto {

@@ -31,6 +31,7 @@ describe('countMainBranches', () => {
       running: 1,
       cancelled: 1,
       awaitingApproval: 0,
+      unknown: 0,
       none: 1,
       total: 6,
     });
@@ -46,6 +47,15 @@ describe('countMainBranches', () => {
     expect(counts.total).toBe(4);
   });
 
+  test('a branch with an unknown job is counted on its own, not as running or as having no pipeline (#4063)', () => {
+    const counts = countMainBranches(rows('passed', 'unknown', 'unknown'));
+
+    expect(counts.unknown).toBe(2);
+    expect(counts.running).toBe(0);
+    expect(counts.none).toBe(0);
+    expect(counts.total).toBe(3);
+  });
+
   test('no rows is a tally of zeros', () => {
     expect(countMainBranches([])).toEqual({
       failed: 0,
@@ -53,6 +63,7 @@ describe('countMainBranches', () => {
       running: 0,
       cancelled: 0,
       awaitingApproval: 0,
+      unknown: 0,
       none: 0,
       total: 0,
     });
@@ -74,8 +85,10 @@ describe('countMainBranches', () => {
       failed: 0,
       passed: 1,
       running: 1,
+      cancelled: 0,
       none: 0,
       awaitingApproval: 1,
+      unknown: 0,
     });
   });
 });

@@ -43,13 +43,13 @@ close-neutral.spec.ts,4.573,6,5,A,,0.8
 closing-issues.spec.ts,7.392,11,5,C,web/src/lib/closing-issues.test.ts,4.0
 conflict-not-confirmed.spec.ts,,4,1,C,,0.0
 conflicts-filter.spec.ts,2.812,5,1,C,,2.2
-copy-failure.spec.ts,14.431,17,3,C,,11.9
+copy-failure.spec.ts,11.6,16,3,C,CopyDetails.stories.svelte (proven),9.1
 csp-img-src.spec.ts,,3,1,C,,0.0
 dashboard-error-banner.spec.ts,0.93,3,1,C,,0.6
 dashboard.spec.ts,51.2,100,15,C,web/src/lib/dashboard-read.test.ts;web/src/lib/dashboard-read-error.test.ts,43.6
 dependabot-ack.spec.ts,3.583,6,1,C,,3.0
 dependabot-recreate-menu.spec.ts,6.658,11,5,C,,3.6
-error-pages.spec.ts,3.441,6,2,C,,2.3
+error-pages.spec.ts,3.441,4,2,C,ErrorPage.stories.svelte (proven),1.2
 failure-line-stays.spec.ts,3.511,7,3,C,,2.0
 filter-bar-one-control.spec.ts,2.533,6,5,A,,0.4
 filter-bar-overlap.spec.ts,2.431,1,1,A,,0.0
@@ -65,7 +65,6 @@ filter-dropped-pick-notice.spec.ts,0.959,2,1,A,,0.5
 filter-every-control.spec.ts,8.0,5,0,C,web/src/lib/filters-cookie-roundtrip.test.ts (proven);internal/api/filter_state_test.go (proven),0
 filter-held-pick-note.spec.ts,5.553,7,5,A,,1.6
 filter-hide-dependency-dashboard-restore.spec.ts,1.957,2,0,C,,2.0
-filter-late-copy.spec.ts,2.743,5,0,B,,2.7
 filter-options.spec.ts,3.199,4,1,C,,2.4
 filter-persistence.spec.ts,6.981,7,0,B,,7.0
 filter-pick-panel-focus.spec.ts,1.615,3,3,A,,0.0
@@ -93,7 +92,7 @@ inline-feedback.spec.ts,13.968,23,16,A,,4.3
 insights-chart-read-failure.spec.ts,1.832,1,1,A,web/src/lib/insights.test.ts,0.0
 insights-hide-title-regex.spec.ts,0.323,1,0,C,web/src/lib/insights.test.ts,0.3
 insights-webhooks-pending.spec.ts,6.676,6,3,A,web/src/lib/insights.test.ts,3.3
-insights-webhooks-read-failure.spec.ts,1.512,4,1,C,web/src/lib/insights.test.ts,1.1
+insights-webhooks-read-failure.spec.ts,1.512,4,1,C,web/src/lib/insights.test.ts;ReadFailureAlert.stories.svelte (proven),0.8
 insights.spec.ts,8.182,27,7,C,web/src/lib/insights.test.ts,6.1
 issue-author-avatar.spec.ts,2.96,8,3,C,,1.9
 issue-close.spec.ts,11.159,15,6,C,,6.7
@@ -112,12 +111,12 @@ landscape-first-row.spec.ts,9.941,5,4,A,,2.0
 legal.spec.ts,2.777,4,2,A,,1.4
 linked-pull-request-pipeline.spec.ts,4.453,7,2,C,,3.2
 linked-pull-requests.spec.ts,5.982,14,5,C,web/src/lib/linked-pull-requests.test.ts,3.8
-live-control.spec.ts,,13,4,C,web/src/lib/live-control.test.ts,0.0
+live-control.spec.ts,13.148,12,4,C,web/src/lib/live-control.test.ts;LiveControl.stories.svelte (proven),8.8
 long-label-card.spec.ts,3.815,1,1,A,,0.0
 long-label-dialog.spec.ts,6.584,1,1,A,,0.0
 main-branch-advisories-dialog.spec.ts,7.727,9,6,A,,2.6
 main-branch-advisories-forgejo-dialog.spec.ts,5.481,6,3,A,,2.7
-main-branch-advisories.spec.ts,7.521,14,3,C,,5.9
+main-branch-advisories.spec.ts,6.5,13,3,C,AdvisoriesNotice.stories.svelte (proven),4.9
 main-branch-pill-counts.spec.ts,1.975,11,6,A,web/src/lib/main-branch-pill.test.ts,0.9
 main-branch-release-link.spec.ts,4.863,10,5,A,,2.4
 main-branch-snapshot-runs.spec.ts,0.75,2,1,A,web/src/lib/main-branch-snapshot-runs.test.ts,0.4
@@ -152,7 +151,7 @@ pipeline-check-states.spec.ts,7.207,9,5,A,,3.2
 pipeline-check-waiting.spec.ts,,2,1,A,,0.0
 pipeline-long-check-name.spec.ts,4.505,1,1,A,,0.0
 pipeline-panel-live.spec.ts,10.347,14,7,A,,5.2
-pipeline-run-output.spec.ts,26.835,53,26,C,,13.7
+pipeline-run-output.spec.ts,20.6,51,26,C,CheckRunOutput.stories.svelte (proven),10.1
 placeholder-contrast.spec.ts,1.051,2,2,A,web/src/lib/placeholder-contrast.test.ts,0.0
 pr-author-avatar.spec.ts,2.588,7,2,C,,1.8
 pr-auto-update.spec.ts,13.321,12,4,C,,8.9

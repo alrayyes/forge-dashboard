@@ -75,6 +75,29 @@
             ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
           >{part.n}</span
         >
+      {:else if part.kind === "cancelled"}
+        <!-- The stop glyph the row and the pipeline panel use for a cancelled
+           run, in neutral ink: nothing broke (#3958). -->
+        <span class="nav-count nav-cancelled"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><rect
+              x="9"
+              y="9"
+              width="6"
+              height="6"
+              rx="1"
+            /></svg
+          >{part.n}</span
+        >
       {:else if part.kind === "running"}
         <!-- The hairline between the outcomes and the state. Decoration only,
            and only when an outcome sits before the running count: with the
@@ -131,6 +154,25 @@
             stroke-linejoin="round"
             aria-hidden="true"
             ><circle cx="12" cy="12" r="10" /><path d="M10 9v6M14 9v6" /></svg
+          >{part.n}</span
+        >
+      {:else if part.kind === "unknown"}
+        <!-- The question mark the row and the pipeline panel use for a job
+           nobody can grade, in neutral ink (#4063). -->
+        <span class="nav-count nav-unknown"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+            ><circle cx="12" cy="12" r="10" /><path
+              d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"
+            /><line x1="12" x2="12.01" y1="17" y2="17" /></svg
           >{part.n}</span
         >
       {:else if part.kind === "none" || part.kind === "noChecks"}

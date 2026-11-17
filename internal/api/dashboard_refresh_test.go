@@ -88,6 +88,11 @@ func TestDashboardRefresh_ReturnsTheFreshSnapshot(t *testing.T) {
 	var snap dashboard.Snapshot
 	require.NoError(t, readJSON(refreshResp, &snap))
 	require.Len(t, snap.Forges, 1)
+	// The answer adds what the forge can do; the rest is what the source reported.
+	// The bot-page fields are server-side only and don't travel.
+	wantHealth.Capabilities, _ = dashboard.CapabilitiesOf(dashboard.ForgeGitHub)
+	wantHealth.Capabilities.BotLoginSuffix = ""
+	wantHealth.Capabilities.BotProfilePages = nil
 	assert.Equal(t, wantHealth, snap.Forges[0])
 }
 

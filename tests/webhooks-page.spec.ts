@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -666,13 +667,15 @@ test.describe('webhooks page', () => {
       .analyze();
     expect(results.violations).toEqual([]);
 
-    const scrollWidth = await page.evaluate(
-      () => document.documentElement.scrollWidth,
-    );
-    const clientWidth = await page.evaluate(
-      () => document.documentElement.clientWidth,
-    );
-    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 
   test('a repo the user lacks admin access to explains itself instead of showing a broken button', async ({
@@ -720,6 +723,47 @@ test.describe('webhooks page', () => {
     await expect(
       row.getByRole('link', { name: 'Set it up manually' }),
     ).toHaveAttribute('href', '/settings.html#webhooks');
+  });
+
+  // The hint follows the forge's reportsRepoPermissions flag, not its name: a
+  // forge the page has never heard of is described only by what the API sends.
+  const thirdForge = (reportsRepoPermissions: boolean) =>
+    forgeHealth('forgejo', {
+      forge: 'gitea',
+      capabilities: {
+        ...forgeHealth('forgejo').capabilities,
+        label: 'Gitea',
+        reportsRepoPermissions,
+      },
+    });
+  const lockedRepo = {
+    forge: 'gitea',
+    fullName: 'alrayyes/third',
+    hasWebhook: false,
+    canManageWebhooks: false,
+    webhookLockedByConnection: true,
+  };
+
+  test('a third forge that reports permissions says it did not, by its label', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [lockedRepo], [thirdForge(true)]);
+    await page.goto('/webhooks.html');
+
+    await expect(page.locator('#webhooks-rows tr').first()).toContainText(
+      "Gitea didn't report your access on this repo",
+    );
+  });
+
+  test('a third forge that does not report permissions gets the connection hint', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [lockedRepo], [thirdForge(false)]);
+    await page.goto('/webhooks.html');
+
+    const row = page.locator('#webhooks-rows tr').first();
+    await expect(row).toContainText("This connection can't manage webhooks");
+    await expect(row).not.toContainText("didn't report your access");
   });
 
   test('a Forgejo repo with no saved token asks for a token, not an owner', async ({
@@ -1539,13 +1583,18 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, repos);
       await page.goto('/webhooks.html');
 
-      const search = await page.locator('#webhooks-repo-filter').boundingBox();
-      const status = await page
-        .locator('#webhooks-status-filter')
-        .boundingBox();
-      expect(search).not.toBeNull();
-      expect(status).not.toBeNull();
-      expect(Math.abs((search?.y ?? 0) - (status?.y ?? 99))).toBeLessThan(4);
+      await expect
+        .poll(async () => {
+          const search = await page
+            .locator('#webhooks-repo-filter')
+            .boundingBox();
+          const status = await page
+            .locator('#webhooks-status-filter')
+            .boundingBox();
+          if (!search || !status) return Infinity;
+          return Math.abs(search.y - status.y);
+        })
+        .toBeLessThan(4);
     });
   });
 

@@ -1,17 +1,21 @@
 // The words of the one banner that says a forge is unreachable (#3719). Each
 // fact appears once: which forge, how old the rows on screen are, and that the
-// page retries on its own. Both forges down share one sentence.
+// page retries on its own. Forges down together share one sentence.
+
+import { forgeIds } from './forges';
 
 export type DownForge = {
   forge: string;
   label: string;
+  // The forge's public status page, empty or absent when it has none.
+  statusPageUrl?: string;
   errorKind?: string;
   staleSince?: string;
   // Right after a restart the first refresh is still running (#3554).
   startupGap?: boolean;
   // What the forge answered, for a 5xx that is not an outage (#3527).
   upstreamError?: string;
-  // What the forge's own status page reports (#3633), GitHub only.
+  // What the forge's own status page reports (#3633), when it has one.
   providerStatus?: ProviderStatus;
 };
 
@@ -24,9 +28,10 @@ export type ProviderStatus = {
 export type BannerCopy = {
   headline: string;
   detail: string;
-  // GitHub has a status page to link; a self-hosted Forgejo has none (#1301).
-  statusLink: boolean;
-  // A second sentence when GitHub itself reports an incident (#3633).
+  // The first down forge with a status page to link; a self-hosted forge may
+  // have none (#1301).
+  statusLink?: { label: string; url: string };
+  // A second sentence when a forge itself reports an incident (#3633).
   incident?: string;
   // The detail cut around the relative age, so the page can tick that part
   // alone (#3745): before + text + after is the detail.
@@ -67,27 +72,43 @@ function joinLabels(labels: string[]): string {
     : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 }
 
-// GitHub's own report, said when it names something this page uses. A restart
-// still waiting for its first answer is not an outage to blame on GitHub.
+// The forge's own report, said when it names something this page uses. A
+// restart still waiting for its first answer is not an outage to blame on the
+// forge.
 function incidentOf(down: DownForge[]): string | undefined {
-  const gh = down.find((f) => f.forge === 'github' && !f.startupGap);
-  const incidents = gh?.providerStatus?.incidents ?? [];
-  const components = gh?.providerStatus?.components ?? [];
+  const reporter = down.find(
+    (f) =>
+      !f.startupGap &&
+      ((f.providerStatus?.incidents?.length ?? 0) > 0 ||
+        (f.providerStatus?.components?.length ?? 0) > 0),
+  );
+  const incidents = reporter?.providerStatus?.incidents ?? [];
+  const components = reporter?.providerStatus?.components ?? [];
   if (incidents.length > 0) {
     const affects =
       components.length > 0 ? ` Affects: ${components.join(', ')}.` : '';
-    return `GitHub reports an incident: ${incidents.join('; ')}.${affects}`;
+    return `${reporter?.label} reports an incident: ${incidents.join('; ')}.${affects}`;
   }
   if (components.length > 0)
-    return `GitHub reports trouble with: ${components.join(', ')}.`;
+    return `${reporter?.label} reports trouble with: ${components.join(', ')}.`;
   return undefined;
 }
 
+function statusLinkOf(down: DownForge[]): BannerCopy['statusLink'] {
+  const f = down.find((d) => d.statusPageUrl);
+  return f?.statusPageUrl
+    ? { label: `${f.label} status`, url: f.statusPageUrl }
+    : undefined;
+}
+
 export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
-  // GitHub first, as the toolbar orders the forges.
-  const ordered = [...down].sort(
-    (a, b) => Number(b.forge === 'github') - Number(a.forge === 'github'),
-  );
+  // In the order the forge list has them, as the toolbar does. A forge the list
+  // lacks goes last; the sort is stable, so those keep the order given.
+  const rank = (f: DownForge) => {
+    const i = forgeIds().indexOf(f.forge);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const ordered = [...down].sort((a, b) => rank(a) - rank(b));
   const headline =
     ordered.length === 1
       ? headlineOf(ordered[0])
@@ -109,7 +130,7 @@ export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
     headline,
     detail: before + text + after,
     age: oldest ? { since: oldest, before, text, after } : undefined,
-    statusLink: ordered.some((f) => f.forge === 'github'),
+    statusLink: statusLinkOf(ordered),
     incident: incidentOf(ordered),
   };
 }

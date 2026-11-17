@@ -21,16 +21,24 @@ type Page = {
   running: number;
   failed: number;
   passed: number;
+  cancelled: number;
   noChecks: number;
 };
 
-const states = ['running', 'failed', 'passed', 'noChecks'] as const;
+const states = [
+  'running',
+  'failed',
+  'passed',
+  'cancelled',
+  'noChecks',
+] as const;
 
 const empty = (): Page => ({
   total: 0,
   running: 0,
   failed: 0,
   passed: 0,
+  cancelled: 0,
   noChecks: 0,
 });
 

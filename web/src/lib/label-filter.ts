@@ -289,6 +289,12 @@ export function mountPickFilter(
   const panel = node('div', 'label-filter-panel');
   panel.id = `${id}-panel`;
   panel.hidden = true;
+  // A press on a row's name, picture or padding lands on no focusable thing
+  // inside the panel, so the browser gives focus to the nearest focusable
+  // ancestor. A touch does that after pointerup, so the pointer-held flag
+  // below is already clear by then (#4093). Make the panel that ancestor, so
+  // focus stays inside the control. -1 keeps it out of the Tab order.
+  panel.tabIndex = -1;
 
   const group = node('fieldset', 'label-filter-group');
   group.appendChild(node('legend', 'label-filter-legend', cfg.legend));
@@ -329,6 +335,7 @@ export function mountPickFilter(
     if (refocus) button.focus();
   }
 
+  let pressing = false;
   button.addEventListener('click', () => {
     if (panel.hidden) {
       panel.hidden = false;
@@ -337,6 +344,8 @@ export function mountPickFilter(
     } else close(false);
   });
   host.addEventListener('keydown', (event) => {
+    // A key means the press is over, even if its pointerup never arrived.
+    pressing = false;
     if (event.key === 'Escape' && !panel.hidden) {
       // The panel closes, not the Filters sheet around it.
       event.stopPropagation();
@@ -344,9 +353,21 @@ export function mountPickFilter(
       close(true);
     }
   });
+  // Pressing a row's name moves focus to the nearest focusable ancestor of the
+  // press, which inside the phone's scrolling Filters sheet is the sheet and
+  // not the panel. That is not the reader leaving, and closing the panel on
+  // it swallowed the click that was about to tick the row (#4093).
+  host.addEventListener('pointerdown', () => {
+    pressing = true;
+    const done = () => {
+      pressing = false;
+    };
+    document.addEventListener('pointerup', done, { once: true });
+    document.addEventListener('pointercancel', done, { once: true });
+  });
   host.addEventListener('focusout', (event) => {
     const next = event.relatedTarget as Node | null;
-    if (next && !host.contains(next)) close(false);
+    if (next && !host.contains(next) && !pressing) close(false);
   });
   const onOutside = (event: Event) => {
     if (!host.contains(event.target as Node)) close(false);

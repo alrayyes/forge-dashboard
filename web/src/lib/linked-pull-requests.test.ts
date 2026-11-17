@@ -7,6 +7,7 @@ import {
   linkedPillId,
   linkedPillName,
   linkedPillText,
+  linkedPillTitle,
   missingNote,
   parsePullRequestAddress,
   splitLinked,
@@ -98,7 +99,17 @@ describe('linkedPillName', () => {
 
   test('says it references the issue when that is what the pull request does', () => {
     expect(linkedPillName(pr(), 'alrayyes/app', null, 'refs')).toBe(
-      'Pull request #12, references this issue',
+      'Pull request #12, references, does not close this issue',
+    );
+  });
+
+  test('says in its tooltip what each relation does to the issue', () => {
+    expect(linkedPillTitle('closes')).toBe('Closes this issue when it merges');
+    expect(linkedPillTitle('refs')).toBe(
+      'References this issue, does not close it',
+    );
+    expect(linkedPillTitle('mentions')).toBe(
+      'Mentions this issue, does not close it',
     );
   });
 
@@ -213,5 +224,24 @@ describe('linkedMoreName', () => {
     expect(linkedMoreName(3, 'refs')).toBe(
       '3 more pull requests that reference this issue',
     );
+  });
+});
+
+describe('the forges a pull request address accepts', () => {
+  test('a forge the server registered is accepted, one it never named is not', async () => {
+    const { registerForgeCapabilities, resetForgeCapabilities } = await import(
+      './forges'
+    );
+    try {
+      expect(parsePullRequestAddress('?pr=gitea/o/r/1')).toBeNull();
+      registerForgeCapabilities([{ forge: 'gitea' }]);
+      expect(parsePullRequestAddress('?pr=gitea/o/r/1')).toEqual({
+        forge: 'gitea',
+        repo: 'o/r',
+        number: 1,
+      });
+    } finally {
+      resetForgeCapabilities();
+    }
   });
 });

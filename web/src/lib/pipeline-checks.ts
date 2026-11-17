@@ -12,6 +12,9 @@ export type Check = {
   // grades them into what it shows (checkState).
   status: string;
   conclusion?: string;
+  // The forge's own word for a status the server cannot grade; sent only
+  // while status is 'unknown'.
+  reportedStatus?: string;
   // Why a queued Forgejo job has not started: it needs earlier jobs, or it
   // waits for a runner. Absent for GitHub and for any job not queued.
   waitingFor?: 'jobs' | 'runner';
@@ -61,7 +64,8 @@ export function checkRunKey(check: Check): string {
 // two facts the server sends: queued, running, awaiting_approval, or how it
 // ended once it is completed. The conclusion is the forge's own word, so this
 // is where the page decides what each one means: a neutral job passed, a stale
-// or never-started one failed, and a word it doesn't know reads as a failure.
+// or never-started one failed, and a word it doesn't know reads as unknown,
+// which is neither a failure nor a pass.
 export function checkState(
   check: Pick<Check, 'status' | 'conclusion' | 'notReported'>,
 ): string {
@@ -76,7 +80,7 @@ export function checkState(
     case 'completed':
       return concludedState(check.conclusion);
     default:
-      return '';
+      return 'unknown';
   }
 }
 
@@ -91,9 +95,34 @@ function concludedState(conclusion: string | undefined): string {
       return conclusion;
     case 'action_required':
       return 'awaiting_approval';
-    default:
+    case 'failure':
+    case 'stale':
+    case 'startup_failure':
       return 'failure';
+    default:
+      // A word the page was not written for, or none: not a failure it can
+      // name, and not a pass.
+      return 'unknown';
   }
+}
+
+// The forge's own word for a check the page shows as unknown, so the dialog
+// can name it: the conclusion of a finished job, or the status of one that
+// has not finished. Empty when the check is not unknown or the forge gave
+// none. Cleaned and cut short, since it is the forge's text.
+export function checkUnknownWord(check: Check): string {
+  if (checkState(check) !== 'unknown') return '';
+  const word =
+    check.status === 'completed' ? check.conclusion : check.reportedStatus;
+
+  // Line breaks, control and direction-override characters would reorder or
+  // break the row, so they read as spaces. The cut is by whole characters, so
+  // an emoji is never split.
+  const plain = (word ?? '')
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
+    .trim();
+
+  return Array.from(plain).slice(0, 40).join('');
 }
 
 // The per-check labels, keyed by checkState.
@@ -108,6 +137,7 @@ export const CHECK_STATE_LABELS: Record<string, string> = {
   timed_out: 'Timed out',
   awaiting_approval: 'Waiting for approval',
   not_reported: 'Not reported',
+  unknown: 'Unknown',
 };
 
 // How long a finished job ran, from the two timestamps the server sends.
@@ -157,19 +187,45 @@ export function blockingFirst(checks: Check[]): Check[] {
 
 const RUN_PAGE = /^(.*\/actions\/runs\/(\d+))(?:\/|$)/;
 
-// The page of the newest Actions run the checks name, for a target that
-// carries no run address of its own (a pull request). A job's page is the
-// run's page plus a job path, so trimming it names the whole run. A
-// third-party status has no run page, and neither does an empty list.
-export function runPageUrl(checks: Check[]): string | undefined {
-  let newest: { url: string; id: number } | undefined;
+export type RunLinkKind = 'run' | 'failed-run' | 'latest-run';
+
+// The run page to link for a target that carries no run address of its own (a
+// pull request). A job's page is the run's page plus a job path, so trimming it
+// names the run. One run is just "the run". Several runs (workflows, a re-run)
+// can't all be opened by one link, so it goes to the newest run holding a
+// failed check, since that is what someone opens the dialog to debug, and the
+// kind says so; with nothing failed, to the newest run. A third-party status
+// has no run page, and neither does an empty list.
+export function runPageUrl(
+  checks: Check[],
+): { url: string; kind: RunLinkKind } | undefined {
+  const runs = new Map<number, { url: string; failed: boolean }>();
   for (const check of checks) {
     const match = RUN_PAGE.exec(check.url);
     if (!match) continue;
     const id = Number(match[2]);
-    if (!newest || id > newest.id) newest = { url: match[1], id };
+    const state = checkState(check);
+    const failed = state === 'failure' || state === 'timed_out';
+    const seen = runs.get(id);
+    runs.set(id, { url: match[1], failed: failed || (seen?.failed ?? false) });
   }
-  return newest?.url;
+  if (runs.size === 0) return undefined;
+  const newest = (entries: [number, { url: string }][]) =>
+    entries.reduce((a, b) => (b[0] > a[0] ? b : a))[1].url;
+  const all = [...runs];
+  if (all.length === 1) return { url: all[0][1].url, kind: 'run' };
+  const failed = all.filter(([, run]) => run.failed);
+  if (failed.length > 0) return { url: newest(failed), kind: 'failed-run' };
+
+  return { url: newest(all), kind: 'latest-run' };
+}
+
+// What the link opens, in the words after "Open".
+export function runLinkNoun(kind: RunLinkKind): string {
+  if (kind === 'failed-run') return 'latest failed run';
+  if (kind === 'latest-run') return 'latest run';
+
+  return 'run';
 }
 
 // How many failed checks a rerun restarts and how many it leaves out. The

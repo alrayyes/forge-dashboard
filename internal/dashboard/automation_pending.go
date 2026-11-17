@@ -85,9 +85,11 @@ func (a *Aggregator) updatePending(ctx context.Context) bool {
 
 // updateWouldBeTried is whether the auto-update hook would act on pr now,
 // without acting: a Dependabot pull request is sent one rebase and then left
-// alone, anything else waits out its last attempt.
+// alone, anything else waits out its last attempt. A Dependabot branch someone
+// else committed to counts as anything else: it gets a branch update, not the
+// refused rebase (#4023).
 func (a *Aggregator) updateWouldBeTried(pr PullRequest) bool {
-	if isDependabotPR(pr) {
+	if isDependabotPR(pr) && !pr.EditedByOthers {
 		a.autoUpdate.dependabotWatchMu.Lock()
 		defer a.autoUpdate.dependabotWatchMu.Unlock()
 		_, tried := a.autoUpdate.dependabotAttempted[dependabotPRKey(pr)]

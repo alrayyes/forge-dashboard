@@ -78,6 +78,10 @@ Six specs started here: `webhooks`, `settings-field-errors`,
 `filter-newer-wins`. Each Go test below was run red under a mutation of the
 server code it covers, and the change was reverted.
 
+`filter-late-copy` has since gone. Each control now calls a function in
+`web/src/lib/filter-wiring.ts`, and its unit test goes red when the call that
+marks the key as touched is removed.
+
 | Server logic                                                                           | Go test                                                                                                 | Mutation                                                                   | Result            |
 | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- | ----------------- |
 | Webhook signature check                                                                | `TestGitHubWebhook_*_Refused`, `TestForgejoWebhook_*_Refused`                                           | check skipped                                                              | 6 fail, red       |
@@ -174,6 +178,97 @@ One ticket per group, each doing moves with its own mutation proof:
   the label, the unreachable-forge guard, and the `rate_limited` cause line.
   The other tests in the spec stay, since they read the page's banner or its
   live region. The CSV row for `forge-health-budgets` is updated.
+- The fourth move, from `error-pages` and `insights-webhooks-read-failure`:
+  the dashboard's error page and the read-failure alert already had stories,
+  so no component changed. `error-pages` lost the two "Try again" tests, which
+  are now `play` functions on the `ErrorPage` stories, and its journey test
+  gave up the status chip, the way home and the four section links to the same
+  stories. It keeps the title, the headline (so the built `404.html` and
+  `500.html` are known to carry the component), axe at two widths, the layout
+  overflow check and the no-internals check. `insights-webhooks-read-failure`
+  gave up the Retry focus outline to the `ReadFailureAlert` stories, which also
+  pin the alert role, the message, the Retry name and click, and the empty
+  state. The 44px phone target stays in e2e, since it needs a 390px viewport
+  that a story can't set. The wording tests stay: they check that a failed
+  read reaches the alert. About 5.9 s of e2e test time (16 test runs) became
+  about 4.6 s (14), and the stories take about 0.1 s. Each assertion was proven
+  red by breaking the component: the 404 and 500 headlines, the status chip,
+  the home link, a section link, Try again shown on a 404, dropped on a 500 or
+  pointing elsewhere, the alert role, the Retry label, its click, the alert
+  shown when empty, a page's own message, and the Retry focus outline. The CSV
+  rows for both specs are updated.
+- The fifth move, from `main-branch-advisories`: the Branches page's two
+  advisories notices (GitHub and Forgejo) were built inside the page, so they
+  are now `AdvisoriesNotice.svelte` with nine stories (each cause, for each
+  forge). The refusal test is gone, the rate-limit test shrank to the check that
+  the shared cause reaches the notice, and the wording, link and no-permission
+  checks in the two "every answer unknown" tests are `play` functions. The
+  counts, the absent pills and cues, axe in both themes and the overflow checks
+  stay, since they read the page. The banner's CSS moved to `style.css` so a
+  story draws it. About 7.8 s of e2e test time (14 test runs) became about 6.8 s
+  (13). Each assertion was proven red by breaking the component: the grant
+  link's condition, the Forgejo link's wording and its target. The CSV row for
+  `main-branch-advisories` is updated.
+- The sixth move, from `copy-failure`: the Copy button beside a failed action
+  is already a function of the failure details and the class it is given, so
+  no component changed. `CopyDetails.stories.svelte` draws the real
+  `copyButton` in the three places the page puts it (a row's failure line, a
+  toast and the pipeline panel's rerun failure). The "Copied, then Copy again"
+  test is gone (it waited out the two-second timer), and the clipboard-refused
+  test shrank to the check that a row's Copy reaches the details box. The
+  button's label, name and type, the JSON it writes, the revert after two
+  seconds, and the box's name, `readonly`, rows, value, selection and place
+  (after a row's line, inside a toast or the panel) are `play` functions, for a
+  refused clipboard and for none at all. The journeys that read the clipboard
+  through a real failure stay, since they check what the page puts in the
+  details. About 14.6 s of e2e test time (22 runs) became about 11.6 s (21),
+  and the seven stories take about 0.1 s. Each assertion was proven red by
+  breaking the button: its label, name, type and class, the Copied wording, the
+  two-second delay, the revert, the indentation and the text written, the box's
+  `readonly`, name, rows, class, value, selection and place in each of the
+  three hosts, the box being reused, and the synchronous and asynchronous
+  clipboard failures not reaching the box. Moving focus to the box is not
+  separable, since `select()` focuses it, so the story pins the end state. The
+  CSV row for `copy-failure` is updated.
+- The seventh move, from `pipeline-run-output`: `CheckRunOutput` already had
+  stories for its shapes, and they now hold the words too. The cut note's
+  sentence and job link, the missing output's sentence and link, the refused
+  read's plain sentence (never the forge's own words) and link, and a new
+  "Rate limited" story with no link are `play` functions, down to the link's
+  name, `href`, `target`, `rel` and new-tab mark and the note's and error's
+  size and colour. The rate-limit test and the missing-output test are gone.
+  The cut and refused tests shrank to their axe runs and the refused row's
+  Copy output button and absent icon buttons, since those read the dialog. The
+  other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
+  became about 20.6 s (58). Both are measured here, summing the per-test
+  durations on one worker with the machine idle; the 26.8 s in the ranking
+  above is the earlier CI figure for the same spec, so the two are not
+  comparable. The CSV row takes the measured 20.6 s, and its est. movable
+  (10.1 s, 20.6 times 25 of 51 tests) is an upper bound, not a saving. The
+  new stories take about 0.1 s. Each assertion was proven red by breaking
+  the component, `run-log.ts` or the style sheet (see the pull request for the
+  list). The CSV row for `pipeline-run-output` is updated.
+- The eighth move, from `live-control`: the control itself had no story, so
+  `LiveControl.stories.svelte` has seven. They check the group's name and role,
+  the status word and its decorative dot, the updated time (and its absence
+  before a first snapshot), the order of status, time, Pause and refresh, each
+  button's id, type, label and visible word, Resume's name, the refreshing
+  state (`aria-disabled` rather than `disabled`, the class, focus kept, a press
+  ignored), the page-owned pause and resume cycle, and axe in both themes, live
+  and paused. The Branches "leads the header" test is gone, since its Pause and
+  Resume wiring is also exercised by the paused-page test below it, and each
+  card's first test now only checks that the control leads its header and
+  carries a time. The 44px targets and the page-wide axe runs at 360, 390 and
+  1280px stay, as does everything that needs a snapshot or a stream. The
+  saving is small and the measurement says so: on one worker with the machine
+  idle (load under 5), the spec took 12.7 s over 28 runs before and 13.1 s over
+  27 runs after, which is noise. The removed test took about 0.17 s, the
+  rewritten card tests changed by less than 0.03 s each. The CSV row takes the
+  measured 13.148 s, with 12 tests and 4 browser-only, so its est. movable is
+  13.148 times 8 of 12 tests, 8.8 s, an upper bound, and not a saving. The
+  row had no duration before, so it read 0.0. Each assertion was proven red
+  by breaking the component or `live-control.ts` on a scratch copy (see the
+  pull request for the list).
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in

@@ -89,7 +89,7 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 	}
 	reachable := make(map[Forge]bool, len(snap.Forges))
 	for _, f := range snap.Forges {
-		reachable[f.Forge] = f.Reachable
+		reachable[f.Forge] = ClaimOf(ClaimState, f, true).State == ClaimConfirmed
 	}
 
 	// A repo whose fetch failed is still listed, marked stale. Its missing
@@ -98,7 +98,7 @@ func staleAutoUpdateChoices(snap Snapshot, enabledRepos map[string]struct{}, ove
 	// from.
 	failed := make(map[string]struct{})
 	for _, r := range snap.Repos {
-		if r.StaleSince != nil {
+		if ClaimOfRow(ClaimState, r.StaleSince).State == ClaimCarriedOver {
 			failed[string(r.Forge)+"/"+r.FullName] = struct{}{}
 		}
 	}

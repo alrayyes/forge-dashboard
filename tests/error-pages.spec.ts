@@ -23,7 +23,6 @@ const PAGES = [
     name: '404 page',
     title: 'Page not found',
     headline: 'Page not found',
-    chip: '404',
     body: BODY_404,
     status: 404,
   },
@@ -31,7 +30,6 @@ const PAGES = [
     name: '500 page',
     title: 'Something went wrong',
     headline: 'Something went wrong on our side',
-    chip: '500',
     body: BODY_500,
     status: 500,
   },
@@ -75,8 +73,8 @@ test.describe('expectNoInternals (#1069)', () => {
 });
 
 test.describe('error pages (#1175)', () => {
-  for (const { name: pageName, title, headline, chip, body, status } of PAGES) {
-    test(`the ${pageName} says what happened, links home, and has no axe-core violations at desktop and 375px or horizontal scroll`, async ({
+  for (const { name: pageName, title, headline, body, status } of PAGES) {
+    test(`the ${pageName} carries its headline, and has no axe-core violations at desktop and 375px or horizontal scroll`, async ({
       page,
     }) => {
       await openError(page, body, status);
@@ -85,21 +83,8 @@ test.describe('error pages (#1175)', () => {
       await expect(page.getByRole('heading', { level: 1 })).toHaveText(
         headline,
       );
-      await expect(page.locator('.error-status')).toContainText(chip);
-      const home = page.getByRole('link', { name: 'Back to pull requests' });
-      await expect(home).toHaveAttribute('href', '/');
-      for (const [name, href] of [
-        ['Issues', '/issues.html'],
-        ['Releases', '/releases.html'],
-        ['Insights', '/insights.html'],
-        ['Settings', '/settings.html'],
-      ]) {
-        await expect(
-          page
-            .getByRole('navigation', { name: 'Where to go next' })
-            .getByRole('link', { name }),
-        ).toHaveAttribute('href', href);
-      }
+      // The status chip, the way home and the section links are asserted in
+      // the ErrorPage stories, which run the same component.
       expectNoInternals(body);
 
       expect(
@@ -136,22 +121,6 @@ test.describe('error pages (#1175)', () => {
       ).toEqual([]);
     });
   }
-
-  test('the 500 page offers Try again, a link back to the same address', async ({
-    page,
-  }) => {
-    await openError(page, BODY_500, 500);
-    const again = page.getByRole('link', { name: 'Try again' });
-    await expect(again).toBeVisible();
-    await expect(again).toHaveAttribute('href', '?');
-  });
-
-  test('the 404 page offers no Try again, since the address is the problem', async ({
-    page,
-  }) => {
-    await openError(page, BODY_404, 404);
-    await expect(page.getByRole('link', { name: 'Try again' })).toHaveCount(0);
-  });
 
   test('neither page starts the app, so a router never swaps it for another page', async ({
     page,
