@@ -555,3 +555,18 @@ describe('advisoryReasonText', () => {
     );
   });
 });
+
+describe('advisoryCoverageByForge for a forge named like an inherited key', () => {
+  test.each(['constructor', '__proto__'])('%s gets its own coverage', (id) => {
+    registerForgeCapabilities([
+      { forge: id, capabilities: { advisorySource: 'dependabot' } },
+    ]);
+    const by = advisoryCoverageByForge([
+      { forge: id, advisories: unknown } as MainBranch,
+    ]);
+
+    expect(Object.hasOwn(by, id)).toBe(true);
+    expect(by[id]).toBe('none');
+    expect(Object.getPrototypeOf(by)).toBe(Object.prototype);
+  });
+});

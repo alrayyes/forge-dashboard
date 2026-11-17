@@ -6,7 +6,13 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
-import { advisoryFactsOf, forgeIds, isKnownForge, ownOf } from './forges';
+import {
+  advisoryFactsOf,
+  forgeIds,
+  isKnownForge,
+  ownOf,
+  setOwn,
+} from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
 import { rowClaim } from './row-claim';
@@ -459,7 +465,7 @@ export function offeredForges(
 export function forgeCounts(branches: MainBranch[]): Record<string, number> {
   const counts: Record<string, number> = { all: branches.length };
   for (const forge of forgeIds())
-    counts[forge] = branches.filter((b) => b.forge === forge).length;
+    setOwn(counts, forge, branches.filter((b) => b.forge === forge).length);
   return counts;
 }
 
@@ -628,7 +634,7 @@ export function advisoryCoverageByForge(
 ): Record<string, AdvisoryCoverage> {
   const by: Record<string, AdvisoryCoverage> = {};
   for (const forge of new Set(branches.map((b) => b.forge))) {
-    by[forge] = advisoryCoverage(branches, forge);
+    setOwn(by, forge, advisoryCoverage(branches, forge));
   }
   return by;
 }

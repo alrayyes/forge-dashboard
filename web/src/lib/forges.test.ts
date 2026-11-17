@@ -305,6 +305,9 @@ describe('registering a forge named like an inherited key', () => {
     expect(forgeLabelOf(id)).toBe('Odd');
     expect(forgeCan(id, 'servesRunningLog')).toBe(true);
     expect(advisoryFactsOf(id)?.source).toBe('dependabot');
-    expect(Object.getPrototypeOf({})).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(FORGE_LABELS)).toBe(Object.prototype);
+    expect(Object.getPrototypeOf(advisoryFactsOf('github'))).toBe(
+      Object.prototype,
+    );
   });
 });

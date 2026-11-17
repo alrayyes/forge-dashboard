@@ -74,7 +74,7 @@ export function ownOf<T>(
 
 // Writes key as an own property. A plain `registry[key] = value` with key
 // `__proto__` reassigns the registry's prototype instead.
-function setOwn<T>(registry: Record<string, T>, key: string, value: T) {
+export function setOwn<T>(registry: Record<string, T>, key: string, value: T) {
   Object.defineProperty(registry, key, {
     value,
     writable: true,
@@ -167,7 +167,7 @@ export function imagePolicyOf(forge: string): ImagePolicy | undefined {
 }
 
 export function registerImagePolicy(forge: string, policy: ImagePolicy) {
-  IMAGE_POLICIES[forge] = policy;
+  setOwn(IMAGE_POLICIES, forge, policy);
 }
 
 // The label of each forge. Seeded with the two forges the app ships with, so a
