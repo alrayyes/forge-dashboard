@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.77.0](https://github.com/alrayyes/forge-dashboard/compare/v9.76.0...v9.77.0) (2026-11-17)
+
+
+### Features
+
+* **web:** show a referenced pull request's real title, author and status ([#4211](https://github.com/alrayyes/forge-dashboard/issues/4211)) ([a7f11e1](https://github.com/alrayyes/forge-dashboard/commit/a7f11e12deac9e491f0728c60b78611a40a00481))
+
 ## [9.76.0](https://github.com/alrayyes/forge-dashboard/compare/v9.75.0...v9.76.0) (2026-11-17)
 
 
