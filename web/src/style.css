@@ -4572,6 +4572,12 @@ button.pipeline-check-link:disabled {
   min-width: 0;
   padding-right: 32px;
 }
+/* A type=search box draws its own clear control in WebKit and Blink; the
+   button below replaces it (#4144). */
+.search-wrap input[type="search"]::-webkit-search-cancel-button {
+  appearance: none;
+  display: none;
+}
 /* The clear button sits where the "/" hint does and takes its place once the
    box holds text. :placeholder-shown is true while it is empty, so there is
    no state to keep in step (#4077). */
@@ -4595,7 +4601,7 @@ button.pipeline-check-link:disabled {
 .search-clear:hover {
   color: var(--ink);
 }
-.search-wrap:has(.col-filter:placeholder-shown) .search-clear {
+.search-wrap:has(input:placeholder-shown) .search-clear {
   display: none;
 }
 .search-wrap:has(.col-filter:not(:placeholder-shown)) .search-hint {
@@ -4682,11 +4688,16 @@ button.pipeline-check-link:disabled {
     flex: 1 1 auto;
     min-width: 0;
   }
-  .filter-bar-top .search-wrap .col-filter {
+  /* Straight in the bar (Insights), the wrap would keep its 260px basis as a
+     height in this column (#4144). */
+  .filter-bar > .search-wrap {
+    flex: 0 0 auto;
+  }
+  .filter-bar .search-wrap .col-filter {
     min-height: 44px;
     padding-right: 44px;
   }
-  .filter-bar-top .search-clear {
+  .filter-bar .search-clear {
     width: 44px;
     height: 44px;
     right: 0;
