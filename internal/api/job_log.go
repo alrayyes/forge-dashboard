@@ -4,10 +4,12 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -112,6 +114,14 @@ func checkJobTracked(ctx context.Context, deps Deps, forge, fullName string) *st
 // resolveJobLogFor reads the output of one Actions job. Shared by
 // handleJobLog and the MCP get_check_log tool so the two can't drift.
 func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
+	return resolveJobLogKept(ctx, deps, forge, fullName, jobID, nil)
+}
+
+// resolveJobLogKept is resolveJobLogFor that answers from memory when keep
+// names a finished job already read, and keeps what it reads for the next
+// open. A nil keep reads the forge every time. The repository checks run
+// either way, so a kept log is never shown for one the person doesn't track.
+func resolveJobLogKept(ctx context.Context, deps Deps, forge, fullName string, jobID int64, keep *jobLogKey) (dashboard.JobLog, *statusError) {
 	src, owner, name, serr := resolveJobSource(ctx, deps, forge, fullName, jobID)
 	if serr != nil {
 		return dashboard.JobLog{}, serr
@@ -124,14 +134,49 @@ func resolveJobLogFor(ctx context.Context, deps Deps, forge, fullName string, jo
 		return dashboard.JobLog{}, serr
 	}
 
+	if keep != nil && deps.jobLogs != nil {
+		if log, ok := deps.jobLogs.get(*keep); ok {
+			return log, nil
+		}
+	}
 	log, err := reader.JobLog(ctx, owner, name, jobID)
 	if err != nil {
 		slog.Warn("job log fetch failed", "forge", forge, "repo", fullName, "job", jobID, "error", redactURLs(err))
 
 		return dashboard.JobLog{}, jobLogFailure(err)
 	}
+	if keep != nil && deps.jobLogs != nil {
+		deps.jobLogs.put(*keep, log)
+	}
 
 	return log, nil
+}
+
+// parseJobLogKey reads the optional attempt and finishedAt a client sends for
+// a job it shows as finished. The key is nil, and nothing is kept, unless the
+// job finished long enough ago for its log to be final.
+func parseJobLogKey(q url.Values, forge, fullName string, jobID int64, now time.Time) (*jobLogKey, string) {
+	var attempt int64
+	if s := q.Get("attempt"); s != "" {
+		n, err := strconv.ParseInt(s, 10, 64)
+		if err != nil || n < 0 {
+			return nil, "attempt must be a non-negative integer"
+		}
+		attempt = n
+	}
+	s := q.Get("finishedAt")
+	if s == "" {
+		return nil, ""
+	}
+	finished, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return nil, "finishedAt must be an RFC 3339 time"
+	}
+	if !jobLogSettled(finished, now) {
+		return nil, ""
+	}
+
+	return &jobLogKey{forge: forge, fullName: fullName, jobID: jobID, attempt: attempt, finishedAt: finished}, ""
 }
 
 // resolveJobExcerptFor reads the excerpt of one failed job: the last lines of
@@ -172,7 +217,15 @@ func handleJobLog(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		resolve := resolveJobLogFor
+		keep, problem := parseJobLogKey(q, q.Get("forge"), q.Get("fullName"), jobID, time.Now())
+		if problem != "" {
+			writeJSON(w, http.StatusBadRequest, errorBody(problem))
+
+			return
+		}
+		resolve := func(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (dashboard.JobLog, *statusError) {
+			return resolveJobLogKept(ctx, deps, forge, fullName, jobID, keep)
+		}
 		switch q.Get("excerpt") {
 		case "", "false":
 		case "true":

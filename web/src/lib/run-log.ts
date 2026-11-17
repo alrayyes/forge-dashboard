@@ -33,15 +33,24 @@ export type LogResult =
 // The repository a dialog's checks belong to: where a job's log is read from.
 export type RepoRef = { forge: string; fullName: string };
 
-// The log endpoint for one job of repo. Null when no repository is named.
+// The log endpoint for one job of repo. Null when no repository is named. A
+// finished job names its attempt and finish time, which is what lets the server
+// keep its log and read a rerun afresh; a job with no finish time sends neither,
+// so the server never keeps a log that is still growing.
 export function logUrl(
   repo: RepoRef | undefined,
   jobId: number,
+  run?: Pick<Check, 'runAttempt' | 'completedAt'>,
 ): string | null {
   if (!repo?.forge || !repo.fullName) return null;
   const { forge, fullName } = repo;
+  const params = new URLSearchParams({ forge, fullName, jobId: String(jobId) });
+  if (run?.completedAt) {
+    if (run.runAttempt) params.set('attempt', String(run.runAttempt));
+    params.set('finishedAt', run.completedAt);
+  }
 
-  return `/api/v1/checks/log?${new URLSearchParams({ forge, fullName, jobId: String(jobId) })}`;
+  return `/api/v1/checks/log?${params}`;
 }
 
 // What the dialog says above a log the server cut. The link to the job sits
