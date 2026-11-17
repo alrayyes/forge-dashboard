@@ -38,7 +38,7 @@ func (it pendingItem) key() string {
 // A Forgejo default branch whose pipeline is running is re-read too, since its
 // rerun and job changes send no webhook, and so is one whose run finished
 // within settledPollWindow, since a rerun of it sends none either
-// (pollableForgejoBranches).
+// (pollableBranches).
 //
 // A source that implements PendingCheckRefresher answers all of a forge's
 // pull requests in one request; any other is refreshed one repo at a time
@@ -57,7 +57,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	for _, it := range items {
 		live[it.key()] = struct{}{}
 	}
-	branches := pollableForgejoBranches(snap, now)
+	branches := pollableBranches(snap, now)
 	for _, b := range branches {
 		live[branchPollKey(b)] = struct{}{}
 	}
@@ -102,16 +102,17 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 // the next run, so a quiet repo costs nothing.
 const settledPollWindow = 10 * time.Minute
 
-// pollableForgejoBranches is the default branches a poll may re-read: those with
-// a Forgejo job still running or queued, and those whose run finished within
+// pollableBranches is the default branches a poll may re-read, on a forge whose
+// check events don't all arrive by webhook: those with
+// a job still running or queued, and those whose run finished within
 // settledPollWindow. A failed job outranks a running one in the status, so a
 // rerun with both reads as failed and is found by its counts. Forgejo sends a
 // webhook when a run ends, not when one is rerun or its jobs move, so a row read
 // mid-run or just after one keeps its counts until the next full refresh.
-// GitHub's check events cover its own rows.
-func pollableForgejoBranches(snap Snapshot, now time.Time) []MainBranch {
+// A forge with ChecksViaWebhook covers its own rows.
+func pollableBranches(snap Snapshot, now time.Time) []MainBranch {
 	return slices.DeleteFunc(slices.Clone(snap.MainBranches), func(b MainBranch) bool {
-		if b.Forge != ForgeForgejo || ClaimOfRow(ClaimState, b.StaleSince).State == ClaimCarriedOver {
+		if !b.Forge.Valid() || checksViaWebhook(b.Forge) || ClaimOfRow(ClaimState, b.StaleSince).State == ClaimCarriedOver {
 			return true
 		}
 		if b.Status == MainBranchRunning || b.Checks.Running+b.Checks.Waiting > 0 {
@@ -120,6 +121,14 @@ func pollableForgejoBranches(snap Snapshot, now time.Time) []MainBranch {
 
 		return b.FinishedAt == nil || now.Sub(*b.FinishedAt) > settledPollWindow
 	})
+}
+
+// checksViaWebhook is whether forge's check events arrive by webhook, so a
+// pending run can wait for one. False for a forge this build doesn't know.
+func checksViaWebhook(forge Forge) bool {
+	c, _ := CapabilitiesOf(forge)
+
+	return c.ChecksViaWebhook
 }
 
 func branchPollKey(b MainBranch) string {
@@ -433,15 +442,15 @@ func (a *Aggregator) pendingRefresherFor(forge Forge) PendingCheckRefresher {
 var checkEventNames = []string{"check_run"}
 
 // checksArriveByWebhook reports whether a poll of it can wait for the webhook:
-// the pull request waits on a check, the forge is GitHub (Forgejo's hook drops
-// the status event, #177), the app's hook on the repo is confirmed and
+// the pull request waits on a check, the forge delivers check events by webhook (Forgejo's
+// hook drops the status event, #177), the app's hook on the repo is confirmed and
 // subscribes to check events, and a check delivery for this pull request's own
 // head commit arrived within the overdue period. Another pull request's
 // deliveries, or an earlier commit's, say nothing about this one, so they do not
 // count. A delivery only counts once its signature was verified and its body
 // named the commit, and it can hold polling off for pendingPollCap at most.
 func (a *Aggregator) checksArriveByWebhook(it pendingItem, now time.Time, base time.Duration) bool {
-	if !it.ciPending || it.ref.Forge != ForgeGitHub || base <= 0 || it.headSHA == "" {
+	if !it.ciPending || !checksViaWebhook(it.ref.Forge) || base <= 0 || it.headSHA == "" {
 		return false
 	}
 	reporter := a.webhookEventsFor(it.ref.Forge)
