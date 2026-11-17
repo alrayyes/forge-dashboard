@@ -704,6 +704,9 @@
   .adv-body {
     padding: 14px 18px 18px;
     overflow-y: auto;
+    /* A changed list is swapped in and the reading position put back in
+       swap(), the same way in every browser; Safari has no native anchoring. */
+    overflow-anchor: none;
     flex: 1 1 auto;
   }
   .adv-footer {

@@ -261,7 +261,7 @@ for (const width of [1280, 375]) {
       await openDialog(page, {
         warm: true,
         answer: json(list()),
-        refresh: json(list({ refreshFailed: true })),
+        refresh: json(list({ refreshFailed: 'failed' })),
       });
       await expect(page.getByTestId('advisory-row')).toHaveCount(12);
       const slot = await boxOf(page, 'advisories-older');

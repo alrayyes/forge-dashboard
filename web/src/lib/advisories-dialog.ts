@@ -50,7 +50,7 @@ export interface AdvisoryList {
   // When the server read the forge for this list, and whether a refresh it
   // was asked for failed so that this is the last good list.
   readAt?: string;
-  refreshFailed?: boolean;
+  refreshFailed?: 'failed' | 'throttled';
   advisories: AdvisoryItem[];
 }
 

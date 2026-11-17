@@ -296,7 +296,7 @@ describe('sameContent', () => {
   });
 
   test('a failed refresh is not the same as a good one', () => {
-    expect(sameContent(list(), list({ refreshFailed: true }))).toBe(false);
+    expect(sameContent(list(), list({ refreshFailed: 'failed' }))).toBe(false);
   });
 });
 
