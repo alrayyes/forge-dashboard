@@ -4,6 +4,7 @@ import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The pipeline panel draws the job lists the server sends on the dashboard
@@ -51,7 +52,7 @@ function pr(ci: string, checks: Counts, forge = 'github') {
 function snapshot(item: ReturnType<typeof pr>) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: [item],
     issues: [],
   };

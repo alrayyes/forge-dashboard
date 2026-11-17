@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The run link sits in a footer under a divider, outside the scrolling body, so
@@ -11,14 +12,7 @@ const LINK_NAME = 'Open run on GitHub (opens in a new tab)';
 function snapshot() {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
-        capabilities: { label: 'GitHub' },
-      },
-    ],
+    forges: [forgeHealth('github', { capabilities: { label: 'GitHub' } })],
     pullRequests: [
       {
         forge: 'github',

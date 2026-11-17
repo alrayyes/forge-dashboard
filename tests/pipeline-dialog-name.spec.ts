@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The dialog takes its name from the visible heading, so the two can't drift
@@ -8,14 +9,7 @@ import { test } from './server-fixture';
 
 const snapshot = () => ({
   generatedAt: new Date().toISOString(),
-  forges: [
-    {
-      forge: 'github',
-      reachable: true,
-      repoCount: 1,
-      capabilities: { label: 'GitHub' },
-    },
-  ],
+  forges: [forgeHealth('github', { capabilities: { label: 'GitHub' } })],
   pullRequests: [
     {
       forge: 'github',

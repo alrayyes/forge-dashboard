@@ -4,6 +4,7 @@ import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { pushStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const pr = {
@@ -51,7 +52,7 @@ async function setup(
       url: `${runUrl}0`,
     },
   ],
-  forge = 'github',
+  forge: 'github' | 'forgejo' = 'github',
 ): Promise<string[]> {
   const asked: string[] = [];
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -61,7 +62,7 @@ async function setup(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1 }],
+        forges: [forgeHealth(forge)],
         pullRequests: [{ ...pr, forge }],
         issues: [],
       }),

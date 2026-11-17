@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { type PillGroup, quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
 
@@ -52,7 +53,7 @@ async function open(page: Page, url: string, pullRequests = MIXED) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests,
         issues: [],
         openIssueCount: 0,
