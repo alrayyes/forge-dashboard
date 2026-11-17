@@ -4,7 +4,9 @@ import {
   advisoryFactsOf,
   FORGE_LABELS,
   forgeCan,
+  forgeClassOf,
   forgeIds,
+  forgeLabelOf,
   forgeListText,
   isKnownForge,
   rateLimitModelOf,
@@ -254,5 +256,55 @@ describe('the known forges', () => {
     expect(forgeListText()).toBe('"github" or "forgejo"');
     registerForgeCapabilities([{ forge: 'gitea' }]);
     expect(forgeListText()).toBe('"github", "forgejo" or "gitea"');
+  });
+});
+
+const INHERITED_KEYS = [
+  'constructor',
+  'toString',
+  '__proto__',
+  'hasOwnProperty',
+];
+
+describe('forgeLabelOf and forgeClassOf', () => {
+  test.each(INHERITED_KEYS)(
+    'a forge named %s reads as nobody described it',
+    (id) => {
+      expect(forgeLabelOf(id)).toBe(id);
+      expect(forgeClassOf(id)).toBe('');
+    },
+  );
+
+  test('github, forgejo and a registered gitea read as before', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+
+    expect(forgeLabelOf('github')).toBe('GitHub');
+    expect(forgeClassOf('github')).toBe('gh');
+    expect(forgeLabelOf('forgejo')).toBe('Forgejo');
+    expect(forgeClassOf('forgejo')).toBe('fj');
+    expect(forgeLabelOf('gitea')).toBe('Gitea');
+    expect(forgeClassOf('gitea')).toBe('');
+  });
+});
+
+describe('registering a forge named like an inherited key', () => {
+  test.each(INHERITED_KEYS)('%s registers as a plain forge', (id) => {
+    registerForgeCapabilities([
+      {
+        forge: id,
+        capabilities: {
+          label: 'Odd',
+          servesRunningLog: true,
+          advisorySource: 'dependabot',
+        },
+      },
+    ]);
+
+    expect(forgeLabelOf(id)).toBe('Odd');
+    expect(forgeCan(id, 'servesRunningLog')).toBe(true);
+    expect(advisoryFactsOf(id)?.source).toBe('dependabot');
+    expect(Object.getPrototypeOf({})).toBe(Object.prototype);
   });
 });

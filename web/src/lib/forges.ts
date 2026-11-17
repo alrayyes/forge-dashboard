@@ -72,6 +72,17 @@ export function ownOf<T>(
   return Object.hasOwn(registry, key) ? registry[key] : undefined;
 }
 
+// Writes key as an own property. A plain `registry[key] = value` with key
+// `__proto__` reassigns the registry's prototype instead.
+function setOwn<T>(registry: Record<string, T>, key: string, value: T) {
+  Object.defineProperty(registry, key, {
+    value,
+    writable: true,
+    enumerable: true,
+    configurable: true,
+  });
+}
+
 let FORGE_FLAGS = structuredClone(SEED_FLAGS);
 
 // Whether forge can do what flag names. False for a forge never heard of or
@@ -181,6 +192,11 @@ export function forgeLabelOf(forge: string): string {
   return ownOf(FORGE_LABELS, forge) || forge;
 }
 
+// The CSS class for a forge's badge, or '' for one without a colour.
+export function forgeClassOf(forge: string): string {
+  return ownOf(FORGE_CLASSES, forge) ?? '';
+}
+
 export function forgeIds(): string[] {
   return [...FORGE_IDS];
 }
@@ -223,23 +239,24 @@ export function registerForgeCapabilities(
   for (const f of forges ?? []) {
     if (f.forge && !FORGE_IDS.includes(f.forge)) FORGE_IDS.push(f.forge);
     const label = f.capabilities?.label;
-    if (label) FORGE_LABELS[f.forge] = label;
+    if (label) setOwn(FORGE_LABELS, f.forge, label);
     const statusPage = f.capabilities?.statusPageUrl;
-    if (typeof statusPage === 'string') STATUS_PAGES[f.forge] = statusPage;
-    const flags = { ...FORGE_FLAGS[f.forge] };
+    if (typeof statusPage === 'string')
+      setOwn(STATUS_PAGES, f.forge, statusPage);
+    const flags = { ...ownOf(FORGE_FLAGS, f.forge) };
     for (const flag of FLAGS) {
       const v = f.capabilities?.[flag];
       if (typeof v === 'boolean') flags[flag] = v;
     }
-    if (f.capabilities) FORGE_FLAGS[f.forge] = flags;
+    if (f.capabilities) setOwn(FORGE_FLAGS, f.forge, flags);
     const model = f.capabilities?.rateLimitModel;
-    if (model) RATE_LIMIT_MODELS[f.forge] = model;
+    if (model) setOwn(RATE_LIMIT_MODELS, f.forge, model);
     const source = f.capabilities?.advisorySource;
     if (source) {
-      ADVISORY_FACTS[f.forge] = {
+      setOwn(ADVISORY_FACTS, f.forge, {
         source,
         unknownNeedsReason: f.capabilities?.advisoryUnknownNeedsReason ?? false,
-      };
+      });
     }
   }
 }
