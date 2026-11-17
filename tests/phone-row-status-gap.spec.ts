@@ -221,28 +221,42 @@ test.describe('phone row status gap (#3834)', () => {
           .analyze();
         expect(results.violations).toEqual([]);
 
-        const boxes = await row.evaluate((r) => {
-          const rowBox = r.getBoundingClientRect();
-          return [...r.querySelectorAll('.status-cell button, .status-cell a')]
-            .map((e) => {
-              const b = e.getBoundingClientRect();
-              return {
-                name: e.className,
-                w: b.width,
-                h: b.height,
-                inside:
-                  b.left >= rowBox.left - 0.5 && b.right <= rowBox.right + 0.5,
-              };
-            })
-            .filter((b) => b.h > 0);
-        });
-        expect(boxes.length).toBeGreaterThan(0);
-        for (const b of boxes) {
-          expect(b.inside, JSON.stringify(b)).toBe(true);
-          if (width <= 390 && /row-action/.test(b.name)) {
-            expect(b.h, JSON.stringify(b)).toBeGreaterThanOrEqual(44);
-          }
-        }
+        const boxes = () =>
+          row.evaluate((r) => {
+            const rowBox = r.getBoundingClientRect();
+            return [
+              ...r.querySelectorAll('.status-cell button, .status-cell a'),
+            ]
+              .map((e) => {
+                const b = e.getBoundingClientRect();
+                return {
+                  name: e.className,
+                  w: b.width,
+                  h: b.height,
+                  inside:
+                    b.left >= rowBox.left - 0.5 &&
+                    b.right <= rowBox.right + 0.5,
+                };
+              })
+              .filter((b) => b.h > 0);
+          });
+        // Re-measured until the buttons sit inside the row and, on a phone,
+        // are tall enough, so a row still settling does not fail it.
+        await expect
+          .poll(async () => {
+            const found = await boxes();
+            return {
+              any: found.length > 0,
+              misfits: found
+                .filter(
+                  (b) =>
+                    !b.inside ||
+                    (width <= 390 && /row-action/.test(b.name) && b.h < 44),
+                )
+                .map((b) => JSON.stringify(b)),
+            };
+          })
+          .toEqual({ any: true, misfits: [] });
       });
     }
   }
