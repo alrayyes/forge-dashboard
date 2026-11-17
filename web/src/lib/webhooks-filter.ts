@@ -4,11 +4,13 @@
 // that has changed. No DOM here, so the page stays the one place that touches
 // elements.
 
+import { forgeIds } from './forges';
+
 export type WebhooksSortKey = 'forge' | 'fullName' | 'hasWebhook';
 
 export interface WebhooksFilter {
   // '' is every forge.
-  forge: '' | 'github' | 'forgejo';
+  forge: string;
   repo: string;
   // '' is every status.
   status: '' | 'confirmed' | 'pending';
@@ -24,7 +26,6 @@ export const DEFAULT_WEBHOOKS_FILTER: WebhooksFilter = {
   dir: 'asc',
 };
 
-const FORGES = ['', 'github', 'forgejo'];
 const STATUSES = ['', 'confirmed', 'pending'];
 const SORTS = ['forge', 'fullName', 'hasWebhook'];
 const DIRS = ['asc', 'desc'];
@@ -43,7 +44,11 @@ export function webhooksFilterFromState(
       ? (value as T)
       : fallback;
   return {
-    forge: pick(saved?.forge, FORGES, DEFAULT_WEBHOOKS_FILTER.forge),
+    forge: pick(
+      saved?.forge,
+      ['', ...forgeIds()],
+      DEFAULT_WEBHOOKS_FILTER.forge,
+    ),
     repo: typeof saved?.repo === 'string' ? saved.repo.slice(0, 200) : '',
     status: pick(saved?.status, STATUSES, DEFAULT_WEBHOOKS_FILTER.status),
     sort: pick(saved?.sort, SORTS, DEFAULT_WEBHOOKS_FILTER.sort),

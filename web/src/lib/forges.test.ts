@@ -4,6 +4,9 @@ import {
   advisoryFactsOf,
   FORGE_LABELS,
   forgeCan,
+  forgeIds,
+  forgeListText,
+  isKnownForge,
   registerForgeCapabilities,
   resetForgeCapabilities,
   statusPageUrlOf,
@@ -183,5 +186,37 @@ describe('resetForgeCapabilities', () => {
     expect(forgeCan('forgejo', 'servesRunningLog')).toBe(true);
     expect(FORGE_LABELS.forgejo).toBe('Forgejo');
     expect(advisoryFactsOf('forgejo')?.source).toBe('osv');
+  });
+});
+
+describe('the known forges', () => {
+  test('the shipped forges are known before any read', () => {
+    expect(forgeIds()).toEqual(['github', 'forgejo']);
+    expect(isKnownForge('github')).toBe(true);
+    expect(isKnownForge('gitlab')).toBe(false);
+  });
+
+  test('a forge the server reports joins the list once, after the shipped ones', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+      { forge: 'github' },
+      { forge: 'gitea' },
+    ]);
+
+    expect(forgeIds()).toEqual(['github', 'forgejo', 'gitea']);
+    expect(isKnownForge('gitea')).toBe(true);
+  });
+
+  test('reset forgets a taught forge', () => {
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+    resetForgeCapabilities();
+
+    expect(isKnownForge('gitea')).toBe(false);
+  });
+
+  test('the list reads as prose, quoted', () => {
+    expect(forgeListText()).toBe('"github" or "forgejo"');
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+    expect(forgeListText()).toBe('"github", "forgejo" or "gitea"');
   });
 });
