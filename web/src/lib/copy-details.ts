@@ -17,14 +17,19 @@ export function copyButton(
   const copy = document.createElement('button');
   copy.type = 'button';
   copy.className = className;
-  copy.textContent = 'Copy';
-  copy.setAttribute('aria-label', 'Copy error details');
+  // The accessible name keeps the visible word first (WCAG 2.5.3, #4122), so
+  // it says Copied while the button does and returns with it.
+  const label = (word: string) => {
+    copy.textContent = word;
+    copy.setAttribute('aria-label', `${word} error details`);
+  };
+  label('Copy');
   copy.addEventListener('click', () => {
     const text = JSON.stringify(details, null, 2);
     const done = () => {
-      copy.textContent = 'Copied';
+      label('Copied');
       window.setTimeout(() => {
-        if (copy.isConnected) copy.textContent = 'Copy';
+        if (copy.isConnected) label('Copy');
       }, COPIED_MS);
     };
     const fallback = () => showDetails(copy, text);
