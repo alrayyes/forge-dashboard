@@ -115,7 +115,6 @@
     createdAt: string;
     updatedAt: string | null;
   };
-  type Facts = NonNullable<Details["pullRequest"]>;
   type Details = {
     description: Body;
     comments: Comment[];
@@ -180,9 +179,10 @@
   let phase = $state<"loading" | "error" | "ready">("loading");
   let errorMessage = $state("");
   let details = $state<Details | null>(null);
-  // What the issues endpoint said about a pull request it found. The pull
-  // request endpoint says none of it, so a reload keeps these.
-  let referenced = $state<{ key: string; facts: Facts } | null>(null);
+  // The cache key of a pull request that was opened from a bare number. Only
+  // the issues endpoint says its title, author and state, so every read of it,
+  // the quiet one after a cached open and a reload alike, goes there.
+  let referencedKey: string | null = null;
   // Markdown rendered to safe HTML, by "description", "notes" or comment id.
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
@@ -354,7 +354,7 @@
     brokenAvatars = {};
     brokenFilerAvatar = false;
     older = null;
-    referenced = null;
+    referencedKey = null;
     const ref = refOf(item);
     let hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
     if (!isReleaseTarget(item) && item.subject === "issue") {
@@ -365,9 +365,7 @@
       if (known && (!hit || (hit.details as Details).kind === "pullRequest")) {
         target = asPr;
         hit = known;
-        const facts = (known.details as Details).pullRequest;
-        if (facts)
-          referenced = { key: detailsKey(refOf(asPr) as DetailsRef), facts };
+        referencedKey = detailsKey(refOf(asPr) as DetailsRef);
         onPullRequestFound?.();
       }
     }
@@ -409,6 +407,11 @@
       number: item.number,
     };
   }
+
+  const isReferenced = (item: ItemTarget) =>
+    referencedKey !== null &&
+    item.subject !== "issue" &&
+    referencedKey === detailsKey(refOf(item) as DetailsRef);
 
   // The same reference as a pull request, once the server says it is one.
   function asPullRequest(current: ItemTarget): ItemTarget {
@@ -508,7 +511,7 @@
       const res = await fetch(
         isReleaseTarget(current)
           ? `/api/v1/releases/details?${where}&tag=${encodeURIComponent(current.tag)}`
-          : `/api/v1/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
+          : `/api/v1/${current.subject === "issue" || isReferenced(current) ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
       if (res.status === 401) {
@@ -537,27 +540,17 @@
           target = { ...current, title: release.name };
       } else {
         loaded = data as Details;
-        // The pull request endpoint says none of what the issues one did
-        // about a reference, so what is already known carries over a reload.
-        const asPr = asPullRequest(current as ItemTarget);
-        const prKey = detailsKey(refOf(asPr) as DetailsRef);
-        if (loaded.pullRequest && mine === token)
-          referenced = { key: prKey, facts: loaded.pullRequest };
-        else if (
-          current.subject !== "issue" &&
-          referenced?.key === detailsKey(refOf(current) as DetailsRef)
-        )
-          loaded = { ...loaded, pullRequest: referenced.facts };
       }
       // A reference the board doesn't list opens as an issue, and the server
       // says when the number is a pull request. Show it as one, from the same
-      // answer, so a reload then goes to the pull request endpoint.
+      // answer, so a reload reads the issues endpoint again.
       const foundPullRequest =
         !isReleaseTarget(current) &&
         current.subject === "issue" &&
         loaded.kind === "pullRequest";
       if (foundPullRequest && mine === token) {
         target = asPullRequest(current as ItemTarget);
+        referencedKey = detailsKey(refOf(target) as DetailsRef);
         onPullRequestFound?.();
       }
       // Remembered under what it turned out to be.

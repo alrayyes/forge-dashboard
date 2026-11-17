@@ -62,6 +62,21 @@ const issue = {
   updatedAt: now,
 };
 
+// What the forge currently says about #4177, changed by a test between opens.
+type Served = {
+  state: 'open' | 'closed' | 'merged';
+  author: { login: string; avatarUrl: string; url: string } | null;
+};
+const author = {
+  login: 'octo-author',
+  avatarUrl: '',
+  url: 'https://github.com/octo-author',
+};
+let served: Served = { state: 'merged', author };
+test.beforeEach(() => {
+  served = { state: 'merged', author };
+});
+
 // 4177 is a pull request the board doesn't list, 4100 an issue it doesn't
 // list, 9999 neither.
 async function open(
@@ -112,12 +127,8 @@ async function open(
           state: 'closed',
           pullRequest: {
             title: 'Add structured logging to the sync loop',
-            state: 'merged',
-            author: {
-              login: 'octo-author',
-              avatarUrl: '',
-              url: 'https://github.com/octo-author',
-            },
+            state: served.state,
+            author: served.author,
           },
         }),
       });
@@ -274,6 +285,9 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
     await expect(dialog.locator('.details-author')).toContainText(
       'Opened by octo-author',
     );
+    await expect(
+      dialog.locator('.details-author').getByRole('link'),
+    ).toHaveAttribute('href', 'https://github.com/octo-author');
     await expect(dialog).not.toContainText('Pull request #4177');
   });
 
@@ -373,6 +387,81 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
         ).toBeLessThanOrEqual(1);
     });
   }
+
+  test('a deleted account has no byline and nothing throws', async ({
+    page,
+  }) => {
+    served = { state: 'closed', author: null };
+    const errors: string[] = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await open(page, 'issues', 'Fixed by #4177');
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+    const dialog = prDialog(page);
+    await expect(dialog.getByRole('group', { name: 'Status' })).toHaveText(
+      'Closed',
+    );
+    await expect(dialog.locator('.details-author')).toHaveCount(0);
+    expect(errors).toEqual([]);
+  });
+
+  test('a second open shows what the forge says now, without the header moving', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1366, height: 600 });
+    served = { state: 'open', author };
+    let reads = 0;
+    page.on('request', (r) => {
+      if (
+        r.url().includes('/api/v1/issues/details') &&
+        r.url().includes('number=4177')
+      )
+        reads++;
+    });
+    await open(page, 'issues', 'Fixed by #4177');
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+    const dialog = prDialog(page);
+    await expect(dialog.getByRole('group', { name: 'Status' })).toHaveText(
+      'Open',
+    );
+    const refTop = () =>
+      dialog
+        .locator('.details-ref')
+        .evaluate((el) => el.getBoundingClientRect().top);
+    const first = await refTop();
+    await page.keyboard.press('Escape');
+
+    // Merged by someone else while the dialog was closed.
+    served = { state: 'merged', author };
+    await page.evaluate(() => {
+      const w = window as unknown as { __refTops: number[] };
+      w.__refTops = [];
+      new MutationObserver(() => {
+        const top = document
+          .querySelector('dialog.details-dialog[open] .details-ref')
+          ?.getBoundingClientRect().top;
+        if (top !== undefined) w.__refTops.push(top);
+      }).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        characterData: true,
+      });
+    });
+    await page.getByRole('button', { name: /^#12 / }).click();
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+    await expect(dialog.getByRole('group', { name: 'Status' })).toHaveText(
+      'Merged',
+    );
+    expect(reads).toBe(2);
+    const tops = await page.evaluate(
+      () => (window as unknown as { __refTops: number[] }).__refTops,
+    );
+    expect(tops.length).toBeGreaterThan(0);
+    for (const top of [...tops, await refTop()])
+      expect(Math.abs(top - first)).toBeLessThanOrEqual(1);
+  });
 
   for (const width of [360, 1280]) {
     test(`the real details have no axe violations at ${width}px`, async ({

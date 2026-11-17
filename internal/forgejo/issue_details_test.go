@@ -175,3 +175,24 @@ func TestGetIssueDetails_APullRequestCarriesTheFactsItsHeaderNeeds(t *testing.T)
 		})
 	}
 }
+
+// A deleted account has no poster, so the header says no author instead of
+// naming nobody.
+func TestGetIssueDetails_APullRequestWithNoPosterHasNoAuthor(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "title": "Gone", "body": "x", "state": "open", "pull_request": map[string]any{"merged": false}, "user": nil})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.PullRequest)
+	assert.Nil(t, got.PullRequest.Author)
+}
