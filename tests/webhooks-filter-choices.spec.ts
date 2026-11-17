@@ -74,6 +74,28 @@ test.describe('webhooks filter choices (#1427)', () => {
     await expect(bar.getByLabel('GitHub')).toHaveCount(0);
   });
 
+  test('a forge the API reports beyond the two shipped gets a button (#3976)', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
+        { forge: 'gitea', fullName: 'alrayyes/b', hasWebhook: true },
+      ],
+      [
+        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
+        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+      ],
+    );
+    await page.goto('/webhooks.html');
+
+    await expect(forgeRadio(page, 'gitea')).toHaveCount(1);
+    await expect(
+      page.locator('.webhooks-filter-bar').getByLabel('Gitea'),
+    ).toHaveCount(1);
+  });
+
   test('a forge with no tracked repo is not offered, and neither is a status no repo has', async ({
     page,
   }) => {
