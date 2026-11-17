@@ -154,7 +154,7 @@ can sit above or below these figures, so add its number beside them.
 | 2026-11-17 | 50            | 2 (synthetic) | 30 / 38 MiB                                       | 24 MiB                   |
 | 2026-11-17 | 200           | 2 (synthetic) | 50 / 52 MiB                                       | 40 MiB                   |
 | 2026-11-17 | 500           | 2 (synthetic) | 72 / 74 MiB                                       | 64 MiB                   |
-| 2026-11-17 | 1000          | 2 (synthetic) | 105 / 116 MiB                                     | 64 MiB                   |
+| 2026-11-17 | 1000          | 2 (synthetic) | 105 / 116 MiB                                     | 64 to 96 MiB             |
 | 2026-11-17 | 2000          | 2 (synthetic) | 180 / 189 MiB                                     | 128 MiB                  |
 
 Each peak is the largest of one start and three `docker restart`s, from
@@ -166,11 +166,16 @@ were OOM-killed and restarted twice: 16 MiB at 50 repos, 32 MiB at 200, 40 and
 48 MiB at 500 (56 MiB restarted once in four starts), 48 and 56 MiB at 1000, 64
 and 96 MiB at 2000.
 
-Read the smallest limit as a floor on this workload, not a target. It is lower
-than the peak because the soft limit above makes the runtime collect hard, and
-a container at its floor spends that time in the garbage collector. The
-256 MiB recommendation covers the largest synthetic account here (2000 repos)
-twice over, and leaves the room real bodies and check lists need, so it stands.
+Read the smallest limit as a floor on this workload, not a target, and as
+noisy near the edge. It is lower than the peak because the soft limit above
+makes the runtime collect hard, and a container at its floor spends that time
+in the garbage collector. Whether a start survives there depends on timing: at
+1000 repos, 64 MiB held in two of four repeat runs and was OOM-killed twice in
+the other two (48 and 56 MiB always failed), so the table gives 64 to 96 MiB,
+and the 500-repo figure is as soft. The 256 MiB recommendation is about 1.4
+times the 180 MiB peak of the largest synthetic account here (2000 repos) and
+twice its 128 MiB floor, and leaves the room real bodies and check lists need,
+so it stands.
 
 ## Before you upgrade
 
