@@ -263,3 +263,21 @@ func TestListAdvisories_ARefreshReadsAgainAndAFailureKeepsTheLastGoodList(t *tes
 	assert.Len(t, got.Advisories, 1, "never an empty list")
 	assert.Equal(t, first.ReadAt, got.ReadAt)
 }
+
+func TestListAdvisories_AfterARowWithAnUnreadableLockfileCostsNoForgeCall(t *testing.T) {
+	t.Parallel()
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": "not json"}}
+	client := forge.start(t, &fakeScanner{})
+
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	require.Equal(t, dashboard.AdvisoriesUnknown, row.Advisories.State)
+	forgeAfterRow := forge.requests.Load()
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.AdvisoriesUnknown, got.State)
+	assert.Equal(t, forgeAfterRow, forge.requests.Load(), "the row's answer is the dialog's: no second read")
+	assert.Equal(t, got.ReadAt, row.Advisories.ListReadAt)
+}
