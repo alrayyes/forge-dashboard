@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { factsOf } from './check-facts';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A GitHub pull request whose only non-passing check is a cancelled run says
@@ -69,7 +70,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [CANCELLED, FAILED, FORGEJO_CANCELLED],
         issues: [],
         openIssueCount: 0,

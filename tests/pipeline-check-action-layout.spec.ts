@@ -3,6 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { factsOf } from './check-facts';
 import { checkLinkName } from './check-link-name-helper';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
@@ -30,7 +31,7 @@ async function open(page: Page, holdLog?: Promise<void>) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           {
             forge: 'github',

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #4099: on a phone a locked Merge took the whole line and pushed Update
@@ -74,7 +75,7 @@ async function open(page: Page, pullRequest: unknown) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pullRequest],
         issues: [],
         repos: [],
@@ -167,7 +168,7 @@ test('a locked Merge keeps its size when Update branch goes away', async ({
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           pr({
             ci: 'pending',
