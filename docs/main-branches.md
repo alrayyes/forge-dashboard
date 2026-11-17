@@ -144,7 +144,7 @@ swapped and the advisory you were reading stays where it was. If the read fails,
 on a refresh or because the kept list had aged out, the last good list stays and
 a line above it says it could not refresh and when that list was read. The room
 for that line is always there, so nothing moves when it appears. Once the list
-is on screen, the header's count and severity follow it.
+arrives, the header's count and severity follow it.
 
 The kept GitHub list is keyed by the repository and the credential that read
 it (a token, or an App installation), as the Forgejo list is by the instance. A
