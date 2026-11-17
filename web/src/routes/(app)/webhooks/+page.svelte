@@ -1227,7 +1227,7 @@
                   onFilterChange("forge");
                 }}
               />
-              <span>GitHub</span>
+              <span>{FORGE_LABELS.github}</span>
             </label>
           {/if}
           {#if forgeChoices.has("forgejo")}
@@ -1244,7 +1244,7 @@
                   onFilterChange("forge");
                 }}
               />
-              <span>Forgejo</span>
+              <span>{FORGE_LABELS.forgejo}</span>
             </label>
           {/if}
         </fieldset>

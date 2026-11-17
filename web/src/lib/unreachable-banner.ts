@@ -5,13 +5,15 @@
 export type DownForge = {
   forge: string;
   label: string;
+  // The forge's public status page, empty or absent when it has none.
+  statusPageUrl?: string;
   errorKind?: string;
   staleSince?: string;
   // Right after a restart the first refresh is still running (#3554).
   startupGap?: boolean;
   // What the forge answered, for a 5xx that is not an outage (#3527).
   upstreamError?: string;
-  // What the forge's own status page reports (#3633), GitHub only.
+  // What the forge's own status page reports (#3633), when it has one.
   providerStatus?: ProviderStatus;
 };
 
@@ -24,8 +26,9 @@ export type ProviderStatus = {
 export type BannerCopy = {
   headline: string;
   detail: string;
-  // GitHub has a status page to link; a self-hosted Forgejo has none (#1301).
-  statusLink: boolean;
+  // The first down forge with a status page to link; a self-hosted Forgejo has
+  // none (#1301).
+  statusLink?: { label: string; url: string };
   // A second sentence when GitHub itself reports an incident (#3633).
   incident?: string;
   // The detail cut around the relative age, so the page can tick that part
@@ -67,20 +70,33 @@ function joinLabels(labels: string[]): string {
     : `${labels.slice(0, -1).join(', ')} and ${labels[labels.length - 1]}`;
 }
 
-// GitHub's own report, said when it names something this page uses. A restart
-// still waiting for its first answer is not an outage to blame on GitHub.
+// The forge's own report, said when it names something this page uses. A
+// restart still waiting for its first answer is not an outage to blame on the
+// forge.
 function incidentOf(down: DownForge[]): string | undefined {
-  const gh = down.find((f) => f.forge === 'github' && !f.startupGap);
-  const incidents = gh?.providerStatus?.incidents ?? [];
-  const components = gh?.providerStatus?.components ?? [];
+  const reporter = down.find(
+    (f) =>
+      !f.startupGap &&
+      ((f.providerStatus?.incidents?.length ?? 0) > 0 ||
+        (f.providerStatus?.components?.length ?? 0) > 0),
+  );
+  const incidents = reporter?.providerStatus?.incidents ?? [];
+  const components = reporter?.providerStatus?.components ?? [];
   if (incidents.length > 0) {
     const affects =
       components.length > 0 ? ` Affects: ${components.join(', ')}.` : '';
-    return `GitHub reports an incident: ${incidents.join('; ')}.${affects}`;
+    return `${reporter?.label} reports an incident: ${incidents.join('; ')}.${affects}`;
   }
   if (components.length > 0)
-    return `GitHub reports trouble with: ${components.join(', ')}.`;
+    return `${reporter?.label} reports trouble with: ${components.join(', ')}.`;
   return undefined;
+}
+
+function statusLinkOf(down: DownForge[]): BannerCopy['statusLink'] {
+  const f = down.find((d) => d.statusPageUrl);
+  return f?.statusPageUrl
+    ? { label: `${f.label} status`, url: f.statusPageUrl }
+    : undefined;
 }
 
 export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
@@ -109,7 +125,7 @@ export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
     headline,
     detail: before + text + after,
     age: oldest ? { since: oldest, before, text, after } : undefined,
-    statusLink: ordered.some((f) => f.forge === 'github'),
+    statusLink: statusLinkOf(ordered),
     incident: incidentOf(ordered),
   };
 }

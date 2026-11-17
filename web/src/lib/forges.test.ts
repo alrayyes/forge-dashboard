@@ -6,6 +6,7 @@ import {
   forgeCan,
   registerForgeCapabilities,
   resetForgeCapabilities,
+  statusPageUrlOf,
 } from './forges';
 
 afterEach(resetForgeCapabilities);
@@ -100,6 +101,7 @@ describe('forgeCan', () => {
         expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
       }
       expect(FORGE_LABELS[forge]).toBe(caps.label as string);
+      expect(statusPageUrlOf(forge)).toBe(caps.statusPageUrl as string);
       expect(advisoryFactsOf(forge)).toEqual({
         source: caps.advisorySource as string,
         unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
@@ -119,6 +121,36 @@ describe('forgeCan', () => {
 
     expect(forgeCan('gitea', 'servesRunningLog')).toBe(true);
     expect(forgeCan('gitea', 'serverLogExcerpts')).toBe(false);
+  });
+});
+
+describe('statusPageUrlOf', () => {
+  test('a forge learns its status page from the capabilities the API sent', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          statusPageUrl: 'https://status.example/',
+        },
+      },
+    ]);
+
+    expect(statusPageUrlOf('gitea')).toBe('https://status.example/');
+  });
+
+  test('a forge with none, or one never heard of, has no link', () => {
+    expect(statusPageUrlOf('forgejo')).toBe('');
+    expect(statusPageUrlOf('nowhere')).toBe('');
+  });
+
+  test('reset puts the seeded pages back', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { statusPageUrl: '' } },
+    ]);
+    resetForgeCapabilities();
+
+    expect(statusPageUrlOf('github')).toBe('https://www.githubstatus.com/');
   });
 });
 

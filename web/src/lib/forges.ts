@@ -7,6 +7,8 @@
 // (components.schemas.ForgeCapabilities). Only the part a page reads here.
 export type ForgeCapabilities = {
   label: string;
+  // The forge's public status page, empty when it has none.
+  statusPageUrl: string;
   advisorySource: string;
   advisoryUnknownNeedsReason: boolean;
   // A job's log can be read while it runs.
@@ -83,6 +85,19 @@ const SEED_LABELS: Record<string, string> = {
 
 export const FORGE_LABELS: Record<string, string> = { ...SEED_LABELS };
 
+// Each forge's public status page, seeded and overridden like the labels. A
+// forge with none, or one never heard of, has no entry.
+const SEED_STATUS_PAGES: Record<string, string> = {
+  github: 'https://www.githubstatus.com/',
+};
+
+const STATUS_PAGES: Record<string, string> = { ...SEED_STATUS_PAGES };
+
+// Where to link a forge's own status report, or '' when it has none.
+export function statusPageUrlOf(forge: string): string {
+  return STATUS_PAGES[forge] ?? '';
+}
+
 // Learns the labels from the forge entries of a dashboard or Main branches
 // answer. Every read calls it, so a forge added server-side shows its name
 // without a change here.
@@ -94,6 +109,8 @@ export function registerForgeCapabilities(
   for (const f of forges ?? []) {
     const label = f.capabilities?.label;
     if (label) FORGE_LABELS[f.forge] = label;
+    const statusPage = f.capabilities?.statusPageUrl;
+    if (typeof statusPage === 'string') STATUS_PAGES[f.forge] = statusPage;
     const flags = { ...FORGE_FLAGS[f.forge] };
     for (const flag of FLAGS) {
       const v = f.capabilities?.[flag];
@@ -124,4 +141,6 @@ export function resetForgeCapabilities() {
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
   for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];
   Object.assign(FORGE_LABELS, SEED_LABELS);
+  for (const k of Object.keys(STATUS_PAGES)) delete STATUS_PAGES[k];
+  Object.assign(STATUS_PAGES, SEED_STATUS_PAGES);
 }
