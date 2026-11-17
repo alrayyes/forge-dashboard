@@ -149,6 +149,24 @@ test.describe('settings groups', () => {
       .toBe(true);
   });
 
+  test('Behaviour says upright pull request pills close an issue and italic ones only reference it, and passes axe', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html#behaviour');
+    const note = page.locator('#pill-style-hint');
+    await expect(note).toBeVisible();
+    await expect(note).toContainText('Upright means the pull request closes');
+    await expect(note).toContainText('italic means it only references');
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > window.innerWidth,
+    );
+    expect(overflow).toBe(false);
+  });
+
   test('the GitHub token help names the Dependabot alerts permission as optional', async ({
     page,
   }) => {
