@@ -24,6 +24,8 @@ const clearTouched = () => resetTouched();
 afterEach(() => {
   const left = hasTouched();
   resetTouched();
+  // Held picks are shared the same way (#4214).
+  releaseAllHeld();
   expect(left, 'a test left a touched filter key behind').toBe(false);
 });
 

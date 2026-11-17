@@ -1,5 +1,12 @@
 /// <reference types="bun" />
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import {
+  afterAll,
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
 import { readFileSync } from 'node:fs';
 import {
   hasTouched,
@@ -14,6 +21,10 @@ import { resetFilterState } from './test-setup';
 // orders (#4206). The preload clears it; these pin that it does, and that
 // bun runs it. They read state and a file, so no order changes the outcome.
 describe('the unit test preload', () => {
+  // The last test leaves its state behind too, and nothing follows it in this
+  // file. Clear it here, so the next file starts clean with or without the
+  // preload (#4214).
+  afterAll(resetFilterState);
   // Every test here leaves state behind, then the next one checks it is gone.
   // Hooks run preload first, so only the preload can make this pass. It holds
   // in any order, since each test but the first follows a leaving one.

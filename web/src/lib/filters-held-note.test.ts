@@ -1,5 +1,5 @@
 /// <reference types="bun" />
-import { beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   heldPickClearLabel,
   heldPickNote,
@@ -15,6 +15,8 @@ import {
 // https://github.com/alrayyes/forge-dashboard/issues/1620
 
 beforeEach(() => releaseAllHeld());
+// The held picks outlive the file; leave none for whichever runs next (#4214).
+afterEach(() => releaseAllHeld());
 
 function state(): SharedFilterState {
   return {
