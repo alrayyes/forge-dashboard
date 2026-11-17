@@ -237,6 +237,49 @@ func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
 	assert.Equal(t, "https://git.example.org/demo-a", body.Comments[0].Author["url"])
 }
 
+// The author of a pull request found through a reference links to their
+// profile the way a commenter does, so the page never builds an address.
+func TestIssueDetails_APullRequestAuthorCarriesTheirProfileURL(t *testing.T) {
+	t.Parallel()
+
+	details := sampleIssueDetails()
+	details.Kind = dashboard.ItemKindPullRequest
+	details.PullRequest = &dashboard.IssuePullRequest{
+		Title: "Add structured logging", State: dashboard.ReferencedStateMerged,
+		Author: &dashboard.Person{Login: "demo-a", AvatarURL: "https://avatars.example.com/u/1"},
+	}
+	source := &fakeIssueDetailerSource{
+		forge: dashboard.ForgeForgejo,
+		issues: []dashboard.Issue{{
+			Forge: dashboard.ForgeForgejo, Repo: "team/app", Number: 5,
+			URL: "https://git.example.org/team/app/issues/5",
+		}},
+		details: details,
+	}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	require.Eventually(t, func() bool {
+		issues, _ := fetchDashboard(t, srvURL, sessionCookie)["issues"].([]any)
+
+		return len(issues) == 1
+	}, pollBudget, 10*time.Millisecond)
+
+	resp := getIssueDetails(t, srvURL, sessionCookie, "forgejo", "team/app", 5)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body struct {
+		PullRequest struct {
+			Title  string         `json:"title"`
+			State  string         `json:"state"`
+			Author map[string]any `json:"author"`
+		} `json:"pullRequest"`
+	}
+	require.NoError(t, json.NewDecoder(resp.Body).Decode(&body))
+	assert.Equal(t, "Add structured logging", body.PullRequest.Title)
+	assert.Equal(t, "merged", body.PullRequest.State)
+	assert.Equal(t, "https://git.example.org/demo-a", body.PullRequest.Author["url"])
+}
+
 // The page picks its dialog from kind, so a response without one is a broken
 // contract: the spec must keep it required, with exactly these two values.
 func TestContract_IssueDetailsKindIsRequired(t *testing.T) {

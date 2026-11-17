@@ -43,6 +43,8 @@ fragment issueThread on Issue {
 
 fragment pullRequestThread on PullRequest {
   state
+  title
+  author { login avatarUrl }
   body
   lastEditedAt
   reactionGroups { content users(first: 10) { totalCount nodes { login } } }
@@ -71,7 +73,9 @@ func notFoundIssue(owner, name string, number int) error {
 type issueDetailsResponse struct {
 	Repository struct {
 		Item *struct {
-			Typename string `json:"__typename"`
+			Typename string                `json:"__typename"`
+			Title    string                `json:"title"`
+			Author   *graphqlDetailsAuthor `json:"author"`
 			graphqlDetailsThread
 		} `json:"issueOrPullRequest"`
 	} `json:"repository"`
@@ -102,6 +106,10 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	details.Kind = dashboard.ItemKindIssue
 	if item.Typename == "PullRequest" {
 		details.Kind = dashboard.ItemKindPullRequest
+		details.PullRequest = &dashboard.IssuePullRequest{Title: item.Title, State: pullRequestStateOf(item.State)}
+		if item.Author != nil {
+			details.PullRequest.Author = &dashboard.Person{Login: item.Author.Login, AvatarURL: item.Author.AvatarURL}
+		}
 	}
 	details.State = dashboard.IssueStateOpen
 	if item.State == "CLOSED" || item.State == "MERGED" {
@@ -109,4 +117,15 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	}
 
 	return details, nil
+}
+
+func pullRequestStateOf(state string) dashboard.ReferencedState {
+	switch state {
+	case "MERGED":
+		return dashboard.ReferencedStateMerged
+	case "CLOSED":
+		return dashboard.ReferencedStateClosed
+	default:
+		return dashboard.ReferencedStateOpen
+	}
 }

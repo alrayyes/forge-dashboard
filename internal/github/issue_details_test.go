@@ -43,6 +43,8 @@ func TestGetIssueDetails_ANumberThatIsAPullRequestSaysSo(t *testing.T) {
 	var queries []graphqlRequestBody
 	srv := issueDetailsServer(t, map[string]any{
 		"__typename": "PullRequest", "state": "MERGED", "body": "Adds the thing.", "lastEditedAt": nil,
+		"title":          "Add structured logging",
+		"author":         map[string]any{"login": "claude", "avatarUrl": "https://avatars.example.com/u/9"},
 		"reactionGroups": []map[string]any{},
 		"comments":       map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
 	}, &queries)
@@ -55,6 +57,29 @@ func TestGetIssueDetails_ANumberThatIsAPullRequestSaysSo(t *testing.T) {
 	assert.Equal(t, dashboard.ItemKindPullRequest, got.Kind)
 	assert.Equal(t, "Adds the thing.", got.Description.Text)
 	assert.Equal(t, dashboard.IssueStateClosed, got.State, "merged is not open")
+	require.NotNil(t, got.PullRequest, "the facts the header needs ride along")
+	assert.Equal(t, "Add structured logging", got.PullRequest.Title)
+	assert.Equal(t, dashboard.ReferencedStateMerged, got.PullRequest.State, "merged is told apart from closed")
+	require.NotNil(t, got.PullRequest.Author)
+	assert.Equal(t, "claude", got.PullRequest.Author.Login)
+	assert.Equal(t, "https://avatars.example.com/u/9", got.PullRequest.Author.AvatarURL)
+}
+
+func TestGetIssueDetails_AClosedPullRequestIsNotMerged(t *testing.T) {
+	t.Parallel()
+
+	srv := issueDetailsServer(t, map[string]any{
+		"__typename": "PullRequest", "state": "CLOSED", "title": "Drop it", "author": nil, "body": "x", "lastEditedAt": nil,
+		"reactionGroups": []map[string]any{},
+		"comments":       map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+	}, nil)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 4177)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.PullRequest)
+	assert.Equal(t, dashboard.ReferencedStateClosed, got.PullRequest.State)
+	assert.Nil(t, got.PullRequest.Author, "a deleted account has no author")
 }
 
 func TestGetIssueDetails_AnIssueSaysItIsAnIssue(t *testing.T) {
@@ -70,6 +95,7 @@ func TestGetIssueDetails_AnIssueSaysItIsAnIssue(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, dashboard.ItemKindIssue, got.Kind)
 	assert.Equal(t, dashboard.IssueStateOpen, got.State)
+	assert.Nil(t, got.PullRequest, "an issue carries no pull request facts")
 }
 
 // One GraphQL query reads the description, the comments and every reaction

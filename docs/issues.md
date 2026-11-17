@@ -18,6 +18,12 @@ to Open without reopening the pop-up. If the forge can't be read, the pop-up
 says why and offers **Try again** instead of showing an empty thread. Escape or
 **Close details** returns you to the issue's row.
 
+A `#12` in a description or comment can be a pull request. The pop-up then
+becomes that pull request's, read only, with its real title, who opened it, and
+whether it is open, closed or merged, taken from the same answer. The status
+chip's row is held while the details load, so nothing below it moves when they
+arrive. If the read fails, the issue-style pop-up stays and says why.
+
 ## Closing an issue from its pop-up
 
 The footer offers **Close issue** and **Close with a comment**. There is no

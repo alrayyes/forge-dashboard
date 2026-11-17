@@ -126,6 +126,14 @@
     // Only the issues endpoint says it: a forge shares one number space, so
     // what was asked for as an issue can be a pull request (#4188).
     kind?: "issue" | "pullRequest";
+    // With kind `pullRequest`: the title, author and state the board has no
+    // row for, so the header can say them. The server says the facts, the
+    // dialog words them.
+    pullRequest?: {
+      title: string;
+      state: "open" | "closed" | "merged";
+      author: { login: string; avatarUrl: string; url: string } | null;
+    };
   };
 
   // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
@@ -171,6 +179,10 @@
   let phase = $state<"loading" | "error" | "ready">("loading");
   let errorMessage = $state("");
   let details = $state<Details | null>(null);
+  // The cache key of a pull request that was opened from a bare number. Only
+  // the issues endpoint says its title, author and state, so every read of it,
+  // the quiet one after a cached open and a reload alike, goes there.
+  let referencedKey: string | null = null;
   // Markdown rendered to safe HTML, by "description", "notes" or comment id.
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
@@ -190,6 +202,43 @@
   const itemTarget = $derived(
     target && !isReleaseTarget(target) ? target : null,
   );
+  // A pull request opened from a bare number has no row to draw from: its
+  // header words what the server said instead.
+  const facts = $derived(
+    itemTarget && !itemTarget.status ? (details?.pullRequest ?? null) : null,
+  );
+  const STATE_WORDS = { open: "Open", closed: "Closed", merged: "Merged" };
+  // The status chip of a header with no row behind it: a pull request's from
+  // the facts, an issue's from its details. Empty while they are on the way,
+  // when the row is held at the chip's height so nothing below it moves.
+  const stateWord = $derived(
+    !itemTarget || itemTarget.status
+      ? null
+      : facts
+        ? STATE_WORDS[facts.state]
+        : details?.state
+          ? STATE_WORDS[details.state]
+          : "",
+  );
+  // Who opened it: the filer on an issue's row, the author the server named
+  // on a pull request found by number.
+  const byline = $derived.by(() => {
+    if (itemTarget?.subject === "issue" && itemTarget.author)
+      return {
+        label: "Filed by",
+        name: itemTarget.author,
+        avatar: itemTarget.authorAvatarUrl,
+        url: itemTarget.authorUrl,
+      };
+    if (facts?.author)
+      return {
+        label: "Opened by",
+        name: facts.author.login,
+        avatar: facts.author.avatarUrl,
+        url: facts.author.url,
+      };
+    return null;
+  });
   const isBot = $derived(itemTarget?.kind === "dependency");
   const subjectName = $derived(
     releaseTarget
@@ -305,6 +354,7 @@
     brokenAvatars = {};
     brokenFilerAvatar = false;
     older = null;
+    referencedKey = null;
     const ref = refOf(item);
     let hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
     if (!isReleaseTarget(item) && item.subject === "issue") {
@@ -315,6 +365,7 @@
       if (known && (!hit || (hit.details as Details).kind === "pullRequest")) {
         target = asPr;
         hit = known;
+        referencedKey = detailsKey(refOf(asPr) as DetailsRef);
         onPullRequestFound?.();
       }
     }
@@ -356,6 +407,11 @@
       number: item.number,
     };
   }
+
+  const isReferenced = (item: ItemTarget) =>
+    referencedKey !== null &&
+    item.subject !== "issue" &&
+    referencedKey === detailsKey(refOf(item) as DetailsRef);
 
   // The same reference as a pull request, once the server says it is one.
   function asPullRequest(current: ItemTarget): ItemTarget {
@@ -455,7 +511,7 @@
       const res = await fetch(
         isReleaseTarget(current)
           ? `/api/v1/releases/details?${where}&tag=${encodeURIComponent(current.tag)}`
-          : `/api/v1/${current.subject === "issue" ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
+          : `/api/v1/${current.subject === "issue" || isReferenced(current) ? "issues" : "pull-requests"}/details?${where}&number=${current.number}`,
         { headers: { Accept: "application/json" } },
       );
       if (res.status === 401) {
@@ -487,13 +543,14 @@
       }
       // A reference the board doesn't list opens as an issue, and the server
       // says when the number is a pull request. Show it as one, from the same
-      // answer, so a reload then goes to the pull request endpoint.
+      // answer, so a reload reads the issues endpoint again.
       const foundPullRequest =
         !isReleaseTarget(current) &&
         current.subject === "issue" &&
         loaded.kind === "pullRequest";
       if (foundPullRequest && mine === token) {
         target = asPullRequest(current as ItemTarget);
+        referencedKey = detailsKey(refOf(target) as DetailsRef);
         onPullRequestFound?.();
       }
       // Remembered under what it turned out to be.
@@ -801,6 +858,19 @@
             class="details-status"
             {@attach adopt(target.status.state)}
           ></div>
+        {:else if stateWord !== null}
+          <div class="details-status">
+            <div
+              class="details-state"
+              role={stateWord ? "group" : undefined}
+              aria-label={stateWord ? "Status" : undefined}
+              aria-hidden={stateWord ? undefined : true}
+            >
+              <span class="attr-chip" class:held={!stateWord}
+                >{stateWord || "Open"}</span
+              >
+            </div>
+          </div>
         {/if}
         <p class="details-ref">
           <span class="forge-badge {forgeClassOf(target.forge)}"
@@ -842,16 +912,16 @@
           </span>
         </p>
         <h2 class="details-title">
-          {#each titleSegments(target.title) as seg}{#if seg.code}<code
+          {#each titleSegments(facts?.title ?? target.title) as seg}{#if seg.code}<code
                 class="title-code">{seg.text}</code
               >{:else}{seg.text}{/if}{/each}
         </h2>
-        {#if itemTarget?.subject === "issue" && itemTarget.author}
+        {#if byline}
           {#snippet filer()}
-            {#if avatarSrc(itemTarget?.authorAvatarUrl) && !brokenFilerAvatar}
+            {#if avatarSrc(byline?.avatar) && !brokenFilerAvatar}
               <img
                 class="filer-avatar"
-                src={avatarSrc(itemTarget?.authorAvatarUrl) ?? undefined}
+                src={avatarSrc(byline?.avatar) ?? undefined}
                 alt=""
                 width="20"
                 height="20"
@@ -860,17 +930,17 @@
                 onerror={() => (brokenFilerAvatar = true)}
               />
             {/if}
-            <span class="filer-name">{itemTarget?.author}</span>
+            <span class="filer-name">{byline?.name}</span>
           {/snippet}
           <p class="details-author">
-            <span>Filed by</span>
+            <span>{byline.label}</span>
             <!-- The avatar and the name are one link to the filer's page on
               the forge, as on the row. Without an address, or for a deleted
               account, they are plain text. -->
-            {#if profileHref(itemTarget?.authorUrl)}
+            {#if profileHref(byline.url)}
               <a
                 class="filer-link"
-                href={profileHref(itemTarget?.authorUrl) ?? undefined}
+                href={profileHref(byline.url) ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
               >
@@ -1679,6 +1749,10 @@
   }
   .details-attributes {
     margin-top: 8px;
+  }
+  /* Holds the chip's height while the details are on the way. */
+  .attr-chip.held {
+    visibility: hidden;
   }
   .reaction-pill {
     display: inline-flex;

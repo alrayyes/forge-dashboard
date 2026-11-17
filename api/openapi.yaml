@@ -5831,6 +5831,8 @@ components:
             Whether the forge has the issue open or closed right now. The
             dialog draws its status from this, so an issue closed or reopened
             while the dialog is open shows the change.
+        pullRequest:
+          $ref: "#/components/schemas/IssuePullRequest"
         description:
           $ref: "#/components/schemas/DetailsBody"
         comments:
@@ -5846,6 +5848,27 @@ components:
         commentsTruncated:
           type: boolean
           description: True when `commentCount` is more than the comments returned.
+
+    IssuePullRequest:
+      type: object
+      required: [title, state, author]
+      description: |
+        Present only when `kind` is `pullRequest`: what the header of a pull
+        request needs when the board has no row for it, because it is closed,
+        merged or in a repository the board doesn't track. The dialog words it.
+      properties:
+        title:
+          type: string
+          description: The pull request's title, as the forge has it now.
+        state:
+          type: string
+          enum: [open, closed, merged]
+          description: Where the pull request stands. `closed` means closed without merging.
+        author:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Person"
+          description: Who opened it. Null for a deleted account.
 
     CheckSubject:
       type: object
