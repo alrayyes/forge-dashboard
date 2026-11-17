@@ -78,16 +78,24 @@ for (const scheme of ['light', 'dark'] as const) {
         .locator('.pipeline-check-name', { hasText: LONG })
         .first();
       await expect(name).toBeVisible();
-      const cut = await name.evaluate(
-        (el) =>
-          el.scrollWidth > el.clientWidth + 1 ||
-          el.scrollHeight > el.clientHeight + 1,
-      );
-      expect(cut, 'the name is cut off').toBe(false);
-      const overflow = await page.evaluate(
-        () => document.documentElement.scrollWidth > window.innerWidth,
-      );
-      expect(overflow).toBe(false);
+      await expect
+        .poll(
+          () =>
+            name.evaluate(
+              (el) =>
+                el.scrollWidth > el.clientWidth + 1 ||
+                el.scrollHeight > el.clientHeight + 1,
+            ),
+          { message: 'the name is cut off' },
+        )
+        .toBe(false);
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth > window.innerWidth,
+          ),
+        )
+        .toBe(false);
       const results = await new AxeBuilder({ page }).withTags(TAGS).analyze();
       expect(results.violations).toEqual([]);
     });

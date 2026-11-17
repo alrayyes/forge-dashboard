@@ -621,6 +621,18 @@ export function advisoryCoverage(
   return known === 0 ? 'none' : 'partial';
 }
 
+// The coverage of every forge the rows name, so a page looks a row's forge up
+// instead of choosing between two by name.
+export function advisoryCoverageByForge(
+  branches: readonly MainBranch[],
+): Record<string, AdvisoryCoverage> {
+  const by: Record<string, AdvisoryCoverage> = {};
+  for (const forge of new Set(branches.map((b) => b.forge))) {
+    by[forge] = advisoryCoverage(branches, forge);
+  }
+  return by;
+}
+
 // The one cause every unreadable row of a forge shares, or null when the rows
 // disagree or the server named none. The page notice names a cause only when
 // it is sure.
