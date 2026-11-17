@@ -6,12 +6,15 @@
     DetailsTarget,
     ItemTarget,
   } from "./PullRequestDetailsDialog.svelte";
+  import { detailsCache } from "./details-cache";
   import PullRequestDetailsDialog from "./PullRequestDetailsDialog.svelte";
 
   const { Story } = defineMeta({
     title: "PullRequestDetailsDialog",
     component: PullRequestDetailsDialog,
     parameters: { layout: "fullscreen" },
+    // One story's details must not open the next one (#4194).
+    beforeEach: () => detailsCache.clear(),
   });
 
   const hoursAgo = (n: number) =>

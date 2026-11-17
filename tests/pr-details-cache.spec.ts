@@ -189,6 +189,8 @@ for (const viewport of [
           () => (window as unknown as { __mut: number }).__mut,
         ),
       ).toBe(0);
+      // Nothing changed, so nothing is announced either.
+      await expect(dialog(page)).not.toContainText('Details updated.');
       expect(await axe(page)).toEqual([]);
     });
 

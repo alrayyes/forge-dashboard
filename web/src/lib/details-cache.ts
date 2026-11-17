@@ -29,6 +29,7 @@ export type DetailsCache<T> = {
   get(key: string): DetailsEntry<T> | undefined;
   set(key: string, entry: DetailsEntry<T>): void;
   delete(key: string): void;
+  clear(): void;
   size(): number;
   // Bumped by every delete, so a read that began before one can tell.
   generation(): number;
@@ -60,6 +61,10 @@ export function createDetailsCache<T>(max = 40): DetailsCache<T> {
     delete(key) {
       generation++;
       entries.delete(key);
+    },
+    clear() {
+      generation++;
+      entries.clear();
     },
     size: () => entries.size,
     generation: () => generation,
