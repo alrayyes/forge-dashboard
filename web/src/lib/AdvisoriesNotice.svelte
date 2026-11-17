@@ -6,6 +6,7 @@
   import { forgeLabelOf } from "#lib/forges.js";
   import {
     advisoryReasonNeedsGrant,
+    advisoryReasonText,
     advisoryWordsFor,
     type AdvisoryReason,
   } from "#lib/main-branches.js";
@@ -25,7 +26,9 @@
   // The permission steps, and the page that explains them, are said only when a
   // grant could fix it: no cause named, or one a grant fixes.
   const grantApplies = $derived(!reason || advisoryReasonNeedsGrant(reason));
-  const reasonText = $derived(reason ? words.reasons[reason] : undefined);
+  const reasonText = $derived(
+    reason ? advisoryReasonText(forge, reason) : undefined,
+  );
 </script>
 
 <div class="mb-banner" role="status" data-testid={words.testId}>

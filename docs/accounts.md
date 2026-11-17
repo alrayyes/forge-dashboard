@@ -197,6 +197,15 @@ and puts focus on that input. The page holds no copy of those rules.
   discovery works) refuses a token without it: confirmed live against a
   real instance, `403 token does not have at least one of required
 scope(s): [read:user]`, before it was added to the token.
+- **Linked account** (operator opt-in): if this deployment has a Forgejo
+  OAuth client configured, you can link your account instead of pasting a token
+  ([setup](configuration.md#forgejo-oauth)). The access token renews itself and
+  wins over a pasted token while the account is linked. Disconnect, and the
+  pasted token is used again. Tokens are stored encrypted and are never in
+  `GET /api/v1/settings`, which only reports `forgejoOAuthConfigured` and
+  `forgejoOAuthConnected`. The instance URL is locked while linked. A
+  pasted token saved for a different instance is cleared when you link, since
+  it was issued for another host.
 - **Username only** (token left blank, instance URL still set): shows
   that account's public repositories on the configured instance,
   unauthenticated — same trade-off as GitHub's username mode. Verified

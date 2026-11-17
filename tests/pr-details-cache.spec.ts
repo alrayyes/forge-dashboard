@@ -118,7 +118,8 @@ const axe = async (page: Page) =>
 
 for (const viewport of [
   { width: 1280, height: 800 },
-  { width: 375, height: 700 },
+  { width: 1366, height: 600 },
+  { width: 375, height: 667 },
 ]) {
   test.describe(`details cache at ${viewport.width}px`, () => {
     test.use({ viewport });
@@ -326,5 +327,164 @@ test.describe('hover prefetch', () => {
     await expect(dialog(page).locator('.details-skeleton')).toHaveCount(0);
     await held.answer({ payload: details('Read early.') });
     expect(await axe(page)).toEqual([]);
+  });
+});
+
+test.describe('what the dialog keeps and drops', () => {
+  const IMAGE = 'https://github.com/user-attachments/assets/shot';
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+
+  test('a block with an image stays the same node when only a later paragraph changes', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/images*', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/png', body: PNG }),
+    );
+    await mockDashboard(page);
+    const held = await holdDetails(page);
+    await page.goto('/pull-requests.html');
+    const text = (last: string) => `![shot](${IMAGE})\n\nMiddle.\n\n${last}`;
+    await trigger(page).click();
+    await held.answer({ payload: details(text('Last one.')) });
+    await expect(dialog(page).locator('img.md-image')).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await trigger(page).click();
+    const img = dialog(page).locator('img.md-image');
+    await expect(img).toBeVisible();
+    await expect(img).toHaveClass(/md-image-loaded/);
+    await img.evaluate((el) => {
+      (el as unknown as { __kept: boolean }).__kept = true;
+    });
+    await held.answer({ payload: details(text('Last two.')) });
+    await expect(dialog(page)).toContainText('Last two.');
+    expect(
+      await img.evaluate(
+        (el) => (el as unknown as { __kept?: boolean }).__kept,
+      ),
+    ).toBe(true);
+  });
+
+  test('closing an issue from the dialog drops what was remembered for it', async ({
+    page,
+  }) => {
+    const issue = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 7,
+      title: 'The page loses its place',
+      url: 'https://example.com/issues/7',
+      author: 'ryankes',
+      labels: [],
+      createdAt: ago(60),
+      updatedAt: ago(5),
+    };
+    await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+    await page.route('**/api/v1/dashboard*', (r: Route) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [],
+          issues: [issue],
+        }),
+      }),
+    );
+    let broken = false;
+    await page.route('**/api/v1/issues/details*', (r) =>
+      broken
+        ? r.fulfill({ status: 500, body: '{"error":"down"}' })
+        : r.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ ...details('Old body.'), state: 'open' }),
+          }),
+    );
+    await page.route('**/api/v1/issues/close', (r) =>
+      r.fulfill({ status: 204 }),
+    );
+    await page.goto('/issues.html');
+    const row = page.locator('#issue-rows .row').getByRole('button', {
+      name: /^#7 /,
+    });
+    const issueDialog = page.getByRole('dialog', { name: /^Issue details/ });
+
+    await row.click();
+    await expect(issueDialog).toContainText('Old body.');
+    broken = true;
+    await issueDialog.getByRole('button', { name: 'Close issue' }).click();
+    await issueDialog
+      .getByRole('button', { name: 'Confirm close issue?' })
+      .click();
+    await expect(issueDialog).toContainText('Closed');
+    await page.keyboard.press('Escape');
+
+    await row.click();
+    // Nothing from before the close is shown as if it were current.
+    await expect(issueDialog).toContainText('Could not load');
+    await expect(issueDialog).not.toContainText('Old body.');
+  });
+
+  test('closing and reopening a pull request from the dialog drops what was remembered for it', async ({
+    page,
+  }) => {
+    await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+    await page.route('**/api/v1/dashboard*', (r: Route) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [{ ...pr, allowedActions: [{ action: 'close' }] }],
+          issues: [],
+        }),
+      }),
+    );
+    let broken = false;
+    await page.route('**/api/v1/pull-requests/details*', (r) =>
+      broken
+        ? r.fulfill({ status: 500, body: '{"error":"down"}' })
+        : r.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(details('Old body.')),
+          }),
+    );
+    await page.route('**/api/v1/pull-requests/close', (r) =>
+      r.fulfill({ status: 204 }),
+    );
+    await page.route('**/api/v1/pull-requests/reopen', (r) =>
+      r.fulfill({ status: 204 }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    await expect(dialog(page)).toContainText('Old body.');
+    broken = true;
+    await dialog(page)
+      .getByRole('button', { name: 'Close pull request', exact: true })
+      .click();
+    await dialog(page)
+      .getByRole('button', { name: 'Confirm close pull request?', exact: true })
+      .click();
+    await dialog(page)
+      .getByRole('button', { name: 'Reopen pull request' })
+      .click();
+    await expect(
+      dialog(page).getByRole('button', {
+        name: 'Close pull request',
+        exact: true,
+      }),
+    ).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await trigger(page).click();
+    await expect(dialog(page)).toContainText('Could not load');
+    await expect(dialog(page)).not.toContainText('Old body.');
   });
 });

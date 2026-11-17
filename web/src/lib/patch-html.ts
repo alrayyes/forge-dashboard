@@ -27,26 +27,46 @@ const keyOf = (n: Node): string =>
   n instanceof Element ? n.outerHTML : `#${n.textContent}`;
 
 // A Svelte action. `markup` is only ever renderMarkdown() output.
+//
+// Blocks are compared with the markup that drew them, not with the live DOM:
+// imageFallback and the expand controls change a block after it is drawn, and
+// a block compared by its live HTML would never match again.
 export function patchHtml(node: HTMLElement, markup: string) {
-  const set = (next: string) => {
-    if (node.childNodes.length === 0) {
-      node.innerHTML = next;
-      return;
-    }
+  let keys: string[] = [];
+  let nodes: ChildNode[] = [];
+
+  const parse = (next: string) => {
     const template = document.createElement('template');
     template.innerHTML = next;
-    const old = [...node.childNodes];
-    const fresh = [...template.content.childNodes];
-    const { head, tail } = commonEnds(old.map(keyOf), fresh.map(keyOf));
-    if (head === old.length && head === fresh.length) return;
-    for (const n of old.slice(head, old.length - tail)) n.remove();
-    const anchor = tail > 0 ? old[old.length - tail] : null;
-    for (const n of fresh.slice(head, fresh.length - tail)) {
-      node.insertBefore(n, anchor);
+    return [...template.content.childNodes];
+  };
+  const replaceAll = (fresh: ChildNode[]) => {
+    node.replaceChildren(...fresh);
+    keys = fresh.map(keyOf);
+    nodes = [...node.childNodes];
+  };
+
+  const set = (next: string) => {
+    const fresh = parse(next);
+    const freshKeys = fresh.map(keyOf);
+    // Something other than this action took a block out: start again.
+    if (nodes.some((n) => n.parentNode !== node)) {
+      replaceAll(fresh);
+      return;
     }
+    const { head, tail } = commonEnds(keys, freshKeys);
+    if (head === keys.length && head === freshKeys.length) return;
+    for (const n of nodes.slice(head, nodes.length - tail)) n.remove();
+    const anchor = tail > 0 ? nodes[nodes.length - tail] : null;
+    const added = fresh.slice(head, fresh.length - tail);
+    for (const n of added) node.insertBefore(n, anchor);
+    nodes = [
+      ...nodes.slice(0, head),
+      ...added,
+      ...nodes.slice(nodes.length - tail),
+    ];
+    keys = freshKeys;
   };
-  set(markup);
-  return {
-    update: set,
-  };
+  replaceAll(parse(markup));
+  return { update: set };
 }

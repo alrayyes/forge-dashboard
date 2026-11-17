@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -21,12 +22,54 @@ func issueDetailsServer(t *testing.T, issue map[string]any, queries *[]graphqlRe
 		if queries != nil {
 			*queries = append(*queries, body)
 		}
-		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issue": issue}}})
+		// What the fake knows is one number: an issue unless the test says it is
+		// a pull request, as GitHub's issueOrPullRequest union answers it.
+		item := map[string]any{"__typename": "Issue"}
+		maps.Copy(item, issue)
+		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issueOrPullRequest": item}}})
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
 
 	return srv
+}
+
+// A number that is a pull request opens as one. repository.issue(number:)
+// answers "Could not resolve to an Issue" for it (#4188), so the lookup asks
+// the union and says which kind it got, and the page picks the dialog.
+func TestGetIssueDetails_ANumberThatIsAPullRequestSaysSo(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := issueDetailsServer(t, map[string]any{
+		"__typename": "PullRequest", "state": "MERGED", "body": "Adds the thing.", "lastEditedAt": nil,
+		"reactionGroups": []map[string]any{},
+		"comments":       map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 4177)
+
+	require.NoError(t, err)
+	require.Len(t, queries, 1, "one request")
+	assert.Contains(t, queries[0].Query, "issueOrPullRequest(number: $number)")
+	assert.Equal(t, dashboard.ItemKindPullRequest, got.Kind)
+	assert.Equal(t, "Adds the thing.", got.Description.Text)
+	assert.Equal(t, dashboard.IssueStateClosed, got.State, "merged is not open")
+}
+
+func TestGetIssueDetails_AnIssueSaysItIsAnIssue(t *testing.T) {
+	t.Parallel()
+
+	srv := issueDetailsServer(t, map[string]any{
+		"state": "OPEN", "body": "x", "lastEditedAt": nil, "reactionGroups": []map[string]any{},
+		"comments": map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+	}, nil)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, dashboard.ItemKindIssue, got.Kind)
+	assert.Equal(t, dashboard.IssueStateOpen, got.State)
 }
 
 // One GraphQL query reads the description, the comments and every reaction
@@ -64,7 +107,7 @@ func TestGetIssueDetails_ReadsTheThreadInOneQuery(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, queries, 1, "one request")
-	assert.Contains(t, queries[0].Query, "issue(number: $number)")
+	assert.Contains(t, queries[0].Query, "issueOrPullRequest(number: $number)")
 	assert.EqualValues(t, 5, queries[0].Variables["number"])
 	assert.Equal(t, "The page loses its place.", got.Description.Text)
 	assert.Equal(t, dashboard.FormatMarkdown, got.Description.Format)
@@ -142,8 +185,8 @@ func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{
-			"data":   map[string]any{"repository": map[string]any{"issue": nil}},
-			"errors": []map[string]any{{"type": "NOT_FOUND", "message": "Could not resolve to an Issue with the number of 5."}},
+			"data":   map[string]any{"repository": map[string]any{"issueOrPullRequest": nil}},
+			"errors": []map[string]any{{"type": "NOT_FOUND", "message": "Could not resolve to an issue or pull request with the number of 5."}},
 		})
 	})
 	srv := httptest.NewServer(mux)
@@ -154,7 +197,8 @@ func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
-	assert.Contains(t, err.Error(), "Issue")
+	assert.Equal(t, "github: issue or pull request not found: #5 in alrayyes/a", err.Error(), "plain words, not GitHub's GraphQL text")
+	assert.NotContains(t, err.Error(), "graphql")
 }
 
 // An issue that comes back null with no error beside it is still not there, so
@@ -164,7 +208,7 @@ func TestGetIssueDetails_ANullIssueWithNoErrorIsANotFound(t *testing.T) {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issue": nil}}})
+		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issueOrPullRequest": nil}}})
 	})
 	srv := httptest.NewServer(mux)
 	defer srv.Close()

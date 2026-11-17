@@ -71,7 +71,7 @@
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { forgeClassOf, forgeLabelOf } from "#lib/forges.js";
   import { imageFallback } from "#lib/image-fallback.js";
   import { patchHtml } from "#lib/patch-html.js";
   import { imageSourceFor } from "#lib/image-source.js";
@@ -123,6 +123,9 @@
     releaseNotes?: Body | null;
     // Only an issue's details say it: open or closed in the forge right now.
     state?: "open" | "closed";
+    // Only the issues endpoint says it: a forge shares one number space, so
+    // what was asked for as an issue can be a pull request (#4188).
+    kind?: "issue" | "pullRequest";
   };
 
   // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
@@ -131,6 +134,7 @@
     onEscape,
     onClosed,
     onIssueState,
+    onPullRequestFound,
     onReference,
     trackedRepo,
   }: {
@@ -138,6 +142,9 @@
     onClosed?: () => void;
     // An issue's details arrived: whether the forge has it closed.
     onIssueState?: (closed: boolean) => void;
+    // What was opened as an issue turned out to be a pull request (#4188), and
+    // the dialog now shows it as one. The page drops the issue's own state.
+    onPullRequestFound?: () => void;
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
@@ -175,9 +182,7 @@
   // or for another pull request, never lands.
   let token = 0;
 
-  const forgeLabel = $derived(
-    target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
-  );
+  const forgeLabel = $derived(target ? forgeLabelOf(target.forge) : "");
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const releaseTarget = $derived(
     target && isReleaseTarget(target) ? target : null,
@@ -301,7 +306,18 @@
     brokenFilerAvatar = false;
     older = null;
     const ref = refOf(item);
-    const hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
+    let hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
+    if (!isReleaseTarget(item) && item.subject === "issue") {
+      // An earlier read found this reference is a pull request, and kept it
+      // under that key: open it as one now, with no flip after the read.
+      const asPr = asPullRequest(item);
+      const known = detailsCache.get(detailsKey(refOf(asPr) as DetailsRef));
+      if (known && (!hit || (hit.details as Details).kind === "pullRequest")) {
+        target = asPr;
+        hit = known;
+        onPullRequestFound?.();
+      }
+    }
     if (hit?.html) {
       // Seen before and already rendered: on screen in this very tick, and the
       // read below swaps in the fresh answer only if it differs (#4194).
@@ -310,7 +326,7 @@
       html = hit.html;
       phase = "ready";
       shownReaction = null;
-      showIssueState(item, hit.details as Details);
+      showIssueState(target ?? item, hit.details as Details);
       load(true);
     } else {
       load(false, hit?.details as Details | undefined);
@@ -341,6 +357,20 @@
     };
   }
 
+  // The same reference as a pull request, once the server says it is one.
+  function asPullRequest(current: ItemTarget): ItemTarget {
+    return {
+      ...current,
+      subject: "pull-request",
+      title: `Pull request #${current.number}`,
+      url: current.url.replace(
+        /\/issues\/(\d+)$/,
+        current.forge === "github" ? "/pull/$1" : "/pulls/$1",
+      ),
+      status: undefined,
+    };
+  }
+
   function showIssueState(item: DetailsTarget, shown: Details) {
     if (item.subject === "issue" && shown.state)
       onIssueState?.(shown.state === "closed");
@@ -349,12 +379,15 @@
   // Set when a refresh failed while earlier details are on screen; cleared by
   // the next one that lands.
   let older = $state<string | null>(null);
+  // The next change is the user's own: it is not announced.
+  let ownAction = false;
   const OLDER_NOTE =
     "These details may be out of date: the latest could not be read.";
 
   // Drops what is remembered for the open pull request or issue, for the
   // user's own comment, close or reopen: the next open reads the forge.
   export function forget() {
+    ownAction = true;
     const ref = target ? refOf(target) : null;
     if (ref) detailsCache.delete(detailsKey(ref));
   }
@@ -400,6 +433,7 @@
     const current = target;
     if (!current) return true;
     const mine = ++token;
+    const generation = detailsCache.generation();
     if (!quiet) {
       phase = "loading";
       details = null;
@@ -451,7 +485,21 @@
       } else {
         loaded = data as Details;
       }
-      const ref = refOf(current);
+      // A reference the board doesn't list opens as an issue, and the server
+      // says when the number is a pull request. Show it as one, from the same
+      // answer, so a reload then goes to the pull request endpoint.
+      const foundPullRequest =
+        !isReleaseTarget(current) &&
+        current.subject === "issue" &&
+        loaded.kind === "pullRequest";
+      if (foundPullRequest && mine === token) {
+        target = asPullRequest(current as ItemTarget);
+        onPullRequestFound?.();
+      }
+      // Remembered under what it turned out to be.
+      const ref = refOf(
+        foundPullRequest ? asPullRequest(current as ItemTarget) : current,
+      );
       const key = ref ? detailsKey(ref) : "";
       await seeded;
       if (mine !== token) return true;
@@ -459,6 +507,7 @@
       if (onScreen && JSON.stringify(onScreen) === JSON.stringify(loaded)) {
         // Nothing changed: the DOM stays exactly as it is.
         older = null;
+        ownAction = false;
         const kept = detailsCache.get(key);
         if (kept) detailsCache.set(key, { ...kept, readAt: Date.now() });
         return true;
@@ -470,15 +519,20 @@
       details = loaded;
       phase = "ready";
       older = null;
-      if (ref)
+      // Not after the user's own action began while this read was out: what
+      // came back may predate it.
+      if (ref && detailsCache.generation() === generation)
         detailsCache.set(key, {
           details: loaded,
           html: rendered,
           readAt: Date.now(),
         });
-      // What was on screen changed under the reader: one polite note.
-      if (changed && liveHost) liveHost.textContent = "Details updated.";
-      showIssueState(current, loaded);
+      // What was on screen changed under the reader: one polite note, but not
+      // for a change the reader just made themselves.
+      if (changed && liveHost && !ownAction)
+        liveHost.textContent = "Details updated.";
+      ownAction = false;
+      if (!foundPullRequest) showIssueState(current, loaded);
       // A quiet swap leaves a list the reader has open alone; a full load
       // replaces everything, so the old content's state goes with it.
       if (!quiet) {
@@ -749,7 +803,7 @@
           ></div>
         {/if}
         <p class="details-ref">
-          <span class="forge-badge {FORGE_CLASSES[target.forge] ?? ''}"
+          <span class="forge-badge {forgeClassOf(target.forge)}"
             ><span class="dot"></span>{forgeLabel}</span
           >
           <!-- The repository is a link to it on the forge, named by its own
@@ -1210,16 +1264,18 @@
     /* A swap above what the reader is looking at keeps that text in place. */
     overflow-anchor: auto;
   }
-  /* Room enough that the skeleton and the content take the same space, and a
-     dialog pinned to the top so a body that grows never moves the header
-     (#4194). Short windows keep the centred, content-sized dialog. */
-  @media (min-height: 700px) {
+  /* Room for the skeleton and the content alike, and a dialog pinned to the
+     top, so neither the swap nor a body that grows moves the header (#4194).
+     A window too short for it scrolls the body inside the dialog. A phone's
+     dialog already fills the screen. */
+  @media (min-width: 481px) {
     .details-dialog[open] {
-      margin: 6vh auto auto;
+      margin: 4vh auto auto;
+      max-height: min(92vh, 900px);
     }
-    .details-body {
-      min-height: min(360px, 45vh);
-    }
+  }
+  .details-body {
+    min-height: min(360px, 40vh);
   }
   .details-body:focus-visible {
     outline-offset: -2px;

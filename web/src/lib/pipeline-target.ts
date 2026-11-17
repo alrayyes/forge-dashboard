@@ -1,4 +1,4 @@
-import { FORGE_LABELS } from './forges';
+import { forgeLabelOf } from './forges';
 import type { PipelineTarget } from './PipelineDialog.svelte';
 
 // What both boards say when they open the pipeline dialog, so a pull request
@@ -44,6 +44,6 @@ export function pipelineTarget(s: PipelineSubject): PipelineBase {
       ? `Couldn't load pipeline checks for ${fullName}#${s.number}`
       : `Couldn't load the pipeline jobs for ${fullName}`,
     runUrl: s.runUrl,
-    forgeName: FORGE_LABELS[forge] ?? forge,
+    forgeName: forgeLabelOf(forge),
   };
 }

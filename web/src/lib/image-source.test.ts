@@ -1,6 +1,10 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
-import { registerImagePolicy, resetForgeCapabilities } from './forges';
+import {
+  imagePolicyOf,
+  registerImagePolicy,
+  resetForgeCapabilities,
+} from './forges';
 import { imageSourceFor } from './image-source';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3405
@@ -196,5 +200,15 @@ describe('imageSourceFor a forge name that is an object property', () => {
     expect(
       imageSourceFor(forge, 'https://git.example')('https://git.example/a.png'),
     ).toBeNull();
+  });
+});
+
+describe('registerImagePolicy for a forge named __proto__', () => {
+  afterEach(resetForgeCapabilities);
+
+  test('is an own policy, not a prototype change', () => {
+    registerImagePolicy('__proto__', { hosts: ['cdn.test'] });
+
+    expect(imagePolicyOf('__proto__')).toEqual({ hosts: ['cdn.test'] });
   });
 });

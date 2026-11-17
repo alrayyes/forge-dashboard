@@ -10,6 +10,7 @@ import {
   advisoryPill,
   advisoryPillOpensDialog,
   advisoryReasonNeedsGrant,
+  advisoryReasonText,
   advisoryRowHint,
   advisoryRowUnreadable,
   advisoryUnknownReason,
@@ -535,5 +536,37 @@ describe('advisoryCoverageByForge', () => {
 
     expect(by.nowhere).toBe('full');
     expect(by.github).toBe('full');
+  });
+});
+
+describe('advisoryReasonText', () => {
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'a server reason of %s has no wording',
+    (reason) => {
+      expect(advisoryReasonText('github', reason)).toBeUndefined();
+      expect(advisoryReasonText('forgejo', reason)).toBeUndefined();
+      expect(advisoryReasonText('nobody', reason)).toBeUndefined();
+    },
+  );
+
+  test('a reason the source wrote words for reads as them', () => {
+    expect(advisoryReasonText('forgejo', 'failed')).toBe(
+      advisoryWordsFor('forgejo').reasons.failed,
+    );
+  });
+});
+
+describe('advisoryCoverageByForge for a forge named like an inherited key', () => {
+  test.each(['constructor', '__proto__'])('%s gets its own coverage', (id) => {
+    registerForgeCapabilities([
+      { forge: id, capabilities: { advisorySource: 'dependabot' } },
+    ]);
+    const by = advisoryCoverageByForge([
+      { forge: id, advisories: unknown } as MainBranch,
+    ]);
+
+    expect(Object.hasOwn(by, id)).toBe(true);
+    expect(by[id]).toBe('none');
+    expect(Object.getPrototypeOf(by)).toBe(Object.prototype);
   });
 });
