@@ -93,16 +93,15 @@ for (const [scheme, width] of [
     );
 
     // A digest never breaks mid-word.
-    for (const box of await spans.evaluateAll((els) =>
-      els.map((el) => el.getClientRects().length),
-    )) {
-      expect(box).toBe(1);
-    }
+    await expect
+      .poll(() =>
+        spans.evaluateAll((els) => els.map((el) => el.getClientRects().length)),
+      )
+      .toEqual([1, 1]);
 
-    const overflow = await dialog.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
-    expect(overflow).toBe(0);
+    await expect
+      .poll(() => dialog.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
