@@ -21,9 +21,11 @@ import (
 const osvAdvisoryPage = "https://osv.dev/vulnerability/"
 
 // ListAdvisories implements dashboard.AdvisoryLister: the advisories behind a
-// Forgejo row's count, read live when the advisories dialog opens. It reads the
-// lock files of the default branch and matches them against OSV exactly as the
-// row does, but past the cache, so it costs the same reads as a refresh does.
+// Forgejo row's count. The row's own read keeps its list, so an open within the
+// cache window answers from that with no read. Otherwise, or when the caller
+// asks for a fresh read, it reads the lock files of the default branch and
+// matches them against OSV exactly as the row does, so it costs the same reads
+// as a refresh does.
 // What the row would call unknown (advisories off, no lock file, one that can't
 // be read, OSV or the forge failing, too many advisories) is an unknown list
 // with the cause, never an empty one.
