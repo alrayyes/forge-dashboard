@@ -77,7 +77,7 @@ func refreshWhileFullRefreshComputes(t *testing.T, agg *dashboard.Aggregator, sr
 // computing is not undone when that refresh settles (#4108).
 func TestAggregator_AFullRefreshSettlingAfterWebhooksClearedTheForge_KeepsItReachable(t *testing.T) {
 	t.Parallel()
-	src := &pausingSource{twoReposSource: twoReposSource{forge: dashboard.ForgeGitHub}}
+	src := &pausingSource{forge: dashboard.ForgeGitHub}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 
 	refreshWhileFullRefreshComputes(t, agg, src)
@@ -94,7 +94,7 @@ func TestAggregator_AFullRefreshSettlingAfterWebhooksClearedTheForge_KeepsItReac
 // the next failure dates the rows from the webhooks, not the older full read.
 func TestAggregator_AFullRefreshSettlingAfterWebhooksClearedTheForge_KeepsTheLaterGoodTime(t *testing.T) {
 	t.Parallel()
-	src := &pausingSource{twoReposSource: twoReposSource{forge: dashboard.ForgeGitHub}}
+	src := &pausingSource{forge: dashboard.ForgeGitHub}
 	agg := dashboard.NewAggregator([]dashboard.Source{src})
 	fullReadAt := refreshWhileFullRefreshComputes(t, agg, src)
 
