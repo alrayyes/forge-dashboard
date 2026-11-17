@@ -117,6 +117,9 @@
     releaseNotes?: Body | null;
     // Only an issue's details say it: open or closed in the forge right now.
     state?: "open" | "closed";
+    // Only the issues endpoint says it: a forge shares one number space, so
+    // what was asked for as an issue can be a pull request (#4188).
+    kind?: "issue" | "pullRequest";
   };
 
   // Dashboard.svelte's hooks: Escape first backs out of an armed confirm, and
@@ -125,6 +128,7 @@
     onEscape,
     onClosed,
     onIssueState,
+    onPullRequestFound,
     onReference,
     trackedRepo,
   }: {
@@ -132,6 +136,9 @@
     onClosed?: () => void;
     // An issue's details arrived: whether the forge has it closed.
     onIssueState?: (closed: boolean) => void;
+    // What was opened as an issue turned out to be a pull request (#4188), and
+    // the dialog now shows it as one. The page drops the issue's own state.
+    onPullRequestFound?: () => void;
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
@@ -352,6 +359,26 @@
       } else {
         loaded = data as Details;
       }
+      // A reference the board doesn't list opens as an issue, and the server
+      // says when the number is a pull request. Show it as one, from the same
+      // answer, so a reload then goes to the pull request endpoint.
+      const foundPullRequest =
+        !isReleaseTarget(current) &&
+        current.subject === "issue" &&
+        loaded.kind === "pullRequest";
+      if (foundPullRequest && mine === token) {
+        target = {
+          ...current,
+          subject: "pull-request",
+          title: `Pull request #${current.number}`,
+          url: current.url.replace(
+            /\/issues\/(\d+)$/,
+            current.forge === "github" ? "/pull/$1" : "/pulls/$1",
+          ),
+          status: undefined,
+        };
+        onPullRequestFound?.();
+      }
       const rendered: Record<string, string> = {};
       const jobs: Promise<void>[] = [];
       const add = (key: string, text: string, comment?: string) =>
@@ -385,7 +412,7 @@
       html = rendered;
       details = loaded;
       phase = "ready";
-      if (current.subject === "issue" && loaded.state)
+      if (!foundPullRequest && current.subject === "issue" && loaded.state)
         onIssueState?.(loaded.state === "closed");
       // A quiet swap leaves a list the reader has open alone; a full load
       // replaces everything, so the old content's state goes with it.
