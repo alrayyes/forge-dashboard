@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3396
@@ -48,7 +49,7 @@ async function mock(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: NOW,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [PR],
         issues: [ISSUE],
       }),
