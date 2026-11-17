@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.67.0](https://github.com/alrayyes/forge-dashboard/compare/v9.66.0...v9.67.0) (2026-11-17)
+
+
+### Features
+
+* **checks:** one action layout for every row in the pipeline dialog ([#4080](https://github.com/alrayyes/forge-dashboard/issues/4080)) ([59a0113](https://github.com/alrayyes/forge-dashboard/commit/59a01131da94405c586c99cec7db57494db9061b))
+
 ## [9.66.0](https://github.com/alrayyes/forge-dashboard/compare/v9.65.1...v9.66.0) (2026-11-17)
 
 
