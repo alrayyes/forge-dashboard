@@ -22,6 +22,7 @@
     saveState,
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
+  import { noReposCopy } from "#lib/forge-copy.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import RepoLogo from "#lib/RepoLogo.svelte";
   import { isRateLimited, rateLimitReasonText } from "#lib/rate-limit.js";
@@ -1170,8 +1171,7 @@
       <!-- The alert above says why; an empty card must not read as a result. -->
     {:else if loaded && repos.length === 0}
       <p class="empty-state" id="webhooks-empty">
-        Nothing tracked yet — save GitHub or Forgejo credentials in Settings
-        first.
+        {noReposCopy()}
       </p>
     {:else if loaded}
       <p

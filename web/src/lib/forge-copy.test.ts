@@ -3,6 +3,7 @@ import {
   approveLinkCopy,
   autoMergeGroupNote,
   forgeNameList,
+  noReposCopy,
   pageDescription,
   scheduledOnCopy,
 } from './forge-copy';
@@ -55,6 +56,18 @@ describe('forge copy comes from the label', () => {
     expect(forgeNameList(['GitHub'])).toBe('GitHub');
     expect(forgeNameList(['GitHub', 'Forgejo'])).toBe('GitHub and Forgejo');
     expect(forgeNameList(['A', 'B', 'C'])).toBe('A, B and C');
+  });
+
+  test('the empty webhooks state names every forge it can take credentials for', () => {
+    expect(noReposCopy()).toBe(
+      'Nothing tracked yet — save GitHub or Forgejo credentials in Settings first.',
+    );
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+    expect(noReposCopy()).toBe(
+      'Nothing tracked yet — save GitHub, Forgejo or Gitea credentials in Settings first.',
+    );
   });
 
   test('page descriptions name every forge the app knows', () => {
