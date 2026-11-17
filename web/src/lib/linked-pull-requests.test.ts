@@ -226,3 +226,22 @@ describe('linkedMoreName', () => {
     );
   });
 });
+
+describe('the forges a pull request address accepts', () => {
+  test('a forge the server registered is accepted, one it never named is not', async () => {
+    const { registerForgeCapabilities, resetForgeCapabilities } = await import(
+      './forges'
+    );
+    try {
+      expect(parsePullRequestAddress('?pr=gitea/o/r/1')).toBeNull();
+      registerForgeCapabilities([{ forge: 'gitea' }]);
+      expect(parsePullRequestAddress('?pr=gitea/o/r/1')).toEqual({
+        forge: 'gitea',
+        repo: 'o/r',
+        number: 1,
+      });
+    } finally {
+      resetForgeCapabilities();
+    }
+  });
+});
