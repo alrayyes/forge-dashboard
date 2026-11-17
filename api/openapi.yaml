@@ -3501,8 +3501,10 @@ paths:
         Only for a repository the dashboard tracks for you; any other answers 404
         without asking the forge.
 
-        Fetched live on every call and never as part of a snapshot, since a log
-        can be large and most are never opened. GitHub reads the job's log
+        Never as part of a snapshot, since a log
+        can be large and most are never opened. A finished job's output is kept
+        in memory (see `finishedAt`) and served again without asking the forge.
+        GitHub reads the job's log
         through its REST API (one request, then a short-lived download). Forgejo
         reads it through the job logs endpoint of its Actions API.
 
@@ -3542,6 +3544,33 @@ paths:
             type: integer
             minimum: 1
           description: Matching a Check.jobId.
+        - name: finishedAt
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: |
+            Matching a Check.completedAt. Send it for a job that has finished and
+            the server keeps its full output in memory once the job has been
+            finished for 30 seconds, so the next open of the same job costs no
+            forge request. The server takes this time on trust: it has no
+            per-job record of its own to check it against, so a caller who sends
+            an old time for a running job gets that partial output kept under
+            that key. The key includes the time, so nobody else's open reads it.
+            Leave it out for a job that is running: its output is
+            never kept. A finish time in the future is not kept either. The
+            response is still `Cache-Control: no-store`, so a browser asks again.
+        - name: attempt
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: |
+            Matching a Check.runAttempt, 0 or left out where the forge doesn't
+            number attempts. With `finishedAt` it names the run the kept output
+            belongs to, so a rerun reads afresh.
         - name: excerpt
           in: query
           required: false
