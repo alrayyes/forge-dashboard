@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.74.0](https://github.com/alrayyes/forge-dashboard/compare/v9.73.1...v9.74.0) (2026-11-17)
+
+
+### Features
+
+* **api:** keep a finished job's log in memory ([#4195](https://github.com/alrayyes/forge-dashboard/issues/4195)) ([e9e0dec](https://github.com/alrayyes/forge-dashboard/commit/e9e0dec2e06541d53c7d25bc11f3da7a7575f203))
+
+
+### Bug Fixes
+
+* **web:** line up a locked Dependabot split button and say its reason once ([#4189](https://github.com/alrayyes/forge-dashboard/issues/4189)) ([af4b165](https://github.com/alrayyes/forge-dashboard/commit/af4b16517f7a59502527afc8a33c8ed25248688a)), closes [#4187](https://github.com/alrayyes/forge-dashboard/issues/4187)
+
 ## [9.73.1](https://github.com/alrayyes/forge-dashboard/compare/v9.73.0...v9.73.1) (2026-11-17)
 
 
