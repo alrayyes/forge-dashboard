@@ -203,7 +203,9 @@ scope(s): [read:user]`, before it was added to the token.
   wins over a pasted token while the account is linked. Disconnect, and the
   pasted token is used again. Tokens are stored encrypted and are never in
   `GET /api/v1/settings`, which only reports `forgejoOAuthConfigured` and
-  `forgejoOAuthConnected`. The instance URL is locked while linked.
+  `forgejoOAuthConnected`. The instance URL is locked while linked. A
+  pasted token saved for a different instance is cleared when you link, since
+  it was issued for another host.
 - **Username only** (token left blank, instance URL still set): shows
   that account's public repositories on the configured instance,
   unauthenticated — same trade-off as GitHub's username mode. Verified

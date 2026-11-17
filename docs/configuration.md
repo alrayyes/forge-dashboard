@@ -171,6 +171,18 @@ To turn it on:
    With either missing the feature stays off and `forgejoOAuthConfigured` in
    `GET /api/v1/settings` is `false`.
 
+**What the token can do.** The dashboard asks for no scope, and a default
+Forgejo grants an OAuth token the whole API for your account, not a limited
+set. Least privilege isn't available on a default instance, so treat the
+connection like a personal access token with every permission. It is stored
+encrypted, bound to the instance that issued it, and never sent anywhere else.
+The dashboard doesn't follow redirects when it asks for a token, and an error
+from the instance is reduced to its status and error code before it is logged.
+
+Forgejo rotates the refresh token on every refresh. If the process stops after
+a refresh but before the new pair is saved, the old refresh token no longer
+works and the link is lost. Disconnect, then connect again.
+
 While an account is linked the Forgejo instance URL can't be changed: the
 token belongs to that instance and is never sent anywhere else. Disconnect
 first. The Settings screen for this is not built yet; the flow is
