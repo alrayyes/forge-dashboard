@@ -227,16 +227,52 @@ for (const size of [
       await expect(chip).toHaveCount(0);
     });
 
-    test('Clear all resets the filters', async ({ page }) => {
+    test('Clear all resets the filters and leaves the sheet open on the full list (#4076)', async ({
+      page,
+    }) => {
       await filtersButton(page).click();
+      const clear = sheet(page).getByRole('button', { name: 'Clear all' });
+      // Nothing is set yet, so there is nothing to clear.
+      await expect(clear).toBeDisabled();
+
       await togglePicks(page, 'repo', 'forgejo:homelab/three');
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(clear).toBeEnabled();
 
-      await sheet(page).getByRole('button', { name: 'Clear all' }).click();
+      await clear.click();
+      await expect(sheet(page)).toBeVisible();
       await expect(page.locator('#pr-rows > .row')).toHaveCount(5);
       await expect(
-        sheet(page).getByRole('button', { name: 'Clear all' }),
-      ).toBeDisabled();
+        sheet(page).getByRole('button', { name: 'Show 5 results' }),
+      ).toBeVisible();
+      await expect(clear).toBeDisabled();
+    });
+
+    test('a live region in the sheet announces the result count as it changes (#4076)', async ({
+      page,
+    }) => {
+      await filtersButton(page).click();
+      const count = sheet(page).locator('#filter-sheet-count');
+      await expect(count).toHaveAttribute('role', 'status');
+      await togglePicks(page, 'repo', 'forgejo:homelab/three');
+      await expect(count).toHaveText('2 results');
+      await sheet(page).getByRole('button', { name: 'Clear all' }).click();
+      await expect(count).toHaveText('5 results');
+    });
+
+    test('has no axe violations after Clear all with the sheet open (#4076)', async ({
+      page,
+    }) => {
+      await filtersButton(page).click();
+      await togglePicks(page, 'repo', 'forgejo:homelab/three');
+      await sheet(page).getByRole('button', { name: 'Clear all' }).click();
+      await expect(
+        sheet(page).getByRole('button', { name: 'Show 5 results' }),
+      ).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
     });
 
     test('a refresh does not change a filter being edited in the sheet', async ({

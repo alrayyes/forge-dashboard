@@ -437,7 +437,8 @@ can tap to remove without opening anything.
 groups, Show drafts, sort, group, repo, author, label, created, and updated.
 Filters apply as you change them, and the sheet's **Show N results** button,
 which closes it, says what you would see, so a refresh can't change something
-you are editing.
-**Clear all** resets everything. Escape, the close button, or a tap outside
+you are editing. A screen reader announces the count as it changes.
+**Clear all** resets everything and leaves the sheet open on the full list; it
+is off while no filter is on. Escape, the close button, or a tap outside
 closes the sheet and returns focus to the Filters button. On wider screens
 nothing changes except that the title filter now sits first in the bar.
