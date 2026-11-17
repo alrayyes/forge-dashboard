@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The edge of a filter text field or dropdown is the part of it that
@@ -83,7 +84,7 @@ async function seed(page: Page, path: string) {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+          forges: [forgeHealth('github', { repoCount: 2 })],
           pullRequests:
             path === '/issues.html' ? [] : [pr(1, 'acme/a'), pr(2, 'acme/b')],
           issues:
@@ -118,7 +119,7 @@ async function seed(page: Page, path: string) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         repos: [{ forge: 'github', fullName: 'acme/a', hasWebhook: true }],
