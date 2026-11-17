@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.69.0](https://github.com/alrayyes/forge-dashboard/compare/v9.68.0...v9.69.0) (2026-11-17)
+
+
+### Features
+
+* **web:** name the forge's raw word for an unknown check ([#4091](https://github.com/alrayyes/forge-dashboard/issues/4091)) ([5667e30](https://github.com/alrayyes/forge-dashboard/commit/5667e3030dde914a1262a9959bdd2875f2a4cb2e)), closes [#4066](https://github.com/alrayyes/forge-dashboard/issues/4066)
+
 ## [9.68.0](https://github.com/alrayyes/forge-dashboard/compare/v9.67.0...v9.68.0) (2026-11-17)
 
 
