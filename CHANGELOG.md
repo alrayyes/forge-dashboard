@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.68.0](https://github.com/alrayyes/forge-dashboard/compare/v9.67.0...v9.68.0) (2026-11-17)
+
+
+### Features
+
+* **branches:** give an unknown job its own branch status ([#4086](https://github.com/alrayyes/forge-dashboard/issues/4086)) ([8ba971a](https://github.com/alrayyes/forge-dashboard/commit/8ba971a608c4a97fae6d99bae4cf2c3449e41ba2)), closes [#4063](https://github.com/alrayyes/forge-dashboard/issues/4063)
+* **web:** add a clear button and Escape to the title or number box ([#4083](https://github.com/alrayyes/forge-dashboard/issues/4083)) ([7f84cd9](https://github.com/alrayyes/forge-dashboard/commit/7f84cd9af26ced8051ca41f1f830da4b36108dc3)), closes [#4077](https://github.com/alrayyes/forge-dashboard/issues/4077)
+
 ## [9.67.0](https://github.com/alrayyes/forge-dashboard/compare/v9.66.0...v9.67.0) (2026-11-17)
 
 
