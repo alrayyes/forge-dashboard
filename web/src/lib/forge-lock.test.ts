@@ -206,3 +206,24 @@ describe('carriedOverLock', () => {
     expect(carriedOverLock(forges, 'github')).toBeNull();
   });
 });
+const ODD = ['constructor', 'toString', '__proto__', 'hasOwnProperty'];
+
+describe('forgeLockReason forge names', () => {
+  test.each(ODD)(
+    'a rate-limited forge named %s is named by its id',
+    (forge) => {
+      const lock = forgeLockReason(
+        [
+          host({
+            forge,
+            rateLimitREST: spent('2026-10-22T13:00:00Z'),
+          }),
+        ],
+        forge,
+        { now: NOW },
+      );
+      expect(lock?.code).toBe('rate_limited');
+      expect(lock?.reason).toContain(forge);
+    },
+  );
+});

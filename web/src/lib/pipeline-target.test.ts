@@ -85,3 +85,12 @@ describe('pipelineTarget', () => {
     });
   });
 });
+const ODD = ['constructor', 'toString', '__proto__', 'hasOwnProperty'];
+
+describe('pipelineTarget forge names', () => {
+  test.each(ODD)('a forge named %s is called by its own id', (forge) => {
+    expect(
+      pipelineTarget({ forge, fullName: 'o/r', number: 1 }).forgeName,
+    ).toBe(forge);
+  });
+});

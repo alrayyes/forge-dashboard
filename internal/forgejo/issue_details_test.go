@@ -100,3 +100,35 @@ func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }
+
+// Forgejo shares one number space, and GET /issues/{n} answers for a pull
+// request too, with a pull_request member. The page needs to be told which it
+// got (#4188), since only it knows which dialog to open.
+func TestGetIssueDetails_SaysWhetherTheNumberIsAPullRequest(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		issue map[string]any
+		want  dashboard.ItemKind
+	}{
+		{"an issue", map[string]any{"number": 5, "body": "x", "state": "open"}, dashboard.ItemKindIssue},
+		{"a pull request", map[string]any{"number": 5, "body": "x", "state": "open", "pull_request": map[string]any{"merged": false}}, dashboard.ItemKindPullRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, tc.issue) })
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.Kind)
+		})
+	}
+}

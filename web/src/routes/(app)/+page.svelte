@@ -1,8 +1,8 @@
 <script lang="ts">
   import { onDestroy, onMount, untrack } from "svelte";
   import {
-    FORGE_CLASSES,
-    FORGE_LABELS,
+    forgeClassOf,
+    forgeLabelOf,
     forgeIds,
     registerForgeCapabilities,
   } from "#lib/forges.js";
@@ -1112,7 +1112,7 @@
               class="mb-pill"
               aria-pressed={filter.forge === forge}
               onclick={() => setForge(forge)}
-              >{FORGE_LABELS[forge]}
+              >{forgeLabelOf(forge)}
               <span class="mb-count">{perForge[forge]}</span></button
             >
           {/each}
@@ -1235,9 +1235,8 @@
                     aria-label="{b.fullName} (opens in a new tab)"
                     >{b.fullName}</a
                   >
-                  <span class="forge-badge {FORGE_CLASSES[b.forge] ?? ''}"
-                    ><span class="dot"></span>{FORGE_LABELS[b.forge] ??
-                      b.forge}</span
+                  <span class="forge-badge {forgeClassOf(b.forge)}"
+                    ><span class="dot"></span>{forgeLabelOf(b.forge)}</span
                   >
                   {#if isStale(b)}<span
                       class="mb-chip mb-stale"

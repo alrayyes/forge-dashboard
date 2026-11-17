@@ -37,3 +37,15 @@ describe('forgeCounts', () => {
     }
   });
 });
+
+describe('forgeCounts for a forge named like an inherited key', () => {
+  test.each(['constructor', '__proto__'])('%s is counted as a forge', (id) => {
+    registerForgeCapabilities([{ forge: id }]);
+    const counts = forgeCounts(rows(id, id, 'github'));
+
+    expect(Object.hasOwn(counts, id)).toBe(true);
+    expect(counts[id]).toBe(2);
+    expect(Object.getPrototypeOf(counts)).toBe(Object.prototype);
+    resetForgeCapabilities();
+  });
+});

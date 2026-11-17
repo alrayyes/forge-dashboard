@@ -198,7 +198,7 @@ func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testi
 	t.Cleanup(srv.Close)
 	githubAPIBaseURL = srv.URL
 	t.Cleanup(func() { githubAPIBaseURL = "" })
-	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil)
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
 	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
 
 	for _, link := range []string{"https://github.com/user-attachments/assets/a", "https://github.com/user-attachments/assets/b"} {
@@ -224,7 +224,7 @@ func TestBuildSources_GitHubSourceAsksTheStatusPageButForgejoDoesNot(t *testing.
 	t.Cleanup(srv.Close)
 	githubStatusURL = srv.URL
 	t.Cleanup(func() { githubStatusURL = githubstatus.BaseURL })
-	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil)
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
 
 	sources := build(settings.Credentials{GitHubToken: "pat-value", ForgejoURL: "https://forge.example", ForgejoToken: "t"})
 	require.Len(t, sources, 2)

@@ -30,6 +30,10 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	if err != nil {
 		return dashboard.IssueDetails{}, err
 	}
+	details.Kind = dashboard.ItemKindIssue
+	if issue.PullRequest != nil {
+		details.Kind = dashboard.ItemKindPullRequest
+	}
 	details.State = dashboard.IssueStateOpen
 	if issue.State == gitea.StateClosed {
 		details.State = dashboard.IssueStateClosed
