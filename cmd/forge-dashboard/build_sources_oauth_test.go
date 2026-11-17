@@ -15,20 +15,23 @@ import (
 	"golang.org/x/oauth2"
 )
 
-type pairStore struct{ token *oauth2.Token }
+type pairStore struct {
+	instance string
+	token    *oauth2.Token
+}
 
-func (p *pairStore) SaveOAuthToken(_ context.Context, _ string, t *oauth2.Token) error {
-	p.token = t
+func (p *pairStore) SaveOAuthToken(_ context.Context, _, instance string, t *oauth2.Token) error {
+	p.instance, p.token = instance, t
 
 	return nil
 }
 
-func (p *pairStore) OAuthToken(context.Context, string) (*oauth2.Token, error) {
+func (p *pairStore) OAuthToken(context.Context, string) (string, *oauth2.Token, error) {
 	if p.token == nil {
-		return nil, settings.ErrNotFound
+		return "", nil, settings.ErrNotFound
 	}
 
-	return p.token, nil
+	return p.instance, p.token, nil
 }
 
 func (p *pairStore) DeleteOAuthToken(context.Context, string) error {
@@ -64,7 +67,7 @@ func TestBuildSources_ALinkedForgejoAccountSendsItsAccessTokenInPlaceOfAPastedOn
 	t.Parallel()
 
 	srv, headers := authHeaders(t)
-	store := &pairStore{token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
+	store := &pairStore{instance: srv.URL, token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
 
 	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
@@ -81,7 +84,7 @@ func TestBuildSources_ALinkedForgejoAccountNeedsNoPastedToken(t *testing.T) {
 	t.Parallel()
 
 	srv, headers := authHeaders(t)
-	store := &pairStore{token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
+	store := &pairStore{instance: srv.URL, token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
 
 	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoUsername: "alice"})
@@ -104,5 +107,24 @@ func TestBuildSources_WithoutALinkedAccountThePastedTokenIsUsed(t *testing.T) {
 	require.NotEmpty(t, headers())
 	for _, h := range headers() {
 		assert.Equal(t, "token pasted", h)
+	}
+}
+
+// If the settings and the stored pair ever disagree about the instance (a save
+// racing the callback), the pair is not sent to the address in the settings.
+func TestBuildSources_APairGrantedByAnotherInstanceIsNeverSentToThisOne(t *testing.T) {
+	t.Parallel()
+
+	srv, headers := authHeaders(t)
+	store := &pairStore{instance: "https://granted.example.com", token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
+	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
+
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
+	require.Len(t, sources, 1)
+	sources[0].Fetch(t.Context())
+
+	require.NotEmpty(t, headers())
+	for _, h := range headers() {
+		assert.NotContains(t, h, "linked")
 	}
 }

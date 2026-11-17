@@ -27,14 +27,19 @@ const oauthTokensSchema = `
 // SaveOAuthToken stores the token pair for forge, encrypted, replacing any
 // earlier pair in one statement. GitHub rotates the refresh token on every
 // refresh, so callers save the new pair as soon as they get it.
-func (s *Store) SaveOAuthToken(ctx context.Context, forge string, token *oauth2.Token) error {
+//
+// instance is the address of the forge that granted the pair. It is sealed
+// with the pair, so a token can only ever be read back together with the host
+// it belongs to, and the whole blob is bound to forge, so it can't be moved to
+// another row.
+func (s *Store) SaveOAuthToken(ctx context.Context, forge, instance string, token *oauth2.Token) error {
 	// The pair is sealed by the cipher below before it reaches the database.
-	raw, err := json.Marshal(token) //nolint:gosec // G117: encrypted before it is stored.
+	raw, err := json.Marshal(sealedToken{Instance: instance, Token: token})
 	if err != nil {
 		return fmt.Errorf("settings: encode oauth token: %w", err)
 	}
 
-	sealed, err := s.cipher.Encrypt(string(raw))
+	sealed, err := s.cipher.EncryptBound(string(raw), oauthAAD(forge))
 	if err != nil {
 		return err
 	}
@@ -51,32 +56,42 @@ func (s *Store) SaveOAuthToken(ctx context.Context, forge string, token *oauth2.
 	return nil
 }
 
-// OAuthToken returns the decrypted token pair for forge, or ErrNotFound when
-// the forge was never linked.
-func (s *Store) OAuthToken(ctx context.Context, forge string) (*oauth2.Token, error) {
+// OAuthToken returns the decrypted token pair for forge and the instance that
+// granted it, or ErrNotFound when the forge was never linked.
+func (s *Store) OAuthToken(ctx context.Context, forge string) (string, *oauth2.Token, error) {
 	var sealed string
 
 	err := s.db.QueryRowContext(ctx, `SELECT token FROM oauth_tokens WHERE forge = ?`, forge).Scan(&sealed)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, ErrNotFound
+		return "", nil, ErrNotFound
 	}
 
 	if err != nil {
-		return nil, fmt.Errorf("settings: read oauth token: %w", err)
+		return "", nil, fmt.Errorf("settings: read oauth token: %w", err)
 	}
 
-	raw, err := s.cipher.Decrypt(sealed)
+	raw, err := s.cipher.DecryptBound(sealed, oauthAAD(forge))
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 
-	var token oauth2.Token
-	if err := json.Unmarshal([]byte(raw), &token); err != nil {
-		return nil, fmt.Errorf("settings: decode oauth token: %w", err)
+	var blob sealedToken
+	if err := json.Unmarshal([]byte(raw), &blob); err != nil || blob.Token == nil {
+		return "", nil, fmt.Errorf("settings: decode oauth token: %w", errBadOAuthBlob)
 	}
 
-	return &token, nil
+	return blob.Instance, blob.Token, nil
 }
+
+// sealedToken is what the encrypted column holds.
+type sealedToken struct {
+	Instance string        `json:"instance"`
+	Token    *oauth2.Token `json:"token"`
+}
+
+var errBadOAuthBlob = errors.New("unexpected content")
+
+func oauthAAD(forge string) string { return "oauth_tokens:" + forge }
 
 // DeleteOAuthToken unlinks forge by removing its token pair.
 func (s *Store) DeleteOAuthToken(ctx context.Context, forge string) error {

@@ -35,8 +35,8 @@ var errDisconnected = errors.New("oauth: the account was disconnected")
 
 // TokenStore is where the token pair lives. settings.Store implements it.
 type TokenStore interface {
-	SaveOAuthToken(ctx context.Context, forge string, token *oauth2.Token) error
-	OAuthToken(ctx context.Context, forge string) (*oauth2.Token, error)
+	SaveOAuthToken(ctx context.Context, forge, instance string, token *oauth2.Token) error
+	OAuthToken(ctx context.Context, forge string) (instance string, token *oauth2.Token, err error)
 	DeleteOAuthToken(ctx context.Context, forge string) error
 }
 
@@ -113,7 +113,7 @@ func (f *Forgejo) Finish(ctx context.Context, state, code string) (instance, acc
 	f.gen++
 	f.source = nil
 
-	if err := f.store.SaveOAuthToken(ctx, forgejoForge, token); err != nil {
+	if err := f.store.SaveOAuthToken(ctx, forgejoForge, instance, token); err != nil {
 		return "", "", fmt.Errorf("oauth: store token: %w", err)
 	}
 
@@ -149,7 +149,7 @@ func (f *Forgejo) Bearer(ctx context.Context, instance string) (func() (string, 
 	defer f.mu.Unlock()
 
 	if f.source == nil || f.instance != instance {
-		stored, err := f.store.OAuthToken(ctx, forgejoForge)
+		linkedTo, stored, err := f.store.OAuthToken(ctx, forgejoForge)
 		if errors.Is(err, settings.ErrNotFound) {
 			return nil, false
 		}
@@ -160,9 +160,18 @@ func (f *Forgejo) Bearer(ctx context.Context, instance string) (func() (string, 
 			return func() (string, error) { return "", fmt.Errorf("oauth: read stored token: %w", err) }, true
 		}
 
+		// The pair belongs to the host that granted it. Asked for any other
+		// address, say it isn't linked: nothing of it is sent there, not the
+		// access token and not, on a refresh, the client secret.
+		if strings.TrimSuffix(linkedTo, "/") != instance {
+			f.source, f.instance = nil, ""
+
+			return nil, false
+		}
+
 		cfg := f.cfg
 		cfg.Endpoint = endpoint(instance)
-		f.source = NewSource(f.ctx, cfg, stored, guardedSaver{f: f, gen: f.gen})
+		f.source = NewSource(f.ctx, cfg, stored, guardedSaver{f: f, gen: f.gen, instance: instance})
 		f.instance = instance
 	}
 
@@ -181,8 +190,9 @@ func (f *Forgejo) Bearer(ctx context.Context, instance string) (func() (string, 
 // guardedSaver saves a refreshed pair only while the connection it was made
 // for is still the current one.
 type guardedSaver struct {
-	f   *Forgejo
-	gen int
+	f        *Forgejo
+	gen      int
+	instance string
 }
 
 func (g guardedSaver) Save(ctx context.Context, token *oauth2.Token) error {
@@ -193,7 +203,7 @@ func (g guardedSaver) Save(ctx context.Context, token *oauth2.Token) error {
 		return errDisconnected
 	}
 
-	if err := g.f.store.SaveOAuthToken(ctx, forgejoForge, token); err != nil {
+	if err := g.f.store.SaveOAuthToken(ctx, forgejoForge, g.instance, token); err != nil {
 		return fmt.Errorf("oauth: save token: %w", err)
 	}
 
@@ -214,7 +224,7 @@ func readAccount(ctx context.Context, instance, accessToken string) (string, err
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.Header.Set("Accept", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", fmt.Errorf("%w: request failed", ErrAccount)
 	}

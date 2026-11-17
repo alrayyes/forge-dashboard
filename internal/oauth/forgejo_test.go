@@ -28,30 +28,31 @@ const (
 
 // memoryTokens is a fake token store, one pair.
 type memoryTokens struct {
-	mu    sync.Mutex
-	token *oauth2.Token
-	saves int
+	mu       sync.Mutex
+	instance string
+	token    *oauth2.Token
+	saves    int
 }
 
-func (m *memoryTokens) SaveOAuthToken(_ context.Context, forge string, t *oauth2.Token) error {
+func (m *memoryTokens) SaveOAuthToken(_ context.Context, forge, instance string, t *oauth2.Token) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if forge != "forgejo" {
 		panic("wrong forge " + forge)
 	}
-	m.token, m.saves = t, m.saves+1
+	m.instance, m.token, m.saves = instance, t, m.saves+1
 
 	return nil
 }
 
-func (m *memoryTokens) OAuthToken(_ context.Context, _ string) (*oauth2.Token, error) {
+func (m *memoryTokens) OAuthToken(_ context.Context, _ string) (string, *oauth2.Token, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.token == nil {
-		return nil, settings.ErrNotFound
+		return "", nil, settings.ErrNotFound
 	}
 
-	return m.token, nil
+	return m.instance, m.token, nil
 }
 
 func (m *memoryTokens) DeleteOAuthToken(_ context.Context, _ string) error {
@@ -82,6 +83,7 @@ type fakeForgejo struct {
 	access    string // newest access token
 	userCalls int
 	userFails bool
+	hits      int
 }
 
 func newFakeForgejo(t *testing.T) *fakeForgejo {
@@ -91,7 +93,12 @@ func newFakeForgejo(t *testing.T) *fakeForgejo {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login/oauth/access_token", f.token)
 	mux.HandleFunc("/api/v1/user", f.user)
-	f.server = httptest.NewServer(mux)
+	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		f.mu.Lock()
+		f.hits++
+		f.mu.Unlock()
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(f.server.Close)
 
 	return f
@@ -106,7 +113,12 @@ func (f *fakeForgejo) token(w http.ResponseWriter, r *http.Request) {
 	deny := func() {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(`{"error":"invalid_grant"}`))
+		// A proxy or a hostile instance can put anything in the body, including
+		// what it was sent. Echo it so a test can tell if it ever leaks on.
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"error":             "invalid_grant",
+			"error_description": "denied: " + form.Get("code") + " " + form.Get("client_secret") + " " + form.Get("refresh_token") + " " + form.Get("code_verifier"),
+		})
 	}
 
 	switch form.Get("grant_type") {
@@ -330,7 +342,7 @@ func TestForgejo_Bearer_AnExpiredTokenRefreshesOnceAndTheRotatedPairIsSaved(t *t
 	t.Parallel()
 
 	forge := newFakeForgejo(t)
-	store := &memoryTokens{token: &oauth2.Token{
+	store := &memoryTokens{instance: forge.server.URL, token: &oauth2.Token{
 		AccessToken: "access-1", RefreshToken: "refresh-1", Expiry: time.Now().Add(-time.Minute),
 	}}
 	conn := newForgejoConn(t, store)
@@ -359,7 +371,7 @@ func TestForgejo_Bearer_ASurvivingSourceIsSharedSoOneRefreshTokenIsNeverSpentTwi
 	t.Parallel()
 
 	forge := newFakeForgejo(t)
-	store := &memoryTokens{token: &oauth2.Token{
+	store := &memoryTokens{instance: forge.server.URL, token: &oauth2.Token{
 		AccessToken: "access-1", RefreshToken: "refresh-1", Expiry: time.Now().Add(-time.Minute),
 	}}
 	conn := newForgejoConn(t, store)
@@ -380,7 +392,7 @@ func TestForgejo_Disconnect_DeletesTheTokensAndASlowRefreshCannotPutThemBack(t *
 	t.Parallel()
 
 	forge := newFakeForgejo(t)
-	store := &memoryTokens{token: &oauth2.Token{
+	store := &memoryTokens{instance: forge.server.URL, token: &oauth2.Token{
 		AccessToken: "access-1", RefreshToken: "refresh-1", Expiry: time.Now().Add(-time.Minute),
 	}}
 	conn := newForgejoConn(t, store)
@@ -411,4 +423,165 @@ func wrapFinish(err error) error {
 	}
 
 	return nil
+}
+
+func finishedAgainst(t *testing.T, forge *fakeForgejo, store *memoryTokens) *oauth.Forgejo {
+	t.Helper()
+
+	conn := newForgejoConn(t, store)
+	state := beginAgainst(t, conn, forge)
+	_, _, err := conn.Finish(t.Context(), state, goodCode)
+	require.NoError(t, err)
+
+	return conn
+}
+
+// The stored pair belongs to the host that granted it. Asked about another
+// address, Bearer says "not linked" and sends nothing to it, not even a refresh
+// with the client secret.
+func TestForgejo_Bearer_ARefusesAnInstanceThatDidNotGrantTheToken(t *testing.T) {
+	t.Parallel()
+
+	granted, other := newFakeForgejo(t), newFakeForgejo(t)
+	store := &memoryTokens{}
+	conn := finishedAgainst(t, granted, store)
+	store.token.Expiry = time.Now().Add(-time.Minute) // a refresh would be needed
+
+	bearer, ok := conn.Bearer(t.Context(), other.server.URL)
+
+	assert.False(t, ok)
+	assert.Nil(t, bearer)
+	assert.Zero(t, other.refreshCount())
+	assert.Zero(t, other.requests(), "nothing at all reaches the other host")
+	_, ok = conn.Bearer(t.Context(), granted.server.URL)
+	assert.True(t, ok, "the granting host is still served")
+}
+
+func TestForgejo_Bearer_TheInstanceIsStoredWithThePair(t *testing.T) {
+	t.Parallel()
+
+	forge := newFakeForgejo(t)
+	store := &memoryTokens{}
+	finishedAgainst(t, forge, store)
+
+	assert.Equal(t, forge.server.URL, store.instance)
+}
+
+func TestForgejo_Bearer_ARefreshedPairIsSavedWithItsInstance(t *testing.T) {
+	t.Parallel()
+
+	forge := newFakeForgejo(t)
+	store := &memoryTokens{instance: forge.server.URL, token: &oauth2.Token{
+		AccessToken: "access-1", RefreshToken: "refresh-1", Expiry: time.Now().Add(-time.Minute),
+	}}
+	conn := newForgejoConn(t, store)
+	bearer, ok := conn.Bearer(t.Context(), forge.server.URL)
+	require.True(t, ok)
+	_, err := bearer()
+	require.NoError(t, err)
+
+	assert.Equal(t, forge.server.URL, store.instance)
+}
+
+// Go re-sends a 307 or 308 POST body to the target. The token request's body
+// holds the client secret, the code and the verifier.
+func TestForgejo_TokenRequests_NeverFollowARedirect(t *testing.T) {
+	t.Parallel()
+
+	var (
+		mu   sync.Mutex
+		seen []string
+	)
+	target := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		mu.Lock()
+		seen = append(seen, r.PostForm.Encode())
+		mu.Unlock()
+	}))
+	t.Cleanup(target.Close)
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, target.URL+"/steal", http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(redirector.Close)
+
+	t.Run("the code exchange", func(t *testing.T) {
+		t.Parallel()
+
+		conn := newForgejoConn(t, &memoryTokens{})
+		consent, err := url.Parse(conn.Begin(redirector.URL))
+		require.NoError(t, err)
+		_, _, err = conn.Finish(t.Context(), consent.Query().Get("state"), goodCode)
+
+		require.ErrorIs(t, err, oauth.ErrExchange)
+	})
+
+	t.Run("a refresh", func(t *testing.T) {
+		t.Parallel()
+
+		store := &memoryTokens{instance: redirector.URL, token: &oauth2.Token{
+			AccessToken: "a", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
+		}}
+		bearer, ok := newForgejoConn(t, store).Bearer(t.Context(), redirector.URL)
+		require.True(t, ok)
+		_, err := bearer()
+
+		require.Error(t, err)
+	})
+
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Empty(t, seen, "the redirect target received a request: %v", seen)
+}
+
+// An instance, or a proxy in front of it, can put what it was sent into its
+// error answer. None of it may reach an error the caller logs or shows.
+func TestForgejo_ErrorsFromTheTokenEndpoint_CarryNoSecret(t *testing.T) {
+	t.Parallel()
+
+	secrets := []string{"client-secret", "stolen-code", "refresh-1", "refresh-secret-xyz"}
+
+	t.Run("the code exchange", func(t *testing.T) {
+		t.Parallel()
+
+		forge := newFakeForgejo(t)
+		conn := newForgejoConn(t, &memoryTokens{})
+		state := beginAgainst(t, conn, forge)
+		_, _, err := conn.Finish(t.Context(), state, "stolen-code")
+
+		require.ErrorIs(t, err, oauth.ErrExchange)
+		for _, secret := range secrets {
+			assert.NotContains(t, err.Error(), secret)
+		}
+		assert.Contains(t, err.Error(), "invalid_grant", "the standard error code is kept")
+	})
+
+	t.Run("a refresh", func(t *testing.T) {
+		t.Parallel()
+
+		forge := newFakeForgejo(t)
+		store := &memoryTokens{instance: forge.server.URL, token: &oauth2.Token{
+			AccessToken: "a", RefreshToken: "refresh-secret-xyz", Expiry: time.Now().Add(-time.Minute),
+		}}
+		bearer, ok := newForgejoConn(t, store).Bearer(t.Context(), forge.server.URL)
+		require.True(t, ok)
+		_, err := bearer()
+
+		require.Error(t, err)
+		for _, secret := range secrets {
+			assert.NotContains(t, err.Error(), secret)
+		}
+	})
+}
+
+func (f *fakeForgejo) requests() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.hits
+}
+
+func beginAgainst(t *testing.T, conn *oauth.Forgejo, forge *fakeForgejo) string {
+	t.Helper()
+
+	return begun(t, conn, forge, forge.server.URL).Get("state")
 }

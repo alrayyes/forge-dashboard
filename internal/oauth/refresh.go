@@ -2,11 +2,14 @@ package oauth
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
 	"golang.org/x/oauth2"
 )
+
+var errRefresh = errors.New("oauth: refresh token")
 
 // Saver persists a token pair. The settings store implements it per forge.
 type Saver interface {
@@ -42,9 +45,9 @@ func (s *Source) Token() (*oauth2.Token, error) {
 	defer s.mu.Unlock()
 
 	if !s.current.Valid() {
-		fresh, err := s.cfg.TokenSource(s.ctx, s.current).Token()
+		fresh, err := s.cfg.TokenSource(withClient(s.ctx), s.current).Token()
 		if err != nil {
-			return nil, fmt.Errorf("oauth: refresh token: %w", err)
+			return nil, fmt.Errorf("%w: %s", errRefresh, redact(err))
 		}
 
 		s.current, s.unsaved = fresh, true

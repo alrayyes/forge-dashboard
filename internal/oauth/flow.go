@@ -89,9 +89,9 @@ func (f *Flow) CompleteWith(ctx context.Context, state, code string) (*oauth2.To
 		return nil, "", ErrInvalidState
 	}
 
-	token, err := a.cfg.Exchange(ctx, code, oauth2.VerifierOption(a.verifier))
+	token, err := a.cfg.Exchange(withClient(ctx), code, oauth2.VerifierOption(a.verifier))
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %w", ErrExchange, err)
+		return nil, "", fmt.Errorf("%w: %s", ErrExchange, redact(err))
 	}
 
 	return token, a.instance, nil

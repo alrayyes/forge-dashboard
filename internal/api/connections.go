@@ -34,6 +34,8 @@ type connectionAuthorizeResponse struct {
 // handleForgejoConnectionStart answers POST /api/v1/connections/forgejo.
 func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+
 		var req startForgejoConnectionRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			writeJSON(w, http.StatusBadRequest, errorBody("request body must be JSON with an instanceUrl"))
@@ -82,6 +84,9 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 // error are never echoed, and nothing here logs a code or a token.
 func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		// The query holds a one-time code; no cache keeps it or the answer.
+		w.Header().Set("Cache-Control", "no-store")
+
 		if !deps.ForgejoOAuth.Configured() {
 			writeJSON(w, http.StatusBadRequest, errorBody("this server has no Forgejo OAuth client configured"))
 
@@ -115,6 +120,13 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
 
 			return
+		}
+
+		// A pasted token was issued by the instance saved with it. Pointing the
+		// settings at another one would pair that token with a host it was never
+		// meant for, and send it there once the link is gone.
+		if creds.ForgejoToken != "" && !sameInstance(creds.ForgejoURL, instance) {
+			creds.ForgejoToken = ""
 		}
 
 		creds.ForgejoURL, creds.ForgejoUsername = instance, account
@@ -187,8 +199,8 @@ func handleForgejoConnectionDelete(deps Deps) http.HandlerFunc {
 
 		// With a pasted token saved, the dashboard goes back to it and needs the
 		// instance. Without one, the URL and name only belonged to the link.
-		if creds.ForgejoToken == "" {
-			creds.ForgejoURL, creds.ForgejoUsername = "", ""
+		if !fallsBackToPastedToken(creds) {
+			creds.ForgejoURL, creds.ForgejoUsername, creds.ForgejoToken = "", "", ""
 			if err := deps.SettingsStore.Set(r.Context(), creds); err != nil {
 				writeJSON(w, http.StatusInternalServerError, errorBody("could not save settings"))
 
@@ -239,4 +251,20 @@ func keepsLinkedInstance(ctx context.Context, w http.ResponseWriter, deps Deps, 
 	}
 
 	return true
+}
+
+// disconnectKeepsPastedToken is whether unlinking an account leaves a pasted
+// token in use (ticket #3951's fifth criterion). The one place to change if the
+// owner decides there is no fallback: false makes Disconnect clear the token
+// along with the URL and name.
+const disconnectKeepsPastedToken = true
+
+func fallsBackToPastedToken(creds settings.Credentials) bool {
+	return disconnectKeepsPastedToken && creds.ForgejoToken != ""
+}
+
+// sameInstance compares two instance addresses the way the OAuth code stores
+// them, without a trailing slash.
+func sameInstance(a, b string) bool {
+	return strings.TrimSuffix(a, "/") == strings.TrimSuffix(b, "/")
 }

@@ -49,7 +49,14 @@ func newFakeForgejoInstance(t *testing.T) *fakeForgejoInstance {
 		if r.PostForm.Get("code") != "good-code" ||
 			r.PostForm.Get("redirect_uri") != connRedirect ||
 			base64.RawURLEncoding.EncodeToString(sum[:]) != f.challenge {
-			http.Error(w, `{"error":"invalid_grant"}`, http.StatusBadRequest)
+			// What a proxy or a hostile instance may do: put what it was sent in
+			// the error. The tests below check none of it comes back out.
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"error":             "invalid_grant",
+				"error_description": "denied " + r.PostForm.Get("code") + " " + r.PostForm.Get("client_secret") + " " + r.PostForm.Get("code_verifier"),
+			})
 
 			return
 		}
@@ -425,4 +432,52 @@ func TestConnections_NeverLogOrAnswerWithACodeStateSecretOrToken(t *testing.T) {
 		assert.NotContains(t, logs.String(), secret, "log")
 		assert.NotContains(t, refusedBody, secret, "answer")
 	}
+}
+
+func TestConnectionsCallback_ADifferentInstanceThanAPastedTokensClearsTheToken(t *testing.T) {
+	t.Parallel()
+
+	c := newConnFixture(t, true)
+	status, _ := putSettings(t, c.srv.URL, `{"forgejoUrl":"https://other.example.com","forgejoToken":"pasted-for-other","forgejoUsername":"bob"}`, c.cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	c.connect(t)
+
+	got := getSettings(t, c.srv.URL, c.cookie)
+	assert.Equal(t, c.forge.server.URL, got.ForgejoURL)
+	assert.False(t, got.ForgejoTokenSet, "a token issued for another host is not paired with this one")
+	require.Equal(t, http.StatusNoContent, c.disconnect(t))
+	after := getSettings(t, c.srv.URL, c.cookie)
+	assert.False(t, after.ForgejoTokenSet)
+	assert.Empty(t, after.ForgejoURL)
+}
+
+func TestConnectionsCallback_ThePastedTokenForTheSameInstanceStays(t *testing.T) {
+	t.Parallel()
+
+	c := newConnFixture(t, true)
+	status, _ := putSettings(t, c.srv.URL, `{"forgejoUrl":"`+c.forge.server.URL+`/","forgejoToken":"pasted","forgejoUsername":"alice"}`, c.cookie)
+	require.Equal(t, http.StatusOK, status)
+
+	c.connect(t)
+
+	assert.True(t, getSettings(t, c.srv.URL, c.cookie).ForgejoTokenSet)
+}
+
+func TestConnections_StartAndCallbackAreNeverCached(t *testing.T) {
+	t.Parallel()
+
+	c := newConnFixture(t, true)
+	started := doJSON(t, http.MethodPost, c.srv.URL+"/api/v1/connections/forgejo", `{"instanceUrl":"`+c.forge.server.URL+`"}`, c.cookie)
+	defer func() { _ = started.Body.Close() }()
+	assert.Equal(t, "no-store", started.Header.Get("Cache-Control"), "start")
+
+	refused := c.callback(t, "code=x&state=forged")
+	defer func() { _ = refused.Body.Close() }()
+	assert.Equal(t, "no-store", refused.Header.Get("Cache-Control"), "a refused callback")
+
+	state := c.begin(t)
+	linked := c.callback(t, "code=good-code&state="+url.QueryEscape(state))
+	defer func() { _ = linked.Body.Close() }()
+	assert.Equal(t, "no-store", linked.Header.Get("Cache-Control"), "a linked callback")
 }
