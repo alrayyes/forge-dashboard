@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.66.0](https://github.com/alrayyes/forge-dashboard/compare/v9.65.1...v9.66.0) (2026-11-17)
+
+
+### Features
+
+* auto-merge status messages name the forge from the page ([#4079](https://github.com/alrayyes/forge-dashboard/issues/4079)) ([b3c2b1a](https://github.com/alrayyes/forge-dashboard/commit/b3c2b1adc2d6d76138608c03c9957904071476ff))
+
 ## [9.65.1](https://github.com/alrayyes/forge-dashboard/compare/v9.65.0...v9.65.1) (2026-11-17)
 
 
