@@ -4517,7 +4517,36 @@ button.pipeline-check-link:disabled {
 .filter-bar .search-wrap .col-filter {
   flex: 1 1 auto;
   min-width: 0;
-  padding-right: 28px;
+  padding-right: 32px;
+}
+/* The clear button sits where the "/" hint does and takes its place once the
+   box holds text. :placeholder-shown is true while it is empty, so there is
+   no state to keep in step (#4077). */
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--ink);
+}
+.search-wrap:has(.col-filter:placeholder-shown) .search-clear {
+  display: none;
+}
+.search-wrap:has(.col-filter:not(:placeholder-shown)) .search-hint {
+  display: none;
 }
 .search-hint {
   position: absolute;
@@ -4602,6 +4631,12 @@ button.pipeline-check-link:disabled {
   }
   .filter-bar-top .search-wrap .col-filter {
     min-height: 44px;
+    padding-right: 44px;
+  }
+  .filter-bar-top .search-clear {
+    width: 44px;
+    height: 44px;
+    right: 0;
   }
   .filters-trigger {
     display: inline-flex;

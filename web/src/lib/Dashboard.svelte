@@ -8799,6 +8799,27 @@
     }
     document.addEventListener("keydown", onSlashShortcut);
 
+    // Clear button and Escape empty the title box and nothing else (#4077).
+    // The box's own input handler then resets just that filter. Whether the
+    // button shows is CSS, off the placeholder, so it follows a restored value
+    // too.
+    function clearTitleBox() {
+      if (!titleSearch || titleSearch.value === "") return false;
+      titleSearch.value = "";
+      titleSearch.dispatchEvent(new Event("input", { bubbles: true }));
+      return true;
+    }
+    titleSearch?.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && clearTitleBox()) e.preventDefault();
+    });
+    const titleClear = document.getElementById("title-filter-clear");
+    // A press must not pull focus off the box (Firefox moves it otherwise).
+    titleClear?.addEventListener("mousedown", (e) => e.preventDefault());
+    titleClear?.addEventListener("click", () => {
+      clearTitleBox();
+      titleSearch?.focus();
+    });
+
     const sharedGroupSelect = document.getElementById(
       "shared-group-select",
     ) as HTMLSelectElement | null;
@@ -10783,6 +10804,23 @@
           autocomplete="off"
         />
         <kbd class="search-hint" aria-hidden="true">/</kbd>
+        <button
+          type="button"
+          class="search-clear"
+          id="title-filter-clear"
+          aria-label="Clear title filter"
+          aria-controls="title-filter"
+        >
+          <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
+            <path
+              d="M4 4l8 8M12 4l-8 8"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.75"
+              stroke-linecap="round"
+            />
+          </svg>
+        </button>
       </span>
       <datalist id="shared-title-options"></datalist>
       <button

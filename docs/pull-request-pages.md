@@ -109,6 +109,11 @@ too, so `2024` finds a pull request with 2024 in its title. It is the same box
 as the title search, so it is remembered with the other filters and **Clear
 filters** empties it.
 
+Once the box holds text, a **Clear title filter** button appears inside it, in
+place of the `/` hint. It and Escape (with focus in the box) empty the box and
+reset the title filter alone: the other filters stay as they are, and focus
+stays in the box. Escape on an empty box does nothing.
+
 ## Short lists
 
 A page with one row, or none, has nothing to search or sort, so the filter bar,
