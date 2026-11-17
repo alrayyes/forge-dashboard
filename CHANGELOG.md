@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.70.1](https://github.com/alrayyes/forge-dashboard/compare/v9.70.0...v9.70.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** name the Copy button for the word it shows ([#4134](https://github.com/alrayyes/forge-dashboard/issues/4134)) ([478ec29](https://github.com/alrayyes/forge-dashboard/commit/478ec297c39272121d826d87f43d1f7b171f7b8b)), closes [#4122](https://github.com/alrayyes/forge-dashboard/issues/4122)
+
 ## [9.70.0](https://github.com/alrayyes/forge-dashboard/compare/v9.69.4...v9.70.0) (2026-11-17)
 
 
