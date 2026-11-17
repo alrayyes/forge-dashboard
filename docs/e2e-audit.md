@@ -240,8 +240,12 @@ One ticket per group, each doing moves with its own mutation proof:
   The cut and refused tests shrank to their axe runs and the refused row's
   Copy output button and absent icon buttons, since those read the dialog. The
   other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
-  became about 20.6 s (58), measured on one worker with the machine idle, and
-  the new stories take about 0.1 s. Each assertion was proven red by breaking
+  became about 20.6 s (58). Both are measured here, summing the per-test
+  durations on one worker with the machine idle; the 26.8 s in the ranking
+  above is the earlier CI figure for the same spec, so the two are not
+  comparable. The CSV row takes the measured 20.6 s, and its est. movable
+  (10.1 s, 20.6 times 25 of 51 tests) is an upper bound, not a saving. The
+  new stories take about 0.1 s. Each assertion was proven red by breaking
   the component, `run-log.ts` or the stylesheet (see the pull request for the
   list). The CSV row for `pipeline-run-output` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
