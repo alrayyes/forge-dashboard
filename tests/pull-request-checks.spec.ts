@@ -9,6 +9,7 @@ import {
 import { checkLinkName } from './check-link-name-helper';
 import { serveChecks } from './checks-feed-helper';
 import { closeStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 interface MockPR {
@@ -1482,7 +1483,7 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
     const snapshot = () =>
       JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [served.pr],
         issues: [],
       });

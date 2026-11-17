@@ -5,6 +5,7 @@ import {
   actionsFooter,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // After a Close from the details dialog the dialog stays open on the pull
@@ -64,7 +65,7 @@ async function start(
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: state.onBoard ? [pr] : [],
           issues: [],
           repos: [],

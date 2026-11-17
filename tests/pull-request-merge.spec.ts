@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -56,7 +57,7 @@ function mockDashboard(page: Page, pr?: MockPR) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),
@@ -126,7 +127,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [makePR({ mergeStatus: 'mergeable', ci: 'success' })],
           issues: [],
         }),
@@ -262,7 +263,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+          forges: [forgeHealth('github', { repoCount: 2 })],
           pullRequests: [newer, target],
           issues: [],
         }),
@@ -324,7 +325,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
         }),
@@ -361,7 +362,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
         }),
@@ -404,7 +405,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
         }),
@@ -438,7 +439,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr],
           issues: [],
         }),
@@ -585,7 +586,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr],
           issues: [],
         }),
@@ -644,7 +645,7 @@ test.describe('pull request merge button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
         }),
@@ -744,7 +745,7 @@ test.describe('pull request merge button', () => {
       const second = makePR({ number: 2 });
       await mockDashboardCustom(
         page,
-        [{ forge: 'github', reachable: true, repoCount: 2 }],
+        [forgeHealth('github', { repoCount: 2 })],
         [first, second],
       );
       // The force refresh below answers the same board, so it never reaches the
@@ -755,7 +756,7 @@ test.describe('pull request merge button', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [first, second],
             issues: [],
           }),
