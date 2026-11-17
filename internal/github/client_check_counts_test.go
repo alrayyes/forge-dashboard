@@ -50,10 +50,11 @@ func TestFetch_RollupCheckCounts(t *testing.T) {
 		{
 			// The overall state does not read a cancelled run as a failure while
 			// others still run (a push superseded it, #1950), so the pill must
-			// not show a red count under Running: it counts in none of the four.
-			name:   "a cancelled run is none of the four",
+			// not show a red count under Running: it is counted as cancelled, so
+			// the counts still add up to the checks listed (#4064).
+			name:   "a cancelled run is counted as cancelled",
 			rollup: rollupFixture("FAILURE", map[string]int{"CANCELLED": 2, "IN_PROGRESS": 1}, nil),
-			want:   dashboard.CheckCounts{Running: 1},
+			want:   dashboard.CheckCounts{Running: 1, Cancelled: 2},
 		},
 		{
 			// GitHub reports a finished run under its conclusion, so a bare
@@ -63,9 +64,9 @@ func TestFetch_RollupCheckCounts(t *testing.T) {
 			want:   dashboard.CheckCounts{Passed: 3},
 		},
 		{
-			name:   "a run held for approval is none of the four",
+			name:   "a run held for approval is counted as held",
 			rollup: rollupFixture("FAILURE", map[string]int{"ACTION_REQUIRED": 3, "SUCCESS": 1}, nil),
-			want:   dashboard.CheckCounts{Passed: 1},
+			want:   dashboard.CheckCounts{Passed: 1, Held: 3},
 		},
 		{
 			// A state GitHub adds later is one nobody can grade: it is not a

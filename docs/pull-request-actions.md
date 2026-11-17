@@ -542,9 +542,10 @@ On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
 (below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
-field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo", and
-when the server doesn't say who holds it the chip has no note, since the page
-never guesses. After each refresh the server merges an armed
+field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo" (the
+forge's label, so another forge says its own name), and when the server
+doesn't say who holds it the chip has no note, since the page never guesses.
+After each refresh the server merges an armed
 pull request once its checks have passed and Forgejo says it can merge, with
 the repo's own merge method, the same as Merge. A pull request you didn't arm
 is never merged. Checks that fail, conflicts, a draft, a stack parent that
@@ -963,19 +964,22 @@ A pull request whose only odd check is unknown is pending, so the Running
 quick filter lists it; there is no filter of its own. On a
 phone the word goes and the counts stay. The server tallies the counts from
 what it already reads to work out the CI state, so on GitHub they cost no extra
-request, and a pull request that has none keeps the plain pill. On a pull
-request a run held for approval and a cancelled run are in none of those
-counts, because the CI state doesn't treat them as failures while others still
-run. A default branch counts every job instead, so a cancelled job and a held
-run have counts of their own and its counts add up to the jobs the pipeline
-lists. On Forgejo the
-statuses only say pending, so when any are pending the server also reads the
-jobs of the runs on the commit that are running (one call for the runs, one
-for each of them, read side by side, at most eight at once), and the jobs in
-progress show as running. A queued or blocked run isn't read, a running pull
-request run (any `pull_request` event) leaves the running push run out so no job
-counts twice, and a commit with no pending check makes no extra call. Runs are
-matched to the commit ignoring the case of its SHA.
+request, and a pull request that has none keeps the plain pill. A cancelled job
+and a run held for approval are not failures while others still run, so they
+have counts of their own, on a pull request and a default branch alike, and the
+counts add up to the jobs the pipeline lists in every mix. On Forgejo a job left
+blocked in a run that has already failed, which nothing will start, is counted
+as not started: it is no wait, so it isn't waiting, and no failure, so a failed
+pull request stays failed. The pill words it "not started" and draws it with a
+dashed ring after the waiting count.
+On Forgejo a held job is not told from a waiting one, so it stays
+in the waiting count. Its statuses only say pending, so when any are pending the
+server also reads the jobs of the runs on the commit that are running (one call
+for the runs, one for each of them, read side by side, at most eight at once),
+and the jobs in progress show as running. A queued or blocked run isn't read, a
+running pull request run (any `pull_request` event) leaves the running push run
+out so no job counts twice, and a commit with no pending check makes no extra
+call. Runs are matched to the commit ignoring the case of its SHA.
 
 A pull request whose only trouble is a cancelled job reads Cancelled: the same
 word and grey pill a main branch uses, and the word the pipeline panel gives the
@@ -983,8 +987,9 @@ job. Nothing broke, so it is not Failed. On GitHub, whose combined state calls a
 cancelled run a failure, the server reads the rollup itself: with no failed or
 timed-out check, no failed status, no run held for approval and nothing running,
 the row's `ci` is `cancelled`, `checks.failed` is 0 and `checks.cancelled`
-counts the cancelled runs. A real failure beside it stays Failed and counts only
-itself, and a cancelled run beside one still going stays Running. The pill
+counts the cancelled runs. A real failure beside it stays Failed, and a
+cancelled run beside one still going stays Running; either way the cancelled
+runs are counted in `checks.cancelled` beside the others. The pill
 says how far the run got: `Cancelled · 4 passed, 9 cancelled` (`Cancelled · 13
 cancelled` when nothing passed). On a phone it keeps `Cancelled · 4 passed`.
 Its name and hover text read `CI status: Cancelled. 4 passed, 9 cancelled out
@@ -992,15 +997,16 @@ of 13 checks.` The branch pill stays the word alone; the count is in
 `checks.cancelled`. A Cancelled row is not in the Failing pill or the
 Failed number of the menu pill, and it is not a pass either, so Ready, Merge and
 auto-merge still wait for a run to pass. Forgejo records a cancelled job as a
-failure status, and the server leaves those out of the failed count. When that
-leaves no failed check and nothing waiting, the row reads Cancelled too, with
-`checks.cancelled` counting the cancelled jobs beside the jobs that passed
-before the stop. A run that was re-run and passed has no failure statuses left,
-so it reads Passed. The page folds the jobs the panel lists the way a branch
-does, and the row follows the panel: a cancelled job beside one still going is
-Running, beside a real failure it is Failed, and beside passed jobs alone it is
-Cancelled, counting how many of them passed and how many were cancelled. Close
-the panel and the row goes back to what the server sent.
+failure status, and the server leaves those out of the failed count and counts
+them as cancelled. When that leaves no failed check and nothing waiting, the
+row reads Cancelled too, with `checks.cancelled` counting the cancelled jobs
+beside the jobs that passed before the stop. A run that was re-run and passed
+has no failure statuses left, so it reads Passed. The page folds the jobs the
+panel lists the way a branch does, and the row follows the panel: a cancelled
+job beside one still going is Running, beside a real failure it is Failed, and
+beside passed jobs alone it is Cancelled, counting how many of them passed and
+how many were cancelled. Close the panel and the row goes back to what the
+server sent.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

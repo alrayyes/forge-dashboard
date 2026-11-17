@@ -38,6 +38,13 @@ export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
     { name: 'pause', body: `${RING}<path d="M6.4 5.6v4.8M9.6 5.6v4.8"/>` },
   ],
   not_reported: [{ name: 'hourglass', body: HOURGLASS }],
+  // A dashed ring with nothing in it: the job was never started.
+  not_started: [
+    {
+      name: 'dashed',
+      body: '<circle cx="8" cy="8" r="6.25" stroke-dasharray="2 2"/>',
+    },
+  ],
   unknown: QUESTION,
   question: QUESTION,
   skipped: [{ name: 'slash', body: `${RING}<path d="m3.6 3.6 8.8 8.8"/>` }],

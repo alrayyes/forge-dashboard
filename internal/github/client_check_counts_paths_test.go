@@ -47,6 +47,9 @@ func TestFetch_CheckCountsAgreeWithTheOverallState(t *testing.T) {
 
 			pr := pullRequestFromGraphQLRollup(t, rollupFixture(githubRollupState(runs, statuses), runs, statuses))
 
+			assert.Equal(t, len(runs)+len(statuses), countedChecks(t, pr.Checks),
+				"the counts add up to the checks the rollup lists: %+v", pr.Checks)
+
 			switch pr.CI {
 			case dashboard.CIPending:
 				assert.Zero(t, pr.Checks.Failed, "a pending pull request shows no failed count: %+v", pr.Checks)
@@ -62,6 +65,15 @@ func TestFetch_CheckCountsAgreeWithTheOverallState(t *testing.T) {
 			}
 		})
 	}
+}
+
+// countedChecks is every check the counts hold, as the pill draws them: skipped
+// sits inside passed, so it is not added again.
+func countedChecks(t *testing.T, c dashboard.CheckCounts) int {
+	t.Helper()
+	held := heldCount(t, c)
+
+	return c.Passed + c.Running + c.Waiting + c.Failed + c.Unknown + cancelledCount(t, c) + held
 }
 
 // githubRollupState is GitHub's own combined state for a commit's contexts: any

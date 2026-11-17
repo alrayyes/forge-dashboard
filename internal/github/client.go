@@ -1658,43 +1658,31 @@ func checkCountsOf(commits []prCommitNode) dashboard.CheckCounts {
 	return commits[0].Commit.StatusCheckRollup.checkCounts()
 }
 
-// checkCounts sorts every check run and status context into passed, running,
-// waiting or failed, so the counts and the overall state (ci) agree: a pending
-// pull request never carries a failed count.
+// checkCounts sorts every check run and status context into one count, so the
+// counts add up to the checks the pipeline lists and agree with the overall
+// state (ci): a pending pull request never carries a failed count.
 //
-// Two kinds of run are in none of the four, for the reason ci() gives them
-// their own handling. A run held as ACTION_REQUIRED is awaiting approval, which
-// has its own flag and its own pill (#1280, #1933). A cancelled run is not a
-// failure while others still run: a push or a concurrency group superseded it
-// (#722, #1950), and settleFailedRollup reads such a rollup as pending, so
-// counting it as failed would put a red count under Running.
+// A cancelled run and a run held as ACTION_REQUIRED have counts of their own
+// beside the others. Neither is a failure, for the reason ci() gives them their
+// own handling: a held run is awaiting approval, which has its own flag and its
+// own pill (#1280, #1933), and a cancelled one was superseded by a push or a
+// concurrency group (#722, #1950). Counted as failed they would put a red count
+// under Running. Counted nowhere, the segments add up to fewer checks than the
+// dialog lists (#4064).
 //
 // COMPLETED counts as passed: GitHub reports a finished run under its
 // conclusion (SUCCESS, FAILURE, ...), so a bare COMPLETED carries no failure of
 // its own, and a failing one is a state of its own that is counted as failed.
 func (r *statusCheckRollup) checkCounts() dashboard.CheckCounts {
 	out := r.rawCheckCounts()
-	ci := r.pullRequestCI()
-	if ci == dashboard.CICancelled {
-		// Nothing failed: the cancelled runs are counted as what they are.
-		out.Cancelled = r.runsInState("CANCELLED")
-
-		return out
-	}
-	// A failing rollup with no failed check is failing because a run is held
-	// for approval, and cancelled runs beside it are counted as failed so the
-	// pill has a number. Cancelled runs alone are not failing (#3301), and
-	// returned above. A held run is not counted: a pull request says that with
-	// its own flag.
-	if out.Failed == 0 && ci == dashboard.CIFailure {
-		out.Failed = r.runsInState("CANCELLED")
-	}
+	out.Cancelled = r.runsInState("CANCELLED")
+	out.Held = r.runsInState("ACTION_REQUIRED")
 
 	return out
 }
 
-// rawCheckCounts is the tally with cancelled and held runs in none of the
-// counts, and every state it cannot grade in unknown.
+// rawCheckCounts is the tally with cancelled and held runs left out, which
+// checkCounts adds, and every state it cannot grade in unknown.
 func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 	var out dashboard.CheckCounts
 	if r == nil || r.Contexts == nil {
@@ -1714,7 +1702,7 @@ func (r *statusCheckRollup) rawCheckCounts() dashboard.CheckCounts {
 		case "FAILURE", "TIMED_OUT", "STARTUP_FAILURE", "STALE":
 			out.Failed += c.Count
 		case "CANCELLED", "ACTION_REQUIRED":
-			// In none of these: see checkCounts for why.
+			// Counted apart by checkCounts.
 		default:
 			// A state GitHub added later is counted on its own, not hidden
 			// in a count that means something.
