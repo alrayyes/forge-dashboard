@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3271
@@ -49,7 +50,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pr],
         issues: [],
         repos: [],
@@ -214,7 +215,7 @@ test('320x500 issue dialog: scrolled to the end, both actions are on screen', as
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [
           {

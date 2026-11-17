@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A description that scrolls is reachable by keyboard (#3454): without a tab
@@ -66,7 +67,7 @@ async function open(page: Page, texts: Record<number, string>, delayMs = 0) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: Object.keys(texts).map((n) => makePR(Number(n))),
         issues: [],
       }),
