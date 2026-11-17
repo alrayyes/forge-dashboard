@@ -36,10 +36,12 @@ bot pull request that is ready to merge keeps Merge as its main button and draws
 its rebase beside it, or the cancel while a Renovate rebase is requested. A
 behind person's pull request whose row button is Merge, or none (ready to merge,
 failing checks), also draws the Update branch the server lists in the row bar,
-beside the main button. A confirmed conflict (the forge says conflicting and, on
-Forgejo, a refusal named it) draws its warning alone: no locked Merge, no locked
-Update branch and no Out of date chip, since none of them unlocks anything the
-warning doesn't name. A behind bot pull request whose rebase was just
+beside the main button. On a phone the two share one line, locked or not,
+and shrink a little at 320px before they would wrap. A confirmed conflict (the
+forge says conflicting and, on Forgejo, a refusal named it) draws its warning
+alone: no locked Merge, no locked Update branch and no Out of date chip, since
+none of them unlocks anything
+the warning doesn't name. A behind bot pull request whose rebase was just
 requested shows its waiting chip and neither the Out of date chip
 nor the "Behind the base branch" block, since the request already does what
 they ask for. When the request times out ("No reply from Dependabot yet") both
