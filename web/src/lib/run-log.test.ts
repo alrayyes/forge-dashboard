@@ -25,6 +25,23 @@ describe('logUrl', () => {
     );
   });
 
+  test('names the attempt and finish time of a finished job, so the server may keep its log', () => {
+    expect(
+      logUrl({ forge: 'github', fullName: 'a/b' }, 31, {
+        runAttempt: 2,
+        completedAt: '2026-11-17T10:00:00Z',
+      }),
+    ).toBe(
+      '/api/v1/checks/log?forge=github&fullName=a%2Fb&jobId=31&attempt=2&finishedAt=2026-11-17T10%3A00%3A00Z',
+    );
+  });
+
+  test('names nothing more for a job with no finish time, a running one', () => {
+    expect(
+      logUrl({ forge: 'github', fullName: 'a/b' }, 31, { runAttempt: 2 }),
+    ).toBe('/api/v1/checks/log?forge=github&fullName=a%2Fb&jobId=31');
+  });
+
   test('is null when no repository is named', () => {
     expect(logUrl(undefined, 7)).toBeNull();
     expect(logUrl({ forge: 'github', fullName: '' }, 7)).toBeNull();
