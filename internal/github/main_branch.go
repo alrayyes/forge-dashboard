@@ -293,7 +293,7 @@ func (c branchContext) asCheck() dashboard.Check {
 		return dashboard.Check{
 			Name:           c.Context,
 			State:          checkStateFromCombinedState(strings.ToLower(c.State)),
-			ReportedStatus: reportedStatus(checkStateFromCombinedState(strings.ToLower(c.State)), strings.ToLower(c.State)),
+			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(strings.ToLower(c.State)), strings.ToLower(c.State)),
 			URL:            c.TargetURL,
 		}
 	}
@@ -302,7 +302,7 @@ func (c branchContext) asCheck() dashboard.Check {
 		Name:               c.Name,
 		State:              checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)),
 		ReportedConclusion: reportedWord(c.Status, c.Conclusion),
-		ReportedStatus:     reportedStatus(checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)), strings.ToLower(c.Status)),
+		ReportedStatus:     dashboard.UnknownWord(checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)), strings.ToLower(c.Status)),
 		URL:                c.page(),
 		JobID:              c.DatabaseID,
 		StartedAt:          timePtr(c.StartedAt),

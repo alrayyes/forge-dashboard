@@ -4347,7 +4347,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				URL:   r.GetHTMLURL(),
 
 				ReportedConclusion: reportedConclusion(r),
-				ReportedStatus:     reportedStatus(checkStateFromRun(r), r.GetStatus()),
+				ReportedStatus:     dashboard.UnknownWord(checkStateFromRun(r), r.GetStatus()),
 				JobID:              r.GetID(),
 				StartedAt:          runTime(r.StartedAt),
 				CompletedAt:        runTime(r.CompletedAt),
@@ -4376,7 +4376,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 			Name:  s.GetContext(),
 			State: checkStateFromCombinedState(s.GetState()),
 			// The legacy status carries its word in the state.
-			ReportedStatus: reportedStatus(checkStateFromCombinedState(s.GetState()), s.GetState()),
+			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(s.GetState()), s.GetState()),
 			URL:            s.GetTargetURL(),
 		})
 	}
@@ -4479,16 +4479,6 @@ func (c *Client) rulesetContexts(ctx context.Context, owner, name, base string, 
 	}
 
 	return true
-}
-
-// reportedStatus is the forge's own word for a check whose state the server
-// cannot grade, so the page can name it. A check it can grade needs none.
-func reportedStatus(state dashboard.CheckState, word string) string {
-	if state != dashboard.CheckUnknown {
-		return ""
-	}
-
-	return word
 }
 
 // checkStateFromRun maps one check run's status/conclusion pair to a

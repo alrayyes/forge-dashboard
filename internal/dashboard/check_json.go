@@ -58,6 +58,17 @@ func checkFacts(state CheckState) (CheckStatus, CheckConclusion) {
 	}
 }
 
+// UnknownWord is the forge's own word for a check whose state the server
+// cannot grade, for Check.ReportedStatus, so the page can name it. A check it
+// can grade needs none.
+func UnknownWord(state CheckState, word string) string {
+	if state != CheckUnknown {
+		return ""
+	}
+
+	return word
+}
+
 // StatusFacts is the status and conclusion to send for something in state,
 // where reported is the word the forge gave for how it ended, if it gave one.
 // A reported word wins over the state, since it is the forge's own.
