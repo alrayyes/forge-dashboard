@@ -203,6 +203,7 @@
     PERMISSION_REASON,
     type RateLimit,
     rateLimitReasonText,
+    rateLimitWhy,
   } from "#lib/rate-limit.js";
   import type { LockInfo } from "#lib/lock-info.js";
   import { type RowClaim, rowClaim } from "#lib/row-claim.js";
@@ -9631,12 +9632,8 @@
     }
 
     // "Why?" under a read-only row (#735): what the limit is, so it isn't
-    // taken for a fault in the dashboard. GitHub publishes its rules, so it
-    // links to them. Forgejo's limit comes from a proxy in front of it, with
-    // nothing to link to.
-    const GITHUB_RATE_LIMIT_DOCS =
-      "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api";
-
+    // taken for a fault in the dashboard. The wording follows the forge's
+    // rateLimitModel (rateLimitWhy).
     function whyDisclosure(alert: {
       forge: string;
       label: string;
@@ -9648,23 +9645,15 @@
         `Why? About ${alert.label}'s rate limit`,
       );
       details.appendChild(summary);
-      const github = alert.forge === "github";
-      details.appendChild(
-        el(
-          "p",
-          "",
-          github
-            ? `${alert.label} gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out ${alert.label} refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`
-            : `${alert.label} itself doesn't count requests; a proxy in front of it does. When the proxy's budget runs out it refuses requests until the reset time, so this is a limit on the way to the forge and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
-        ),
-      );
-      if (github) {
+      const why = rateLimitWhy(alert.forge, alert.label);
+      details.appendChild(el("p", "", why.text));
+      if (why.docsUrl) {
         const link = el(
           "a",
           "",
           `${alert.label}'s rate limit rules (opens in a new tab)`,
         ) as HTMLAnchorElement;
-        link.href = GITHUB_RATE_LIMIT_DOCS;
+        link.href = why.docsUrl;
         link.target = "_blank";
         link.rel = "noopener noreferrer";
         details.appendChild(link);

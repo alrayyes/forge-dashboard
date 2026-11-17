@@ -7,6 +7,7 @@ import {
   forgeIds,
   forgeListText,
   isKnownForge,
+  rateLimitModelOf,
   registerForgeCapabilities,
   resetForgeCapabilities,
   statusPageUrlOf,
@@ -106,12 +107,22 @@ describe('forgeCan', () => {
         expect(forgeCan(forge, flag)).toBe(caps[flag] as boolean);
       }
       expect(FORGE_LABELS[forge]).toBe(caps.label as string);
+      expect(rateLimitModelOf(forge)).toBe(caps.rateLimitModel as string);
       expect(statusPageUrlOf(forge)).toBe(caps.statusPageUrl as string);
       expect(advisoryFactsOf(forge)).toEqual({
         source: caps.advisorySource as string,
         unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
       });
     }
+  });
+
+  test('a registered third forge brings its own rate limit model', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'graphql_and_rest' } },
+    ]);
+
+    expect(rateLimitModelOf('gitea')).toBe('graphql_and_rest');
+    expect(rateLimitModelOf('never-heard-of')).toBe('');
   });
 
   test('a forge the page has not heard of can do nothing', () => {
