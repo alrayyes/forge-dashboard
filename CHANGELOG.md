@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.75.0](https://github.com/alrayyes/forge-dashboard/compare/v9.74.0...v9.75.0) (2026-11-17)
+
+
+### Features
+
+* **web:** open the details dialog with what it read last ([#4198](https://github.com/alrayyes/forge-dashboard/issues/4198)) ([6f424c9](https://github.com/alrayyes/forge-dashboard/commit/6f424c9b05f3056510534633041d7fa07b8e2b03)), closes [#4194](https://github.com/alrayyes/forge-dashboard/issues/4194)
+
 ## [9.74.0](https://github.com/alrayyes/forge-dashboard/compare/v9.73.1...v9.74.0) (2026-11-17)
 
 

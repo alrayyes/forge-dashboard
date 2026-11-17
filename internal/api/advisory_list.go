@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -40,11 +41,24 @@ func resolveAdvisoryListFor(ctx context.Context, deps Deps, forge, fullName stri
 }
 
 // handleAdvisoryList serves resolveAdvisoryListFor over HTTP, for the
-// advisories dialog on the Main branches page. A GET that reads the forge on
-// demand and writes nothing, never part of the snapshot.
+// advisories dialog on the Main branches page. A GET that answers from the list
+// the source kept, or reads the forge when asked to (refresh=true) or when
+// nothing is kept, and writes nothing, never part of the snapshot.
 func handleAdvisoryList(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		list, serr := resolveAdvisoryListFor(r.Context(), deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
+		ctx := r.Context()
+		if s := r.URL.Query().Get("refresh"); s != "" {
+			fresh, err := strconv.ParseBool(s)
+			if err != nil {
+				(&statusError{http.StatusBadRequest, "refresh must be true or false"}).write(w)
+
+				return
+			}
+			if fresh {
+				ctx = dashboard.WithFreshAdvisories(ctx)
+			}
+		}
+		list, serr := resolveAdvisoryListFor(ctx, deps, r.URL.Query().Get("forge"), r.URL.Query().Get("fullName"))
 		if serr != nil {
 			serr.write(w)
 

@@ -1303,6 +1303,7 @@
                             forge: b.forge,
                             fullName: b.fullName,
                             branch: b.branch,
+                            advisories: b.advisories,
                             opener: e.currentTarget,
                           })}>{adv.text}</button
                       >

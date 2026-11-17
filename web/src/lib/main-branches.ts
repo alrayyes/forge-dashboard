@@ -55,6 +55,9 @@ export type Advisories = {
   count: number;
   highest?: AdvisorySeverity;
   url?: string;
+  // When the server last read the full list behind the count, present while it
+  // keeps one. The dialog opens on that list without a loading line.
+  listReadAt?: string;
   // Forgejo only: the lock files list packages that were left out for not
   // being public, so count is a floor and a zero is not "none".
   partial?: boolean;

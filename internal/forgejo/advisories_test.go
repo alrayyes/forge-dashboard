@@ -49,6 +49,19 @@ func (f *fakeScanner) Find(_ context.Context, pkgs []osv.Package) ([]osv.Finding
 	return f.findings, f.err
 }
 
+// matchingScanner is a fakeScanner that also answers both questions from one
+// match, as osv.Client does. The plain one only counts, as an older scanner would.
+type matchingScanner struct{ *fakeScanner }
+
+// ScanAndFind is one match answering both.
+func (f matchingScanner) ScanAndFind(_ context.Context, pkgs []osv.Package) (osv.Summary, []osv.Finding, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.asked = append(f.asked, pkgs)
+
+	return f.summary, f.findings, f.err
+}
+
 func (f *fakeScanner) calls() int {
 	f.mu.Lock()
 	defer f.mu.Unlock()

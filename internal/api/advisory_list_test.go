@@ -22,6 +22,7 @@ type fakeAdvisoryListerSource struct {
 	lastOwner string
 	lastName  string
 	kind      apistats.Kind
+	fresh     bool
 }
 
 func (f *fakeAdvisoryListerSource) Forge() dashboard.Forge { return f.forge }
@@ -33,6 +34,7 @@ func (f *fakeAdvisoryListerSource) Fetch(_ context.Context) dashboard.Result {
 func (f *fakeAdvisoryListerSource) ListAdvisories(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
 	f.lastOwner, f.lastName = owner, name
 	f.kind = apistats.KindFrom(ctx)
+	f.fresh = dashboard.FreshAdvisories(ctx)
 
 	return f.list, f.err
 }
@@ -180,4 +182,45 @@ func TestAdvisoryList_ForgejoLister_ReturnsOSVMatchesAndPartial(t *testing.T) {
 	require.Len(t, body.Advisories, 1)
 	assert.Equal(t, "GHSA-aaaa-bbbb-cccc", body.Advisories[0]["id"])
 	assert.Equal(t, "https://osv.dev/vulnerability/GHSA-aaaa-bbbb-cccc", body.Advisories[0]["url"])
+}
+
+func TestAdvisoryList_RefreshTrueAsksTheSourceForAFreshRead(t *testing.T) {
+	t.Parallel()
+	for refresh, want := range map[string]bool{"": false, "false": false, "true": true} {
+		t.Run("refresh="+refresh, func(t *testing.T) {
+			t.Parallel()
+			source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
+			srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}}
+			if refresh != "" {
+				q.Set("refresh", refresh)
+			}
+			req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), nil)
+			require.NoError(t, err)
+			req.AddCookie(c)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			_ = resp.Body.Close()
+
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, want, source.fresh)
+		})
+	}
+}
+
+func TestAdvisoryList_ABadRefreshIsA400(t *testing.T) {
+	t.Parallel()
+	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
+	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "refresh": {"maybe"}}
+	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), nil)
+	require.NoError(t, err)
+	req.AddCookie(c)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+
+	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 }

@@ -126,8 +126,31 @@ title leaves most of a small phone to the description, and the detail has no
 footer, since Back and the close button stay in the header. **Open on GitHub**
 goes to the alert, or to the alerts page from the list.
 
-The dialog reads the repository when it opens and not on a timer, so it costs
-one live read per open (the `advisories` kind in [Rate limits](rate-limits.md)).
+The dashboard keeps the list for 15 minutes, as long as it keeps the row's
+count, and the read that fills the count keeps the list too. So the dialog opens
+on the kept list with no read of the forge, and the server says when the forge
+was read (`readAt`). Only a list that has aged out, or a refresh the person asks
+for, reads the forge (the `advisories` kind in [Rate limits](rate-limits.md)).
+A read of an aged-out list, or a refresh, that fails or is rate limited keeps
+the last good list and says it could not refresh (`refreshFailed`); it never
+swaps the list for an empty one.
+
+The dialog opens at once. Its header already says the row's count and worst
+severity, and a repo whose list is kept shows that list with no loading line;
+only a repo with nothing kept shows "Loading advisories". **Refresh** reads the
+forge again, only when pressed, and the list stays on show meanwhile. If nothing
+changed, the page is left exactly as it was. If something did, the list is
+swapped and the advisory you were reading stays where it was. If the read fails,
+on a refresh or because the kept list had aged out, the last good list stays and
+a line above it says it could not refresh and when that list was read. The room
+for that line is always there, so nothing moves when it appears. Once the list
+arrives, the header's count and severity follow it.
+
+The kept GitHub list is keyed by the repository and the credential that read
+it (a token, or an App installation), as the Forgejo list is by the instance. A
+list one credential read is never served to another, so changing the token or
+the installation starts from a fresh read.
+
 A repo with no open alerts says so. An answer GitHub would not give (the
 permission is missing, alerts are switched off, a rate limit or an error) says
 so in the dialog with the same causes as
@@ -156,10 +179,13 @@ critical. An advisory with neither still counts, and the pill then shows the
 count alone. The pill opens a dialog that lists the advisories behind the count,
 since OSV has no page for a whole repo to link to.
 
-The dialog is the same as the GitHub one, with the facts OSV states. Opening it
-reads the file tree and the lock files again, then asks OSV, so it costs the
-same as one refresh of that repo (see [Rate limits](rate-limits.md)), and a
-double click shares one read. It works only while `OSV_ADVISORIES=on`. Each row
+The dialog is the same as the GitHub one, with the facts OSV states. The read
+that fills the count asks OSV once for both the count and the list, so opening
+the dialog within 15 minutes of it costs no read of the forge or of OSV. A list
+that has aged out reads the file tree and the lock files again, then asks OSV,
+so it costs the same as one refresh of that repo (see
+[Rate limits](rate-limits.md)), and a double click shares one read. It works
+only while `OSV_ADVISORIES=on`. Each row
 shows the severity, the title, the package with its installed version and
 ecosystem, the lock files it was found in and when the advisory was published.
 The detail adds the advisory ids, the versions that fix it (OSV lists one per
