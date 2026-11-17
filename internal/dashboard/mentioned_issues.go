@@ -66,14 +66,16 @@ var (
 	anchorClosePattern = regexp.MustCompile(`(?i)</a\s*>`)
 )
 
-// mentionGHPattern finds GitHub's GH-N shorthand for a number in the same repo.
+// mentionGHPattern finds the GH-N shorthand for a number in the same repo, read
+// for a forge whose IssueRefSyntax is IssueRefHashOrGHPref.
 var mentionGHPattern = regexp.MustCompile(`(?i)(?:^|[\s\x0B\p{Z}\x{85}(\[{,;:>"'*_~|])GH-([0-9]+)`)
 
 // MentionedIssueRefs lists the issues and pull requests a pull request's
 // title and body mention without closing them, in order of first appearance
 // and without repeats. A mention is what GitHub and Forgejo both auto-link: #N,
 // owner/repo#N, or a link to an issue or pull request page on the forge at
-// baseURL ("https://git.example.com"); on GitHub also GH-N. A closing
+// baseURL ("https://git.example.com"); also GH-N where the forge's
+// capabilities say it links that form (IssueRefSyntax). A closing
 // reference is a mention here too: whether it closes depends on the branch
 // the pull request aims at, so PullRequest.MentionedOnly takes the closed ones
 // off. The pull request itself (number in repo) is not one. Code and HTML
@@ -204,7 +206,7 @@ func mentionCandidates(forge Forge, text, base string, bodyAt int) []candidate {
 		}
 		all = append(all, candidate{m[0], target, text[m[4]:m[5]]})
 	}
-	if forge == ForgeGitHub {
+	if caps, _ := CapabilitiesOf(forge); caps.IssueRefSyntax == IssueRefHashOrGHPref {
 		for _, m := range mentionGHPattern.FindAllStringSubmatchIndex(text, -1) {
 			if refEnds(text, m[3]) {
 				all = append(all, candidate{m[0], "", text[m[2]:m[3]]})

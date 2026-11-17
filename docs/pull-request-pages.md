@@ -190,10 +190,11 @@ its description, or a link to a ticket in its title. The server reads the title
 and description on both forges and lists what it finds, without a closing
 reference, in `GET /api/v1/dashboard` as `mentionsIssues`, always present. A
 mention is what GitHub and Forgejo both turn into a link: `#12`,
-`owner/repo#12`, the address of an issue or pull request page on the forge, and
-on GitHub `GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not
-mentions, while emphasis and table markup around one (`**#12**`, `_#12_`,
-`|#12|`) is fine. Code and HTML comments are skipped, as they are for closing
+`owner/repo#12`, the address of an issue or pull request page on the forge, and,
+where the forge's `issueRefSyntax` capability is `hash_or_gh_prefix` (GitHub),
+`GH-12`. It has to stand alone, so `abc#12` and `#12abc` are not mentions,
+while emphasis and table markup around one (`**#12**`, `_#12_`, `|#12|`) is
+fine. Code and HTML comments are skipped, as they are for closing
 references, and a quoted line still counts. The text of a link is skipped too,
 whether it is written in Markdown (also the reference style) or as an HTML
 anchor, since a dependency update's release notes are full of links such as
