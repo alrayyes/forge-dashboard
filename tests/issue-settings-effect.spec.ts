@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 
@@ -50,7 +51,7 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: stand.pullRequests,
         issues,
         openIssueCount: issues.length,

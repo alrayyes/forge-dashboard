@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { choicesOf } from './label-filter-helper';
 import { test } from './server-fixture';
 
@@ -52,7 +53,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+        forges: [forgeHealth('github', { repoCount: 2 })],
         pullRequests: [],
         issues: ISSUES,
         openIssueCount: ISSUES.length,
@@ -127,7 +128,7 @@ test.describe('hide titles matching a pattern (#1593)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: many,
           openIssueCount: many.length,

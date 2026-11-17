@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The details dialog's footer carries every action its row offers: the
@@ -44,14 +45,7 @@ const noReactions = {
 
 function snapshot(
   prs: Record<string, unknown>[],
-  forges: Record<string, unknown>[] = [
-    {
-      forge: 'github',
-      reachable: true,
-      repoCount: 1,
-      capabilities: { label: 'GitHub' },
-    },
-  ],
+  forges: Record<string, unknown>[] = [forgeHealth('github')],
 ) {
   return {
     generatedAt: new Date().toISOString(),
@@ -392,15 +386,7 @@ test.describe('a locked action', () => {
         }),
       ],
       {},
-      [
-        {
-          forge: 'forgejo',
-          capabilities: { label: 'Forgejo' },
-          reachable: true,
-          repoCount: 1,
-          rerunChecksBlocked: why,
-        },
-      ],
+      [forgeHealth('forgejo', { rerunChecksBlocked: why })],
     );
     const dialog = await openActionsDialog(row(page));
     const rerun = footer(dialog).getByRole('button', {
