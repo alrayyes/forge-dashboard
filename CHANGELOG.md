@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.73.1](https://github.com/alrayyes/forge-dashboard/compare/v9.73.0...v9.73.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* open a reference to a pull request as a pull request ([#4190](https://github.com/alrayyes/forge-dashboard/issues/4190)) ([c98af50](https://github.com/alrayyes/forge-dashboard/commit/c98af500843618878c68a60d359bd2ba9987883a))
+
 ## [9.73.0](https://github.com/alrayyes/forge-dashboard/compare/v9.72.4...v9.73.0) (2026-11-17)
 
 
