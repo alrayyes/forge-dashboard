@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
+import { type CheckCounts, checkSegments } from './check-counts';
 import { factsOf } from './check-facts-fixture';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import type { Check } from './pipeline-checks';
@@ -143,6 +144,7 @@ describe('foldPullRequest on a cancelled run', () => {
           failed: 0,
           unknown: 0,
           cancelled: 1,
+          held: 0,
         },
       });
     }
@@ -175,7 +177,81 @@ describe('foldPullRequest counts', () => {
       waiting: 1,
       failed: 1,
       unknown: 0,
+      cancelled: 0,
+      held: 0,
     });
+  });
+});
+
+// Every job is in exactly one count, so the segments a pill draws add up to the
+// jobs its dialog lists, in every mix and on every forge (#4064).
+describe('foldPullRequest counts add up to the jobs listed (#4064)', () => {
+  const sum = (counts: CheckCounts): number => {
+    const segments = checkSegments(counts);
+    expect(segments.every((s) => s.n > 0)).toBe(true);
+
+    return segments.reduce((total, s) => total + s.n, 0);
+  };
+
+  const cases: [string, string[]][] = [
+    ['passed beside a cancelled job', ['success', 'success', 'cancelled']],
+    ['a cancelled job beside a running one', ['cancelled', 'running']],
+    ['a cancelled job beside a failure', ['cancelled', 'failure', 'success']],
+    ['a held job beside a success', ['awaiting_approval', 'success']],
+    ['a held job beside a failure', ['awaiting_approval', 'failure']],
+    ['a held job beside a cancelled one', ['awaiting_approval', 'cancelled']],
+    ['a held job beside a queued one', ['awaiting_approval', 'queued']],
+    [
+      'skipped beside cancelled and held',
+      ['skipped', 'cancelled', 'awaiting_approval'],
+    ],
+  ];
+
+  for (const [name, states] of cases) {
+    test(name, () => {
+      for (const forge of ['github', 'forgejo']) {
+        const fold = foldPullRequest(forge, jobs(...states));
+        expect(sum((fold as PullRequestFold).counts)).toBe(states.length);
+      }
+    });
+  }
+
+  test('a cancelled and a held job have their own counts', () => {
+    const fold = foldPullRequest(
+      'github',
+      jobs('success', 'cancelled', 'awaiting_approval'),
+    );
+
+    expect(fold?.counts.cancelled).toBe(1);
+    expect(fold?.counts.held).toBe(1);
+    expect(fold?.awaiting).toBe(true);
+  });
+
+  // Every sequence of up to five jobs drawn from every state a job can be in.
+  test('always, for every mix of states', () => {
+    const states = [
+      'success',
+      'skipped',
+      'running',
+      'queued',
+      'failure',
+      'timed_out',
+      'cancelled',
+      'awaiting_approval',
+    ];
+    const mixes: string[][] = [[]];
+    for (let size = 0; size < 5; size++) {
+      for (const mix of mixes.filter((m) => m.length === size)) {
+        for (const state of states) mixes.push([...mix, state]);
+      }
+    }
+
+    for (const mix of mixes.filter((m) => m.length > 0)) {
+      for (const forge of ['github', 'forgejo']) {
+        const fold = foldPullRequest(forge, jobs(...mix));
+        expect(sum((fold as PullRequestFold).counts)).toBe(mix.length);
+      }
+    }
   });
 });
 

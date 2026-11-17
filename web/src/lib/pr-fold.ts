@@ -1,10 +1,10 @@
 // Folds the jobs a pull request's pipeline dialog lists into the pill its row
 // draws, so the row and the dialog cannot disagree while the dialog is open.
 // It sits on foldBranch's grading of each job and only maps the result onto
-// what a pull request's pill says: pending, failure, success or cancelled, the counts,
-// and a held job as a flag of its own. No DOM here.
+// what a pull request's pill says: pending, failure, success or cancelled, the
+// counts, and a held job as a flag of its own. No DOM here.
 
-import type { TalliedCounts } from './check-counts';
+import type { BranchCounts } from './check-counts';
 import type { RunFacts } from './check-feed';
 import { foldBranch } from './check-fold';
 import { forgeCan } from './forges';
@@ -15,8 +15,9 @@ export type PullRequestFold = {
   // The server's awaitingWorkflowApproval: GitHub sets it for any held run.
   // Forgejo never does.
   awaiting: boolean;
-  // Cancelled is set on a cancelled fold only (#3395).
-  counts: TalliedCounts & { cancelled?: number };
+  // Every job is in exactly one count, cancelled and held ones included, so
+  // the counts add up to the jobs the dialog lists (#4064).
+  counts: BranchCounts;
 };
 
 // Returns null where there is nothing to fold: no jobs. A row given null keeps
@@ -47,10 +48,7 @@ export function foldPullRequest(
   runs: readonly RunFacts[] = [],
 ): PullRequestFold | null {
   const live = withoutBlocked(checks, runs);
-  const { status, counts: tally } = foldBranch(live);
-  // A pull request's counts leave cancelled and held jobs out: its pill says a
-  // held run with a flag, and a cancelled one only on a Cancelled pill.
-  const { cancelled: _cancelled, held: _held, ...counts } = tally;
+  const { status, counts } = foldBranch(live);
   const held = checks.some((c) => checkState(c) === 'awaiting_approval');
 
   if (forgeCan(forge, 'approvalGatedRuns') && held) {
@@ -66,14 +64,7 @@ export function foldPullRequest(
     case 'passed':
       return { ci: 'success', awaiting: false, counts };
     case 'cancelled':
-      return {
-        ci: 'cancelled',
-        awaiting: false,
-        counts: {
-          ...counts,
-          cancelled: live.filter((c) => checkState(c) === 'cancelled').length,
-        },
-      };
+      return { ci: 'cancelled', awaiting: false, counts };
     default:
       return null;
   }
