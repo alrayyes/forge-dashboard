@@ -28,6 +28,7 @@ func TestListOpenPullRequests_CheckCountsAddUpToTheJobsListed(t *testing.T) {
 		var names []string
 		f := forge{jobs: map[int][]string{12: {}}}
 		runStatus := "success"
+		failedRun := false
 		for i, k := range kinds {
 			if mask&(1<<i) == 0 {
 				continue
@@ -36,14 +37,17 @@ func TestListOpenPullRequests_CheckCountsAddUpToTheJobsListed(t *testing.T) {
 			position := len(f.jobs[12])
 			f.statuses = append(f.statuses, jobStatus(k.status, fmt.Sprintf("ci / %s (pull_request)", k.name), 2, position))
 			f.jobs[12] = append(f.jobs[12], k.job)
-			switch k.status {
-			case "pending":
-				runStatus = "running"
-			case "failure":
-				if runStatus == "success" {
-					runStatus = "failure"
-				}
+			if k.name == "failed" {
+				failedRun = true
 			}
+			if k.status == "pending" && runStatus == "success" {
+				runStatus = "running"
+			}
+		}
+		// A run with a failed job has failed, whatever else is still queued in
+		// it: Forgejo leaves the jobs that needed the failed one blocked there.
+		if failedRun {
+			runStatus = "failure"
 		}
 		f.runs = []map[string]any{actionsRun(12, 2, runStatus, nil)}
 		total := len(f.statuses)
@@ -53,7 +57,7 @@ func TestListOpenPullRequests_CheckCountsAddUpToTheJobsListed(t *testing.T) {
 
 			c := f.pullRequest(t).Checks
 
-			assert.Equal(t, total, c.Passed+c.Running+c.Waiting+c.Failed+c.Unknown+c.Cancelled+c.Held,
+			assert.Equal(t, total, c.Passed+c.Running+c.Waiting+c.Failed+c.Unknown+c.Cancelled+c.Held+c.NotStarted,
 				"the counts add up to the jobs listed: %+v", c)
 		})
 	}

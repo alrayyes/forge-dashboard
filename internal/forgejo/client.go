@@ -1363,10 +1363,13 @@ func settledState(state dashboard.CIStatus, counts dashboard.CheckCounts, status
 }
 
 // splitWaiting takes what the pending statuses don't wait on out of the
-// waiting count: the jobs blocked in a run that failed, and the ones running.
+// waiting count: the jobs blocked in a run that failed, which are counted as
+// not started so every job is in one count (#4064), and the ones running.
 func (c *Client) splitWaiting(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
 	if counts.Waiting > 0 {
-		counts.Waiting -= min(blockedInFailedRuns(runs, statuses), counts.Waiting)
+		blocked := min(blockedInFailedRuns(runs, statuses), counts.Waiting)
+		counts.Waiting -= blocked
+		counts.NotStarted += blocked
 	}
 	if counts.Waiting > 0 {
 		counts = c.splitRunning(ctx, owner, name, runs, counts)

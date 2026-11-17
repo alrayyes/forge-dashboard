@@ -64,6 +64,13 @@ type CheckCounts struct {
 	// request also says so with its own flag (AwaitingWorkflowApproval). Forgejo
 	// does not tell a held job from a waiting one, so it never sets this.
 	Held int `json:"held,omitempty"`
+	// NotStarted is how many jobs are queued in a run that has already failed,
+	// so nothing will start them. Forgejo leaves a job whose needs failed
+	// blocked in the finished run and says pending for it. It is no wait, so it
+	// is not Waiting, and no failure, so it is not Failed: it is a count of its
+	// own, which keeps the counts adding up and a failed pull request failed.
+	// Only Forgejo sets it.
+	NotStarted int `json:"notStarted,omitempty"`
 }
 
 // MergeStatus is a pull request's mergeable/blocked state, as coarse as
