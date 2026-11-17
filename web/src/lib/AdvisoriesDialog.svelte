@@ -5,6 +5,9 @@
     fullName: string;
     // The default branch, shown under the title.
     branch?: string;
+    // The row's own count and severity, shown in the header before any list
+    // arrives, and whether the server keeps the list (listReadAt).
+    advisories?: Advisories;
     // The control to give focus back to when the dialog closes.
     opener?: HTMLElement | null;
   };
@@ -19,7 +22,12 @@
   import { tick } from "svelte";
   import { forgeLabelOf } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
-  import { ago, httpHref } from "#lib/main-branches.js";
+  import {
+    type Advisories,
+    advisoryPill,
+    ago,
+    httpHref,
+  } from "#lib/main-branches.js";
   import { formatDateTime } from "#lib/time.svelte.js";
   import {
     type AdvisoryItem,
@@ -30,6 +38,8 @@
     epssText,
     filterBySeverity,
     forgeWords,
+    olderNote,
+    sameContent,
     unreadableText,
     readAdvisoryList,
     referenceLinks,
@@ -42,6 +52,12 @@
   let phase = $state<"loading" | "error" | "ready">("loading");
   let message = $state("");
   let list = $state<AdvisoryList | null>(null);
+  // A refresh is out. The list stays up behind it.
+  let refreshing = $state(false);
+  // Set when the last refresh failed: the list on show is the last good one.
+  let older = $state("");
+  // The server holds no list for this row, so the first read is a real wait.
+  let cold = $state(true);
   let filter = $state<SeverityFilter>("all");
   let selected = $state<number | null>(null);
   let html = $state<Record<number, string>>({});
@@ -58,6 +74,12 @@
       ? null
       : (items.find((i) => i.number === selected) ?? null),
   );
+  const summary = $derived(
+    target?.advisories ? (advisoryPill(target.advisories)?.text ?? "") : "",
+  );
+  // The alerts page: the list's own once it is here, the row's before that, so
+  // the header holds the same controls while it loads.
+  const forgeUrl = $derived(list?.url ?? target?.advisories?.url ?? "");
   const forgeName = $derived(target ? forgeLabelOf(target.forge) : "");
   const words = $derived(forgeWords(target?.forge ?? ""));
   const FILTERS: { key: SeverityFilter; label: string }[] = [
@@ -79,6 +101,9 @@
     selected = null;
     html = {};
     list = null;
+    older = "";
+    refreshing = false;
+    cold = !next.advisories?.listReadAt;
     void load(next);
     dialog.showModal();
   }
@@ -99,6 +124,50 @@
     }
     list = result.list;
     phase = "ready";
+  }
+
+  // Read the list live behind the one on show. The list is swapped only when
+  // its content changed, and then the row being read keeps its place.
+  async function refresh() {
+    const row = target;
+    if (!row || refreshing || phase !== "ready") return;
+    const mine = ++request;
+    refreshing = true;
+    const result = await readAdvisoryList(
+      row.forge,
+      row.fullName,
+      (url) => fetch(url),
+      { refresh: true },
+    );
+    if (mine !== request) return;
+    refreshing = false;
+    if (result.kind === "signed-out") {
+      window.location.href = "/login.html";
+      return;
+    }
+    if (result.kind === "error") {
+      older = olderNote(list?.readAt);
+      return;
+    }
+    older = result.list.refreshFailed ? olderNote(result.list.readAt) : "";
+    if (list && sameContent(list, result.list)) return;
+    await swap(result.list);
+  }
+
+  // Put a changed list on screen, then scroll so the first row that was in
+  // view sits where it did.
+  async function swap(next: AdvisoryList) {
+    const rows = [...(body?.querySelectorAll<HTMLElement>(".adv-row") ?? [])];
+    const edge = body?.getBoundingClientRect().top ?? 0;
+    const anchor = rows.find((r) => r.getBoundingClientRect().bottom > edge);
+    const number = anchor?.dataset.number;
+    const offset = anchor ? anchor.getBoundingClientRect().top - edge : 0;
+    list = next;
+    await tick();
+    if (!body || number === undefined) return;
+    const same = body.querySelector<HTMLElement>(`[data-number="${number}"]`);
+    if (same)
+      body.scrollTop += same.getBoundingClientRect().top - edge - offset;
   }
 
   function closed() {
@@ -157,7 +226,7 @@
   onclick={outside}
   data-testid="advisories-dialog"
 >
-  <div class="adv-header">
+  <div class="adv-header" data-testid="advisories-header">
     <div class="adv-heading">
       {#if current}
         <button
@@ -187,11 +256,12 @@
           {target?.fullName ?? ""}{target?.branch ? ` · ${target.branch}` : ""}
           <span class="adv-source">{forgeName}</span>
         </p>
+        <p class="adv-summary" data-testid="advisories-summary">{summary}</p>
       {/if}
     </div>
     <div class="adv-header-actions">
-      {#if !current && list?.url && httpHref(list.url)}
-        {@render openLink(list.url)}
+      {#if !current && forgeUrl && httpHref(forgeUrl)}
+        {@render openLink(forgeUrl)}
       {/if}
       <button
         type="button"
@@ -215,9 +285,20 @@
     </div>
   </div>
 
-  <div class="adv-body" bind:this={body}>
+  <!-- Outside the scrolling body, so Refresh and the older line stay in view
+       however far the list is scrolled, and their room is held while the list
+       loads so nothing below them moves when it arrives. -->
+  {#if !current}
+    {@render meta()}
+  {/if}
+
+  <div class="adv-body" bind:this={body} aria-busy={phase === "loading"}>
     {#if phase === "loading"}
-      <p class="adv-status" role="status">Loading advisories&hellip;</p>
+      {#if cold}
+        <p class="adv-status" data-testid="advisories-loading" role="status">
+          Loading advisories&hellip;
+        </p>
+      {/if}
     {:else if phase === "error"}
       <p class="adv-status adv-error" role="alert">{message}</p>
       <button
@@ -311,6 +392,22 @@
     </div>
   {/if}
 </dialog>
+
+{#snippet meta()}
+  <div class="adv-meta">
+    <p class="adv-older" data-testid="advisories-older" role="status">
+      {older}
+    </p>
+    <button
+      type="button"
+      class="adv-ghost"
+      class:adv-held={phase !== "ready" || list?.state !== "known"}
+      data-testid="advisories-refresh"
+      aria-busy={refreshing}
+      onclick={refresh}>Refresh</button
+    >
+  </div>
+{/snippet}
 
 {#snippet sev(severity: string | undefined)}
   <span class="adv-sev" data-severity={severity ?? "none"}
@@ -498,6 +595,37 @@
     color: var(--ink-2);
     font-family: "IBM Plex Mono", ui-monospace, monospace;
     overflow-wrap: anywhere;
+  }
+  .adv-summary {
+    margin: 4px 0 0;
+    font-size: 0.8125rem;
+    color: var(--ink);
+    min-height: 1.25em;
+  }
+  /* The room for the "older" line is always there, so a failed refresh adds
+     words without moving the list. Two lines on a narrow screen. */
+  .adv-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 18px 0;
+    flex: none;
+  }
+  .adv-held {
+    visibility: hidden;
+  }
+  .adv-older {
+    margin: 0;
+    flex: 1 1 auto;
+    min-height: 1.4em;
+    font-size: 0.8125rem;
+    color: var(--ink-2);
+  }
+  @media (max-width: 480px) {
+    .adv-older {
+      min-height: 2.8em;
+    }
   }
   .adv-detail-head {
     margin-bottom: 12px;

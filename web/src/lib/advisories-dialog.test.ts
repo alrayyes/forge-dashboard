@@ -8,8 +8,10 @@ import {
   epssText,
   filterBySeverity,
   forgeWords,
+  olderNote,
   readAdvisoryList,
   referenceLinks,
+  sameContent,
   severityCounts,
   unreadableText,
 } from './advisories-dialog';
@@ -256,6 +258,60 @@ describe('wording follows the advisory source, not the forge name', () => {
     expect(JSON.stringify(w)).not.toMatch(/GitHub|Dependabot|OSV/);
     expect(unreadableText('nowhere', 'refused')).not.toMatch(
       /GitHub|Dependabot|OSV/,
+    );
+  });
+});
+
+describe('readAdvisoryList with a refresh', () => {
+  test('asks the server to read live only when told to', async () => {
+    const asked: string[] = [];
+    const fetcher = async (url: string) => {
+      asked.push(url);
+      return new Response(JSON.stringify({ state: 'known', advisories: [] }));
+    };
+    await readAdvisoryList('github', 'acme/x', fetcher);
+    await readAdvisoryList('github', 'acme/x', fetcher, { refresh: true });
+    expect(asked[0]).not.toContain('refresh');
+    expect(asked[1]).toContain('refresh=true');
+  });
+});
+
+describe('sameContent', () => {
+  const list = (over: Partial<AdvisoryList> = {}): AdvisoryList => ({
+    state: 'known',
+    readAt: '2026-11-17T10:00:00Z',
+    advisories: [item()],
+    ...over,
+  });
+
+  test('a later read time alone is the same content', () => {
+    expect(sameContent(list(), list({ readAt: '2026-11-17T10:09:00Z' }))).toBe(
+      true,
+    );
+  });
+
+  test('a changed advisory is not', () => {
+    const next = list({ advisories: [item({ severity: 'low' })] });
+    expect(sameContent(list(), next)).toBe(false);
+  });
+
+  test('a failed refresh is not the same as a good one', () => {
+    expect(sameContent(list(), list({ refreshFailed: true }))).toBe(false);
+  });
+});
+
+describe('olderNote', () => {
+  const now = Date.parse('2026-11-17T10:30:00Z');
+
+  test('says the list is older and when it was read', () => {
+    expect(olderNote('2026-11-17T10:00:00Z', now)).toBe(
+      "Couldn't refresh. Showing the list read 30 min ago.",
+    );
+  });
+
+  test('says so without a time when the server gave none', () => {
+    expect(olderNote(undefined, now)).toBe(
+      "Couldn't refresh. Showing the last list that was read.",
     );
   });
 });

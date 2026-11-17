@@ -133,6 +133,21 @@ was read (`readAt`). Only a list that has aged out, or a refresh the person asks
 for, reads the forge (the `advisories` kind in [Rate limits](rate-limits.md)).
 A refresh that fails or is rate limited keeps the last good list and says it
 could not refresh (`refreshFailed`); it never swaps the list for an empty one.
+
+The dialog opens at once. Its header already says the row's count and worst
+severity, and a repo whose list is kept shows that list with no loading line;
+only a repo with nothing kept shows "Loading advisories". **Refresh** reads the
+forge again behind the list on show. If nothing changed, the page is left
+exactly as it was. If something did, the list is swapped and the advisory you
+were reading stays where it was. If the refresh fails, the last good list stays
+and a line above it says it could not refresh and when that list was read. The
+room for that line is always there, so nothing moves when it appears.
+
+The kept GitHub list is keyed by repository name alone, not by who asked. That
+is safe because the dashboard serves one signed-in person and one GitHub
+installation, so everyone who can open a repository's dialog can see the same
+alerts. A deployment that served several people with different access would
+need the key to include the credential.
 A repo with no open alerts says so. An answer GitHub would not give (the
 permission is missing, alerts are switched off, a rate limit or an error) says
 so in the dialog with the same causes as
