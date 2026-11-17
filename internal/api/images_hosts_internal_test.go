@@ -53,7 +53,7 @@ func TestImageProxyFor_TakesGistRawHostExactly(t *testing.T) {
 	}
 }
 
-// The page's list (web/src/lib/image-source.ts) decides which addresses are
+// The page's list (the github image policy in web/src/lib/forges.ts) decides which addresses are
 // worth asking the server for; this list is the one that enforces. They are
 // two copies, so a host the page offers that the server refuses would be a
 // wasted round trip, and a drift goes unseen. Every page host must be on the
@@ -62,10 +62,10 @@ func TestImageProxyFor_TakesGistRawHostExactly(t *testing.T) {
 // path).
 func TestGithubImageHosts_WebListStaysInStep(t *testing.T) {
 	t.Parallel()
-	src, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "image-source.ts"))
+	src, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "forges.ts"))
 	require.NoError(t, err)
-	block := regexp.MustCompile(`(?s)GITHUB_HOSTS = new Set\(\[(.*?)\]\)`).FindSubmatch(src)
-	require.NotNil(t, block, "GITHUB_HOSTS not found in image-source.ts")
+	block := regexp.MustCompile(`(?s)SEED_IMAGE_POLICIES[^{]*\{\s*github: \{\s*hosts: \[(.*?)\]`).FindSubmatch(src)
+	require.NotNil(t, block, "the github image policy not found in forges.ts")
 	var web []string
 	for _, m := range regexp.MustCompile(`'([^']+)'`).FindAllSubmatch(block[1], -1) {
 		web = append(web, string(m[1]))
@@ -77,7 +77,7 @@ func TestGithubImageHosts_WebListStaysInStep(t *testing.T) {
 			want = append(want, h)
 		}
 	}
-	assert.ElementsMatch(t, want, web, "web GITHUB_HOSTS and githubImageHosts drifted")
+	assert.ElementsMatch(t, want, web, "the web github image hosts and githubImageHosts drifted")
 }
 
 // Which host each forge's proxy takes is decided by the host list alone, so
