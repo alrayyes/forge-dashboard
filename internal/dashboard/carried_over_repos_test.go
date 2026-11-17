@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
@@ -139,4 +140,49 @@ func TestAggregator_AFailedFullRefreshLogsItsCause(t *testing.T) {
 	assert.Contains(t, logged, "full refresh failed")
 	assert.Contains(t, logged, "forge=github")
 	assert.Contains(t, logged, "cause=rate_limited")
+}
+
+// Once webhooks have made every repo current, the next failed full refresh
+// carries the rows over as read at the webhooks' time, not at the last full
+// read (#3869).
+func TestAggregator_AfterWebhooksClearTheForge_TheNextFailureDatesTheRowsFromThem(t *testing.T) {
+	t.Parallel()
+	src := &twoReposSource{forge: dashboard.ForgeGitHub}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	src.goDown()
+	agg.Refresh(t.Context())
+	time.Sleep(5 * time.Millisecond)
+	webhookAt := time.Now().UTC()
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "a", "o/a"))
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "b", "o/b"))
+	require.True(t, health(agg.Get(), dashboard.ForgeGitHub).Reachable)
+
+	agg.Refresh(t.Context())
+
+	for _, name := range []string{"o/a", "o/b"} {
+		since := repoNamed(t, agg, name).StaleSince
+		require.NotNil(t, since, name)
+		assert.False(t, since.Before(webhookAt), "%s is dated from the webhook, not the last full read", name)
+	}
+	assert.False(t, health(agg.Get(), dashboard.ForgeGitHub).StaleSince.Before(webhookAt))
+}
+
+// A good scoped refresh of one repo leaves the forge marked while another repo
+// of it still holds only carried-over rows (#3869).
+func TestAggregator_AScopedRefreshDoesNotClearTheForgeWhileAnotherRepoIsCarriedOver(t *testing.T) {
+	t.Parallel()
+	src := &twoReposSource{forge: dashboard.ForgeGitHub}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+	src.goDown()
+	agg.Refresh(t.Context())
+
+	require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "o", "a", "o/a"))
+
+	h := health(agg.Get(), dashboard.ForgeGitHub)
+	assert.False(t, h.Reachable)
+	assert.NotNil(t, h.StaleSince)
+	assert.Equal(t, dashboard.ForgeErrorUnreachable, h.ErrorKind)
+	assert.NotNil(t, repoNamed(t, agg, "o/b").StaleSince)
 }
