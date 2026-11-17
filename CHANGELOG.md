@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.65.1](https://github.com/alrayyes/forge-dashboard/compare/v9.65.0...v9.65.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** announce the result count in the Filters sheet and pin Clear all staying open ([#4078](https://github.com/alrayyes/forge-dashboard/issues/4078)) ([5017483](https://github.com/alrayyes/forge-dashboard/commit/50174833709ed4e1ede3f771b2df400fd9674893))
+
 ## [9.65.0](https://github.com/alrayyes/forge-dashboard/compare/v9.64.0...v9.65.0) (2026-11-16)
 
 
