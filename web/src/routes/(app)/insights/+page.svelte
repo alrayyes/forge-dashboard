@@ -8,6 +8,7 @@
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
+  import { forgeLabelOf } from "#lib/forges.js";
   import {
     releaseHeldPick as releaseHeldPickWiring,
     setHideDependencyDashboard,
@@ -1136,7 +1137,7 @@
 
     <div id="rate-limit-list">
       {#each lastSnapshot.forges as f (f.forge)}
-        {@const label = Filters.FORGE_LABELS[f.forge] || f.forge}
+        {@const label = forgeLabelOf(f.forge)}
         <div class="rate-limit-row" data-forge={f.forge}>
           <h3 class="rate-limit-forge-name">{label}</h3>
           <div class="rate-limit-budgets">

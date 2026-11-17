@@ -71,7 +71,7 @@
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
-  import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
+  import { forgeClassOf, forgeLabelOf } from "#lib/forges.js";
   import { imageFallback } from "#lib/image-fallback.js";
   import { imageSourceFor } from "#lib/image-source.js";
   import { renderMarkdown } from "#lib/markdown.js";
@@ -169,9 +169,7 @@
   // or for another pull request, never lands.
   let token = 0;
 
-  const forgeLabel = $derived(
-    target ? (FORGE_LABELS[target.forge] ?? target.forge) : "",
-  );
+  const forgeLabel = $derived(target ? forgeLabelOf(target.forge) : "");
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const releaseTarget = $derived(
     target && isReleaseTarget(target) ? target : null,
@@ -651,7 +649,7 @@
           ></div>
         {/if}
         <p class="details-ref">
-          <span class="forge-badge {FORGE_CLASSES[target.forge] ?? ''}"
+          <span class="forge-badge {forgeClassOf(target.forge)}"
             ><span class="dot"></span>{forgeLabel}</span
           >
           <!-- The repository is a link to it on the forge, named by its own

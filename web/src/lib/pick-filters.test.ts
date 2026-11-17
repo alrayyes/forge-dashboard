@@ -314,3 +314,16 @@ describe('picks the page does not offer', () => {
     expect(puts[0].shared.author).toBe('github:ann\ngithub:gone');
   });
 });
+
+describe('choices grouped by forge', () => {
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'a forge named %s is grouped under its own id',
+    (forge) => {
+      const items = [item(forge, 'a/b', 'sam'), item('github', 'a/b', 'sam')];
+      expect(authorChoices(items).map((c) => c.group)).toContain(forge);
+      expect(repoChoices(items, () => undefined).map((c) => c.group)).toContain(
+        forge,
+      );
+    },
+  );
+});

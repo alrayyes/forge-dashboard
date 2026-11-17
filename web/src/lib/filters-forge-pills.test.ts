@@ -62,3 +62,10 @@ describe('forge pill group', () => {
     expect(pillLabel('review-requested')).toBe('Review requested');
   });
 });
+const ODD = ['constructor', 'toString', '__proto__', 'hasOwnProperty'];
+
+describe('pillLabel inherited keys', () => {
+  test.each(ODD)('%s is its own label', (pill) => {
+    expect(pillLabel(pill)).toBe(pill);
+  });
+});

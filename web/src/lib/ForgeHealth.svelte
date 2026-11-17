@@ -3,7 +3,7 @@
   // limited, the note that its rows are old, each budget with a label, and the
   // cause of an outage. A healthy forge draws nothing (#3681) and an outage is
   // the banner's to say (#3719); the live region speaks both.
-  import { FORGE_LABELS } from "#lib/forges.js";
+  import { forgeLabelOf, ownOf } from "#lib/forges.js";
   import {
     chipClass,
     chipLabel,
@@ -50,7 +50,7 @@
     rate_limited: "Rate limit exceeded.",
   };
 
-  const name = (f: Forge) => FORGE_LABELS[f.forge] || f.forge;
+  const name = (f: Forge) => forgeLabelOf(f.forge);
   const headline = (f: Forge) =>
     (f.errorKind && ERROR_HEADLINES[f.errorKind]) ||
     `Something went wrong talking to ${name(f)}.`;
@@ -65,7 +65,7 @@
     )
       .filter(([, b]) => b && showsOnOverview(b))
       .map(([kind, b]) =>
-        budgetText(`${SHORT_LABELS[f.forge] || f.forge} ${kind}`, b!),
+        budgetText(`${ownOf(SHORT_LABELS, f.forge) || f.forge} ${kind}`, b!),
       );
   // An unreachable forge is the banner's: no chip, no age line, no cause line.
   // One that is rate limited as well has no unreachable banner, so it keeps all

@@ -24,8 +24,8 @@
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
   import { noReposCopy, permissionsNotReportedCopy } from "#lib/forge-copy.js";
   import {
-    FORGE_CLASSES,
-    FORGE_LABELS,
+    forgeClassOf,
+    forgeLabelOf,
     forgeCan,
     forgeIds,
   } from "#lib/forges.js";
@@ -427,8 +427,7 @@
       const status = (err as { status?: number }).status;
       const outcome = interpretActionFailure(
         err as ActionRequestError,
-        (resetsAt) =>
-          rateLimitReasonText(FORGE_LABELS[repo.forge] ?? repo.forge, resetsAt),
+        (resetsAt) => rateLimitReasonText(forgeLabelOf(repo.forge), resetsAt),
       );
       if (outcome.kind === "locked") {
         // A permission refusal carries the server's own sentence, which
@@ -1232,7 +1231,7 @@
                   onFilterChange("forge");
                 }}
               />
-              <span>{FORGE_LABELS[forge] ?? forge}</span>
+              <span>{forgeLabelOf(forge)}</span>
             </label>
           {/each}
         </fieldset>
@@ -1402,11 +1401,9 @@
               <tr role="row">
                 <td role="cell" data-label="Forge">
                   <span class="repo">
-                    <span
-                      class={`forge-badge ${FORGE_CLASSES[repo.forge] ?? ""}`}
-                    >
+                    <span class={`forge-badge ${forgeClassOf(repo.forge)}`}>
                       <span class="dot"></span>
-                      {FORGE_LABELS[repo.forge] ?? repo.forge}
+                      {forgeLabelOf(repo.forge)}
                     </span>
                   </span>
                 </td>
@@ -1646,9 +1643,9 @@
           <ul>
             {#each ignoredRepos as repo (rowKey(repo))}
               <li>
-                <span class={`forge-badge ${FORGE_CLASSES[repo.forge] ?? ""}`}>
+                <span class={`forge-badge ${forgeClassOf(repo.forge)}`}>
                   <span class="dot"></span>
-                  {FORGE_LABELS[repo.forge] ?? repo.forge}
+                  {forgeLabelOf(repo.forge)}
                 </span>
                 <RepoLogo url={repo.logoUrl} name={repo.fullName} />
                 {#if repo.url}
