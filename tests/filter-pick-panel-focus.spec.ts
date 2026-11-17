@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A live update redraws the open Repo and Author panels. The reader who is on
@@ -31,7 +32,7 @@ function pr(
 
 const snapshot = (prs: Record<string, unknown>[]) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+  forges: [forgeHealth('github', { repoCount: 2 })],
   pullRequests: prs,
   issues: [],
   repos: [],

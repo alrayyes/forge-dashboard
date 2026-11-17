@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -96,7 +97,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+        forges: [forgeHealth('github', { repoCount: 2 })],
         pullRequests: prs,
         issues,
         openIssueCount: issues.length,
