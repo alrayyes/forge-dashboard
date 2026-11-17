@@ -129,3 +129,27 @@ func TestStore_DeleteOAuthToken_UnlinksTheForge(t *testing.T) {
 
 	require.ErrorIs(t, err, settings.ErrNotFound)
 }
+
+func TestStore_HasOAuthToken_FollowsSaveAndDelete(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTokenStore(t)
+
+	has, err := store.HasOAuthToken(t.Context(), "forgejo")
+	require.NoError(t, err)
+	assert.False(t, has)
+
+	require.NoError(t, store.SaveOAuthToken(t.Context(), "forgejo", sampleToken()))
+	has, err = store.HasOAuthToken(t.Context(), "forgejo")
+	require.NoError(t, err)
+	assert.True(t, has)
+
+	other, err := store.HasOAuthToken(t.Context(), "github")
+	require.NoError(t, err)
+	assert.False(t, other, "one forge's pair says nothing about another's")
+
+	require.NoError(t, store.DeleteOAuthToken(t.Context(), "forgejo"))
+	has, err = store.HasOAuthToken(t.Context(), "forgejo")
+	require.NoError(t, err)
+	assert.False(t, has)
+}

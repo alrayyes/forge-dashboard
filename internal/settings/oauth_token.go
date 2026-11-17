@@ -86,3 +86,19 @@ func (s *Store) DeleteOAuthToken(ctx context.Context, forge string) error {
 
 	return nil
 }
+
+// HasOAuthToken reports whether forge is linked, without decrypting anything.
+func (s *Store) HasOAuthToken(ctx context.Context, forge string) (bool, error) {
+	var one int
+
+	err := s.db.QueryRowContext(ctx, `SELECT 1 FROM oauth_tokens WHERE forge = ?`, forge).Scan(&one)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+
+	if err != nil {
+		return false, fmt.Errorf("settings: check oauth token: %w", err)
+	}
+
+	return true, nil
+}
