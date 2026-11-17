@@ -10,13 +10,17 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
+// The finish time is the client's own word: the server holds no per-job record
+// to check it against (the snapshot has counts, not jobs), and the checks list
+// is read live. A caller can therefore have a running job's partial log kept
+// under a made-up time, but only under that key, which no other open uses.
 // jobLogSettleDelay is how long after a job finishes its log is trusted to be
 // complete: the runner may still be flushing its last lines just after. It is
 // the wait the Forgejo client gives a failed job's excerpt.
 const jobLogSettleDelay = 30 * time.Second
 
 // jobLogCacheBytes bounds what the server keeps of finished logs. One log is at
-// most dashboard.MaxJobLogBytes, so this holds at least a hundred of them.
+// most dashboard.MaxJobLogBytes, so this holds up to 128 of them.
 const jobLogCacheBytes = 32 << 20
 
 // jobLogKey names one run of one job: its place, id, attempt and finish time,

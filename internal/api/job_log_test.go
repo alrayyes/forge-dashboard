@@ -8,6 +8,8 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"slices"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -28,13 +30,24 @@ type fakeJobLogSource struct {
 	lastName  string
 	lastJob   int64
 	calls     atomic.Int64
+	mu        sync.Mutex // guards repos, which a test changes while Fetch reads it
+}
+
+// track replaces the full names the source reports as tracked.
+func (f *fakeJobLogSource) track(repos ...string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.repos = repos
 }
 
 func (f *fakeJobLogSource) Forge() dashboard.Forge { return f.forge }
 
 func (f *fakeJobLogSource) Fetch(_ context.Context) dashboard.Result {
-	repos := make([]dashboard.Repo, 0, len(f.repos))
-	for _, name := range f.repos {
+	f.mu.Lock()
+	names := slices.Clone(f.repos)
+	f.mu.Unlock()
+	repos := make([]dashboard.Repo, 0, len(names))
+	for _, name := range names {
 		repos = append(repos, dashboard.Repo{Forge: f.forge, FullName: name})
 	}
 
@@ -602,17 +615,28 @@ func TestJobLog_BadFinishTime_Returns400(t *testing.T) {
 	assert.Zero(t, source.calls.Load())
 }
 
-func TestJobLog_UntrackedRepoIsRefusedEvenWhenTheLogIsKept(t *testing.T) {
+func TestJobLog_RepoDroppedFromTheBoardIsRefusedEvenWhenItsLogIsKept(t *testing.T) {
 	t.Parallel()
 
-	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
+	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit", "alrayyes/other"}, log: dashboard.JobLog{Text: "x"}}
 	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
 	q := url.Values{"finishedAt": {finishedAgo(time.Hour)}}
 	openLog(t, srvURL, c, q)
+	require.EqualValues(t, 1, source.calls.Load())
 
-	q.Set("fullName", "other/repo")
+	// The same key, now for a repo the person no longer tracks.
+	source.track("alrayyes/other")
+	refresh, err := http.NewRequest(http.MethodPost, srvURL+"/api/v1/dashboard/refresh", nil)
+	require.NoError(t, err)
+	refresh.AddCookie(c)
+	refreshed, err := testClient(t).Do(refresh)
+	require.NoError(t, err)
+	_ = refreshed.Body.Close()
+	require.Less(t, refreshed.StatusCode, 300)
+
 	resp := getJobLogWith(t, srvURL, c, q)
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.EqualValues(t, 1, source.calls.Load(), "the kept log is not even looked at")
 }

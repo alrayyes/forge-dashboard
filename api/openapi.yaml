@@ -3443,7 +3443,11 @@ paths:
             Matching a Check.completedAt. Send it for a job that has finished and
             the server keeps its full output in memory once the job has been
             finished for 30 seconds, so the next open of the same job costs no
-            forge request. Leave it out for a job that is running: its output is
+            forge request. The server takes this time on trust: it has no
+            per-job record of its own to check it against, so a caller who sends
+            an old time for a running job gets that partial output kept under
+            that key. The key includes the time, so nobody else's open reads it.
+            Leave it out for a job that is running: its output is
             never kept. A finish time in the future is not kept either. The
             response is still `Cache-Control: no-store`, so a browser asks again.
         - name: attempt

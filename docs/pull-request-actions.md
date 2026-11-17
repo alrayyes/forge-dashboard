@@ -1063,6 +1063,9 @@ costs no forge request: the server keeps its log in memory (up to 32 MB, the
 least recently opened going first), named by the job, its attempt and its finish
 time, so a rerun reads afresh. A running job's log is never kept, and neither is
 a read that failed. The browser still asks each time (`Cache-Control: no-store`).
+The finish time is the page's own word, since the server has no per-job record to
+check it against. A made-up time for a running job keeps its partial log under
+that key only, which no other open uses.
 
 A row's controls sit in one row at its right edge: the text `Show output` or
 `Hide output` with a chevron, then `Copy` and `Open job` as 44-pixel icon buttons.
