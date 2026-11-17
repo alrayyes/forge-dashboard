@@ -88,7 +88,7 @@ func TestListOpenPullRequests_JobsBlockedInACancelledRunStayWaiting(t *testing.T
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 2}, got.Checks)
+	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Waiting: 2, Cancelled: 1}, got.Checks)
 }
 
 // Of several finished runs, only the failed one's blocked jobs are no wait.

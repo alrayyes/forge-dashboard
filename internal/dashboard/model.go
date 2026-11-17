@@ -56,15 +56,13 @@ type CheckCounts struct {
 	// none of the others, so a check nobody can name is not hidden in a count
 	// that means something.
 	Unknown int `json:"unknown"`
-	// Cancelled is how many runs were cancelled. A pull request sets it only
-	// when they are the whole reason it is not passing (CI is CICancelled); a
-	// default branch always counts them, so its counts add up to the jobs the
-	// pipeline lists. It is none of the other counts, as a cancelled run is
-	// everywhere else.
+	// Cancelled is how many runs were cancelled, for a pull request and a
+	// default branch alike, so the counts add up to the jobs the pipeline lists.
+	// It is none of the other counts, as a cancelled run is everywhere else.
 	Cancelled int `json:"cancelled,omitempty"`
-	// Held is how many runs a default branch holds for approval, so its counts
-	// add up. A pull request never sets it: it says so with its own flag
-	// (AwaitingWorkflowApproval).
+	// Held is how many runs are held for approval, so the counts add up. A pull
+	// request also says so with its own flag (AwaitingWorkflowApproval). Forgejo
+	// does not tell a held job from a waiting one, so it never sets this.
 	Held int `json:"held,omitempty"`
 }
 
