@@ -161,6 +161,8 @@ refreshed every repo, the forge reads as reachable again and its error is gone,
 whatever the last full refresh did. The next failed full refresh then carries
 the rows over as read at that moment, not at the old time. A repo a webhook
 refreshed during a failure is not marked again by the next failed full refresh.
+This holds when a failed full refresh is still running as the webhooks land: the
+webhooks' work stands when it finishes, and the forge stays reachable.
 
 The server log names the cause of each failed full refresh: `full refresh failed`
 carries the forge and a `cause` (the error kind, such as `rate_limited` or

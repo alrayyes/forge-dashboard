@@ -1161,7 +1161,9 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
 	a.snap = snap
 	a.noteFullRead(seq, readForges, unread)
-	a.lastGood = goodAt
+	// Not an assignment: goodAt was copied before the compute, and a scoped
+	// refresh since may have set a later time (#4108).
+	a.keepLaterGood(goodAt)
 	a.failStreak = streaks
 	a.mu.Unlock()
 	a.markFirstRefreshed()
@@ -1171,6 +1173,16 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// keepLaterGood folds good into lastGood, per forge, keeping the later time.
+// Callers hold mu.
+func (a *Aggregator) keepLaterGood(good map[Forge]time.Time) {
+	for forge, at := range good {
+		if at.After(a.lastGood[forge]) {
+			a.lastGood[forge] = at
+		}
+	}
 }
 
 // logFailedRefresh names the cause of a full refresh that asked forge and got no
@@ -1686,6 +1698,11 @@ func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Sn
 	repos := keepRows(snap.Repos, current.Repos, newer)
 
 	snap.PullRequests, snap.Issues, snap.Repos = prs, issues, repos
+	// The full refresh's forge row carries the failure mark. When scoped
+	// refreshes have made every repo current, the mark is over (#4108).
+	for key := range newer {
+		snap.Forges, _ = clearMarkWhenFresh(snap.Forges, snap.Repos, key.forge)
+	}
 	AnnotateStacks(snap.PullRequests)
 	sortByRecency(snap.PullRequests, snap.Issues)
 
