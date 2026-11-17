@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Insights and Webhooks used to show nothing when the dashboard read failed,
@@ -11,7 +12,7 @@ const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
 const GOOD = {
   readIntervalSeconds: 600,
   firstRefreshDone: true,
-  forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+  forges: [forgeHealth('github', { repoCount: 2 })],
   repos: [
     { forge: 'github', fullName: 'acme/web', hasWebhook: true },
     { forge: 'github', fullName: 'acme/api', hasWebhook: false },

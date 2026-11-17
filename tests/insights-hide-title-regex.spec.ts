@@ -1,4 +1,5 @@
 import { expect, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1593: the title pattern belongs to the Issues board. Insights shares the
@@ -37,7 +38,7 @@ test('a saved title pattern does not change the Insights issue counts', async ({
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [
           issue(1, 'Fix the login page'),
