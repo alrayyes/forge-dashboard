@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.69.1](https://github.com/alrayyes/forge-dashboard/compare/v9.69.0...v9.69.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** keep a multi-select panel open while a row is pressed ([#4095](https://github.com/alrayyes/forge-dashboard/issues/4095)) ([2d6c000](https://github.com/alrayyes/forge-dashboard/commit/2d6c000c4ab04215534e8ee1dffa1ddbb78ba36a))
+
 ## [9.69.0](https://github.com/alrayyes/forge-dashboard/compare/v9.68.0...v9.69.0) (2026-11-17)
 
 
