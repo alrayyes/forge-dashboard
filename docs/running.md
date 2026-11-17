@@ -73,10 +73,11 @@ by version and `:latest`, `linux/amd64` and `linux/arm64`.
 ## Memory
 
 Give the container **256 MiB** (`--memory=256m`, or `mem_limit: 256m` in
-Compose). That figure is a cautious recommendation, not a measurement: an
-instance tracking many repos on a 64 MiB limit can be OOM-killed during the
-first full refresh after a start. The true peak depends on how many repos you
-track (see [Measuring the peak](#measuring-the-peak)).
+Compose). That figure is a cautious recommendation: an instance tracking many
+repos on a 64 MiB limit can be OOM-killed during the first full refresh after a
+start. The peak depends on how many repos you track. The only measurement so far
+is against a synthetic account, and it holds the recommendation with room to
+spare (see [Measuring the peak](#measuring-the-peak)).
 
 The process reads the container's limit at start (cgroup `memory.max`, or the
 v1 equivalent) and, unless you set `GOMEMLIMIT` yourself, tells the Go runtime
@@ -130,9 +131,46 @@ so it is measured on the deployment, not in CI:
    largest value.
 4. Note the number, the repo count, and the date for your own records.
 
-| Date | Tracked repos | Peak after the first refresh | Smallest limit that held |
-| ---- | ------------- | ---------------------------- | ------------------------ |
-| —    | —             | —                            | —                        |
+#### Synthetic account (2026-11-17)
+
+No real large account was available, so the first figures come from a synthetic
+one. `scripts/memory-bench/` holds the harness: `fake-github.go` is a fake
+GitHub API that serves N repositories through the account-wide GraphQL query a
+refresh makes, and `run.sh` builds the image, seeds a dummy token (nothing real
+is contacted), runs the container with a memory limit on the host network, and
+reads `memory.peak` and the process's `VmHWM` after the first refresh.
+
+What it models: per repo, the open pull requests cycle 0, 0, 1, 1, 1, 2, 2, 3,
+4, 6 (two on average, each with a 2 KiB body, two labels, a review thread and
+eight check runs) and the open issues cycle 0, 0, 0, 1, 1, 2, 3, 5, 8, 12 (3.2
+on average). Every repo has a default branch with ten check runs, three check
+suites and a release. What it leaves out: Dependabot alerts and webhook lists
+come back empty, per-pull-request detail fetches and the live stream are not
+exercised, and real bodies, check names and logins vary in size. A real account
+can sit above or below these figures, so add its number beside them.
+
+| Date       | Tracked repos | PRs per repo  | Peak at `--memory=512m` (`memory.peak` / `VmHWM`) | Smallest limit that held |
+| ---------- | ------------- | ------------- | ------------------------------------------------- | ------------------------ |
+| 2026-11-17 | 50            | 2 (synthetic) | 30 / 38 MiB                                       | 24 MiB                   |
+| 2026-11-17 | 200           | 2 (synthetic) | 50 / 52 MiB                                       | 40 MiB                   |
+| 2026-11-17 | 500           | 2 (synthetic) | 72 / 74 MiB                                       | 64 MiB                   |
+| 2026-11-17 | 1000          | 2 (synthetic) | 105 / 116 MiB                                     | 64 MiB                   |
+| 2026-11-17 | 2000          | 2 (synthetic) | 180 / 189 MiB                                     | 128 MiB                  |
+
+Each peak is the largest of one start and three `docker restart`s, from
+`scripts/memory-bench/run.sh peak <repos>`. The limit was found with
+`scripts/memory-bench/run.sh min <repos> <limits...>`, stepping up until a limit
+survived the same four starts. "Held" means no OOM kill and no restart by
+Docker (`--restart=on-failure:2`, so `RestartCount` stays 0). Limits that failed
+were OOM-killed and restarted twice: 16 MiB at 50 repos, 32 MiB at 200, 40 and
+48 MiB at 500 (56 MiB restarted once in four starts), 48 and 56 MiB at 1000, 64
+and 96 MiB at 2000.
+
+Read the smallest limit as a floor on this workload, not a target. It is lower
+than the peak because the soft limit above makes the runtime collect hard, and
+a container at its floor spends that time in the garbage collector. The
+256 MiB recommendation covers the largest synthetic account here (2000 repos)
+twice over, and leaves the room real bodies and check lists need, so it stands.
 
 ## Before you upgrade
 
