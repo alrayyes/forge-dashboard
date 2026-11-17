@@ -11,6 +11,7 @@ type Count = {
   none?: number;
   noChecks?: number;
   awaitingApproval?: number;
+  unknown?: number;
 } | null;
 
 export type PillKind =
@@ -19,6 +20,7 @@ export type PillKind =
   | 'cancelled'
   | 'running'
   | 'awaiting'
+  | 'unknown'
   | 'none'
   | 'noChecks';
 
@@ -41,6 +43,7 @@ export function pillParts(
       n: count.awaitingApproval ?? 0,
       words: 'waiting for approval',
     },
+    { kind: 'unknown' as const, n: count.unknown ?? 0, words: 'unknown' },
     {
       kind: 'none' as const,
       n: count.none ?? 0,

@@ -17,6 +17,7 @@ export type BranchStatus =
   | 'running'
   | 'cancelled'
   | 'awaiting_approval'
+  | 'unknown'
   | 'passed';
 
 export type BranchFold = {
@@ -127,7 +128,7 @@ export function foldNewestRuns(
 // jobs listed. A held job outranks passed and cancelled ones: the branch is not
 // done until someone approves it. It does not outrank a failure or a job going,
 // which say more. An unknown job is not a pass, so it keeps the branch from
-// reading passed; it is read as still going until #4063 gives it its own status.
+// reading passed, and nothing says it is going, so the branch reads unknown.
 // Left out of the port: GitHub counts ACTION_REQUIRED as a failure, while
 // checkState reads it as held, for both forges.
 export function foldBranch(checks: readonly Check[]): BranchFold {
@@ -186,9 +187,8 @@ export function foldBranch(checks: readonly Check[]): BranchFold {
 function statusOf(counts: BranchCounts, total: number): BranchStatus {
   if (total === 0) return 'none';
   if (counts.failed > 0) return 'failed';
-  if (counts.running > 0 || counts.waiting > 0 || counts.unknown > 0) {
-    return 'running';
-  }
+  if (counts.running > 0 || counts.waiting > 0) return 'running';
+  if (counts.unknown > 0) return 'unknown';
   if (counts.held > 0) return 'awaiting_approval';
   if (counts.cancelled > 0) return 'cancelled';
 

@@ -80,6 +80,21 @@ describe('headerLabel', () => {
     );
   });
 
+  test('names the branches with an unknown job after the held ones, so the parts add up (#4063)', () => {
+    expect(
+      headerLabel('Branches', {
+        total: 6,
+        failed: 0,
+        running: 1,
+        passed: 3,
+        awaitingApproval: 1,
+        unknown: 1,
+      }),
+    ).toBe(
+      '6 3 1 1 1, Branches, 6 total, 3 passing, 1 running, 1 waiting for approval, 1 unknown',
+    );
+  });
+
   test('names the pull requests without checks last, so the parts add up (#3241)', () => {
     expect(
       headerLabel('Bots', {

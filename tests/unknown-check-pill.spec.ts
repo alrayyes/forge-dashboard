@@ -19,7 +19,7 @@ const ROW = {
   fullName: 'example/service',
   url: 'https://example.com/example/service',
   branch: 'main',
-  status: 'running',
+  status: 'unknown',
   commit: {
     sha: '42381c9',
     subject: 'Update a dependency',
@@ -54,7 +54,8 @@ async function open(page: Page) {
         counts: {
           failed: 0,
           passed: 0,
-          running: 1,
+          running: 0,
+          unknown: 1,
           cancelled: 0,
           awaitingApproval: 0,
           none: 0,
@@ -95,6 +96,12 @@ for (const [name, size] of [
       await expect(items).toHaveCount(JOBS.length);
       await expect(items.filter({ hasText: 'Unknown' })).toHaveCount(1);
       await expect(items.filter({ hasText: 'Failed' })).toHaveCount(0);
+    });
+
+    test('the row reads Unknown, not Running (#4063)', async ({ page }) => {
+      const pill = await open(page);
+      await expect(pill).toContainText('Unknown');
+      await expect(pill).not.toContainText('Running');
     });
 
     test('has no axe violations, light and dark', async ({ page }) => {

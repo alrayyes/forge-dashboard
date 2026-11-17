@@ -192,11 +192,12 @@ type branchContext struct {
 	TargetURL string `json:"targetUrl"`
 }
 
-// unknownIsNotAPass keeps a branch from reading passed while a check nobody
-// can grade is on it: that check can still change, so the row reads running.
+// unknownIsNotAPass keeps a branch from reading passed or cancelled while a
+// check nobody can grade is on it. Nothing says that check is going, so the row
+// reads unknown, not running (#4063).
 func unknownIsNotAPass(status dashboard.MainBranchStatus, counts dashboard.CheckCounts) dashboard.MainBranchStatus {
-	if status == dashboard.MainBranchPassed && counts.Unknown > 0 {
-		return dashboard.MainBranchRunning
+	if (status == dashboard.MainBranchPassed || status == dashboard.MainBranchCancelled) && counts.Unknown > 0 {
+		return dashboard.MainBranchUnknown
 	}
 
 	return status

@@ -211,6 +211,7 @@
     { key: "running", label: "Running" },
     { key: "cancelled", label: "Cancelled" },
     { key: "awaiting_approval", label: "Waiting for approval" },
+    { key: "unknown", label: "Unknown" },
     { key: "none", label: "No pipeline" },
   ];
 
