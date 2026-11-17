@@ -1,5 +1,5 @@
 import { advisoryFactsOf } from './forges';
-import { ADVISORY_REASON_TEXT } from './main-branches';
+import { ADVISORY_WORDS_BY_SOURCE } from './main-branches';
 
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
 // the severity filter, and the text the list and detail views print.
@@ -239,7 +239,10 @@ export function unreadableText(
     );
   }
   if (source === 'dependabot') {
-    const known = ADVISORY_REASON_TEXT as Record<string, string>;
+    const known = ADVISORY_WORDS_BY_SOURCE.dependabot.reasons as Record<
+      string,
+      string
+    >;
     return (reason && known[reason]) || 'GitHub did not answer the read.';
   }
   return 'The forge did not answer the read.';

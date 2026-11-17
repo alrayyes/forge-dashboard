@@ -5992,7 +5992,10 @@ components:
           type: string
           description: >-
             Where the repository advisories come from. Open-ended, so a new
-            source is not a breaking change; today `dependabot` and `osv`.
+            source is not a breaking change; today `dependabot` and `osv`. A
+            client keys its advisory wording (notice text, unreadable reasons)
+            by this value, not by the forge's name, and says something neutral
+            for a source it has no words for.
         advisoryUnknownNeedsReason:
           type: boolean
           description: >-

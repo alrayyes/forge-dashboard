@@ -152,3 +152,21 @@
     await expect(notice).not.toHaveTextContent("GitHub");
   }}
 />
+
+<!-- A forge whose advisory source has no wording of its own: the neutral
+     sentence, never GitHub's permission advice. -->
+<Story
+  name="Other forge, neutral"
+  args={{ forge: "nowhere" }}
+  play={async ({ canvasElement }) => {
+    const notice = within(canvasElement).getByRole("status");
+    await expect(notice).toHaveAttribute(
+      "data-testid",
+      "other-advisories-notice",
+    );
+    await expect(notice).toHaveTextContent("The forge did not answer the read");
+    await expect(notice).not.toHaveTextContent("GitHub");
+    await expect(notice).not.toHaveTextContent("permission");
+    await expect(within(notice).queryByRole("link")).toBeNull();
+  }}
+/>
