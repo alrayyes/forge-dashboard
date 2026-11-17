@@ -6112,3 +6112,34 @@ footer a[aria-current="page"] {
 .filter-sheet .sheet-pills[hidden] {
   display: none;
 }
+
+/* The banners and notes on the Branches page. They live here rather than in
+   the page, so the notice component renders with them in a story too. */
+.mb-banner,
+.mb-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.84375rem;
+}
+.mb-banner {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+/* An author display: flex beats the UA's [hidden] { display: none }. */
+.mb-banner[hidden] {
+  display: none;
+}
+.mb-note.good {
+  border-left-color: var(--good);
+}
+.mb-note p,
+.mb-banner p {
+  margin: 0;
+}
