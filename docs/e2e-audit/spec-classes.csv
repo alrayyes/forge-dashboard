@@ -116,7 +116,7 @@ long-label-card.spec.ts,3.815,1,1,A,,0.0
 long-label-dialog.spec.ts,6.584,1,1,A,,0.0
 main-branch-advisories-dialog.spec.ts,7.727,9,6,A,,2.6
 main-branch-advisories-forgejo-dialog.spec.ts,5.481,6,3,A,,2.7
-main-branch-advisories.spec.ts,7.521,14,3,C,,5.9
+main-branch-advisories.spec.ts,6.5,13,3,C,AdvisoriesNotice.stories.svelte (proven),4.9
 main-branch-pill-counts.spec.ts,1.975,11,6,A,web/src/lib/main-branch-pill.test.ts,0.9
 main-branch-release-link.spec.ts,4.863,10,5,A,,2.4
 main-branch-snapshot-runs.spec.ts,0.75,2,1,A,web/src/lib/main-branch-snapshot-runs.test.ts,0.4

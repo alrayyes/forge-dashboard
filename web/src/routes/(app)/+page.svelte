@@ -23,6 +23,7 @@
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { setBranchNavCount } from "#lib/nav-counts.svelte.js";
   import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
+  import AdvisoriesNotice from "#lib/AdvisoriesNotice.svelte";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -66,11 +67,8 @@
     offeredAdvisories,
     type AdvisoryFilter,
     advisoryUnknownReason,
-    advisoryReasonNeedsGrant,
     advisoryRowUnreadable,
-    forgejoAdvisoryReasonText,
     advisoryRowHint,
-    ADVISORY_REASON_TEXT,
     type MainBranch,
     type MainBranches,
     type MainBranchFilter,
@@ -560,34 +558,6 @@
       color: var(--ink-2);
       margin: 0 0 16px;
     }
-    .mb-banner,
-    .mb-note {
-      display: flex;
-      gap: 10px;
-      align-items: flex-start;
-      padding: 12px 14px;
-      margin: 0 0 16px;
-      border: 1px solid var(--border);
-      border-left-width: 4px;
-      border-radius: var(--radius);
-      background: var(--surface);
-      font-size: 0.84375rem;
-    }
-    .mb-banner {
-      border-left-color: var(--warning);
-      background: var(--warning-bg);
-    }
-    /* An author display: flex beats the UA's [hidden] { display: none }. */
-    .mb-banner[hidden] {
-      display: none;
-    }
-    .mb-note.good {
-      border-left-color: var(--good);
-    }
-    .mb-note p,
-    .mb-banner p {
-      margin: 0;
-    }
     .mb-bar {
       display: flex;
       flex-wrap: wrap;
@@ -1062,57 +1032,11 @@
     {/if}
 
     {#if advisoryState === "none"}
-      <div class="mb-banner" role="status" data-testid="advisories-notice">
-        <p>
-          Advisories can't be read for your GitHub repositories, so none are
-          shown.
-          {#if advisoryReason}
-            {ADVISORY_REASON_TEXT[advisoryReason]}
-          {:else}
-            Most likely the credential lacks the Dependabot alerts permission
-            (read-only), or alerts are switched off on the repo. A rate limit or
-            a GitHub error looks the same.
-          {/if}
-          {#if !advisoryReason || advisoryReasonNeedsGrant(advisoryReason)}
-            A permission you just accepted can take up to an hour and a quarter
-            to show; saving Settings reads them again at once. <a
-              href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#when-advisories-cant-be-read"
-              target="_blank"
-              rel="noopener noreferrer"
-              >How to grant it<span class="sr-only">
-                (opens in a new tab)</span
-              ></a
-            >.
-          {/if}
-        </p>
-      </div>
+      <AdvisoriesNotice forge="github" reason={advisoryReason} />
     {/if}
 
     {#if forgejoAdvisoryState === "none"}
-      <div
-        class="mb-banner"
-        role="status"
-        data-testid="forgejo-advisories-notice"
-      >
-        <p>
-          Advisories can't be read for your Forgejo repositories, so none are
-          shown.
-          {#if forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
-            {forgejoAdvisoryReasonText(forgejoAdvisoryReason)}
-          {:else}
-            OSV may be unreachable, or a lock file could not be read, was over 8
-            megabytes or lists too many packages.
-          {/if}
-          <a
-            href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/main-branches.md#forgejo-advisories"
-            target="_blank"
-            rel="noopener noreferrer"
-            >How Forgejo advisories are read<span class="sr-only">
-              (opens in a new tab)</span
-            ></a
-          >.
-        </p>
-      </div>
+      <AdvisoriesNotice forge="forgejo" reason={forgejoAdvisoryReason} />
     {/if}
 
     {#if branchesAwaitingFlag(firstRefresh.settled, counts.total)}
