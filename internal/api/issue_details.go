@@ -50,6 +50,13 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 		}
 
 		linkCommenters(details.Comments, dashboard.Forge(forge), boardWebBase(deps, dashboard.Forge(forge), fullName))
+		if pr := details.PullRequest; pr != nil && pr.Author != nil {
+			linked := *pr.Author
+			linked.URL = dashboard.ProfileURL(dashboard.Forge(forge), boardWebBase(deps, dashboard.Forge(forge), fullName), linked.Login)
+			copied := *pr
+			copied.Author = &linked
+			details.PullRequest = &copied
+		}
 		writeJSON(w, http.StatusOK, details)
 	}
 }

@@ -132,3 +132,46 @@ func TestGetIssueDetails_SaysWhetherTheNumberIsAPullRequest(t *testing.T) {
 		})
 	}
 }
+
+// The header of a pull request opened from a reference needs its title, its
+// author and whether it was merged, which only the forge knows.
+func TestGetIssueDetails_APullRequestCarriesTheFactsItsHeaderNeeds(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name  string
+		state string
+		pr    map[string]any
+		want  dashboard.ReferencedState
+	}{
+		{"open", "open", map[string]any{"merged": false}, dashboard.ReferencedStateOpen},
+		{"closed", "closed", map[string]any{"merged": false}, dashboard.ReferencedStateClosed},
+		{"merged", "closed", map[string]any{"merged": true}, dashboard.ReferencedStateMerged},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+				writeJSON(t, w, map[string]any{
+					"number": 5, "title": "Add structured logging", "body": "x", "state": tc.state, "pull_request": tc.pr,
+					"user": map[string]any{"login": "claude", "avatar_url": "https://git.example.com/avatars/9"},
+				})
+			})
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			require.NotNil(t, got.PullRequest)
+			assert.Equal(t, "Add structured logging", got.PullRequest.Title)
+			assert.Equal(t, tc.want, got.PullRequest.State)
+			require.NotNil(t, got.PullRequest.Author)
+			assert.Equal(t, "claude", got.PullRequest.Author.Login)
+			assert.Equal(t, "https://git.example.com/avatars/9", got.PullRequest.Author.AvatarURL)
+		})
+	}
+}

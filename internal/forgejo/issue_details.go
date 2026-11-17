@@ -33,6 +33,16 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	details.Kind = dashboard.ItemKindIssue
 	if issue.PullRequest != nil {
 		details.Kind = dashboard.ItemKindPullRequest
+		details.PullRequest = &dashboard.IssuePullRequest{Title: issue.Title, State: dashboard.ReferencedStateOpen}
+		if issue.State == gitea.StateClosed {
+			details.PullRequest.State = dashboard.ReferencedStateClosed
+			if issue.PullRequest.HasMerged {
+				details.PullRequest.State = dashboard.ReferencedStateMerged
+			}
+		}
+		if issue.Poster != nil {
+			details.PullRequest.Author = &dashboard.Person{Login: issue.Poster.UserName, AvatarURL: issue.Poster.AvatarURL}
+		}
 	}
 	details.State = dashboard.IssueStateOpen
 	if issue.State == gitea.StateClosed {
