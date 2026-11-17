@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The page's own "Hide Dependency Dashboard" checkbox has to come back the way
@@ -44,7 +45,7 @@ async function open(page: Page, url: string) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: ISSUES,
         openIssueCount: ISSUES.length,

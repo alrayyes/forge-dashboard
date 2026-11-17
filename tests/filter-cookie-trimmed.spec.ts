@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Three full picks and a long multibyte title together pass what a browser
@@ -38,7 +39,7 @@ async function open(page: Page, baseURL: string | undefined) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         // Two issues, since the filter bar is not drawn over fewer (#3670).
         issues: [1, 2].map((number) => ({
