@@ -423,6 +423,26 @@ describe('advisory wording by source', () => {
     expect(NEUTRAL_ADVISORY_WORDS.grantNote).toBeNull();
   });
 
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'a forge or source named %s gets the neutral words, never an inherited member',
+    (odd) => {
+      registerForgeCapabilities([
+        {
+          forge: 'viaSource',
+          capabilities: {
+            label: 'Via source',
+            advisorySource: odd,
+            advisoryUnknownNeedsReason: false,
+          },
+        },
+      ]);
+
+      expect(advisoryWordsFor(odd)).toBe(NEUTRAL_ADVISORY_WORDS);
+      expect(advisoryWordsFor('viaSource')).toBe(NEUTRAL_ADVISORY_WORDS);
+      expect(advisoryReasonText('viaSource', 'failed')).toBeUndefined();
+    },
+  );
+
   test('the pill opens the dialog by what the source needs, not the forge name', () => {
     registerForgeCapabilities([
       {
