@@ -197,7 +197,7 @@ func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
-	assert.Equal(t, "github: issue or pull request #5 not found in alrayyes/a", err.Error(), "plain words, not GitHub's GraphQL text")
+	assert.Equal(t, "github: issue or pull request not found: #5 in alrayyes/a", err.Error(), "plain words, not GitHub's GraphQL text")
 	assert.NotContains(t, err.Error(), "graphql")
 }
 

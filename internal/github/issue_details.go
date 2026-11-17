@@ -59,10 +59,12 @@ fragment pullRequestThread on PullRequest {
   }
 }`
 
+var errIssueNotFound = errors.New("github: issue or pull request not found")
+
 func notFoundIssue(owner, name string, number int) error {
 	return &dashboard.ClientError{
 		Kind: dashboard.ForgeErrorNotFound,
-		Err:  fmt.Errorf("github: issue or pull request #%d not found in %s/%s", number, owner, name),
+		Err:  fmt.Errorf("%w: #%d in %s/%s", errIssueNotFound, number, owner, name),
 	}
 }
 

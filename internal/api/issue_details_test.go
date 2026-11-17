@@ -60,6 +60,7 @@ func sampleIssueDetails() dashboard.IssueDetails {
 	none := dashboard.Reaction{Logins: []string{}}
 
 	return dashboard.IssueDetails{
+		Kind:  dashboard.ItemKindIssue,
 		State: dashboard.IssueStateClosed,
 		Description: dashboard.DetailsBody{
 			Text: "The page loses its place.", Format: dashboard.FormatMarkdown,

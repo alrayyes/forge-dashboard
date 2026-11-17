@@ -113,7 +113,7 @@ async function open(
         status: 404,
         contentType: 'application/json',
         body: JSON.stringify({
-          error: 'github: issue or pull request #9999 not found in x/y',
+          error: 'github: issue or pull request not found: #9999 in x/y',
         }),
       });
 
@@ -179,7 +179,7 @@ test.describe('a reference to a pull request opens it (#4188)', () => {
     await prDialog(page).getByRole('link', { name: '#9999' }).click();
 
     await expect(issueDialog(page)).toContainText(
-      'issue or pull request #9999 not found',
+      'issue or pull request not found: #9999',
     );
     await expect(issueDialog(page)).not.toContainText(/graphql/i);
   });
