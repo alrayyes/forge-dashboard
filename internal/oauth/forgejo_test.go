@@ -504,28 +504,26 @@ func TestForgejo_TokenRequests_NeverFollowARedirect(t *testing.T) {
 	}))
 	t.Cleanup(redirector.Close)
 
-	t.Run("the code exchange", func(t *testing.T) {
-		t.Parallel()
+	t.Run("requests", func(t *testing.T) {
+		t.Run("the code exchange", func(t *testing.T) {
+			conn := newForgejoConn(t, &memoryTokens{})
+			consent, err := url.Parse(conn.Begin(redirector.URL))
+			require.NoError(t, err)
+			_, _, err = conn.Finish(t.Context(), consent.Query().Get("state"), goodCode)
 
-		conn := newForgejoConn(t, &memoryTokens{})
-		consent, err := url.Parse(conn.Begin(redirector.URL))
-		require.NoError(t, err)
-		_, _, err = conn.Finish(t.Context(), consent.Query().Get("state"), goodCode)
+			require.ErrorIs(t, err, oauth.ErrExchange)
+		})
 
-		require.ErrorIs(t, err, oauth.ErrExchange)
-	})
+		t.Run("a refresh", func(t *testing.T) {
+			store := &memoryTokens{instance: redirector.URL, token: &oauth2.Token{
+				AccessToken: "a", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
+			}}
+			bearer, ok := newForgejoConn(t, store).Bearer(t.Context(), redirector.URL)
+			require.True(t, ok)
+			_, err := bearer()
 
-	t.Run("a refresh", func(t *testing.T) {
-		t.Parallel()
-
-		store := &memoryTokens{instance: redirector.URL, token: &oauth2.Token{
-			AccessToken: "a", RefreshToken: "r", Expiry: time.Now().Add(-time.Minute),
-		}}
-		bearer, ok := newForgejoConn(t, store).Bearer(t.Context(), redirector.URL)
-		require.True(t, ok)
-		_, err := bearer()
-
-		require.Error(t, err)
+			require.Error(t, err)
+		})
 	})
 
 	mu.Lock()
