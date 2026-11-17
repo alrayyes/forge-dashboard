@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -24,16 +25,25 @@ const maxAlertPages = 10
 // replaces an answer already known.
 var errAdvisoriesThrottled = errors.New("rate limited")
 
-// dependabotAlertLister is the one go-github call the advisory read needs,
-// behind an interface of our own so a test or another SDK can stand in.
-type dependabotAlertLister interface {
-	ListRepoAlerts(ctx context.Context, owner, repo string, opts *ghsdk.ListAlertsOptions) ([]*ghsdk.DependabotAlert, *ghsdk.Response, error)
-}
-
 // advisoryCache remembers each repo's last advisory answer and when to ask again.
 type advisoryCache struct {
 	cache advisorycache.Cache[advisoryEntry]
+	// lists keeps each repo's full list, which the read for the count fills
+	// too, so opening the advisories dialog costs no second read.
+	lists advisorycache.Lists
 }
+
+// AdvisoryCache remembers each repo's advisory answer and list. Share one
+// between the clients a source builder makes, since each lives for one request.
+type AdvisoryCache = advisoryCache
+
+// NewAdvisoryCache returns an empty cache to share between clients.
+func NewAdvisoryCache() *AdvisoryCache { return &advisoryCache{} }
+
+// ShareAdvisoryCache makes this Client remember advisories in cache, so a
+// client built later picks up what the old one read. Call it right after
+// construction.
+func (c *Client) ShareAdvisoryCache(cache *AdvisoryCache) { c.advisories = cache }
 
 type advisoryEntry struct {
 	value dashboard.Advisories
@@ -96,7 +106,7 @@ func (c *advisoryCache) putRefusal(repo string, v dashboard.Advisories, refusal 
 // the Dependabot alerts permission); both are "unknown", never a zero count. So
 // is a repo with more alerts than maxAlertPages hold. A rate limit is an error.
 func (c *Client) ReadAdvisories(ctx context.Context, owner, name, repoURL string) (dashboard.Advisories, error) {
-	v, _, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
+	v, _, _, err := c.readAlerts(ctx, owner, name, repoURL)
 
 	return v, err
 }
@@ -109,34 +119,69 @@ type alertsRefusal struct {
 
 func (r *alertsRefusal) String() string { return fmt.Sprintf("%d %s", r.status, r.message) }
 
-func readAdvisories(ctx context.Context, lister dependabotAlertLister, owner, name, repoURL string) (dashboard.Advisories, *alertsRefusal, error) {
-	state := "open"
-	opts := &ghsdk.ListAlertsOptions{State: &state, ListOptions: ghsdk.ListOptions{PerPage: perPage}}
-	out := dashboard.Advisories{State: dashboard.AdvisoriesKnown}
+// readAlerts pages through the repo's open alerts once and shapes what it read
+// both ways: the count a row shows and the full list the dialog shows, so one
+// read serves both. A refusal or too many alerts is an unknown answer with its
+// matching unknown list, and an error is a failed or throttled read.
+func (c *Client) readAlerts(ctx context.Context, owner, name, repoURL string) (dashboard.Advisories, dashboard.AdvisoryList, *alertsRefusal, error) {
+	list := dashboard.AdvisoryList{State: dashboard.AdvisoriesKnown, Advisories: []dashboard.AdvisoryItem{}}
 
+	after := ""
 	for range maxAlertPages {
-		alerts, resp, err := lister.ListRepoAlerts(ctx, owner, name, opts)
+		alerts, next, err := c.readAlertPage(ctx, owner, name, after)
 		if err != nil {
-			return alertsFailure(err)
+			return alertsFailed(err)
 		}
-		for _, a := range alerts {
-			out.Count++
-			sev := dashboard.AdvisorySeverity(a.GetSecurityAdvisory().GetSeverity())
-			if sev.Rank() > out.Highest.Rank() {
-				out.Highest = sev
-			}
+		for i := range alerts {
+			list.Advisories = append(list.Advisories, advisoryItemOf(&alerts[i]))
 		}
-		if resp.After == "" {
-			if out.Count > 0 {
-				out.URL = repoURL + "/security/dependabot"
-			}
+		if next == "" {
+			sortAdvisories(list.Advisories)
 
-			return out, nil, nil
+			return countOf(&list, repoURL), list, nil, nil
 		}
-		opts.After = resp.After
+		after = next
 	}
 
-	return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, nil, nil
+	tooMany := dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}
+
+	return tooMany, unknownAdvisoryList(dashboard.ReasonTooMany), nil, nil
+}
+
+// alertsFailed shapes a failed page read as readAlerts answers it: a refusal
+// is an unknown answer, anything else an error with the reason its list gets.
+func alertsFailed(err error) (dashboard.Advisories, dashboard.AdvisoryList, *alertsRefusal, error) {
+	v, refusal, failure := alertsFailure(err)
+	if failure == nil {
+		return v, unknownAdvisoryList(v.Reason), refusal, nil
+	}
+	reason := dashboard.ReasonFailed
+	if errors.Is(failure, errAdvisoriesThrottled) {
+		reason = dashboard.ReasonThrottled
+	}
+
+	return v, unknownAdvisoryList(reason), nil, failure
+}
+
+// countOf is the row's count over a whole list, and sets the list's own page.
+func countOf(list *dashboard.AdvisoryList, repoURL string) dashboard.Advisories {
+	out := dashboard.Advisories{State: dashboard.AdvisoriesKnown, Count: len(list.Advisories)}
+	for i := range list.Advisories {
+		if sev := list.Advisories[i].Severity; sev.Rank() > out.Highest.Rank() {
+			out.Highest = sev
+		}
+	}
+	if out.Count == 0 {
+		return out
+	}
+	out.URL = repoURL + "/security/dependabot"
+	// The repo's alerts page is the folder of an alert's own page, so it follows
+	// the forge's host without the client knowing it.
+	if first := list.Advisories[0].URL; strings.Contains(first, "/") {
+		list.URL = first[:strings.LastIndex(first, "/")]
+	}
+
+	return out
 }
 
 // alertsFailure maps a failed alerts listing: a definitive refusal is an
@@ -190,26 +235,34 @@ func refused(err error) bool {
 	return errResp.Response.StatusCode == http.StatusForbidden || errResp.Response.StatusCode == http.StatusNotFound
 }
 
+// advisoryKey is what a repo's cached advisories are filed under: the repo and
+// the credential that read it, so what one credential could see is never served
+// to another (a narrower token, another installation) from the shared cache.
+func (c *Client) advisoryKey(owner, name string) string {
+	return c.statsCredential + " " + owner + "/" + name
+}
+
 // advisoriesFor answers a repo's advisories from the cache when fresh, else
 // reads them. A definitive answer (known, or unknown for 403/404) replaces
 // whatever was cached. A refusal repeated unchanged waits the full TTL, not the retry delay. A failed or rate-limited read keeps the last answer, so
 // it never turns a known count into unknown or zero, and waits advisorycache.Retry
 // before asking again. With nothing cached it answers unknown.
 func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string) *dashboard.Advisories {
-	key := owner + "/" + name
+	repo := owner + "/" + name
+	key := c.advisoryKey(owner, name)
 	old, fresh, have := c.advisories.get(key)
 	if fresh {
 		return &old
 	}
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
-	v, refusal, err := readAdvisories(ctx, c.restClient.Dependabot, owner, name, repoURL)
+	v, list, refusal, err := c.readAlerts(ctx, owner, name, repoURL)
 	if err != nil {
 		reason := dashboard.ReasonFailed
 		if errors.Is(err, errAdvisoriesThrottled) {
 			reason = dashboard.ReasonThrottled
-			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
+			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", repo)
 		} else {
-			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
+			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", repo, "error", err)
 		}
 		if !have {
 			old = *dashboard.UnknownAdvisories()
@@ -222,13 +275,17 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 		return &old
 	}
 	if refusal != nil {
+		v.ListReadAt = c.advisories.lists.Put(key, list, advisorycache.Retry).ReadAt
 		if c.advisories.putRefusal(key, v, refusal.String()) {
-			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
+			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", repo,
 				"status", refusal.status, "message", refusal.message)
 		}
 
 		return &v
 	}
+	// A list that says too many is as good as a known one for the TTL: the same
+	// alerts give the same answer.
+	v.ListReadAt = c.advisories.lists.Put(key, list, advisorycache.TTL).ReadAt
 	c.advisories.putAnswer(key, v)
 
 	return &v

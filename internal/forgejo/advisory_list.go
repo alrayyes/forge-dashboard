@@ -21,9 +21,11 @@ import (
 const osvAdvisoryPage = "https://osv.dev/vulnerability/"
 
 // ListAdvisories implements dashboard.AdvisoryLister: the advisories behind a
-// Forgejo row's count, read live when the advisories dialog opens. It reads the
-// lock files of the default branch and matches them against OSV exactly as the
-// row does, but past the cache, so it costs the same reads as a refresh does.
+// Forgejo row's count. The row's own read keeps its list, so an open within the
+// cache window answers from that with no read. Otherwise, or when the caller
+// asks for a fresh read, it reads the lock files of the default branch and
+// matches them against OSV exactly as the row does, so it costs the same reads
+// as a refresh does.
 // What the row would call unknown (advisories off, no lock file, one that can't
 // be read, OSV or the forge failing, too many advisories) is an unknown list
 // with the cause, never an empty one.
@@ -32,6 +34,20 @@ const osvAdvisoryPage = "https://osv.dev/vulnerability/"
 // once. The shared read doesn't stop when the first caller goes away; its own
 // time budget bounds it.
 func (c *Client) ListAdvisories(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
+	key := c.instanceURL + " " + owner + "/" + name
+
+	list, err := c.advisories.lists.Serve(ctx, key, func(ctx context.Context) (dashboard.AdvisoryList, error) {
+		return c.joinListRead(ctx, owner, name)
+	})
+	if err != nil {
+		return list, fmt.Errorf("list advisories for %s/%s: %w", owner, name, err)
+	}
+
+	return list, nil
+}
+
+// joinListRead reads the list live, or joins the read of it already running.
+func (c *Client) joinListRead(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
 	repo := owner + "/" + name
 	c.listMu.Lock()
 	call, running := c.listCalls[repo]
@@ -117,6 +133,11 @@ func (c *Client) readAdvisoryList(ctx context.Context, owner, name string) (dash
 		return unknownList(dashboard.ReasonFailed), nil
 	}
 
+	return listOf(findings, pkgs), nil
+}
+
+// listOf shapes the findings for the dialog: sorted, and numbered by place.
+func listOf(findings []osv.Finding, pkgs *lockPackages) dashboard.AdvisoryList {
 	items := make([]dashboard.AdvisoryItem, 0, len(findings))
 	for i := range findings {
 		items = append(items, advisoryItemOf(&findings[i], pkgs.files))
@@ -126,7 +147,7 @@ func (c *Client) readAdvisoryList(ctx context.Context, owner, name string) (dash
 		items[i].Number = i + 1
 	}
 
-	return dashboard.AdvisoryList{State: dashboard.AdvisoriesKnown, Partial: pkgs.partial, Advisories: items}, nil
+	return dashboard.AdvisoryList{State: dashboard.AdvisoriesKnown, Partial: pkgs.partial, Advisories: items}
 }
 
 func unknownList(reason dashboard.AdvisoryReason) dashboard.AdvisoryList {

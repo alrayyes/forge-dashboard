@@ -1,5 +1,10 @@
 import { advisoryFactsOf, ownOf } from './forges';
-import { ADVISORY_WORDS_BY_SOURCE } from './main-branches';
+import {
+  ADVISORY_WORDS_BY_SOURCE,
+  type Advisories,
+  advisoryPill,
+  ago,
+} from './main-branches';
 
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
 // the severity filter, and the text the list and detail views print.
@@ -47,6 +52,10 @@ export interface AdvisoryList {
   // A Forgejo list that leaves out packages it may not send to OSV.
   partial?: boolean;
   url?: string;
+  // When the server read the forge for this list, and whether a refresh it
+  // was asked for failed so that this is the last good list.
+  readAt?: string;
+  refreshFailed?: 'failed' | 'throttled';
   advisories: AdvisoryItem[];
 }
 
@@ -152,8 +161,10 @@ export async function readAdvisoryList(
   forge: string,
   fullName: string,
   fetcher: Fetcher = (url) => fetch(url),
+  options: { refresh?: boolean } = {},
 ): Promise<AdvisoryRead> {
   const query = new URLSearchParams({ forge, fullName });
+  if (options.refresh) query.set('refresh', 'true');
   try {
     const res = await fetcher(`/api/v1/main-branches/advisories?${query}`);
     if (res.status === 401) return { kind: 'signed-out' };
@@ -248,4 +259,49 @@ export function unreadableText(
     );
   }
   return 'The forge did not answer the read.';
+}
+
+// Whether two reads say the same thing. The read time and the failed flag are
+// left out: a refresh that found nothing new must not redraw the list, and the
+// flag is shown by the older line, not by the rows.
+export function sameContent(a: AdvisoryList, b: AdvisoryList): boolean {
+  const key = (l: AdvisoryList) =>
+    JSON.stringify({ ...l, readAt: undefined, refreshFailed: undefined });
+  return key(a) === key(b);
+}
+
+// The line under a list that a refresh could not replace. The server states
+// the facts (refreshFailed, readAt); the words are this page's.
+export function olderNote(
+  readAt: string | undefined,
+  now = Date.now(),
+): string {
+  const when = readAt ? ago(readAt, now) : '';
+  return when
+    ? `Couldn't refresh. Showing the list read ${when}.`
+    : "Couldn't refresh. Showing the last list that was read.";
+}
+
+// The line under the title: what the list says once it is here, so the header
+// and the rows agree after a refresh, else the row's own count.
+export function summaryOf(
+  row: Advisories | undefined,
+  list: AdvisoryList | null,
+): string {
+  if (list?.state === 'known') {
+    const counts = severityCounts(list.advisories);
+    const highest = LEVELS.find((l) => counts[l] > 0);
+    const n = list.advisories.length;
+    if (n === 0 && !list.partial) return 'No open advisories';
+    return (
+      advisoryPill({
+        state: 'known',
+        count: n,
+        highest,
+        partial: list.partial,
+        url: list.url,
+      })?.text ?? ''
+    );
+  }
+  return row ? (advisoryPill(row)?.text ?? '') : '';
 }

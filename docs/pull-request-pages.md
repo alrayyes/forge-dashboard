@@ -53,10 +53,20 @@ only, focus goes to the title filter box.
 
 The pop-up loads when it opens, from `GET /api/v1/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on
-rows nobody opens. While the pop-up is open, a refresh that shows the pull
-request was updated fetches the details again and swaps them in place, without
-the loading skeleton. It shows the first 50 comments and says so when there are
-more. The header draws the row's three tiers as they were when it opened: the CI
+rows nobody opens. A title you rest the pointer or keyboard focus on for 150
+milliseconds is read early; moving across the list reads nothing. Details the
+page has read before (the last 40, in memory, gone on reload) show at once when
+the pop-up opens, and a quiet read follows. If the answer is the same nothing
+on screen changes. If it differs, only the changed parts are swapped, so the
+scroll position, focus and any selected text stay, and a polite note says the
+details were updated. If that read fails, the earlier details stay with a note
+that they may be out of date. Your own close, reopen or comment on an issue
+drops the remembered details. Issues work the same way. The first open of
+something not seen yet shows the loading skeleton as before. While the pop-up
+is open, a refresh that shows the pull request was updated fetches the details
+again and swaps them in place, without the loading skeleton. It shows the
+first 50 comments and says so when there are more. The header draws the row's
+three tiers as they were when it opened: the CI
 slot first (Running, Failed or Passed, the row's glyphs and words) with a
 Conflicting, Checking for conflicts, Conflict not confirmed, or Blocked pill
 beside it when the row has one, then the title, then the attributes as quiet
