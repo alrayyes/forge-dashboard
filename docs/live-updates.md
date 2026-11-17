@@ -150,6 +150,25 @@ counts from the oldest data. A screen reader isn't told again as it counts: the
 banner's live region is rewritten only when the banner itself changes (a forge,
 its error, its stale time or the time zone).
 
+## When full refreshes fail but webhooks keep landing
+
+A full refresh that fails (the repo list can't be read, the pass runs past its
+deadline, a rate limit) carries every repo's rows over and marks each repo as
+last read at the time of the last good refresh. A webhook still refreshes the
+one repo it names, and that repo's mark clears. The forge stays marked
+unreachable while any repo holds only carried-over rows. Once a webhook has
+refreshed every repo, the forge reads as reachable again and its error is gone,
+whatever the last full refresh did. The next failed full refresh then carries
+the rows over as read at that moment, not at the old time. A repo a webhook
+refreshed during a failure is not marked again by the next failed full refresh.
+This holds when a failed full refresh is still running as the webhooks land: the
+webhooks' work stands when it finishes, and the forge stays reachable.
+
+The server log names the cause of each failed full refresh: `full refresh failed`
+carries the forge and a `cause` (the error kind, such as `rate_limited` or
+`unreachable`), and `full refresh ran past the pass deadline` names a forge that
+was only slow.
+
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
