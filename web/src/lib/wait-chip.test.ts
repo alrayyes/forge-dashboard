@@ -394,3 +394,18 @@ describe('autoMergeWording forge names', () => {
     );
   });
 });
+
+describe('autoMergeChip forge names', () => {
+  test.each(ODD)('a forge named %s is called by its own id', (forge) => {
+    const base = { state: 'waiting', code: '', forge, message: '' } as never;
+    expect(
+      autoMergeChip({ ...(base as object), heldBy: 'forge' } as never)?.detail,
+    ).toBe(`${forge} merges it when checks pass`);
+    registerForgeCapabilities([
+      { forge, capabilities: { autoMergeHeldByApp: false } },
+    ]);
+    expect(autoMergeChip(base)?.detail).toBe(
+      `${forge} merges it as soon as it can`,
+    );
+  });
+});
