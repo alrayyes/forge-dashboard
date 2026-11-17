@@ -235,13 +235,21 @@ func refused(err error) bool {
 	return errResp.Response.StatusCode == http.StatusForbidden || errResp.Response.StatusCode == http.StatusNotFound
 }
 
+// advisoryKey is what a repo's cached advisories are filed under: the repo and
+// the credential that read it, so what one credential could see is never served
+// to another (a narrower token, another installation) from the shared cache.
+func (c *Client) advisoryKey(owner, name string) string {
+	return c.statsCredential + " " + owner + "/" + name
+}
+
 // advisoriesFor answers a repo's advisories from the cache when fresh, else
 // reads them. A definitive answer (known, or unknown for 403/404) replaces
 // whatever was cached. A refusal repeated unchanged waits the full TTL, not the retry delay. A failed or rate-limited read keeps the last answer, so
 // it never turns a known count into unknown or zero, and waits advisorycache.Retry
 // before asking again. With nothing cached it answers unknown.
 func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string) *dashboard.Advisories {
-	key := owner + "/" + name
+	repo := owner + "/" + name
+	key := c.advisoryKey(owner, name)
 	old, fresh, have := c.advisories.get(key)
 	if fresh {
 		return &old
@@ -252,9 +260,9 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 		reason := dashboard.ReasonFailed
 		if errors.Is(err, errAdvisoriesThrottled) {
 			reason = dashboard.ReasonThrottled
-			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", key)
+			c.logger().Debug("dependency advisories throttled", "forge", dashboard.ForgeGitHub, "repo", repo)
 		} else {
-			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", key, "error", err)
+			c.logger().Warn("dependency advisories read failed", "forge", dashboard.ForgeGitHub, "repo", repo, "error", err)
 		}
 		if !have {
 			old = *dashboard.UnknownAdvisories()
@@ -269,7 +277,7 @@ func (c *Client) advisoriesFor(ctx context.Context, owner, name, repoURL string)
 	if refusal != nil {
 		v.ListReadAt = c.advisories.lists.Put(key, list, advisorycache.Retry).ReadAt
 		if c.advisories.putRefusal(key, v, refusal.String()) {
-			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", key,
+			c.logger().Warn("dependency advisories refused", "forge", dashboard.ForgeGitHub, "repo", repo,
 				"status", refusal.status, "message", refusal.message)
 		}
 

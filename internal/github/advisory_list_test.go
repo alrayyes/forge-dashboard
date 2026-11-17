@@ -292,3 +292,27 @@ func TestListAdvisories_AfterARowThatGitHubRefusedCostsNoForgeCall(t *testing.T)
 	assert.Equal(t, afterRow, forge.alertReads.Load(), "the refusal is kept, so the open asks nothing")
 	assert.Equal(t, got.ReadAt, row.ListReadAt)
 }
+
+func TestListAdvisories_ASharedCacheServesOneCredentialsListToThatCredentialOnly(t *testing.T) {
+	t.Parallel()
+	forge := &countingForge{}
+	shared := github.NewAdvisoryCache()
+	open := func(credential string) *github.Client {
+		c := forge.client(t)
+		c.ShareAdvisoryCache(shared)
+		c.SetStats(nil, credential)
+
+		return c
+	}
+
+	_, err := open("token:aaaa").ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+	_, err = open("token:aaaa").ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, forge.alertReads.Load(), "the same credential reuses the list")
+
+	_, err = open("app:7").ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+
+	assert.EqualValues(t, 2, forge.alertReads.Load(), "another credential reads for itself")
+}

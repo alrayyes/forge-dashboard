@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/advisorycache"
@@ -98,7 +99,9 @@ func (c *Client) SetLogger(l *slog.Logger) { c.log = l }
 
 // AdvisoryTTLForTest is how long a repo's cached advisory answer has left.
 func (c *Client) AdvisoryTTLForTest(repo string) time.Duration {
-	return c.advisories.cache.Remaining(repo)
+	owner, name, _ := strings.Cut(repo, "/")
+
+	return c.advisories.cache.Remaining(c.advisoryKey(owner, name))
 }
 
 // SetLogProxyForTest replaces the proxy choice of the log blob client; call it

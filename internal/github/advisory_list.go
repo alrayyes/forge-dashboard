@@ -80,7 +80,7 @@ type alertListItem struct {
 // rate limit, any other failure and a repo with more alerts than maxAlertPages
 // hold are an unknown list with the cause, never an empty one.
 func (c *Client) ListAdvisories(ctx context.Context, owner, name string) (dashboard.AdvisoryList, error) {
-	list, err := c.advisories.lists.Serve(ctx, owner+"/"+name, func(ctx context.Context) (dashboard.AdvisoryList, error) {
+	list, err := c.advisories.lists.Serve(ctx, c.advisoryKey(owner, name), func(ctx context.Context) (dashboard.AdvisoryList, error) {
 		ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
 		_, list, _, err := c.readAlerts(ctx, owner, name, "")
 		if err != nil {
