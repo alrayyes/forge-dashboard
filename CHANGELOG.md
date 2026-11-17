@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.76.0](https://github.com/alrayyes/forge-dashboard/compare/v9.75.0...v9.76.0) (2026-11-17)
+
+
+### Features
+
+* **advisories:** open the advisories dialog on the row's facts and a kept list ([#4202](https://github.com/alrayyes/forge-dashboard/issues/4202)) ([38101db](https://github.com/alrayyes/forge-dashboard/commit/38101db979dc2806de2d66b31ffe4c69cb5c2af9))
+
 ## [9.75.0](https://github.com/alrayyes/forge-dashboard/compare/v9.74.0...v9.75.0) (2026-11-17)
 
 
