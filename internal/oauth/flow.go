@@ -17,6 +17,11 @@ import (
 // stores nothing.
 var ErrInvalidState = errors.New("oauth: unknown, used or expired state")
 
+// ErrExchange is what Complete answers when the forge refused the code, or the
+// verifier didn't match the challenge, or the token endpoint couldn't be
+// reached. Nothing was stored.
+var ErrExchange = errors.New("oauth: code exchange failed")
+
 type attempt struct {
 	cfg      oauth2.Config
 	instance string
@@ -86,7 +91,7 @@ func (f *Flow) CompleteWith(ctx context.Context, state, code string) (*oauth2.To
 
 	token, err := a.cfg.Exchange(ctx, code, oauth2.VerifierOption(a.verifier))
 	if err != nil {
-		return nil, "", fmt.Errorf("oauth: exchange code: %w", err)
+		return nil, "", fmt.Errorf("%w: %w", ErrExchange, err)
 	}
 
 	return token, a.instance, nil

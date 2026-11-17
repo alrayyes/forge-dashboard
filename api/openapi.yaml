@@ -706,6 +706,7 @@ paths:
   /api/v1/connections/forgejo:
     post:
       operationId: startForgejoConnection
+      x-mcp-excluded: "A browser consent flow: the owner approves on the forge, which an MCP token cannot do."
       summary: Start linking a Forgejo account with OAuth
       description: |
         Begins the authorization code flow with PKCE (RFC 9700) against the
@@ -753,6 +754,7 @@ paths:
                 $ref: "#/components/schemas/Error"
     delete:
       operationId: disconnectForgejo
+      x-mcp-excluded: "Unlinking an account is the owner's own action in the browser."
       summary: Unlink the Forgejo account
       description: |
         Deletes the stored token pair. When a pasted Forgejo token is saved,
@@ -772,6 +774,7 @@ paths:
   /api/v1/connections/forgejo/callback:
     get:
       operationId: finishForgejoConnection
+      x-mcp-excluded: "The forge's redirect back to the browser, never called by a client."
       summary: Forgejo's redirect back after consent
       description: |
         Checks `state` (single use, ten minutes), exchanges `code` with the
@@ -4604,6 +4607,8 @@ components:
           forgejoUrl,
           forgejoUsername,
           forgejoTokenSet,
+          forgejoOAuthConfigured,
+          forgejoOAuthConnected,
           webhookConfigured,
           renovateRebaseLabel,
           renovateAuthors,
@@ -4629,6 +4634,10 @@ components:
         forgejoUsername:
           type: string
         forgejoTokenSet:
+          type: boolean
+        forgejoOAuthConfigured:
+          type: boolean
+        forgejoOAuthConnected:
           type: boolean
         webhookConfigured:
           type: boolean
