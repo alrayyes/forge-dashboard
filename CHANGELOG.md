@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.72.4](https://github.com/alrayyes/forge-dashboard/compare/v9.72.3...v9.72.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **forges:** read forge and advisory lookups as own keys only ([#4177](https://github.com/alrayyes/forge-dashboard/issues/4177)) ([cc1ec09](https://github.com/alrayyes/forge-dashboard/commit/cc1ec0900e5ea8f853b40801cd60fc57c3421fe6)), closes [#3975](https://github.com/alrayyes/forge-dashboard/issues/3975)
+
 ## [9.72.3](https://github.com/alrayyes/forge-dashboard/compare/v9.72.2...v9.72.3) (2026-11-17)
 
 
