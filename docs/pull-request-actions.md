@@ -954,6 +954,9 @@ waiting, failed, then unknown, each with its own glyph. A state with no checks
 is left out. An unknown check is one in a state the server cannot grade, such
 as a status or conclusion the forge added later: it is not a failure and not a
 wait, and a pipeline that would read passed does not while one is present.
+In the pipeline dialog an unknown check names the word the forge sent, beside
+the label and in its tooltip, so you can tell what it was. A forge that sent
+no word shows the label alone.
 A pull request whose only odd check is unknown is pending, so the Running
 quick filter lists it; there is no filter of its own. On a
 phone the word goes and the counts stay. The server tallies the counts from

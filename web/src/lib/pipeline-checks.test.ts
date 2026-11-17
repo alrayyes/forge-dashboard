@@ -8,6 +8,7 @@ import {
   checkDurationSeconds,
   checkRunKey,
   checkState,
+  checkUnknownWord,
   formatCheckDuration,
   groupChecks,
   isBlocking,
@@ -391,5 +392,47 @@ describe('rerunnableCounts', () => {
       check({ conclusion: 'cancelled' }),
     ]);
     expect(counts).toEqual({ rerun: 0, skipped: 0 });
+  });
+});
+
+describe('checkUnknownWord', () => {
+  test('is the forge word the server sent for an unknown status', () => {
+    expect(
+      checkUnknownWord(
+        check({
+          status: 'unknown',
+          conclusion: undefined,
+          reportedStatus: 'brand_new_status',
+        }),
+      ),
+    ).toBe('brand_new_status');
+  });
+
+  test('is the conclusion for a finished job the page cannot grade', () => {
+    expect(checkUnknownWord(check({ conclusion: 'something_new' }))).toBe(
+      'something_new',
+    );
+  });
+
+  test('is empty when the forge gave no word', () => {
+    expect(
+      checkUnknownWord(check({ status: 'unknown', conclusion: undefined })),
+    ).toBe('');
+    expect(checkUnknownWord(check({ conclusion: undefined }))).toBe('');
+  });
+
+  test('is empty for a check the page can grade', () => {
+    expect(
+      checkUnknownWord(check({ status: 'queued', reportedStatus: 'queued' })),
+    ).toBe('');
+    expect(checkUnknownWord(check({ conclusion: 'failure' }))).toBe('');
+  });
+
+  test('keeps a long word to a readable length', () => {
+    expect(
+      checkUnknownWord(
+        check({ status: 'unknown', reportedStatus: 'x'.repeat(100) }),
+      ).length,
+    ).toBeLessThanOrEqual(40);
   });
 });
