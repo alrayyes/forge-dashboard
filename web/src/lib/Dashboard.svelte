@@ -8953,6 +8953,7 @@
     const filterSheetClear = document.getElementById(
       "filter-sheet-clear",
     ) as HTMLButtonElement | null;
+    const filterSheetCount = document.getElementById("filter-sheet-count");
     const activeFiltersEl = document.getElementById("active-filters");
     let filterControlsHome: {
       parent: HTMLElement;
@@ -9097,6 +9098,18 @@
             ? "Show 1 result"
             : `Show ${visibleResultCount} results`;
       if (filterSheetClear) filterSheetClear.disabled = filtersAreDefault();
+      // The button's name changes with the count, but a button isn't
+      // announced for that; the live region says it (#4076).
+      // Written only when it differs: a rewrite of the same text can make
+      // some screen readers say it again.
+      if (filterSheetCount) {
+        const countText =
+          visibleResultCount === 1
+            ? "1 result"
+            : `${visibleResultCount} results`;
+        if (filterSheetCount.textContent !== countText)
+          filterSheetCount.textContent = countText;
+      }
 
       // Only rebuilt when what's shown would change, so a chip the reader
       // is about to tap isn't replaced under their finger by a refresh.
@@ -10916,6 +10929,12 @@
       <button type="button" class="filter-sheet-show" id="filter-sheet-show"
         >Show results</button
       >
+      <span
+        class="sr-only"
+        id="filter-sheet-count"
+        role="status"
+        aria-live="polite"
+      ></span>
     </div>
   </dialog>
 
