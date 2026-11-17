@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.72.0](https://github.com/alrayyes/forge-dashboard/compare/v9.71.0...v9.72.0) (2026-11-17)
+
+
+### Features
+
+* **web:** clear button and Escape on the Insights title and Branches search boxes ([#4154](https://github.com/alrayyes/forge-dashboard/issues/4154)) ([27286b3](https://github.com/alrayyes/forge-dashboard/commit/27286b31ef010d4c1eb840b2772426914b550f92))
+
 ## [9.71.0](https://github.com/alrayyes/forge-dashboard/compare/v9.70.1...v9.71.0) (2026-11-17)
 
 
