@@ -1,6 +1,8 @@
 // The words of the one banner that says a forge is unreachable (#3719). Each
 // fact appears once: which forge, how old the rows on screen are, and that the
-// page retries on its own. Both forges down share one sentence.
+// page retries on its own. Forges down together share one sentence.
+
+import { forgeIds } from './forges';
 
 export type DownForge = {
   forge: string;
@@ -26,10 +28,10 @@ export type ProviderStatus = {
 export type BannerCopy = {
   headline: string;
   detail: string;
-  // The first down forge with a status page to link; a self-hosted Forgejo has
-  // none (#1301).
+  // The first down forge with a status page to link; a self-hosted forge may
+  // have none (#1301).
   statusLink?: { label: string; url: string };
-  // A second sentence when GitHub itself reports an incident (#3633).
+  // A second sentence when a forge itself reports an incident (#3633).
   incident?: string;
   // The detail cut around the relative age, so the page can tick that part
   // alone (#3745): before + text + after is the detail.
@@ -100,10 +102,13 @@ function statusLinkOf(down: DownForge[]): BannerCopy['statusLink'] {
 }
 
 export function bannerCopy(down: DownForge[], fmt: Format): BannerCopy {
-  // GitHub first, as the toolbar orders the forges.
-  const ordered = [...down].sort(
-    (a, b) => Number(b.forge === 'github') - Number(a.forge === 'github'),
-  );
+  // In the order the forge list has them, as the toolbar does. A forge the list
+  // lacks goes last; the sort is stable, so those keep the order given.
+  const rank = (f: DownForge) => {
+    const i = forgeIds().indexOf(f.forge);
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i;
+  };
+  const ordered = [...down].sort((a, b) => rank(a) - rank(b));
   const headline =
     ordered.length === 1
       ? headlineOf(ordered[0])

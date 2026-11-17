@@ -1,5 +1,6 @@
 /// <reference types="bun" />
-import { describe, expect, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import { bannerCopy, type DownForge } from './unreachable-banner';
 
 const fmt = {
@@ -21,6 +22,31 @@ const fj: DownForge = {
 };
 
 describe('bannerCopy', () => {
+  afterEach(resetForgeCapabilities);
+
+  test('forges are named in the order of the forge list, a registered third one last', () => {
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+    const third: DownForge = { forge: 'gitea', label: 'Gitea' };
+    expect(bannerCopy([third, fj, gh], fmt).headline).toBe(
+      'GitHub, Forgejo and Gitea are unreachable.',
+    );
+  });
+
+  test('a registered third forge does not jump ahead of a listed one', () => {
+    registerForgeCapabilities([{ forge: 'gitea' }]);
+    const third: DownForge = { forge: 'gitea', label: 'Gitea' };
+    expect(bannerCopy([third, fj], fmt).headline).toBe(
+      'Forgejo and Gitea are unreachable.',
+    );
+  });
+
+  test('a forge the list has never heard of goes after the listed ones, in the order given', () => {
+    const a: DownForge = { forge: 'zzz', label: 'Zzz' };
+    const b: DownForge = { forge: 'aaa', label: 'Aaa' };
+    expect(bannerCopy([a, b, fj], fmt).headline).toBe(
+      'Forgejo, Zzz and Aaa are unreachable.',
+    );
+  });
   test('a forge that sends a status page gets the link, named by its label', () => {
     const third: DownForge = {
       forge: 'gitea',

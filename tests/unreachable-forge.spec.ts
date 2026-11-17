@@ -230,6 +230,25 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     await expect(page.getByText('Retrying automatically')).toHaveCount(1);
   });
 
+  test('with a third forge down too, the banner names them in the forge list order, not the order the server sent', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [
+        down({ forge: 'gitea', capabilities: { label: 'Gitea' } }),
+        down({ forge: 'forgejo' }),
+        up('github'),
+      ],
+      [makePR(1)],
+    );
+    await page.goto('/pull-requests.html');
+
+    await expect(page.locator('#unreachable-banner')).toContainText(
+      'Forgejo and Gitea are unreachable.',
+    );
+  });
+
   test('Retry forces a refresh, and when the forge answers the controls return with a toast and the banner clears', async ({
     page,
   }) => {
