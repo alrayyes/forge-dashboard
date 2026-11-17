@@ -177,3 +177,20 @@ describe('a Branches key the user touched', () => {
     expect(state.branches).toEqual({ status: 'passed', forge: 'forgejo' });
   });
 });
+
+describe('the Branches forge filter from saved state', () => {
+  test('a registered third forge restores, an unknown one falls back to all', async () => {
+    const { registerForgeCapabilities, resetForgeCapabilities } = await import(
+      './forges'
+    );
+    const { filterFromState } = await import('./main-branches');
+    try {
+      expect(filterFromState({ forge: 'gitea' }).forge).toBe('all');
+      registerForgeCapabilities([{ forge: 'gitea' }]);
+      expect(filterFromState({ forge: 'gitea' }).forge).toBe('gitea');
+      expect(filterFromState({ forge: 'nope' }).forge).toBe('all');
+    } finally {
+      resetForgeCapabilities();
+    }
+  });
+});

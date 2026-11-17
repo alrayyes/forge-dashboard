@@ -8,6 +8,7 @@ import {
   type CheckSegment,
   pillName,
 } from './check-counts.js';
+import { isKnownForge } from './forges';
 import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 
@@ -127,8 +128,6 @@ export type PullRequestAddress = {
   number: number;
 };
 
-const FORGES = new Set(['github', 'forgejo']);
-
 /**
  * Reads `?pr=forge/owner/name/number`, the form the server writes. Null for a
  * missing or malformed one, so a stray value opens nothing.
@@ -141,7 +140,7 @@ export function parsePullRequestAddress(
   const parts = value.split('/');
   if (parts.length !== 4) return null;
   const [forge, owner, name, raw] = parts;
-  if (!FORGES.has(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
+  if (!isKnownForge(forge) || !owner || !name || !/^[0-9]+$/.test(raw))
     return null;
   const number = Number(raw);
   if (number < 1) return null;
