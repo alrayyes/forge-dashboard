@@ -287,24 +287,17 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(output).toHaveCount(0);
   });
 
-  test('a cut log says so', async ({ page }) => {
+  // The wording, the job link and the colours of each answer are stories
+  // (CheckRunOutput.stories.svelte); what stays is the dialog around them. The
+  // refused read's axe run covers the error's colours, as every error shares them.
+  test('a cut log passes axe in the dialog', async ({ page }) => {
     await setup(page, {
       status: 200,
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const note = dialog.locator('.run-output-note');
-    await expect(note).toContainText('Showing the last 256 KB of this output.');
-    const link = note.getByRole('link', {
-      name: checkLinkName('Open job on GitHub for the rest', 'build'),
-    });
-    await expect(link).toHaveText('Open job on GitHub for the rest');
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
+    await expect(dialog.locator('.run-output-note')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')
@@ -312,42 +305,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('a missing output says so and links to the job', async ({ page }) => {
-    await setup(page, { status: 404, body: { error: 'gone' } });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText(
-      'GitHub has no output for this check. It may have expired.',
-    );
-    const link = error.getByRole('link', {
-      name: checkLinkName('Open job on GitHub', 'build'),
-    });
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', /noopener/);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
-
-    const results = await new AxeBuilder({ page })
-      .include('#pipeline-dialog')
-      .analyze();
-    expect(results.violations).toEqual([]);
-  });
-
-  test('a rate limit keeps its message and has no job link', async ({
-    page,
-  }) => {
-    await setup(page, { status: 429, body: {} });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText('is limiting requests right now');
-    await expect(error.getByRole('link')).toHaveCount(0);
-  });
-
-  test('a refused read is a plain message, not the raw error', async ({
+  test('a refused read leaves the row with its Copy output and no icon buttons, and passes axe', async ({
     page,
   }) => {
     await setup(page, {
@@ -356,17 +314,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Show output: build' }).click();
-
-    const error = dialog.locator('.run-output-error');
-    await expect(error).toContainText(
-      "The saved GitHub token can't read this output.",
-    );
-    const link = error.getByRole('link', {
-      name: checkLinkName('Open job on GitHub', 'build'),
-    });
-    await expect(link).toHaveAttribute('href', runUrl);
-    await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
-    await expect(dialog).not.toContainText('Resource not accessible');
+    await expect(dialog.locator('.run-output-error')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .include('#pipeline-dialog')

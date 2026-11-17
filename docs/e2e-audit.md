@@ -230,6 +230,20 @@ One ticket per group, each doing moves with its own mutation proof:
   clipboard failures not reaching the box. Moving focus to the box is not
   separable, since `select()` focuses it, so the story pins the end state. The
   CSV row for `copy-failure` is updated.
+- The seventh move, from `pipeline-run-output`: `CheckRunOutput` already had
+  stories for its shapes, and they now hold the words too. The cut note's
+  sentence and job link, the missing output's sentence and link, the refused
+  read's plain sentence (never the forge's own words) and link, and a new
+  "Rate limited" story with no link are `play` functions, down to the link's
+  name, `href`, `target`, `rel` and new-tab mark and the note's and error's
+  size and colour. The rate-limit test and the missing-output test are gone.
+  The cut and refused tests shrank to their axe runs and the refused row's
+  Copy output button and absent icon buttons, since those read the dialog. The
+  other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
+  became about 20.6 s (58), measured on one worker with the machine idle, and
+  the new stories take about 0.1 s. Each assertion was proven red by breaking
+  the component, `run-log.ts` or the stylesheet (see the pull request for the
+  list). The CSV row for `pipeline-run-output` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
