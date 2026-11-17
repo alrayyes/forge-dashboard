@@ -5,6 +5,7 @@
   // parsed as markup.
   import { onDestroy, tick } from "svelte";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
+  import type { Check } from "#lib/pipeline-checks.js";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
   import {
     checkLinkLabel,
@@ -19,6 +20,7 @@
     name,
     jobId,
     repo,
+    run,
     runUrl,
     forgeName,
     onloaded,
@@ -27,6 +29,9 @@
     name: string;
     jobId: number;
     repo: RepoRef | undefined;
+    // The job's attempt and finish time, which let the server keep a finished
+    // log and read a rerun afresh.
+    run?: Pick<Check, "runAttempt" | "completedAt">;
     runUrl: string;
     forgeName: string;
     // Told when the panel is open with its text loaded, and when it stops
@@ -37,7 +42,7 @@
     earlier?: CopyFlow;
   } = $props();
 
-  const url = $derived(logUrl(repo, jobId));
+  const url = $derived(logUrl(repo, jobId, run));
   let shown = $state(false);
   let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");

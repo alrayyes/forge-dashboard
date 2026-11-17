@@ -717,6 +717,7 @@
             name={check.name}
             jobId={check.jobId}
             repo={target.repo}
+            run={check}
             runUrl={check.url}
             forgeName={forge}
             onloaded={(loaded) =>
