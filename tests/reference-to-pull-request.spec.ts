@@ -69,6 +69,7 @@ async function open(
   from: 'pull-requests' | 'issues',
   text: string,
   comments: string[] = [],
+  gate: Promise<void> = Promise.resolve(),
 ) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -97,17 +98,35 @@ async function open(
       body: JSON.stringify({ ...thread(text, comments), releaseNotes: null }),
     }),
   );
-  await page.route('**/api/v1/issues/details*', (route: Route) => {
+  await page.route('**/api/v1/issues/details*', async (route: Route) => {
     const number = new URL(route.request().url()).searchParams.get('number');
-    if (number === '4177')
+    if (number === '4177') {
+      await gate;
+
       return route.fulfill({
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
           ...thread('The linked change.'),
           kind: 'pullRequest',
-          state: 'open',
+          state: 'closed',
+          pullRequest: {
+            title: 'Add structured logging to the sync loop',
+            state: 'merged',
+            author: {
+              login: 'octo-author',
+              avatarUrl: '',
+              url: 'https://github.com/octo-author',
+            },
+          },
         }),
+      });
+    }
+    if (number === '5000')
+      return route.fulfill({
+        status: 502,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'the forge could not be reached' }),
       });
     if (number === '9999')
       return route.fulfill({
@@ -227,6 +246,124 @@ test.describe('a reference to a pull request opens it (#4188)', () => {
       await open(page, 'issues', 'Fixed by #4177');
       await issueDialog(page).getByRole('link', { name: '#4177' }).click();
       await expect(prDialog(page)).toContainText('The linked change.');
+
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+});
+
+// The reader sees the real title, who opened it and whether it was merged,
+// from the same answer that says it is a pull request.
+test.describe('a reference to a pull request the board does not list (#4196)', () => {
+  test('shows its real title, author and merged status', async ({ page }) => {
+    await open(page, 'issues', 'Fixed by #4177');
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+    const dialog = prDialog(page);
+    await expect(
+      dialog.getByRole('heading', {
+        name: 'Add structured logging to the sync loop',
+      }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('group', { name: 'Status' })).toHaveText(
+      'Merged',
+    );
+    await expect(dialog.locator('.details-author')).toContainText(
+      'Opened by octo-author',
+    );
+    await expect(dialog).not.toContainText('Pull request #4177');
+  });
+
+  test('a pull request in the list opens as the normal dialog with no extra request', async ({
+    page,
+  }) => {
+    const extra: string[] = [];
+    page.on('request', (r) => {
+      if (/\/api\/v1\/issues\/details/.test(r.url())) extra.push(r.url());
+    });
+    await open(page, 'pull-requests', 'Refs #42');
+    await prDialog(page).getByRole('link', { name: '#42' }).click();
+
+    await expect(prDialog(page).locator('.details-state')).toBeVisible();
+    await expect(prDialog(page)).toContainText('Add structured logging');
+    expect(extra).toEqual([]);
+  });
+
+  test('keeps the issue-style shell with the reason when the read fails', async ({
+    page,
+  }) => {
+    await open(page, 'issues', 'Fixed by #5000');
+    await issueDialog(page).getByRole('link', { name: '#5000' }).click();
+
+    await expect(issueDialog(page)).toContainText(
+      'the forge could not be reached',
+    );
+    await expect(prDialog(page)).toBeHidden();
+  });
+
+  for (const size of [
+    { width: 1366, height: 600 },
+    { width: 375, height: 667 },
+    { width: 1280, height: 900 },
+  ]) {
+    test(`the header does not move when the real details arrive at ${size.width}x${size.height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      let release: () => void = () => {};
+      const gate = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      await open(page, 'issues', 'Fixed by #4177', [], gate);
+      await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+      const spots = (dialog: ReturnType<typeof prDialog>) =>
+        dialog.evaluate((el) => {
+          const top = (sel: string) =>
+            el.querySelector(sel)?.getBoundingClientRect().top ?? null;
+          return {
+            dialog: el.getBoundingClientRect().top,
+            ref: top('.details-ref'),
+            title: top('.details-title'),
+            close: top('.details-close'),
+          };
+        });
+      const shell = page.getByRole('dialog', { name: /#4177/ });
+      await expect(shell).toBeVisible();
+      await expect(shell.locator('.details-skeleton')).toBeVisible();
+      const before = await spots(shell);
+      release();
+      await expect(
+        prDialog(page).getByRole('heading', {
+          name: 'Add structured logging to the sync loop',
+        }),
+      ).toBeVisible();
+      await expect(prDialog(page).locator('.details-skeleton')).toBeHidden();
+      const after = await spots(prDialog(page));
+
+      for (const key of ['dialog', 'ref', 'title', 'close'] as const)
+        expect(
+          Math.abs((after[key] ?? 0) - (before[key] ?? 0)),
+          `${key} moved`,
+        ).toBeLessThanOrEqual(1);
+    });
+  }
+
+  for (const width of [360, 1280]) {
+    test(`the real details have no axe violations at ${width}px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await open(page, 'issues', 'Fixed by #4177');
+      await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+      await expect(
+        prDialog(page).getByRole('heading', {
+          name: 'Add structured logging to the sync loop',
+        }),
+      ).toBeVisible();
 
       const results = await new AxeBuilder({ page })
         .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
