@@ -209,6 +209,27 @@ One ticket per group, each doing moves with its own mutation proof:
   (13). Each assertion was proven red by breaking the component: the grant
   link's condition, the Forgejo link's wording and its target. The CSV row for
   `main-branch-advisories` is updated.
+- The sixth move, from `copy-failure`: the Copy button beside a failed action
+  is already a function of the failure details and the class it is given, so
+  no component changed. `CopyDetails.stories.svelte` draws the real
+  `copyButton` in the three places the page puts it (a row's failure line, a
+  toast and the pipeline panel's rerun failure). The "Copied, then Copy again"
+  test is gone (it waited out the two-second timer), and the clipboard-refused
+  test shrank to the check that a row's Copy reaches the details box. The
+  button's label, name and type, the JSON it writes, the revert after two
+  seconds, and the box's name, `readonly`, rows, value, selection and place
+  (after a row's line, inside a toast or the panel) are `play` functions, for a
+  refused clipboard and for none at all. The journeys that read the clipboard
+  through a real failure stay, since they check what the page puts in the
+  details. About 14.6 s of e2e test time (22 runs) became about 11.6 s (21),
+  and the seven stories take about 0.1 s. Each assertion was proven red by
+  breaking the button: its label, name, type and class, the Copied wording, the
+  two-second delay, the revert, the indentation and the text written, the box's
+  `readonly`, name, rows, class, value, selection and place in each of the
+  three hosts, the box being reused, and the synchronous and asynchronous
+  clipboard failures not reaching the box. Moving focus to the box is not
+  separable, since `select()` focuses it, so the story pins the end state. The
+  CSV row for `copy-failure` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in

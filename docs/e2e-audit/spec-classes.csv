@@ -43,7 +43,7 @@ close-neutral.spec.ts,4.573,6,5,A,,0.8
 closing-issues.spec.ts,7.392,11,5,C,web/src/lib/closing-issues.test.ts,4.0
 conflict-not-confirmed.spec.ts,,4,1,C,,0.0
 conflicts-filter.spec.ts,2.812,5,1,C,,2.2
-copy-failure.spec.ts,14.431,17,3,C,,11.9
+copy-failure.spec.ts,11.6,16,3,C,CopyDetails.stories.svelte (proven),9.1
 csp-img-src.spec.ts,,3,1,C,,0.0
 dashboard-error-banner.spec.ts,0.93,3,1,C,,0.6
 dashboard.spec.ts,51.2,100,15,C,web/src/lib/dashboard-read.test.ts;web/src/lib/dashboard-read-error.test.ts,43.6
