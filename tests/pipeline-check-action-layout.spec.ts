@@ -22,7 +22,7 @@ const ROWS = [
   { name: 'skipped-job', ...factsOf('skipped'), url: run, jobId: 5 },
 ];
 
-async function open(page: Page) {
+async function open(page: Page, holdLog?: Promise<void>) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
@@ -52,13 +52,14 @@ async function open(page: Page) {
       }),
     }),
   );
-  await page.route('**/api/v1/checks/log*', (route: Route) =>
-    route.fulfill({
+  await page.route('**/api/v1/checks/log*', async (route: Route) => {
+    await holdLog;
+    await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({ text: 'ok', truncated: false }),
-    }),
-  );
+    });
+  });
   await serveChecks(page, () => ROWS);
   await page.goto('/pull-requests.html');
   await page
@@ -107,7 +108,9 @@ for (const scheme of ['light', 'dark'] as const) {
           expect(box.width).toBeGreaterThanOrEqual(44);
           expect(box.height).toBeGreaterThanOrEqual(44);
         }
-        // Flush with the row's right padding, the same for each status.
+        // The guaranteed contract: same control, size and right edge for every
+        // status. A row with output puts it on the line of its Show output
+        // toggle, so it may sit on a second line below the name.
         rights.add(Math.round(rowBox.x + rowBox.width - (box.x + box.width)));
         sizes.add(`${Math.round(box.width)}x${Math.round(box.height)}`);
       }
@@ -143,4 +146,29 @@ test('Show output does not move the open-job link (#3878)', async ({
     dialog.getByRole('region', { name: 'Output: passed-job' }),
   ).toBeVisible();
   expect(await link.boundingBox()).toEqual(before);
+});
+
+test('the action line does not move while output loads (#3878)', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  let release: () => void = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const dialog = await open(page, held);
+  const row = dialog.locator('.pipeline-check', { hasText: 'passed-job' });
+  await dialog.getByRole('button', { name: 'Show output: passed-job' }).click();
+  const control = openControl(row);
+  const name = row.locator('.pipeline-check-name');
+  const loading = [await control.boundingBox(), await name.boundingBox()];
+  release();
+  await expect(
+    dialog.getByRole('button', { name: 'Copy output: passed-job' }),
+  ).toBeVisible();
+  // The output text below it changes the row's height, as it should; what
+  // this ticket pins is that the top line and its action stay put.
+  expect([await control.boundingBox(), await name.boundingBox()]).toEqual(
+    loading,
+  );
 });
