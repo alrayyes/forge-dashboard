@@ -6,7 +6,7 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
-import { advisoryFactsOf, isKnownForge } from './forges';
+import { advisoryFactsOf, forgeIds, isKnownForge } from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
 import { rowClaim } from './row-claim';
@@ -447,20 +447,20 @@ export function offeredForges(
   filter: MainBranchFilter,
 ): Set<ForgeFilter> {
   const offered = new Set<ForgeFilter>(['all', filter.forge]);
-  // The API only sends github or forgejo. Another forge would be counted
-  // under All forges but get no pill of its own.
+  // A forge the server reports is registered when the page reads, so
+  // forgeIds() lists it and the page gives it a pill.
   for (const b of applyFilter(branches, { ...filter, forge: 'all' }))
     offered.add(b.forge as ForgeFilter);
   return offered;
 }
 
-// Per-forge counts for the toggle, from the rows themselves.
-export function forgeCounts(branches: MainBranch[]) {
-  return {
-    all: branches.length,
-    github: branches.filter((b) => b.forge === 'github').length,
-    forgejo: branches.filter((b) => b.forge === 'forgejo').length,
-  };
+// Per-forge counts for the toggle, from the rows themselves: one key for
+// each forge forgeIds() lists, so a forge the server added is counted too.
+export function forgeCounts(branches: MainBranch[]): Record<string, number> {
+  const counts: Record<string, number> = { all: branches.length };
+  for (const forge of forgeIds())
+    counts[forge] = branches.filter((b) => b.forge === forge).length;
+  return counts;
 }
 
 // "12 min ago", "3 h ago", "2 d ago".
