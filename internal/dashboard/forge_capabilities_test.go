@@ -28,6 +28,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			StatusPageURL:              "https://www.githubstatus.com/",
 			RateLimitModel:             "graphql_and_rest",
 			IssueRefSyntax:             "hash_or_gh_prefix",
+			ReportsRepoPermissions:     false,
 			Label:                      "GitHub",
 			BotLoginSuffix:             "[bot]",
 			BotProfilePages:            map[string]string{"dependabot": "dependabot", "renovate": "apps/renovate"},
@@ -44,6 +45,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			StatusPageURL:              "",
 			RateLimitModel:             "rest",
 			IssueRefSyntax:             "hash",
+			ReportsRepoPermissions:     true,
 			Label:                      "Forgejo",
 		}},
 	}

@@ -5,6 +5,7 @@ import {
   forgeNameList,
   noReposCopy,
   pageDescription,
+  permissionsNotReportedCopy,
   scheduledOnCopy,
 } from './forge-copy';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
@@ -83,5 +84,26 @@ describe('forge copy comes from the label', () => {
     );
     expect(pageDescription('releases')).toContain('Merge and Update branch');
     expect(pageDescription('bots')).toContain('Dependabot and Renovate');
+  });
+});
+
+describe('permissionsNotReportedCopy', () => {
+  test('names the forge by its label', () => {
+    expect(permissionsNotReportedCopy('forgejo')).toBe(
+      "Forgejo didn't report your access on this repo, so the dashboard can't tell if you can manage its webhooks.",
+    );
+  });
+
+  test('a registered third forge reads with its own label', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: { label: 'Gitea', reportsRepoPermissions: true },
+      },
+    ]);
+
+    expect(permissionsNotReportedCopy('gitea')).toStartWith(
+      "Gitea didn't report your access",
+    );
   });
 });

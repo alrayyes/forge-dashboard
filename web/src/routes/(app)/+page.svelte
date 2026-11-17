@@ -3,6 +3,7 @@
   import {
     FORGE_CLASSES,
     FORGE_LABELS,
+    forgeIds,
     registerForgeCapabilities,
   } from "#lib/forges.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
@@ -1076,7 +1077,7 @@
             aria-pressed={filter.forge === "all"}
             onclick={() => setForge("all")}>All forges</button
           >
-          {#each (["github", "forgejo"] as const).filter( (f) => forgeOffered.has(f) ) as forge (forge)}
+          {#each forgeIds().filter((f) => forgeOffered.has(f)) as forge (forge)}
             <button
               type="button"
               class="mb-pill"
