@@ -290,13 +290,19 @@ func branchRuns(rollup *statusCheckRollup) []dashboard.MainBranchRun {
 // another app, or a legacy commit status.
 func (c branchContext) asCheck() dashboard.Check {
 	if c.Typename == "StatusContext" {
-		return dashboard.Check{Name: c.Context, State: checkStateFromCombinedState(strings.ToLower(c.State)), URL: c.TargetURL}
+		return dashboard.Check{
+			Name:           c.Context,
+			State:          checkStateFromCombinedState(strings.ToLower(c.State)),
+			ReportedStatus: reportedStatus(checkStateFromCombinedState(strings.ToLower(c.State)), strings.ToLower(c.State)),
+			URL:            c.TargetURL,
+		}
 	}
 
 	check := dashboard.Check{
 		Name:               c.Name,
 		State:              checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)),
 		ReportedConclusion: reportedWord(c.Status, c.Conclusion),
+		ReportedStatus:     reportedStatus(checkStateOf(strings.ToLower(c.Status), strings.ToLower(c.Conclusion)), strings.ToLower(c.Status)),
 		URL:                c.page(),
 		JobID:              c.DatabaseID,
 		StartedAt:          timePtr(c.StartedAt),

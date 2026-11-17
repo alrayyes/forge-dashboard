@@ -82,6 +82,9 @@ func WithFacts(checks []Check) []Check {
 	out := make([]Check, len(checks))
 	for i, c := range checks {
 		c.Status, c.Conclusion = StatusFacts(c.State, c.ReportedConclusion)
+		if c.Status != CheckStatusUnknown {
+			c.ReportedStatus = ""
+		}
 		out[i] = c
 	}
 

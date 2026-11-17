@@ -32,3 +32,17 @@ func TestListChecks_CarriesTheConclusionGitHubReported(t *testing.T) {
 	}
 	assert.Empty(t, got["going"], "a job still going has not concluded")
 }
+
+func TestListChecks_CarriesTheStatusGitHubReportedForACheckItCannotGrade(t *testing.T) {
+	t.Parallel()
+
+	runs := []map[string]any{
+		{"id": 400, "name": "odd", "status": "brand_new_status", "html_url": "https://github.com/alrayyes/a/runs/z"},
+	}
+
+	checks, err := (&cancelServer{checkRuns: runs}).start(t).ListChecks(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.Equal(t, "brand_new_status", checks[0].ReportedStatus)
+}
