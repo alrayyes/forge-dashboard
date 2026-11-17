@@ -1,4 +1,5 @@
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -194,7 +195,7 @@ test.describe('visible text is part of the accessible name (#1135)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: now,
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [
             {
               forge: 'github',

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Insights and Webhooks drew their empty-data text ("0 repositories tracked",
@@ -13,7 +14,7 @@ const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
 const EMPTY = {
   readIntervalSeconds: 600,
   firstRefreshDone: true,
-  forges: [{ forge: 'github', reachable: true, repoCount: 0 }],
+  forges: [forgeHealth('github', { repoCount: 0 })],
   repos: [],
   pullRequests: [],
   issues: [],
@@ -21,7 +22,7 @@ const EMPTY = {
 
 const FULL = {
   ...EMPTY,
-  forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+  forges: [forgeHealth('github', { repoCount: 2 })],
   repos: [
     { forge: 'github', fullName: 'acme/web', hasWebhook: true },
     { forge: 'github', fullName: 'acme/api', hasWebhook: false },
