@@ -45,6 +45,31 @@ func (c *Client) Find(ctx context.Context, pkgs []Package) ([]Finding, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	return findingsOf(recs, hits)
+}
+
+// ScanAndFind is Scan and Find from one match against OSV, so the read that
+// fills a row's count also has the list behind it.
+func (c *Client) ScanAndFind(ctx context.Context, pkgs []Package) (Summary, []Finding, error) {
+	recs, hits, err := c.match(ctx, pkgs)
+	if err != nil {
+		return Summary{}, nil, err
+	}
+	sum := summarise(recs)
+	if sum.Count > maxAdvisories {
+		return Summary{}, nil, ErrTooMany
+	}
+	found, err := findingsOf(recs, hits)
+	if err != nil {
+		return Summary{}, nil, err
+	}
+
+	return sum, found, nil
+}
+
+// findingsOf groups the matched records into distinct advisories.
+func findingsOf(recs map[string]record, hits map[string][]Package) ([]Finding, error) {
 	roots := aliasRoots(recs)
 	groups := map[string][]string{} // group root -> record ids
 	for id, root := range roots {

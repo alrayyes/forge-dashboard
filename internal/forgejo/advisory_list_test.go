@@ -211,3 +211,55 @@ func TestListAdvisories_APanickedReadDoesNotWedgeLaterOpens(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Advisories, 1)
 }
+
+func TestListAdvisories_AfterARowRefreshCostsNoForgeOrOSVCall(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{
+		summary: osv.Summary{Count: 1, Highest: "high"},
+		findings: []osv.Finding{{
+			ID: "GHSA-bad", IDs: []string{"GHSA-bad"}, Summary: "Prototype pollution", Severity: "high",
+			Hits: []osv.Hit{{Package: leftPad}},
+		}},
+	}
+	forge := &lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}
+	client := forge.start(t, matchingScanner{scanner})
+
+	row, err := forgejo.ReadMainBranchSettled(t.Context(), client, repoA)
+	require.NoError(t, err)
+	require.Equal(t, 1, row.Advisories.Count)
+	forgeAfterRow, osvAfterRow := forge.requests.Load(), scanner.calls()
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	require.Len(t, got.Advisories, 1)
+	assert.Equal(t, forgeAfterRow, forge.requests.Load(), "the lock files are not read again")
+	assert.Equal(t, osvAfterRow, scanner.calls(), "OSV is not asked again")
+	assert.NotEmpty(t, got.ReadAt)
+	assert.Equal(t, got.ReadAt, row.Advisories.ListReadAt)
+}
+
+func TestListAdvisories_ARefreshReadsAgainAndAFailureKeepsTheLastGoodList(t *testing.T) {
+	t.Parallel()
+	scanner := &fakeScanner{findings: []osv.Finding{{ID: "GHSA-1", Summary: "S", Hits: []osv.Hit{{Package: leftPad}}}}}
+	client := (&lockfileServer{files: map[string]string{"package-lock.json": lockJSON}}).start(t, matchingScanner{scanner})
+	first, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+	require.Equal(t, 1, scanner.calls())
+	scanner.mu.Lock()
+	scanner.err = assert.AnError
+	scanner.mu.Unlock()
+
+	again, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+	assert.Equal(t, 1, scanner.calls(), "an open within the window asks nobody")
+	assert.Equal(t, first, again)
+
+	got, err := client.ListAdvisories(dashboard.WithFreshAdvisories(t.Context()), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, scanner.calls())
+	assert.Equal(t, dashboard.ReasonFailed, got.RefreshFailed)
+	assert.Len(t, got.Advisories, 1, "never an empty list")
+	assert.Equal(t, first.ReadAt, got.ReadAt)
+}

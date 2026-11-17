@@ -614,6 +614,9 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// Likewise for the GitHub bodies the image route reads: a client lives for
 	// one request, so a cache on it would never hit (#3682).
 	renderedBodies := github.NewRenderedBodyCache()
+	// And the advisory counts and lists: a client lives for one request, so the
+	// advisories dialog would never find the list a refresh had just read.
+	githubAdvisories := github.NewAdvisoryCache()
 	// One status page reader too, so a burst of failing clients makes one
 	// request (#3633).
 	status := githubstatus.New(githubStatusURL, nil)
@@ -625,6 +628,7 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, renderedBodies); src != nil {
 			if gh, ok := src.(*github.Client); ok {
 				gh.SetStatusChecker(status)
+				gh.ShareAdvisoryCache(githubAdvisories)
 			}
 			sources = append(sources, src)
 		}

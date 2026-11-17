@@ -2,9 +2,12 @@ package github_test
 
 import (
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -179,4 +182,86 @@ func TestListAdvisories_KeepsAScoreWhenNoCVSSBlockHasAVector(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, got.Advisories, 1)
 	assert.Equal(t, &dashboard.AdvisoryCVSS{Score: 7.5}, got.Advisories[0].CVSS)
+}
+
+// countingForge serves one repo's alerts and counts how often it is asked.
+type countingForge struct {
+	alertReads atomic.Int64
+	failAlerts atomic.Bool
+}
+
+func (f *countingForge) client(t *testing.T) *github.Client {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"data": map[string]any{"viewer": map[string]any{"repositories": map[string]any{
+			"pageInfo": map[string]any{"hasNextPage": false},
+			"nodes":    []map[string]any{repoNodeWithOwnerName()},
+		}}}})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/dependabot/alerts", func(w http.ResponseWriter, _ *http.Request) {
+		f.alertReads.Add(1)
+		if f.failAlerts.Load() {
+			http.Error(w, "boom", http.StatusInternalServerError)
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{fullAlert(7, "critical", "2026-10-21T14:12:00Z"), fullAlert(8, "low", "2026-10-22T14:12:00Z")})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return github.NewClient("test-token", "", srv.URL)
+}
+
+func TestListAdvisories_AfterARowRefreshCostsNoForgeCall(t *testing.T) {
+	t.Parallel()
+	forge := &countingForge{}
+	client := forge.client(t)
+
+	result := client.Fetch(t.Context())
+	require.Len(t, result.MainBranches, 1)
+	row := result.MainBranches[0].Advisories
+	require.NotNil(t, row)
+	require.Equal(t, 2, row.Count)
+	require.EqualValues(t, 1, forge.alertReads.Load(), "the row's own read")
+
+	got, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, forge.alertReads.Load(), "opening the dialog adds no read")
+	require.Len(t, got.Advisories, 2)
+	assert.Equal(t, "critical", string(got.Advisories[0].Severity))
+	assert.NotEmpty(t, got.ReadAt)
+	assert.Equal(t, got.ReadAt, row.ListReadAt, "the row says the list is ready, and when it was read")
+}
+
+func TestListAdvisories_OpensWithinTheWindowShareOneRead(t *testing.T) {
+	t.Parallel()
+	forge := &countingForge{}
+	client := forge.client(t)
+
+	for range 3 {
+		_, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+		require.NoError(t, err)
+	}
+
+	assert.EqualValues(t, 1, forge.alertReads.Load())
+}
+
+func TestListAdvisories_RefreshReadsAgainAndAFailureKeepsTheLastGoodList(t *testing.T) {
+	t.Parallel()
+	forge := &countingForge{}
+	client := forge.client(t)
+	first, err := client.ListAdvisories(t.Context(), "alrayyes", "a")
+	require.NoError(t, err)
+	forge.failAlerts.Store(true)
+
+	got, err := client.ListAdvisories(dashboard.WithFreshAdvisories(t.Context()), "alrayyes", "a")
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, forge.alertReads.Load())
+	assert.Equal(t, dashboard.ReasonFailed, got.RefreshFailed)
+	assert.Len(t, got.Advisories, 2, "never an empty list")
+	assert.Equal(t, first.ReadAt, got.ReadAt)
 }

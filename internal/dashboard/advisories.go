@@ -82,6 +82,10 @@ type Advisories struct {
 	// they are not public. Count is then a floor, and a zero is not "none".
 	// Omitted when the answer covers everything it read.
 	Partial bool `json:"partial,omitempty"`
+	// ListReadAt is set when the read that produced this answer also kept the
+	// full list behind it (RFC 3339), so the advisories dialog opens without a
+	// call to the forge. The list itself is never sent with the row.
+	ListReadAt string `json:"listReadAt,omitempty"`
 }
 
 // UnknownAdvisories is the answer when a source can't say.

@@ -586,3 +586,26 @@ func TestFind_FixVersionsComeFromTheSameEcosystem(t *testing.T) {
 	require.Len(t, got, 1)
 	assert.Equal(t, []string{"1.0.1"}, got[0].Hits[0].Fixed)
 }
+
+func TestScanAndFind_OneMatchAnswersBothAsScanAndFindDo(t *testing.T) {
+	t.Parallel()
+	newServer := func() *osvServer {
+		return &osvServer{
+			vulns:  map[string][]string{"a@1.0.0": {"GHSA-1"}, "b@2.0.0": {"GHSA-2"}},
+			detail: map[string]map[string]any{"GHSA-1": ghsa("HIGH"), "GHSA-2": ghsa("LOW")},
+		}
+	}
+	pkgs := []osv.Package{{Ecosystem: "npm", Name: "a", Version: "1.0.0"}, {Ecosystem: "npm", Name: "b", Version: "2.0.0"}}
+	wantSum, err := newServer().start(t).Scan(t.Context(), pkgs)
+	require.NoError(t, err)
+	wantFound, err := newServer().start(t).Find(t.Context(), pkgs)
+	require.NoError(t, err)
+	both := newServer()
+
+	sum, found, err := both.start(t).ScanAndFind(t.Context(), pkgs)
+
+	require.NoError(t, err)
+	assert.Equal(t, wantSum, sum)
+	assert.Equal(t, wantFound, found)
+	assert.EqualValues(t, 1, both.batches.Load(), "one match, not one for the count and another for the list")
+}

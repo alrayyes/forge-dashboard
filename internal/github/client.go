@@ -133,7 +133,7 @@ type Client struct {
 	upToDate dashboard.UpToDateRuleCache
 
 	// advisories remembers each repo's open dependency advisories for a while.
-	advisories advisoryCache
+	advisories *advisoryCache
 	// log is where the client says what it skipped; nil means slog's default.
 	log *slog.Logger
 
@@ -257,6 +257,7 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 		recorder:   rec,
 
 		renderedBodies: NewRenderedBodyCache(),
+		advisories:     NewAdvisoryCache(),
 	}
 }
 
@@ -345,6 +346,7 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		appAuthenticated: true,
 		recorder:         rec,
 		renderedBodies:   NewRenderedBodyCache(),
+		advisories:       NewAdvisoryCache(),
 	}, nil
 }
 
