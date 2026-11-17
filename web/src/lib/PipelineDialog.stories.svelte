@@ -238,3 +238,25 @@
 >
   {@render opener(PULL_REQUEST)}
 </Story>
+
+<!-- A forge id named like an inherited key, on a board that gave no forge
+     name: the run link names the id, not a function (#4193). -->
+<Story
+  asChild
+  name="Forge named constructor"
+  beforeEach={() => mockFeed(answer({ checks: PASSING }))}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    await waitFor(() =>
+      expect(document.querySelector(".pipeline-run-button")?.textContent).toBe(
+        "Open run on constructor",
+      ),
+    );
+  }}
+>
+  {@render opener({
+    ...PULL_REQUEST,
+    repo: { forge: "constructor", fullName: "alrayyes/forge-dashboard" },
+    forgeName: undefined,
+  })}
+</Story>
