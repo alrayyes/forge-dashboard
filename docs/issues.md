@@ -208,7 +208,8 @@ pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
 and the pill keeps focus. The pop-up spells it out under
 "Referenced in" ("Italic: these reference the issue, they do not close it.")
 so a phone reader gets it without hover. Settings repeats it under
-Behaviour, in the Issues card, in the same words as the rule above. How a
+Behaviour, in the Issues card: upright means the pull request closes the
+issue, italic means it only references it and does not close it. How a
 mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
