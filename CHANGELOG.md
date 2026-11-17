@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.72.3](https://github.com/alrayyes/forge-dashboard/compare/v9.72.2...v9.72.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **filters:** read a stale forge pick as All for Group by and Clear filters ([#4173](https://github.com/alrayyes/forge-dashboard/issues/4173)) ([2d464c1](https://github.com/alrayyes/forge-dashboard/commit/2d464c13d27aa0b2d80c2d7a004b0223f0f2d129)), closes [#4171](https://github.com/alrayyes/forge-dashboard/issues/4171)
+
 ## [9.72.2](https://github.com/alrayyes/forge-dashboard/compare/v9.72.1...v9.72.2) (2026-11-17)
 
 
