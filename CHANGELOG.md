@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.72.2](https://github.com/alrayyes/forge-dashboard/compare/v9.72.1...v9.72.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** keep focus in a pick panel when a touch lands on a row's name ([#4162](https://github.com/alrayyes/forge-dashboard/issues/4162)) ([dcba446](https://github.com/alrayyes/forge-dashboard/commit/dcba446123922ae2fe155e65dcfd7fa79dfa6ca5)), closes [#4093](https://github.com/alrayyes/forge-dashboard/issues/4093)
+
 ## [9.72.1](https://github.com/alrayyes/forge-dashboard/compare/v9.72.0...v9.72.1) (2026-11-17)
 
 
