@@ -197,6 +197,18 @@ One ticket per group, each doing moves with its own mutation proof:
   pointing elsewhere, the alert role, the Retry label, its click, the alert
   shown when empty, a page's own message, and the Retry focus outline. The CSV
   rows for both specs are updated.
+- The fifth move, from `main-branch-advisories`: the Branches page's two
+  advisories notices (GitHub and Forgejo) were built inside the page, so they
+  are now `AdvisoriesNotice.svelte` with nine stories (each cause, for each
+  forge). The refusal test is gone, the rate-limit test shrank to the check that
+  the shared cause reaches the notice, and the wording, link and no-permission
+  checks in the two "every answer unknown" tests are `play` functions. The
+  counts, the absent pills and cues, axe in both themes and the overflow checks
+  stay, since they read the page. The banner's CSS moved to `style.css` so a
+  story draws it. About 7.8 s of e2e test time (14 test runs) became about 6.8 s
+  (13). Each assertion was proven red by breaking the component: the grant
+  link's condition, the Forgejo link's wording and its target. The CSV row for
+  `main-branch-advisories` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
