@@ -201,7 +201,9 @@ for (const b of BOXES) {
         await b.box(page).press('Escape');
         await expect(b.box(page)).toHaveValue('');
         await expect(b.box(page)).toBeFocused();
-        const prevented = await b.box(page).evaluate((el) => {
+        // A synthetic Escape is ignored by a type=search box's own clearing,
+        // so this only passes when the page's wiring handles it.
+        const press = (el: HTMLElement) => {
           const e = new KeyboardEvent('keydown', {
             key: 'Escape',
             bubbles: true,
@@ -209,8 +211,11 @@ for (const b of BOXES) {
           });
           el.dispatchEvent(e);
           return e.defaultPrevented;
-        });
-        expect(prevented).toBe(false);
+        };
+        await b.box(page).fill(b.text);
+        expect(await b.box(page).evaluate(press)).toBe(true);
+        await expect(b.box(page)).toHaveValue('');
+        expect(await b.box(page).evaluate(press)).toBe(false);
       });
 
       if (vp.width < 400) {
@@ -255,3 +260,27 @@ for (const b of BOXES) {
     expect((await axe(page)).violations).toEqual([]);
   });
 }
+
+// The Branches box is type=search, which Blink and WebKit give a cancel button
+// of their own. The rule that hides it has no computed-style probe, so compare
+// pixels: with the rule neutralised the native button is drawn and the box
+// looks different (#4144).
+test('Main branches search box: the native cancel button stays hidden', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await openBranches(page);
+  const box = page.locator('.mb-search');
+  await box.fill('gamma');
+  await page.addStyleTag({
+    content: '.search-clear { visibility: hidden !important; }',
+  });
+  await box.hover();
+  const hidden = await box.screenshot();
+  await page.addStyleTag({
+    content:
+      '.search-wrap input[type="search"]::-webkit-search-cancel-button { appearance: auto !important; display: block !important; }',
+  });
+  const shown = await box.screenshot();
+  expect(hidden.equals(shown)).toBe(false);
+});

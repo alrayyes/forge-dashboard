@@ -4692,6 +4692,10 @@ button.pipeline-check-link:disabled {
      height in this column (#4144). */
   .filter-bar > .search-wrap {
     flex: 0 0 auto;
+    min-width: 0;
+    /* The bar wraps, so a column line is as wide as its widest item: the
+       input's own width at a large text size. A set width stops that. */
+    width: 100%;
   }
   .filter-bar .search-wrap .col-filter {
     min-height: 44px;
