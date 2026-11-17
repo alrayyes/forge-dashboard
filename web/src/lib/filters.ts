@@ -1376,7 +1376,12 @@ export function failingFilters(
 ): string[] {
   const repoKey = `${item.forge}:${item.repo}`.toLowerCase();
   const failing: string[] = [];
-  if (shared.forge && item.forge !== shared.forge) failing.push('forge');
+  // A pick no forge pill offers reads as All in the pills and chips (see
+  // activePill), so it filters as All too (#4167).
+  const forge = (PILL_GROUPS.forge as readonly string[]).includes(shared.forge)
+    ? shared.forge
+    : '';
+  if (forge && item.forge !== forge) failing.push('forge');
   if (!pickedHas(shared.repo, repoKey)) failing.push('repo');
   if (shared.title && !matchesTitleTerm(item, shared.title))
     failing.push('title');
