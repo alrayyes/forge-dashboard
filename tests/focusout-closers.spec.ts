@@ -132,6 +132,52 @@ for (const size of sizes) {
       await page.mouse.up();
     });
 
+    test('a reaction list stays while its text is pressed, and goes when focus moves on', async ({
+      page,
+    }) => {
+      const some = (logins: string[]) => ({ count: logins.length, logins });
+      await open(page, [pr(2)]);
+      await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+        route.fulfill({
+          json: {
+            description: {
+              text: 'd',
+              format: 'markdown',
+              truncated: false,
+              edited: false,
+              reactions: {
+                thumbsUp: some(['alice', 'bob']),
+                thumbsDown: some(['carol']),
+              },
+            },
+            comments: [],
+            commentCount: 0,
+            commentsTruncated: false,
+            releaseNotes: null,
+          },
+        }),
+      );
+      await page
+        .locator('#pr-rows .row')
+        .first()
+        .getByRole('button', { name: /^#\d+ / })
+        .click();
+      const dialog = page.getByRole('dialog', {
+        name: /^Pull request details/,
+      });
+      const up = dialog.getByRole('group', { name: /^2 thumbs up/ });
+      await up.focus();
+      const list = dialog.locator('.reaction-people', { hasText: 'alice' });
+      await expect(list).toBeVisible();
+      await pressDown(page, list);
+      await page.clock.runFor(500);
+      await expect(list).toBeVisible();
+      await page.mouse.up();
+      await page.mouse.move(0, 0);
+      await page.keyboard.press('Tab');
+      await expect(list).toHaveCount(0);
+    });
+
     test('an error toast keeps waiting while its text is pressed', async ({
       page,
     }) => {
