@@ -1,6 +1,9 @@
 package dashboard
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // AdvisoryList is one repo's open dependency advisories in full, for the
 // advisories dialog on the Main branches page. Matches
@@ -19,6 +22,35 @@ type AdvisoryList struct {
 	URL string `json:"url,omitempty"`
 	// Advisories is sorted by severity, highest first, then newest first.
 	Advisories []AdvisoryItem `json:"advisories"`
+	// ReadAt is when the forge was read for this list (RFC 3339). It is the
+	// same on every answer served from the dashboard's own copy.
+	ReadAt string `json:"readAt,omitempty"`
+	// RefreshFailed says a read asked for with WithFreshAdvisories failed or
+	// was rate limited, so Advisories is the last good list and ReadAt says how
+	// old it is. Empty when the read succeeded.
+	RefreshFailed AdvisoryReason `json:"refreshFailed,omitempty"`
+}
+
+type freshAdvisoriesKey struct{}
+
+// WithFreshAdvisories marks a ListAdvisories call as one that must read the
+// forge again instead of answering from the list a source kept.
+func WithFreshAdvisories(ctx context.Context) context.Context {
+	return context.WithValue(ctx, freshAdvisoriesKey{}, true)
+}
+
+// FreshAdvisories reports whether ctx asks for a read of the forge.
+func FreshAdvisories(ctx context.Context) bool {
+	v, _ := ctx.Value(freshAdvisoriesKey{}).(bool)
+
+	return v
+}
+
+// ReadTime parses ReadAt, zero when it is empty or not a time.
+func (l AdvisoryList) ReadTime() time.Time {
+	t, _ := time.Parse(time.RFC3339, l.ReadAt)
+
+	return t
 }
 
 // AdvisoryItem is one open advisory with the fields the forge's own alert page

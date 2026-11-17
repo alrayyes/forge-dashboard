@@ -214,6 +214,33 @@ func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testi
 	assert.EqualValues(t, 1, calls.Load())
 }
 
+// Not parallel: it points the package's GitHub API address at a local server.
+func TestBuildSources_SourcesBuiltOnSeparateRequestsShareAdvisoryLists(t *testing.T) {
+	var alertReads atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/octo/repo/dependabot/alerts", func(w http.ResponseWriter, _ *http.Request) {
+		alertReads.Add(1)
+		_, _ = w.Write([]byte(`[{"number":1,"state":"open","created_at":"2026-10-21T14:12:00Z","html_url":"https://github.com/octo/repo/security/dependabot/1","dependency":{"package":{"name":"left-pad"}},"security_advisory":{"severity":"high","summary":"s"}}]`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	githubAPIBaseURL = srv.URL
+	t.Cleanup(func() { githubAPIBaseURL = "" })
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
+
+	for range 2 {
+		sources := build(settings.Credentials{GitHubToken: "pat-value"})
+		require.Len(t, sources, 1)
+		lister, ok := sources[0].(dashboard.AdvisoryLister)
+		require.True(t, ok)
+		got, err := lister.ListAdvisories(t.Context(), "octo", "repo")
+		require.NoError(t, err)
+		require.Len(t, got.Advisories, 1)
+	}
+
+	assert.EqualValues(t, 1, alertReads.Load(), "the second open reuses the first client's list")
+}
+
 // Not parallel: it points the package's status page address at a local server.
 func TestBuildSources_GitHubSourceAsksTheStatusPageButForgejoDoesNot(t *testing.T) {
 	var calls atomic.Int32

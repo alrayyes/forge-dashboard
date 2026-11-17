@@ -79,6 +79,13 @@ type AdvisoryScanner interface {
 	Find(ctx context.Context, pkgs []osv.Package) ([]osv.Finding, error)
 }
 
+// scanFinder is what a scanner can add: one match answering both, so the read
+// for a row's count also yields the list behind it. osv.Client has it. A
+// scanner without it only counts, and the dialog reads the list itself.
+type scanFinder interface {
+	ScanAndFind(ctx context.Context, pkgs []osv.Package) (osv.Summary, []osv.Finding, error)
+}
+
 // SetAdvisoryScanner turns on advisories for this client's repos: with a
 // scanner set, ReadMainBranch reads the default branch's lockfiles and asks the
 // scanner about the packages in them. Without one, every Forgejo row carries
@@ -114,6 +121,9 @@ type AdvisoryCache = advisoryCache
 
 type advisoryCache struct {
 	advisorycache.Cache[advisoryEntry]
+	// lists keeps each repo's full list, which the read for the count fills
+	// too, so opening the advisories dialog costs no second read.
+	lists   advisorycache.Lists
 	callsMu sync.Mutex
 	calls   map[string]*advisoryCall
 }
@@ -187,12 +197,20 @@ func (c *advisoryCache) finish(repo string) {
 // scan reads. A failed call to the forge or to OSV is an error. The package
 // names and versions in the lockfiles are sent to OSV; nothing else is.
 func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string, known *lockPackages) (dashboard.Advisories, *lockPackages, error) {
+	v, _, pkgs, err := c.readAdvisoriesAndList(ctx, owner, name, branch, known)
+
+	return v, pkgs, err
+}
+
+// readAdvisoriesAndList is readAdvisories that also returns the full list when
+// the scanner can produce it from the same match, nil when it can't.
+func (c *Client) readAdvisoriesAndList(ctx context.Context, owner, name, branch string, known *lockPackages) (dashboard.Advisories, *dashboard.AdvisoryList, *lockPackages, error) {
 	if c.advisoryScanner == nil {
-		return dashboard.Advisories{}, nil, errNoAdvisoryScanner
+		return dashboard.Advisories{}, nil, nil, errNoAdvisoryScanner
 	}
 	ctx = apistats.WithKind(ctx, apistats.KindAdvisories)
 	if branch == "" && known == nil {
-		return *dashboard.UnknownAdvisories(), nil, nil // an empty repo has no branch to read
+		return *dashboard.UnknownAdvisories(), nil, nil, nil // an empty repo has no branch to read
 	}
 
 	pkgs := known
@@ -200,26 +218,46 @@ func (c *Client) readAdvisories(ctx context.Context, owner, name, branch string,
 		got, answer, err := c.lockfilePackages(ctx, owner, name, branch)
 		if err != nil || answer != nil {
 			if answer != nil {
-				return *answer, nil, nil
+				list := unknownList(answer.Reason)
+
+				return *answer, &list, nil, nil
 			}
 
-			return dashboard.Advisories{}, nil, err
+			return dashboard.Advisories{}, nil, nil, err
 		}
 		pkgs = got
 	}
 
-	sum, err := c.advisoryScanner.Scan(ctx, pkgs.pkgs)
+	var (
+		sum      osv.Summary
+		findings []osv.Finding
+		err      error
+	)
+	sf, both := c.advisoryScanner.(scanFinder)
+	if both {
+		sum, findings, err = sf.ScanAndFind(ctx, pkgs.pkgs)
+	} else {
+		sum, err = c.advisoryScanner.Scan(ctx, pkgs.pkgs)
+	}
 	switch {
 	case errors.Is(err, osv.ErrTooMany):
-		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, nil, nil
+		list := unknownList(dashboard.ReasonTooMany)
+
+		return dashboard.Advisories{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonTooMany}, &list, nil, nil
 	case err != nil:
-		return dashboard.Advisories{}, pkgs, fmt.Errorf("forgejo: match lockfile against OSV: %w", err)
+		return dashboard.Advisories{}, nil, pkgs, fmt.Errorf("forgejo: match lockfile against OSV: %w", err)
 	}
 
-	return dashboard.Advisories{
+	v := dashboard.Advisories{
 		State: dashboard.AdvisoriesKnown, Count: sum.Count, Highest: dashboard.AdvisorySeverity(sum.Highest),
 		Partial: pkgs.partial,
-	}, nil, nil
+	}
+	if !both {
+		return v, nil, nil, nil
+	}
+	list := listOf(findings, pkgs)
+
+	return v, &list, nil, nil
 }
 
 // lockfilePackages reads the packages in the repo's lockfiles. When the answer
@@ -520,7 +558,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 	deadline := cmp.Or(c.advisoryDeadline, advisoryDeadline)
 	readCtx, cancel := osv.WithBudget(ctx, deadline)
 	defer cancel()
-	v, pkgs, err := c.readAdvisories(readCtx, repo.Owner, repo.Name, repo.DefaultBranch, known)
+	v, list, pkgs, err := c.readAdvisoriesAndList(readCtx, repo.Owner, repo.Name, repo.DefaultBranch, known)
 	if err != nil {
 		c.failedRead(key, repo, old, have, known, pkgs, err)
 
@@ -532,6 +570,7 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 		if !old.unreadable {
 			slog.Warn("lockfile can't be used, so the repo's advisories are unknown", "forge", dashboard.ForgeForgejo, "repo", repo.FullName, "retry", advisoriesUnreadableRetry)
 		}
+		v.ListReadAt = c.keepList(key, list, advisoriesUnreadableRetry)
 		c.advisories.Put(key, advisoryEntry{value: v, unreadable: true}, advisoriesUnreadableRetry)
 
 		return
@@ -540,7 +579,18 @@ func (c *Client) refreshAdvisories(ctx context.Context, key string, repo dashboa
 	if v.State == dashboard.AdvisoriesUnknown {
 		ttl = advisoriesUnreadableRetry // too many advisories: the same lock file gives the same answer
 	}
+	v.ListReadAt = c.keepList(key, list, ttl)
 	c.advisories.Put(key, advisoryEntry{value: v, answered: now}, ttl)
+}
+
+// keepList remembers the list a count's read produced, so the dialog opens on
+// it. It returns when it was read, empty when the read made no list.
+func (c *Client) keepList(key string, list *dashboard.AdvisoryList, ttl time.Duration) string {
+	if list == nil {
+		return ""
+	}
+
+	return c.advisories.lists.Put(key, *list, ttl).ReadAt
 }
 
 // failedRead remembers a read that failed: the last answer is kept while it is
