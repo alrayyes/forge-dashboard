@@ -1,6 +1,10 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
-import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
+import {
+  advisoryFactsOf,
+  registerForgeCapabilities,
+  resetForgeCapabilities,
+} from './forges';
 import {
   ADVISORY_WORDS_BY_SOURCE,
   type Advisories,
@@ -424,7 +428,7 @@ describe('advisory wording by source', () => {
   });
 
   test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
-    'a forge or source named %s gets the neutral words, never an inherited member',
+    'an advisory source named %s gets the neutral words, never an inherited member',
     (odd) => {
       registerForgeCapabilities([
         {
@@ -440,6 +444,15 @@ describe('advisory wording by source', () => {
       expect(advisoryWordsFor(odd)).toBe(NEUTRAL_ADVISORY_WORDS);
       expect(advisoryWordsFor('viaSource')).toBe(NEUTRAL_ADVISORY_WORDS);
       expect(advisoryReasonText('viaSource', 'failed')).toBeUndefined();
+    },
+  );
+
+  test.each(['constructor', 'toString', '__proto__', 'hasOwnProperty'])(
+    'a forge named %s has no advisory facts and its pill opens no dialog',
+    (odd) => {
+      expect(advisoryFactsOf(odd)).toBeUndefined();
+      expect(advisoryWordsFor(odd)).toBe(NEUTRAL_ADVISORY_WORDS);
+      expect(advisoryPillOpensDialog(odd, { href: 'https://x' })).toBe(false);
     },
   );
 
