@@ -120,6 +120,7 @@ const singleUserSpecs = [
   '**/repo-logo.spec.ts',
   '**/repo-author-multi-select.spec.ts',
   '**/author-choices-per-forge.spec.ts',
+  '**/pr-details-cache.spec.ts',
   '**/pr-details-dialog.spec.ts',
   '**/pr-details-description-scroll.spec.ts',
   '**/pr-details-images.spec.ts',

@@ -73,12 +73,18 @@
   import { profileHref } from "#lib/profile-link.js";
   import { FORGE_CLASSES, FORGE_LABELS } from "#lib/forges.js";
   import { imageFallback } from "#lib/image-fallback.js";
+  import { patchHtml } from "#lib/patch-html.js";
   import { imageSourceFor } from "#lib/image-source.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import {
     type ClickedReference,
     referenceFromClick,
   } from "#lib/reference-links.js";
+  import {
+    detailsCache,
+    detailsKey,
+    type DetailsRef,
+  } from "#lib/details-cache.js";
   import { titleSegments } from "#lib/title-code.js";
   import { repoUrlOf } from "#lib/repo-url.js";
 
@@ -293,7 +299,22 @@
     returnFocusFallbackId = fallbackFocusId;
     brokenAvatars = {};
     brokenFilerAvatar = false;
-    load();
+    older = null;
+    const ref = refOf(item);
+    const hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
+    if (hit?.html) {
+      // Seen before and already rendered: on screen in this very tick, and the
+      // read below swaps in the fresh answer only if it differs (#4194).
+      token++;
+      details = hit.details as Details;
+      html = hit.html;
+      phase = "ready";
+      shownReaction = null;
+      showIssueState(item, hit.details as Details);
+      load(true);
+    } else {
+      load(false, hit?.details as Details | undefined);
+    }
     dialogEl?.showModal();
   }
 
@@ -308,7 +329,74 @@
     return load(phase === "ready");
   }
 
-  async function load(quiet = false): Promise<boolean> {
+  // The cache key's parts for a pull request or an issue; a release has none.
+  function refOf(item: DetailsTarget): DetailsRef | null {
+    if (isReleaseTarget(item)) return null;
+
+    return {
+      forge: item.forge,
+      repo: item.repo,
+      subject: item.subject === "issue" ? "issue" : "pull-request",
+      number: item.number,
+    };
+  }
+
+  function showIssueState(item: DetailsTarget, shown: Details) {
+    if (item.subject === "issue" && shown.state)
+      onIssueState?.(shown.state === "closed");
+  }
+
+  // Set when a refresh failed while earlier details are on screen; cleared by
+  // the next one that lands.
+  let older = $state<string | null>(null);
+  const OLDER_NOTE =
+    "These details may be out of date: the latest could not be read.";
+
+  // Drops what is remembered for the open pull request or issue, for the
+  // user's own comment, close or reopen: the next open reads the forge.
+  export function forget() {
+    const ref = target ? refOf(target) : null;
+    if (ref) detailsCache.delete(detailsKey(ref));
+  }
+
+  async function renderAll(
+    current: DetailsTarget,
+    loaded: Details,
+  ): Promise<Record<string, string>> {
+    const rendered: Record<string, string> = {};
+    const jobs: Promise<void>[] = [];
+    const add = (key: string, text: string, comment?: string) =>
+      jobs.push(
+        renderMarkdown(text, {
+          repoUrl: repoUrlOf(current.url),
+          references: onReference
+            ? {
+                forge: current.forge,
+                tracked: (repo) => trackedRepo?.(current.forge, repo) ?? false,
+              }
+            : undefined,
+          imageSource: imageSourceFor(
+            current.forge,
+            repoUrlOf(current.url),
+            isReleaseTarget(current)
+              ? { fullName: current.repo, tag: current.tag }
+              : { fullName: current.repo, number: current.number, comment },
+          ),
+        }).then((out) => {
+          rendered[key] = out;
+        }),
+      );
+    if (!isReleaseTarget(current)) add("description", loaded.description.text);
+    if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
+    for (const c of loaded.comments) add(c.id, c.text, c.id);
+    await Promise.all(jobs);
+
+    return rendered;
+  }
+
+  // `seed` is what the prefetch left for this item: shown as soon as it is
+  // rendered, while the read below goes out at once.
+  async function load(quiet = false, seed?: Details): Promise<boolean> {
     const current = target;
     if (!current) return true;
     const mine = ++token;
@@ -316,6 +404,17 @@
       phase = "loading";
       details = null;
       html = {};
+    }
+    let seeded: Promise<void> = Promise.resolve();
+    if (seed) {
+      seeded = renderAll(current, seed).then((rendered) => {
+        if (mine !== token || phase === "ready") return;
+        html = rendered;
+        details = seed;
+        phase = "ready";
+        shownReaction = null;
+        showIssueState(current, seed);
+      });
     }
     try {
       const where = `forge=${encodeURIComponent(current.forge)}&fullName=${encodeURIComponent(current.repo)}`;
@@ -352,41 +451,34 @@
       } else {
         loaded = data as Details;
       }
-      const rendered: Record<string, string> = {};
-      const jobs: Promise<void>[] = [];
-      const add = (key: string, text: string, comment?: string) =>
-        jobs.push(
-          renderMarkdown(text, {
-            repoUrl: repoUrlOf(current.url),
-            references: onReference
-              ? {
-                  forge: current.forge,
-                  tracked: (repo) =>
-                    trackedRepo?.(current.forge, repo) ?? false,
-                }
-              : undefined,
-            imageSource: imageSourceFor(
-              current.forge,
-              repoUrlOf(current.url),
-              isReleaseTarget(current)
-                ? { fullName: current.repo, tag: current.tag }
-                : { fullName: current.repo, number: current.number, comment },
-            ),
-          }).then((out) => {
-            rendered[key] = out;
-          }),
-        );
-      if (!isReleaseTarget(current))
-        add("description", loaded.description.text);
-      if (loaded.releaseNotes) add("notes", loaded.releaseNotes.text);
-      for (const c of loaded.comments) add(c.id, c.text, c.id);
-      await Promise.all(jobs);
+      const ref = refOf(current);
+      const key = ref ? detailsKey(ref) : "";
+      await seeded;
       if (mine !== token) return true;
+      const onScreen = phase === "ready" ? details : null;
+      if (onScreen && JSON.stringify(onScreen) === JSON.stringify(loaded)) {
+        // Nothing changed: the DOM stays exactly as it is.
+        older = null;
+        const kept = detailsCache.get(key);
+        if (kept) detailsCache.set(key, { ...kept, readAt: Date.now() });
+        return true;
+      }
+      const rendered = await renderAll(current, loaded);
+      if (mine !== token) return true;
+      const changed = onScreen !== null;
       html = rendered;
       details = loaded;
       phase = "ready";
-      if (current.subject === "issue" && loaded.state)
-        onIssueState?.(loaded.state === "closed");
+      older = null;
+      if (ref)
+        detailsCache.set(key, {
+          details: loaded,
+          html: rendered,
+          readAt: Date.now(),
+        });
+      // What was on screen changed under the reader: one polite note.
+      if (changed && liveHost) liveHost.textContent = "Details updated.";
+      showIssueState(current, loaded);
       // A quiet swap leaves a list the reader has open alone; a full load
       // replaces everything, so the old content's state goes with it.
       if (!quiet) {
@@ -397,7 +489,13 @@
       return true;
     } catch (err) {
       if (mine !== token) return true;
-      if (quiet) return false;
+      await seeded;
+      if (mine !== token) return true;
+      if (quiet || phase === "ready") {
+        older = OLDER_NOTE;
+
+        return false;
+      }
       // The server's own reason is plain words. A network or chunk failure
       // carries a URL and a browser message, which stay out of the UI.
       errorMessage =
@@ -792,10 +890,12 @@
             {#if releaseNotes.text.trim() === ""}
               <p class="details-note">No release notes.</p>
             {:else}
-              <div class="markdown" use:imageFallback>
-                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
-                {@html html.notes}
-              </div>
+              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+              <div
+                class="markdown"
+                use:imageFallback
+                use:patchHtml={html.notes}
+              ></div>
             {/if}
             {#if releaseNotes.truncated}
               <p class="details-note">
@@ -812,16 +912,20 @@
             {:else if isBot}
               <details class="details-collapsed">
                 <summary>Show the generated description</summary>
-                <div class="markdown" use:imageFallback>
-                  <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
-                  {@html html.description}
-                </div>
+                <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                <div
+                  class="markdown"
+                  use:imageFallback
+                  use:patchHtml={html.description}
+                ></div>
               </details>
             {:else}
-              <div class="markdown" use:imageFallback>
-                <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
-                {@html html.description}
-              </div>
+              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+              <div
+                class="markdown"
+                use:imageFallback
+                use:patchHtml={html.description}
+              ></div>
             {/if}
             {#if details.description.truncated}
               <p class="details-note">
@@ -889,10 +993,12 @@
                       {#if c.edited}<span class="comment-edited">edited</span
                         >{/if}
                     </div>
-                    <div class="markdown" use:imageFallback>
-                      <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
-                      {@html html[c.id]}
-                    </div>
+                    <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                    <div
+                      class="markdown"
+                      use:imageFallback
+                      use:patchHtml={html[c.id]}
+                    ></div>
                     {#if c.truncated}
                       <p class="details-note">Cut at 20,000 characters.</p>
                     {/if}
@@ -913,6 +1019,10 @@
               {/if}
             {/if}
           </section>
+        {/if}
+        <!-- After the content, so a failed refresh moves nothing the reader sees. -->
+        {#if older}
+          <p class="details-note details-older" role="status">{older}</p>
         {/if}
       {/if}
     </div>
@@ -1097,6 +1207,19 @@
     overflow-x: hidden;
     flex: 1 1 auto;
     min-width: 0;
+    /* A swap above what the reader is looking at keeps that text in place. */
+    overflow-anchor: auto;
+  }
+  /* Room enough that the skeleton and the content take the same space, and a
+     dialog pinned to the top so a body that grows never moves the header
+     (#4194). Short windows keep the centred, content-sized dialog. */
+  @media (min-height: 700px) {
+    .details-dialog[open] {
+      margin: 6vh auto auto;
+    }
+    .details-body {
+      min-height: min(360px, 45vh);
+    }
   }
   .details-body:focus-visible {
     outline-offset: -2px;
