@@ -4,7 +4,7 @@
 // letting a click fail.
 
 import { isUnreachable } from './forge-starting';
-import { FORGE_LABELS, type ForgeCapabilities } from './forges';
+import { type ForgeCapabilities, forgeLabelOf } from './forges';
 import {
   isRateLimited,
   type RateLimit,
@@ -62,7 +62,7 @@ function lockOf(
   return {
     code: 'rate_limited',
     reason: rateLimitReasonText(
-      FORGE_LABELS[health.forge] || health.forge,
+      forgeLabelOf(health.forge),
       spent.resetsAt,
       now,
     ),

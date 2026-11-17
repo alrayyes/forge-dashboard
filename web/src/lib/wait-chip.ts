@@ -9,7 +9,7 @@
 // pure; buildWaitChip() draws one. feedback-ui.ts decides when a chip shows
 // for an action, Dashboard.svelte for an armed auto-merge.
 
-import { FORGE_LABELS, forgeFlag } from './forges';
+import { forgeFlag, forgeLabelOf } from './forges';
 
 // How long a wait runs with no change before the chip says so.
 export const STILL_WAITING_MS = 120_000;
@@ -255,7 +255,7 @@ export type AutoMergeInput = {
 // server says "the forge" and sends no forge name (#4072); the page owns the
 // word, as it does for the chip's own detail line.
 export function autoMergeWording(message: string, forge: string): string {
-  const label = FORGE_LABELS[forge] ?? forge;
+  const label = forgeLabelOf(forge);
   return message.replace(/\bthe forge\b/i, () => label);
 }
 
@@ -290,14 +290,14 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
       if (forgeFlag(input.forge, 'autoMergeHeldByApp') === false)
         return words(
           'Merging',
-          `${FORGE_LABELS[input.forge] ?? input.forge} merges it as soon as it can`,
+          `${forgeLabelOf(input.forge)} merges it as soon as it can`,
         );
       // Only a merge the server says Forgejo holds is merged by Forgejo;
       // unknown keeps the safe, historic wording (#1596).
       return input.heldBy === 'forge'
         ? words(
             'Merging',
-            `${FORGE_LABELS[input.forge] ?? input.forge} merges it when checks pass`,
+            `${forgeLabelOf(input.forge)} merges it when checks pass`,
           )
         : words('Merging next', 'On the next refresh');
     default:

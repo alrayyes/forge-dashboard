@@ -14,6 +14,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
+	"github.com/alrayyes/forge-dashboard/internal/oauth"
 	"github.com/alrayyes/forge-dashboard/internal/ratelimit"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -51,6 +52,10 @@ type Deps struct {
 	TrustedProxies []netip.Prefix
 
 	SettingsStore *settings.Store
+
+	// ForgejoOAuth links a Forgejo account with OAuth (#3951). Nil, or one with
+	// no client id and secret, leaves the connection routes answering 400.
+	ForgejoOAuth *oauth.Forgejo
 
 	// GitHubImageProxy fetches a GitHub item's embedded images. Nil means the
 	// real GitHub hosts; only tests set it, to reach a local server.
@@ -170,6 +175,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/v1/mcp", mcpHandler)
 	mux.Handle("DELETE /api/v1/mcp", mcpHandler)
 	mux.Handle("GET /api/v1/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsGet(deps)))
+	mux.Handle("POST /api/v1/connections/forgejo", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionStart(deps)))
+	mux.Handle("DELETE /api/v1/connections/forgejo", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionDelete(deps)))
+	mux.Handle("GET /api/v1/connections/forgejo/callback", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionCallback(deps)))
 	mux.Handle("GET /api/v1/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/v1/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/v1/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))

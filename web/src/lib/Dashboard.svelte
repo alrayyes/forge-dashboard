@@ -93,8 +93,8 @@
   } from "#lib/label-filter.js";
   import { type PickKey, savePick, SharedPicks } from "#lib/shared-picks.js";
   import {
-    FORGE_CLASSES,
-    FORGE_LABELS,
+    forgeClassOf,
+    forgeLabelOf,
     forgeIds,
     statusPageUrlOf,
     registerForgeCapabilities,
@@ -813,11 +813,9 @@
 
     function repoCell(item: FilterableItem): HTMLElement {
       const wrap = el("div", "repo");
-      const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+      const badge = el("span", `forge-badge ${forgeClassOf(item.forge)}`);
       badge.appendChild(el("span", "dot"));
-      badge.appendChild(
-        document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-      );
+      badge.appendChild(document.createTextNode(forgeLabelOf(item.forge)));
       wrap.appendChild(badge);
       // The repository's own logo, only when the forge has one; a repository
       // without one draws nothing, so the row doesn't shift. Decorative: the
@@ -2096,10 +2094,7 @@
           if (dialogClosed !== closed) return;
           const outcome = interpretActionFailure(err, (resetsAt) =>
             resetsAt
-              ? rateLimitReasonText(
-                  FORGE_LABELS[item.forge] || item.forge,
-                  resetsAt,
-                )
+              ? rateLimitReasonText(forgeLabelOf(item.forge), resetsAt)
               : rateLimitedReason(item.forge),
           );
           const details = failureDetails(
@@ -2336,9 +2331,9 @@
       forgeLock: (forge) => proactiveActionLockReason(forge),
       rateLimitReason: (forge, resetsAt) =>
         resetsAt
-          ? rateLimitReasonText(FORGE_LABELS[forge] || forge, resetsAt)
+          ? rateLimitReasonText(forgeLabelOf(forge), resetsAt)
           : rateLimitedReason(forge),
-      forgeLabel: (forge) => FORGE_LABELS[forge] || forge,
+      forgeLabel: (forge) => forgeLabelOf(forge),
     });
 
     function openIssueDialog(
@@ -3390,10 +3385,7 @@
     ): string {
       // Every entry of the kind, but only the budget the action spends.
       const limit = known ?? spentLimit(lastForges, forgeName, { budget });
-      return rateLimitReasonText(
-        FORGE_LABELS[forgeName] || forgeName,
-        limit?.resetsAt,
-      );
+      return rateLimitReasonText(forgeLabelOf(forgeName), limit?.resetsAt);
     }
 
     function isSettled(item: PullRequestItem): boolean {
@@ -3433,10 +3425,7 @@
         err,
         (resetsAt) =>
           resetsAt
-            ? rateLimitReasonText(
-                FORGE_LABELS[item.forge] || item.forge,
-                resetsAt,
-              )
+            ? rateLimitReasonText(forgeLabelOf(item.forge), resetsAt)
             : rateLimitedReason(item.forge, undefined, budget),
         retryable,
       );
@@ -6402,11 +6391,9 @@
       const list = document.getElementById("rebase-all-list");
       const rebaseAllItem = (item: PullRequestItem, why?: string) => {
         const li = el("li", "rebase-all-item");
-        const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+        const badge = el("span", `forge-badge ${forgeClassOf(item.forge)}`);
         badge.appendChild(el("span", "dot"));
-        badge.appendChild(
-          document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-        );
+        badge.appendChild(document.createTextNode(forgeLabelOf(item.forge)));
         li.appendChild(badge);
         li.appendChild(
           document.createTextNode(
@@ -6560,11 +6547,9 @@
           const label = el("label", "update-all-label");
           label.appendChild(box);
           const text = el("span", "update-all-text");
-          const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+          const badge = el("span", `forge-badge ${forgeClassOf(item.forge)}`);
           badge.appendChild(el("span", "dot"));
-          badge.appendChild(
-            document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-          );
+          badge.appendChild(document.createTextNode(forgeLabelOf(item.forge)));
           text.appendChild(badge);
           text.appendChild(
             document.createTextNode(
@@ -6746,11 +6731,9 @@
 
     const rerunItem = (item: PullRequestItem, why?: string) => {
       const li = el("li", "rebase-all-item");
-      const badge = el("span", `forge-badge ${FORGE_CLASSES[item.forge]}`);
+      const badge = el("span", `forge-badge ${forgeClassOf(item.forge)}`);
       badge.appendChild(el("span", "dot"));
-      badge.appendChild(
-        document.createTextNode(FORGE_LABELS[item.forge] || item.forge),
-      );
+      badge.appendChild(document.createTextNode(forgeLabelOf(item.forge)));
       li.appendChild(badge);
       li.appendChild(
         document.createTextNode(
@@ -7545,7 +7528,7 @@
       // What the press will do, from the checks the dialog shows.
       const { rerun, skipped } = rerunnableCounts(checks);
       const count = el("p", "pipeline-rerun-count");
-      const forgeName = FORGE_LABELS[item.forge] || item.forge;
+      const forgeName = forgeLabelOf(item.forge);
       const left = skipped > 0 ? ` ${skipped} can't be rerun from here.` : "";
       count.textContent =
         rerun > 0
@@ -8144,11 +8127,9 @@
         forge: string,
         repo: string,
       ) {
-        const badge = el("span", `forge-badge ${FORGE_CLASSES[forge]}`);
+        const badge = el("span", `forge-badge ${forgeClassOf(forge)}`);
         badge.appendChild(el("span", "dot"));
-        badge.appendChild(
-          document.createTextNode(FORGE_LABELS[forge] || forge),
-        );
+        badge.appendChild(document.createTextNode(forgeLabelOf(forge)));
         heading.appendChild(badge);
         const info = reposByKey.get(Filters.repoKey(forge, repo));
         const host = Filters.hostFromUrl(info?.url);
@@ -8225,7 +8206,7 @@
       ) {
         const keyOf =
           groupBy === "forge"
-            ? (item: FilterableItem) => FORGE_LABELS[item.forge] || item.forge
+            ? (item: FilterableItem) => forgeLabelOf(item.forge)
             : (item: FilterableItem) => Filters.repoKey(item.forge, item.repo);
 
         const groups: Record<string, (PullRequestItem | IssueItem)[]> = {};
@@ -9313,7 +9294,7 @@
     function healthAnnouncement(forges: Forge[]): string {
       return forges
         .map((f) => {
-          const name = FORGE_LABELS[f.forge] || f.forge;
+          const name = forgeLabelOf(f.forge);
           const limited =
             isRateLimited(f.rateLimitREST) || isRateLimited(f.rateLimitGraphQL);
           // A spent budget outranks a low one, so the text changes at low
@@ -9388,7 +9369,7 @@
     function computeRateLimitAlerts(forges: Forge[]): RateLimitAlert[] {
       const out: RateLimitAlert[] = [];
       for (const f of forges) {
-        const name = FORGE_LABELS[f.forge] || f.forge;
+        const name = forgeLabelOf(f.forge);
         const rest = isRateLimited(f.rateLimitREST) ? f.rateLimitREST : null;
         const graphql = isRateLimited(f.rateLimitGraphQL)
           ? f.rateLimitGraphQL
@@ -9452,8 +9433,7 @@
           .map((a) => a.label),
       );
       const down = lastForges.filter(
-        (f) =>
-          isOutage(f) && !readOnlyByLimit.has(FORGE_LABELS[f.forge] || f.forge),
+        (f) => isOutage(f) && !readOnlyByLimit.has(forgeLabelOf(f.forge)),
       );
       if (down.length === 0) {
         existing?.remove();
@@ -9476,7 +9456,7 @@
       const copy = bannerCopy(
         down.map((f) => ({
           forge: f.forge,
-          label: FORGE_LABELS[f.forge] || f.forge,
+          label: forgeLabelOf(f.forge),
           statusPageUrl: statusPageUrlOf(f.forge),
           errorKind: f.errorKind,
           staleSince: f.staleSince,
@@ -10259,7 +10239,7 @@
       for (const f of lastForges) {
         if (isUnreachable(f) || !wasUnreachable.has(f.forge)) continue;
         if (wasStarting.has(f.forge)) continue;
-        const label = FORGE_LABELS[f.forge] || f.forge;
+        const label = forgeLabelOf(f.forge);
         feedback.notify({
           title: "Forge",
           message: `${label} is reachable again, actions available`,

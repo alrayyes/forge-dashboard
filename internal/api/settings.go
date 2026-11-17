@@ -30,6 +30,11 @@ type SettingsResponse struct {
 	ForgejoURL              string `json:"forgejoUrl"`
 	ForgejoUsername         string `json:"forgejoUsername"`
 	ForgejoTokenSet         bool   `json:"forgejoTokenSet"`
+	// ForgejoOAuthConfigured and ForgejoOAuthConnected (#3951) say whether this
+	// server has an OAuth client, and whether an account is linked with it.
+	// Never the tokens themselves.
+	ForgejoOAuthConfigured bool `json:"forgejoOAuthConfigured"`
+	ForgejoOAuthConnected  bool `json:"forgejoOAuthConnected"`
 	// WebhookToken and WebhookSecret, unlike the forge tokens above, are
 	// ours to hand back in the clear — the user has to paste them into
 	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
@@ -179,6 +184,9 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Service.Get())
 		resp := settingsResponseOf(creds, deps.GitHubAppConfigured, counts)
 		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, creds.ForgejoURL)
+		if !addOAuthStatus(r.Context(), w, deps, &resp) {
+			return
+		}
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
@@ -303,24 +311,31 @@ func validForgejoURL(w http.ResponseWriter, raw string) bool {
 	if raw == "" {
 		return true
 	}
-	reject := func(msg string) bool {
+	if msg := forgejoURLProblem("forgejoUrl", raw); msg != "" {
 		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forgejoUrl", msg))
 
 		return false
 	}
+
+	return true
+}
+
+// forgejoURLProblem says why raw can't be a Forgejo base URL, naming the field
+// it came in under, or returns "" when it can. See validForgejoURL.
+func forgejoURLProblem(field, raw string) string {
 	u, err := url.Parse(raw)
 	switch {
 	case err != nil:
-		return reject("forgejoUrl is not a valid URL")
+		return field + " is not a valid URL"
 	case (u.Scheme != "http" && u.Scheme != "https") || u.Host == "":
-		return reject("forgejoUrl must be an http:// or https:// address with a host")
+		return field + " must be an http:// or https:// address with a host"
 	case u.User != nil:
-		return reject("forgejoUrl must not contain a username or password")
+		return field + " must not contain a username or password"
 	case u.RawQuery != "" || u.ForceQuery || u.Fragment != "" || strings.Contains(raw, "#"):
-		return reject("forgejoUrl must not contain a query string or fragment")
+		return field + " must not contain a query string or fragment"
 	}
 
-	return true
+	return ""
 }
 
 // publicForgejoURL is a stored Forgejo URL as it may be shown: without any
@@ -449,6 +464,9 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		}
 
 		merged := mergeSettings(req, existing)
+		if !keepsLinkedInstance(r.Context(), w, deps, existing, merged) {
+			return
+		}
 		if field, message := settingsFieldError(merged, req, deps.GitHubAppConfigured); field != "" {
 			writeJSON(w, http.StatusBadRequest, fieldErrorBody(field, message))
 
@@ -474,6 +492,9 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		counts := ignoredTitleCounts(r.Context(), deps, merged.IgnoredTitles, snap)
 		resp := settingsResponseOf(merged, deps.GitHubAppConfigured, counts)
 		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, merged.ForgejoURL)
+		if !addOAuthStatus(r.Context(), w, deps, &resp) {
+			return
+		}
 		writeJSON(w, http.StatusOK, resp)
 	}
 }
@@ -651,6 +672,8 @@ type SettingsSummary struct {
 	ForgejoURL                string   `json:"forgejoUrl"`
 	ForgejoUsername           string   `json:"forgejoUsername"`
 	ForgejoTokenSet           bool     `json:"forgejoTokenSet"`
+	ForgejoOAuthConfigured    bool     `json:"forgejoOAuthConfigured"`
+	ForgejoOAuthConnected     bool     `json:"forgejoOAuthConnected"`
 	WebhookConfigured         bool     `json:"webhookConfigured"`
 	RenovateRebaseLabel       string   `json:"renovateRebaseLabel"`
 	RenovateAuthors           []string `json:"renovateAuthors"`
@@ -675,6 +698,10 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 	}
 	full := settingsResponseOf(creds, deps.GitHubAppConfigured, ignoredTitleCounts(ctx, deps, creds.IgnoredTitles, deps.Service.Get()))
 	full.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, creds.ForgejoURL)
+	connected, err := deps.SettingsStore.HasOAuthToken(ctx, forgejoForge)
+	if err != nil {
+		return SettingsSummary{}, errCouldNotLoadSettings
+	}
 
 	return SettingsSummary{
 		GitHubUsername:            full.GitHubUsername,
@@ -684,6 +711,8 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 		ForgejoURL:                full.ForgejoURL,
 		ForgejoUsername:           full.ForgejoUsername,
 		ForgejoTokenSet:           full.ForgejoTokenSet,
+		ForgejoOAuthConfigured:    deps.ForgejoOAuth.Configured(),
+		ForgejoOAuthConnected:     connected,
 		WebhookConfigured:         creds.WebhookToken != "" && creds.WebhookSecret != "",
 		RenovateRebaseLabel:       full.RenovateRebaseLabel,
 		RenovateAuthors:           full.RenovateAuthors,

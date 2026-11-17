@@ -122,7 +122,7 @@ export const PILL_LABELS: Record<string, string> = {
 // The text on a pill, and after the group name in its active-filter chip: a
 // forge's label from forges.ts, else the fixed pill's, else the name itself.
 export function pillLabel(pill: string): string {
-  return FORGE_LABELS[pill] ?? PILL_LABELS[pill] ?? pill;
+  return ownOf(FORGE_LABELS, pill) ?? ownOf(PILL_LABELS, pill) ?? pill;
 }
 
 // The group a pill is in; 'all' and unknown names have none, read as forge
@@ -291,7 +291,7 @@ export function setPill(
     : '';
 }
 
-import { FORGE_LABELS, forgeIds } from './forges';
+import { FORGE_LABELS, forgeIds, forgeLabelOf, ownOf } from './forges';
 import {
   carriesAny,
   joinLabels,
@@ -1965,7 +1965,7 @@ export function repoChoices(
       forge: item.forge,
       value,
       text: item.repo,
-      group: grouped ? FORGE_LABELS[item.forge] || item.forge : undefined,
+      group: grouped ? forgeLabelOf(item.forge) : undefined,
       imageUrl: logoFor(value.toLowerCase()) ?? logoFor(value),
       imageKind: 'logo',
     });
@@ -1989,7 +1989,7 @@ export function authorChoices(items: FilterableItem[]): PickChoice[] {
       byKey.set(key, {
         value: key,
         text: item.author,
-        group: grouped ? FORGE_LABELS[item.forge] || item.forge : undefined,
+        group: grouped ? forgeLabelOf(item.forge) : undefined,
         imageUrl: item.authorAvatarUrl || undefined,
         imageKind: 'avatar',
       });

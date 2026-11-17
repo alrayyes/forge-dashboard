@@ -69,7 +69,7 @@
   import CopyCheckLog from "#lib/CopyCheckLog.svelte";
   import type { CopyFlow } from "#lib/copy-flow.svelte.js";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
-  import { FORGE_LABELS } from "#lib/forges.js";
+  import { forgeLabelOf } from "#lib/forges.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { CHECK_GLYPHS } from "#lib/check-glyphs.js";
   import { createSpeaker } from "#lib/live-region.js";
@@ -572,7 +572,7 @@
   function forgeLabel(t: PipelineTarget): string {
     const forge = t.repo.forge;
 
-    return t.forgeName ?? FORGE_LABELS[forge] ?? forge ?? "the forge";
+    return t.forgeName ?? forgeLabelOf(forge) ?? "the forge";
   }
 
   // Each check's key, so a redraw keeps a node, and the focus on it, with the

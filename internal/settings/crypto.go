@@ -52,6 +52,13 @@ func NewCipher(base64Key string) (*Cipher, error) {
 // An empty plaintext encrypts to an empty string — an unset credential
 // field stays unset rather than becoming a real ciphertext of nothing.
 func (c *Cipher) Encrypt(plaintext string) (string, error) {
+	return c.EncryptBound(plaintext, "")
+}
+
+// EncryptBound is Encrypt with context the ciphertext is bound to: Decrypt
+// only opens it when given the same context, so a sealed value copied to
+// another row or purpose is refused instead of read.
+func (c *Cipher) EncryptBound(plaintext, context string) (string, error) {
 	if plaintext == "" {
 		return "", nil
 	}
@@ -61,13 +68,18 @@ func (c *Cipher) Encrypt(plaintext string) (string, error) {
 		return "", fmt.Errorf("settings: generate nonce: %w", err)
 	}
 
-	sealed := c.gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+	sealed := c.gcm.Seal(nonce, nonce, []byte(plaintext), aad(context))
 
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
 // Decrypt reverses Encrypt. An empty input decrypts to an empty string.
 func (c *Cipher) Decrypt(encoded string) (string, error) {
+	return c.DecryptBound(encoded, "")
+}
+
+// DecryptBound reverses EncryptBound under the same context.
+func (c *Cipher) DecryptBound(encoded, context string) (string, error) {
 	if encoded == "" {
 		return "", nil
 	}
@@ -83,10 +95,20 @@ func (c *Cipher) Decrypt(encoded string) (string, error) {
 	}
 	nonce, ciphertext := sealed[:nonceSize], sealed[nonceSize:]
 
-	plaintext, err := c.gcm.Open(nil, nonce, ciphertext, nil)
+	plaintext, err := c.gcm.Open(nil, nonce, ciphertext, aad(context))
 	if err != nil {
 		return "", fmt.Errorf("settings: decrypt: %w", err)
 	}
 
 	return string(plaintext), nil
+}
+
+// aad is the additional data GCM authenticates. No context means none, which
+// keeps every value sealed before binding existed readable.
+func aad(context string) []byte {
+	if context == "" {
+		return nil
+	}
+
+	return []byte(context)
 }

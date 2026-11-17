@@ -75,6 +75,7 @@ const singleUserSpecs = [
   '**/filter-choices-edges.spec.ts',
   '**/filter-every-control.spec.ts',
   '**/filter-forge-pills.spec.ts',
+  '**/forge-odd-ids.spec.ts',
   '**/filter-held-pick-note.spec.ts',
   '**/filter-hide-dependency-dashboard-restore.spec.ts',
   '**/filter-options.spec.ts',
