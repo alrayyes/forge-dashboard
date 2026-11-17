@@ -430,6 +430,63 @@ test.describe('what the dialog keeps and drops', () => {
     await expect(issueDialog).not.toContainText('Old body.');
   });
 
+  test('what the reader just did is not announced as an update', async ({
+    page,
+  }) => {
+    const issue = {
+      forge: 'github',
+      repo: 'alrayyes/forge-dashboard',
+      number: 7,
+      title: 'The page loses its place',
+      url: 'https://example.com/issues/7',
+      author: 'ryankes',
+      labels: [],
+      createdAt: ago(60),
+      updatedAt: ago(5),
+    };
+    await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+    await page.route('**/api/v1/dashboard*', (r: Route) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [],
+          issues: [issue],
+        }),
+      }),
+    );
+    let closed = false;
+    await page.route('**/api/v1/issues/details*', (r) =>
+      r.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...details(closed ? 'New body.' : 'Old body.'),
+          state: closed ? 'closed' : 'open',
+        }),
+      }),
+    );
+    await page.route('**/api/v1/issues/close', (r) => {
+      closed = true;
+      return r.fulfill({ status: 204 });
+    });
+    await page.goto('/issues.html');
+    await page
+      .locator('#issue-rows .row')
+      .getByRole('button', { name: /^#7 / })
+      .click();
+    const issueDialog = page.getByRole('dialog', { name: /^Issue details/ });
+    await expect(issueDialog).toContainText('Old body.');
+    await issueDialog.getByRole('button', { name: 'Close issue' }).click();
+    await issueDialog
+      .getByRole('button', { name: 'Confirm close issue?' })
+      .click();
+    await expect(issueDialog).toContainText('New body.');
+    await expect(issueDialog).not.toContainText('Details updated.');
+  });
+
   test('closing and reopening a pull request from the dialog drops what was remembered for it', async ({
     page,
   }) => {
