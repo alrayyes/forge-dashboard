@@ -332,7 +332,7 @@
 
   function currentFilter() {
     return {
-      forge: filterForge as "" | "github" | "forgejo",
+      forge: filterForge,
       repo: filterRepo,
       status: filterStatus as "" | "confirmed" | "pending",
       sort: sortKey,

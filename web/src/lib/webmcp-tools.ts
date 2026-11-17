@@ -8,6 +8,7 @@
 // https://github.com/alrayyes/forge-dashboard/issues/1503
 
 import { type CheckFeedMessage, checkFeed, type Subject } from './check-feed';
+import { forgeIds, forgeListText, isKnownForge } from './forges';
 import {
   type MainBranches,
   sortMainBranches,
@@ -37,14 +38,15 @@ export interface WebMCPToolDeps {
   fetchImpl?: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
-const FORGES = ['github', 'forgejo'];
-
 const pullRequestSchema = {
   type: 'object',
   properties: {
     forge: {
       type: 'string',
-      enum: FORGES,
+      // A getter, so a forge the server reports after the tools exist is in it.
+      get enum() {
+        return forgeIds();
+      },
       description: 'Which forge hosts the repository.',
     },
     fullName: {
@@ -81,8 +83,8 @@ function repositoryParams(input: Record<string, unknown>): {
   fullName: string;
 } {
   const { forge, fullName } = input;
-  if (typeof forge !== 'string' || !FORGES.includes(forge)) {
-    throw new Error('forge must be "github" or "forgejo"');
+  if (typeof forge !== 'string' || !isKnownForge(forge)) {
+    throw new Error(`forge must be ${forgeListText()}`);
   }
   if (
     typeof fullName !== 'string' ||

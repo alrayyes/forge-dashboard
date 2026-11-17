@@ -83,6 +83,29 @@ const SEED_LABELS: Record<string, string> = {
   forgejo: 'Forgejo',
 };
 
+// The forges a page may offer or accept, in display order: the two shipped
+// ones, then any the server reports. The one list the filters, the saved
+// state and the WebMCP tools read instead of naming github and forgejo.
+const SEED_FORGE_IDS = ['github', 'forgejo'];
+
+let FORGE_IDS = [...SEED_FORGE_IDS];
+
+export function forgeIds(): string[] {
+  return [...FORGE_IDS];
+}
+
+export function isKnownForge(forge: unknown): forge is string {
+  return typeof forge === 'string' && FORGE_IDS.includes(forge);
+}
+
+// The forges as an error message names them: "a", "b" or "c".
+export function forgeListText(): string {
+  const quoted = FORGE_IDS.map((f) => `"${f}"`);
+  const last = quoted.pop();
+
+  return quoted.length ? `${quoted.join(', ')} or ${last}` : (last ?? '');
+}
+
 export const FORGE_LABELS: Record<string, string> = { ...SEED_LABELS };
 
 // Each forge's public status page, seeded and overridden like the labels. A
@@ -107,6 +130,7 @@ export function registerForgeCapabilities(
     | undefined,
 ) {
   for (const f of forges ?? []) {
+    if (f.forge && !FORGE_IDS.includes(f.forge)) FORGE_IDS.push(f.forge);
     const label = f.capabilities?.label;
     if (label) FORGE_LABELS[f.forge] = label;
     const statusPage = f.capabilities?.statusPageUrl;
@@ -136,6 +160,7 @@ export const FORGE_CLASSES: Record<string, string> = {
 // registries are module state, and one test's forge must not leak into the
 // next.
 export function resetForgeCapabilities() {
+  FORGE_IDS = [...SEED_FORGE_IDS];
   FORGE_FLAGS = structuredClone(SEED_FLAGS);
   for (const k of Object.keys(ADVISORY_FACTS)) delete ADVISORY_FACTS[k];
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
