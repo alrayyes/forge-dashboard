@@ -556,13 +556,22 @@ func TestJobLog_RerunReadsFresh(t *testing.T) {
 func TestJobLog_NeverCachesWithoutASettledFinishTime(t *testing.T) {
 	t.Parallel()
 
-	for name, q := range map[string]url.Values{
-		"a running job sends no finish time": {},
-		"a job that only just finished":      {"finishedAt": {finishedAgo(time.Second)}},
-		"a finish time in the future":        {"finishedAt": {time.Now().Add(time.Hour).UTC().Format(time.RFC3339)}},
+	// Each finish time is worked out inside its subtest: parallel subtests
+	// start late on a slow runner, and a time fixed up front would have aged
+	// past the settle delay by then.
+	for name, query := range map[string]func() url.Values{
+		"a running job sends no finish time": func() url.Values { return url.Values{} },
+		"a job that only just finished": func() url.Values {
+			return url.Values{"finishedAt": {finishedAgo(time.Second)}}
+		},
+		"a finish time in the future": func() url.Values {
+			return url.Values{"finishedAt": {finishedAgo(-time.Hour)}}
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
+
+			q := query()
 
 			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
 			srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
