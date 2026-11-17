@@ -666,13 +666,15 @@ test.describe('webhooks page', () => {
       .analyze();
     expect(results.violations).toEqual([]);
 
-    const scrollWidth = await page.evaluate(
-      () => document.documentElement.scrollWidth,
-    );
-    const clientWidth = await page.evaluate(
-      () => document.documentElement.clientWidth,
-    );
-    expect(scrollWidth).toBeLessThanOrEqual(clientWidth);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 
   test('a repo the user lacks admin access to explains itself instead of showing a broken button', async ({
@@ -1539,13 +1541,18 @@ test.describe('webhooks page', () => {
       await mockDashboard(page, repos);
       await page.goto('/webhooks.html');
 
-      const search = await page.locator('#webhooks-repo-filter').boundingBox();
-      const status = await page
-        .locator('#webhooks-status-filter')
-        .boundingBox();
-      expect(search).not.toBeNull();
-      expect(status).not.toBeNull();
-      expect(Math.abs((search?.y ?? 0) - (status?.y ?? 99))).toBeLessThan(4);
+      await expect
+        .poll(async () => {
+          const search = await page
+            .locator('#webhooks-repo-filter')
+            .boundingBox();
+          const status = await page
+            .locator('#webhooks-status-filter')
+            .boundingBox();
+          if (!search || !status) return Infinity;
+          return Math.abs(search.y - status.y);
+        })
+        .toBeLessThan(4);
     });
   });
 
