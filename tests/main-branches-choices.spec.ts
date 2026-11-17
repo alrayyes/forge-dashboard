@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1427: the Branches page offers a status or forge pill only when clicking
@@ -40,7 +41,10 @@ function row(fullName: string, status: Status, forge = 'github') {
   };
 }
 
-function snapshot(branches: ReturnType<typeof row>[]) {
+function snapshot(
+  branches: ReturnType<typeof row>[],
+  forges: ReturnType<typeof forgeHealth>[] = [],
+) {
   const count = (s: string) => branches.filter((b) => b.status === s).length;
   return {
     generatedAt: new Date().toISOString(),
@@ -52,13 +56,17 @@ function snapshot(branches: ReturnType<typeof row>[]) {
       total: branches.length,
     },
     branches,
+    forges,
   };
 }
 
 let current: ReturnType<typeof snapshot>;
 
-async function open(branches: ReturnType<typeof row>[]) {
-  current = snapshot(branches);
+async function open(
+  branches: ReturnType<typeof row>[],
+  forges: ReturnType<typeof forgeHealth>[] = [],
+) {
+  current = snapshot(branches, forges);
 }
 
 async function serve(page: Page) {
@@ -119,6 +127,41 @@ test.describe('Branches pills offer only what would show something (#1427)', () 
     ]) {
       await expect(pill(page, name)).toBeVisible();
     }
+  });
+
+  test('a forge the server reports gets its own pill, labelled and counted, after the shipped ones (#3978)', async ({
+    page,
+  }) => {
+    const gitea = forgeHealth('github', {
+      forge: 'gitea',
+      capabilities: { ...forgeHealth('github').capabilities, label: 'Gitea' },
+    });
+    await open(
+      [
+        row('acme/ingress', 'failed'),
+        row('infra/homelab', 'failed', 'forgejo'),
+        row('lab/a', 'passed', 'gitea'),
+        row('lab/b', 'passed', 'gitea'),
+      ],
+      [forgeHealth('github'), forgeHealth('forgejo'), gitea],
+    );
+    await serve(page);
+    await page.goto('/');
+    await expect(page.getByTestId('main-branch-row')).toHaveCount(4);
+
+    await expect(pill(page, /^Gitea 2$/)).toBeVisible();
+    const pills = page.locator(
+      '.mb-bar [aria-label="Filter by forge"] .mb-pill',
+    );
+    await expect(pills).toHaveText([
+      /^All forges/,
+      /^GitHub/,
+      /^Forgejo/,
+      /^Gitea 2$/,
+    ]);
+    // Offered only when it would show something: nothing of Gitea's is failing.
+    await pill(page, /^Failing/).click();
+    await expect(pill(page, /^Gitea/)).toBeHidden();
   });
 
   test('the status pills follow the forge pill and the search', async ({
