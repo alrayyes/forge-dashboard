@@ -16,16 +16,15 @@ type autoMergeAdapter interface {
 	cancel(w http.ResponseWriter, r *http.Request, deps Deps, t actionTarget)
 }
 
-// autoMergeAdapterFor picks the adapter for forge. known is false for a forge
-// this build has no capabilities for: it gets the forge-held adapter, which
-// the forge lookup then refuses, and cancel answers 400.
-func autoMergeAdapterFor(forge string) (adapter autoMergeAdapter, known bool) {
-	c, known := dashboard.CapabilitiesOf(dashboard.Forge(forge))
-	if known && c.AutoMergeHeldByApp {
-		return appHeldAutoMerge{}, true
+// autoMergeAdapterFor picks the adapter for forge. A forge this build has no
+// capabilities for gets the forge-held adapter; the handlers refuse it before
+// they ask.
+func autoMergeAdapterFor(forge string) autoMergeAdapter {
+	if c, known := dashboard.CapabilitiesOf(dashboard.Forge(forge)); known && c.AutoMergeHeldByApp {
+		return appHeldAutoMerge{}
 	}
 
-	return newForgeHeldAutoMerge(), known
+	return newForgeHeldAutoMerge()
 }
 
 // handlePullRequestAutoMerge arms auto-merge on the named pull request. Where
@@ -43,7 +42,7 @@ func handlePullRequestAutoMerge(deps Deps) http.HandlerFunc {
 		if refuseUnknownForge(w, t.req.Forge) {
 			return
 		}
-		adapter, _ := autoMergeAdapterFor(t.req.Forge)
+		adapter := autoMergeAdapterFor(t.req.Forge)
 		adapter.arm(w, r, deps, t)
 	}
 }
@@ -142,7 +141,7 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 		if refuseUnknownForge(w, t.req.Forge) {
 			return
 		}
-		adapter, _ := autoMergeAdapterFor(t.req.Forge)
+		adapter := autoMergeAdapterFor(t.req.Forge)
 		adapter.cancel(w, r, deps, t)
 	}
 }
