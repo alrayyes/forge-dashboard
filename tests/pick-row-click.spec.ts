@@ -129,6 +129,34 @@ for (const size of sizes) {
       await expect(box).toBeFocused();
     });
 
+    test('after a press, Tab out of the panel still closes it', async ({
+      page,
+    }) => {
+      const host = await open(page, FEW);
+      const button = host.locator('#shared-repo-filter-button');
+      await host.locator('.pick-name', { hasText: 'alrayyes/app' }).click();
+      await expect(button).toHaveAttribute('aria-expanded', 'true');
+      for (let i = 0; i < 8; i++) {
+        if ((await button.getAttribute('aria-expanded')) === 'false') break;
+        await page.keyboard.press('Tab');
+      }
+      await expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
+
+    test('after a press, a click outside still closes the panel', async ({
+      page,
+    }) => {
+      const host = await open(page, FEW);
+      const button = page.locator('#shared-repo-filter-button').first();
+      await host.locator('.pick-name', { hasText: 'alrayyes/app' }).click();
+      await expect(button).toHaveAttribute('aria-expanded', 'true');
+      // On the phone the open sheet covers the page, so click its heading.
+      const heading = page.getByRole('heading', { name: 'Filters' });
+      if (await heading.isVisible()) await heading.click();
+      else await page.mouse.click(4, 4);
+      await expect(button).toHaveAttribute('aria-expanded', 'false');
+    });
+
     for (const scheme of ['light', 'dark'] as const) {
       test(`${scheme}: no axe-core violations with the panel open`, async ({
         page,
