@@ -36,7 +36,9 @@ One Go binary serves all of it. `web/` builds to static files that
   issue reference, and its label. Each forge's health in the dashboard and Main
   branches answers carries it as `capabilities`, so a client asks what a forge
   can do instead of testing its name, and the web pages read a forge's label
-  from it. Adding a forge means filling in this value, besides its adapter.
+  from it. `Forge.Valid()` and `dashboard.Forges()` answer from the same
+  table, so request checks and forge lists need no edit for a new forge.
+  Adding a forge means filling in this value, besides its adapter.
 - **The aggregator** refreshes the instance's one snapshot in the
   background, so a request reads the last good snapshot and never blocks on a
   forge. A webhook from a forge refreshes one repo early.

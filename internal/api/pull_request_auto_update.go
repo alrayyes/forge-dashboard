@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -114,12 +115,37 @@ func pullRequestTargetProblem(forge, fullName string, number int) (string, *stat
 	if _, _, ok := splitFullName(fullName); !ok {
 		return "", &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
 	}
-	if forge != string(dashboard.ForgeGitHub) && forge != string(dashboard.ForgeForgejo) {
-		return "forge", &statusError{http.StatusBadRequest, "forge must be github or forgejo"}
+	if serr := forgeProblem(forge); serr != nil {
+		return "forge", serr
 	}
 	if number < 1 || number > maxPullRequestNumber {
 		return "number", &statusError{http.StatusBadRequest, "number must be a pull request number"}
 	}
 
 	return "", nil
+}
+
+// forgeProblem refuses, with a 400, a forge this build doesn't know. The one
+// check and the one message for every endpoint that takes a forge in its body.
+func forgeProblem(forge string) *statusError {
+	if dashboard.Forge(forge).Valid() {
+		return nil
+	}
+	names := make([]string, 0, len(dashboard.Forges()))
+	for _, f := range dashboard.Forges() {
+		names = append(names, string(f))
+	}
+
+	return &statusError{http.StatusBadRequest, "forge must be " + strings.Join(names, " or ")}
+}
+
+// refuseUnknownForge answers 400 for an unknown forge and reports whether it did.
+func refuseUnknownForge(w http.ResponseWriter, forge string) bool {
+	serr := forgeProblem(forge)
+	if serr == nil {
+		return false
+	}
+	writeJSON(w, serr.status, fieldErrorBody("forge", serr.message))
+
+	return true
 }

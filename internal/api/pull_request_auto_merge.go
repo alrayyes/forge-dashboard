@@ -40,6 +40,9 @@ func handlePullRequestAutoMerge(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
+		if refuseUnknownForge(w, t.req.Forge) {
+			return
+		}
 		adapter, _ := autoMergeAdapterFor(t.req.Forge)
 		adapter.arm(w, r, deps, t)
 	}
@@ -136,12 +139,10 @@ func handlePullRequestAutoMergeCancel(deps Deps) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		adapter, known := autoMergeAdapterFor(t.req.Forge)
-		if !known {
-			writeJSON(w, http.StatusBadRequest, errorBody("unknown forge"))
-
+		if refuseUnknownForge(w, t.req.Forge) {
 			return
 		}
+		adapter, _ := autoMergeAdapterFor(t.req.Forge)
 		adapter.cancel(w, r, deps, t)
 	}
 }
