@@ -1914,6 +1914,7 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 				RunAttempt: j.RunAttempt,
 
 				ReportedConclusion: reportedConclusion(j.Status),
+				ReportedStatus:     dashboard.UnknownWord(checkStateFromWorkflowStatus(j.Status), j.Status),
 			}, j), run.ID, workflowName(run), run.RunNumber)
 			checks = append(checks, withRunFacts(check, run.Status, run.StartedAt, run.CompletedAt))
 			probes = append(probes, workflowContext(run, j.Name))

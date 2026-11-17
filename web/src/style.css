@@ -2107,6 +2107,15 @@ a.ci-pill:hover {
   width: 100%;
 }
 
+/* The forge's own word for a check the page cannot grade, beside the Unknown
+   label. It wraps on a narrow screen rather than pushing the row wider. */
+.pipeline-check-word {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  unicode-bidi: isolate;
+  font-size: 0.71875rem;
+  color: var(--ink-2);
+}
 /* biome-ignore lint/style/noDescendingSpecificity: .forge-badge.gh .dot
    (higher specificity, earlier) sets only background -- never width/
    height/border-radius/flex, so no property actually collides. */
@@ -3883,6 +3892,19 @@ footer a.mono:focus-visible {
     display: flex;
     width: 100%;
   }
+  /* A locked Merge whose reason sits in the status above takes its content
+     width like a live one, so Update branch can sit beside it instead of
+     under it (#4099). One that prints its own note keeps the full line. */
+  .row-action-bar .row-action-locked:not(.row-action-locked-visible) {
+    width: auto;
+    flex: 0 1 auto;
+  }
+  .row-action-bar
+    .row-action-locked:not(.row-action-locked-visible)
+    > .row-action {
+    min-width: 120px;
+    padding-inline: 20px;
+  }
   .row-action-bar .row-action-group > .row-action {
     flex: 1 1 0;
     width: auto;
@@ -3895,6 +3917,18 @@ footer a.mono:focus-visible {
     flex: 0 1 auto;
     min-width: 120px;
     padding-inline: 20px;
+  }
+  /* At 320px the bar is 246px and two 120px minimums plus the gap need more,
+     so the pair gives up a little width before it would wrap (#4099). */
+  @media (max-width: 340px) {
+    .row-action-bar > .row-action,
+    .row-action-bar
+      .row-action-locked:not(.row-action-locked-visible)
+      > .row-action,
+    .row-action-bar .row-action-group:not(.confirm-group) > .row-action {
+      min-width: 100px;
+      padding-inline: 14px;
+    }
   }
   .row-action-bar .row-action-locked-visible {
     align-items: stretch;
@@ -6102,4 +6136,35 @@ footer a[aria-current="page"] {
 .sheet-pills[hidden],
 .filter-sheet .sheet-pills[hidden] {
   display: none;
+}
+
+/* The banners and notes on the Branches page. They live here rather than in
+   the page, so the notice component renders with them in a story too. */
+.mb-banner,
+.mb-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 12px 14px;
+  margin: 0 0 16px;
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-size: 0.84375rem;
+}
+.mb-banner {
+  border-left-color: var(--warning);
+  background: var(--warning-bg);
+}
+/* An author display: flex beats the UA's [hidden] { display: none }. */
+.mb-banner[hidden] {
+  display: none;
+}
+.mb-note.good {
+  border-left-color: var(--good);
+}
+.mb-note p,
+.mb-banner p {
+  margin: 0;
 }

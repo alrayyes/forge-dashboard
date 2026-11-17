@@ -148,6 +148,11 @@ type Check struct {
 	// State on the way out; the page works out what to show from them.
 	Status     CheckStatus     `json:"status"`
 	Conclusion CheckConclusion `json:"conclusion,omitempty"`
+	// ReportedStatus is the forge's own word for a status the server cannot
+	// grade, so the page can name it. WithFacts keeps it only while the
+	// status is "unknown" and drops it otherwise. A finished job's word is
+	// its Conclusion.
+	ReportedStatus string `json:"reportedStatus,omitempty"`
 	// State is the server's own one-word reading of the job, which decides
 	// rerun, cancel and the main branch counts. It is not on the wire.
 	State CheckState `json:"-"`

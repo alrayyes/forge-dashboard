@@ -12,6 +12,8 @@ import (
 	"net/http"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
@@ -22,64 +24,19 @@ import (
 const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
-// against its X-Hub-Signature-256 header and triggers an immediate
-// refresh when webhookToken matches.
+// against its signature header and triggers an immediate refresh when
+// webhookToken matches. The headers are read by the github adapter.
 func handleGitHubWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
 	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeGitHub,
-		func(h http.Header) string {
-			const prefix = "sha256="
-			sig := h.Get("X-Hub-Signature-256")
-			if len(sig) <= len(prefix) || sig[:len(prefix)] != prefix {
-				return ""
-			}
-
-			return sig[len(prefix):]
-		},
-		githubDeliveryHeaders,
-	)
+		github.WebhookSignature, github.WebhookDelivery)
 }
 
 // handleForgejoWebhook verifies a Forgejo repository webhook delivery and
-// triggers an immediate refresh when webhookToken matches.
-// Which header carries the signature depends on whether the webhook was
-// set up with the "Forgejo" type or the legacy "Gitea" one — both are the
-// same raw hex HMAC-SHA256, no prefix.
+// triggers an immediate refresh when webhookToken matches. The headers,
+// including the legacy Gitea-named ones, are read by the forgejo adapter.
 func handleForgejoWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
 	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeForgejo,
-		func(h http.Header) string {
-			if sig := h.Get("X-Forgejo-Signature"); sig != "" {
-				return sig
-			}
-
-			return h.Get("X-Gitea-Signature")
-		},
-		forgejoDeliveryHeaders,
-	)
-}
-
-// githubDeliveryHeaders reads the two headers every real GitHub delivery
-// carries — a stable ID and the event type — purely for logging; neither
-// is trusted for anything security- or behavior-relevant.
-func githubDeliveryHeaders(h http.Header) (delivery, event string) {
-	return h.Get("X-GitHub-Delivery"), h.Get("X-GitHub-Event")
-}
-
-// forgejoDeliveryHeaders is githubDeliveryHeaders' Forgejo counterpart.
-// Forgejo sends its own X-Forgejo-Delivery/X-Forgejo-Event pair, falling
-// back to the legacy Gitea-named headers for an instance whose webhook
-// was set up with that older type — the same distinction
-// handleForgejoWebhook's own signature header already makes.
-func forgejoDeliveryHeaders(h http.Header) (delivery, event string) {
-	delivery = h.Get("X-Forgejo-Delivery")
-	if delivery == "" {
-		delivery = h.Get("X-Gitea-Delivery")
-	}
-	event = h.Get("X-Forgejo-Event")
-	if event == "" {
-		event = h.Get("X-Gitea-Event")
-	}
-
-	return delivery, event
+		forgejo.WebhookSignature, forgejo.WebhookDelivery)
 }
 
 // webhookPayload is the piece of a webhook delivery's body every event

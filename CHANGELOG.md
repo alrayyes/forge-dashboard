@@ -1,5 +1,48 @@
 # Changelog
 
+## [9.69.4](https://github.com/alrayyes/forge-dashboard/compare/v9.69.3...v9.69.4) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** put a locked Merge and Update branch side by side on a phone ([#4107](https://github.com/alrayyes/forge-dashboard/issues/4107)) ([78561bf](https://github.com/alrayyes/forge-dashboard/commit/78561bf44d57fbf8be7ff17a89c21c893f96a47c))
+
+## [9.69.3](https://github.com/alrayyes/forge-dashboard/compare/v9.69.2...v9.69.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** keep what a webhook set when a full refresh settles after it ([#4112](https://github.com/alrayyes/forge-dashboard/issues/4112)) ([8533b3f](https://github.com/alrayyes/forge-dashboard/commit/8533b3f45ea520922712f9cc35f66737d48ce72a))
+
+## [9.69.2](https://github.com/alrayyes/forge-dashboard/compare/v9.69.1...v9.69.2) (2026-11-17)
+
+
+### Bug Fixes
+
+* **dashboard:** clear a failed forge's mark once webhooks have refreshed every repo ([#4106](https://github.com/alrayyes/forge-dashboard/issues/4106)) ([47ada8d](https://github.com/alrayyes/forge-dashboard/commit/47ada8d3ad3943232c82ce609cdd660fd95c2a08)), closes [#3869](https://github.com/alrayyes/forge-dashboard/issues/3869)
+
+## [9.69.1](https://github.com/alrayyes/forge-dashboard/compare/v9.69.0...v9.69.1) (2026-11-17)
+
+
+### Bug Fixes
+
+* **web:** keep a multi-select panel open while a row is pressed ([#4095](https://github.com/alrayyes/forge-dashboard/issues/4095)) ([2d6c000](https://github.com/alrayyes/forge-dashboard/commit/2d6c000c4ab04215534e8ee1dffa1ddbb78ba36a))
+
+## [9.69.0](https://github.com/alrayyes/forge-dashboard/compare/v9.68.0...v9.69.0) (2026-11-17)
+
+
+### Features
+
+* **web:** name the forge's raw word for an unknown check ([#4091](https://github.com/alrayyes/forge-dashboard/issues/4091)) ([5667e30](https://github.com/alrayyes/forge-dashboard/commit/5667e3030dde914a1262a9959bdd2875f2a4cb2e)), closes [#4066](https://github.com/alrayyes/forge-dashboard/issues/4066)
+
+## [9.68.0](https://github.com/alrayyes/forge-dashboard/compare/v9.67.0...v9.68.0) (2026-11-17)
+
+
+### Features
+
+* **branches:** give an unknown job its own branch status ([#4086](https://github.com/alrayyes/forge-dashboard/issues/4086)) ([8ba971a](https://github.com/alrayyes/forge-dashboard/commit/8ba971a608c4a97fae6d99bae4cf2c3449e41ba2)), closes [#4063](https://github.com/alrayyes/forge-dashboard/issues/4063)
+* **web:** add a clear button and Escape to the title or number box ([#4083](https://github.com/alrayyes/forge-dashboard/issues/4083)) ([7f84cd9](https://github.com/alrayyes/forge-dashboard/commit/7f84cd9af26ced8051ca41f1f830da4b36108dc3)), closes [#4077](https://github.com/alrayyes/forge-dashboard/issues/4077)
+
 ## [9.67.0](https://github.com/alrayyes/forge-dashboard/compare/v9.66.0...v9.67.0) (2026-11-17)
 
 

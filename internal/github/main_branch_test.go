@@ -209,6 +209,28 @@ func TestFetch_MainBranch(t *testing.T) {
 		assert.Equal(t, "https://ci.example/1", row.RunURL)
 	})
 
+	t.Run("a check or status the server cannot grade carries the forge's word (#4066)", func(t *testing.T) {
+		t.Parallel()
+		odd := checkRun("odd", "", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z")
+		odd["status"], odd["conclusion"] = "BRAND_NEW_STATUS", ""
+		legacy := map[string]any{
+			"__typename": "StatusContext", "context": "ci/legacy", "state": "ODD_STATE", "targetUrl": "https://ci.example/1",
+		}
+		fine := checkRun("fine", "SUCCESS", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z")
+
+		row, _ := tokenFetchWith(t, branchRef(rollupOf("PENDING", nil, odd, legacy, fine)))
+
+		got := map[string]string{}
+		for _, run := range row.Runs {
+			for _, c := range run.Checks {
+				got[c.Name] = c.ReportedStatus
+			}
+		}
+		assert.Equal(t, "brand_new_status", got["odd"])
+		assert.Equal(t, "odd_state", got["ci/legacy"])
+		assert.Empty(t, got["fine"])
+	})
+
 	t.Run("a failed check whose details page is a GitHub app's API host links to the check's own page (#3148)", func(t *testing.T) {
 		t.Parallel()
 		dependabot := checkRun(".github/dependabot.yml", "FAILURE", "2026-10-10T09:01:00Z", "2026-10-10T09:02:00Z")

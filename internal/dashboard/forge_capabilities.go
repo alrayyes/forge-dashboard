@@ -36,6 +36,14 @@ type ForgeCapabilities struct {
 	IssueRefSyntax string `json:"issueRefSyntax"`
 	// Label is the forge's name as a person reads it.
 	Label string `json:"label"`
+	// BotLoginSuffix is what the forge appends to a bot account's login
+	// ("[bot]" on GitHub), or empty when it has no bot accounts of this kind.
+	// Server-side only: profile links are built here, so it is not in the API.
+	BotLoginSuffix string `json:"-"`
+	// BotProfilePages maps a bot's login, without BotLoginSuffix, to the path
+	// of its page under the forge's web base. A bot not listed has no page that
+	// was checked to exist, and is shown by name alone. Server-side only.
+	BotProfilePages map[string]string `json:"-"`
 }
 
 // Values of ForgeCapabilities.AdvisorySource, RateLimitModel and IssueRefSyntax.
@@ -66,6 +74,16 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		RateLimitModel:             RateLimitGraphQLAndREST,
 		IssueRefSyntax:             IssueRefHashOrGHPref,
 		Label:                      "GitHub",
+		BotLoginSuffix:             "[bot]",
+		// Pages checked to exist. A bot's login is not its page: Dependabot's
+		// is an organisation at /dependabot (/apps/dependabot only lands on a
+		// docs page), Renovate's is its app page (/renovate is a 404). GitHub
+		// Actions and the rest have no page that is theirs, and a missing
+		// link beats a dead one.
+		BotProfilePages: map[string]string{
+			"dependabot": "dependabot",
+			"renovate":   "apps/renovate",
+		},
 	},
 	ForgeForgejo: {
 		AutoMergeHeldByApp:         true,

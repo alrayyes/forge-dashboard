@@ -188,13 +188,24 @@ test.describe('the time zone control on Settings (#996)', () => {
     const preview = page.locator('#timezone-preview');
     await expect(preview).toContainText('CEST');
 
-    const saved = page.waitForRequest(
-      (req) =>
-        req.url().includes('/api/v1/settings/timezone') &&
-        req.method() === 'PUT',
+    // A slow server, as on a loaded runner: the reply lands a second late.
+    // A reload before it lands aborts the PUT and nothing is saved.
+    await page.route('**/api/v1/settings/timezone', async (route: Route) => {
+      if (route.request().method() === 'PUT') {
+        await new Promise((resolve) => setTimeout(resolve, 1000));
+      }
+      await route.continue();
+    });
+
+    const saved = page.waitForResponse(
+      (res) =>
+        res.url().includes('/api/v1/settings/timezone') &&
+        res.request().method() === 'PUT',
     );
     await page.getByLabel('Time zone').selectOption('UTC');
-    expect((await saved).postDataJSON()).toEqual({ timezone: 'UTC' });
+    const res = await saved;
+    expect(res.ok()).toBe(true);
+    expect(res.request().postDataJSON()).toEqual({ timezone: 'UTC' });
     await expect(preview).toContainText(/\d{2}:\d{2} UTC/);
     await expect(page.locator('#timezone-status')).toHaveText('');
 

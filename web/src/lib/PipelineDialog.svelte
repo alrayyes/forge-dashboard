@@ -94,6 +94,7 @@
     blockingFirst,
     CHECK_STATE_LABELS,
     checkRunKey,
+    checkUnknownWord,
     checkState,
     checkDurationSeconds,
     formatCheckDuration,
@@ -675,8 +676,12 @@
       {@const hint = checkHint(check, target?.repo)}
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
+      {@const word = checkUnknownWord(check)}
       <li class="pipeline-check">
-        <span class="pipeline-check-status {state}">
+        <span
+          class="pipeline-check-status {state}"
+          title={word ? `Unknown: the forge reported "${word}"` : undefined}
+        >
           {#each CHECK_GLYPHS[state] ?? [] as g (g.name)}
             <svg
               viewBox="0 0 16 16"
@@ -693,6 +698,11 @@
           {/each}
           {CHECK_STATE_LABELS[state] || state}
         </span>
+        {#if word}
+          <code class="pipeline-check-word" data-testid="check-forge-word"
+            >{word}</code
+          >
+        {/if}
         <span class="pipeline-check-name">{check.name}</span>
         {#if secs !== undefined}
           <span class="pipeline-check-duration"

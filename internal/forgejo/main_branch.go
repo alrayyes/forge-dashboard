@@ -373,6 +373,7 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 					RunAttempt: j.RunAttempt,
 
 					ReportedConclusion: reportedConclusion(j.Status),
+					ReportedStatus:     dashboard.UnknownWord(branchJobState(r, j), j.Status),
 				}, j), r.ID, runName(r), r.Number)
 				out = append(out, withRunFacts(job, r.Status, r.StartedAt, r.StoppedAt))
 			}
@@ -382,6 +383,7 @@ func branchChecks(runs []*branchRun, jobs map[int64][]*gitea.ActionWorkflowJob) 
 		stand := withRun(dashboard.Check{
 			Name: runName(r), State: checkStateFromWorkflowStatus(r.Status), URL: r.HTMLURL,
 			ReportedConclusion: reportedConclusion(r.Status),
+			ReportedStatus:     dashboard.UnknownWord(checkStateFromWorkflowStatus(r.Status), r.Status),
 		}, r.ID, runName(r), r.Number)
 		out = append(out, withRunFacts(stand, r.Status, r.StartedAt, r.StoppedAt))
 	}
