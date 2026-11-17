@@ -193,3 +193,40 @@ func TestFlow_Complete_ExpiredState_IsRejected(t *testing.T) {
 	require.ErrorIs(t, err, oauth.ErrInvalidState)
 	assert.Empty(t, forge.exchanges())
 }
+
+func TestFlow_BeginWith_SendsTheBrowserToTheNamedInstanceAndRemembersIt(t *testing.T) {
+	t.Parallel()
+
+	forge := newFakeForge(t)
+	flow := newFlow(t, forge, time.Now)
+
+	raw := flow.BeginWith(oauth2.Endpoint{
+		AuthURL:  "https://git.example.com/login/oauth/authorize",
+		TokenURL: forge.server.URL + "/login/oauth/access_token",
+	}, "https://git.example.com")
+	u, err := url.Parse(raw)
+	require.NoError(t, err)
+	assert.Equal(t, "git.example.com", u.Host)
+
+	token, instance, err := flow.CompleteWith(t.Context(), u.Query().Get("state"), "the-code")
+	require.NoError(t, err)
+	assert.Equal(t, "access-1", token.AccessToken)
+	assert.Equal(t, "https://git.example.com", instance)
+	assert.Len(t, forge.exchanges(), 1, "the exchange goes to the endpoint the attempt was begun with")
+}
+
+func TestFlow_Complete_AStateThatOnlySharesAPrefixIsRejected(t *testing.T) {
+	t.Parallel()
+
+	forge := newFakeForge(t)
+	flow := newFlow(t, forge, time.Now)
+	state := begin(t, flow).Get("state")
+
+	_, err := flow.Complete(t.Context(), state[:len(state)-1], "the-code")
+	require.ErrorIs(t, err, oauth.ErrInvalidState)
+
+	_, err = flow.Complete(t.Context(), state+"x", "the-code")
+	require.ErrorIs(t, err, oauth.ErrInvalidState)
+
+	assert.Empty(t, forge.exchanges())
+}

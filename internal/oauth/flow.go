@@ -3,6 +3,7 @@ package oauth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"sync"
@@ -17,6 +18,8 @@ import (
 var ErrInvalidState = errors.New("oauth: unknown, used or expired state")
 
 type attempt struct {
+	cfg      oauth2.Config
+	instance string
 	verifier string
 	expires  time.Time
 }
@@ -41,47 +44,82 @@ func NewFlow(cfg oauth2.Config, ttl time.Duration, now func() time.Time) *Flow {
 
 // Begin starts an attempt and returns the forge URL to send the browser to.
 func (f *Flow) Begin() string {
+	return f.BeginWith(f.cfg.Endpoint, "")
+}
+
+// BeginWith is Begin against a forge whose endpoints are known only now, such
+// as a self-hosted instance the owner names. instance rides along with the
+// attempt and comes back from CompleteWith, so the callback knows which
+// instance the state was issued for without trusting anything in the request.
+func (f *Flow) BeginWith(endpoint oauth2.Endpoint, instance string) string {
 	state := rand.Text()
 	verifier := oauth2.GenerateVerifier()
+
+	cfg := f.cfg
+	cfg.Endpoint = endpoint
 
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	f.dropExpired()
-	f.pending[state] = attempt{verifier: verifier, expires: f.now().Add(f.ttl)}
+	f.pending[state] = attempt{cfg: cfg, instance: instance, verifier: verifier, expires: f.now().Add(f.ttl)}
 
-	return f.cfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
+	return cfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 }
 
 // Complete checks state, then exchanges code for a token using the verifier
 // that went with that state. The state is consumed either way, so a replayed
 // callback fails. An unknown or expired state never reaches the token endpoint.
 func (f *Flow) Complete(ctx context.Context, state, code string) (*oauth2.Token, error) {
-	a, ok := f.take(state)
-	if !ok {
-		return nil, ErrInvalidState
-	}
+	token, _, err := f.CompleteWith(ctx, state, code)
 
-	token, err := f.cfg.Exchange(ctx, code, oauth2.VerifierOption(a.verifier))
-	if err != nil {
-		return nil, fmt.Errorf("oauth: exchange code: %w", err)
-	}
-
-	return token, nil
+	return token, err
 }
 
+// CompleteWith is Complete for an attempt started with BeginWith. It also
+// returns the instance that attempt named.
+func (f *Flow) CompleteWith(ctx context.Context, state, code string) (*oauth2.Token, string, error) {
+	a, ok := f.take(state)
+	if !ok {
+		return nil, "", ErrInvalidState
+	}
+
+	token, err := a.cfg.Exchange(ctx, code, oauth2.VerifierOption(a.verifier))
+	if err != nil {
+		return nil, "", fmt.Errorf("oauth: exchange code: %w", err)
+	}
+
+	return token, a.instance, nil
+}
+
+// take removes and returns the attempt issued for state. The comparison runs
+// against every pending state in constant time, so the time it takes says
+// nothing about how much of a guess matched.
 func (f *Flow) take(state string) (attempt, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	a, ok := f.pending[state]
-	delete(f.pending, state)
+	var (
+		found attempt
+		key   string
+		ok    bool
+	)
 
-	if !ok || !f.now().Before(a.expires) {
+	for candidate, a := range f.pending {
+		if subtle.ConstantTimeCompare([]byte(candidate), []byte(state)) == 1 {
+			found, key, ok = a, candidate, true
+		}
+	}
+
+	if ok {
+		delete(f.pending, key)
+	}
+
+	if !ok || !f.now().Before(found.expires) {
 		return attempt{}, false
 	}
 
-	return a, true
+	return found, true
 }
 
 // dropExpired keeps abandoned attempts from piling up. Callers hold f.mu.
