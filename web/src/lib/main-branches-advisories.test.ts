@@ -2,21 +2,23 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
-  ADVISORY_REASON_TEXT,
+  ADVISORY_WORDS_BY_SOURCE,
   type Advisories,
   advisoryCounts,
   advisoryCoverage,
   advisoryCoverageByForge,
   advisoryPill,
+  advisoryPillOpensDialog,
   advisoryReasonNeedsGrant,
   advisoryRowHint,
   advisoryRowUnreadable,
   advisoryUnknownReason,
+  advisoryWordsFor,
   applyFilter,
   DEFAULT_FILTER,
-  forgejoAdvisoryReasonText,
   isFiltered,
   type MainBranch,
+  NEUTRAL_ADVISORY_WORDS,
   offeredAdvisories,
 } from './main-branches';
 
@@ -279,7 +281,9 @@ describe('advisoryUnknownReason', () => {
     expect(advisoryReasonNeedsGrant('refused')).toBe(true);
     expect(advisoryReasonNeedsGrant('switched_off')).toBe(true);
     expect(advisoryReasonNeedsGrant('throttled')).toBe(false);
-    expect(ADVISORY_REASON_TEXT.throttled).toContain('rate limiting');
+    expect(ADVISORY_WORDS_BY_SOURCE.dependabot.reasons.throttled).toContain(
+      'rate limiting',
+    );
   });
 });
 
@@ -362,11 +366,74 @@ describe('Forgejo cue wording', () => {
     ).toBe('Advisories unknown');
   });
 
-  test('has notice text only for the causes Forgejo can report', () => {
-    expect(forgejoAdvisoryReasonText('failed')).toContain('OSV');
-    expect(forgejoAdvisoryReasonText('too_many')).toContain('more packages');
-    expect(forgejoAdvisoryReasonText('refused')).toBeNull();
-    expect(forgejoAdvisoryReasonText(null)).toBeNull();
+  test('has notice text only for the causes an OSV source can report', () => {
+    const osv = advisoryWordsFor('forgejo').reasons;
+
+    expect(osv.failed).toContain('OSV');
+    expect(osv.too_many).toContain('more packages');
+    expect(osv.refused).toBeUndefined();
+  });
+});
+
+describe('advisory wording by source', () => {
+  test('one table keyed by source serves each forge that names it', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: true,
+        },
+      },
+    ]);
+
+    expect(advisoryWordsFor('github')).toBe(
+      ADVISORY_WORDS_BY_SOURCE.dependabot,
+    );
+    expect(advisoryWordsFor('forgejo')).toBe(ADVISORY_WORDS_BY_SOURCE.osv);
+    expect(advisoryWordsFor('gitea')).toBe(ADVISORY_WORDS_BY_SOURCE.osv);
+  });
+
+  test('a forge with no source, or one nobody wrote, is neutral, never GitHub', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'other',
+        capabilities: {
+          label: 'Other',
+          advisorySource: 'mystery',
+          advisoryUnknownNeedsReason: false,
+        },
+      },
+    ]);
+
+    expect(advisoryWordsFor('nowhere')).toBe(NEUTRAL_ADVISORY_WORDS);
+    expect(advisoryWordsFor('other')).toBe(NEUTRAL_ADVISORY_WORDS);
+    expect(NEUTRAL_ADVISORY_WORDS.fallback).not.toContain('GitHub');
+    expect(NEUTRAL_ADVISORY_WORDS.grantNote).toBeNull();
+  });
+
+  test('the pill opens the dialog by what the source needs, not the forge name', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          label: 'Gitea',
+          advisorySource: 'osv',
+          advisoryUnknownNeedsReason: true,
+        },
+      },
+    ]);
+
+    expect(advisoryPillOpensDialog('github', { href: 'https://x.test/' })).toBe(
+      true,
+    );
+    expect(advisoryPillOpensDialog('github', { href: null })).toBe(false);
+    expect(advisoryPillOpensDialog('forgejo', { href: null })).toBe(true);
+    expect(advisoryPillOpensDialog('gitea', { href: null })).toBe(true);
+    expect(
+      advisoryPillOpensDialog('nowhere', { href: 'https://x.test/' }),
+    ).toBe(false);
   });
 });
 

@@ -62,8 +62,8 @@
     filterToState,
     httpHref,
     advisoryPill,
-    advisoryCoverage,
     advisoryCoverageByForge,
+    advisoryPillOpensDialog,
     advisoryCounts,
     offeredAdvisories,
     type AdvisoryFilter,
@@ -173,12 +173,16 @@
   const forgeOffered = $derived(offeredForges(branches, filter));
   const advisoryOffered = $derived(offeredAdvisories(branches, filter));
   const advisoryTally = $derived(advisoryCounts(branches));
-  const advisoryState = $derived(advisoryCoverage(branches));
-  const advisoryReason = $derived(advisoryUnknownReason(branches));
-  const forgejoAdvisoryState = $derived(advisoryCoverage(branches, "forgejo"));
+  // The forges whose advisories can't be read at all, each with the one cause
+  // its rows share, so the notices come from the rows, not from a forge's name.
   const advisoryStateByForge = $derived(advisoryCoverageByForge(branches));
-  const forgejoAdvisoryReason = $derived(
-    advisoryUnknownReason(branches, "forgejo"),
+  const advisoryNotices = $derived(
+    Object.entries(advisoryStateByForge)
+      .filter(([, state]) => state === "none")
+      .map(([forge]) => ({
+        forge,
+        reason: advisoryUnknownReason(branches, forge),
+      })),
   );
   const staleSplit = $derived(
     splitStaleRows(branches.filter(isStale), data?.forges),
@@ -1033,13 +1037,9 @@
       </div>
     {/if}
 
-    {#if advisoryState === "none"}
-      <AdvisoriesNotice forge="github" reason={advisoryReason} />
-    {/if}
-
-    {#if forgejoAdvisoryState === "none"}
-      <AdvisoriesNotice forge="forgejo" reason={forgejoAdvisoryReason} />
-    {/if}
+    {#each advisoryNotices as notice (notice.forge)}
+      <AdvisoriesNotice forge={notice.forge} reason={notice.reason} />
+    {/each}
 
     {#if branchesAwaitingFlag(firstRefresh.settled, counts.total)}
       <p class="mb-loading" data-testid="branches-awaiting-flag">
@@ -1234,7 +1234,7 @@
                   {#if adv}
                     <!-- Severity is the word beside the count; the colour
                       only echoes it. -->
-                    {#if (adv.href && b.forge === "github") || b.forge === "forgejo"}
+                    {#if advisoryPillOpensDialog(b.forge, adv)}
                       <!-- A pill opens the list of the row's advisories here;
                         a GitHub dialog links on to GitHub, a Forgejo one to
                         OSV's page for each advisory. -->
