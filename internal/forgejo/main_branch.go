@@ -67,9 +67,9 @@ func (c *Client) readBranchRuns(ctx context.Context, repo dashboard.RepoRef) (da
 	row.Status = mainBranchStatus(runs)
 	checks := branchChecks(runs, jobs)
 	row.Checks = countChecks(checks)
-	if row.Status == dashboard.MainBranchPassed && row.Checks.Unknown > 0 {
+	if (row.Status == dashboard.MainBranchPassed || row.Status == dashboard.MainBranchCancelled) && row.Checks.Unknown > 0 {
 		// The runs say passed, but a job nobody can grade is not a pass.
-		row.Status = dashboard.MainBranchRunning
+		row.Status = dashboard.MainBranchUnknown
 	}
 	row.Runs = dashboard.MainBranchRuns(checks)
 	for i := range row.Runs {
@@ -214,16 +214,18 @@ func (c *Client) branchRunsList(ctx context.Context, repo dashboard.RepoRef, str
 // running to replace them, are Cancelled: nothing broke (#1950). This differs on
 // purpose from a pull request's rollup (#722), which still reads them as failed.
 func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
-	var failed, cancelled, running bool
+	var failed, cancelled, running, unknown bool
 	for _, r := range runs {
 		switch checkStateFromWorkflowStatus(r.Status) {
 		case dashboard.CheckFailure:
 			failed = true
 		case dashboard.CheckCancelled:
 			cancelled = true
-		case dashboard.CheckRunning, dashboard.CheckQueued, dashboard.CheckUnknown:
-			// A run nobody can grade is not a pass, and it can still change.
+		case dashboard.CheckRunning, dashboard.CheckQueued:
 			running = true
+		case dashboard.CheckUnknown:
+			// A run nobody can grade is not a pass, and not known to be going.
+			unknown = true
 		}
 	}
 	switch {
@@ -231,6 +233,8 @@ func mainBranchStatus(runs []*branchRun) dashboard.MainBranchStatus {
 		return dashboard.MainBranchFailed
 	case running:
 		return dashboard.MainBranchRunning
+	case unknown:
+		return dashboard.MainBranchUnknown
 	case cancelled:
 		return dashboard.MainBranchCancelled
 	default:

@@ -24,6 +24,7 @@ const counts: MainBranchCounts = {
   running: 4,
   cancelled: 0,
   awaitingApproval: 0,
+  unknown: 2,
   none: 6,
 };
 
@@ -36,6 +37,7 @@ describe('branchNavCount', () => {
       running: 4,
       none: 6,
       awaitingApproval: 0,
+      unknown: 2,
       cancelled: 0,
     });
   });

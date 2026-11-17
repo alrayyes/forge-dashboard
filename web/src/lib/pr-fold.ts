@@ -60,6 +60,8 @@ export function foldPullRequest(
       return { ci: 'failure', awaiting: false, counts };
     case 'running':
     case 'awaiting_approval':
+    case 'unknown':
+      // A pull request has no status of its own for it: it reads pending.
       return { ci: 'pending', awaiting: false, counts };
     case 'passed':
       return { ci: 'success', awaiting: false, counts };

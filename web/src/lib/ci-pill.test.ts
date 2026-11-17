@@ -398,3 +398,19 @@ describe('an unknown check in the pill', () => {
     }
   });
 });
+
+describe('a branch whose only odd job is unknown (#4063)', () => {
+  test('the pill words it Unknown and counts the job, never as running', () => {
+    const m = ciPillModel({
+      cls: 'unknown',
+      glyph: 'unknown',
+      word: 'Unknown',
+      counts: { passed: 3, running: 0, waiting: 0, failed: 0, unknown: 1 },
+      segmented: true,
+    });
+
+    expect(m.classes).toBe('ci-pill unknown segmented');
+    expect(m.live).toBe(false);
+    expect(m.name).toBe('Unknown 3 1: 3 passed, 1 unknown');
+  });
+});

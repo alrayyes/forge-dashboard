@@ -26,10 +26,6 @@ export type CheckCounts = {
   held?: number;
 };
 
-// What a fold tallies from a job list for a pull request, which counts its
-// cancelled and held jobs apart.
-export type TalliedCounts = Required<Omit<CheckCounts, 'cancelled' | 'held'>>;
-
 // A branch's tally: every job lands in exactly one count, so they add up.
 export type BranchCounts = Required<CheckCounts>;
 

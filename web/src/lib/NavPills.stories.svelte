@@ -123,6 +123,22 @@
   })}
 </Story>
 
+<!-- A branch whose only odd job is one nobody can grade is drawn, so the parts
+     add up to the total (#4063). -->
+<Story
+  asChild
+  name="Unknown"
+  play={async ({ canvasElement }) => {
+    const pill = canvasElement.querySelector(".nav-pills") as HTMLElement;
+    await expect(pill.querySelector(".nav-unknown")?.textContent?.trim()).toBe(
+      "1",
+    );
+    await expect(pill.querySelector(".nav-unknown svg")).not.toBeNull();
+  }}
+>
+  {@render inLink({ total: 4, failed: 0, running: 1, passed: 2, unknown: 1 })}
+</Story>
+
 <!-- A branch whose last run was cancelled is drawn, so the parts add up to the
      total (#3958). -->
 <Story

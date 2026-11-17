@@ -21,6 +21,7 @@ function row(
     | 'passed'
     | 'cancelled'
     | 'awaiting_approval'
+    | 'unknown'
     | 'none',
   overrides: Record<string, unknown> = {},
 ) {
@@ -69,6 +70,7 @@ function snapshot(rows: ReturnType<typeof row>[]) {
       running: count('running'),
       cancelled: count('cancelled'),
       awaitingApproval: count('awaiting_approval'),
+      unknown: count('unknown'),
       none: count('none'),
       total: branches.length,
     },
@@ -1106,6 +1108,45 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await pill(page, /^Waiting for approval \d/).click();
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('acme/held');
+
+    for (const theme of ['light', 'dark']) {
+      await setTheme(page, theme);
+      await page.reload();
+      await expect(rows(page)).toHaveCount(1);
+      expect(
+        (await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze())
+          .violations,
+      ).toEqual([]);
+    }
+    await setTheme(page, 'light');
+  });
+
+  test('a branch with an unknown job reads Unknown, with its own filter pill (#4063)', async ({
+    page,
+  }) => {
+    await mock(
+      page,
+      snapshot([
+        row('acme/odd', 'unknown'),
+        row('acme/ok', 'passed'),
+        row('acme/going', 'running'),
+      ]),
+    );
+    await page.goto('/');
+    await expect(rows(page)).toHaveCount(3);
+
+    const odd = rows(page).filter({ hasText: 'acme/odd' });
+    const control = odd.getByRole('button', {
+      name: /Unknown\. Open pipeline/,
+    });
+    await expect(control).toHaveText('Unknown');
+    await expect(control.locator('svg[data-glyph="question"]')).toBeAttached();
+
+    await expect(pill(page, /^Unknown \d/)).toContainText('1');
+    await expect(pill(page, /^Running \d/)).toContainText('1');
+    await pill(page, /^Unknown \d/).click();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('acme/odd');
 
     for (const theme of ['light', 'dark']) {
       await setTheme(page, theme);

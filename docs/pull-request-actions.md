@@ -958,18 +958,19 @@ A pull request whose only odd check is unknown is pending, so the Running
 quick filter lists it; there is no filter of its own. On a
 phone the word goes and the counts stay. The server tallies the counts from
 what it already reads to work out the CI state, so on GitHub they cost no extra
-request, and a pull request that has none keeps the plain pill. A cancelled
-job and a run held for approval are not failures while others still run, so
-they have counts of their own, on a pull request and a default branch alike, and
-the counts add up to the jobs the pipeline lists in every mix. On Forgejo a held
-job is not told from a waiting one, so it stays in the waiting count. Its
-statuses only say pending, so when any are pending the server also reads the
-jobs of the runs on the commit that are running (one call for the runs, one
-for each of them, read side by side, at most eight at once), and the jobs in
-progress show as running. A queued or blocked run isn't read, a running pull
-request run (any `pull_request` event) leaves the running push run out so no job
-counts twice, and a commit with no pending check makes no extra call. Runs are
-matched to the commit ignoring the case of its SHA.
+request, and a pull request that has none keeps the plain pill. A cancelled job
+and a run held for approval are not failures while others still run, so they
+have counts of their own, on a pull request and a default branch alike, and the
+counts add up to the jobs the pipeline lists in every mix but one: on Forgejo, a
+job left blocked in a run that has already failed is in no count, since nothing
+will start it. On Forgejo a held job is not told from a waiting one, so it stays
+in the waiting count. Its statuses only say pending, so when any are pending the
+server also reads the jobs of the runs on the commit that are running (one call
+for the runs, one for each of them, read side by side, at most eight at once),
+and the jobs in progress show as running. A queued or blocked run isn't read, a
+running pull request run (any `pull_request` event) leaves the running push run
+out so no job counts twice, and a commit with no pending check makes no extra
+call. Runs are matched to the commit ignoring the case of its SHA.
 
 A pull request whose only trouble is a cancelled job reads Cancelled: the same
 word and grey pill a main branch uses, and the word the pipeline panel gives the

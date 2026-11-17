@@ -576,6 +576,11 @@ header,
 .nav-none {
   color: var(--ink-2);
 }
+/* Unknown (#4063): neither a pass nor a failure, so the neutral ink. The
+   question glyph carries it, not the colour. */
+.nav-unknown {
+  color: var(--ink-2);
+}
 .nav-count svg {
   flex: none;
 }
@@ -2145,6 +2150,13 @@ a.ci-pill:hover {
   background: var(--neutral-bg);
   color: var(--ink-3);
 }
+/* Unknown (#4063): a job nobody can grade is neither a pass nor a failure, and
+   nothing says it is going, so the neutral pair the pipeline panel gives the
+   state. The word and the question glyph carry it, not the colour. */
+.ci-pill.unknown {
+  background: var(--neutral-bg);
+  color: var(--ink-2);
+}
 /* The counts after Cancelled (#3395): words, so they need no glyph. A phone
    keeps the passed count and drops the cancelled one; the pill's name and its
    tooltip say both. */
@@ -2212,11 +2224,17 @@ a.ci-pill:hover {
 .ci-pill.success .ci-seg-label {
   color: var(--good);
 }
+.ci-pill.unknown .ci-seg-label {
+  color: var(--ink-2);
+}
 .ci-pill.failure .ci-seg-label {
   color: var(--critical);
 }
 .ci-pill.success.segmented {
   box-shadow: inset 0 0 0 1px var(--good);
+}
+.ci-pill.unknown.segmented {
+  box-shadow: inset 0 0 0 1px var(--border-strong);
 }
 .ci-pill.failure.segmented {
   box-shadow: inset 0 0 0 1px var(--critical);
@@ -4517,7 +4535,36 @@ button.pipeline-check-link:disabled {
 .filter-bar .search-wrap .col-filter {
   flex: 1 1 auto;
   min-width: 0;
-  padding-right: 28px;
+  padding-right: 32px;
+}
+/* The clear button sits where the "/" hint does and takes its place once the
+   box holds text. :placeholder-shown is true while it is empty, so there is
+   no state to keep in step (#4077). */
+.search-clear {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.search-clear:hover {
+  color: var(--ink);
+}
+.search-wrap:has(.col-filter:placeholder-shown) .search-clear {
+  display: none;
+}
+.search-wrap:has(.col-filter:not(:placeholder-shown)) .search-hint {
+  display: none;
 }
 .search-hint {
   position: absolute;
@@ -4602,6 +4649,12 @@ button.pipeline-check-link:disabled {
   }
   .filter-bar-top .search-wrap .col-filter {
     min-height: 44px;
+    padding-right: 44px;
+  }
+  .filter-bar-top .search-clear {
+    width: 44px;
+    height: 44px;
+    right: 0;
   }
   .filters-trigger {
     display: inline-flex;
