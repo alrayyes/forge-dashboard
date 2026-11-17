@@ -22,6 +22,9 @@ export type ForgeCapabilities = {
   // The forge sends the user's permissions with each repo it lists, so a repo
   // without them is the forge's omission, not the user's role.
   reportsRepoPermissions: boolean;
+  // How the forge budgets requests: 'graphql_and_rest' (two allowances the
+  // forge counts itself) or 'rest'. Open-ended.
+  rateLimitModel: string;
 };
 
 export type ForgeFlag =
@@ -65,6 +68,18 @@ let FORGE_FLAGS = structuredClone(SEED_FLAGS);
 // not named: behaviour comes from here, never from the forge's name.
 export function forgeCan(forge: string | undefined, flag: ForgeFlag): boolean {
   return !!forge && FORGE_FLAGS[forge]?.[flag] === true;
+}
+
+const SEED_RATE_LIMIT_MODELS: Record<string, string> = {
+  github: 'graphql_and_rest',
+  forgejo: 'rest',
+};
+
+let RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
+
+// How a forge budgets requests, or '' for one nobody described.
+export function rateLimitModelOf(forge: string | undefined): string {
+  return (forge && RATE_LIMIT_MODELS[forge]) || '';
 }
 
 // What a forge said about a flag: undefined when it never did, so a caller can
@@ -163,6 +178,8 @@ export function registerForgeCapabilities(
       if (typeof v === 'boolean') flags[flag] = v;
     }
     if (f.capabilities) FORGE_FLAGS[f.forge] = flags;
+    const model = f.capabilities?.rateLimitModel;
+    if (model) RATE_LIMIT_MODELS[f.forge] = model;
     const source = f.capabilities?.advisorySource;
     if (source) {
       ADVISORY_FACTS[f.forge] = {
@@ -184,6 +201,7 @@ export const FORGE_CLASSES: Record<string, string> = {
 export function resetForgeCapabilities() {
   FORGE_IDS = [...SEED_FORGE_IDS];
   FORGE_FLAGS = structuredClone(SEED_FLAGS);
+  RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
   for (const k of Object.keys(ADVISORY_FACTS)) delete ADVISORY_FACTS[k];
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
   for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];

@@ -4,6 +4,7 @@
 // (#732). Pure helpers, no DOM, so the dashboard page stays the only place
 // that touches elements.
 
+import { rateLimitModelOf } from './forges';
 import { formatTime } from './time.svelte';
 
 // The budget as the server reports it: the numbers only. How worried to be
@@ -120,4 +121,27 @@ export function msUntilReset(
   const at = Date.parse(resetsAt);
   if (!Number.isFinite(at) || at <= now) return null;
   return at - now + 250;
+}
+
+const GITHUB_RATE_LIMIT_DOCS =
+  'https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api';
+
+// What the "Why?" under a read-only banner says (#735). A forge that counts
+// requests itself (two allowances, per the server's rateLimitModel) says so
+// and links to its published rules; any other limit comes from a proxy in front
+// of the forge, with nothing to link to.
+export function rateLimitWhy(
+  forge: string,
+  label: string,
+): { text: string; docsUrl: string | null } {
+  if (rateLimitModelOf(forge) === 'graphql_and_rest') {
+    return {
+      text: `${label} gives each token a request budget for every hour, and everything using that token spends it, this dashboard included. When it runs out ${label} refuses requests until the reset time, so this is the forge's limit and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
+      docsUrl: GITHUB_RATE_LIMIT_DOCS,
+    };
+  }
+  return {
+    text: `${label} itself doesn't count requests; a proxy in front of it does. When the proxy's budget runs out it refuses requests until the reset time, so this is a limit on the way to the forge and not a fault in the dashboard. The dashboard stops asking until then so it doesn't use up what comes back.`,
+    docsUrl: null,
+  };
 }
