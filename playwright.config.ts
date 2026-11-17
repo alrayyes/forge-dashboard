@@ -65,6 +65,7 @@ const singleUserSpecs = [
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',
   '**/filter-pick-panel-focus.spec.ts',
+  '**/pick-row-click.spec.ts',
   '**/filter-choices-static.spec.ts',
   '**/filter-choices-held.spec.ts',
   '**/filter-choices-edges.spec.ts',

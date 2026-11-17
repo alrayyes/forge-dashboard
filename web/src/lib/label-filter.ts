@@ -344,9 +344,22 @@ export function mountPickFilter(
       close(true);
     }
   });
+  // Pressing a row's name moves focus to the nearest focusable ancestor of the
+  // press, which inside the phone's scrolling Filters sheet is the sheet and
+  // not the panel. That is not the reader leaving, and closing the panel on
+  // it swallowed the click that was about to tick the row (#4093).
+  let pressing = false;
+  host.addEventListener('pointerdown', () => {
+    pressing = true;
+    const done = () => {
+      pressing = false;
+    };
+    document.addEventListener('pointerup', done, { once: true });
+    document.addEventListener('pointercancel', done, { once: true });
+  });
   host.addEventListener('focusout', (event) => {
     const next = event.relatedTarget as Node | null;
-    if (next && !host.contains(next)) close(false);
+    if (next && !host.contains(next) && !pressing) close(false);
   });
   const onOutside = (event: Event) => {
     if (!host.contains(event.target as Node)) close(false);
