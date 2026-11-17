@@ -31,6 +31,7 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/alrayyes/forge-dashboard/internal/githubstatus"
 	"github.com/alrayyes/forge-dashboard/internal/memlimit"
+	"github.com/alrayyes/forge-dashboard/internal/oauth"
 	"github.com/alrayyes/forge-dashboard/internal/osv"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -418,7 +419,12 @@ func run() error {
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
-	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats)
+	// The OAuth client registered on the owner's Forgejo. Without both values
+	// the connection is simply not offered (see docs/configuration.md).
+	deps.ForgejoOAuth = oauth.NewForgejo(ctx,
+		os.Getenv("FORGEJO_OAUTH_CLIENT_ID"), os.Getenv("FORGEJO_OAUTH_CLIENT_SECRET"),
+		strings.TrimSuffix(deps.PublicOrigin, "/")+"/api/v1/connections/forgejo/callback", settingsStore)
+	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats, deps.ForgejoOAuth)
 
 	startDashboardAtBoot(ctx, settingsStore, deps.BuildSources, service)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
@@ -606,7 +612,7 @@ var githubStatusURL = githubstatus.BaseURL
 // buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
 // requests in the request log.
-func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters) func(c settings.Credentials) []dashboard.Source {
+func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters, linked *oauth.Forgejo) func(c settings.Credentials) []dashboard.Source {
 	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"), slog.Default())
 	// One cache for every client this closure builds: a login or a settings
 	// save builds new clients, and they pick up what the old ones learned.
@@ -629,9 +635,32 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 			sources = append(sources, src)
 		}
 
+		var bearer func() (string, error)
+		if c.ForgejoURL != "" {
+			// A linked account wins over a pasted token: it is the newer choice
+			// and the one that refreshes itself.
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			bearer, _ = linked.Bearer(ctx, c.ForgejoURL)
+			cancel()
+		}
+
 		switch {
 		case c.ForgejoURL == "":
 			// nothing configured for Forgejo at all
+		case bearer != nil:
+			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
+			client.SetBearerSource(bearer)
+			client.SetAdvisoryScanner(scanner)
+			client.ShareAdvisoryCache(advisoryCache)
+			credential := apistats.TokenCredential("oauth")
+			if c.ForgejoUsername != "" {
+				credential = apistats.AccountCredential(c.ForgejoUsername)
+			}
+			client.SetStats(stats, credential)
+			if c.WebhookToken != "" {
+				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
+			}
+			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
 		case c.ForgejoToken != "":
 			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
 			client.SetAdvisoryScanner(scanner)
