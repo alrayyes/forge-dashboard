@@ -154,8 +154,12 @@ auto-merge armed, the status line says it is waiting for workflow approval, not
 that a check failed.
 
 Every link in the pipeline panel that leaves the dashboard opens a new tab and
-ends in an external-link icon. A job with output reads "Open job on GitHub" (or
-Forgejo) and opens that job's page. The footer holds one outlined button,
+ends in an external-link icon. Every job row, whatever its status, opens its
+page from the same trailing icon button, after the Copy button when there is
+one. Its tooltip and accessible name carry the words: "Open job on GitHub" (or
+Forgejo) for a job with output, "Watch on GitHub" for a running one, "Open on
+GitHub" for a queued one, "Approve on GitHub" for a held one and "Open check
+page" for a check from an external status. The footer holds one outlined button,
 "Open run on GitHub", pinned under a divider so it stays on screen however long
 the list is; it opens the run page. When a pull request's checks belong to
 several runs (more than one workflow, or a re-run), one link can't open them

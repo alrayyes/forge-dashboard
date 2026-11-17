@@ -172,7 +172,10 @@ test.describe('pipeline check states (#1473)', () => {
     const row = dialog.locator('.pipeline-check', {
       hasText: 'check-awaiting_approval',
     });
-    await expect(row.getByRole('link')).toHaveText('Approve on GitHub');
+    await expect(row.getByRole('link')).toHaveAttribute(
+      'title',
+      'Approve on GitHub',
+    );
     await expect(row).not.toContainText('Passed');
     await expect(row).not.toContainText('Running');
   });
@@ -255,14 +258,20 @@ test.describe('pipeline check states (#1473)', () => {
     await expect(queued.locator('.pipeline-check-hint')).toHaveText(
       'Not started yet.',
     );
-    await expect(queued.getByRole('link')).toContainText('Open on GitHub');
+    await expect(queued.getByRole('link')).toHaveAttribute(
+      'title',
+      'Open on GitHub',
+    );
     const running = dialog.locator('.pipeline-check', {
       hasText: 'check-running',
     });
     await expect(running.locator('.pipeline-check-hint')).toHaveText(
       'Output is available when it finishes.',
     );
-    await expect(running.getByRole('link')).toContainText('Watch on GitHub');
+    await expect(running.getByRole('link')).toHaveAttribute(
+      'title',
+      'Watch on GitHub',
+    );
 
     // Both hint rows, at phone and desktop width, in both themes.
     for (const width of [390, 1280]) {
