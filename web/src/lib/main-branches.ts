@@ -6,7 +6,7 @@ import type { CheckCounts } from './check-counts';
 import { STREAM_SUBJECT_CAP, type Subject } from './check-feed';
 import { foldNewestRuns } from './check-fold';
 import type { ForgeHealthEntry } from './forge-lock';
-import { advisoryFactsOf } from './forges';
+import { advisoryFactsOf, isKnownForge } from './forges';
 import type { NavCount } from './nav-counts.svelte';
 import type { Check } from './pipeline-checks';
 import { rowClaim } from './row-claim';
@@ -225,7 +225,7 @@ export function supersedes(
 }
 
 export type StatusPill = 'all' | MainBranchStatus;
-export type ForgeFilter = 'all' | 'github' | 'forgejo';
+export type ForgeFilter = string;
 
 // Any row, only rows with open advisories, or only rows known to have none.
 // A row whose answer is unknown, or that has none, is under neither of the
@@ -499,7 +499,6 @@ export const MAIN_BRANCH_STATUSES = [
   'unknown',
   'none',
 ];
-const FORGES = ['all', 'github', 'forgejo'];
 const ADVISORY_CHOICES = ['all', 'has', 'none'];
 
 export function filterFromState(
@@ -508,9 +507,10 @@ export function filterFromState(
   const status = MAIN_BRANCH_STATUSES.includes(saved?.status ?? '')
     ? (saved?.status as StatusPill)
     : 'all';
-  const forge = FORGES.includes(saved?.forge ?? '')
-    ? (saved?.forge as ForgeFilter)
-    : 'all';
+  const forge =
+    saved?.forge === 'all' || isKnownForge(saved?.forge)
+      ? (saved?.forge as ForgeFilter)
+      : 'all';
   const advisories = ADVISORY_CHOICES.includes(saved?.advisories ?? '')
     ? (saved?.advisories as AdvisoryFilter)
     : 'all';
