@@ -5071,8 +5071,7 @@ components:
         A held run is also said by `awaitingWorkflowApproval`. Every check the
         pipeline lists is in exactly one count, so the counts add up to the
         jobs the pipeline lists, on a pull request and a default branch alike.
-        A failed
-        branch can have a `failed` of 0 when a held or cancelled run is what
+        A failed branch can have a `failed` of 0 when a held or cancelled run is what
         failed it. A timed-out or stale check counts as `failed`, a skipped,
         neutral or bare completed one as `passed`, on Forgejo too.
 
@@ -5104,7 +5103,8 @@ components:
         the commit's runs that are still going. A pending status of a job in a
         run that has failed is no wait: its needs failed, so Forgejo leaves it
         blocked and nothing will start it, and it counts as `notStarted`, not
-        `waiting`. A default branch counts the jobs of the workflow runs of the newest commit that has one,
+        `waiting`. A default branch counts the jobs of the workflow runs of the
+        newest commit that has one,
         where a running job is `running`, a queued one `waiting`, and a blocked
         one `waiting` unless its run has failed. A run
         whose jobs can't be read counts as one check by its own status. Forgejo
@@ -5139,7 +5139,8 @@ components:
           description: |
             How many runs were cancelled, on a pull request and a default
             branch alike, so the counts add up to the jobs the pipeline lists.
-            Absent when none were. A newer field, so a client treats a missing one as 0.
+            Absent when none were. A newer field, so a client treats a missing
+            one as 0.
         held:
           type: integer
           minimum: 0
