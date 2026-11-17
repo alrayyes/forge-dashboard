@@ -1,5 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
+  import axe from "axe-core";
   import { expect, userEvent, waitFor } from "storybook/test";
   import { copyButton } from "./copy-details.js";
   import type { FailureDetails } from "./feedback.js";
@@ -76,6 +77,21 @@
     };
   }
 
+  // Runs axe over the story in the given theme and fails on any violation,
+  // with the rule ids in the message. The theme is put back afterwards.
+  async function expectNoViolations(el: HTMLElement, theme: "light" | "dark") {
+    const root = document.documentElement;
+    const before = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", theme);
+    try {
+      const { violations } = await axe.run(el);
+      await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+    } finally {
+      if (before === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", before);
+    }
+  }
+
   // `writeText` calls land here.
   const written: string[] = [];
   const accept = clipboard.bind(null, async (text: string) => {
@@ -142,6 +158,33 @@
     await expect(held.map((t) => t.ms)).toEqual([2000]);
     held[0].fn();
     await expect(copy.textContent).toBe("Copy");
+    await expect(copy.getAttribute("aria-label")).toBe("Copy error details");
+  }}
+/>
+
+<!-- Ending on Copied, the button's accessible name holds the word it shows (#4122, WCAG 2.5.3), and axe finds nothing in either theme. -->
+<Story
+  name="Copied, light"
+  template={row}
+  beforeEach={() => holdTimer(accept())}
+  play={async ({ canvasElement }) => {
+    const copy = button(canvasElement);
+    await userEvent.click(copy);
+    await waitFor(() => expect(copy.textContent).toBe("Copied"));
+    await expect(copy.getAttribute("aria-label")).toContain("Copied");
+    await expectNoViolations(canvasElement, "light");
+  }}
+/>
+
+<Story
+  name="Copied, dark"
+  template={row}
+  beforeEach={() => holdTimer(accept())}
+  play={async ({ canvasElement }) => {
+    const copy = button(canvasElement);
+    await userEvent.click(copy);
+    await waitFor(() => expect(copy.textContent).toBe("Copied"));
+    await expectNoViolations(canvasElement, "dark");
   }}
 />
 
