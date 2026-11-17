@@ -105,14 +105,18 @@ test.describe('Webhooks Per page select stays (#3462)', () => {
     await open(page);
     await pick(page, '100');
     await expect(select(page)).toBeVisible();
-    const box = await select(page).boundingBox();
-    expect(box?.height ?? 0).toBeGreaterThanOrEqual(44);
+    await expect
+      .poll(async () => (await select(page).boundingBox())?.height ?? 0)
+      .toBeGreaterThanOrEqual(44);
     await page.setViewportSize({ width: 320, height: 800 });
-    const overflow = await page.evaluate(
-      () =>
-        document.documentElement.scrollWidth -
-        document.documentElement.clientWidth,
-    );
-    expect(overflow).toBeLessThanOrEqual(0);
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            document.documentElement.scrollWidth -
+            document.documentElement.clientWidth,
+        ),
+      )
+      .toBeLessThanOrEqual(0);
   });
 });
