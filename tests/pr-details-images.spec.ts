@@ -202,9 +202,13 @@ for (const [scheme, width] of [
       'src',
       /^\/api\/v1\/images\?forge=github&url=/,
     );
-    const box = await image.boundingBox();
-    const body = await dialog.locator('.details-body').boundingBox();
-    expect(box && body && box.width <= body.width).toBe(true);
+    await expect
+      .poll(async () => {
+        const box = await image.boundingBox();
+        const body = await dialog.locator('.details-body').boundingBox();
+        return !!(box && body && box.width <= body.width);
+      })
+      .toBe(true);
 
     // A failed one reads as text, not a broken-image icon.
     await expect(text.getByRole('img', { name: 'gone' })).toHaveCount(0);
@@ -253,10 +257,9 @@ for (const [scheme, width] of [
       )
       .toEqual([]);
 
-    const overflow = await dialog.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
-    expect(overflow).toBe(0);
+    await expect
+      .poll(() => dialog.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -385,42 +388,54 @@ for (const [width, height] of [
       'href',
       /^\/api\/v1\/images\?forge=github&url=/,
     );
-    const closeBox = await close.boundingBox();
-    expect(closeBox && closeBox.width >= 44 && closeBox.height >= 44).toBe(
-      true,
-    );
+    await expect
+      .poll(async () => {
+        const closeBox = await close.boundingBox();
+        return !!(closeBox && closeBox.width >= 44 && closeBox.height >= 44);
+      })
+      .toBe(true);
 
     // Tab order is the visual order: title, original, Close, left to right
     // and top to bottom.
-    const order = await lightbox.evaluate((el) => {
-      const stops = [...el.querySelectorAll<HTMLElement>('a[href], button')];
-      const pos = stops.map((s) => {
-        const r = s.getBoundingClientRect();
-        return [Math.round(r.top), Math.round(r.left)];
-      });
-      // Controls within 24px of each other's top share a row.
-      const visual = [...pos].sort((a, b) =>
-        Math.abs(a[0] - b[0]) < 24 ? a[1] - b[1] : a[0] - b[0],
-      );
-      return { dom: pos, visual };
-    });
-    expect(order.dom).toEqual(order.visual);
+    await expect
+      .poll(() =>
+        lightbox.evaluate((el) => {
+          const stops = [
+            ...el.querySelectorAll<HTMLElement>('a[href], button'),
+          ];
+          const pos = stops.map((s) => {
+            const r = s.getBoundingClientRect();
+            return [Math.round(r.top), Math.round(r.left)];
+          });
+          // Controls within 24px of each other's top share a row.
+          const visual = [...pos].sort((a, b) =>
+            Math.abs(a[0] - b[0]) < 24 ? a[1] - b[1] : a[0] - b[0],
+          );
+          return JSON.stringify(pos) === JSON.stringify(visual);
+        }),
+      )
+      .toBe(true);
 
     // Nothing sideways, the image contained.
-    const overflow = await lightbox.evaluate(
-      (el) => el.scrollWidth - el.clientWidth,
-    );
-    expect(overflow).toBe(0);
+    await expect
+      .poll(() => lightbox.evaluate((el) => el.scrollWidth - el.clientWidth))
+      .toBe(0);
     const img = lightbox.getByRole('img', { name: 'wide mockup' });
-    const imgBox = await img.boundingBox();
-    expect(imgBox && imgBox.width <= width).toBe(true);
+    await expect
+      .poll(async () => {
+        const imgBox = await img.boundingBox();
+        return !!(imgBox && imgBox.width <= width);
+      })
+      .toBe(true);
 
     // Page behind is inert and does not scroll.
-    expect(
-      await page.evaluate(() =>
-        document.querySelector('dialog.image-lightbox')?.matches(':modal'),
-      ),
-    ).toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document.querySelector('dialog.image-lightbox')?.matches(':modal'),
+        ),
+      )
+      .toBe(true);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -465,20 +480,27 @@ for (const width of [320, 390, 1280]) {
     });
     await expect(image).toBeVisible();
     await expect(image).toHaveClass(/md-image-loaded/);
-    const box = await image.boundingBox();
-    expect(box && box.height <= 480).toBe(true);
+    await expect
+      .poll(async () => {
+        const box = await image.boundingBox();
+        return !!(box && box.height <= 480);
+      })
+      .toBe(true);
 
     // Before the bytes arrive, the image sits in a skeleton of set height.
-    const skeleton = await page.evaluate(() => {
-      const img = document.createElement('img');
-      img.className = 'md-image';
-      const host = document.querySelector('.details-body .markdown');
-      host?.append(img);
-      const h = img.getBoundingClientRect().height;
-      img.remove();
-      return h;
-    });
-    expect(skeleton).toBeGreaterThanOrEqual(120);
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const img = document.createElement('img');
+          img.className = 'md-image';
+          const host = document.querySelector('.details-body .markdown');
+          host?.append(img);
+          const h = img.getBoundingClientRect().height;
+          img.remove();
+          return h;
+        }),
+      )
+      .toBeGreaterThanOrEqual(120);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
@@ -517,8 +539,12 @@ test('the skeleton holds until the image really loads (#3468)', async ({
     name: 'slow',
   });
   await expect(image).not.toHaveClass(/md-image-loaded/);
-  const waiting = await image.boundingBox();
-  expect(waiting && waiting.height >= 120).toBe(true);
+  await expect
+    .poll(async () => {
+      const waiting = await image.boundingBox();
+      return !!(waiting && waiting.height >= 120);
+    })
+    .toBe(true);
   release();
   await expect(image).toHaveClass(/md-image-loaded/);
 });
@@ -553,21 +579,34 @@ for (const [width, height] of [
     expect(await expand.getAttribute('aria-label')).toBeNull();
     const name = await expand.evaluate((el) => el.textContent?.trim() ?? '');
     expect(name.startsWith('View larger')).toBe(true);
-    const box = await expand.boundingBox();
-    expect(box && box.height >= 44).toBe(true);
-    if (width <= 390) expect(box && box.width >= 44).toBe(true);
+    await expect
+      .poll(async () => {
+        const box = await expand.boundingBox();
+        return !!(box && box.height >= 44);
+      })
+      .toBe(true);
+    if (width <= 390)
+      await expect
+        .poll(async () => {
+          const box = await expand.boundingBox();
+          return !!(box && box.width >= 44);
+        })
+        .toBe(true);
 
     // It follows its image in the DOM and on screen.
-    const order = await expand.evaluate((el) => {
-      const link = el.previousElementSibling;
-      return {
-        afterImage: !!link?.querySelector('img.md-image'),
-        below:
-          el.getBoundingClientRect().top >=
-          (link?.getBoundingClientRect().bottom ?? Infinity) - 1,
-      };
-    });
-    expect(order).toEqual({ afterImage: true, below: true });
+    await expect
+      .poll(() =>
+        expand.evaluate((el) => {
+          const link = el.previousElementSibling;
+          return {
+            afterImage: !!link?.querySelector('img.md-image'),
+            below:
+              el.getBoundingClientRect().top >=
+              (link?.getBoundingClientRect().bottom ?? Infinity) - 1,
+          };
+        }),
+      )
+      .toEqual({ afterImage: true, below: true });
 
     // It opens the viewer, and Close puts focus back on the control.
     await expand.focus();
@@ -604,11 +643,15 @@ for (const [width, height] of [
     );
     expect(misread).toHaveLength(1);
     expect(forced.violations.filter((v) => !misread.includes(v))).toEqual([]);
-    const painted = await page.locator(merge).evaluate((el) => {
-      const style = getComputedStyle(el);
-      return [style.color, style.backgroundColor];
-    });
-    expect(contrast(painted[0], painted[1])).toBeGreaterThanOrEqual(4.5);
+    await expect
+      .poll(async () => {
+        const painted = await page.locator(merge).evaluate((el) => {
+          const style = getComputedStyle(el);
+          return [style.color, style.backgroundColor];
+        });
+        return contrast(painted[0], painted[1]);
+      })
+      .toBeGreaterThanOrEqual(4.5);
   });
 }
 
@@ -656,9 +699,13 @@ for (const width of [360, 390]) {
         /md-image-loaded/,
       );
     // 1000 x 700 shrinks by width to well under the cap: no button.
-    expect(
-      (await body.getByRole('img', { name: 'under' }).boundingBox())?.height,
-    ).toBeLessThan(480);
+    await expect
+      .poll(
+        async () =>
+          (await body.getByRole('img', { name: 'under' }).boundingBox())
+            ?.height,
+      )
+      .toBeLessThan(480);
     await expect(
       body.getByRole('button', { name: /^View larger/ }),
     ).toHaveCount(1);
