@@ -3827,8 +3827,9 @@ paths:
         row's advisory count, and the read that fills a row's count keeps the
         list too. So an open within that time answers from the kept list with
         no call to the forge, and `readAt` says when it was read. Pass
-        `refresh=true` to read the forge again. If that read fails or is rate
-        limited, the answer is the last good list with `refreshFailed` set.
+        `refresh=true` to read the forge again. If a read, on a refresh or because
+        the kept list had aged out, fails or is rate limited, the answer is the
+        last good list with `refreshFailed` set.
 
         Sorted by severity, highest first, then newest first. GitHub reads them
         through the Dependabot alerts of the repository. A Forgejo repository
@@ -7884,8 +7885,8 @@ components:
           type: string
           enum: [failed, throttled]
           description: |
-            Set when a read the client asked for (`refresh=true`) failed or was
-            rate limited and `advisories` is the last good list instead, never
+            Set when the read failed or was rate limited (a refresh, or an
+            open after the kept list had aged out) and `advisories` is the last good list instead, never
             an empty one. `readAt` then says how old that list is. Absent when
             the read succeeded.
 
