@@ -716,7 +716,7 @@ paths:
         instance is already connected: the instance is locked until
         `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
         refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-        token (#3951). Needs `FORGEJO_OAUTH_CLIENT_ID` and
+        token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
         `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
         `SettingsResponse.forgejoOAuthConfigured`.
       tags: [settings]
