@@ -83,6 +83,24 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 	},
 }
 
+// knownForges lists the keys of capabilitiesByForge in the order a page shows
+// them. A new forge is one entry here and one in capabilitiesByForge;
+// TestForges_MatchTheCapabilityTable fails if only one of them is written.
+var knownForges = []Forge{ForgeGitHub, ForgeForgejo}
+
+// Forges lists every forge this build knows, in display order. It is a copy.
+func Forges() []Forge {
+	return append([]Forge(nil), knownForges...)
+}
+
+// Valid is whether f is a forge this build knows. The one place a request's
+// forge is checked, so a third forge needs no edit at the call sites.
+func (f Forge) Valid() bool {
+	_, ok := capabilitiesByForge[f]
+
+	return ok
+}
+
 // CapabilitiesOf is what forge can do. False for a forge this build doesn't know.
 func CapabilitiesOf(forge Forge) (ForgeCapabilities, bool) {
 	c, ok := capabilitiesByForge[forge]

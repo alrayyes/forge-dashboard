@@ -84,3 +84,18 @@ func TestWithCapabilities_FillsEachForgeAndLeavesTheInputAlone(t *testing.T) {
 	assert.Equal(t, "Forgejo", out[1].Capabilities.Label)
 	assert.Empty(t, in[0].Capabilities.Label)
 }
+
+func TestForgeValid_IsTrueOnlyForAForgeWithCapabilities(t *testing.T) {
+	t.Parallel()
+
+	assert.True(t, dashboard.ForgeGitHub.Valid())
+	assert.True(t, dashboard.ForgeForgejo.Valid())
+	assert.False(t, dashboard.Forge("gitlab").Valid())
+	assert.False(t, dashboard.Forge("").Valid())
+}
+
+func TestForges_ListsEveryKnownForgeInOrder(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo}, dashboard.Forges())
+}

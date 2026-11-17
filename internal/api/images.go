@@ -54,7 +54,7 @@ func imageProxyFor(deps Deps, forge string, creds settings.Credentials) (*imagep
 			AllowLocal: true,
 		}), nil
 	default:
-		return nil, &statusError{http.StatusBadRequest, "forge must be github or forgejo"}
+		return nil, forgeProblem(forge)
 	}
 }
 

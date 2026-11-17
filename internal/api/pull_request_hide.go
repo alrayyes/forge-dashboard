@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
-
-	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
 
 // maxHideDays is the longest a pull request can be hidden for a number of days.
@@ -39,9 +37,7 @@ func readHiddenTarget(w http.ResponseWriter, r *http.Request) (pullRequestHideRe
 
 		return req, false
 	}
-	if req.Forge != string(dashboard.ForgeGitHub) && req.Forge != string(dashboard.ForgeForgejo) {
-		writeJSON(w, http.StatusBadRequest, fieldErrorBody("forge", "forge must be github or forgejo"))
-
+	if refuseUnknownForge(w, req.Forge) {
 		return req, false
 	}
 	if req.Number < 1 || req.Number > maxPullRequestNumber {
