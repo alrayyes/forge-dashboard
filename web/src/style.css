@@ -2107,6 +2107,7 @@ a.ci-pill:hover {
 .pipeline-check-word {
   min-width: 0;
   overflow-wrap: anywhere;
+  unicode-bidi: isolate;
   font-size: 0.71875rem;
   color: var(--ink-2);
 }

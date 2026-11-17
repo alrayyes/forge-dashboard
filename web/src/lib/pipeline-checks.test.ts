@@ -428,6 +428,23 @@ describe('checkUnknownWord', () => {
     expect(checkUnknownWord(check({ conclusion: 'failure' }))).toBe('');
   });
 
+  test('cuts by whole characters, never inside an emoji', () => {
+    const word = checkUnknownWord(
+      check({ status: 'unknown', reportedStatus: `${'x'.repeat(39)}😀tail` }),
+    );
+
+    expect(word).toBe(`${'x'.repeat(39)}😀`);
+    expect(word.isWellFormed()).toBe(true);
+  });
+
+  test('turns line breaks and control characters into spaces', () => {
+    expect(
+      checkUnknownWord(
+        check({ status: 'unknown', reportedStatus: 'a\nb\u202Ec\u0000d' }),
+      ),
+    ).toBe('a b c d');
+  });
+
   test('keeps a long word to a readable length', () => {
     expect(
       checkUnknownWord(

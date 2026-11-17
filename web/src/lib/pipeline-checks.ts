@@ -109,13 +109,20 @@ function concludedState(conclusion: string | undefined): string {
 // The forge's own word for a check the page shows as unknown, so the dialog
 // can name it: the conclusion of a finished job, or the status of one that
 // has not finished. Empty when the check is not unknown or the forge gave
-// none. Cut short, since it is the forge's text.
+// none. Cleaned and cut short, since it is the forge's text.
 export function checkUnknownWord(check: Check): string {
   if (checkState(check) !== 'unknown') return '';
   const word =
     check.status === 'completed' ? check.conclusion : check.reportedStatus;
 
-  return (word ?? '').slice(0, 40);
+  // Line breaks, control and direction-override characters would reorder or
+  // break the row, so they read as spaces. The cut is by whole characters, so
+  // an emoji is never split.
+  const plain = (word ?? '')
+    .replace(/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu, ' ')
+    .trim();
+
+  return Array.from(plain).slice(0, 40).join('');
 }
 
 // The per-check labels, keyed by checkState.
