@@ -542,9 +542,10 @@ On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
 (below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
-field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo", and
-when the server doesn't say who holds it the chip has no note, since the page
-never guesses. After each refresh the server merges an armed
+field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo" (the
+forge's label, so another forge says its own name), and when the server
+doesn't say who holds it the chip has no note, since the page never guesses.
+After each refresh the server merges an armed
 pull request once its checks have passed and Forgejo says it can merge, with
 the repo's own merge method, the same as Merge. A pull request you didn't arm
 is never merged. Checks that fail, conflicts, a draft, a stack parent that

@@ -83,6 +83,12 @@
     statusPageUrlOf,
     registerForgeCapabilities,
   } from "#lib/forges.js";
+  import {
+    approveLinkCopy,
+    autoMergeGroupNote,
+    pageDescription,
+    scheduledOnCopy,
+  } from "#lib/forge-copy.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
   import { setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
@@ -1092,18 +1098,12 @@
     // held runs (#1280). Nothing here approves anything.
     function approveOnGithubLink(item: PullRequestItem): HTMLElement | null {
       if (item.awaitingWorkflowApproval !== true) return null;
-      const link = el(
-        "a",
-        "approve-link",
-        "Approve on GitHub",
-      ) as HTMLAnchorElement;
+      const copy = approveLinkCopy(item.forge);
+      const link = el("a", "approve-link", copy.text) as HTMLAnchorElement;
       link.href = `${item.url.replace(/\/+$/, "")}/checks`;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
-      link.setAttribute(
-        "aria-label",
-        "Approve on GitHub (opens the checks page in a new tab)",
-      );
+      link.setAttribute("aria-label", copy.ariaLabel);
       return link;
     }
 
@@ -1397,10 +1397,12 @@
 
     // Who holds a Forgejo auto-merge, in the chip's note. An unnamed holder
     // gets no note at all (#1596).
-    const HOLDER_NOTE: Record<string, string> = {
-      dashboard: "Managed by Forge Dashboard",
-      forge: "Scheduled on Forgejo",
-    };
+    function holderNote(pr: PullRequestItem): string | undefined {
+      if (pr.autoMergeHeldBy === "dashboard")
+        return "Managed by Forge Dashboard";
+      if (pr.autoMergeHeldBy === "forge") return scheduledOnCopy(pr.forge).note;
+      return undefined;
+    }
 
     // Silent unless auto-merge is genuinely enabled — autoMergeEnabled
     // is `null` for a forge that can't report this at all (Forgejo,
@@ -1412,7 +1414,7 @@
       // says so in words (it has no GitHub-style setting to point at).
       if (pr.forge === "forgejo") {
         const chip = attrChip("auto-merge", "Auto-merge on");
-        const note = HOLDER_NOTE[pr.autoMergeHeldBy ?? ""];
+        const note = holderNote(pr);
         if (note) chip.appendChild(el("span", "pill-note", note));
         return claimed(chip, pr);
       }
@@ -3136,11 +3138,7 @@
     // way to the full explanation.
     function groupAutoMergeCallout(forgeName: string): HTMLElement | null {
       if (forgeName !== "forgejo") return null;
-      const note = el(
-        "p",
-        "group-callout",
-        "Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself. Manage it in ",
-      );
+      const note = el("p", "group-callout", autoMergeGroupNote(forgeName));
       const link = el("a", "", "Settings") as HTMLAnchorElement;
       link.href = "/settings.html#forgejo-auto-merge";
       note.appendChild(link);
@@ -4006,12 +4004,9 @@
     function doCancelAutoMerge(item: PullRequestItem) {
       const key = prKey(item);
       const onForge = forgeHolds(item);
-      const cancelled = onForge
-        ? "Merge scheduled on Forgejo cancelled."
-        : "Auto-merge cancelled.";
-      const cancelling = onForge
-        ? "Cancelling the merge scheduled on Forgejo…"
-        : "Cancelling auto-merge…";
+      const held = scheduledOnCopy(item.forge);
+      const cancelled = onForge ? held.cancelled : "Auto-merge cancelled.";
+      const cancelling = onForge ? held.cancelling : "Cancelling auto-merge…";
       cancelAutoMergeState[key] = { phase: "requesting" };
       const fkey = `cancel-auto-merge:${key}`;
       feedback.start({
@@ -4122,11 +4117,11 @@
           requesting
             ? "Disarming auto-merge"
             : forgeHolds(item)
-              ? "Disarm the merge scheduled on Forgejo"
+              ? scheduledOnCopy(item.forge).disarmLabel
               : "Disarm auto-merge",
         );
       if (forgeHolds(item))
-        button.title = "Cancels the merge scheduled on Forgejo.";
+        button.title = scheduledOnCopy(item.forge).cancelTitle;
       button.type = "button";
       markPending(button, requesting);
       // The label changes while the request runs, so the slot is how a redraw
@@ -10700,13 +10695,11 @@
   >
   <meta
     name="description"
-    content={view === "issues"
-      ? "Open issues across your GitHub and Forgejo repositories, in one list."
-      : view === "releases"
-        ? "Release pull requests waiting to ship across your GitHub and Forgejo repositories, with Merge and Update branch on each."
-        : view === "bots"
-          ? "Dependabot and Renovate pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."
-          : "Open pull requests across your GitHub and Forgejo repositories, with the actions you can take on each."}
+    content={pageDescription(
+      view === "issues" || view === "releases" || view === "bots"
+        ? view
+        : "pulls",
+    )}
   />
 </svelte:head>
 
