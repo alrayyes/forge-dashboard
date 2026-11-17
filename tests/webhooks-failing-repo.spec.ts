@@ -128,13 +128,15 @@ test.describe('failing repo badge', () => {
 
           expect(results.violations).toEqual([]);
 
-          const overflow = await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth >
-              document.documentElement.clientWidth,
-          );
-
-          expect(overflow).toBe(false);
+          await expect
+            .poll(() =>
+              page.evaluate(
+                () =>
+                  document.documentElement.scrollWidth >
+                  document.documentElement.clientWidth,
+              ),
+            )
+            .toBe(false);
         });
       }
     }

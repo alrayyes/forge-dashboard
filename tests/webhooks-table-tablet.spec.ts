@@ -130,10 +130,11 @@ test.describe('webhooks table at tablet width', () => {
       'display',
       'block',
     );
-    const fits = await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
-    );
-    expect(fits).toBe(true);
+    await expect
+      .poll(() =>
+        page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+      )
+      .toBe(true);
   });
 
   test(`axe finds nothing at every width`, async ({ page }) => {
