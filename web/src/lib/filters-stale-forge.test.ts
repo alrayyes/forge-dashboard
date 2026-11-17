@@ -1,6 +1,16 @@
 /// <reference types="bun" />
-import { expect, test } from 'bun:test';
-import { effectiveForge, failingFilters, filtersAreDefault } from './filters';
+import { afterEach, beforeEach, expect, test } from 'bun:test';
+import {
+  effectiveForge,
+  failingFilters,
+  filtersAreDefault,
+  releaseAllHeld,
+} from './filters';
+
+// filtersAreDefault also reads the module-wide held picks, so start and leave
+// them empty.
+beforeEach(() => releaseAllHeld());
+afterEach(() => releaseAllHeld());
 
 // A saved forge pick no pill offers reads as All, so it must not filter
 // (#4167).

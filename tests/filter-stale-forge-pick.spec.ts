@@ -137,3 +137,33 @@ test.describe('a saved forge pick nothing reports, elsewhere on the page (#4171)
     ).toBeHidden();
   });
 });
+
+test.describe('a saved forge pick nothing reports, on Insights (#4171)', () => {
+  test('checks the All radio', async ({ page, baseURL }) => {
+    await page.context().addCookies([
+      {
+        name: 'forge-board-filters',
+        value: JSON.stringify({ shared: { forge: 'gitea' } }),
+        domain: 'localhost',
+        path: '/',
+      },
+    ]);
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github'), forgeHealth('forgejo')],
+          pullRequests: [pr(1, 'github'), pr(2, 'forgejo')],
+          issues: [],
+        }),
+      }),
+    );
+    await page.goto('/insights.html');
+    await expect(page.locator('#repo-pr-ranking .rank-row')).not.toHaveCount(0);
+    await expect(
+      page.locator('input[data-col="forge"][value=""]'),
+    ).toBeChecked();
+  });
+});
