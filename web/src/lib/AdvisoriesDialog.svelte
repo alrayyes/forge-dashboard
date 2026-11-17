@@ -22,12 +22,7 @@
   import { tick } from "svelte";
   import { forgeLabelOf } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
-  import {
-    type Advisories,
-    advisoryPill,
-    ago,
-    httpHref,
-  } from "#lib/main-branches.js";
+  import { type Advisories, ago, httpHref } from "#lib/main-branches.js";
   import { formatDateTime } from "#lib/time.svelte.js";
   import {
     type AdvisoryItem,
@@ -40,6 +35,7 @@
     forgeWords,
     olderNote,
     sameContent,
+    summaryOf,
     unreadableText,
     readAdvisoryList,
     referenceLinks,
@@ -74,9 +70,7 @@
       ? null
       : (items.find((i) => i.number === selected) ?? null),
   );
-  const summary = $derived(
-    target?.advisories ? (advisoryPill(target.advisories)?.text ?? "") : "",
-  );
+  const summary = $derived(summaryOf(target?.advisories, list));
   // The alerts page: the list's own once it is here, the row's before that, so
   // the header holds the same controls while it loads.
   const forgeUrl = $derived(list?.url ?? target?.advisories?.url ?? "");
@@ -123,6 +117,7 @@
       return;
     }
     list = result.list;
+    older = result.list.refreshFailed ? olderNote(result.list.readAt) : "";
     phase = "ready";
   }
 

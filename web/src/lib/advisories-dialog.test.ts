@@ -13,6 +13,7 @@ import {
   referenceLinks,
   sameContent,
   severityCounts,
+  summaryOf,
   unreadableText,
 } from './advisories-dialog';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
@@ -295,8 +296,41 @@ describe('sameContent', () => {
     expect(sameContent(list(), next)).toBe(false);
   });
 
-  test('a failed refresh is not the same as a good one', () => {
-    expect(sameContent(list(), list({ refreshFailed: 'failed' }))).toBe(false);
+  test('a flip of the failed flag alone is the same content', () => {
+    expect(sameContent(list(), list({ refreshFailed: 'failed' }))).toBe(true);
+    expect(sameContent(list({ refreshFailed: 'throttled' }), list())).toBe(
+      true,
+    );
+  });
+});
+
+describe('summaryOf', () => {
+  const row = { state: 'known' as const, count: 1, highest: 'low' as const };
+  const list = (advisories: AdvisoryItem[]): AdvisoryList => ({
+    state: 'known',
+    advisories,
+  });
+
+  test("says the row's count until a list is here", () => {
+    expect(summaryOf(row, null)).toBe('1 advisory, low');
+  });
+
+  test('says what the list holds once it is here', () => {
+    const two = list([
+      item({ severity: 'low' }),
+      item({ number: 2, severity: 'critical' }),
+    ]);
+    expect(summaryOf(row, two)).toBe('2 advisories, critical');
+  });
+
+  test('says none for a known empty list', () => {
+    expect(summaryOf(row, list([]))).toBe('No open advisories');
+  });
+
+  test("keeps the row's words for a list that is not known", () => {
+    expect(summaryOf(row, { state: 'unknown', advisories: [] })).toBe(
+      '1 advisory, low',
+    );
   });
 });
 

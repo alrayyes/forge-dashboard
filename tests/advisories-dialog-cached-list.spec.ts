@@ -136,9 +136,18 @@ function hold() {
   return { gate, release };
 }
 
-for (const width of [1280, 375]) {
-  test.describe(`advisories dialog, cached list, ${width}px wide`, () => {
-    test.use({ viewport: { width, height: 800 } });
+// Desktop and phone, at a tall and a short height: the no-jump rule holds at
+// every one of them.
+const VIEWPORTS = [
+  { width: 1280, height: 800 },
+  { width: 375, height: 800 },
+  { width: 1366, height: 600 },
+  { width: 375, height: 667 },
+];
+
+for (const viewport of VIEWPORTS) {
+  test.describe(`advisories dialog, cached list, ${viewport.width}x${viewport.height}`, () => {
+    test.use({ viewport });
 
     test('the header says the count and severity before the list arrives', async ({
       page,
@@ -282,6 +291,63 @@ for (const width of [1280, 375]) {
         await page.getByTestId('advisory-row').first().boundingBox(),
       ).toEqual(firstRow);
       await noViolations(page, 'older');
+    });
+
+    test('the list has room to scroll at this height', async ({ page }) => {
+      await openDialog(page, { warm: true, answer: json(list()) });
+      await expect(page.getByTestId('advisory-row')).toHaveCount(12);
+
+      const dialog = await boxOf(page, 'advisories-dialog');
+      expect(dialog.y).toBeGreaterThanOrEqual(0);
+      expect(dialog.y + dialog.height).toBeLessThanOrEqual(viewport.height);
+      const body = (await page.locator('.adv-body').boundingBox())!;
+      expect(body.height).toBeGreaterThan(120);
+      await noViolations(page, 'ready at this height');
+    });
+
+    test('an aged-out list that could not be read is shown as older on open', async ({
+      page,
+    }) => {
+      const h = hold();
+      await openDialog(page, {
+        warm: true,
+        answer: async (route) => {
+          await h.gate;
+          await json(list({ refreshFailed: 'failed' }))(route);
+        },
+      });
+      const slot = await boxOf(page, 'advisories-older');
+      const header = await boxOf(page, 'advisories-header');
+
+      h.release();
+
+      await expect(page.getByTestId('advisories-older')).toContainText(
+        "Couldn't refresh. Showing the list read 4 min ago.",
+      );
+      await expect(page.getByTestId('advisory-row')).toHaveCount(12);
+      expect((await boxOf(page, 'advisories-older')).height).toBe(slot.height);
+      expect(await boxOf(page, 'advisories-header')).toEqual(header);
+      await noViolations(page, 'older on open');
+    });
+
+    test('after a refresh the header says what the list says', async ({
+      page,
+    }) => {
+      await openDialog(page, {
+        warm: true,
+        answer: json(list()),
+        refresh: json(list({ advisories: ITEMS.slice(0, 3) })),
+      });
+      await expect(page.getByTestId('advisories-summary')).toHaveText(
+        '12 advisories, critical',
+      );
+
+      await page.getByTestId('advisories-refresh').click();
+
+      await expect(page.getByTestId('advisory-row')).toHaveCount(3);
+      await expect(page.getByTestId('advisories-summary')).toHaveText(
+        '3 advisories, critical',
+      );
     });
   });
 }

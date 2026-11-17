@@ -1,5 +1,10 @@
 import { advisoryFactsOf, ownOf } from './forges';
-import { ADVISORY_WORDS_BY_SOURCE, ago } from './main-branches';
+import {
+  ADVISORY_WORDS_BY_SOURCE,
+  type Advisories,
+  advisoryPill,
+  ago,
+} from './main-branches';
 
 // Pure helpers for the advisories dialog: the shapes the endpoint returns,
 // the severity filter, and the text the list and detail views print.
@@ -256,15 +261,12 @@ export function unreadableText(
   return 'The forge did not answer the read.';
 }
 
-// Whether two reads say the same thing. The read time is left out: a refresh
-// that found nothing new must not redraw the list.
+// Whether two reads say the same thing. The read time and the failed flag are
+// left out: a refresh that found nothing new must not redraw the list, and the
+// flag is shown by the older line, not by the rows.
 export function sameContent(a: AdvisoryList, b: AdvisoryList): boolean {
   const key = (l: AdvisoryList) =>
-    JSON.stringify({
-      ...l,
-      readAt: undefined,
-      refreshFailed: !!l.refreshFailed,
-    });
+    JSON.stringify({ ...l, readAt: undefined, refreshFailed: undefined });
   return key(a) === key(b);
 }
 
@@ -278,4 +280,28 @@ export function olderNote(
   return when
     ? `Couldn't refresh. Showing the list read ${when}.`
     : "Couldn't refresh. Showing the last list that was read.";
+}
+
+// The line under the title: what the list says once it is here, so the header
+// and the rows agree after a refresh, else the row's own count.
+export function summaryOf(
+  row: Advisories | undefined,
+  list: AdvisoryList | null,
+): string {
+  if (list?.state === 'known') {
+    const counts = severityCounts(list.advisories);
+    const highest = LEVELS.find((l) => counts[l] > 0);
+    const n = list.advisories.length;
+    if (n === 0 && !list.partial) return 'No open advisories';
+    return (
+      advisoryPill({
+        state: 'known',
+        count: n,
+        highest,
+        partial: list.partial,
+        url: list.url,
+      })?.text ?? ''
+    );
+  }
+  return row ? (advisoryPill(row)?.text ?? '') : '';
 }
