@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { serveChecks } from './checks-feed-helper';
 import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
@@ -178,5 +179,96 @@ test.describe('a forge named like an inherited key (#4179)', () => {
     await expect(notices).toHaveCount(2);
     for (const notice of await notices.all())
       await expect(notice).not.toContainText(/function|\[object/i);
+  });
+
+  // The pages below take the forge's name from the same lookups as the
+  // overview; a plain object read would show `function Object() { ... }`.
+  // https://github.com/alrayyes/forge-dashboard/issues/4193
+  test('Insights names the id in the rate limit list', async ({ page }) => {
+    await mockDashboard(page, {});
+    await page.goto('/insights.html');
+
+    const names = page.locator('#rate-limit-list .rate-limit-forge-name');
+    await expect(names).toHaveText(['constructor', '__proto__']);
+    await expect(page.locator('#rate-limit-list')).not.toContainText(
+      /function|\[object|undefined/i,
+    );
+  });
+
+  test('the pull request dialog badges the id with no colour class', async ({
+    page,
+  }) => {
+    await mockDashboard(page, { pullRequests: [pr(1, 'constructor')] });
+    await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          description: null,
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+          releaseNotes: null,
+        }),
+      }),
+    );
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: /^#\d+ / })
+      .click();
+
+    const badge = page
+      .getByRole('dialog', { name: /^Pull request details/ })
+      .locator('.details-ref .forge-badge');
+    await expect(badge).toHaveText('constructor');
+    // Svelte adds its scoped class after the forge's own.
+    await expect(badge).toHaveAttribute('class', /^forge-badge\s+svelte-\w+$/);
+  });
+
+  test('the pipeline dialog names the id in its run link', async ({ page }) => {
+    await serveChecks(page, () => [
+      {
+        name: 'job-1',
+        status: 'completed',
+        conclusion: 'success',
+        url: 'https://example.com/lab/1/actions/runs/9/job/1',
+      },
+    ]);
+    await mockDashboard(page, { pullRequests: [pr(1, 'constructor')] });
+    await page.goto('/pull-requests.html');
+    await page
+      .locator('#pr-rows .row')
+      .first()
+      .getByRole('button', { name: 'Open pipeline' })
+      .click();
+
+    await expect(page.locator('#pipeline-dialog .pipeline-check')).toHaveCount(
+      1,
+    );
+    await expect(
+      page
+        .locator('#pipeline-dialog')
+        .getByRole('link', { name: /^Open .* on / }),
+    ).toHaveText(/^Open run on constructor$/);
+  });
+
+  test('the forge health chip names the id', async ({ page }) => {
+    await mockDashboard(page, {
+      forges: IDS.map((id) =>
+        unlabelled(id, { staleSince: new Date().toISOString() }),
+      ),
+    });
+    await page.goto('/pull-requests.html');
+
+    const chips = page.locator('#forge-health .forge-health-item .pulse-dot');
+    await expect(chips).toHaveCount(2);
+    await expect(
+      page.locator('#forge-health .forge-health-item span:has(> .pulse-dot)'),
+    ).toHaveText([
+      /^(constructor|__proto__) reachable$/,
+      /^(constructor|__proto__) reachable$/,
+    ]);
   });
 });
