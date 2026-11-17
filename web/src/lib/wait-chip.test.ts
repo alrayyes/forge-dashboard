@@ -357,6 +357,7 @@ describe('autoMergeChip by capability (#3973)', () => {
     code: '',
     message: 'Checks passed.',
     forge,
+    draft: false,
   });
 
   afterEach(() => resetForgeCapabilities());
