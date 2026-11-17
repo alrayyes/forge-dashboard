@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.70.0](https://github.com/alrayyes/forge-dashboard/compare/v9.69.4...v9.70.0) (2026-11-17)
+
+
+### Features
+
+* **checks:** count cancelled and held checks so pill totals add up ([#4092](https://github.com/alrayyes/forge-dashboard/issues/4092)) ([59d55e1](https://github.com/alrayyes/forge-dashboard/commit/59d55e111850cba0fa6234d4293753e7f9df3425))
+
 ## [9.69.4](https://github.com/alrayyes/forge-dashboard/compare/v9.69.3...v9.69.4) (2026-11-17)
 
 
