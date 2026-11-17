@@ -31,7 +31,11 @@ func (p *pairStore) OAuthToken(context.Context, string) (*oauth2.Token, error) {
 	return p.token, nil
 }
 
-func (p *pairStore) DeleteOAuthToken(context.Context, string) error { p.token = nil; return nil }
+func (p *pairStore) DeleteOAuthToken(context.Context, string) error {
+	p.token = nil
+
+	return nil
+}
 
 func authHeaders(t *testing.T) (*httptest.Server, func() []string) {
 	t.Helper()

@@ -203,7 +203,7 @@ func handleForgejoConnectionDelete(deps Deps) http.HandlerFunc {
 
 // addOAuthStatus fills in the two OAuth fields of resp. It answers 500 itself
 // and returns false when the store can't say.
-func addOAuthStatus(w http.ResponseWriter, ctx context.Context, deps Deps, resp *SettingsResponse) bool {
+func addOAuthStatus(ctx context.Context, w http.ResponseWriter, deps Deps, resp *SettingsResponse) bool {
 	connected, err := deps.SettingsStore.HasOAuthToken(ctx, forgejoForge)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, errorBody("could not read the connection"))
@@ -220,7 +220,7 @@ func addOAuthStatus(w http.ResponseWriter, ctx context.Context, deps Deps, resp 
 // keepsLinkedInstance answers 400 itself, and returns false, when a save would
 // move a linked account's instance. The token belongs to the instance it was
 // granted by; it must never be sent to another address.
-func keepsLinkedInstance(w http.ResponseWriter, ctx context.Context, deps Deps, existing, merged settings.Credentials) bool {
+func keepsLinkedInstance(ctx context.Context, w http.ResponseWriter, deps Deps, existing, merged settings.Credentials) bool {
 	if merged.ForgejoURL == existing.ForgejoURL {
 		return true
 	}

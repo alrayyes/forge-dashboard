@@ -140,6 +140,7 @@ func (c *connFixture) connect(t *testing.T) {
 	t.Helper()
 
 	resp := c.callback(t, "code=good-code&state="+url.QueryEscape(c.begin(t)))
+	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
 }
 
@@ -232,6 +233,7 @@ func TestConnectionsCallback_LinksTheAccountAndNeverShowsATokenAgain(t *testing.
 
 	for _, path := range []string{"/api/v1/settings", "/api/v1/settings/summary"} {
 		resp := doJSON(t, http.MethodGet, c.srv.URL+path, "", c.cookie)
+		defer func() { _ = resp.Body.Close() }()
 		raw := connBodyText(t, resp)
 		assert.NotContains(t, raw, connAccessTok, path)
 		assert.NotContains(t, raw, connRefreshTk, path)
@@ -248,6 +250,7 @@ func TestConnectionsCallback_RedirectsBackToSettings(t *testing.T) {
 
 	c := newConnFixture(t, true)
 	resp := c.callback(t, "code=good-code&state="+url.QueryEscape(c.begin(t)))
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
 	assert.Equal(t, "/settings", resp.Header.Get("Location"))
@@ -269,6 +272,7 @@ func TestConnectionsCallback_Is400AndStoresNothingWhenItCannotBeTrusted(t *testi
 			c := newConnFixture(t, true)
 			state := url.QueryEscape(c.begin(t))
 			resp := c.callback(t, query(state))
+			defer func() { _ = resp.Body.Close() }()
 
 			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 			assert.Zero(t, c.storedRows(t), "nothing stored")
@@ -289,6 +293,7 @@ func TestConnectionsCallback_ADifferentVerifierThanTheChallengeIs400(t *testing.
 	c.forge.mu.Unlock()
 
 	resp := c.callback(t, "code=good-code&state="+url.QueryEscape(state))
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	assert.Zero(t, c.storedRows(t))
@@ -299,10 +304,13 @@ func TestConnectionsCallback_AStateCannotBeReplayed(t *testing.T) {
 
 	c := newConnFixture(t, true)
 	state := url.QueryEscape(c.begin(t))
-	require.Equal(t, http.StatusSeeOther, c.callback(t, "code=good-code&state="+state).StatusCode)
+	first := c.callback(t, "code=good-code&state="+state)
+	defer func() { _ = first.Body.Close() }()
+	require.Equal(t, http.StatusSeeOther, first.StatusCode)
 	require.Equal(t, http.StatusNoContent, c.disconnect(t))
 
 	resp := c.callback(t, "code=good-code&state="+state)
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 	assert.Zero(t, c.storedRows(t))
@@ -407,9 +415,11 @@ func TestConnections_NeverLogOrAnswerWithACodeStateSecretOrToken(t *testing.T) {
 	c := newConnFixture(t, true)
 	state := c.begin(t)
 	refused := c.callback(t, "code=stolen-code&state="+url.QueryEscape(state))
+	defer func() { _ = refused.Body.Close() }()
 	refusedBody := connBodyText(t, refused)
 	c.connect(t)
-	c.callback(t, "code=good-code&state=replayed")
+	replayed := c.callback(t, "code=good-code&state=replayed")
+	defer func() { _ = replayed.Body.Close() }()
 
 	for _, secret := range []string{"stolen-code", "good-code", state, "client-secret", connAccessTok, connRefreshTk} {
 		assert.NotContains(t, logs.String(), secret, "log")

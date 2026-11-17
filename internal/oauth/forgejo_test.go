@@ -5,9 +5,11 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -125,8 +127,8 @@ func (f *fakeForgejo) token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		f.refreshes++
-		f.valid = "refresh-" + string(rune('1'+f.refreshes))
-		f.access = "access-" + string(rune('1'+f.refreshes))
+		f.valid = "refresh-" + strconv.Itoa(f.refreshes+1)
+		f.access = "access-" + strconv.Itoa(f.refreshes+1)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -219,26 +221,26 @@ func TestForgejo_Finish_StoresNothingWhenTheCallbackCannotBeTrusted(t *testing.T
 			t.Helper()
 			_, _, err := conn.Finish(t.Context(), "forged-state", goodCode)
 
-			return err
+			return wrapFinish(err)
 		},
 		"an empty state": func(t *testing.T, conn *oauth.Forgejo, _ *fakeForgejo, _ string) error {
 			t.Helper()
 			_, _, err := conn.Finish(t.Context(), "", goodCode)
 
-			return err
+			return wrapFinish(err)
 		},
 		"a verifier that does not match the challenge": func(t *testing.T, conn *oauth.Forgejo, forge *fakeForgejo, state string) error {
 			t.Helper()
 			forge.setChallenge("a-different-challenge")
 			_, _, err := conn.Finish(t.Context(), state, goodCode)
 
-			return err
+			return wrapFinish(err)
 		},
 		"a code the instance refuses": func(t *testing.T, conn *oauth.Forgejo, _ *fakeForgejo, state string) error {
 			t.Helper()
 			_, _, err := conn.Finish(t.Context(), state, "stolen-code")
 
-			return err
+			return wrapFinish(err)
 		},
 		"an account that cannot be read": func(t *testing.T, conn *oauth.Forgejo, forge *fakeForgejo, state string) error {
 			t.Helper()
@@ -247,7 +249,7 @@ func TestForgejo_Finish_StoresNothingWhenTheCallbackCannotBeTrusted(t *testing.T
 			forge.mu.Unlock()
 			_, _, err := conn.Finish(t.Context(), state, goodCode)
 
-			return err
+			return wrapFinish(err)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -401,4 +403,12 @@ func TestForgejo_Connected_IsFalseWithoutAClient(t *testing.T) {
 
 	assert.False(t, conn.Configured())
 	assert.False(t, oauth.NewForgejo(t.Context(), "", "", testRedirect, &memoryTokens{}).Configured())
+}
+
+func wrapFinish(err error) error {
+	if err != nil {
+		return fmt.Errorf("finish: %w", err)
+	}
+
+	return nil
 }

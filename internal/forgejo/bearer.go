@@ -36,5 +36,10 @@ func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	req = req.Clone(req.Context())
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	return t.base.RoundTrip(req)
+	resp, err := t.base.RoundTrip(req)
+	if err != nil {
+		return nil, fmt.Errorf("forgejo: send request: %w", err)
+	}
+
+	return resp, nil
 }

@@ -184,7 +184,7 @@ func handleSettingsGet(deps Deps) http.HandlerFunc {
 		counts := ignoredTitleCounts(r.Context(), deps, creds.IgnoredTitles, deps.Service.Get())
 		resp := settingsResponseOf(creds, deps.GitHubAppConfigured, counts)
 		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, creds.ForgejoURL)
-		if !addOAuthStatus(w, r.Context(), deps, &resp) {
+		if !addOAuthStatus(r.Context(), w, deps, &resp) {
 			return
 		}
 		writeJSON(w, http.StatusOK, resp)
@@ -464,7 +464,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		}
 
 		merged := mergeSettings(req, existing)
-		if !keepsLinkedInstance(w, r.Context(), deps, existing, merged) {
+		if !keepsLinkedInstance(r.Context(), w, deps, existing, merged) {
 			return
 		}
 		if field, message := settingsFieldError(merged, req, deps.GitHubAppConfigured); field != "" {
@@ -492,7 +492,7 @@ func handleSettingsPut(deps Deps) http.HandlerFunc {
 		counts := ignoredTitleCounts(r.Context(), deps, merged.IgnoredTitles, snap)
 		resp := settingsResponseOf(merged, deps.GitHubAppConfigured, counts)
 		resp.ForgejoSkippedAvatarHosts = skippedAvatarHosts(deps, merged.ForgejoURL)
-		if !addOAuthStatus(w, r.Context(), deps, &resp) {
+		if !addOAuthStatus(r.Context(), w, deps, &resp) {
 			return
 		}
 		writeJSON(w, http.StatusOK, resp)

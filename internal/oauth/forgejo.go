@@ -193,7 +193,11 @@ func (g guardedSaver) Save(ctx context.Context, token *oauth2.Token) error {
 		return errDisconnected
 	}
 
-	return g.f.store.SaveOAuthToken(ctx, forgejoForge, token)
+	if err := g.f.store.SaveOAuthToken(ctx, forgejoForge, token); err != nil {
+		return fmt.Errorf("oauth: save token: %w", err)
+	}
+
+	return nil
 }
 
 // readAccount asks instance whose token this is. The token goes in a header,

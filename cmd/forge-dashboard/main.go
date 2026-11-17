@@ -635,51 +635,69 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 			sources = append(sources, src)
 		}
 
-		var bearer func() (string, error)
-		if c.ForgejoURL != "" {
-			// A linked account wins over a pasted token: it is the newer choice
-			// and the one that refreshes itself.
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			bearer, _ = linked.Bearer(ctx, c.ForgejoURL)
-			cancel()
-		}
-
-		switch {
-		case c.ForgejoURL == "":
-			// nothing configured for Forgejo at all
-		case bearer != nil:
-			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
-			client.SetBearerSource(bearer)
-			client.SetAdvisoryScanner(scanner)
-			client.ShareAdvisoryCache(advisoryCache)
-			credential := apistats.TokenCredential("oauth")
-			if c.ForgejoUsername != "" {
-				credential = apistats.AccountCredential(c.ForgejoUsername)
-			}
-			client.SetStats(stats, credential)
-			if c.WebhookToken != "" {
-				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
-			}
-			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-		case c.ForgejoToken != "":
-			client := forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", recorder)
-			client.SetAdvisoryScanner(scanner)
-			client.ShareAdvisoryCache(advisoryCache)
-			client.SetStats(stats, apistats.TokenCredential(c.ForgejoToken))
-			if c.WebhookToken != "" {
-				client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
-			}
-			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
-		case c.ForgejoUsername != "":
-			client := forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, recorder)
-			client.SetAdvisoryScanner(scanner)
-			client.ShareAdvisoryCache(advisoryCache)
-			client.SetStats(stats, apistats.AccountCredential(c.ForgejoUsername))
-			sources = append(sources, dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency))
+		if src := buildForgejoSource(c, forgejoDeps{recorder: recorder, scanner: scanner, cache: advisoryCache, stats: stats, linked: linked}); src != nil {
+			sources = append(sources, src)
 		}
 
 		return sources
 	}
+}
+
+// forgejoDeps is what buildSources shares across every Forgejo client it makes.
+type forgejoDeps struct {
+	recorder requestlog.Recorder
+	scanner  forgejo.AdvisoryScanner
+	cache    *forgejo.AdvisoryCache
+	stats    *apistats.Counters
+	linked   *oauth.Forgejo
+}
+
+// buildForgejoSource is the Forgejo source c asks for, or nil. A linked
+// account wins over a pasted token (it is the newer choice and renews itself),
+// and a token wins over a bare username.
+func buildForgejoSource(c settings.Credentials, d forgejoDeps) dashboard.Source {
+	if c.ForgejoURL == "" {
+		return nil
+	}
+
+	var bearer func() (string, error)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	bearer, _ = d.linked.Bearer(ctx, c.ForgejoURL)
+	cancel()
+
+	var (
+		client     *forgejo.Client
+		credential string
+		withToken  = true
+	)
+
+	switch {
+	case bearer != nil:
+		client = forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, d.recorder)
+		client.SetBearerSource(bearer)
+		credential = apistats.TokenCredential("oauth")
+		if c.ForgejoUsername != "" {
+			credential = apistats.AccountCredential(c.ForgejoUsername)
+		}
+	case c.ForgejoToken != "":
+		client = forgejo.NewClient(c.ForgejoURL, c.ForgejoToken, "", d.recorder)
+		credential = apistats.TokenCredential(c.ForgejoToken)
+	case c.ForgejoUsername != "":
+		client = forgejo.NewClient(c.ForgejoURL, "", c.ForgejoUsername, d.recorder)
+		credential = apistats.AccountCredential(c.ForgejoUsername)
+		withToken = false
+	default:
+		return nil
+	}
+
+	client.SetAdvisoryScanner(d.scanner)
+	client.ShareAdvisoryCache(d.cache)
+	client.SetStats(d.stats, credential)
+	if c.WebhookToken != "" && withToken {
+		client.SetWebhookPath("/api/webhooks/forgejo/" + c.WebhookToken)
+	}
+
+	return dashboard.NewGenericSource(dashboard.ForgeForgejo, client, dashboard.DefaultMaxConcurrency)
 }
 
 // newAdvisoryScanner returns the OSV client that matches Forgejo lockfiles
