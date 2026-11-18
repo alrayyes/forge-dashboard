@@ -68,3 +68,12 @@ export function pageDescription(view: PageView): string {
       return `Open pull requests ${where}, with the actions you can take on each.`;
   }
 }
+
+// The Webhooks page's words about an app connection, named by the forge's label.
+export function appConnectionCopy(forge: string) {
+  const n = name(forge);
+  return {
+    missingWebhookPermission: `Give your ${n} App the Webhooks (read and write) permission, then accept it on the installation, or `,
+    dependabotNeedsToken: `Dependabot needs a personal access token when a ${n} App is connected.`,
+  };
+}

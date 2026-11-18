@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
+  appConnectionCopy,
   approveLinkCopy,
   autoMergeGroupNote,
   forgeNameList,
@@ -105,5 +106,28 @@ describe('permissionsNotReportedCopy', () => {
     expect(permissionsNotReportedCopy('gitea')).toStartWith(
       "Gitea didn't report your access",
     );
+  });
+});
+
+describe('appConnectionCopy', () => {
+  test('keeps the GitHub wording for GitHub', () => {
+    expect(appConnectionCopy('github')).toEqual({
+      missingWebhookPermission:
+        'Give your GitHub App the Webhooks (read and write) permission, then accept it on the installation, or ',
+      dependabotNeedsToken:
+        'Dependabot needs a personal access token when a GitHub App is connected.',
+    });
+  });
+
+  test('an unlisted forge reads with its own label, not GitHub', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+    const copy = appConnectionCopy('gitea');
+    expect(copy.missingWebhookPermission).toContain('Give your Gitea App');
+    expect(copy.dependabotNeedsToken).toContain(
+      'when a Gitea App is connected',
+    );
+    expect(JSON.stringify(copy)).not.toContain('GitHub');
   });
 });

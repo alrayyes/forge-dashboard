@@ -22,7 +22,11 @@
     saveState,
   } from "#lib/filters.js";
   import { dependabotBlockedReason } from "#lib/forge-lock.js";
-  import { noReposCopy, permissionsNotReportedCopy } from "#lib/forge-copy.js";
+  import {
+    appConnectionCopy,
+    noReposCopy,
+    permissionsNotReportedCopy,
+  } from "#lib/forge-copy.js";
   import {
     forgeClassOf,
     forgeLabelOf,
@@ -648,7 +652,7 @@
   // wording is the page's.
   function rebaseBotsLock(repo: Repo): string | null {
     return dependabotBlockedReason(forges, repo.forge)
-      ? "Dependabot needs a personal access token when a GitHub App is connected."
+      ? appConnectionCopy(repo.forge).dependabotNeedsToken
       : null;
   }
 
@@ -1466,8 +1470,8 @@
                             >.
                           {:else if repo.webhookLockedByConnection}
                             This connection can't manage webhooks on this repo.
-                            Give your GitHub App the Webhooks (read and write)
-                            permission, then accept it on the installation, or <a
+                            {appConnectionCopy(repo.forge)
+                              .missingWebhookPermission}<a
                               href="/settings.html#webhooks"
                               >set it up manually</a
                             >.
