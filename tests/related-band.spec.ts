@@ -451,6 +451,30 @@ test('a pill for what the issue refers to is a link to the item', async ({
   );
 });
 
+test('an item that closes the issue and is referred to by it is in both rows', async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(4297)] }),
+    [outgoing(4297)],
+  );
+
+  await expect(dialog.locator('.related-label')).toHaveText([
+    'Closed by',
+    'Refs',
+  ]);
+  await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveCount(1);
+  await expect(row(dialog, 'Refs').locator('.linked-pr')).toHaveCount(1);
+  const ids = await dialog
+    .locator('[id]')
+    .evaluateAll((els) => els.map((e) => e.id));
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(errors).toEqual([]);
+});
+
 test('the rows for what an issue refers to have no axe violations', async ({
   page,
 }) => {

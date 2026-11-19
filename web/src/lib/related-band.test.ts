@@ -149,6 +149,17 @@ describe('what an issue refers to', () => {
     ]);
   });
 
+  test('keys the same item apart in each direction', () => {
+    const band = relatedBandData(
+      'issue',
+      { refs: one },
+      { refs: node() },
+      { lists: { refs: one }, nodes: { refs: node() } },
+    );
+
+    expect(new Set(band?.rows.map((r) => r.key)).size).toBe(2);
+  });
+
   test('makes a band of its own when nothing refers to the issue', () => {
     const band = relatedBandData(
       'issue',
