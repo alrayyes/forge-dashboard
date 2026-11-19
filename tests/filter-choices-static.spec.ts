@@ -161,12 +161,15 @@ test.describe('forge buttons on Insights (#1427)', () => {
   });
 
   test('a forge with nothing to chart is not offered', async ({ page }) => {
+    // One forge is all there is, so the whole Forge filter is left out (#4273).
     await open(page, '/insights.html', [pr(1)]);
-    await expect(forgeLabel(page, 'github')).toBeVisible();
+    await expect(page.locator('input[data-col="title"]')).toBeVisible();
+    await expect(page.locator('.filter-bar .forge-segmented')).toBeHidden();
+    await expect(forgeLabel(page, 'github')).toBeHidden();
     await expect(forgeLabel(page, 'forgejo')).toBeHidden();
   });
 
-  test('picking a repo narrows the forge buttons to the forge it is on', async ({
+  test('picking a repo that leaves one forge hides the forge buttons', async ({
     page,
   }) => {
     await open(page, '/insights.html', [
@@ -177,7 +180,9 @@ test.describe('forge buttons on Insights (#1427)', () => {
 
     await pickOnly(page, 'repo', 'github:alrayyes/app');
 
-    await expect(forgeLabel(page, 'github')).toBeVisible();
+    // One forge is left, so the Forge filter goes whole (#4273).
+    await expect(page.locator('.filter-bar .forge-segmented')).toBeHidden();
+    await expect(forgeLabel(page, 'github')).toBeHidden();
     await expect(forgeLabel(page, 'forgejo')).toBeHidden();
   });
 

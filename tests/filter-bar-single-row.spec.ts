@@ -470,13 +470,19 @@ for (const { path, kind, rows } of PAGES) {
         // The filter's own pick is not in its pool, so it still has choices
         // here. Narrowing with the pill leaves it one row and one choice, so
         // only the held pick keeps it drawn.
-        await pill(page, 'Forgejo').click();
+        // The repo pick alone leaves one forge and one row, and with one
+        // forge the Forge pills are not drawn (#4273).
+        if (name !== 'repo') await pill(page, 'Forgejo').click();
         await expect(page.locator(rows)).toHaveCount(1);
         await expect(control(page)).toBeVisible();
         expect((await axe(page)).violations).toEqual([]);
         await control(page).click();
         await box.uncheck();
         await page.keyboard.press('Escape');
+        // Clearing the repo pick brings the rows and the Forge pills back, so
+        // narrow with the pill to reach one row with nothing picked.
+        if (name === 'repo') await pill(page, 'Forgejo').click();
+        await expect(page.locator(rows)).toHaveCount(1);
         await expect(control(page)).toBeHidden();
         expect((await axe(page)).violations).toEqual([]);
       });
