@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.83.3](https://github.com/alrayyes/forge-dashboard/compare/v9.83.2...v9.83.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** show nav items and the filter bar only once they are known to be useful ([#4287](https://github.com/alrayyes/forge-dashboard/issues/4287)) ([4f9d8d1](https://github.com/alrayyes/forge-dashboard/commit/4f9d8d1905a488c337a12450895136855b9c2877)), closes [#4276](https://github.com/alrayyes/forge-dashboard/issues/4276)
+
 ## [9.83.2](https://github.com/alrayyes/forge-dashboard/compare/v9.83.1...v9.83.2) (2026-11-19)
 
 
