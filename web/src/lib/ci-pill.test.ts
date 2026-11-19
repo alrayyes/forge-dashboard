@@ -200,10 +200,15 @@ describe('ciPillModel', () => {
       counts: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
     });
 
-    expect(m.segments).toEqual([]);
+    // The same segmented parts a failed or passed pill draws (#4323).
+    expect(m.segments).toEqual([
+      { kind: 'passed', n: 4 },
+      { kind: 'cancelled', n: 9 },
+    ]);
+    expect(m.classes).toBe('ci-pill cancelled segmented');
     expect(m.cancelled).toEqual({ passed: 4, cancelled: 9 });
     expect(m.name).toBe(
-      'CI status: Cancelled. 4 passed, 9 cancelled out of 13 checks.',
+      'Cancelled 4 9: 4 passed, 9 cancelled out of 13 checks.',
     );
   });
 
@@ -215,7 +220,8 @@ describe('ciPillModel', () => {
       counts: { passed: 0, running: 0, waiting: 0, failed: 0, cancelled: 13 },
     });
 
-    expect(m.name).toBe('CI status: Cancelled. 13 cancelled out of 13 checks.');
+    expect(m.name).toBe('Cancelled 13: 13 cancelled out of 13 checks.');
+    expect(m.segments).toEqual([{ kind: 'cancelled', n: 13 }]);
   });
 
   test('a single cancelled check reads "1 check", not "1 checks"', () => {
@@ -226,7 +232,7 @@ describe('ciPillModel', () => {
       counts: { passed: 0, running: 0, waiting: 0, failed: 0, cancelled: 1 },
     });
 
-    expect(m.name).toBe('CI status: Cancelled. 1 cancelled out of 1 check.');
+    expect(m.name).toBe('Cancelled 1: 1 cancelled out of 1 check.');
   });
 
   test('a cancelled pill without counts stays the plain word', () => {
@@ -237,6 +243,8 @@ describe('ciPillModel', () => {
     });
 
     expect(m.cancelled).toBeUndefined();
+    expect(m.segments).toEqual([]);
+    expect(m.classes).toBe('ci-pill cancelled');
     expect(m.name).toBe('Cancelled');
   });
 
@@ -262,6 +270,7 @@ class FakeNode {
   className = '';
   id = '';
   type = '';
+  title = '';
   innerHTML = '';
   textContent = '';
   listeners: string[] = [];
@@ -406,6 +415,42 @@ describe('renderCiPill', () => {
     });
 
     expect(as(render(done)).find('ci-live')).toBeUndefined();
+  });
+
+  test('a cancelled pill with counts draws the segmented parts, not one text run (#4323)', () => {
+    const cancelled = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
+    });
+    const pill = as(render(cancelled, { onOpen: () => {} }));
+    const passed = as(pill.find('ci-seg-passed'));
+    const stopped = as(pill.find('ci-seg-cancelled'));
+
+    expect(pill.find('ci-cancel')).toBeUndefined();
+    expect(as(pill.find('ci-word')).textContent).toBe('Cancelled');
+    expect(passed.children.at(-1)?.textContent).toBe('4');
+    expect(passed.attrs.get('aria-hidden')).toBe('true');
+    expect(stopped.children[0].attrs.get('data-glyph')).toBe('stop');
+    expect(stopped.children.at(-1)?.textContent).toBe('9');
+    expect(pill.title).toBe(cancelled.name);
+    expect(pill.attrs.get('aria-label')).toBe(
+      `${cancelled.name} Open pipeline`,
+    );
+  });
+
+  test('a cancelled badge says its name in the hidden line', () => {
+    const cancelled = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
+    });
+
+    expect(as(as(render(cancelled)).find('sr-only')).textContent).toBe(
+      cancelled.name,
+    );
   });
 
   test('checkGlyphElements gives nothing for an unknown state', () => {
