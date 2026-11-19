@@ -48,8 +48,10 @@ async function open(page: Page, prs: Record<string, unknown>[]) {
   await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
   const filters = page.getByRole('button', { name: /^Filters/ });
-  if (await filters.isVisible()) await filters.click();
   const button = page.locator('#shared-repo-filter-button:visible').first();
+  // The bar is not drawn until the list is known (#4276).
+  await expect(filters.or(button)).toBeVisible();
+  if (await filters.isVisible()) await filters.click();
   await button.click();
   return button.locator('xpath=..');
 }

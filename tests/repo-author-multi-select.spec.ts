@@ -10,6 +10,7 @@ import {
   pickTexts,
   togglePicks,
 } from './label-filter-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { proxiedImage, routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
@@ -124,6 +125,7 @@ async function mock(
         pullRequests: prs,
         issues: ISSUES,
         openIssueCount: ISSUES.length,
+        navCounts: navCountsFor(prs, ISSUES.length),
         repos: [
           repoEntry('acme/api', LOGO),
           repoEntry('acme/web'),
@@ -268,10 +270,7 @@ test.describe('Repo and Author: several values, matching any', () => {
   }) => {
     await open(page);
     await togglePicks(page, 'repo', 'github:acme/api', 'github:acme/docs');
-    await page
-      .getByRole('link', { name: /^Issues/ })
-      .first()
-      .click();
+    await page.locator('header a[href="/issues.html"]').click();
 
     await expect(issueRows(page)).toHaveCount(2);
     await expect(pickButton(page, 'repo')).toHaveText('2 repos');

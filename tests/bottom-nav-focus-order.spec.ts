@@ -23,6 +23,13 @@ async function mock(page: Page) {
         issues: [],
         repos: [],
         hiddenDrafts: 0,
+        // Every tab is drawn only for a known count above zero (#4276).
+        navCounts: {
+          pullRequests: { total: 1, failed: 0 },
+          issues: { total: 1 },
+          releases: { total: 1, failed: 0 },
+          bots: { total: 1, failed: 0 },
+        },
       }),
     }),
   );

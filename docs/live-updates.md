@@ -253,9 +253,15 @@ A zero is never drawn: a page with nothing in it has no total, and nothing
 failing means no red pill. A page with nothing to show leaves the navigation:
 the Pull requests, Releases, Bots and Issues links are not in the header or the
 phone's tab bar while their total is 0. Branches always shows. A count that
-isn't known yet is not 0, so the links stay until the first snapshot says
-otherwise, and the page you are on keeps its own link until you leave it. The
-page still opens when typed into the address bar, and says it is empty.
+isn't known yet is not drawn either: until the first snapshot answers, the
+header and tab bar hold only Branches, Insights, Settings and the page you are
+on, and the other links come in as their counts arrive, so the menu only grows.
+The page you are on keeps its own link until you leave it. A snapshot that
+fails at page load leaves the counts unknown until a later read succeeds, which
+the page makes within the poll interval, and a failed read after that keeps the
+last counts. The links also stay out while the server's first refresh is
+running. The page still opens when typed into the address bar, and says it is
+empty.
 
 The pages start with their list, with no row of tiles repeating those numbers.
 One line near the list's heading says how many rows show: "12 open" with no

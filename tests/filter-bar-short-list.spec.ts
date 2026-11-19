@@ -346,3 +346,38 @@ for (const p of PAGES) {
     await expect(page.locator('.filter-bar')).toBeVisible();
   });
 }
+
+for (const p of PAGES) {
+  test(`${p.path}: the bar is not drawn while the list is unknown, and comes in with two rows (#4276)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    let open: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      open = resolve;
+    });
+    const { prs, issues } = data(p, 2);
+    await page.route('**/api/v1/dashboard/stream*', (r: Route) => r.abort());
+    await page.route('**/api/v1/dashboard', async (route: Route) => {
+      await gate;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: prs,
+          issues,
+          openIssueCount: issues.length,
+          navCounts: navCountsFor(prs, issues.length),
+        }),
+      });
+    });
+    await page.goto(p.path);
+    await expect(page.locator('.filter-bar')).toBeHidden();
+
+    open();
+    await expect(page.locator(p.rows)).toHaveCount(2);
+    await expect(page.locator('.filter-bar')).toBeVisible();
+  });
+}

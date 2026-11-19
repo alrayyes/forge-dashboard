@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3830
@@ -11,10 +12,27 @@ import { test } from './server-fixture';
 // hit areas at the default size.
 
 async function open(page: Page, width: number, pct: number) {
-  // A count that isn't known yet keeps its tab in the bar, so with the
-  // dashboard read refused all eight tabs show.
+  // Every tab is drawn only for a known count above zero (#4276), so all eight
+  // show once each page has something to list.
   await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
-  await page.route('**/api/v1/dashboard*', (r) => r.abort());
+  await page.route('**/api/v1/dashboard*', (r) =>
+    r.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests: [],
+        issues: [],
+        navCounts: {
+          pullRequests: { total: 1, failed: 0 },
+          issues: { total: 1 },
+          releases: { total: 1, failed: 0 },
+          bots: { total: 1, failed: 0 },
+        },
+      }),
+    }),
+  );
   await page.setViewportSize({ width, height: 800 });
   await page.goto('/insights.html');
   if (pct !== 100) {

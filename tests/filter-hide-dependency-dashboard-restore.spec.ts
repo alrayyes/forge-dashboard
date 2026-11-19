@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // The page's own "Hide Dependency Dashboard" checkbox has to come back the way
@@ -49,6 +50,12 @@ async function open(page: Page, url: string) {
         pullRequests: [],
         issues: ISSUES,
         openIssueCount: ISSUES.length,
+        // The spec leaves for Pull requests and comes back, so that link has
+        // to be drawn: it only is for a count above zero (#4276).
+        navCounts: {
+          ...navCountsFor([], ISSUES.length),
+          pullRequests: { ...navCountsFor([], 0).pullRequests, total: 1 },
+        },
         repos: [],
         hiddenDrafts: 0,
       }),

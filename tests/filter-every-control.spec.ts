@@ -5,6 +5,7 @@ import {
   toggleLabels,
   togglePicks,
 } from './label-filter-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
@@ -184,6 +185,7 @@ async function open(page: Page, board: Board) {
         hiddenDrafts: 1,
         hiddenDraftsByPage: { pullRequests: 1, releases: 0, bots: 0 },
         hiddenPullRequests: 1,
+        navCounts: navCountsFor(PULLS, ISSUES.length),
       }),
     }),
   );
@@ -663,6 +665,9 @@ async function openWebhooks(page: Page) {
         pullRequests: [],
         issues: [],
         repos: WEBHOOK_REPOS,
+        // The Issues link is how the test leaves the page, and it is drawn
+        // only for a known count (#4276).
+        navCounts: navCountsFor([], 1),
       }),
     }),
   );

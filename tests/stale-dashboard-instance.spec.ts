@@ -1,4 +1,5 @@
 import { expect, type Route } from '@playwright/test';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1259: a page opened at /releases.html is a hard load, and its Pull requests link
@@ -53,6 +54,7 @@ test('the pull request page stays free of release pull requests after leaving Re
           forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
           pullRequests: SNAPSHOT,
           issues: [],
+          navCounts: navCountsFor(SNAPSHOT, 0),
         }),
       });
     },

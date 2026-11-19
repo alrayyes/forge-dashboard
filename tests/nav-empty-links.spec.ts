@@ -7,7 +7,8 @@ import { test } from './server-fixture';
 // #1228: the Issues, Releases and Bots links are in the navigation only
 // while they have something to show. A count of null (not loaded yet) is not
 // zero and the page you are on keeps its link. Pull requests follow the same
-// rule (#1415); Branches always shows.
+// rule (#1415); Branches always shows. A link whose count is not known yet is
+// not drawn either (#4276), so the menu only grows as the counts arrive.
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -88,7 +89,6 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, { pullRequests: [], openIssueCount: 0 });
     await page.goto('/settings.html');
-    // Not loaded counts keep the link, so its going is the sign they arrived.
     await expect(header(page, PULLS)).toHaveCount(0);
     await expect(tab(page, PULLS)).toHaveCount(0);
     for (const href of LINKS) await expect(header(page, href)).toHaveCount(0);
@@ -170,27 +170,90 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, '/releases.html')).toHaveCount(0);
   });
 
-  test('while the counts are not loaded the links stay, then go once they say zero', async ({
+  for (const width of [390, 1280]) {
+    test(`while the counts are not loaded the links are not drawn, and they come in only for a count above zero at ${width}px (#4276)`, async ({
+      page,
+    }) => {
+      // The snapshot is held until the test lets it go, so the "not loaded yet"
+      // moment lasts exactly as long as the assertions need.
+      let open: () => void = () => {};
+      const gate = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      await page.setViewportSize({ width, height: 844 });
+      await mockDashboard(
+        page,
+        { pullRequests: [makePR(1), release, bot], openIssueCount: 0 },
+        { gate },
+      );
+      await page.goto('/settings.html');
+      for (const href of [PULLS, ...LINKS]) {
+        await expect(header(page, href)).toHaveCount(0);
+        await expect(tab(page, href)).toHaveCount(0);
+      }
+      for (const href of ['/', '/insights.html', '/settings.html'])
+        await expect(header(page, href)).toHaveCount(1);
+
+      open();
+      await expect(header(page, PULLS)).toHaveCount(1);
+      await expect(tab(page, PULLS)).toHaveCount(1);
+      await expect(header(page, '/releases.html')).toHaveCount(1);
+      await expect(header(page, '/bots.html')).toHaveCount(1);
+      await expect(header(page, '/issues.html')).toHaveCount(0);
+      await expect(tab(page, '/issues.html')).toHaveCount(0);
+    });
+  }
+
+  test('a snapshot that fails at page load leaves the links out, and they arrive when a later read succeeds (#4276)', async ({
     page,
   }) => {
-    // The snapshot is held until the test lets it go, so the "not loaded yet"
-    // moment lasts exactly as long as the assertions need.
-    let release: () => void = () => {};
-    const gate = new Promise<void>((resolve) => {
-      release = resolve;
+    await page.clock.install();
+    let reads = 0;
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
+      reads++;
+      if (reads === 1) return route.fulfill({ status: 500, body: '' });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      });
     });
-    await mockDashboard(
-      page,
-      { pullRequests: [], openIssueCount: 0 },
-      { gate },
+    await page.goto('/settings.html');
+    await expect.poll(() => reads).toBeGreaterThan(0);
+    await expect(header(page, PULLS)).toHaveCount(0);
+    await expect(header(page, '/settings.html')).toHaveCount(1);
+
+    await page.clock.runFor(31_000);
+    await expect(header(page, PULLS)).toHaveCount(1);
+  });
+
+  test('a snapshot that never carries navCounts keeps the count links out (#4276)', async ({
+    page,
+  }) => {
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 1,
+        }),
+      }),
     );
     await page.goto('/settings.html');
-    for (const href of [PULLS, ...LINKS])
-      await expect(header(page, href)).toHaveCount(1);
-
-    release();
-    for (const href of [PULLS, ...LINKS])
-      await expect(header(page, href)).toHaveCount(0);
+    await expect(header(page, '/insights.html')).toHaveCount(1);
+    await expect(header(page, PULLS)).toHaveCount(0);
+    await expect(header(page, '/issues.html')).toHaveCount(0);
   });
 
   test('the page you are on keeps its link at zero, marked current, and loses it when you leave', async ({

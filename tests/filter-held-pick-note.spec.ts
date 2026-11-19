@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly } from './label-filter-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1620: a saved pick the page you are on does not offer is kept for the page
@@ -80,6 +81,7 @@ async function open(page: Page, url: string) {
         pullRequests: PRS,
         issues: ISSUES,
         openIssueCount: ISSUES.length,
+        navCounts: navCountsFor(PRS, ISSUES.length),
         repos: [],
         hiddenDrafts: 1,
         hiddenDraftsByPage: { pullRequests: 1, releases: 0, bots: 0 },
