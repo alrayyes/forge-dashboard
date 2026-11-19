@@ -36,24 +36,8 @@ beforeEach(() => {
     })) as typeof fetch;
 });
 
-// A test that saved and did not flush leaves a snapshot queued in the module,
-// and the next test would send it, so "sends nothing" failed under a random
-// order (#4206). Send it to the fake fetch, settle every request, and say how
-// many were sent.
-async function drain(): Promise<number> {
-  const before = sent.length;
-  flushPendingSave();
-  const count = sent.length - before;
-  for (let i = 0; i < sent.length; i++) {
-    sent[i].done();
-    await tick();
-    await tick();
-  }
-  return count;
-}
-
-afterEach(async () => {
-  await drain();
+// A save a test left queued is cleared by the preload's reset (#4215).
+afterEach(() => {
   jest.useRealTimers();
   globalThis.fetch = realFetch;
   releaseAllHeld();
@@ -64,12 +48,6 @@ function typed(title: string): SharedFilterState {
 }
 
 describe('flushPendingSave', () => {
-  test('the cleanup sends a save a test left pending, so the next one starts clean', async () => {
-    saveState(typed('left behind'), 'title');
-    expect(await drain()).toBe(1);
-    expect(await drain()).toBe(0);
-  });
-
   test('sends the pending debounced save at once, with keepalive', () => {
     saveState(typed('fix'), 'title');
     expect(sent).toHaveLength(0);
