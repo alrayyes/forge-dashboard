@@ -87,7 +87,8 @@ func TestListOpenPullRequests_ANameThatTwoJobsShareExcusesNothing(t *testing.T) 
 }
 
 // A run past the walk's limit still gives the jobs read so far, rather than
-// none: its running job is counted.
+// none: its running job is counted, and so are the queued jobs read beside it
+// that have no status yet (#4238): the walk reads 1,000 jobs, one of them running.
 func TestListOpenPullRequests_ARunWithOverAThousandJobsStillCountsItsFirstPage(t *testing.T) {
 	t.Parallel()
 	states := make([]string, 1100)
@@ -103,7 +104,7 @@ func TestListOpenPullRequests_ARunWithOverAThousandJobsStillCountsItsFirstPage(t
 
 	got := f.pullRequest(t)
 
-	assert.Equal(t, dashboard.CheckCounts{Running: 1}, got.Checks, fmt.Sprint(got.Checks))
+	assert.Equal(t, dashboard.CheckCounts{Running: 1, Waiting: 999}, got.Checks, fmt.Sprint(got.Checks))
 }
 
 // A rerun must not report success for a run whose failed job it never saw:

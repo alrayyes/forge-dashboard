@@ -1322,6 +1322,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	if haveRuns {
 		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
+		counts = c.addUnstatusedJobs(ctx, owner, name, runs, combined.Statuses, counts)
 		state = settledState(state, counts, combined.Statuses)
 	}
 
@@ -1717,6 +1718,65 @@ func worseState(a, b gitea.StatusState) gitea.StatusState {
 	}
 
 	return a
+}
+
+// addUnstatusedJobs counts the jobs of the running runs that have no
+// commit status yet (#4238). Forgejo writes a job's status once it has one to
+// give, so a pull request just opened has statuses for the jobs that started and
+// none for the ones queued behind them, which the pipeline dialog lists all the
+// same. Left out, the Waiting count turns up when the statuses do. Only the
+// queued and unknown jobs are added: a running one is already counted by
+// splitRunning, and a finished one has its status. Any failure to read the jobs
+// keeps counts as they were. Only a run listed by the same read as the statuses
+// is looked at, and a status is matched to its job by run number and position, in a run that
+// some status points at.
+func (c *Client) addUnstatusedJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
+	going := slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
+		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
+	})
+	going = withoutShadowedPushRuns(going)
+
+	statused, named := statusedJobs(statuses)
+	for _, run := range going {
+		// A run no status points at is not one whose positions can be matched,
+		// so its jobs are left to the statuses.
+		if !named[run.RunNumber] {
+			continue
+		}
+		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+		if err != nil {
+			slog.Debug("unstatused jobs not read", "forge", dashboard.ForgeForgejo, "repo", owner+"/"+name, "run", run.ID, "error", err)
+
+			continue
+		}
+		for i, j := range jobs {
+			if statused[[2]int64{run.RunNumber, int64(i)}] {
+				continue
+			}
+			switch checkStateFromWorkflowStatus(j.Status) {
+			case dashboard.CheckQueued:
+				counts.Waiting++
+			case dashboard.CheckUnknown:
+				counts.Unknown++
+			}
+		}
+	}
+
+	return counts
+}
+
+// statusedJobs is the (run number, position) of every job a status points at,
+// and the run numbers some status points at.
+func statusedJobs(statuses []*gitea.Status) (jobs map[[2]int64]bool, runs map[int64]bool) {
+	jobs, runs = map[[2]int64]bool{}, map[int64]bool{}
+	for _, s := range statuses {
+		if run, job, ok := jobTarget(s); ok {
+			jobs[[2]int64{run, int64(job)}] = true
+			runs[run] = true
+		}
+	}
+
+	return jobs, runs
 }
 
 // splitRunning tells the running checks from the queued ones among counts'
