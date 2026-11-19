@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.83.1](https://github.com/alrayyes/forge-dashboard/compare/v9.83.0...v9.83.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** hide the Forge filter when the repos in scope are on one forge ([#4298](https://github.com/alrayyes/forge-dashboard/issues/4298)) ([5d38e8e](https://github.com/alrayyes/forge-dashboard/commit/5d38e8e916ac945cba24d899018279199ac213db))
+
 ## [9.83.0](https://github.com/alrayyes/forge-dashboard/compare/v9.82.1...v9.83.0) (2026-11-19)
 
 
