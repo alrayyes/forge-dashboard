@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import {
   afterAll,
+  afterEach,
   beforeAll,
   beforeEach,
   describe,
@@ -66,6 +67,8 @@ afterAll(() => {
   (globalThis as { document?: unknown }).document = realDocument;
 });
 beforeEach(() => releaseAllHeld());
+// The held picks outlive the file; leave none for whichever runs next (#4214).
+afterEach(() => releaseAllHeld());
 
 const state = (): SharedFilterState => ({
   shared: { author: 'ryan', label: 'bug' },

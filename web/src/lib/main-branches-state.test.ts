@@ -6,6 +6,7 @@ import {
   loadState,
   loadStateFromServer,
   releaseAllHeld,
+  resetTouched,
   type SharedFilterState,
   saveState,
   touchKey,
@@ -40,6 +41,9 @@ beforeEach(() => {
 afterEach(() => {
   jest.useRealTimers();
   globalThis.fetch = realFetch;
+  // The touched keys outlive a test, in this file and the next (#4214).
+  resetTouched();
+  releaseAllHeld();
 });
 
 describe('the Branches filter as saved state', () => {
