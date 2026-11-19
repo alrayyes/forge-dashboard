@@ -25,6 +25,8 @@ query($owner: String!, $name: String!, $number: Int!) {
 
 fragment issueThread on Issue {
   state
+  title
+  url
   body
   lastEditedAt
   reactionGroups { content users(first: 10) { totalCount nodes { login } } }
@@ -56,6 +58,7 @@ fragment issueThread on Issue {
 fragment pullRequestThread on PullRequest {
   state
   title
+  url
   author { login avatarUrl }
   body
   lastEditedAt
@@ -99,6 +102,7 @@ type issueDetailsResponse struct {
 		Item *struct {
 			Typename string                `json:"__typename"`
 			Title    string                `json:"title"`
+			URL      string                `json:"url"`
 			Author   *graphqlDetailsAuthor `json:"author"`
 			graphqlDetailsThread
 			TimelineItems struct {
@@ -143,6 +147,8 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	if item.State == "CLOSED" || item.State == "MERGED" {
 		details.State = dashboard.IssueStateClosed
 	}
+
+	details.References = append(details.References, c.outgoingReferences(ctx, details.Kind, item.Title, item.URL, item.Body, owner, name, number)...)
 
 	return details, nil
 }

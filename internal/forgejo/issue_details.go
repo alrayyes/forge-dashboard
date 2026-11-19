@@ -19,7 +19,8 @@ import (
 // one request per page of events, at least two (one page and the empty page
 // that ends the read) and at most maxTimelinePages. A thread with more than
 // maxTimelinePages pages of events keeps the references on the first ones, the
-// oldest, since the timeline lists oldest first.
+// oldest, since the timeline lists oldest first. Then one request for each item
+// its own text names (at most dashboard.MaxOutgoingReferences).
 func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number int) (dashboard.IssueDetails, error) {
 	c = c.withContext(ctx)
 
@@ -60,6 +61,7 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	if issue.State == gitea.StateClosed {
 		details.State = dashboard.IssueStateClosed
 	}
+	details.References = append(details.References, c.outgoingReferences(ctx, details.Kind, issue.Title, issue.Body, owner, name, number)...)
 
 	return details, nil
 }

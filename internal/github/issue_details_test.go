@@ -295,3 +295,226 @@ func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
 	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[1].State)
 	assert.Equal(t, dashboard.RelationMentions, got.References[1].Relation)
 }
+
+// outgoingServer answers the details read with the given issue and the lookup
+// of what its text names (an aliased query, t0, t1 and so on) from items, keyed
+// by "owner/name#number". An item not in it comes back null, as GitHub answers
+// a number that is not there.
+func outgoingServer(t *testing.T, issue map[string]any, items map[string]map[string]any, queries *[]graphqlRequestBody) *httptest.Server {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		*queries = append(*queries, body)
+		if _, lookup := body.Variables["owner0"]; !lookup {
+			item := map[string]any{"__typename": "Issue"}
+			maps.Copy(item, issue)
+			writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issueOrPullRequest": item}}})
+
+			return
+		}
+		data := map[string]any{}
+		for i := 0; ; i++ {
+			owner, ok := body.Variables[fmt.Sprintf("owner%d", i)]
+			if !ok {
+				break
+			}
+			key := fmt.Sprintf("%s/%s#%v", owner, body.Variables[fmt.Sprintf("name%d", i)], body.Variables[fmt.Sprintf("number%d", i)])
+			answer := map[string]any{"issueOrPullRequest": nil}
+			if item, found := items[key]; found {
+				answer["issueOrPullRequest"] = item
+			}
+			data[fmt.Sprintf("t%d", i)] = answer
+		}
+		writeJSON(t, w, map[string]any{"data": data})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+func quietIssue(body string) map[string]any {
+	return map[string]any{
+		"state": "OPEN", "title": "Show outgoing", "body": body, "lastEditedAt": nil, "reactionGroups": []map[string]any{},
+		"comments":      map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+		"timelineItems": map[string]any{"nodes": []map[string]any{}},
+	}
+}
+
+// What the issue itself refers to is read from its text and looked up in one
+// more request (#4272), so a merged pull request the board doesn't track is
+// still listed with its state.
+func TestGetIssueDetails_ReadsWhatTheIssueRefersTo(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := outgoingServer(t, quietIssue("Refs #4271, alrayyes/b#4297. Also #9 and #404."), map[string]map[string]any{
+		"alrayyes/a#4271": referencingItem("Issue", "alrayyes/a", 4271, "A closed issue shows no references", "CLOSED"),
+		"alrayyes/b#4297": referencingItem("PullRequest", "alrayyes/b", 4297, "Show the Related band", "MERGED"),
+		"alrayyes/a#9":    referencingItem("Issue", "alrayyes/a", 9, "Nine", "OPEN"),
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 4305)
+
+	require.NoError(t, err)
+	require.Len(t, queries, 2, "the details, then one lookup for every target")
+	require.Len(t, got.References, 3, "#404 is not there and is left out")
+	first, second, third := got.References[0], got.References[1], got.References[2]
+	assert.Equal(t, 4271, first.Number)
+	assert.Equal(t, dashboard.ReferenceOutgoing, first.Direction)
+	assert.Equal(t, dashboard.RelationRefs, first.Relation)
+	assert.Equal(t, dashboard.ReferencedStateClosed, first.State)
+	assert.Equal(t, dashboard.ItemKindIssue, first.Kind)
+	assert.Equal(t, "A closed issue shows no references", first.Title)
+	assert.Equal(t, dashboard.ForgeGitHub, first.Forge)
+	assert.Equal(t, "alrayyes/b", second.Repo)
+	assert.Equal(t, dashboard.ItemKindPullRequest, second.Kind)
+	assert.Equal(t, dashboard.ReferencedStateMerged, second.State)
+	assert.Equal(t, "https://github.com/alrayyes/b/issues/4297", second.URL)
+	assert.Equal(t, dashboard.RelationMentions, third.Relation)
+	assert.Equal(t, 9, third.Number)
+}
+
+// Incoming ones stay in front, then what the item refers to.
+func TestGetIssueDetails_IncomingComeBeforeOutgoing(t *testing.T) {
+	t.Parallel()
+
+	issue := quietIssue("See #9")
+	issue["timelineItems"] = map[string]any{"nodes": []map[string]any{
+		crossReference(referencingItem("PullRequest", "alrayyes/a", 12, "Fix it", "MERGED"), true),
+	}}
+	var queries []graphqlRequestBody
+	srv := outgoingServer(t, issue, map[string]map[string]any{
+		"alrayyes/a#9": referencingItem("Issue", "alrayyes/a", 9, "Nine", "OPEN"),
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 2)
+	assert.Equal(t, dashboard.ReferenceIncoming, got.References[0].Direction)
+	assert.Equal(t, dashboard.ReferenceOutgoing, got.References[1].Direction)
+}
+
+func TestGetIssueDetails_NamingNothingAsksNothing(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := outgoingServer(t, quietIssue("Nothing to see."), nil, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	assert.Len(t, queries, 1, "no lookup request")
+	assert.Empty(t, got.References)
+}
+
+// A lookup that fails outright must not take the dialog's thread with it: the
+// description and comments are what the reader opened it for.
+func TestGetIssueDetails_AFailedLookupLeavesTheThread(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+		body := readGraphQLRequest(t, r)
+		if _, lookup := body.Variables["owner0"]; lookup {
+			http.Error(w, "boom", http.StatusForbidden)
+
+			return
+		}
+		item := map[string]any{"__typename": "Issue"}
+		maps.Copy(item, quietIssue("See #9"))
+		writeJSON(t, w, map[string]any{"data": map[string]any{"repository": map[string]any{"issueOrPullRequest": item}}})
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	assert.Equal(t, "See #9", got.Description.Text)
+	assert.Empty(t, got.References)
+}
+
+// A pull request closes what it says it closes.
+func TestGetIssueDetails_APullRequestListsWhatItCloses(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	pr := quietIssue("Closes #3")
+	pr["__typename"] = "PullRequest"
+	pr["author"] = nil
+	srv := outgoingServer(t, pr, map[string]map[string]any{
+		"alrayyes/a#3": referencingItem("Issue", "alrayyes/a", 3, "Three", "CLOSED"),
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	assert.Equal(t, dashboard.RelationCloses, got.References[0].Relation)
+}
+
+// The title is read as well as the description.
+func TestGetIssueDetails_TheTitleCountsForWhatItRefersTo(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	issue := quietIssue("")
+	issue["title"] = "Follow up #9"
+	srv := outgoingServer(t, issue, map[string]map[string]any{
+		"alrayyes/a#9": referencingItem("Issue", "alrayyes/a", 9, "Nine", "OPEN"),
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	assert.Equal(t, 9, got.References[0].Number)
+}
+
+// A link to an item counts when it is a page on the forge: github.com, or the
+// host the item itself is on.
+func TestGetIssueDetails_ALinkToAnItemOnTheForgeIsNamed(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct{ itemURL, host string }{
+		"github.com": {"", "https://github.com"},
+		"enterprise": {"https://ghe.example.com/alrayyes/a/issues/7", "https://ghe.example.com"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var queries []graphqlRequestBody
+			issue := quietIssue("See " + tc.host + "/alrayyes/b/pull/4297 for the fix.")
+			issue["url"] = tc.itemURL
+			srv := outgoingServer(t, issue, map[string]map[string]any{
+				"alrayyes/b#4297": referencingItem("PullRequest", "alrayyes/b", 4297, "Fix", "MERGED"),
+			}, &queries)
+
+			got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+			require.NoError(t, err)
+			require.Len(t, got.References, 1)
+			assert.Equal(t, 4297, got.References[0].Number)
+		})
+	}
+}
+
+// The repository is spelled as GitHub spells it, not as the text did.
+func TestGetIssueDetails_TheTargetsRepoIsTheForgesSpelling(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := outgoingServer(t, quietIssue("See alrayyes/b#5"), map[string]map[string]any{
+		"alrayyes/b#5": referencingItem("Issue", "AlRayyes/B", 5, "Five", "OPEN"),
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	assert.Equal(t, "AlRayyes/B", got.References[0].Repo)
+}
