@@ -171,7 +171,7 @@ describe('a container tag that spans blank lines', () => {
       '- <details>\n  <summary>S</summary>\n\n  text\n\n  </details>\n- next',
     );
     expect(item).toMatch(
-      /<li>[\s\S]*<details>[\s\S]*text[\s\S]*<\/details>[\s\S]*<\/li>\s*<li>next<\/li>/,
+      /<li>[\s\S]*<details>[\s\S]*text[\s\S]*<\/details>[\s\S]*<\/li>\s*<li>\s*<p>next<\/p>/,
     );
     const quote = await renderMarkdown(
       '> <details>\n> <summary>S</summary>\n>\n> text\n>\n> </details>\n\nout',
@@ -192,7 +192,8 @@ describe('an unclosed pre', () => {
         `${open}\n\nrest [real](https://r.example)\n\n- item`,
       );
       expect(html).not.toContain('<pre');
-      expect(html).not.toContain('example.test');
+      // The inline link closes with its line, so it is an empty one.
+      expect(html).not.toMatch(/example\.test[^>]*>[^<]/);
       expect(html).toContain('<a href="https://r.example"');
       expect(html).toContain('<li>item</li>');
     }

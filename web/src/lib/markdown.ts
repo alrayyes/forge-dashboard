@@ -315,6 +315,11 @@ const BLOCK_TAGS = new Set([
   'h6',
 ]);
 const INLINE_TAGS = new Set(['a', 'br', 'code', 'em', 'strong']);
+// Only these may stay open across a blank line, because Markdown sits inside
+// them (a Dependabot `<details>` holds paragraphs and lists). Any other tag
+// ends with its own HTML block, so it can't wrap what follows. All of them
+// end with their markdown container.
+const SPANNING_TAGS = new Set(['details', 'blockquote', 'ul', 'ol', 'li']);
 // A deeper stack is shown as text, so nesting can't be used to build a tower.
 const MAX_RAW_DEPTH = 16;
 // A tag longer than this is text, which also bounds the work per `<`.
@@ -438,11 +443,11 @@ function blockTokens(
   return out;
 }
 
-// Opens and closes what the author opened, within the run it was opened in
-// (an HTML block, or a line of text): a markdown container (list item, quote)
-// closing closes the raw tags opened inside it, an unclosed tag is closed at
-// the end of the run, a closer with no opener is dropped, and a link never
-// nests in a link.
+// Opens and closes what the author opened. A markdown container (list item,
+// quote) closing closes the raw tags opened inside it. A tag that may not
+// span blocks closes where its HTML block ends (a boundary token), and one
+// in a line of text where the line ends. A closer with no opener is dropped,
+// and a link never nests in a link.
 function balance(
   tokens: Tok[],
   Token: StateCore['Token'],
@@ -462,6 +467,16 @@ function balance(
     if (link) links--;
   };
   for (const t of tokens) {
+    if (t.type === 'raw_boundary') {
+      // The end of an HTML block: close every tag that may not span blocks,
+      // and what was opened inside it, in this container.
+      let first = -1;
+      for (let i = open.length - 1; i >= 0 && open[i].level === level; i--) {
+        if (!SPANNING_TAGS.has(open[i].name)) first = i;
+      }
+      while (first !== -1 && open.length > first) closeTop();
+      continue;
+    }
     if (isRaw(t) && t.nesting === 1) {
       if (open.length >= MAX_RAW_DEPTH) {
         const text = new Token('text', '', 0);
@@ -517,15 +532,10 @@ function rawHtml(decode: (s: string) => string) {
     const tokens: Tok[] = [];
     for (const t of state.tokens) {
       if (t.type === 'html_block') {
-        // Balanced on its own: a tag left open ends with its block, so it
-        // can't wrap the Markdown that follows.
-        tokens.push(
-          ...balance(
-            blockTokens(t.content, state.Token, decode),
-            state.Token,
-            false,
-          ),
-        );
+        tokens.push(...blockTokens(t.content, state.Token, decode));
+        const end = new state.Token('raw_boundary', '', 0);
+        end.markup = 'raw';
+        tokens.push(end);
       } else {
         tokens.push(t);
       }
@@ -559,6 +569,8 @@ function rawInline(decode: (s: string) => string) {
 
 // An HTML block only starts at an allow-listed block tag; markdown-it's own
 // rule does the rest (where it ends, what a comment or blank line does).
+const lastPreClose = new WeakMap<StateBlock, number>();
+
 function narrowHtmlBlock(md: Renderer): void {
   const rule = md.block.ruler.__rules__.find((r) => r.name === 'html_block');
   if (!rule) throw new Error('markdown-it has no html_block rule');
@@ -568,6 +580,16 @@ function narrowHtmlBlock(md: Renderer): void {
     (state: StateBlock, start: number, end: number, silent: boolean) => {
       const pos = state.bMarks[start] + state.tShift[start];
       if (!BLOCK_START.test(state.src.slice(pos, pos + 16))) return false;
+      // markdown-it ends a `<pre` block only at `</pre>`, else at the end of
+      // the container: an unclosed one would be all the rest of the body.
+      if (/^<pre(?=[\s>])/i.test(state.src.slice(pos, pos + 5))) {
+        let last = lastPreClose.get(state);
+        if (last === undefined) {
+          last = state.src.toLowerCase().lastIndexOf('</pre>');
+          lastPreClose.set(state, last);
+        }
+        if (pos > last) return false;
+      }
       return original(state, start, end, silent);
     },
     { alt: ['paragraph', 'reference', 'blockquote'] },
