@@ -260,6 +260,18 @@ test('an issue also referenced by pull requests has a Referenced by row with the
   ).toHaveText('Italic: these reference the issue, they do not close it.');
 });
 
+test('an issue referenced by a pull request pins the pill name: Referenced by, then the pull request', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ referencedByPullRequests: [linked(13)] }),
+  );
+  await expect(
+    row(dialog, 'Referenced by').locator('.linked-pr'),
+  ).toHaveAccessibleName('Referenced by: Pull request #13');
+});
+
 test('a row of more than six shows six, and the keyboard opens and folds the rest', async ({
   page,
 }) => {
