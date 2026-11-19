@@ -51,7 +51,9 @@ export function labelChipColor(color: string | undefined): string | undefined {
 // different colours in different repos. The rule is that a name gets a colour
 // only when every item in scope that colours it agrees; where they differ it
 // gets none and the chip stays neutral, rather than claim a colour that is only
-// some repos' label. A copy with no usable colour takes no part in the vote.
+// some repos' label. The vote is over the items passed in, which the caller
+// takes after the other filters, so a colour can change as those filters narrow
+// the list. A copy with no usable colour takes no part in the vote.
 export function labelChipColors(
   items: readonly { labels?: { name: string; color?: string }[] }[],
 ): Map<string, string> {

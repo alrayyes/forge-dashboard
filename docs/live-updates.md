@@ -324,7 +324,11 @@ Each choice is drawn as the chip a row shows: the label's colour behind its
 name, with the same black or white ink. The name stays text and the checkbox
 still carries the ticked state, so the colour is only a way to pick by sight.
 When a name has different colours in different repos on the page, its chip is
-neutral rather than claim one repo's colour.
+neutral rather than claim one repo's colour. That check looks only at the
+items the other filters leave, the same ones the choices are drawn from, so
+narrowing the list to one repo can give a name its colour back and widening it
+can take the colour away. A colour that is not six hex digits is ignored, in
+the filter and on the rows alike, and the chip stays neutral.
 
 It matches any rather than all because that is the question a triage usually
 asks, and because every label offered then still leads to a non-empty list.
