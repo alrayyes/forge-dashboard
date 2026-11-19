@@ -130,6 +130,10 @@ const BOXES = [
     text: 'Change 3',
     // A second control that the clear must leave alone.
     other: async (page: Page) => {
+      // The Forge group is drawn once the snapshot shows two forges (#4273).
+      await expect(
+        page.getByRole('group', { name: 'Filter by forge' }),
+      ).toBeVisible();
       await page.locator('input[data-col="forge"][value="forgejo"]').check({
         force: true,
       });

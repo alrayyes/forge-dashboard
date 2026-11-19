@@ -776,7 +776,9 @@
       aria-label="Filter Insights charts"
       bind:this={filterBarEl}
     >
-      <fieldset class="forge-segmented">
+      <!-- Hidden until the snapshot says more than one forge is in scope, so a
+           single-forge view never draws it and then takes it away (#4273). -->
+      <fieldset class="forge-segmented" hidden>
         <legend class="sr-only">Filter by forge</legend>
         <label>
           <input

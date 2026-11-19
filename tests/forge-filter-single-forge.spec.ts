@@ -165,4 +165,41 @@ test.describe('the Forge filter follows the repos in scope (#4273)', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
     await expect(forgeGroup(page)).toBeHidden();
   });
+
+  test('Insights draws no Forge group before the snapshot, then follows the forges', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await open(page, '/insights.html', { gate });
+    const forge = page.getByRole('group', { name: 'Filter by forge' });
+    await expect(forge).toBeHidden();
+    await expect(page.locator('.forge-segmented')).toHaveAttribute(
+      'hidden',
+      '',
+    );
+    release();
+    await expect(forge).toBeVisible();
+    expect((await axe(page)).violations).toEqual([]);
+  });
+
+  test('Insights never draws the Forge group for a single forge', async ({
+    page,
+  }) => {
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await open(page, '/insights.html', {
+      gate,
+      rows: [pr(1, 'github', 'alrayyes/app'), pr(2, 'github', 'alrayyes/lib')],
+    });
+    const forge = page.getByRole('group', { name: 'Filter by forge' });
+    await expect(forge).toBeHidden();
+    release();
+    await expect(page.locator('input[data-col="title"]')).toBeVisible();
+    await expect(forge).toBeHidden();
+  });
 });
