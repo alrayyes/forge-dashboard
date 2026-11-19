@@ -76,7 +76,7 @@ first-refresh-first-paint.spec.ts,11.115,15,2,C,web/src/lib/first-refresh.test.t
 first-refresh-loading.spec.ts,20.481,10,6,C,web/src/lib/first-refresh.test.ts;FirstRefreshStatus.stories.svelte (proven);NavPills.stories.svelte (proven),8.2
 focus-ring-consistent.spec.ts,2.947,1,1,A,,0.0
 fonts.spec.ts,0.123,1,1,A,,0.0
-footer-consistency.spec.ts,7.364,6,4,A,,2.5
+footer-consistency.spec.ts,4.256,5,4,A,,0.9
 forced-colors-current-page.spec.ts,3.459,2,2,A,,0.0
 forced-colors-pressed-pills.spec.ts,1.186,1,1,A,,0.0
 forced-colors-pressed-toggles.spec.ts,1.836,1,1,A,,0.0

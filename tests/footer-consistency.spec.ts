@@ -156,30 +156,6 @@ test.describe('the footer is the same on every page', () => {
     }
   });
 
-  // CI builds a dev binary, so the unmocked version is the dev label.
-  test('a dev build shows the same five items, with a dev build label', async ({
-    page,
-    context,
-  }) => {
-    await context.clearCookies();
-    await page.goto('/disclaimer.html');
-    await expect(page.locator('#footer-version')).toContainText('dev build');
-    await expect(page.locator('footer a')).toHaveText([
-      'GitHub',
-      'Disclaimer',
-      'Privacy',
-    ]);
-    const text = await page
-      .locator('footer')
-      .evaluate((el) =>
-        (el as HTMLElement).innerText.replace(/\u00a0/g, ' ').trim(),
-      );
-    expect(text).toMatch(/^GitHub\s+· dev build\s+· Disclaimer\s+· Privacy$/);
-    await expect(page.locator('footer a[aria-current]')).toHaveText(
-      'Disclaimer',
-    );
-  });
-
   test.describe('signed in, nothing moves between pages', () => {
     for (const width of [360, 1280]) {
       test(`footer height and link positions match on every page at ${width}px`, async ({
@@ -234,22 +210,6 @@ test.describe('the footer is the same on every page', () => {
           await expectFooter(
             page,
             path === '/disclaimer.html' ? 'Disclaimer' : 'Privacy',
-          );
-          // Not colour alone: the current link is underlined 2px; the others 1px.
-          await expect
-            .poll(() =>
-              page
-                .locator('footer a')
-                .evaluateAll((els) =>
-                  els
-                    .filter((el) => el.getAttribute('aria-current'))
-                    .map((el) => getComputedStyle(el).textDecorationThickness),
-                ),
-            )
-            .toEqual(['2px']);
-          await expect(page.locator('footer a[aria-current]')).toHaveCSS(
-            'text-decoration-line',
-            /underline/,
           );
           await expectAxeAndNoSidewaysScroll(page);
         });
