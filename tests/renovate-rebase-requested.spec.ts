@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
@@ -67,7 +68,7 @@ async function serve(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: state.at ?? new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1, ...forge }],
+        forges: [forgeHealth('forgejo', forge)],
         pullRequests: [makePR(state.rebase, state.extra)],
         issues: [],
       }),
@@ -488,7 +489,7 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
       },
       JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('forgejo')],
         pullRequests: [pr],
         issues: [],
       }),
