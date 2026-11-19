@@ -1286,6 +1286,26 @@ export function resetTouched(): void {
   clearedAll = false;
 }
 
+// Puts everything this module keeps between calls back to its first value:
+// the revisions, the migration notes, the cut picks, the save in flight and
+// the one queued behind it, the debounce timer and the page counter. For the
+// unit tests, which share one module between files (#4215). A request already
+// sent is not recalled; it settles on its own and finds the flags clear.
+export function resetModuleState(): void {
+  knownRev = 0;
+  loadedCookieRev = null;
+  statusMigrated = false;
+  authorMigrated = false;
+  authorOverflow = 0;
+  droppedPicks.length = 0;
+  putInFlight = false;
+  queuedState = null;
+  if (titleSaveTimer) clearTimeout(titleSaveTimer);
+  titleSaveTimer = null;
+  titleSaveState = null;
+  pageGeneration = 0;
+}
+
 export function hasTouched(): boolean {
   return clearedAll || touchedKeys.size > 0;
 }
