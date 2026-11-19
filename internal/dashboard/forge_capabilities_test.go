@@ -31,8 +31,17 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			IssueRefSyntax:             "hash_or_gh_prefix",
 			ReportsRepoPermissions:     false,
 			Label:                      "GitHub",
-			BotLoginSuffix:             "[bot]",
-			BotProfilePages:            map[string]string{"dependabot": "dependabot", "renovate": "apps/renovate"},
+			ImageHosts: []string{
+				"github.com",
+				"user-images.githubusercontent.com",
+				"private-user-images.githubusercontent.com",
+				"raw.githubusercontent.com",
+				"gist.githubusercontent.com",
+			},
+			AvatarHosts:            []string{"avatars.githubusercontent.com", "repository-images.githubusercontent.com"},
+			SignedAttachmentPrefix: "https://github.com/user-attachments/",
+			BotLoginSuffix:         "[bot]",
+			BotProfilePages:        map[string]string{"dependabot": "dependabot", "renovate": "apps/renovate"},
 		}},
 		{dashboard.ForgeForgejo, dashboard.ForgeCapabilities{
 			AutoMergeHeldByApp:         true,
@@ -49,6 +58,8 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			IssueRefSyntax:             "hash",
 			ReportsRepoPermissions:     true,
 			Label:                      "Forgejo",
+			ImageHosts:                 []string{},
+			AvatarHosts:                []string{},
 		}},
 	}
 
@@ -66,7 +77,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			v := reflect.ValueOf(got)
 			for i := range v.NumField() {
 				name := v.Type().Field(i).Name
-				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" && name != "RateLimitDocsURL" && name != "BotLoginSuffix" {
+				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" && name != "RateLimitDocsURL" && name != "SignedAttachmentPrefix" && name != "BotLoginSuffix" {
 					assert.NotEmpty(t, v.Field(i).String(), name)
 				}
 			}
@@ -105,4 +116,16 @@ func TestForges_ListsEveryKnownForgeInOrder(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo}, dashboard.Forges())
+}
+
+// A forge with no fixed hosts takes its images from its own instance, and has
+// no signed attachment link: both read as empty, not as GitHub's.
+func TestCapabilitiesOf_ForgejoImagesComeFromItsOwnInstance(t *testing.T) {
+	t.Parallel()
+
+	got, ok := dashboard.CapabilitiesOf(dashboard.ForgeForgejo)
+	require.True(t, ok)
+	assert.Empty(t, got.ImageHosts)
+	assert.Empty(t, got.AvatarHosts)
+	assert.Empty(t, got.SignedAttachmentPrefix)
 }

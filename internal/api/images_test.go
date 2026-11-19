@@ -311,8 +311,8 @@ func newGitHubImagesWith(t *testing.T, signedPath string, apiStatus int, failIma
 	testSrv, _, _, _ := newTestServerWithSettingsStore(t,
 		build, false, 0,
 		func(d *api.Deps) {
-			d.GitHubImageProxy = proxy
-			d.GitHubImageOrigin = images.URL
+			d.ImageProxies = map[string]*imageproxy.Proxy{"github": proxy}
+			d.ImageOrigins = map[string]string{"github": images.URL}
 		})
 	g.srv = testSrv.URL
 	g.cookie, _, _ = registerViaRealCeremony(t, testSrv)

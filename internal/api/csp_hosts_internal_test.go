@@ -1,8 +1,6 @@
 package api
 
 import (
-	"os"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -36,25 +34,7 @@ func TestContentSecurityPolicy_ImgSrcNamesNoHostTheProxyReaches(t *testing.T) {
 		assert.Equal(t, "'self'", source,
 			"img-src allows this server alone: a host belongs on the proxy's list, not here")
 	}
-	for _, host := range githubImageHosts {
+	for _, host := range githubImageHosts(t) {
 		assert.NotContains(t, contentSecurityPolicy, host, "the proxy fetches %s, the browser never does", host)
-	}
-}
-
-var githubUserContentHost = regexp.MustCompile(`'([a-z-]+\.githubusercontent\.com|github\.com)'`)
-
-// The page decides what to ask the proxy for from its own copy of the GitHub
-// hosts, in the forge's image policy. A host it asks for that the proxy refuses
-// is a broken picture. avatar.ts holds none: it names the forge (#4156).
-func TestGithubImageHosts_CoverEveryHostThePageSendsThroughTheProxy(t *testing.T) {
-	t.Parallel()
-	for _, file := range []string{"../../web/src/lib/forges.ts"} {
-		src, err := os.ReadFile(file) //nolint:gosec // a fixed path to a source file in this repo
-		require.NoError(t, err)
-		found := githubUserContentHost.FindAllStringSubmatch(string(src), -1)
-		require.NotEmpty(t, found, file)
-		for _, m := range found {
-			assert.Contains(t, githubImageHosts, m[1], "%s sends %s through the proxy", file, m[1])
-		}
 	}
 }

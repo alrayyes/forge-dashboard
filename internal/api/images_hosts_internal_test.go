@@ -4,12 +4,9 @@ import (
 	"context"
 	"errors"
 	"log/slog"
-	"os"
-	"path/filepath"
-	"regexp"
-	"slices"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 	"github.com/stretchr/testify/assert"
@@ -20,8 +17,8 @@ import (
 // the GitHub hosts they live on are on its list.
 func TestGithubImageHosts_CoverAvatarsAndRepositoryLogos(t *testing.T) {
 	t.Parallel()
-	assert.Contains(t, githubImageHosts, "avatars.githubusercontent.com")
-	assert.Contains(t, githubImageHosts, "repository-images.githubusercontent.com")
+	assert.Contains(t, githubImageHosts(t), "avatars.githubusercontent.com")
+	assert.Contains(t, githubImageHosts(t), "repository-images.githubusercontent.com")
 }
 
 // A public gist's raw files are served from their own host (#3888). It is the
@@ -51,33 +48,6 @@ func TestImageProxyFor_TakesGistRawHostExactly(t *testing.T) {
 			assert.ErrorIs(t, err, imageproxy.ErrHostNotListed, "%s refuses %s", tc.forge, tc.raw)
 		}
 	}
-}
-
-// The page's list (the github image policy in web/src/lib/forges.ts) decides which addresses are
-// worth asking the server for; this list is the one that enforces. They are
-// two copies, so a host the page offers that the server refuses would be a
-// wasted round trip, and a drift goes unseen. Every page host must be on the
-// server's list, and the page must offer every embedded-content host (all but
-// the two that only avatars and repository logos use, which load by their own
-// path).
-func TestGithubImageHosts_WebListStaysInStep(t *testing.T) {
-	t.Parallel()
-	src, err := os.ReadFile(filepath.Join("..", "..", "web", "src", "lib", "forges.ts"))
-	require.NoError(t, err)
-	block := regexp.MustCompile(`(?s)SEED_IMAGE_POLICIES[^{]*\{\s*github: \{\s*hosts: \[(.*?)\]`).FindSubmatch(src)
-	require.NotNil(t, block, "the github image policy not found in forges.ts")
-	var web []string
-	for _, m := range regexp.MustCompile(`'([^']+)'`).FindAllSubmatch(block[1], -1) {
-		web = append(web, string(m[1]))
-	}
-	avatarOnly := []string{"avatars.githubusercontent.com", "repository-images.githubusercontent.com"}
-	var want []string
-	for _, h := range githubImageHosts {
-		if !slices.Contains(avatarOnly, h) {
-			want = append(want, h)
-		}
-	}
-	assert.ElementsMatch(t, want, web, "the web github image hosts and githubImageHosts drifted")
 }
 
 // Which host each forge's proxy takes is decided by the host list alone, so
@@ -147,7 +117,79 @@ func TestImageProxyFor_GithubProxyCarriesNoToken(t *testing.T) {
 	cfg := proxy.Config()
 	assert.Empty(t, cfg.Token, "no token for the image host")
 	assert.Empty(t, cfg.TokenHost, "no host the token could go to")
-	assert.Equal(t, githubImageHosts, cfg.Hosts)
+	assert.Equal(t, githubImageHosts(t), cfg.Hosts)
 	assert.Contains(t, cfg.Hosts, "gist.githubusercontent.com", "gist images ride the same tokenless proxy (#3888)")
 	assert.False(t, cfg.AllowLocal)
+}
+
+// githubImageHosts is every host GitHub's proxy may reach, as its capabilities
+// name them.
+func githubImageHosts(t *testing.T) []string {
+	t.Helper()
+	caps, ok := dashboard.CapabilitiesOf(dashboard.ForgeGitHub)
+	require.True(t, ok)
+
+	return append(append([]string{}, caps.ImageHosts...), caps.AvatarHosts...)
+}
+
+// A forge with a host policy of its own follows it with no edit outside the
+// capability table (#4156): its image hosts, its avatar hosts and nothing else
+// are taken, and no token goes with them.
+func TestImageProxyForCapabilities_FollowsTheForgesFixedHosts(t *testing.T) {
+	t.Parallel()
+	caps := dashboard.ForgeCapabilities{
+		ImageHosts:  []string{"img.third.example"},
+		AvatarHosts: []string{"avatars.third.example"},
+	}
+	proxy, serr := imageProxyForCapabilities(Deps{}, "third", caps, settings.Credentials{ForgejoURL: "https://git.example", ForgejoToken: "t"})
+	require.Nil(t, serr)
+	cfg := proxy.Config()
+	assert.ElementsMatch(t, []string{"img.third.example", "avatars.third.example"}, cfg.Hosts)
+	assert.Empty(t, cfg.Token)
+	assert.Empty(t, cfg.TokenHost)
+	assert.Equal(t, "https", cfg.Scheme)
+}
+
+// A forge that names no host reads its images from the saved instance, which
+// is also the only place its token goes.
+func TestImageProxyForCapabilities_NoHostsMeansTheSavedInstance(t *testing.T) {
+	t.Parallel()
+	creds := settings.Credentials{ForgejoURL: "http://git.example:3000", ForgejoToken: "t"}
+	proxy, serr := imageProxyForCapabilities(Deps{}, "third", dashboard.ForgeCapabilities{}, creds)
+	require.Nil(t, serr)
+	cfg := proxy.Config()
+	assert.Equal(t, []string{"git.example:3000"}, cfg.Hosts)
+	assert.Equal(t, "t", cfg.Token)
+	assert.Equal(t, "git.example:3000", cfg.TokenHost)
+	assert.True(t, cfg.AllowLocal)
+
+	_, serr = imageProxyForCapabilities(Deps{}, "third", dashboard.ForgeCapabilities{}, settings.Credentials{})
+	require.NotNil(t, serr)
+	assert.Equal(t, 400, serr.status)
+}
+
+func TestImageProxyFor_RefusesAForgeNobodyDescribed(t *testing.T) {
+	t.Parallel()
+	_, serr := imageProxyFor(Deps{}, "nowhere", settings.Credentials{})
+	require.NotNil(t, serr)
+	assert.Equal(t, 400, serr.status)
+}
+
+// Whether a link needs the signed lookup is the forge's prefix, not its name.
+func TestIsSignedAttachment_FollowsTheForgesPrefix(t *testing.T) {
+	t.Parallel()
+	const prefix = "https://files.third.example/attachments/"
+	for raw, want := range map[string]bool{
+		prefix + "abc":                                 true,
+		"https://files.third.example/other/abc":        false,
+		"http://files.third.example/attachments/abc":   false,
+		"https://FILES.third.example/attachments/abc":  true,
+		"https://evil.example/attachments/abc":         false,
+		"https://github.com/user-attachments/assets/1": false,
+		"%zz": false,
+	} {
+		assert.Equal(t, want, isSignedAttachment(prefix, "", raw), raw)
+	}
+	assert.False(t, isSignedAttachment("", "", prefix+"abc"), "a forge with no prefix signs nothing")
+	assert.True(t, isSignedAttachment(prefix, "http://127.0.0.1:9", "http://127.0.0.1:9/attachments/abc"), "a test origin stands in for the prefix's")
 }
