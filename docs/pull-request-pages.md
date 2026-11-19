@@ -254,12 +254,19 @@ The pull request's pop-up shows each one among the attributes, after the issues
 it closes, as a "Mentions" link drawn like the "Closes" ones. A tracked ticket
 opens on the [Issues page](issues.md#opening-an-issue-from-its-address) in a new
 tab on a middle or modified click, and its pop-up in place of this one on a
-plain click. One the dashboard doesn't hold opens on its forge in a new tab, and
-screen readers hear "opens on the forge" instead of "opens the issue". The first
-two show, and the rest sit behind a "more" button that opens them in place, as
-with the closing ones. With nothing mentioned, the pop-up shows no label and no
-empty space. The rows show no mentions. A ticket the pull request
-references with a keyword is a "Refs" pill instead, not a mention.
+plain click. One the dashboard doesn't hold is a link to its forge in a new tab,
+and screen readers hear "opens on the forge" instead of "opens the issue". It
+works like a `#12` in the description for a repository the dashboard doesn't
+track: the forge is asked while the pointer rests on the pill or focus or a
+press is on it, and a plain click then opens the item's read-only pop-up in
+place, with focus returning to the pull request's title on close. A click before
+the answer, an item the forge can't read, and a middle or modified click all
+follow the link to the forge. The "Closes" and "Refs" pills always name a ticket
+the dashboard tracks, so they have no such case. The first two show, and the
+rest sit behind a "more" button that opens them in place, as with the closing
+ones. With nothing mentioned, the pop-up shows no label and no empty space. The
+rows show no mentions. A ticket the pull request references with a keyword is a
+"Refs" pill instead, not a mention.
 
 ## Author on a row
 

@@ -1749,6 +1749,25 @@
             item.mentionsIssues,
             (issue) => followIssueFromDialog(item, issue),
             true,
+            {
+              warm: (issue) =>
+                referenceWarmed({
+                  forge: item.forge,
+                  repo: issue.repo,
+                  number: issue.number,
+                }),
+              open: (issue) =>
+                followReference(
+                  {
+                    forge: item.forge,
+                    repo: issue.repo,
+                    number: issue.number,
+                    url: issue.url,
+                    untracked: true,
+                  },
+                  addressFocus(item),
+                ),
+            },
           ),
         },
       );

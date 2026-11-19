@@ -11,6 +11,7 @@ import {
   splitClosing,
 } from './closing-issues.js';
 import { isPlainClick } from './plain-click.js';
+import { createDwell } from './reference-dwell.js';
 import { appendRepoRef, foldedPills } from './related-band.js';
 
 /** Pull requests whose folded mentions the reader opened, so a redraw keeps them open. */
@@ -18,6 +19,18 @@ const expanded = new Set<string>();
 
 /** Matches components.schemas.MentionedIssue in api/openapi.yaml. */
 export type MentionedIssue = ClosingIssue & { tracked: boolean };
+
+/**
+ * How a pill for an item the dashboard does not track reaches the details
+ * dialog (#4321), the way a mention in the description does (#4269). `warm`
+ * asks the forge while the pointer or focus rests on the pill. `open` swaps the
+ * dialog for the item's once the forge has answered, and returns false when it
+ * has not, so the click follows the link to the forge.
+ */
+export type UntrackedMention = {
+  warm: (issue: MentionedIssue) => void;
+  open: (issue: MentionedIssue) => boolean;
+};
 
 /** What the pill shows: the number, with the whole repo when it is not the pull request's. */
 export function mentionPillText(issue: MentionedIssue, prRepo: string) {
@@ -41,7 +54,8 @@ export function mentionDialogName(issue: MentionedIssue, prRepo: string) {
  * then a count that opens the rest in place. Null when it mentions nothing, so
  * no empty section is left behind. A ticket the dashboard does not track opens
  * on the forge in a new tab. With onFollow, a plain click on a tracked one hands
- * it over so the dialog can be swapped for the issue's.
+ * it over so the dialog can be swapped for the issue's. With untracked, a plain
+ * click on an untracked one opens it in the dialog when the forge can show it.
  */
 export function mentionPills(
   prKey: string,
@@ -49,6 +63,7 @@ export function mentionPills(
   list: MentionedIssue[] | undefined,
   onFollow?: (issue: MentionedIssue) => void,
   inDialog = false,
+  untracked?: UntrackedMention,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const wrap = document.createElement('span');
@@ -66,6 +81,7 @@ export function mentionPills(
     if (!issue.tracked) {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
+      if (untracked) followUntracked(link, issue, untracked);
     }
     if (inDialog) {
       const number = issueNumber(issue, prRepo);
@@ -109,4 +125,24 @@ export function mentionPills(
   wrap.append(more);
   if (expanded.has(prKey)) reveal();
   return wrap;
+}
+
+/** Warms the forge's answer on rest, focus and press, and opens the dialog on a plain click once it is in. */
+function followUntracked(
+  link: HTMLAnchorElement,
+  issue: MentionedIssue,
+  untracked: UntrackedMention,
+) {
+  const dwell = createDwell(() => untracked.warm(issue));
+  // The prefetcher keeps one lookup per item, so a dwell that fires after this
+  // asks nothing more.
+  const warmNow = () => untracked.warm(issue);
+  link.addEventListener('pointerover', () => dwell.rest(link, undefined));
+  link.addEventListener('pointerout', () => dwell.cancel());
+  link.addEventListener('pointerdown', warmNow);
+  link.addEventListener('focus', warmNow);
+  link.addEventListener('click', (event) => {
+    if (!isPlainClick(event)) return;
+    if (untracked.open(issue)) event.preventDefault();
+  });
 }

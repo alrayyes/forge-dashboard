@@ -159,6 +159,237 @@ test.describe('the pull request dialog', () => {
     await expect(pill).toHaveAttribute('rel', /noopener/);
   });
 
+  // #4321: an untracked item the forge can show opens in the dialog, like the
+  // same item written in the description (#4269). The forge is asked while the
+  // pointer or focus rests on the pill; a click before that answer follows the
+  // link.
+  const untracked = () =>
+    mention(4, {
+      repo: 'alrayyes/other',
+      url: 'https://example.com/alrayyes/other/issues/4',
+      tracked: false,
+    });
+  const untrackedPill = (page: Page) => prDialog(page).locator('.mention-pill');
+
+  async function answerIssues(page: Page, status: number) {
+    await page.route('**/api/v1/issues/details*', (route: Route) =>
+      route.fulfill({
+        status,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          status === 200
+            ? {
+                ...details,
+                description: { ...details.description, text: 'Merged text.' },
+                state: 'closed',
+              }
+            : { error: 'not found' },
+        ),
+      }),
+    );
+  }
+
+  test('a plain click on an untracked pill opens it read-only in the dialog and focus comes back', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    await answerIssues(page, 200);
+    const pill = untrackedPill(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await pill.hover();
+    await answered;
+    const before = page.url();
+    // The link is target=_blank, so a click that also followed it would open a
+    // tab as well as the dialog. Listen before the click, and look after.
+    const opened = page
+      .waitForEvent('popup', { timeout: 1000 })
+      .then(() => true)
+      .catch(() => false);
+
+    await pill.click();
+
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toContainText('Merged text.');
+    await expect(prDialog(page)).toBeHidden();
+    await expect(
+      issueDialog(page).getByRole('button', { name: /^Close issue/ }),
+    ).toHaveCount(0);
+    expect(await opened).toBe(false);
+    expect(page.context().pages()).toHaveLength(1);
+    expect(page.url()).toBe(before);
+    for (const scheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, scheme).toEqual([]);
+    }
+
+    await page.keyboard.press('Escape');
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: /Pull request 1/ }).first(),
+    ).toBeFocused();
+  });
+
+  test('closing the dialog an untracked pill opened returns focus to the pull request title, not to what opened the first dialog', async ({
+    page,
+  }) => {
+    // The first dialog opens from the row's comments pill. The browser would
+    // hand focus back to that pill, so only the page naming the title as the
+    // trigger puts focus on the title.
+    await mockBoard(page, {
+      pullRequests: [{ ...pullRequest(1, [untracked()]), reviewComments: 2 }],
+    });
+    await page.goto('/pull-requests.html');
+    await page.locator('.review-pill').first().click();
+    await expect(prDialog(page)).toBeVisible();
+    await answerIssues(page, 200);
+    const pill = untrackedPill(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await pill.hover();
+    await answered;
+
+    await pill.click();
+    await expect(issueDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+
+    await expect(issueDialog(page)).toBeHidden();
+    await expect(
+      page.getByRole('button', { name: /Pull request 1/ }).first(),
+    ).toBeFocused();
+  });
+
+  test('a tracked pill asks the forge about nothing', async ({ page }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [mention(20)])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    let asked = 0;
+    page.on('request', (request) => {
+      if (request.url().includes('/api/v1/issues/details')) asked++;
+    });
+    const pill = prDialog(page).locator('.mention-pill');
+
+    await pill.hover();
+    await pill.focus();
+    await pill.dispatchEvent('pointerdown');
+    await page.waitForTimeout(500);
+
+    expect(asked).toBe(0);
+  });
+
+  test('focus on an untracked pill asks the forge, so Enter opens the dialog', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    await answerIssues(page, 200);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await untrackedPill(page).focus();
+    await answered;
+
+    await page.keyboard.press('Enter');
+
+    await expect(issueDialog(page)).toBeVisible();
+    expect(page.context().pages()).toHaveLength(1);
+  });
+
+  test('sweeping the pointer over an untracked pill asks the forge only once it rests', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    let asked = 0;
+    await page.route('**/api/v1/issues/details*', (route: Route) => {
+      asked++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...details, state: 'closed' }),
+      });
+    });
+    const pill = untrackedPill(page);
+
+    const box = (await pill.boundingBox()) as { x: number; y: number };
+    await page.mouse.move(box.x + 2, box.y + 2);
+    await page.mouse.move(box.x + 2, box.y - 400);
+    await page.waitForTimeout(400);
+    expect(asked).toBe(0);
+
+    await pill.hover();
+    await expect.poll(() => asked).toBe(1);
+  });
+
+  test('pressing an untracked pill asks the forge at once', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    let asked = 0;
+    await page.route('**/api/v1/issues/details*', (route: Route) => {
+      asked++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...details, state: 'closed' }),
+      });
+    });
+
+    await untrackedPill(page).dispatchEvent('pointerdown');
+
+    await expect.poll(() => asked).toBe(1);
+  });
+
+  test('an untracked pill the forge cannot show still goes to the forge in a new tab', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    await answerIssues(page, 404);
+    const pill = untrackedPill(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await pill.hover();
+    await answered;
+    await expect(pill).toHaveAccessibleName(
+      'Mentions: alrayyes/other#4, opens on the forge',
+    );
+    const popup = page.context().waitForEvent('page');
+
+    await pill.click();
+
+    const tab = await popup;
+    await tab.waitForURL(untracked().url, { waitUntil: 'commit' });
+    await tab.close();
+    await expect(prDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toBeHidden();
+  });
+
+  test('a modified click on an untracked pill is left to the browser', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    await answerIssues(page, 200);
+    const pill = untrackedPill(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await pill.hover();
+    await answered;
+    const popup = page.context().waitForEvent('page');
+
+    await pill.click({ modifiers: ['ControlOrMeta'] });
+
+    await (await popup).close();
+    await expect(prDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toBeHidden();
+  });
+
   test('folds mentions past the sixth behind one toggle that opens them and folds them again', async ({
     page,
   }) => {
