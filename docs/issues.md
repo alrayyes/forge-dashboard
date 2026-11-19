@@ -24,7 +24,11 @@ a pull request's pill or a `#12`), the Related band is drawn from the issue's
 own details instead: `references` lists the items that refer to it from the
 forge's timeline (`direction` is `incoming`), issues as well as pull requests,
 each with its state (open, closed or merged), the newest first and at most 50.
-GitHub reads them in the same query; Forgejo reads the timeline once more. The
+GitHub reads them in the same query; Forgejo reads the timeline once more, up
+to its first 500 events (the oldest), so on a longer thread the newest
+references are left out. A timeline that fails part way keeps the references
+already read, and one that fails at the start leaves the issue with none; the
+rest of the thread still shows. A read the caller cancels is an error. The
 timeline can't tell a `Refs` from a plain mention, so only a closing keyword is
 told apart: the rest are under "Mentioned by". An issue nothing refers to has no
 band. Commits that mention the issue are not listed.
