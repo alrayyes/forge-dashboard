@@ -439,6 +439,80 @@ describe('an unclosed pre', () => {
     );
   });
 
+  test('an indented pre with no closer is text, and the lines after it stay live', async () => {
+    const html = await renderMarkdown(
+      '  <pre>\n\nrest [real](https://r.example)\n\n- item',
+    );
+    expect(html).toContain('<p>&lt;pre&gt;</p>');
+    expect(html).toContain('<a href="https://r.example"');
+    expect(html).toContain('<li>item</li>');
+  });
+
+  test('a tab or a list marker before a closer does not hide it', async () => {
+    expect(await renderMarkdown('<pre>\n\t</pre>\n\nafter')).toContain(
+      '<pre tabindex="0">',
+    );
+    const item = await renderMarkdown('- <pre>\n  x\n  </pre>\n\nafter');
+    expect(item).toContain('<pre tabindex="0">');
+    expect(item).toContain('<p>after</p>');
+  });
+
+  test('only the closer tag ends a pre, not a lookalike with a space', async () => {
+    // markdown-it ends the block at the first </pre>; `</pre >` is not one.
+    const html = await renderMarkdown('<pre>\n</pre >\n</pre>\n\nafter');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<p>after</p>');
+    for (const near of ['</ pre>', '</script>']) {
+      const text = await renderMarkdown(
+        `<pre>\n${near}\n\n\`\`\`\n</pre>\n\`\`\`\n\nrest [real](https://r.example)`,
+      );
+      expect(text).toContain('&lt;pre&gt;');
+    }
+  });
+
+  test('a self-closing pre is its own block and takes nothing after it', async () => {
+    const html = await renderMarkdown(
+      '<pre/>\n\nrest [real](https://r.example)',
+    );
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<a href="https://r.example"');
+  });
+
+  test('an unclosed pre does not end the paragraph above it', async () => {
+    const html = await renderMarkdown(
+      'text\n<pre>\n\nrest [real](https://r.example)',
+    );
+    expect(html).toContain('<p>text\n&lt;pre&gt;</p>');
+    expect(html).toContain('<a href="https://r.example"');
+  });
+
+  test('only a code fence or another pre stops it, nothing that looks like one', async () => {
+    const tail = '\n</pre>\n\n```\n</pre>\n```\n\nafter';
+    for (const line of [
+      '---',
+      ':::',
+      '~~`',
+      '`~~',
+      '\u00a0```',
+      'x\u2028```',
+      'x\u2028<pre>',
+      '<script>',
+      '/<pre>',
+      '<p>',
+    ]) {
+      const html = await renderMarkdown(`<pre>\n${line}${tail}`);
+      expect(html).toContain('<pre tabindex="0">\n');
+      expect(html).toContain('<p>after</p>');
+    }
+  });
+
+  test('a closer far down still ends it', async () => {
+    const body = Array.from({ length: 80 }, (_, i) => `line ${i}`).join('\n');
+    const html = await renderMarkdown(`<pre>\n${body}\n</pre>\n\nafter`);
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<p>after</p>');
+  });
+
   test('a closer after the end of its quote ends nothing', async () => {
     const html = await renderMarkdown(
       '> <pre>\n> inside [real](https://r.example)\n\nafter\n\n</pre>',
