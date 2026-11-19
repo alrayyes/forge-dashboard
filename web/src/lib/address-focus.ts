@@ -17,3 +17,11 @@ const CANDIDATES = [
 export function addressFocusFallback(isDrawn: (id: string) => boolean): string {
   return CANDIDATES.find(isDrawn) ?? CANDIDATES[CANDIDATES.length - 1];
 }
+
+// Where the dialog that replaces another sends focus on close. The dialog it
+// replaces already knows what opened the chain; the pill the reader clicked
+// lives in a dialog that is gone by then. The pill's own id stands in only
+// when no swap came before (#4351).
+export function chainedReturn(current: string | null, own: string): string {
+  return current || own;
+}
