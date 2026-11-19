@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.5](https://github.com/alrayyes/forge-dashboard/compare/v9.88.4...v9.88.5) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** return focus to where a chain of dialogs began ([#4361](https://github.com/alrayyes/forge-dashboard/issues/4361)) ([32a1f6f](https://github.com/alrayyes/forge-dashboard/commit/32a1f6fcadfca0a9ed754018e7f37334e9e44278)), closes [#4351](https://github.com/alrayyes/forge-dashboard/issues/4351)
+
 ## [9.88.4](https://github.com/alrayyes/forge-dashboard/compare/v9.88.3...v9.88.4) (2026-11-19)
 
 
