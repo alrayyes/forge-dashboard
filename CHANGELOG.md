@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.78.0](https://github.com/alrayyes/forge-dashboard/compare/v9.77.0...v9.78.0) (2026-11-19)
+
+
+### Features
+
+* **web:** take the rate limit docs link from the forge's data ([#4222](https://github.com/alrayyes/forge-dashboard/issues/4222)) ([c01169e](https://github.com/alrayyes/forge-dashboard/commit/c01169e4e2d6e45053e06cd547e871881633bc4a)), closes [#4169](https://github.com/alrayyes/forge-dashboard/issues/4169)
+
 ## [9.77.0](https://github.com/alrayyes/forge-dashboard/compare/v9.76.0...v9.77.0) (2026-11-17)
 
 
