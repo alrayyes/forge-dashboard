@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.85.0](https://github.com/alrayyes/forge-dashboard/compare/v9.84.1...v9.85.0) (2026-11-19)
+
+
+### Features
+
+* **api:** list what an item refers to in its details ([#4330](https://github.com/alrayyes/forge-dashboard/issues/4330)) ([50540a9](https://github.com/alrayyes/forge-dashboard/commit/50540a9c6bb9124f62060e19627d0e72f1c8d938))
+
 ## [9.84.1](https://github.com/alrayyes/forge-dashboard/compare/v9.84.0...v9.84.1) (2026-11-19)
 
 
