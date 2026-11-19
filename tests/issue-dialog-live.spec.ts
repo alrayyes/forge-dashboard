@@ -720,6 +720,9 @@ test('focus stays on the pill the reader had when the same pull request is in tw
   await expect(pills.nth(1)).toHaveAttribute('href', /\/10$/);
 
   await pills.nth(1).focus();
+  await pills
+    .nth(1)
+    .evaluate((a) => ((a as unknown as { __old: boolean }).__old = true));
   world.issues[1] = {
     ...world.issues[1],
     linkedPullRequests: [
@@ -732,6 +735,14 @@ test('focus stays on the pill the reader had when the same pull request is in tw
   await push(page, world);
   await expect(pills.nth(1)).toHaveAccessibleName(/Passed/);
   await page.waitForTimeout(200);
+  // The pill is the element it was: the band was patched, so focus never left
+  // and nothing was put back.
+  expect(
+    await pills
+      .nth(1)
+      .evaluate((a) => (a as unknown as { __old?: boolean }).__old),
+    'the band was replaced instead of patched',
+  ).toBe(true);
 
   const focused = () =>
     dialog.evaluate((el) =>
@@ -788,6 +799,69 @@ test('focus goes back to the same one of two pills for a pull request when the b
     ),
   );
   expect(focused, 'focus moved to another pill').toBe(1);
+});
+
+const threePills = async (page: Page) => {
+  const world = makeWorld();
+  // One pull request closes the issue, mentions it and references it: three
+  // pills, one address.
+  world.issues[1] = {
+    ...world.issues[1],
+    mentionedByPullRequests: [linked(10)],
+    referencedByPullRequests: [linked(10)],
+  };
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const pills = dialog.locator('.related-band .linked-pr');
+  await expect(pills).toHaveCount(3);
+  for (const i of [0, 1, 2])
+    await expect(pills.nth(i)).toHaveAttribute('href', /\/10$/);
+  const focused = () =>
+    dialog.evaluate((el) =>
+      [...el.querySelectorAll('.related-band .linked-pr')].indexOf(
+        document.activeElement as Element,
+      ),
+    );
+  return { world, dialog, pills, focused };
+};
+
+test('focus goes back to the middle one of three pills for a pull request when the band is replaced', async ({
+  page,
+}) => {
+  const { world, pills, focused } = await threePills(page);
+
+  await pills.nth(1).focus();
+  // Another pull request now mentions the issue: the band is drawn again.
+  world.issues[1] = {
+    ...world.issues[1],
+    mentionedByPullRequests: [linked(10), linked(40, { ci: 'none' })],
+  };
+  await push(page, world);
+  await expect(pills).toHaveCount(4);
+  await page.waitForTimeout(200);
+
+  expect(await focused(), 'focus moved to another pill').toBe(1);
+});
+
+test('focus goes to the last pill for a pull request when the reader was on one that is gone', async ({
+  page,
+}) => {
+  const { world, pills, focused } = await threePills(page);
+
+  await pills.nth(2).focus();
+  // The issue is no longer referenced: one pill fewer, so the band is drawn
+  // again and the third pill the reader was on has no place to come back to.
+  world.issues[1] = { ...world.issues[1], referencedByPullRequests: [] };
+  await push(page, world);
+  await expect(pills).toHaveCount(2);
+  await page.waitForTimeout(200);
+
+  expect(await focused(), 'focus was not kept on the pull request').toBe(1);
 });
 
 test('the overview rows follow a linked pull request without a reload', async ({
