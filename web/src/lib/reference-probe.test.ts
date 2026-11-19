@@ -36,4 +36,14 @@ describe('probeReference', () => {
       new Response('<html>', { status: 200 })) as unknown as typeof fetch;
     expect(await probeReference(ref, junk)).toBeNull();
   });
+
+  test('gives up when the forge does not answer in time', async () => {
+    const hung = ((_url: string, init?: RequestInit) =>
+      new Promise((_, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(new DOMException('aborted', 'AbortError')),
+        );
+      })) as unknown as typeof fetch;
+    expect(await probeReference(ref, hung, 20)).toBeNull();
+  });
 });

@@ -67,6 +67,7 @@
     type DetailsRef,
   } from "#lib/details-cache.js";
   import { probeReference } from "#lib/reference-probe.js";
+  import { createReferenceFollower } from "#lib/reference-follow.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
@@ -604,6 +605,7 @@
       number: number;
       url: string;
       untracked?: boolean;
+      anchor?: unknown;
     },
     triggerId: string,
   ) => void = () => {};
@@ -2534,7 +2536,31 @@
     // as an issue, and the dialog says plainly if the forge cannot show it.
     // An item of a repository the dashboard does not track (#4269) is tried
     // first: if the forge shows it, it opens like any other, and if not, the
-    // dialog stays where it is and the forge opens in a new tab.
+    // dialog stays where it is and the forge opens in a new tab. The tab is
+    // opened inside the click and then closed or sent to the forge, since a
+    // tab opened after the wait is blocked on Safari.
+    let busyLink: Pick<Element, "setAttribute" | "removeAttribute"> | null =
+      null;
+    const followUntracked = createReferenceFollower({
+      probe: (r) => probeReference(r),
+      openTab: () => {
+        const tab = window.open("", "_blank");
+        if (tab) tab.opener = null;
+        return tab;
+      },
+      isKnown: (r) =>
+        detailsCache.get(detailsKey({ ...r, subject: "issue" })) !== undefined,
+      remember: (r, details) =>
+        detailsCache.set(detailsKey({ ...r, subject: "issue" }), {
+          details,
+          readAt: Date.now(),
+        }),
+      setBusy: (busy) => {
+        if (busy) busyLink?.setAttribute("aria-busy", "true");
+        else busyLink?.removeAttribute("aria-busy");
+      },
+    });
+
     async function followReference(
       ref: {
         forge: string;
@@ -2542,20 +2568,15 @@
         number: number;
         url: string;
         untracked?: boolean;
+        anchor?: unknown;
       },
       triggerId: string,
     ) {
       const wanted = { forge: ref.forge, repo: ref.repo, number: ref.number };
       if (ref.untracked) {
-        const found = await probeReference(wanted);
-        if (found === null) {
-          window.open(ref.url, "_blank", "noopener,noreferrer");
-          return;
-        }
-        detailsCache.set(detailsKey({ ...wanted, subject: "issue" }), {
-          details: found,
-          readAt: Date.now(),
-        });
+        busyLink = (ref.anchor as typeof busyLink) ?? null;
+        const outcome = await followUntracked({ ...wanted, url: ref.url });
+        if (outcome !== "dialog") return;
       }
       afterDetailsClosed = () => {
         const pr = pullsView

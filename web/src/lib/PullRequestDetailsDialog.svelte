@@ -1430,6 +1430,12 @@
       animation: none;
     }
   }
+  /* An item of an untracked repository, while the forge is asked (#4269). */
+  .markdown :global(a[aria-busy="true"]) {
+    cursor: progress;
+    opacity: 0.6;
+  }
+
   .markdown :global(a:has(> img.md-image)) {
     cursor: zoom-in;
   }

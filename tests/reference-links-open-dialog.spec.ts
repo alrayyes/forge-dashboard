@@ -185,6 +185,8 @@ test.describe('references open the dialog (#3744)', () => {
     await link.click();
 
     await expect(issueDialog(page)).toBeVisible();
+    // The tab opened inside the click is closed again.
+    await expect.poll(() => page.context().pages().length).toBe(1);
     await expect(issueDialog(page)).toContainText(
       'Merged text of stranger/elsewhere',
     );
@@ -218,14 +220,49 @@ test.describe('references open the dialog (#3744)', () => {
 
     await link.click();
 
+    // Opened inside the click, then sent to the forge, so Safari allows it.
     const tab = await popup;
-    expect(tab.url()).toBe('https://github.com/stranger/elsewhere/issues/9');
+    await tab.waitForURL('https://github.com/stranger/elsewhere/issues/9', {
+      waitUntil: 'commit',
+    });
     await tab.close();
     // The dialog the reader was in is still there.
     await expect(prDialog(page)).toBeVisible();
     await expect(link).toHaveAccessibleName(
       'stranger/elsewhere#9 (opens on the forge in a new tab)',
     );
+  });
+
+  test('a second click while the forge is being asked does nothing, and the link says it is busy', async ({
+    page,
+  }) => {
+    await open(page);
+    let asked = 0;
+    let answer: () => void = () => {};
+    await page.route('**/api/v1/issues/details*', async (route: Route) => {
+      asked++;
+      await new Promise<void>((resolve) => {
+        answer = resolve;
+      });
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...details('Slow text'), state: 'closed' }),
+      });
+    });
+    const link = prDialog(page).getByRole('link', {
+      name: /^stranger\/elsewhere#9/,
+    });
+
+    await link.click();
+    await expect(link).toHaveAttribute('aria-busy', 'true');
+    await link.click();
+    // One lookup for two clicks; the dialog's own read comes after it opens.
+    expect(asked).toBe(1);
+    answer();
+
+    await expect(issueDialog(page)).toContainText('Slow text');
+    await expect.poll(() => page.context().pages().length).toBe(1);
   });
 
   for (const width of [360, 390, 1280]) {
