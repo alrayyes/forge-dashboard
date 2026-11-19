@@ -268,6 +268,115 @@ describe('an unclosed pre', () => {
     }
   });
 
+  // markdown-it ends a `<pre` block at the next closer wherever it is, so one
+  // that sits in a code fence, in a later pre or outside the container used to
+  // make the pre wrap everything in between.
+  test('a closer inside a later code fence does not close it', async () => {
+    const html = await renderMarkdown(
+      '<pre>\n\n```\n</pre>\n```\n\nrest [real](https://r.example)',
+    );
+    expect(html).toContain('&lt;pre&gt;');
+    expect(html).toContain('<a href="https://r.example"');
+    // The fence is a code block of its own, with the closer as its text.
+    expect(html).toContain('<pre tabindex="0"><code>&lt;/pre&gt;');
+  });
+
+  test('a closer in a later pre belongs to that pre', async () => {
+    const html = await renderMarkdown(
+      '<pre>\nlost\n\nrest [real](https://r.example)\n\n<pre>\nkept\n</pre>',
+    );
+    expect(html.match(/<pre tabindex="0">/g)).toHaveLength(1);
+    expect(html).toContain('<a href="https://r.example"');
+    expect(html.indexOf('lost')).toBeLessThan(html.indexOf('<pre tabindex'));
+  });
+
+  test('a closer outside its quote does not close it', async () => {
+    const html = await renderMarkdown(
+      '> <pre>\n> inside [real](https://r.example)\n\n<pre>\nafter\n</pre>',
+    );
+    const quote = html.slice(0, html.indexOf('</blockquote>'));
+    expect(quote).toContain('<a href="https://r.example"');
+    expect(quote).not.toContain('<pre');
+  });
+
+  test('a tilde fence stops it too, and so does an indented one', async () => {
+    const tilde = await renderMarkdown(
+      '<pre>\n\n~~~\n</pre>\n~~~\n\nrest [real](https://r.example)',
+    );
+    expect(tilde).toContain('&lt;pre&gt;');
+    expect(tilde).toContain('<a href="https://r.example"');
+    const indented = await renderMarkdown(
+      '<pre>\n\n  ```\n</pre>\n  ```\n\nrest [real](https://r.example)',
+    );
+    expect(indented).toContain('&lt;pre&gt;');
+    expect(indented).toContain('<a href="https://r.example"');
+  });
+
+  test('another pre stops it in any case and any indent, a longer name does not', async () => {
+    for (const next of ['<PRE>', '  <pre>']) {
+      const html = await renderMarkdown(
+        `<pre>\nlost\n\nrest [real](https://r.example)\n\n${next}\nkept\n</pre>`,
+      );
+      expect(html.match(/<pre tabindex="0">/g)).toHaveLength(1);
+      expect(html).toContain('<a href="https://r.example"');
+    }
+    const html = await renderMarkdown('<pre>\n<prefix> text\n</pre>\n\nafter');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<p>after</p>');
+  });
+
+  test('an unclosed one in capitals is text too', async () => {
+    const html = await renderMarkdown(
+      '<PRE><a href="https://example.test/x">\n\nrest [real](https://r.example)\n\n- item',
+    );
+    expect(html).not.toContain('<pre');
+    expect(html).toContain('<a href="https://r.example"');
+    expect(html).toContain('<li>item</li>');
+  });
+
+  test('a closer inside a line of text, or beside a fence mark, ends it', async () => {
+    for (const body of ['<pre>\nsome text</pre>', '<pre>\n```</pre>']) {
+      const html = await renderMarkdown(`${body}\n\nafter`);
+      expect(html).toContain('<pre tabindex="0">');
+      expect(html).toContain('<p>after</p>');
+    }
+  });
+
+  test('a closer after the end of its quote ends nothing', async () => {
+    const html = await renderMarkdown(
+      '> <pre>\n> inside [real](https://r.example)\n\nafter\n\n</pre>',
+    );
+    const quote = html.slice(0, html.indexOf('</blockquote>'));
+    expect(quote).toContain('<a href="https://r.example"');
+    expect(quote).not.toContain('<pre');
+  });
+
+  test('a closer on a later line ends it, in any case', async () => {
+    for (const [open, close] of [
+      ['<pre>', '</pre>'],
+      ['<PRE>', '</PRE>'],
+      ['<pre class="x">', '</Pre>'],
+    ]) {
+      const html = await renderMarkdown(
+        `${open}\nline\n\nmore\n${close}\n\nafter`,
+      );
+      expect(html).toContain('<pre tabindex="0">');
+      expect(html).toContain('more');
+      expect(html).toContain('<p>after</p>');
+    }
+  });
+
+  test('a closer on its own line, with nothing before it, ends it', async () => {
+    const html = await renderMarkdown('<pre>one\n</pre>\n\nafter');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<p>after</p>');
+  });
+
+  test('one that is just the letters pre is not a pre', async () => {
+    const html = await renderMarkdown('<prefix>\n\nx\n\n</pre>');
+    expect(html).not.toContain('<pre');
+  });
+
   test('a closed one keeps its text and is focusable', async () => {
     const html = await renderMarkdown('<pre>\nline <b>x</b>\n</pre>');
     expect(html).toContain('<pre tabindex="0">');
