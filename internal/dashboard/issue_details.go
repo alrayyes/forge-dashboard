@@ -58,8 +58,8 @@ type ReferenceDirection string
 const (
 	// ReferenceIncoming is another item that refers to this one.
 	ReferenceIncoming ReferenceDirection = "incoming"
-	// ReferenceOutgoing is an item this one refers to. The contract has it so a
-	// later read can add it without another change; no forge read returns it yet.
+	// ReferenceOutgoing is an item this one refers to, read from its text
+	// (OutgoingReferences) and looked up on the forge.
 	ReferenceOutgoing ReferenceDirection = "outgoing"
 )
 
@@ -72,7 +72,7 @@ const (
 	// RelationRefs references the item without closing it.
 	RelationRefs ReferenceRelation = "refs"
 	// RelationMentions names the item. A forge's timeline can't tell it from
-	// refs, so a read from one says mentions for both.
+	// refs, so a read of what refers to an item says mentions for both.
 	RelationMentions ReferenceRelation = "mentions"
 )
 
@@ -117,8 +117,8 @@ type IssueDetails struct {
 	Comments          []DetailsComment  `json:"comments"`
 	CommentCount      int               `json:"commentCount"`
 	CommentsTruncated bool              `json:"commentsTruncated"`
-	// References are the items that refer to this one, newest first. Never nil
-	// once the API has answered.
+	// References are the items that refer to this one, newest first, then the
+	// ones this one refers to. Never nil once the API has answered.
 	References []ItemReference `json:"references"`
 }
 

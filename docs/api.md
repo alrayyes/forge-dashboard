@@ -12,8 +12,9 @@ and thumbs up and down reactions (on demand, never in the snapshot; Markdown
 as the forge stores it, cut at 20,000 characters, the first 50 comments, and a
 release pull request's release notes; one GraphQL query on GitHub, up to 53
 requests on Forgejo, which has no batch read), `GET /api/v1/issues/details` for
-one issue's description, comments and the items that refer to it, the same
-way (without release notes),
+one issue's description, comments and the items related to it (what refers to
+it and what its own text refers to, `references`), the same way (without
+release notes),
 `GET /api/v1/main-branches` for
 the CI status of every default branch, `GET`/`PUT
 /api/v1/settings` for the GitHub/Forgejo configuration — the

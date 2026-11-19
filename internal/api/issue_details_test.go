@@ -242,6 +242,34 @@ func TestIssueDetails_ReferencesCarryTheirDashboardAddress(t *testing.T) {
 	assert.Equal(t, "merged", body.References[0]["state"])
 }
 
+// The most one read returns is every incoming reference the forge's timeline
+// gives (50) plus every outgoing one the text names (20), so the contract's
+// bound has to hold both (#4272).
+func TestContract_IssueDetailsHoldsIncomingAndOutgoingReferences(t *testing.T) {
+	t.Parallel()
+
+	details := sampleIssueDetails()
+	for i := 1; i <= dashboard.MaxReferences+dashboard.MaxOutgoingReferences; i++ {
+		direction := dashboard.ReferenceIncoming
+		if i > dashboard.MaxReferences {
+			direction = dashboard.ReferenceOutgoing
+		}
+		details.References = append(details.References, dashboard.ItemReference{
+			Forge: dashboard.ForgeGitHub, Repo: "alrayyes/other", Number: i, Title: "Item",
+			URL: "https://github.com/alrayyes/other/issues/1", Kind: dashboard.ItemKindIssue,
+			State: dashboard.ReferencedStateOpen, Direction: direction, Relation: dashboard.RelationRefs,
+		})
+	}
+	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: details}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
+
+	require.Equal(t, http.StatusOK, got.status, string(got.body))
+	validateAgainstSpec(t, req, got)
+}
+
 func TestIssueDetails_NothingReferringIsAnEmptyList(t *testing.T) {
 	t.Parallel()
 
