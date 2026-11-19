@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.84.1](https://github.com/alrayyes/forge-dashboard/compare/v9.84.0...v9.84.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** draw the cancelled pill with the segmented parts its neighbours use ([#4332](https://github.com/alrayyes/forge-dashboard/issues/4332)) ([0d35047](https://github.com/alrayyes/forge-dashboard/commit/0d35047e4e59ed59c6ed2a2859a502304536ae18)), closes [#4323](https://github.com/alrayyes/forge-dashboard/issues/4323)
+
 ## [9.84.0](https://github.com/alrayyes/forge-dashboard/compare/v9.83.3...v9.84.0) (2026-11-19)
 
 
