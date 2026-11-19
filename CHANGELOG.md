@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.80.2](https://github.com/alrayyes/forge-dashboard/compare/v9.80.1...v9.80.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **api:** a path that climbs out of the attachment prefix is not signed ([#4259](https://github.com/alrayyes/forge-dashboard/issues/4259)) ([ed6d6f1](https://github.com/alrayyes/forge-dashboard/commit/ed6d6f1efb47071ef6446c7c366f36238f8dbed1)), closes [#4247](https://github.com/alrayyes/forge-dashboard/issues/4247)
+* **web:** note that an untracked item link leaves the app ([#4262](https://github.com/alrayyes/forge-dashboard/issues/4262)) ([13d43c9](https://github.com/alrayyes/forge-dashboard/commit/13d43c9988e1c77cb12aae09c878700968688b19)), closes [#4250](https://github.com/alrayyes/forge-dashboard/issues/4250)
+
 ## [9.80.1](https://github.com/alrayyes/forge-dashboard/compare/v9.80.0...v9.80.1) (2026-11-19)
 
 
