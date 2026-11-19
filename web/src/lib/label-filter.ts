@@ -11,6 +11,7 @@
 
 import { avatarSrc } from './avatar';
 import { labelTextColor } from './label-color';
+import { labelKey } from './label-name';
 
 const SEPARATOR = '\n';
 const HINT = 'Shows items with any of the ticked labels.';
@@ -34,16 +35,7 @@ export function encodedSize(joined: string): number {
   return encodeURIComponent(JSON.stringify(joined)).length;
 }
 
-// A label as the pick holds it: lowercase, and with any control character
-// (a line break, a tab) turned into a space, so a name can never split into
-// two picks. The page matches items on this too, so such a label still
-// matches itself.
-export function labelKey(name: string): string {
-  return name
-    .replace(/\p{Cc}+/gu, ' ')
-    .trim()
-    .toLowerCase();
-}
+export { labelKey };
 
 // Splits a saved pick into what fits the limits and the names that do not, so
 // a caller can say what was left out.

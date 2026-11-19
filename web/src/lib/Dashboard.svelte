@@ -70,7 +70,7 @@
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
-  import { labelTextColor } from "#lib/label-color.js";
+  import { labelChipColor, labelTextColor } from "#lib/label-color.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import CiFilterPill, { type CiFilterStatus } from "#lib/CiFilterPill.svelte";
   import LiveControl from "#lib/LiveControl.svelte";
@@ -922,14 +922,15 @@
       );
       chip.className = `label-chip${isActive ? " active" : ""}`;
       chip.textContent = label.name;
-      if (label.color && !isActive) {
+      const color = labelChipColor(label.color);
+      if (color && !isActive) {
         // The active state has its own fixed accent styling (see
         // .label-chip.active in style.css) — a per-label background
         // would fight with "this is the one currently filtering" as a
         // signal.
-        chip.style.backgroundColor = `#${label.color}`;
-        chip.style.borderColor = `#${label.color}`;
-        chip.style.color = labelTextColor(label.color);
+        chip.style.backgroundColor = `#${color}`;
+        chip.style.borderColor = `#${color}`;
+        chip.style.color = labelTextColor(color);
       }
       chip.setAttribute("aria-label", `Filter by label: ${label.name}`);
       chip.setAttribute("aria-pressed", String(isActive));

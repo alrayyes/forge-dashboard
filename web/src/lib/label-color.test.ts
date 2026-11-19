@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   contrastRatio,
+  labelChipColor,
   labelChipColors,
   labelTextColor,
   relativeLuminance,
@@ -98,6 +99,14 @@ describe('labelChipColors', () => {
     expect(colors.get('bug')).toBe('d73a4a');
   });
 
+  test('Bug and bug are one label, so two colours for it clash', () => {
+    const colors = labelChipColors([
+      item({ name: 'Bug', color: 'd73a4a' }),
+      item({ name: 'bug', color: '0075ca' }),
+    ]);
+    expect(colors.size).toBe(0);
+  });
+
   test('a copy with no colour does not count as a different one', () => {
     const colors = labelChipColors([
       item({ name: 'bug' }),
@@ -116,5 +125,24 @@ describe('labelChipColors', () => {
 
   test('items with no labels are fine', () => {
     expect(labelChipColors([{}, item()]).size).toBe(0);
+  });
+});
+
+describe('labelChipColor', () => {
+  test('a good colour comes back lower-case', () => {
+    expect(labelChipColor('D73A4A')).toBe('d73a4a');
+  });
+
+  test('a missing or malformed colour gives the neutral chip', () => {
+    for (const bad of [undefined, '', 'red', '#d73a4a', 'd73a4', 'd73a4ab']) {
+      expect(labelChipColor(bad)).toBeUndefined();
+    }
+  });
+
+  test('the row and the filter agree on every colour', () => {
+    for (const color of ['d73a4a', 'D73A4A', 'red', '#fff', undefined]) {
+      const filter = labelChipColors([{ labels: [{ name: 'x', color }] }]);
+      expect(labelChipColor(color)).toBe(filter.get('x'));
+    }
   });
 });

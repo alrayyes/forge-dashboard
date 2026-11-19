@@ -41,6 +41,8 @@ const PRS = [
   pr(1, 'acme/app', RED, DARK),
   pr(2, 'acme/app', { name: 'triage', color: 'fbca04' }),
   pr(3, 'acme/api', { name: 'triage', color: '0075ca' }),
+  // A colour the forge sent that is not six hex digits.
+  pr(4, 'acme/app', { name: 'odd', color: 'red' }),
 ];
 
 async function open(page: Page, width?: number) {
@@ -117,6 +119,27 @@ test.describe('Label filter: coloured chips', () => {
         return { bg: s.backgroundColor, ink: s.color };
       });
     expect(await style(page, 'bug')).toEqual(row);
+  });
+
+  test('a malformed colour is the same neutral chip in the row and the filter', async ({
+    page,
+  }) => {
+    await open(page);
+    const row = await page
+      .locator('#pr-rows > .row .label-chip', { hasText: 'odd' })
+      .first()
+      .evaluate((el) => {
+        const s = getComputedStyle(el);
+        return {
+          bg: s.backgroundColor,
+          ink: s.color,
+          inline: el.style.cssText,
+        };
+      });
+    const filter = await style(page, 'odd');
+    expect(row.inline).toBe('');
+    expect({ bg: row.bg, ink: row.ink }).toEqual(filter);
+    expect(await chip(page, 'odd').evaluate((el) => el.style.cssText)).toBe('');
   });
 
   test('a name with different colours in different repos is neutral', async ({
