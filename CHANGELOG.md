@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.79.1](https://github.com/alrayyes/forge-dashboard/compare/v9.79.0...v9.79.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** open item addresses in a body in the dashboard ([#4235](https://github.com/alrayyes/forge-dashboard/issues/4235)) ([c6c0dd7](https://github.com/alrayyes/forge-dashboard/commit/c6c0dd7182fabcdc422e54bb96bd1f78924a1e79))
+
 ## [9.79.0](https://github.com/alrayyes/forge-dashboard/compare/v9.78.0...v9.79.0) (2026-11-19)
 
 
