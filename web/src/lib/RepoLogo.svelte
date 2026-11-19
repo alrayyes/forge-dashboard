@@ -5,10 +5,14 @@
   // The repository's own logo when the forge has one, else its initial in the
   // same 16px box, so names line up either way (#3868). Decorative, since the
   // repository's name sits beside it. A failed load shows the initial.
-  let { url, name }: { url: string | undefined; name: string } = $props();
+  let {
+    forge,
+    url,
+    name,
+  }: { forge: string; url: string | undefined; name: string } = $props();
 
   let failed = $state(false);
-  const src = $derived(avatarSrc(url));
+  const src = $derived(avatarSrc(forge, url));
 </script>
 
 {#if src && !failed}

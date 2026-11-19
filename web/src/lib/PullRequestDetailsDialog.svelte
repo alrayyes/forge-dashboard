@@ -194,6 +194,7 @@
   // or for another pull request, never lands.
   let token = 0;
 
+  const forgeId = $derived(target?.forge ?? "");
   const forgeLabel = $derived(target ? forgeLabelOf(target.forge) : "");
   const releaseNotes = $derived(details?.releaseNotes ?? null);
   const releaseTarget = $derived(
@@ -918,10 +919,10 @@
         </h2>
         {#if byline}
           {#snippet filer()}
-            {#if avatarSrc(byline?.avatar) && !brokenFilerAvatar}
+            {#if avatarSrc(forgeId, byline?.avatar) && !brokenFilerAvatar}
               <img
                 class="filer-avatar"
-                src={avatarSrc(byline?.avatar) ?? undefined}
+                src={avatarSrc(forgeId, byline?.avatar) ?? undefined}
                 alt=""
                 width="20"
                 height="20"
@@ -1075,10 +1076,11 @@
                   <li class="details-comment">
                     <div class="comment-head">
                       {#snippet person()}
-                        {#if avatarSrc(c.author?.avatarUrl) && !brokenAvatars[c.id]}
+                        {#if avatarSrc(forgeId, c.author?.avatarUrl) && !brokenAvatars[c.id]}
                           <img
                             class="avatar"
-                            src={avatarSrc(c.author?.avatarUrl) ?? undefined}
+                            src={avatarSrc(forgeId, c.author?.avatarUrl) ??
+                              undefined}
                             alt=""
                             width="32"
                             height="32"

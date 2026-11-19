@@ -117,6 +117,20 @@ describe('choices', () => {
     ]);
     expect(repoChoices([items[0]], () => undefined)[0].group).toBeUndefined();
   });
+  test('every repo and author choice names the forge its image comes from', () => {
+    const items = [
+      item('github', 'acme/web', 'ann'),
+      item('forgejo', 'acme/api', 'ann'),
+    ];
+    expect(repoChoices(items, () => undefined).map((c) => c.forge)).toEqual([
+      'forgejo',
+      'github',
+    ]);
+    expect(authorChoices(items).map((c) => c.forge)).toEqual([
+      'forgejo',
+      'github',
+    ]);
+  });
   test('authors carry the first avatar seen, once each per forge, sorted', () => {
     const choices = authorChoices([
       item('github', 'a/b', 'Bob'),

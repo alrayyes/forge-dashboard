@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { avatarSrc } from './avatar';
+import { registerImagePolicy } from './forges';
 
 // An avatar or logo is the forge's own https URL, but the page never loads it
 // from there: it asks the image proxy, so the Content-Security-Policy can
@@ -11,18 +12,24 @@ const proxied = (forge: string, url: string) =>
   `/api/v1/images?forge=${forge}&url=${encodeURIComponent(url)}&kind=avatar`;
 
 describe('avatarSrc', () => {
-  test('sends a GitHub avatar or repository logo through the GitHub proxy', () => {
-    for (const url of [
-      'https://avatars.githubusercontent.com/u/1?v=4',
-      'https://repository-images.githubusercontent.com/1/logo',
-    ]) {
-      expect(avatarSrc(url)).toBe(proxied('github', url));
-    }
+  test('names the forge of the row the image belongs to, whatever the host', () => {
+    const url = 'https://avatars.githubusercontent.com/u/1?v=4';
+    expect(avatarSrc('github', url)).toBe(proxied('github', url));
+    expect(avatarSrc('forgejo', url)).toBe(proxied('forgejo', url));
+    const other = 'https://git.example/avatars/abc?size=64';
+    expect(avatarSrc('forgejo', other)).toBe(proxied('forgejo', other));
+    expect(avatarSrc('github', other)).toBe(proxied('github', other));
   });
 
-  test('sends any other https URL through the Forgejo proxy', () => {
-    const url = 'https://git.example/avatars/abc?size=64';
-    expect(avatarSrc(url)).toBe(proxied('forgejo', url));
+  test('follows a forge registered with an image policy, with no other edit', () => {
+    registerImagePolicy('thirdforge', { hosts: [] });
+    const url = 'https://third.example/a.png';
+    expect(avatarSrc('thirdforge', url)).toBe(proxied('thirdforge', url));
+  });
+
+  test('refuses a forge nobody described', () => {
+    expect(avatarSrc('mystery', 'https://x.example/a.png')).toBeNull();
+    expect(avatarSrc('constructor', 'https://x.example/a.png')).toBeNull();
   });
 
   test.each([
@@ -32,16 +39,19 @@ describe('avatarSrc', () => {
     ['not a URL', 'not a url'],
     ['empty', ''],
   ])('refuses %s', (_name, url) => {
-    expect(avatarSrc(url)).toBeNull();
+    expect(avatarSrc('github', url)).toBeNull();
   });
 
   test('refuses a user-info trick', () => {
     expect(
-      avatarSrc('https://avatars.githubusercontent.com@evil.test/a.png'),
+      avatarSrc(
+        'github',
+        'https://avatars.githubusercontent.com@evil.test/a.png',
+      ),
     ).toBeNull();
   });
 
   test('refuses a missing URL', () => {
-    expect(avatarSrc(undefined)).toBeNull();
+    expect(avatarSrc('github', undefined)).toBeNull();
   });
 });

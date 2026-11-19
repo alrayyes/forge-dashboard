@@ -195,6 +195,8 @@ export interface PickChoice {
   // initial, which stays if there is no URL or it fails to load.
   imageUrl?: string;
   imageKind?: 'avatar' | 'logo';
+  // The forge the image comes from, so the proxy URL names it.
+  forge?: string;
 }
 
 export interface PickFilterConfig {
@@ -207,7 +209,7 @@ export interface PickFilterConfig {
   // The "All labels" style summary prefix for aria-label: "Filter by label".
   ariaName: string;
   // How a URL in a choice becomes a safe image source; null drops the image.
-  imageSrc?: (url: string | undefined) => string | null;
+  imageSrc?: (forge: string, url: string | undefined) => string | null;
   // How a saved value this page does not offer reads in the button.
   unoffered?: (value: string) => string;
 }
@@ -243,7 +245,7 @@ function node<K extends keyof HTMLElementTagNameMap>(
 // when there is one that loads. Decorative, the name beside it says it all.
 export function pickImageNode(
   choice: PickChoice,
-  imageSrc?: (url: string | undefined) => string | null,
+  imageSrc?: (forge: string, url: string | undefined) => string | null,
 ): HTMLElement | null {
   if (!choice.imageKind) return null;
   const wrap = node('span', `pick-image pick-${choice.imageKind}`);
@@ -251,7 +253,8 @@ export function pickImageNode(
   wrap.appendChild(
     node('span', 'pick-initial', initialOf(choice.text.split('/').pop() ?? '')),
   );
-  const src = imageSrc ? imageSrc(choice.imageUrl) : null;
+  const src =
+    imageSrc && choice.forge ? imageSrc(choice.forge, choice.imageUrl) : null;
   if (src) {
     const img = node('img');
     img.src = src;

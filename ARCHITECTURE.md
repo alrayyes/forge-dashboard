@@ -399,10 +399,11 @@ can't fire a tracking pixel when the dialog opens.
 - The response sets `nosniff`, a `default-src 'none'; sandbox` policy and a
   private cache, and passes nothing else the host sent.
 - An avatar or logo is the forge's own HTTPS URL, sent through the same route
-  by `web/src/lib/avatar.ts`: a GitHub avatar host goes to the GitHub list, any
-  other host to the saved Forgejo instance, which refuses a host that isn't its
-  own. A Forgejo avatar on a third-party host, Gravatar and Libravatar included,
-  therefore shows the initial instead.
+  by `web/src/lib/avatar.ts`, which names the forge of the row the image
+  belongs to rather than guessing it from the host. The server applies that
+  forge's list: GitHub's fixed hosts, or the saved Forgejo instance, which
+  refuses a host that isn't its own. A Forgejo avatar on a third-party host,
+  Gravatar and Libravatar included, therefore shows the initial instead.
 - The page repeats the rules in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. It reads them from each forge's
   image policy in `web/src/lib/forges.ts` (fixed hosts or the item's own

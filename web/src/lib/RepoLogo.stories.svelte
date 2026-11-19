@@ -19,6 +19,7 @@
 <Story
   name="With a logo"
   args={{
+    forge: "forgejo",
     url: "https://logos.example.test/forge-dashboard.svg",
     name: "alrayyes/forge-dashboard",
   }}
@@ -28,7 +29,7 @@
      row does not shift. -->
 <Story
   name="No logo"
-  args={{ url: undefined, name: "alrayyes/forge-dashboard" }}
+  args={{ forge: "forgejo", url: undefined, name: "alrayyes/forge-dashboard" }}
 />
 
 <!-- The image fails to load: it is swapped for the initial. The
@@ -37,6 +38,7 @@
 <Story
   name="Logo fails to load"
   args={{
+    forge: "forgejo",
     url: "https://logos.example.test/missing.png",
     name: "alrayyes/forge-dashboard",
   }}
@@ -58,6 +60,7 @@
 <Story
   name="Insecure URL"
   args={{
+    forge: "forgejo",
     url: "http://logos.example.test/a.png",
     name: "alrayyes/forge-dashboard",
   }}
