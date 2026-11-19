@@ -4187,6 +4187,7 @@ footer a.mono:focus-visible {
   flex: none;
 }
 .pipeline-check-status .check-glyph,
+.mb-pill .check-glyph,
 .ci-pill .check-glyph {
   width: 14px;
   height: 14px;
@@ -4213,10 +4214,12 @@ footer a.mono:focus-visible {
 /* Running carries both glyphs: the spinning arc, and a still clock for
    prefers-reduced-motion. Amber stays Running's colour; Queued is blue. */
 .pipeline-check-status .check-glyph-clock,
+.mb-pill .check-glyph-clock,
 .ci-pill .check-glyph-clock {
   display: none;
 }
 .pipeline-check-status .check-glyph-arc,
+.mb-pill .check-glyph-arc,
 .ci-pill .check-glyph-arc {
   animation: check-spin 1.2s linear infinite;
 }
@@ -4244,10 +4247,12 @@ footer a.mono:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .pipeline-check-status .check-glyph-arc,
+  .mb-pill .check-glyph-arc,
   .ci-pill .check-glyph-arc {
     display: none;
   }
   .pipeline-check-status .check-glyph-clock,
+  .mb-pill .check-glyph-clock,
   .ci-pill .check-glyph-clock {
     display: block;
   }
@@ -6212,4 +6217,107 @@ footer a[aria-current="page"] {
 .mb-note p,
 .mb-banner p {
   margin: 0;
+}
+
+/* The Main branches filter pills, shared with the status pills component. */
+.mb-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+.mb-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.8125rem;
+  color: var(--ink);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.mb-pill:hover {
+  border-color: var(--border-strong);
+}
+.mb-pill[aria-pressed="true"] {
+  background: var(--pill-active);
+  border-color: var(--pill-active);
+  color: var(--accent-ink);
+}
+.mb-pill[aria-pressed="true"] .mb-count {
+  opacity: var(--pill-active-count-opacity);
+}
+@media (forced-colors: active) {
+  /* Forced colors drops the accent fill (#3377): a thicker system-colour
+     border marks the pressed pill, padding cut to match. */
+  .mb-pill[aria-pressed="true"] {
+    border: 3px solid Highlight;
+    padding: 0 10px;
+  }
+}
+.mb-count {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+}
+/* Status pills (#4221) wear the CI pill's glyphs. Unpressed, only the glyph is
+   tinted, in the tone the row's pill uses; pressed, the pill takes the state's
+   pair and a 1px inset ring, so "selected" is the ring and aria-pressed, never
+   colour alone. The ring is a shadow, so a press moves nothing. */
+.mb-pill[data-status="failed"] {
+  --mb-tone: var(--critical);
+  --mb-tone-bg: var(--critical-bg);
+}
+.mb-pill[data-status="passed"] {
+  --mb-tone: var(--good);
+  --mb-tone-bg: var(--good-bg);
+}
+.mb-pill[data-status="running"],
+.mb-pill[data-status="awaiting_approval"] {
+  --mb-tone: var(--warning);
+  --mb-tone-bg: var(--warning-bg);
+}
+.mb-pill[data-status="cancelled"],
+.mb-pill[data-status="unknown"],
+.mb-pill[data-status="none"] {
+  --mb-tone: var(--ink-2);
+  --mb-tone-bg: var(--neutral-bg);
+}
+/* --border is 1.2:1 on the dark page; the control edge clears 3:1. */
+.mb-pill[data-status] {
+  border-color: var(--control-border);
+}
+.mb-pill[data-status]:hover {
+  border-color: var(--ink-3);
+}
+.mb-pill[data-status] .check-glyph {
+  color: var(--mb-tone);
+}
+.mb-pill[data-status][aria-pressed="true"] {
+  background: var(--mb-tone-bg);
+  border-color: var(--mb-tone-bg);
+  color: var(--mb-tone);
+  box-shadow: inset 0 0 0 1px currentColor;
+}
+@media (forced-colors: active) {
+  .mb-pill[data-status][aria-pressed="true"] {
+    border-color: Highlight;
+    box-shadow: none;
+  }
+}
+.mb-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* The 44px phone policy (#1753) runs to 760px, past the 420px layout break on
+   the Main branches page, so the pills get their height here. */
+@media (max-width: 760px) {
+  .mb-pill {
+    min-height: 44px;
+  }
 }
