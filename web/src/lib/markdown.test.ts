@@ -330,6 +330,29 @@ describe('item addresses in a body the dashboard tracks', () => {
     expect(html).toContain('href="/issues.html?issue=gitea/me/app/4"');
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/4250
+  test('say an untracked repository item address opens on the forge, bare or linked', async () => {
+    const note =
+      '<span class="sr-only"> (opens on the forge in a new tab)</span>';
+    const url = 'https://github.com/stranger/elsewhere/pull/9';
+    const bare = await renderMarkdown(`See ${url}\n`, opts);
+    expect(bare).toContain(`>${url}${note}</a>`);
+    const linked = await renderMarkdown(`[the fix](${url})`, opts);
+    expect(linked).toContain(`>the fix${note}</a>`);
+    expect(linked.match(/opens on the forge/g)).toHaveLength(1);
+  });
+
+  test('do not add the note to a link that is not an item of this forge', async () => {
+    for (const url of [
+      'https://github.com/o/r/issues/1#issuecomment-5',
+      'https://github.com/o/r/commit/abc1234',
+      'https://example.org/stranger/elsewhere/pull/1',
+    ]) {
+      const html = await renderMarkdown(`[t](${url})`, opts);
+      expect(html, url).not.toContain('opens on the forge');
+    }
+  });
+
   test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
     for (const url of [
       'https://github.com/stranger/elsewhere/pull/9',

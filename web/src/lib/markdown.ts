@@ -278,6 +278,9 @@ function references(state: StateCore): void {
           inLink++;
           continue;
         }
+        // An item of a repository the dashboard does not track goes to the
+        // forge, and says so like an untracked `#N` does.
+        if (dashboard && item) child.meta = { opensOnForge: true };
         inLink++;
       }
       if (child.type === 'link_close') {
