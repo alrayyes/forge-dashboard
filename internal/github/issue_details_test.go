@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
@@ -244,4 +245,53 @@ func TestGetIssueDetails_ANullIssueWithNoErrorIsANotFound(t *testing.T) {
 	var clientErr *dashboard.ClientError
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
+}
+
+func crossReference(source map[string]any, willClose bool) map[string]any {
+	return map[string]any{"willCloseTarget": willClose, "source": source}
+}
+
+func referencingItem(typename, repo string, number int, title, state string) map[string]any {
+	return map[string]any{
+		"__typename": typename, "number": number, "title": title, "state": state,
+		"url":        fmt.Sprintf("https://github.com/%s/issues/%d", repo, number),
+		"repository": map[string]any{"nameWithOwner": repo},
+	}
+}
+
+// What refers to an issue is the forge's own record, so a closed issue has it
+// whether or not the board lists it (#4271).
+func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
+	t.Parallel()
+
+	var queries []graphqlRequestBody
+	srv := issueDetailsServer(t, map[string]any{
+		"state": "CLOSED", "body": "x", "lastEditedAt": nil, "reactionGroups": []map[string]any{},
+		"comments": map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+		"timelineItems": map[string]any{"nodes": []map[string]any{
+			crossReference(referencingItem("Issue", "alrayyes/b", 3, "Follow-up", "CLOSED"), false),
+			crossReference(referencingItem("PullRequest", "alrayyes/a", 12, "Fix it", "MERGED"), true),
+			crossReference(referencingItem("PullRequest", "alrayyes/a", 12, "Fix it", "MERGED"), false),
+			{},
+		}},
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, queries, 1, "the references ride in the one request")
+	assert.Contains(t, queries[0].Query, "CROSS_REFERENCED_EVENT")
+	require.Len(t, got.References, 2, "one entry per item, and a node that isn't a cross reference is skipped")
+	// Newest first: the forge lists oldest first.
+	assert.Equal(t, 12, got.References[0].Number)
+	assert.Equal(t, "alrayyes/a", got.References[0].Repo)
+	assert.Equal(t, dashboard.ItemKindPullRequest, got.References[0].Kind)
+	assert.Equal(t, dashboard.ReferencedStateMerged, got.References[0].State)
+	assert.Equal(t, dashboard.RelationCloses, got.References[0].Relation, "a closing event wins over a mention of the same item")
+	assert.Equal(t, dashboard.ReferenceIncoming, got.References[0].Direction)
+	assert.Equal(t, dashboard.ForgeGitHub, got.References[0].Forge)
+	assert.Equal(t, "Fix it", got.References[0].Title)
+	assert.Equal(t, dashboard.ItemKindIssue, got.References[1].Kind)
+	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[1].State)
+	assert.Equal(t, dashboard.RelationMentions, got.References[1].Relation)
 }

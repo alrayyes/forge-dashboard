@@ -18,6 +18,17 @@ to Open without reopening the pop-up. If the forge can't be read, the pop-up
 says why and offers **Try again** instead of showing an empty thread. Escape or
 **Close details** returns you to the issue's row.
 
+The board's pills only know open pull requests, and a closed issue is not on
+the board. So when the board has no row for the issue (a closed one, opened from
+a pull request's pill or a `#12`), the Related band is drawn from the issue's
+own details instead: `references` lists the items that refer to it from the
+forge's timeline, issues as well as pull requests, each with its state (open,
+closed or merged), the newest first and at most 50. GitHub reads them in the
+same query; Forgejo reads the timeline once more. The timeline can't tell a
+`Refs` from a plain mention, so only a closing keyword is told apart: the rest
+are under "Mentioned by". An issue nothing refers to has no band. Commits that
+mention the issue are not listed.
+
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
 whether it is open, closed or merged, taken from the same answer. The status

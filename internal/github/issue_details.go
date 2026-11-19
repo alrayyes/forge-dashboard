@@ -39,6 +39,18 @@ fragment issueThread on Issue {
       reactionGroups { content users(first: 10) { totalCount nodes { login } } }
     }
   }
+  timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 100) {
+    nodes {
+      ... on CrossReferencedEvent {
+        willCloseTarget
+        source {
+          __typename
+          ... on Issue { number title url state repository { nameWithOwner } }
+          ... on PullRequest { number title url state repository { nameWithOwner } }
+        }
+      }
+    }
+  }
 }
 
 fragment pullRequestThread on PullRequest {
@@ -59,6 +71,18 @@ fragment pullRequestThread on PullRequest {
       reactionGroups { content users(first: 10) { totalCount nodes { login } } }
     }
   }
+  timelineItems(itemTypes: [CROSS_REFERENCED_EVENT], last: 100) {
+    nodes {
+      ... on CrossReferencedEvent {
+        willCloseTarget
+        source {
+          __typename
+          ... on Issue { number title url state repository { nameWithOwner } }
+          ... on PullRequest { number title url state repository { nameWithOwner } }
+        }
+      }
+    }
+  }
 }`
 
 var errIssueNotFound = errors.New("github: issue or pull request not found")
@@ -77,6 +101,9 @@ type issueDetailsResponse struct {
 			Title    string                `json:"title"`
 			Author   *graphqlDetailsAuthor `json:"author"`
 			graphqlDetailsThread
+			TimelineItems struct {
+				Nodes []crossReferenceNode `json:"nodes"`
+			} `json:"timelineItems"`
 		} `json:"issueOrPullRequest"`
 	} `json:"repository"`
 }
@@ -104,6 +131,7 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	item := resp.Repository.Item
 	details := threadDetails(item.graphqlDetailsThread)
 	details.Kind = dashboard.ItemKindIssue
+	details.References = incomingReferences(item.TimelineItems.Nodes)
 	if item.Typename == "PullRequest" {
 		details.Kind = dashboard.ItemKindPullRequest
 		details.PullRequest = &dashboard.IssuePullRequest{Title: item.Title, State: pullRequestStateOf(item.State)}
@@ -128,4 +156,49 @@ func pullRequestStateOf(state string) dashboard.ReferencedState {
 	default:
 		return dashboard.ReferencedStateOpen
 	}
+}
+
+// crossReferenceNode is one CROSS_REFERENCED_EVENT of an item's timeline: an
+// issue or pull request that names it. A node of another type comes back
+// empty.
+type crossReferenceNode struct {
+	WillCloseTarget bool `json:"willCloseTarget"`
+	Source          *struct {
+		Typename   string `json:"__typename"`
+		Number     int    `json:"number"`
+		Title      string `json:"title"`
+		URL        string `json:"url"`
+		State      string `json:"state"`
+		Repository struct {
+			NameWithOwner string `json:"nameWithOwner"`
+		} `json:"repository"`
+	} `json:"source"`
+}
+
+// incomingReferences turns the timeline's cross references into the items that
+// refer to this one. GitHub's timeline does not tell a reference from a
+// mention, so every one that does not close is a mention.
+func incomingReferences(nodes []crossReferenceNode) []dashboard.ItemReference {
+	var refs []dashboard.ItemReference
+	for _, node := range nodes {
+		src := node.Source
+		if src == nil || src.Number == 0 {
+			continue
+		}
+		relation := dashboard.RelationMentions
+		if node.WillCloseTarget {
+			relation = dashboard.RelationCloses
+		}
+		ref := dashboard.ItemReference{
+			Forge: dashboard.ForgeGitHub, Repo: src.Repository.NameWithOwner, Number: src.Number,
+			Title: src.Title, URL: src.URL, Kind: dashboard.ItemKindIssue,
+			State: pullRequestStateOf(src.State), Direction: dashboard.ReferenceIncoming, Relation: relation,
+		}
+		if src.Typename == "PullRequest" {
+			ref.Kind = dashboard.ItemKindPullRequest
+		}
+		refs = append(refs, ref)
+	}
+
+	return dashboard.NewestFirstReferences(refs)
 }

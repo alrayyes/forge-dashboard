@@ -205,6 +205,11 @@
   import { type MentionedIssue, mentionPills } from "#lib/mentioned-issues.js";
   import { relatedBandData } from "#lib/related-band.js";
   import {
+    type ItemReference,
+    incomingRows,
+    mergeRows,
+  } from "#lib/issue-references.js";
+  import {
     type LinkedPullRequest,
     linkedPills,
     linkedPillId,
@@ -586,6 +591,9 @@
   // The dialog opened as an issue found a pull request (#4188): the issue's
   // own actions and state go. Set once the board exists below.
   let pullRequestFound: () => void = () => {};
+  // An issue's details listed what refers to it (#4271). Set once the board
+  // exists below.
+  let issueReferencesRead: (references: ItemReference[]) => void = () => {};
   // A reference in the dialog's text was clicked (#3744), and whether the
   // dashboard tracks a repository. Set once the board exists below.
   let referenceFollowed: (
@@ -2700,6 +2708,33 @@
         detailsDialog?.setHeaderState(issueStateElement(closed));
     };
 
+    // The board's pills know open pull requests only, and a closed issue is
+    // not on the board at all. Its own details list what refers to it, so the
+    // band is drawn from them, as long as the board has no row for the issue:
+    // a listed one follows the snapshot's pills with every poll.
+    issueReferencesRead = (references) => {
+      const open = issueDialog;
+      if (!open || !detailsDialog) return;
+      if (listedIssue(open.forge, open.repo, open.number)) return;
+      const item = {
+        ...open.item,
+        ...mergeRows(
+          {
+            linkedPullRequests: open.item.linkedPullRequests ?? [],
+            referencedByPullRequests: open.item.referencedByPullRequests ?? [],
+            mentionedByPullRequests: open.item.mentionedByPullRequests ?? [],
+          },
+          incomingRows(references),
+        ),
+      };
+      const shown = attributesSignature(item);
+      if (shown === open.shown) return;
+      open.item = item;
+      open.shown = shown;
+      const status = issueStatus(item);
+      detailsDialog.setAttributes(status.attributes, status.related);
+    };
+
     pullRequestFound = () => {
       issueDialog = null;
       issueActions.dispose();
@@ -2732,7 +2767,13 @@
           list,
           undefined,
           linkedCi,
-          (linked) => followLinkedFromDialog(item, linked),
+          (linked) =>
+            linked.kind === "issue"
+              ? followReference(
+                  { ...linked, url: linked.url ?? "" },
+                  linkedPillId(prKey(item), linked),
+                )
+              : followLinkedFromDialog(item, linked),
           relation,
           true,
         );
@@ -11326,6 +11367,7 @@
   onClosed={() => detailsClosed()}
   onIssueState={(closed) => issueStateShown(closed)}
   onPullRequestFound={() => pullRequestFound()}
+  onReferences={(references) => issueReferencesRead(references)}
   onReference={(ref, triggerId) => referenceFollowed(ref, triggerId)}
   trackedRepo={(forge, repo) => repoTracked(forge, repo)}
 />

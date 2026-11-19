@@ -57,6 +57,19 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 			copied.Author = &linked
 			details.PullRequest = &copied
 		}
+		details.References = withPageURLs(details.References)
 		writeJSON(w, http.StatusOK, details)
 	}
+}
+
+// withPageURLs returns refs with the address that opens each on this
+// dashboard, and an empty list rather than nil.
+func withPageURLs(refs []dashboard.ItemReference) []dashboard.ItemReference {
+	out := make([]dashboard.ItemReference, 0, len(refs))
+	for _, ref := range refs {
+		ref.PageURL = dashboard.ReferencePageURL(ref)
+		out = append(out, ref)
+	}
+
+	return out
 }

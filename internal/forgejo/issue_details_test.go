@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,12 +12,22 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// noReferences answers the timeline of alrayyes/a#5, which the issue reads
+// for what refers to it, with nothing on it.
+func noReferences(t *testing.T, mux *http.ServeMux) {
+	t.Helper()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/timeline", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+}
+
 // An issue reads like a pull request's thread: Forgejo serves both through
 // the same issue endpoints, so only the first call differs.
 func TestGetIssueDetails_ReadsDescriptionCommentsAndReactions(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	noReferences(t, mux)
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"number": 5, "body": "The page loses its place.", "state": "open"})
 	})
@@ -65,6 +76,7 @@ func TestGetIssueDetails_ReportsAClosedIssueAsClosed(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	noReferences(t, mux)
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"number": 5, "body": "Done.", "state": "closed"})
 	})
@@ -87,6 +99,7 @@ func TestGetIssueDetails_AMissingIssueIsANotFound(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	noReferences(t, mux)
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		writeJSON(t, w, map[string]any{"message": "issue does not exist"})
@@ -119,6 +132,7 @@ func TestGetIssueDetails_SaysWhetherTheNumberIsAPullRequest(t *testing.T) {
 			t.Parallel()
 
 			mux := http.NewServeMux()
+			noReferences(t, mux)
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, tc.issue) })
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
@@ -152,6 +166,7 @@ func TestGetIssueDetails_APullRequestCarriesTheFactsItsHeaderNeeds(t *testing.T)
 			t.Parallel()
 
 			mux := http.NewServeMux()
+			noReferences(t, mux)
 			mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
 				writeJSON(t, w, map[string]any{
 					"number": 5, "title": "Add structured logging", "body": "x", "state": tc.state, "pull_request": tc.pr,
@@ -182,6 +197,7 @@ func TestGetIssueDetails_APullRequestWithNoPosterHasNoAuthor(t *testing.T) {
 	t.Parallel()
 
 	mux := http.NewServeMux()
+	noReferences(t, mux)
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{"number": 5, "title": "Gone", "body": "x", "state": "open", "pull_request": map[string]any{"merged": false}, "user": nil})
 	})
@@ -195,4 +211,70 @@ func TestGetIssueDetails_APullRequestWithNoPosterHasNoAuthor(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.PullRequest)
 	assert.Nil(t, got.PullRequest.Author)
+}
+
+func refEvent(kind, action, repo string, number int, state string, merged bool) map[string]any {
+	issue := map[string]any{
+		"number": number, "title": fmt.Sprintf("Item %d", number), "state": state,
+		"html_url":   fmt.Sprintf("https://git.example.com/%s/issues/%d", repo, number),
+		"repository": map[string]any{"full_name": repo},
+	}
+	if kind == "pull_ref" {
+		issue["pull_request"] = map[string]any{"merged": merged}
+	}
+
+	return map[string]any{"type": kind, "ref_action": action, "ref_issue": issue}
+}
+
+// What refers to an issue is on its timeline, so a closed issue has it whether
+// or not the board lists it (#4271).
+func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
+	t.Parallel()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "body": "Done.", "state": "closed"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/timeline", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []any{})
+
+			return
+		}
+		writeJSON(t, w, []any{
+			map[string]any{"type": "comment", "body": "A comment"},
+			refEvent("issue_ref", "neutered", "alrayyes/b", 3, "closed", false),
+			refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true),
+			refEvent("commit_ref", "neutered", "alrayyes/a", 0, "open", false),
+			refEvent("pull_ref", "neutered", "alrayyes/a", 13, "open", false),
+		})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 3, "comments and commits are not references")
+	// Newest first: the timeline lists oldest first.
+	assert.Equal(t, 13, got.References[0].Number)
+	assert.Equal(t, dashboard.ItemKindPullRequest, got.References[0].Kind)
+	assert.Equal(t, dashboard.ReferencedStateOpen, got.References[0].State)
+	assert.Equal(t, dashboard.RelationMentions, got.References[0].Relation)
+	assert.Equal(t, 12, got.References[1].Number)
+	assert.Equal(t, dashboard.ReferencedStateMerged, got.References[1].State)
+	assert.Equal(t, dashboard.RelationCloses, got.References[1].Relation)
+	assert.Equal(t, dashboard.ReferenceIncoming, got.References[1].Direction)
+	assert.Equal(t, dashboard.ForgeForgejo, got.References[1].Forge)
+	assert.Equal(t, "alrayyes/a", got.References[1].Repo)
+	assert.Equal(t, "https://git.example.com/alrayyes/a/issues/12", got.References[1].URL)
+	assert.Equal(t, 3, got.References[2].Number)
+	assert.Equal(t, dashboard.ItemKindIssue, got.References[2].Kind)
+	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[2].State)
 }
