@@ -224,7 +224,7 @@ test.describe('the refs pill on a pull request row', () => {
       .click();
 
     const popup = page.getByRole('dialog', { name: /^Pull request details/ });
-    await expect(popup.locator('.refs-issue')).toHaveText('Refs #12');
+    await expect(popup.locator('.refs-issue')).toHaveText('#12');
   });
 
   test('Escape in the pull request pop-up hides a showing tip first, then closes the pop-up', async ({

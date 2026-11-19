@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type MentionedIssue,
+  mentionDialogName,
   mentionPillName,
   mentionPillText,
 } from './mentioned-issues';
@@ -42,5 +43,19 @@ describe('mentionPillName', () => {
     expect(mentionPillName(mention({ tracked: false }), 'alrayyes/app')).toBe(
       'Mentions #12, opens on the forge',
     );
+  });
+});
+
+describe('mentionDialogName', () => {
+  test('leads with the relation and says where the pill goes', () => {
+    expect(mentionDialogName(mention(), 'alrayyes/app')).toBe(
+      'Mentions: #12, opens the issue',
+    );
+    expect(
+      mentionDialogName(
+        mention({ repo: 'alrayyes/lib', tracked: false }),
+        'alrayyes/app',
+      ),
+    ).toBe('Mentions: alrayyes/lib#12, opens on the forge');
   });
 });

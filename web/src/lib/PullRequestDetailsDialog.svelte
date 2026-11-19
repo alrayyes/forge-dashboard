@@ -1,10 +1,15 @@
 <script module lang="ts">
+  import type { RelatedBandData } from "./related-band";
+
   // The header's status, drawn by the row's own builders in Dashboard.svelte
   // so the two cannot drift (#1563): the CI slot and merge state, and the
   // attribute chips.
   export type DetailsStatus = {
     state: HTMLElement;
     attributes: HTMLElement;
+    // The Related band between the title block and the description (#4220);
+    // absent when nothing is related.
+    related?: RelatedBandData;
   };
 
   // The part of a row this dialog needs. An issue row opens the same dialog
@@ -67,6 +72,7 @@
   // GET /api/v1/pull-requests/details or GET /api/v1/issues/details, fetched when
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
+  import RelatedBand from "#lib/RelatedBand.svelte";
   import { tick } from "svelte";
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
@@ -301,21 +307,25 @@
   // The swap replaces the nodes, so a pill link holding keyboard focus would
   // drop it to the page. Focus goes back to the same link (by href) in the
   // new set, or to the close button when that pull request is gone.
-  export function setAttributes(attributes: HTMLElement) {
+  export function setAttributes(
+    attributes: HTMLElement,
+    related?: RelatedBandData,
+  ) {
     if (!target?.status) return;
     const held = document.activeElement;
     const href =
       held instanceof HTMLAnchorElement &&
-      target.status.attributes.contains(held)
+      (target.status.attributes.contains(held) ||
+        dialogEl?.querySelector(".related-band")?.contains(held))
         ? held.getAttribute("href")
         : null;
-    target = { ...target, status: { ...target.status, attributes } };
+    target = { ...target, status: { ...target.status, attributes, related } };
     if (href === null) return;
     void tick().then(() => {
       if (!dialogEl?.open) return;
       const same = [
         ...dialogEl.querySelectorAll<HTMLAnchorElement>(
-          ".details-attributes a[href]",
+          ".details-attributes a[href], .related-band a[href]",
         ),
       ].find((a) => a.getAttribute("href") === href);
       if (same) same.focus();
@@ -990,6 +1000,10 @@
     aria-atomic="true"
     bind:this={liveHost}
   ></div>
+
+  {#if target?.status?.related}
+    <RelatedBand band={target.status.related} />
+  {/if}
 
   <!-- What the pull request is waiting on or blocked by, in words. -->
   <div class="details-status-block" bind:this={statusHost} hidden></div>

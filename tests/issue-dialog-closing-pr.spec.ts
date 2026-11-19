@@ -135,7 +135,7 @@ const dialogPills = (page: Page) => dialog(page).locator('.linked-pr');
 const openDialog = (page: Page) =>
   page.locator('#issue-rows .row').first().locator('button.title').click();
 
-test('the dialog shows the closing pull request with the row pill, same name and text', async ({
+test('the dialog shows the closing pull request with the row pill text and its name led by the relation', async ({
   page,
 }) => {
   await mockBoard(page, () => [issue(1, [linked(12)])]);
@@ -145,7 +145,10 @@ test('the dialog shows the closing pull request with the row pill, same name and
   await expect(dialog(page)).toBeVisible();
   await expect(dialogPills(page)).toHaveCount(1);
   const name = await rowPills(page).getAttribute('aria-label');
-  await expect(dialogPills(page)).toHaveAttribute('aria-label', name ?? '');
+  await expect(dialogPills(page)).toHaveAttribute(
+    'aria-label',
+    `Closed by: ${(name ?? '').replace(/, closes this issue$/, '')}`,
+  );
   await expect(dialogPills(page)).toHaveText(
     (await rowPills(page).textContent()) ?? '',
   );
@@ -224,8 +227,8 @@ test('the pills follow the pull request list while the dialog stays open', async
   await refresh();
   await expect(dialogPills(page)).toHaveCount(1);
   await expect(dialog(page)).toBeVisible();
-  await expect(group('Attributes when opened')).toBeVisible();
-  await expect(group('Labels when opened')).toHaveCount(0);
+  await expect(dialog(page).locator('.related-band')).toBeVisible();
+  await expect(group('Labels when opened')).toBeVisible();
   await expect(dialog(page)).toHaveAttribute('aria-label', name ?? '');
 
   list = [linked(12, { draft: true }), linked(13)];
@@ -238,7 +241,7 @@ test('the pills follow the pull request list while the dialog stays open', async
   await expect(dialogPills(page)).toHaveCount(0);
   await expect(dialog(page)).toBeVisible();
   await expect(group('Labels when opened')).toBeVisible();
-  await expect(group('Attributes when opened')).toHaveCount(0);
+  await expect(dialog(page).locator('.related-band')).toHaveCount(0);
   await expect(dialog(page)).toHaveAttribute('aria-label', name ?? '');
 });
 
@@ -398,7 +401,7 @@ test(`has no axe violations with a closing pull request in the dialog, light and
   }
 });
 
-test('the dialog lists the referencing pull requests under Referenced in, after the closing one, and follows a poll', async ({
+test('the dialog lists the referencing pull requests under Referenced by, after the closing one, and follows a poll', async ({
   page,
 }) => {
   let list = [issue(1, [linked(12)], [linked(13)])];
@@ -408,14 +411,15 @@ test('the dialog lists the referencing pull requests under Referenced in, after 
 
   await expect(dialog(page)).toBeVisible();
   await expect(dialogPills(page)).toHaveCount(2);
-  await expect(dialog(page).locator('.mentioned-by-label')).toHaveText(
-    'Referenced in',
-  );
+  await expect(dialog(page).locator('.related-label')).toHaveText([
+    'Closed by',
+    'Referenced by',
+  ]);
   await expect(dialogPills(page).first()).toHaveAccessibleName(
-    /^Pull request #12.*, closes this issue$/,
+    /^Closed by: Pull request #12 /,
   );
   await expect(dialogPills(page).last()).toHaveAccessibleName(
-    /^Pull request #13.*, references, does not close this issue$/,
+    /^Referenced by: Pull request #13 /,
   );
 
   list = [issue(1, [linked(12)], [linked(13), linked(14)])];

@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type LinkedPullRequest,
+  linkedDialogName,
   linkedMoreName,
   linkedPillClass,
   linkedPillId,
@@ -243,5 +244,48 @@ describe('the forges a pull request address accepts', () => {
     } finally {
       resetForgeCapabilities();
     }
+  });
+});
+
+// In the Related band a pill's name leads with the row's relation, then the
+// same words the row's pill says (#4220, AC7): one form for every pill.
+describe('linkedDialogName', () => {
+  const ci = {
+    badge: {} as HTMLElement,
+    label: 'Running',
+    segments: [
+      { kind: 'passed' as const, n: 3 },
+      { kind: 'failed' as const, n: 1 },
+    ],
+  };
+
+  test('leads with the relation, then the number, the draft word and the pipeline in words', () => {
+    expect(
+      linkedDialogName(pr({ number: 142, draft: true }), 'alrayyes/app', ci),
+    ).toBe(
+      'Closed by: Pull request #142 draft Running 3 1: 3 passed, 1 failed',
+    );
+  });
+
+  test('says the other relations by their row labels', () => {
+    expect(linkedDialogName(pr(), 'alrayyes/app', null, 'refs')).toBe(
+      'Referenced by: Pull request #12',
+    );
+    expect(linkedDialogName(pr(), 'alrayyes/app', null, 'mentions')).toBe(
+      'Mentioned by: Pull request #12',
+    );
+  });
+
+  test('names the repo of a pull request in another one', () => {
+    expect(
+      linkedDialogName(pr({ repo: 'alrayyes/other' }), 'alrayyes/app'),
+    ).toBe('Closed by: Pull request alrayyes/other#12');
+  });
+
+  test('contains the pill visible text', () => {
+    const p = pr({ draft: true });
+    expect(linkedDialogName(p, 'alrayyes/app', ci)).toContain(
+      linkedPillText(p, 'alrayyes/app', ci),
+    );
   });
 });

@@ -190,6 +190,7 @@
     parseIssueAddress,
   } from "#lib/closing-issues.js";
   import { type MentionedIssue, mentionPills } from "#lib/mentioned-issues.js";
+  import { relatedBandData } from "#lib/related-band.js";
   import {
     type LinkedPullRequest,
     linkedPills,
@@ -1707,32 +1708,42 @@
       }
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      // Links, so a modified click still opens the page in a new tab, but a
-      // plain click swaps this dialog for the issue's, on this page.
-      const closing = closingPills(
-        prKey(item),
-        item.repo,
-        item.closesIssues,
-        undefined,
-        (issue) => followIssueFromDialog(item, issue),
+      // The tickets it closes, references and mentions sit in the Related
+      // band, not here (#4220).
+      const related = relatedBandData(
+        "pull-request",
+        {
+          closes: item.closesIssues,
+          refs: item.refsIssues,
+          mentions: item.mentionsIssues,
+        },
+        {
+          closes: closingPills(
+            `${prKey(item)}:dialog`,
+            item.repo,
+            item.closesIssues,
+            undefined,
+            (issue) => followIssueFromDialog(item, issue),
+            true,
+          ),
+          refs: closingPills(
+            `${prKey(item)}:dialog:refs`,
+            item.repo,
+            item.refsIssues,
+            undefined,
+            (issue) => followIssueFromDialog(item, issue),
+            true,
+          ),
+          mentions: mentionPills(
+            `${prKey(item)}:dialog`,
+            item.repo,
+            item.mentionsIssues,
+            (issue) => followIssueFromDialog(item, issue),
+            true,
+          ),
+        },
       );
-      if (closing) attributes.appendChild(closing);
-      const refs = closingPills(
-        `${prKey(item)}:refs`,
-        item.repo,
-        item.refsIssues,
-        undefined,
-        (issue) => followIssueFromDialog(item, issue),
-      );
-      if (refs) attributes.appendChild(refs);
-      const mentions = mentionPills(
-        `${prKey(item)}:mentions`,
-        item.repo,
-        item.mentionsIssues,
-        (issue) => followIssueFromDialog(item, issue),
-      );
-      if (mentions) attributes.appendChild(mentions);
-      return { state, attributes };
+      return { state, attributes, related };
     }
 
     // ---- the details dialog's footer (#943) ----
@@ -2337,7 +2348,8 @@
         if (shown !== open.shown) {
           open.item = item;
           open.shown = shown;
-          detailsDialog.setAttributes(issueStatus(item).attributes);
+          const status = issueStatus(item);
+          detailsDialog.setAttributes(status.attributes, status.related);
         }
       }
       const now = listed?.updatedAt;
@@ -2725,65 +2737,42 @@
       attributes.setAttribute("aria-label", "Labels when opened");
       for (const label of item.labels ?? [])
         attributes.appendChild(el("span", "attr-chip label", label.name));
-      // The pull requests that will close it, as the row's pills. Links here,
-      // so a modified click still opens the page in a new tab, but a plain
-      // click swaps this dialog for the pull request's, on this page.
-      const pills = linkedPills(
-        prKey(item),
-        item.repo,
-        item.linkedPullRequests,
-        undefined,
-        linkedCi,
-        (linked) => followLinkedFromDialog(item, linked),
-      );
-      if (pills) {
-        attributes.setAttribute("aria-label", "Attributes when opened");
-        attributes.appendChild(pills);
-      }
-      // The pull requests that reference it, then the ones that only mention
-      // it, each under a label that says so; nothing at all when none does.
-      const referenced = linkedPills(
-        `${prKey(item)}:refs`,
-        item.repo,
-        item.referencedByPullRequests,
-        undefined,
-        linkedCi,
-        (linked) => followLinkedFromDialog(item, linked),
-        "refs",
-      );
-      if (referenced) {
-        attributes.setAttribute("aria-label", "Attributes when opened");
-        const group = el("span", "mentioned-by");
-        group.append(
-          el("span", "mentioned-by-label", "Referenced in"),
-          referenced,
-          el(
-            "span",
-            "mentioned-by-hint",
-            "Italic: these reference the issue, they do not close it.",
+      // The pull requests that close, reference or mention it sit in the
+      // Related band. Links, so a modified click still opens the page in a new
+      // tab, but a plain click swaps this dialog for the pull request's.
+      const pills = (
+        key: string,
+        list: LinkedPullRequest[] | undefined,
+        relation: "closes" | "refs" | "mentions",
+      ) =>
+        linkedPills(
+          `${prKey(item)}${key}`,
+          item.repo,
+          list,
+          undefined,
+          linkedCi,
+          (linked) => followLinkedFromDialog(item, linked),
+          relation,
+          true,
+        );
+      const related = relatedBandData(
+        "issue",
+        {
+          closes: item.linkedPullRequests,
+          refs: item.referencedByPullRequests,
+          mentions: item.mentionedByPullRequests,
+        },
+        {
+          closes: pills(":dialog", item.linkedPullRequests, "closes"),
+          refs: pills(":dialog:refs", item.referencedByPullRequests, "refs"),
+          mentions: pills(
+            ":dialog:mentions",
+            item.mentionedByPullRequests,
+            "mentions",
           ),
-        );
-        attributes.appendChild(group);
-      }
-      const mentioned = linkedPills(
-        `${prKey(item)}:mentions`,
-        item.repo,
-        item.mentionedByPullRequests,
-        undefined,
-        linkedCi,
-        (linked) => followLinkedFromDialog(item, linked),
-        "mentions",
+        },
       );
-      if (mentioned) {
-        attributes.setAttribute("aria-label", "Attributes when opened");
-        const group = el("span", "mentioned-by");
-        group.append(
-          el("span", "mentioned-by-label", "Mentioned in"),
-          mentioned,
-        );
-        attributes.appendChild(group);
-      }
-      return { state, attributes };
+      return { state, attributes, related };
     }
 
     // An armed confirm in the footer ends on the first Escape, and goes

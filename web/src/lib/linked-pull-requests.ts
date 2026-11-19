@@ -11,6 +11,7 @@ import {
 import { isKnownForge } from './forges';
 import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
+import { foldedPills, relationLabel } from './related-band.js';
 
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
 export type LinkedPullRequest = {
@@ -86,6 +87,26 @@ export function linkedPillName(
 
 /** What a pull request does to the issue its pill sits on. */
 export type Relation = 'closes' | 'refs' | 'mentions';
+
+/**
+ * The pill's accessible name in the Related band: the row's relation first,
+ * then the words the row's pill says, with no relation after them. One form
+ * for every pill in the band (#4220).
+ */
+export function linkedDialogName(
+  pr: LinkedPullRequest,
+  issueRepo: string,
+  ci?: PillCi | null,
+  relation: Relation = 'closes',
+) {
+  const head = `Pull request ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
+  const said = ci
+    ? ci.segments.length > 0
+      ? pillName(ci.label, ci.segments)
+      : ci.label
+    : '';
+  return `${relationLabel('issue', relation)}: ${said ? `${head} ${said}` : head}`;
+}
 
 /** The pill's classes: a ref and a mention are each drawn apart from a close. */
 export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
@@ -184,7 +205,9 @@ export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
  * reader is, and hands over the pill's id so focus can return to it. Without
  * it, the pill is a link to the pull request page with its pop-up open; with
  * onFollow too, a plain click on that link calls it instead of leaving the page.
- * With renderCi, a pill whose pull request has a pipeline carries it.
+ * With renderCi, a pill whose pull request has a pipeline carries it. With
+ * inDialog, the pills are the Related band's: names that lead with the
+ * relation, and the band's own fold.
  */
 export function linkedPills(
   issueKey: string,
@@ -194,6 +217,7 @@ export function linkedPills(
   renderCi?: PillCiRenderer,
   onFollow?: (pr: LinkedPullRequest) => void,
   relation: Relation = 'closes',
+  inDialog = false,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -243,13 +267,22 @@ export function linkedPills(
     }
     link.setAttribute(
       'aria-label',
-      linkedPillName(pr, issueRepo, ci, relation),
+      inDialog
+        ? linkedDialogName(pr, issueRepo, ci, relation)
+        : linkedPillName(pr, issueRepo, ci, relation),
     );
     link.title = linkedPillTitle(relation);
     return relation === 'refs'
       ? addPillTip(link, linkedPillTitle(relation))
       : link;
   };
+  if (inDialog)
+    return foldedPills(
+      `${issueKey}:linked:${relation}`,
+      list,
+      pill,
+      `pull requests that ${MORE_WORDING[relation]} this issue`,
+    );
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
 

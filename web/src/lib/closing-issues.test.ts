@@ -2,6 +2,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
   type ClosingIssue,
+  closingDialogName,
+  closingDialogText,
   closingPillClass,
   closingPillId,
   closingPillName,
@@ -211,5 +213,28 @@ describe('the forges an issue address accepts', () => {
     } finally {
       resetForgeCapabilities();
     }
+  });
+});
+
+// In a dialog the pill sits under a row label that says the relation, so its
+// text is the bare number and its name leads with the relation (#4220).
+describe('the pill in the Related band', () => {
+  test('shows the bare number, with the repo when it is another one', () => {
+    expect(closingDialogText(issue(), 'alrayyes/app')).toBe('#12');
+    expect(
+      closingDialogText(issue({ repo: 'alrayyes/lib' }), 'alrayyes/app'),
+    ).toBe('alrayyes/lib#12');
+  });
+
+  test('names the relation first and contains the visible text', () => {
+    expect(closingDialogName(issue(), 'alrayyes/app')).toBe(
+      'Closes: #12, opens the issue',
+    );
+    expect(closingDialogName(issue({ relation: 'refs' }), 'alrayyes/app')).toBe(
+      'Refs: #12, does not close, opens the issue',
+    );
+    expect(
+      closingDialogName(issue({ repo: 'alrayyes/lib' }), 'alrayyes/app'),
+    ).toBe('Closes: alrayyes/lib#12, opens the issue');
   });
 });

@@ -1,0 +1,200 @@
+// The Related band at the top of the pull request and issue dialogs (#4220):
+// which rows it has, how many items it counts and how a row folds. The pill
+// markup itself stays with the row builders (closing-issues.ts,
+// mentioned-issues.ts, linked-pull-requests.ts), which draw a dialog's pills
+// when they are handed `inDialog`; this module is what they share. It imports
+// nothing from them, so each can import it.
+
+import { focusPill } from './pill-tip.js';
+
+/** How many pills a row of the band shows before the rest wait behind a count. List rows keep their own, SHOWN_PILLS. */
+export const DIALOG_SHOWN_PILLS = 6;
+
+/** What a pull request does to an issue, or an issue to a pull request. */
+export type RelatedRelation = 'closes' | 'refs' | 'mentions';
+
+/** Whose dialog the band sits in. */
+export type RelatedSide = 'pull-request' | 'issue';
+
+const LABELS: Record<RelatedSide, Record<RelatedRelation, string>> = {
+  'pull-request': {
+    closes: 'Closes',
+    refs: 'Refs',
+    mentions: 'Mentions',
+  },
+  issue: {
+    closes: 'Closed by',
+    refs: 'Referenced by',
+    mentions: 'Mentioned by',
+  },
+};
+
+/** A row's label, which is also the relation an accessible name leads with. */
+export const relationLabel = (side: RelatedSide, relation: RelatedRelation) =>
+  LABELS[side][relation];
+
+/** The italic cue's words. Refs and mentions pills are drawn dotted and italic. */
+export function relatedHint(side: RelatedSide, relation: RelatedRelation) {
+  if (relation === 'closes') return '';
+  const verb = relation === 'refs' ? 'reference' : 'mention';
+  return side === 'issue'
+    ? `Italic: these ${verb} the issue, they do not close it.`
+    : `Italic: this pull request ${verb}s these, it does not close them.`;
+}
+
+/** The pills a row shows, and the ones kept behind the count. */
+export function foldSplit<T>(list: T[], limit: number = DIALOG_SHOWN_PILLS) {
+  return { shown: list.slice(0, limit), rest: list.slice(limit) };
+}
+
+/** The toggle's visible text. */
+export const foldToggleText = (rest: number, expanded: boolean) =>
+  expanded ? 'Show fewer' : `+${rest} more`;
+
+/**
+ * The toggle's accessible name. It starts with the visible text (WCAG 2.5.3)
+ * and then says what the button does to which pills.
+ */
+export function foldToggleName(rest: number, expanded: boolean, what: string) {
+  const text = foldToggleText(rest, expanded);
+  return expanded
+    ? `${text}, hides ${rest} ${what}`
+    : `${text}, ${rest} more ${what}`;
+}
+
+type Ref = { repo: string; number: number };
+
+/** The distinct items across the rows, not the rows: one item in two rows counts once. */
+export function relatedCount(lists: (readonly Ref[] | undefined)[]) {
+  const seen = new Set<string>();
+  for (const list of lists)
+    for (const item of list ?? [])
+      seen.add(`${item.repo.toLowerCase()}#${item.number}`);
+  return seen.size;
+}
+
+export type RelatedRow = {
+  relation: RelatedRelation;
+  label: string;
+  /** Whether the row carries the italic hint. */
+  hint: boolean;
+};
+
+/** The rows the band has, in order. A row with no items is left out, and so is the band when none has. */
+export function relatedRows(
+  side: RelatedSide,
+  lists: Partial<Record<RelatedRelation, readonly unknown[] | undefined>>,
+): RelatedRow[] {
+  const order: RelatedRelation[] = ['closes', 'refs', 'mentions'];
+  return order
+    .filter((relation) => (lists[relation]?.length ?? 0) > 0)
+    .map((relation) => ({
+      relation,
+      label: relationLabel(side, relation),
+      hint: relation !== 'closes',
+    }));
+}
+
+export type RelatedBandRow = RelatedRow & {
+  /** The italic cue's words, empty for a row with none. */
+  hintText: string;
+  /** The row's pills, as the row builders draw them. */
+  node: HTMLElement;
+};
+
+export type RelatedBandData = { count: number; rows: RelatedBandRow[] };
+
+/**
+ * The band for one dialog: the rows that have items and a node, the count of
+ * distinct items, and undefined when there is nothing to show.
+ */
+export function relatedBandData(
+  side: RelatedSide,
+  lists: Partial<Record<RelatedRelation, readonly Ref[] | undefined>>,
+  nodes: Partial<Record<RelatedRelation, HTMLElement | null>>,
+): RelatedBandData | undefined {
+  const rows = relatedRows(side, lists).flatMap((row) => {
+    const node = nodes[row.relation];
+    return node
+      ? [{ ...row, hintText: relatedHint(side, row.relation), node }]
+      : [];
+  });
+  if (rows.length === 0) return undefined;
+  return {
+    count: relatedCount([lists.closes, lists.refs, lists.mentions]),
+    rows,
+  };
+}
+
+/** A row's pills whose hidden ones the reader opened, so a redrawn band keeps them open. */
+const expanded = new Set<string>();
+
+/**
+ * Draws a band row's pills: the first DIALOG_SHOWN_PILLS, and when more are
+ * kept back one persistent toggle after them. It stays where it is, reads
+ * "+N more" and then "Show fewer", and reports `aria-expanded`.
+ */
+export function foldedPills<T>(
+  key: string,
+  list: T[],
+  pill: (item: T) => HTMLElement,
+  what: string,
+): HTMLElement {
+  const wrap = document.createElement('span');
+  wrap.className = 'linked-prs';
+  const { shown, rest } = foldSplit(list);
+  wrap.append(...shown.map(pill));
+  if (rest.length === 0) return wrap;
+
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'linked-pr-more related-toggle';
+  const extra = rest.map(pill);
+  const draw = (open: boolean) => {
+    // The chevron is a node of its own: the pills' ::after is the phone hit area.
+    const chevron = document.createElement('span');
+    chevron.className = 'related-chevron';
+    chevron.setAttribute('aria-hidden', 'true');
+    toggle.replaceChildren(foldToggleText(rest.length, open), chevron);
+    toggle.setAttribute('aria-label', foldToggleName(rest.length, open, what));
+    toggle.setAttribute('aria-expanded', String(open));
+    if (open) toggle.before(...extra);
+    else for (const node of extra) node.remove();
+  };
+  toggle.addEventListener('click', () => {
+    const open = toggle.getAttribute('aria-expanded') !== 'true';
+    draw(open);
+    if (open) expanded.add(key);
+    else expanded.delete(key);
+    if (open) focusPill(extra[0]);
+  });
+  wrap.append(toggle);
+  draw(expanded.has(key));
+  return wrap;
+}
+
+/**
+ * Puts a cross-repo number in two nodes, so the repo alone is cut short with
+ * an ellipsis and the number stays whole. Returns false, adding nothing, for a
+ * bare number.
+ */
+export function appendRepoRef(
+  link: HTMLElement,
+  repo: string,
+  number: number,
+  bare: boolean,
+): boolean {
+  if (bare) return false;
+  const refNode = document.createElement('span');
+  refNode.className = 'linked-pr-ref';
+  const repoNode = document.createElement('span');
+  repoNode.className = 'linked-pr-repo';
+  repoNode.textContent = repo;
+  repoNode.title = repo;
+  const numberNode = document.createElement('span');
+  numberNode.className = 'linked-pr-number';
+  numberNode.textContent = `#${number}`;
+  refNode.append(repoNode, numberNode);
+  link.append(refNode);
+  return true;
+}
