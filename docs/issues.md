@@ -201,18 +201,20 @@ whose `Closes` doesn't close, because it aims at a branch other than the
 default, is listed here. The
 server works this out from the pull requests it already holds, so it costs the
 forge no request. The
-issue's pop-up lists them after "Mentioned in", drawn like the closing pull
-requests, and a plain click swaps the pop-up for that pull request's. The label
-and the pills are absent when no pull request mentions the issue. The rows don't
-show them. Pull requests that reference the issue are on the rows and in the
-pop-up under "Referenced in", drawn with a dotted outline and italic text,
+issue's pop-up lists them under "Mentioned by" in its Related band, drawn like
+the closing pull requests, and a plain click swaps the pop-up for that pull
+request's. The row is absent when no pull request mentions the issue. The rows
+don't show them. Pull requests that reference the issue are on the rows and in
+the Related band under "Referenced by", drawn with a dotted outline and italic
+text,
 after the closing pills; a row shows two of several and a count that opens the
-rest. Upright means the pull request closes the issue, italic means it only
-references it. A pill says so in its tooltip ("References this issue, does
+rest, and the band shows six and a "+N more" toggle that folds back. Upright
+means the pull request closes the issue, italic means it only references it.
+A pill says so in its tooltip ("References this issue, does
 not close it") and in its accessible name. The same sentence shows under the
 pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
 and the pill keeps focus. The pop-up spells it out under
-"Referenced in" ("Italic: these reference the issue, they do not close it.")
+"Referenced by" ("Italic: these reference the issue, they do not close it.")
 so a phone reader gets it without hover. Settings repeats it under
 Behaviour, in the Issues card: upright means the pull request closes the
 issue, italic means it only references it and does not close it. How a
