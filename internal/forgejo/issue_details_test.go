@@ -278,3 +278,42 @@ func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
 	assert.Equal(t, dashboard.ItemKindIssue, got.References[2].Kind)
 	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[2].State)
 }
+
+// issueWithTimeline serves alrayyes/a#5 with an empty thread and the given
+// timeline handler.
+func issueWithTimeline(t *testing.T, timeline http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "body": "Body.", "state": "open"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/timeline", timeline)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// The timeline only adds references, so a timeline that fails must not hide
+// the description and comments (#4305).
+func TestGetIssueDetails_ATimelineErrorLeavesTheIssueWithoutReferences(t *testing.T) {
+	t.Parallel()
+
+	for name, handler := range map[string]http.HandlerFunc{
+		"server error": func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) },
+		"bad body":     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("not json")) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := issueWithTimeline(t, handler)
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, "Body.", got.Description.Text)
+			assert.Empty(t, got.References)
+		})
+	}
+}
