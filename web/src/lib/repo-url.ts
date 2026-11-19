@@ -4,7 +4,8 @@
 // page the item's address and owns the forge's URL scheme; this only strips
 // the tail it already knows the shape of, so a reference such as `#12` can be
 // linked against the same repository.
-const ITEM_TAIL = /\/(?:pulls?|issues)\/\d+\/?$/;
+// A release's address ends in `/releases` or `/releases/tag/<tag>` on both.
+const ITEM_TAIL = /\/(?:(?:pulls?|issues)\/\d+|releases(?:\/tag\/[^?#]+)?)\/?$/;
 
 export function repoUrlOf(itemUrl: string): string | null {
   if (!/^https?:\/\//i.test(itemUrl)) return null;

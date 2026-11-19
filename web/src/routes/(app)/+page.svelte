@@ -1285,4 +1285,11 @@
 
 <PipelineDialog bind:this={pipeline} />
 <AdvisoriesDialog bind:this={advisories} />
-<PullRequestDetailsDialog bind:this={releaseDialog} />
+<PullRequestDetailsDialog
+  bind:this={releaseDialog}
+  trackedRepo={(forge, repo) =>
+    branches.some(
+      (b) =>
+        b.forge === forge && b.fullName.toLowerCase() === repo.toLowerCase(),
+    )}
+/>
