@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.2](https://github.com/alrayyes/forge-dashboard/compare/v9.88.1...v9.88.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** keep focus on the pill the reader had when a pull request is in two rows ([#4363](https://github.com/alrayyes/forge-dashboard/issues/4363)) ([fa6baef](https://github.com/alrayyes/forge-dashboard/commit/fa6baef492629a974da33e01007f199d69161cb1)), closes [#4354](https://github.com/alrayyes/forge-dashboard/issues/4354)
+
 ## [9.88.1](https://github.com/alrayyes/forge-dashboard/compare/v9.88.0...v9.88.1) (2026-11-19)
 
 
