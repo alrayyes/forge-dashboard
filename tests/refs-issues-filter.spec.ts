@@ -316,7 +316,7 @@ test.describe('the refs pill on an issue row', () => {
     await expect(pill.locator('xpath=following-sibling::*')).toHaveCount(0);
   });
 
-  test('is in the issue pop-up under Referenced in, with no axe violations', async ({
+  test('is in the issue pop-up under Referenced by, with no axe violations', async ({
     page,
   }) => {
     await open(page, '/issues.html');
@@ -327,12 +327,12 @@ test.describe('the refs pill on an issue row', () => {
 
     const popup = page.getByRole('dialog', { name: /^Issue details/ });
     await expect(popup).toBeVisible();
-    await expect(popup.locator('.mentioned-by-label')).toHaveText(
-      'Referenced in',
-    );
+    await expect(popup.locator('.related-label')).toContainText([
+      'Referenced by',
+    ]);
     await expect(popup.locator('.refs-pill')).toHaveCount(2);
     // Reachable without hover, so a phone reader gets it too.
-    await expect(popup.locator('.mentioned-by-hint')).toHaveText(
+    await expect(popup.locator('.related-hint')).toHaveText(
       'Italic: these reference the issue, they do not close it.',
     );
     const results = await new AxeBuilder({ page })

@@ -261,6 +261,7 @@ const singleUserSpecs = [
   '**/closing-issues.spec.ts',
   '**/address-open-focus.spec.ts',
   '**/refs-pills.spec.ts',
+  '**/related-band.spec.ts',
   '**/reference-links-open-dialog.spec.ts',
   '**/reference-to-pull-request.spec.ts',
   '**/refs-issues-filter.spec.ts',

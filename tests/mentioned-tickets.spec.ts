@@ -132,8 +132,8 @@ test.describe('the pull request dialog', () => {
 
     const pill = prDialog(page).locator('.mention-pill');
     await expect(pill).toHaveCount(1);
-    await expect(pill).toHaveText('Mentions #20');
-    await expect(pill).toHaveAccessibleName('Mentions #20, opens the issue');
+    await expect(pill).toHaveText('#20');
+    await expect(pill).toHaveAccessibleName('Mentions: #20, opens the issue');
     await expect(pill).toHaveAttribute('href', mention(20).pageUrl);
   });
 
@@ -150,23 +150,23 @@ test.describe('the pull request dialog', () => {
     await openPullRequest(page);
 
     const pill = prDialog(page).locator('.mention-pill');
-    await expect(pill).toHaveText('Mentions alrayyes/other#4');
+    await expect(pill).toHaveText('alrayyes/other#4');
     await expect(pill).toHaveAccessibleName(
-      'Mentions alrayyes/other#4, opens on the forge',
+      'Mentions: alrayyes/other#4, opens on the forge',
     );
     await expect(pill).toHaveAttribute('href', other.url);
     await expect(pill).toHaveAttribute('target', '_blank');
     await expect(pill).toHaveAttribute('rel', /noopener/);
   });
 
-  test('folds mentions past the second behind a count that opens them', async ({
+  test('folds mentions past the sixth behind one toggle that opens them and folds them again', async ({
     page,
   }) => {
     await mockBoard(page, {
       pullRequests: [
         pullRequest(
           1,
-          [20, 21, 22, 23].map((n) => mention(n)),
+          [20, 21, 22, 23, 24, 25, 26, 27].map((n) => mention(n)),
         ),
       ],
     });
@@ -174,14 +174,22 @@ test.describe('the pull request dialog', () => {
     await openPullRequest(page);
 
     const pills = prDialog(page).locator('.mention-pill');
-    await expect(pills).toHaveCount(2);
-    const more = prDialog(page).getByRole('button', {
-      name: '2 more issues that this pull request mentions',
-    });
-    await expect(more).toHaveText('2 more');
-    await more.click();
-    await expect(pills).toHaveCount(4);
-    await expect(pills.nth(2)).toBeFocused();
+    await expect(pills).toHaveCount(6);
+    const toggle = prDialog(page).locator('.related-toggle');
+    await expect(toggle).toHaveText('+2 more');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toHaveAccessibleName(
+      '+2 more, 2 more issues that this pull request mentions',
+    );
+    await toggle.click();
+    await expect(pills).toHaveCount(8);
+    await expect(pills.nth(6)).toBeFocused();
+    await expect(toggle).toHaveText('Show fewer');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await toggle.click();
+    await expect(pills).toHaveCount(6);
+    await expect(toggle).toHaveText('+2 more');
+    await expect(toggle).toBeFocused();
   });
 
   test('shows nothing when no ticket is mentioned', async ({ page }) => {
@@ -191,7 +199,7 @@ test.describe('the pull request dialog', () => {
 
     await expect(prDialog(page)).toBeVisible();
     await expect(prDialog(page).locator('.mention-pill')).toHaveCount(0);
-    await expect(prDialog(page).getByText(/Mentions/)).toHaveCount(0);
+    await expect(prDialog(page).locator('.related-band')).toHaveCount(0);
   });
 });
 
@@ -205,11 +213,9 @@ test.describe('the issue dialog', () => {
 
     const pill = issueDialog(page).locator('.mention-pill');
     await expect(pill).toHaveCount(1);
-    await expect(pill).toHaveAccessibleName(
-      /^Pull request #7.*mentions this issue$/,
-    );
+    await expect(pill).toHaveAccessibleName(/^Mentioned by: Pull request #7 /);
     await expect(pill).toHaveAttribute('href', mentioning(7).pageUrl);
-    await expect(issueDialog(page).getByText('Mentioned in')).toBeVisible();
+    await expect(issueDialog(page).getByText('Mentioned by')).toBeVisible();
   });
 
   test('has no label or pill when no pull request mentions it', async ({
@@ -221,7 +227,7 @@ test.describe('the issue dialog', () => {
 
     await expect(issueDialog(page)).toBeVisible();
     await expect(issueDialog(page).locator('.mention-pill')).toHaveCount(0);
-    await expect(issueDialog(page).getByText('Mentioned in')).toHaveCount(0);
+    await expect(issueDialog(page).locator('.related-band')).toHaveCount(0);
   });
 });
 

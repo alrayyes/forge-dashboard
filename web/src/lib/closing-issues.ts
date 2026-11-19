@@ -1,6 +1,7 @@
 import { isKnownForge } from './forges';
 import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
+import { appendRepoRef, foldedPills } from './related-band.js';
 
 // The pills on a pull request that link to the issues it will close, and the
 // address that opens one of them on the Issues page. The server decides which
@@ -33,6 +34,18 @@ export const issueNumber = (issue: ClosingIssue, prRepo: string) =>
 export function closingPillText(issue: ClosingIssue, prRepo: string) {
   const word = issue.relation === 'refs' ? 'Refs' : 'Closes';
   return `${word} ${issueNumber(issue, prRepo)}`;
+}
+
+/** What the pill shows in the Related band: the bare number, with the repo when it is not the pull request's. The row label says the relation. */
+export const closingDialogText = (issue: ClosingIssue, prRepo: string) =>
+  issueNumber(issue, prRepo);
+
+/** The pill's accessible name in the band: the relation first, then the number it contains and where the pill goes. */
+export function closingDialogName(issue: ClosingIssue, prRepo: string) {
+  const number = issueNumber(issue, prRepo);
+  return issue.relation === 'refs'
+    ? `Refs: ${number}, does not close, opens the issue`
+    : `Closes: ${number}, opens the issue`;
 }
 
 /** The pill's class: a refs pill is drawn apart from a closes one. */
@@ -135,7 +148,8 @@ export const closingPillId = (prKey: string, issue: ClosingIssue) =>
  * the pill's id so focus can return to it. Without it, the pill is a link to
  * the Issues page with that issue's pop-up open. With onFollow instead, inside
  * a dialog, a plain click on that link hands the issue over so the dialog can
- * be swapped for the issue's.
+ * be swapped for the issue's. With inDialog, the pills are the Related band's:
+ * bare numbers, names that lead with the relation, and the band's own fold.
  */
 export function closingPills(
   prKey: string,
@@ -143,6 +157,7 @@ export function closingPills(
   list: ClosingIssue[] | undefined,
   onOpen?: (issue: ClosingIssue, triggerId: string) => void,
   onFollow?: (issue: ClosingIssue) => void,
+  inDialog = false,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitClosing(list);
@@ -168,13 +183,27 @@ export function closingPills(
       link.id = closingPillId(prKey, issue);
       link.addEventListener('click', () => onOpen(issue, link.id));
     }
-    link.textContent = closingPillText(issue, prRepo);
-    link.setAttribute('aria-label', closingPillName(issue, prRepo));
+    if (inDialog) {
+      const bare = sameRepo(issue.repo, prRepo);
+      if (!appendRepoRef(link, issue.repo, issue.number, bare))
+        link.textContent = closingDialogText(issue, prRepo);
+      link.setAttribute('aria-label', closingDialogName(issue, prRepo));
+    } else {
+      link.textContent = closingPillText(issue, prRepo);
+      link.setAttribute('aria-label', closingPillName(issue, prRepo));
+    }
     link.title = closingPillTitle(issue);
     return issue.relation === 'refs'
       ? addPillTip(link, closingPillTitle(issue))
       : link;
   };
+  if (inDialog)
+    return foldedPills(
+      `${prKey}:closing:${list[0]?.relation ?? 'closes'}`,
+      list,
+      pill,
+      `issues that this pull request ${list[0]?.relation === 'refs' ? 'references' : 'will close'}`,
+    );
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
 

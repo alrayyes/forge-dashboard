@@ -11,6 +11,7 @@ import {
   splitClosing,
 } from './closing-issues.js';
 import { isPlainClick } from './plain-click.js';
+import { appendRepoRef, foldedPills } from './related-band.js';
 
 /** Pull requests whose folded mentions the reader opened, so a redraw keeps them open. */
 const expanded = new Set<string>();
@@ -29,6 +30,12 @@ export function mentionPillName(issue: MentionedIssue, prRepo: string) {
   return `${mentionPillText(issue, prRepo)}, ${where}`;
 }
 
+/** The pill's accessible name in the Related band: the relation first, then the number it contains and where the pill goes. */
+export function mentionDialogName(issue: MentionedIssue, prRepo: string) {
+  const where = issue.tracked ? 'opens the issue' : 'opens on the forge';
+  return `Mentions: ${issueNumber(issue, prRepo)}, ${where}`;
+}
+
 /**
  * The pills for one pull request, drawn like the closing ones: the first two,
  * then a count that opens the rest in place. Null when it mentions nothing, so
@@ -41,6 +48,7 @@ export function mentionPills(
   prRepo: string,
   list: MentionedIssue[] | undefined,
   onFollow?: (issue: MentionedIssue) => void,
+  inDialog = false,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const wrap = document.createElement('span');
@@ -59,10 +67,26 @@ export function mentionPills(
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
     }
-    link.textContent = mentionPillText(issue, prRepo);
-    link.setAttribute('aria-label', mentionPillName(issue, prRepo));
+    if (inDialog) {
+      const number = issueNumber(issue, prRepo);
+      if (
+        !appendRepoRef(link, issue.repo, issue.number, number.startsWith('#'))
+      )
+        link.textContent = number;
+      link.setAttribute('aria-label', mentionDialogName(issue, prRepo));
+    } else {
+      link.textContent = mentionPillText(issue, prRepo);
+      link.setAttribute('aria-label', mentionPillName(issue, prRepo));
+    }
     return link;
   };
+  if (inDialog)
+    return foldedPills(
+      `${prKey}:mentions`,
+      list,
+      pill,
+      'issues that this pull request mentions',
+    );
   const { shown, rest } = splitClosing(list);
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;
