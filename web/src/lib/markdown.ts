@@ -17,7 +17,9 @@
 //     from the parsed tokens, so the text stays escaped (#1655);
 //   - every link opens in a new tab with rel="noopener noreferrer";
 //   - `#12` and `owner/repo#12` in plain text link to the item on the same
-//     forge when the caller says which repository the text belongs to;
+//     forge when the caller says which repository the text belongs to, and a
+//     full item address on that forge (bare or a link target) is the same
+//     reference (#4230);
 //   - :shortcodes: such as :robot: become the Unicode emoji, the way the
 //     forges draw them (#1995). Never an image, and the plugin skips code.
 //     Emoticons like `:)` stay as typed: the forges don't expand them and
@@ -212,6 +214,27 @@ export type ReferenceOptions = {
   tracked: (repo: string) => boolean;
 };
 
+// A full item address on the forge the text came from, as a link target:
+// `/owner/repo/pull/12`, `/issues/12` or Forgejo's `/pulls/12`, with no query,
+// fragment (`#issuecomment-1`) or further path (`/files`).
+const ITEM_ADDRESS =
+  /^\/([A-Za-z0-9][\w.-]*\/[\w.-]+)\/(?:pulls?|issues)\/(\d+)\/?$/;
+
+function itemOf(
+  href: string,
+  host: string,
+): { repo: string; n: string } | null {
+  let url: URL;
+  try {
+    url = new URL(href);
+  } catch {
+    return null;
+  }
+  if (url.origin !== host || url.search || url.hash) return null;
+  const m = ITEM_ADDRESS.exec(url.pathname);
+  return m ? { repo: m[1], n: m[2] } : null;
+}
+
 const REFERENCE =
   /(?<![\w/&#.@-])([A-Za-z0-9][\w.-]*\/(?!\d+#)[\w.-]+)?#(\d+)(?![\w-])/g;
 
@@ -234,9 +257,39 @@ function references(state: StateCore): void {
     if (block.type !== 'inline' || !block.children) continue;
     const out: typeof block.children = [];
     let inLink = 0;
+    let swapClose = false;
     for (const child of block.children) {
-      if (child.type === 'link_open') inLink++;
-      if (child.type === 'link_close') inLink--;
+      if (child.type === 'link_open') {
+        const item = dashboard
+          ? itemOf(String(child.attrGet('href') ?? ''), host)
+          : null;
+        if (
+          dashboard &&
+          item &&
+          /^[a-z]+$/.test(dashboard.forge) &&
+          dashboard.tracked(item.repo)
+        ) {
+          // An item address is the same reference as `#N`: same in-app link,
+          // the visible text untouched.
+          const open = new Token('html_inline', '', 0);
+          open.content = `<a href="/issues.html?issue=${dashboard.forge}/${item.repo}/${item.n}" data-ref-repo="${item.repo}" data-ref-number="${item.n}" data-ref-url="${host}/${item.repo}/issues/${item.n}">`;
+          out.push(open);
+          swapClose = true;
+          inLink++;
+          continue;
+        }
+        inLink++;
+      }
+      if (child.type === 'link_close') {
+        inLink--;
+        if (swapClose) {
+          swapClose = false;
+          const close = new Token('html_inline', '', 0);
+          close.content = '</a>';
+          out.push(close);
+          continue;
+        }
+      }
       if (child.type !== 'text' || inLink > 0) {
         out.push(child);
         continue;

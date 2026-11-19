@@ -266,6 +266,77 @@ describe('ticket references the dashboard tracks', () => {
   });
 });
 
+// https://github.com/alrayyes/forge-dashboard/issues/4230
+// A full item address in a body, bare or as a Markdown link target, is the
+// same reference as `#N`: it opens the dialog when the repository is tracked.
+describe('item addresses in a body the dashboard tracks', () => {
+  const repoUrl = 'https://github.com/alrayyes/forge-dashboard';
+  const references = {
+    forge: 'github',
+    tracked: (repo: string) => repo !== 'stranger/elsewhere',
+  };
+  const opts = { repoUrl, references };
+
+  test('open a bare issue address of another tracked repository in place', async () => {
+    const url =
+      'https://github.com/alrayyes/forge-dashboard-sdk-php/issues/529';
+    const html = await renderMarkdown(`Fixed in ${url}\n`, opts);
+    expect(html).toContain(
+      `<a href="/issues.html?issue=github/alrayyes/forge-dashboard-sdk-php/529" data-ref-repo="alrayyes/forge-dashboard-sdk-php" data-ref-number="529" data-ref-url="${url}">${url}</a>`,
+    );
+    expect(html).not.toContain('target=');
+  });
+
+  test('open a Markdown link to a pull request in place, keeping its text', async () => {
+    const html = await renderMarkdown(
+      '[the fix](https://github.com/o/r/pull/12)',
+      opts,
+    );
+    expect(html).toContain('href="/issues.html?issue=github/o/r/12"');
+    expect(html).toContain('data-ref-number="12"');
+    expect(html).toContain('>the fix</a>');
+    expect(html).not.toContain('target=');
+  });
+
+  test('read a Forgejo /pulls/N address', async () => {
+    const html = await renderMarkdown(
+      '[x](https://git.example.org/me/app/pulls/3)',
+      {
+        repoUrl: 'https://git.example.org/me/app',
+        references: { forge: 'forgejo', tracked: () => true },
+      },
+    );
+    expect(html).toContain('href="/issues.html?issue=forgejo/me/app/3"');
+    expect(html).not.toContain('target=');
+  });
+
+  test('works for a third forge id', async () => {
+    const html = await renderMarkdown(
+      '[x](https://code.example.net/me/app/issues/4)',
+      {
+        repoUrl: 'https://code.example.net/me/app',
+        references: { forge: 'gitea', tracked: () => true },
+      },
+    );
+    expect(html).toContain('href="/issues.html?issue=gitea/me/app/4"');
+  });
+
+  test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
+    for (const url of [
+      'https://github.com/stranger/elsewhere/pull/9',
+      'https://github.com/o/r/issues/1#issuecomment-5',
+      'https://github.com/o/r/pull/1/files',
+      'https://github.com/o/r/commit/abc1234',
+      'https://example.org/o/r/pull/1',
+    ]) {
+      const html = await renderMarkdown(`[t](${url})`, opts);
+      expect(html, url).toContain(`href="${url}"`);
+      expect(html, url).toContain('target="_blank"');
+      expect(html, url).not.toContain('data-ref-');
+    }
+  });
+});
+
 describe('repoUrlOf', () => {
   test('strips the item part of a GitHub or Forgejo address', () => {
     expect(repoUrlOf('https://github.com/o/r/pull/12')).toBe(
