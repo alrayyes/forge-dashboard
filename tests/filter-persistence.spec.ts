@@ -6,6 +6,7 @@ import {
   pickOnly,
   toggleLabels,
 } from './label-filter-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1620: a filter set on one page is still set when you come back to it. The
@@ -80,6 +81,7 @@ async function open(page: Page, url: string) {
         pullRequests: PRS,
         issues: ISSUES,
         openIssueCount: ISSUES.length,
+        navCounts: navCountsFor(PRS, ISSUES.length),
         repos: [],
         hiddenDrafts: 0,
       }),

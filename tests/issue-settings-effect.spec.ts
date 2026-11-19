@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly } from './label-filter-helper';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1630: what the two Settings values do to the Issues page and to Insights.
@@ -55,6 +56,7 @@ async function standIn(page: Page, init: Partial<Stand> = {}) {
         pullRequests: stand.pullRequests,
         issues,
         openIssueCount: issues.length,
+        navCounts: navCountsFor(stand.pullRequests, issues.length),
         hideDependencyDashboard: stand.hideDependencyDashboard,
         ignoredTitlesSet: stand.ignoredTitles.length > 0,
         ...(stand.hidden === undefined
