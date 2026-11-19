@@ -698,6 +698,98 @@ test('the label chips stay the elements they were when the references arrive', a
   );
 });
 
+test('focus stays on the pill the reader had when the same pull request is in two rows', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  // PR 10 closes the issue and also mentions it: two rows, one address.
+  world.issues[1] = {
+    ...world.issues[1],
+    mentionedByPullRequests: [linked(10)],
+  };
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const pills = dialog.locator('.related-band .linked-pr');
+  await expect(pills).toHaveCount(2);
+  await expect(pills.nth(0)).toHaveAttribute('href', /\/10$/);
+  await expect(pills.nth(1)).toHaveAttribute('href', /\/10$/);
+
+  await pills.nth(1).focus();
+  world.issues[1] = {
+    ...world.issues[1],
+    linkedPullRequests: [
+      linked(10, { ci: 'success', checks: { ...none, passed: 2 } }),
+    ],
+    mentionedByPullRequests: [
+      linked(10, { ci: 'success', checks: { ...none, passed: 2 } }),
+    ],
+  };
+  await push(page, world);
+  await expect(pills.nth(1)).toHaveAccessibleName(/Passed/);
+  await page.waitForTimeout(200);
+
+  const focused = () =>
+    dialog.evaluate((el) =>
+      [...el.querySelectorAll('.related-band .linked-pr')].indexOf(
+        document.activeElement as Element,
+      ),
+    );
+  expect(await focused(), 'focus moved to another pill').toBe(1);
+});
+
+test('focus goes back to the same one of two pills for a pull request when the band is replaced', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.issues[1] = {
+    ...world.issues[1],
+    mentionedByPullRequests: [linked(10)],
+  };
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const pills = dialog.locator('.related-band .linked-pr');
+  await expect(pills).toHaveCount(2);
+
+  await pills.nth(1).focus();
+  await pills
+    .nth(1)
+    .evaluate((a) => ((a as unknown as { __old: boolean }).__old = true));
+  // Another pull request now mentions the issue: the band lists other pills,
+  // so it is drawn again and the pill the reader was on is a new element.
+  world.issues[1] = {
+    ...world.issues[1],
+    mentionedByPullRequests: [linked(10), linked(40, { ci: 'none' })],
+  };
+  await push(page, world);
+  await expect(pills).toHaveCount(3);
+  expect(
+    await dialog.evaluate((el) =>
+      [...el.querySelectorAll('.related-band .linked-pr')].some(
+        (a) => (a as unknown as { __old?: boolean }).__old,
+      ),
+    ),
+    'the pill the reader was on was kept, so nothing was put back',
+  ).toBe(false);
+  await page.waitForTimeout(200);
+
+  const focused = await dialog.evaluate((el) =>
+    [...el.querySelectorAll('.related-band .linked-pr')].indexOf(
+      document.activeElement as Element,
+    ),
+  );
+  expect(focused, 'focus moved to another pill').toBe(1);
+});
+
 test('the overview rows follow a linked pull request without a reload', async ({
   page,
 }) => {
