@@ -13,9 +13,13 @@ import (
 )
 
 // GetIssueDetails implements dashboard.IssueDetailer: the description, the
-// first comments and the thumbs reactions on each of owner/name#number, at the
-// same cost as GetPullRequestDetails (1 call for the issue instead of the pull
-// request, then the shared thread reads).
+// first comments and the thumbs reactions on each of owner/name#number, and
+// what refers to it. The requests are the issue, its reactions, its comments,
+// each shown comment's reactions (up to MaxDetailsComments), and the timeline:
+// one request per page of events, at least two (one page and the empty page
+// that ends the read) and at most maxTimelinePages. A thread with more than
+// maxTimelinePages pages of events keeps the references on the first ones, the
+// oldest, since the timeline lists oldest first.
 func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number int) (dashboard.IssueDetails, error) {
 	c = c.withContext(ctx)
 
@@ -32,9 +36,12 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 		return dashboard.IssueDetails{}, err
 	}
 	details.Kind = dashboard.ItemKindIssue
+	// The references are an addition to the thread, so a timeline that fails
+	// leaves the issue without them instead of failing the whole read.
 	details.References, err = c.incomingReferences(ctx, owner, name, number)
 	if err != nil {
-		return dashboard.IssueDetails{}, err
+		slog.Debug("forgejo timeline unavailable", "repo", owner+"/"+name, "issue", number, "err", err)
+		details.References = nil
 	}
 	if issue.PullRequest != nil {
 		details.Kind = dashboard.ItemKindPullRequest

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -277,4 +279,117 @@ func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
 	assert.Equal(t, 3, got.References[2].Number)
 	assert.Equal(t, dashboard.ItemKindIssue, got.References[2].Kind)
 	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[2].State)
+}
+
+// issueWithTimeline serves alrayyes/a#5 with an empty thread and the given
+// timeline handler.
+func issueWithTimeline(t *testing.T, timeline http.HandlerFunc) *httptest.Server {
+	t.Helper()
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "body": "Body.", "state": "open"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/timeline", timeline)
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	return srv
+}
+
+// The timeline only adds references, so a timeline that fails must not hide
+// the description and comments (#4305).
+func TestGetIssueDetails_ATimelineErrorLeavesTheIssueWithoutReferences(t *testing.T) {
+	t.Parallel()
+
+	for name, handler := range map[string]http.HandlerFunc{
+		"server error": func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) },
+		"bad body":     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("not json")) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := issueWithTimeline(t, handler)
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			assert.Equal(t, "Body.", got.Description.Text)
+			assert.Empty(t, got.References)
+		})
+	}
+}
+
+// Forgejo drops rows it won't show after paging, so a short page is not the
+// last one and a reference can sit on the page after it.
+func TestGetIssueDetails_ReadsPastAShortTimelinePage(t *testing.T) {
+	t.Parallel()
+
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("page") {
+		case "1":
+			writeJSON(t, w, []any{map[string]any{"type": "comment", "body": "A comment"}})
+		case "2":
+			writeJSON(t, w, []any{refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true)})
+		default:
+			writeJSON(t, w, []any{})
+		}
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	assert.Equal(t, 12, got.References[0].Number)
+}
+
+// Only a reference event is a reference, whatever else is on it.
+func TestGetIssueDetails_IgnoresTimelineEventsThatAreNotReferences(t *testing.T) {
+	t.Parallel()
+
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []any{})
+
+			return
+		}
+		events := []any{}
+		for i, kind := range []string{"comment", "commit_ref", "label", "close", "commit"} {
+			event := refEvent("issue_ref", "neutered", "alrayyes/b", 20+i, "open", false)
+			event["type"] = kind
+			events = append(events, event)
+		}
+		writeJSON(t, w, append(events, refEvent("comment_ref", "neutered", "alrayyes/b", 30, "open", false)))
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	assert.Equal(t, 30, got.References[0].Number)
+}
+
+// The read stops after ten pages of fifty events. The timeline lists oldest
+// first, so on a longer thread the newest references are the ones left out.
+// The cap is documented in docs/rate-limits.md (#4305).
+func TestGetIssueDetails_StopsReadingTheTimelineAtTenPages(t *testing.T) {
+	t.Parallel()
+
+	var pages atomic.Int32
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+		pages.Add(1)
+		events := []any{}
+		for i := range 50 {
+			events = append(events, refEvent("issue_ref", "neutered", "alrayyes/b", (page-1)*50+i+1, "open", false))
+		}
+		writeJSON(t, w, events)
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 10, pages.Load())
+	require.NotEmpty(t, got.References)
+	assert.Equal(t, 500, got.References[0].Number, "the newest reference read comes first")
 }
