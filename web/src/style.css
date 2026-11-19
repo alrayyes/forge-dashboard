@@ -5674,8 +5674,9 @@ footer a[aria-current="page"] {
   white-space: nowrap;
   cursor: pointer;
 }
-/* "Show output" and "Hide output" take one width, so the label swap moves
-   nothing. */
+/* "Show output", "Full output" and "Hide output" take one width, so the label
+   swap moves nothing. It stays 8.5em: wider, a short-named row at 390px no
+   longer fits its toggle on the line of its name (#4236). */
 .run-toggle {
   justify-content: flex-end;
   min-width: 8.5em;

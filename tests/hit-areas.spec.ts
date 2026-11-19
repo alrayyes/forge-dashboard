@@ -645,7 +645,9 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
       .click();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog.locator('.pipeline-check').first()).toBeVisible();
-    await dialog.getByRole('button', { name: 'Show output: test' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: test' })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Copy output: test' }),
     ).toBeVisible();
@@ -725,7 +727,7 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await expect(dialog.locator('.pipeline-check').first()).toBeVisible();
     await expect(
-      dialog.getByRole('button', { name: 'Show output: test' }),
+      dialog.getByRole('button', { name: 'Show full output: test' }),
     ).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'Copy output: test' }),

@@ -157,7 +157,9 @@ test.describe('a check run output in the pipeline dialog', () => {
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    const toggle = dialog.getByRole('button', { name: 'Show output: build' });
+    const toggle = dialog.getByRole('button', {
+      name: 'Show full output: build',
+    });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await toggle.click();
 
@@ -195,7 +197,9 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'step 1\nboom: exit 1\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     const field = dialog.getByRole('textbox', {
@@ -216,7 +220,9 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.run-output-status')).toHaveText(
@@ -231,7 +237,9 @@ test.describe('a check run output in the pipeline dialog', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 200, body: { text: '', truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.run-output-status')).toHaveText(
@@ -268,6 +276,87 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(await jobLink.boundingBox()).toEqual(before.link);
   });
 
+  test('the toggle says Show full output beside an excerpt and keeps its width (#4236)', async ({
+    page,
+  }) => {
+    await setup(
+      page,
+      { status: 200, body: { text: 'line\n', truncated: false } },
+      [
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          url: runUrl,
+          jobId: 9,
+          excerpt: 'boom: exit 1',
+        },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'failure',
+          url: `${runUrl}1`,
+          jobId: 10,
+        },
+      ],
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const withExcerpt = dialog.getByRole('button', {
+      name: 'Show full output: build',
+    });
+    await expect(withExcerpt).toHaveText('Full output');
+    await expect(
+      dialog.getByRole('button', { name: 'Show output: docs' }),
+    ).toHaveText('Show output');
+
+    const before = await withExcerpt.boundingBox();
+    await withExcerpt.click();
+    const hide = dialog.getByRole('button', { name: 'Hide output: build' });
+    await expect(hide).toHaveText('Hide output');
+    expect((await hide.boundingBox())?.width).toBe(before?.width);
+  });
+
+  test('at 390px a short-named row keeps its toggle on the line of its name (#4236)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await setup(
+      page,
+      { status: 200, body: { text: 'line\n', truncated: false } },
+      [
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          url: runUrl,
+          jobId: 9,
+          excerpt: 'boom: exit 1',
+        },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'failure',
+          url: `${runUrl}1`,
+          jobId: 10,
+        },
+      ],
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    for (const [job, label] of [
+      ['build', 'Show full output'],
+      ['docs', 'Show output'],
+    ]) {
+      const row = dialog.locator('li.pipeline-check', { hasText: job });
+      const toggle = row.getByRole('button', { name: `${label}: ${job}` });
+      const name = row.locator('.pipeline-check-name');
+      await expect(toggle).toBeVisible();
+      const t = await toggle.boundingBox();
+      const n = await name.boundingBox();
+      // Same line: the toggle's top is not below the name's bottom.
+      expect(t?.y).toBeLessThan((n?.y ?? 0) + (n?.height ?? 0));
+    }
+  });
+
   test('the output is reachable from the keyboard and hides again', async ({
     page,
   }) => {
@@ -276,7 +365,9 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'line\n', truncated: false },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const toggle = dialog.getByRole('button', { name: 'Show output: build' });
+    const toggle = dialog.getByRole('button', {
+      name: 'Show full output: build',
+    });
     await toggle.focus();
     await page.keyboard.press('Enter');
     const output = dialog.getByRole('region', { name: 'Output: build' });
@@ -297,7 +388,9 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { text: 'tail\n', truncated: true },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-note')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
@@ -314,7 +407,9 @@ test.describe('a check run output in the pipeline dialog', () => {
       body: { error: 'Resource not accessible' },
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-error')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
@@ -1229,7 +1324,9 @@ test.describe('a failed row has one Copy button', () => {
   }) => {
     await setup(page, log, failed);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
 
     await expect(
       dialog.getByRole('region', { name: 'Output: build' }),
@@ -1252,7 +1349,7 @@ test.describe('a failed row has one Copy button', () => {
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
     await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
     await expect(
-      dialog.getByRole('button', { name: 'Show output: build' }),
+      dialog.getByRole('button', { name: 'Show full output: build' }),
     ).toBeFocused();
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
@@ -1265,7 +1362,9 @@ test.describe('a failed row has one Copy button', () => {
     await setup(page, log, failed);
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
 
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
@@ -1287,7 +1386,9 @@ test.describe('a failed row has one Copy button', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await setup(page, { status: 404, body: { error: 'gone' } }, failed);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
 
     await expect(dialog.locator('.run-output-error')).toBeVisible();
     await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
@@ -1313,7 +1414,9 @@ test.describe('a failed row has one Copy button', () => {
       number: pr.number,
     };
 
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
     await pushChecks(page, subject, [{ ...failed[0], excerpt: 'boom again' }]);
     await expect(
@@ -1359,7 +1462,9 @@ test.describe('a copy pressed while the output loads', () => {
     await setup(page, log, failed);
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     release();
 
@@ -1379,7 +1484,9 @@ test.describe('a copy pressed while the output loads', () => {
     await setup(page, log, failed);
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     release();
 
@@ -1395,7 +1502,9 @@ test.describe('a copy pressed while the output loads', () => {
     await setup(page, log, failed);
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     release();
 
     await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
@@ -1412,7 +1521,9 @@ test.describe('a copy pressed while the output loads', () => {
     await setup(page, log, failed);
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     release();
     await expect(dialog.locator('.run-output-status')).toContainText(
@@ -1420,7 +1531,9 @@ test.describe('a copy pressed while the output loads', () => {
     );
 
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toBeVisible();
@@ -1446,10 +1559,14 @@ test.describe('a copy pressed while the output loads', () => {
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await expect(field).toHaveValue(log.body.text);
 
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-text')).toBeVisible();
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-text')).toBeVisible();
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
 
@@ -1482,14 +1599,18 @@ test.describe('a copy pressed while the output loads', () => {
       };
     });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-text')).toBeVisible();
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
       'Copying',
     );
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await expect(dialog.locator('.run-output-text')).toBeVisible();
     await expect(dialog.locator('.run-output-status')).toHaveText('Copying');
 
@@ -1513,7 +1634,9 @@ test.describe('a copy pressed while the output loads', () => {
     // The excerpt's copy reads the whole log, so it waits on the same read.
     const release = await holdLog(page, log);
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
     await page.evaluate(() => {
       // Keep the clipboard write pending until the test lets it go.
       const w = window as unknown as { __let?: () => void };
@@ -1562,7 +1685,7 @@ test.describe('a copy pressed while the output loads', () => {
         });
         const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
         const show = dialog.getByRole('button', {
-          name: 'Show output: build',
+          name: 'Show full output: build',
         });
         await expect(show).toBeVisible();
         await show.click();
@@ -1630,7 +1753,9 @@ test.describe('a long check output in phone landscape', () => {
     );
     await setup(page, { status: 200, body: { text, truncated: false } });
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog.getByRole('button', { name: 'Show output: build' }).click();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
 
     const output = dialog.getByRole('region', { name: 'Output: build' });
     await expect(output).toContainText('line 1');

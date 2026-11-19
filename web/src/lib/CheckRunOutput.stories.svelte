@@ -60,7 +60,55 @@
 </script>
 
 <!-- Closed: Show output and the link to the forge. -->
-<Story name="Closed" />
+<Story
+  name="Closed"
+  play={async ({ canvasElement }) => {
+    const toggle = within(canvasElement).getByRole("button", {
+      name: "Show output: test / go",
+    });
+    await expect(toggle).toHaveTextContent("Show output");
+    await expect(toggle).not.toHaveTextContent("Show full output");
+  }}
+/>
+
+<!-- Closed beside a failure excerpt the row already shows: the press opens the
+     full output, so the toggle says so (#4236). The visible words stay inside
+     the accessible name, and the width is the one Show output has. -->
+<Story
+  name="Closed with an excerpt"
+  args={{ excerptVisible: true }}
+  play={async ({ canvasElement }) => {
+    const toggle = within(canvasElement).getByRole("button", {
+      name: "Show full output: test / go",
+    });
+    await expect(toggle).toHaveTextContent(/^Full output$/);
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    await expect(toggle.getBoundingClientRect().height).toBeGreaterThanOrEqual(
+      24,
+    );
+  }}
+/>
+
+<!-- Opening it with an excerpt in view reads Hide output, as without one. -->
+<Story
+  name="Open with an excerpt"
+  args={{ excerptVisible: true }}
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: /\/api\/v1\/checks\/log/,
+        body: { text: LOG, truncated: false },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    await view(canvasElement);
+    const toggle = within(canvasElement).getByRole("button", {
+      name: "Hide output: test / go",
+    });
+    await expect(toggle).toHaveTextContent("Hide output");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  }}
+/>
 
 <!-- The output is being read. -->
 <Story

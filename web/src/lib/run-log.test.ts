@@ -13,6 +13,8 @@ import {
   logToCopy,
   logUrl,
   notePlaces,
+  outputToggleLabel,
+  outputToggleName,
   parseLogLines,
 } from './run-log';
 
@@ -665,5 +667,33 @@ describe('checkControl on a running job', () => {
     expect(checkControl(running, { forge: 'gitea', fullName: 'a/b' })).toBe(
       'output',
     );
+  });
+});
+
+// The toggle says what pressing it does: with an excerpt already on screen it
+// opens more, so "Show output" would read as a broken toggle (#4236). The
+// visible words are short enough to keep the row on one line at 390px; the
+// accessible name spells them out and still contains them (WCAG 2.5.3).
+describe('outputToggleLabel', () => {
+  test('closed with no excerpt offers Show output', () => {
+    expect(outputToggleLabel(false, false)).toBe('Show output');
+    expect(outputToggleName(false, false)).toBe('Show output');
+  });
+
+  test('closed beside a visible excerpt offers the full output', () => {
+    expect(outputToggleLabel(false, true)).toBe('Full output');
+    expect(outputToggleName(false, true)).toBe('Show full output');
+    expect(
+      outputToggleName(false, true)
+        .toLowerCase()
+        .includes(outputToggleLabel(false, true).toLowerCase()),
+    ).toBe(true);
+  });
+
+  test('open says Hide output, whether or not there was an excerpt', () => {
+    for (const excerpt of [false, true]) {
+      expect(outputToggleLabel(true, excerpt)).toBe('Hide output');
+      expect(outputToggleName(true, excerpt)).toBe('Hide output');
+    }
   });
 });
