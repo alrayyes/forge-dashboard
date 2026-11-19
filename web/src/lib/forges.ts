@@ -25,6 +25,8 @@ export type ForgeCapabilities = {
   // How the forge budgets requests: 'graphql_and_rest' (two allowances the
   // forge counts itself) or 'rest'. Open-ended.
   rateLimitModel: string;
+  // The forge's published rules for its request budget, empty when it has none.
+  rateLimitDocsUrl: string;
 };
 
 export type ForgeFlag =
@@ -98,9 +100,26 @@ const SEED_RATE_LIMIT_MODELS: Record<string, string> = {
 
 let RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
 
-// How a forge budgets requests, or '' for one nobody described.
+// How a forge budgets requests, or '' for one nobody described. A read that
+// names a forge without a model keeps what the page learned, like the flags:
+// the API always sends one, so only a partial payload takes that path.
 export function rateLimitModelOf(forge: string | undefined): string {
   return (forge && ownOf(RATE_LIMIT_MODELS, forge)) || '';
+}
+
+// Each forge's page on its own request budget, seeded and overridden like the
+// status pages. A forge with none, or one never heard of, has no entry, so the
+// explanation shows no link rather than another forge's.
+const SEED_RATE_LIMIT_DOCS: Record<string, string> = {
+  github:
+    'https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api',
+};
+
+let RATE_LIMIT_DOCS: Record<string, string> = { ...SEED_RATE_LIMIT_DOCS };
+
+// Where to read a forge's rules for its request budget, or '' when it has none.
+export function rateLimitDocsUrlOf(forge: string | undefined): string {
+  return (forge && ownOf(RATE_LIMIT_DOCS, forge)) || '';
 }
 
 // What a forge said about a flag: undefined when it never did, so a caller can
@@ -251,6 +270,8 @@ export function registerForgeCapabilities(
     if (f.capabilities) setOwn(FORGE_FLAGS, f.forge, flags);
     const model = f.capabilities?.rateLimitModel;
     if (model) setOwn(RATE_LIMIT_MODELS, f.forge, model);
+    const docs = f.capabilities?.rateLimitDocsUrl;
+    if (typeof docs === 'string') setOwn(RATE_LIMIT_DOCS, f.forge, docs);
     const source = f.capabilities?.advisorySource;
     if (source) {
       setOwn(ADVISORY_FACTS, f.forge, {
@@ -273,6 +294,7 @@ export function resetForgeCapabilities() {
   FORGE_IDS = [...SEED_FORGE_IDS];
   FORGE_FLAGS = structuredClone(SEED_FLAGS);
   RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
+  RATE_LIMIT_DOCS = { ...SEED_RATE_LIMIT_DOCS };
   for (const k of Object.keys(ADVISORY_FACTS)) delete ADVISORY_FACTS[k];
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
   for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];

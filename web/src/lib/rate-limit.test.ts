@@ -151,6 +151,49 @@ describe('rateLimitWhy', () => {
     expect(rateLimitWhy('plain', 'Plain').docsUrl).toBeNull();
   });
 
+  test('a forge with the same model takes its docs link from its own data', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          rateLimitModel: 'graphql_and_rest',
+          rateLimitDocsUrl: 'https://docs.gitea.example/rate-limits',
+        },
+      },
+    ]);
+
+    expect(rateLimitWhy('gitea', 'Gitea').docsUrl).toBe(
+      'https://docs.gitea.example/rate-limits',
+    );
+  });
+
+  test('a forge with the same model and no docs shows no link, not GitHub’s', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          rateLimitModel: 'graphql_and_rest',
+          rateLimitDocsUrl: '',
+        },
+      },
+    ]);
+
+    expect(rateLimitWhy('gitea', 'Gitea').docsUrl).toBeNull();
+  });
+
+  test('the wording names the forge by the label it is given', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'graphql_and_rest' } },
+    ]);
+
+    const text = rateLimitWhy('gitea', 'Gitea').text;
+
+    expect(text).toContain('Gitea gives each token a request budget');
+    expect(text).toContain('refuses requests until the reset time');
+    expect(text).not.toContain('GitHub');
+    expect(rateLimitWhy('plain', 'Plain').text).toContain('Plain itself');
+  });
+
   test('a forge nobody described gets the proxy wording', () => {
     expect(rateLimitWhy('nowhere', 'Nowhere').docsUrl).toBeNull();
   });

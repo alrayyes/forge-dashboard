@@ -223,6 +223,53 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
     await expect(banner.getByRole('link')).toHaveCount(0);
   });
 
+  // #4169: the link comes from the forge's own data. A third forge that counts
+  // requests the way GitHub does must not send readers to docs.github.com.
+  const gitea = (capabilities: Record<string, unknown>) => ({
+    forge: 'gitea',
+    reachable: true,
+    repoCount: 1,
+    rateLimitREST: spent(),
+    rateLimitGraphQL: spent(),
+    capabilities: {
+      label: 'Gitea',
+      rateLimitModel: 'graphql_and_rest',
+      ...capabilities,
+    },
+  });
+
+  test('a third forge with GitHub’s model and no docs shows no link', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [gitea({ rateLimitDocsUrl: '' })], []);
+    await page.goto('/pull-requests.html');
+
+    const banner = page.locator('#rate-limit-banner');
+    await banner.getByText('Why?', { exact: true }).click();
+    await expect(banner).toContainText('Gitea gives each token');
+    await expect(banner.getByRole('link')).toHaveCount(0);
+  });
+
+  test('a third forge links to its own rate limit docs, never GitHub’s', async ({
+    page,
+  }) => {
+    await mockDashboard(
+      page,
+      [gitea({ rateLimitDocsUrl: 'https://docs.gitea.example/rate-limits' })],
+      [],
+    );
+    await page.goto('/pull-requests.html');
+
+    const banner = page.locator('#rate-limit-banner');
+    await banner.getByText('Why?', { exact: true }).click();
+    const docs = banner.getByRole('link', { name: /Gitea.*rate limit/i });
+    await expect(docs).toHaveAttribute(
+      'href',
+      'https://docs.gitea.example/rate-limits',
+    );
+    await expect(banner.locator('a[href*="docs.github.com"]')).toHaveCount(0);
+  });
+
   test('another forge is unaffected: its rows stay interactive and no banner names it', async ({
     page,
   }) => {
