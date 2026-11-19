@@ -1,0 +1,61 @@
+<title>Unified Filter Pills</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--sunk:#eceff4;--fg:#1c2230;--mute:#5b6577;--line:#d9dee7;--strong:#aab3c2;--acc:#0b6b6b;--accink:#fff;--warn:#8a4b00;--ok:#17653a;--bad:#a52424}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10141b;--card:#182030;--sunk:#222c40;--fg:#e6eaf2;--mute:#a1abbd;--line:#2c374b;--strong:#4a5670;--acc:#4fc3c3;--accink:#06201f;--warn:#f1b86a;--ok:#7fd8a3;--bad:#f59a9a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10141b;--card:#182030;--sunk:#222c40;--fg:#e6eaf2;--mute:#a1abbd;--line:#2c374b;--strong:#4a5670;--acc:#4fc3c3;--accink:#06201f;--warn:#f1b86a;--ok:#7fd8a3;--bad:#f59a9a;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:980px;margin:auto;display:grid;gap:20px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 10px}p{margin:0 0 8px;color:var(--mute);max-width:65ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.bar{display:grid;gap:10px;padding:12px;border:1px solid var(--line);border-radius:8px;background:var(--card)}
+.grp{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute);min-width:56px}
+.fp{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;font:inherit;font-size:13px;color:var(--fg);background:transparent;border:1px solid var(--strong);border-radius:999px}
+.fp .n{font-variant-numeric:tabular-nums;color:var(--mute)}
+.fp[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--accink)}
+.fp[aria-pressed="true"] .n{color:var(--accink);opacity:.85}
+.tools{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.sel,.btn{min-height:32px;padding:0 10px;font:inherit;font-size:13px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--fg);display:inline-flex;align-items:center}
+.res{font-size:13px;color:var(--mute)}
+.phone{width:390px;max-width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--bg)}
+.sheet{border:1px solid var(--line);border-radius:12px 12px 0 0;background:var(--card);padding:14px;display:grid;gap:12px}
+.sh{display:flex;justify-content:space-between;align-items:center;font-weight:600}
+.x{width:44px;height:44px;border:1px solid var(--line);border-radius:8px;display:grid;place-items:center;background:var(--card)}
+.foot{display:flex;gap:8px}.foot .btn{flex:1;justify-content:center;min-height:44px}
+.wrapx{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}
+</style>
+<main>
+<header><h1>One pill, every filter page</h1>
+<p>Recommendation: one single-choice pill group, 32px high, outlined, accent when pressed, visible group label, counts optional. Pull requests and branches draw the same control.</p></header>
+
+<section class="card"><h2>A. Pull requests, desktop</h2>
+<div class="bar" role="search">
+<div class="grp" role="group" aria-label="Forge"><span class="lbl">Forge</span><button class="fp" aria-pressed="true">All <span class="n">42</span></button><button class="fp" aria-pressed="false">GitHub <span class="n">30</span></button><button class="fp" aria-pressed="false">Forgejo <span class="n">12</span></button></div>
+<div class="grp" role="group" aria-label="CI"><span class="lbl">CI</span><button class="fp" aria-pressed="false">All <span class="n">42</span></button><button class="fp" aria-pressed="true">Passing <span class="n">28</span></button><button class="fp" aria-pressed="false">Failing <span class="n">6</span></button><button class="fp" aria-pressed="false">Running <span class="n">8</span></button></div>
+<div class="tools"><span class="sel">Repository ▾</span><span class="sel">Author ▾</span><span class="sel">Label ▾</span><span class="btn">Clear filters</span></div></div></section>
+
+<section class="card"><h2>B. Branches, desktop: the same control</h2>
+<div class="bar">
+<div class="grp" role="group" aria-label="Status"><span class="lbl">Status</span><button class="fp" aria-pressed="true">All <span class="n">19</span></button><button class="fp" aria-pressed="false">Failed <span class="n">2</span></button><button class="fp" aria-pressed="false">Passed <span class="n">14</span></button><button class="fp" aria-pressed="false">Running <span class="n">3</span></button></div>
+<div class="grp" role="group" aria-label="Forge"><span class="lbl">Forge</span><button class="fp" aria-pressed="true">All <span class="n">19</span></button><button class="fp" aria-pressed="false">GitHub <span class="n">11</span></button><button class="fp" aria-pressed="false">Forgejo <span class="n">8</span></button></div>
+<div class="tools"><span class="sel">Sorted by Newest ▾</span><span class="btn">Clear filters</span></div></div></section>
+
+<section class="card"><h2>C. Phone: the same pills in the Filters sheet</h2>
+<div class="wrapx">
+<div><p>Bar on a phone: one row, counts as before</p><div class="phone"><div class="tools"><span class="btn">Filters · 2</span><span class="res">12 of 42 pull requests</span></div></div></div>
+<div><p>Filters sheet</p><div class="phone"><div class="sheet">
+<div class="sh">Filters <span class="x" aria-label="Close filters">×</span></div>
+<div class="grp" role="group" aria-label="Forge"><span class="lbl" style="flex-basis:100%">Forge</span><button class="fp" aria-pressed="true">All <span class="n">42</span></button><button class="fp" aria-pressed="false">GitHub <span class="n">30</span></button><button class="fp" aria-pressed="false">Forgejo <span class="n">12</span></button></div>
+<div class="grp" role="group" aria-label="CI"><span class="lbl" style="flex-basis:100%">CI</span><button class="fp" aria-pressed="false">All <span class="n">42</span></button><button class="fp" aria-pressed="true">Passing <span class="n">28</span></button><button class="fp" aria-pressed="false">Failing <span class="n">6</span></button><button class="fp" aria-pressed="false">Running <span class="n">8</span></button></div>
+<div class="foot"><span class="btn">Clear</span><span class="btn" style="background:var(--acc);color:var(--accink);border-color:var(--acc)">Show 12 results</span></div></div></div></div>
+</div></section>
+
+<section class="card"><h2>What is standardized</h2>
+<p>Starting point: the Branches status group (StatusPills, #4237) already has glyphs and counts, and #4246 gives the pull request CI group the same ones. The shared pill generalizes that component. Size 32px, 13px type, one outline and one pressed fill, one visible label style, counts on both pages, the same bar and Filters sheet, the same Clear filters button. One component replaces the quick pill, the branches pill, the advisories filter button and the Insights radios, with forced-colours handling written once.</p>
+<p>Not changed: the dropdowns for repository, author, label and dates, the title search, the checkbox, and the on, off and any segments.</p></section>
+</main>
+<script>
+var G={Passing:['✓','var(--ok)'],Passed:['✓','var(--ok)'],Failing:['!','var(--bad)'],Failed:['!','var(--bad)'],Running:['◔','var(--warn)']};
+document.querySelectorAll('.fp').forEach(function(b){var w=b.firstChild.textContent.trim();var g=G[w];if(!g)return;var s=document.createElement('span');s.setAttribute('aria-hidden','true');s.textContent=g[0];s.style.fontWeight='700';if(b.getAttribute('aria-pressed')!=='true')s.style.color=g[1];b.insertBefore(s,b.firstChild);});
+</script>
