@@ -213,6 +213,31 @@ describe('ticket references', () => {
   });
 });
 
+// There is no item 0 on either forge. The text `#0` is the same address as
+// `/issues/0`, which stays a forge link, so it is not a reference: it reads as
+// plain text, with or without the dashboard.
+describe('item 0 in text', () => {
+  const repoUrl = 'https://github.com/alrayyes/forge-dashboard';
+  const references = { forge: 'github', tracked: () => true };
+
+  test.each(['#0', '#00', 'owner/repo#0', 'owner/repo#00'])(
+    'leave %s as plain text',
+    async (ref) => {
+      for (const opts of [{ repoUrl }, { repoUrl, references }]) {
+        const html = await renderMarkdown(`See ${ref} here`, opts);
+        expect(html, ref).toContain(`See ${ref} here`);
+        expect(html, ref).not.toContain('<a ');
+        expect(html, ref).not.toContain('data-ref-');
+      }
+    },
+  );
+
+  test('still link a number that only starts with zero', async () => {
+    const html = await renderMarkdown('See #05', { repoUrl, references });
+    expect(html).toContain('data-ref-number="05"');
+  });
+});
+
 // https://github.com/alrayyes/forge-dashboard/issues/3744
 // A reference to a repository the dashboard tracks opens that item's dialog
 // in place: it keeps a real link (the dashboard's own address, so a middle
