@@ -1313,9 +1313,9 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	}
 	state := statusFromCombinedState(combined.State)
 	maybeCancelled := counts.Failed > 0 && hasJobTarget(combined.Statuses)
-	if counts.Waiting == 0 && !maybeCancelled {
-		return state, counts, nil
-	}
+	// Every row reads its commit's runs, not only one with a pending or failed
+	// status: the jobs still queued in a running run have no status yet, so a
+	// row of finished statuses can hide them (#4252).
 	runs, haveRuns := c.commitRuns(ctx, owner, name, sha)
 	if haveRuns && maybeCancelled {
 		state, counts = c.excuseCancelled(ctx, owner, name, runs, combined.Statuses, state, counts)
@@ -1354,8 +1354,12 @@ func (c *Client) excuseCancelled(ctx context.Context, owner, name string, runs [
 
 // settledState is state once the waits are split out. A pending state that
 // had only blocked jobs of failed runs behind it has nothing left to run, so
-// it follows the counts, not the pending statuses.
+// it follows the counts, not the pending statuses. Jobs still queued with no
+// status make a pass or an empty row pending (#4252).
 func settledState(state dashboard.CIStatus, counts dashboard.CheckCounts, statuses []*gitea.Status) dashboard.CIStatus {
+	if (state == dashboard.CISuccess || state == dashboard.CINone) && counts.Waiting > 0 {
+		return dashboard.CIPending
+	}
 	if state == dashboard.CIPending && counts.Failed == 0 && counts.Waiting == 0 && counts.Running == 0 {
 		return stateWithoutFailures(counts, statuses)
 	}
@@ -1740,8 +1744,9 @@ func (c *Client) addUnstatusedJobs(ctx context.Context, owner, name string, runs
 	statused, named := statusedJobs(statuses)
 	for _, run := range going {
 		// A run no status points at is not one whose positions can be matched,
-		// so its jobs are left to the statuses.
-		if !named[run.RunNumber] {
+		// so its jobs are left to the statuses. With no status at all there
+		// is nothing to match, and every queued job is one without a status.
+		if !named[run.RunNumber] && len(statuses) > 0 {
 			continue
 		}
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)

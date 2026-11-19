@@ -301,20 +301,25 @@ page can't be read, the row keeps the first page's state and draws no counts
 rather than a short one. Check again when you upgrade Forgejo; if it starts
 sending ETags, add a cache for it the way GitHub's works. Until then the
 default-branch pill keeps a finished run's job list in memory (a finished run
-never changes) and reads the jobs of runs still going on each poll. A pull
-request row with a failed status that points at an Actions job also reads the
-runs of its commit on each poll, and the jobs of each run such a failure
-points at, to tell a cancelled job from a failed one. A status says where its
-job sits in the run, so only the page of jobs that holds that position is read,
-one request however long the run is. A status counts as cancelled only when the
-job at its position is the one its context names. If it isn't, the run's whole
-job list is read and the job is looked for by name; a name that two jobs share
-excuses nothing. Elsewhere a run's job list is read 50 jobs at a time, up to
-1,000. That is one request per page when the forge sends a `total_count`, and
-when it sends a bare array the walk ends on the first short or empty page, so a
-run of exactly 50 jobs costs one more request than it has pages. A run past
-1,000 jobs, or a forge that ignores the page number, gives the jobs read so far
-and the list is not kept, so it is read again on the next poll.
+never changes) and reads the jobs of runs still going on each poll. Every
+pull request row also reads the runs of its commit on each poll, one request,
+whatever its statuses say: a job still queued has no status yet, and a row of
+finished statuses would hide it. Only a run that is going has its jobs read for
+those, so a board of 50 rows costs 50 more requests a poll than the statuses
+alone, plus one jobs page for each run still going. No job of a finished run
+is read. A
+row with a failed status that points at an Actions job also reads the jobs of
+each run such a failure points at, to tell a cancelled job from a failed one. A
+status says where its job sits in the run, so only the page of jobs that holds
+that position is read, one request however long the run is. A status counts
+as cancelled only when the job at its position is the one its context names. If
+it isn't, the run's whole job list is read and the job is looked for by name; a
+name that two jobs share excuses nothing. Elsewhere a run's job list is read 50
+jobs at a time, up to 1,000. That is one request per page when the forge sends a
+`total_count`, and when it sends a bare array the walk ends on the first short
+or empty page, so a run of exactly 50 jobs costs one more request than it has
+pages. A run past 1,000 jobs, or a forge that ignores the page number, gives the
+jobs read so far and the list is not kept, so it is read again on the next poll.
 A rerun is the exception: it needs every job, so for a run past 1,000 jobs it
 stops with an error instead of rerunning part of it. A page, or a
 whole list, is kept once every job is over, or five minutes after a failed run

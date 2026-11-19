@@ -460,9 +460,10 @@ func TestListOpenPullRequests_SplitBoundsTheJobsReadsInFlight(t *testing.T) {
 	assert.Greater(t, s.peak, 1, "the reads still overlap")
 }
 
-// With nothing pending the split has nothing to tell apart, so the runs are not
-// even listed.
-func TestListOpenPullRequests_SplitMakesNoCallWhenNothingIsPending(t *testing.T) {
+// With nothing pending the split has nothing to tell apart, but every row reads
+// the runs of its commit for jobs that have no status yet (#4252). The runs are
+// listed once and a running job, which is already counted, adds nothing.
+func TestListOpenPullRequests_SplitCountsNothingWhenNothingIsPending(t *testing.T) {
 	t.Parallel()
 
 	s := &splitServer{pending: 0, runs: []map[string]any{splitRun(7, "running", "pull_request")}, jobs: map[int][]string{7: {"running"}}}
@@ -470,8 +471,7 @@ func TestListOpenPullRequests_SplitMakesNoCallWhenNothingIsPending(t *testing.T)
 	got := s.checks(t, s.start(t))
 
 	assert.Equal(t, dashboard.CheckCounts{}, got)
-	assert.Empty(t, s.reads)
-	assert.EqualValues(t, 0, s.runsLists.Load(), "the runs list is not read either")
+	assert.EqualValues(t, 1, s.runsLists.Load(), "the runs list is read once")
 }
 
 // A jobs read that fails for one run leaves that run's checks queued and still

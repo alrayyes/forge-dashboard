@@ -337,9 +337,9 @@ func TestListOpenPullRequests_ACancelledRunOfAnotherCommitDoesNotExcuseTheFailur
 	assert.Equal(t, dashboard.CheckCounts{Passed: 1, Failed: 1}, got.Checks)
 }
 
-// An external CI's failure points at no Actions job, so nothing is asked of the
-// forge for it.
-func TestListOpenPullRequests_AnExternalFailureReadsNoRuns(t *testing.T) {
+// An external CI's failure points at no Actions job, so no job is read for it.
+// The runs of the commit are listed once, as for every row (#4252).
+func TestListOpenPullRequests_AnExternalFailureReadsNoJobs(t *testing.T) {
 	t.Parallel()
 	f := cancelledPassing("cancelled")
 	f.statuses[1] = map[string]string{"status": "failure", "context": "jenkins / build (main)", "target_url": "https://jenkins.example/job/1"}
@@ -347,7 +347,8 @@ func TestListOpenPullRequests_AnExternalFailureReadsNoRuns(t *testing.T) {
 
 	s.pullRequest(t)
 
-	assert.Zero(t, s.runReads.Load())
+	assert.EqualValues(t, 1, s.runReads.Load())
+	assert.Zero(t, s.jobReads.Load())
 }
 
 // The stopped time is read as text, so an odd value can't fail the run list.
