@@ -107,21 +107,22 @@
   const botsLabel = $derived(headerLabel("Bots", bots));
   const botsTabLabel = $derived(tabLabel("Bots", bots));
 
-  // A page with nothing to show leaves the navigation (#1228). A count that
-  // isn't known yet (null) is not zero, so a link doesn't blink in as the first
-  // snapshot arrives, and the page you are on keeps its own link until you
-  // leave it. Branches always shows.
+  // A page with nothing to show leaves the navigation (#1228), and a page whose
+  // count isn't known yet (null) isn't drawn either (#4276): an item appears
+  // once it is known to have something, so the menu only grows as the counts
+  // arrive and never shrinks. The page you are on keeps its own link. Branches
+  // always shows.
   const showPulls = $derived(
-    pulls === null || pulls.total !== 0 || isCurrentRoute("/pull-requests"),
+    (pulls !== null && pulls.total !== 0) || isCurrentRoute("/pull-requests"),
   );
   const showIssues = $derived(
-    issues === null || issues.total !== 0 || isCurrentRoute("/issues"),
+    (issues !== null && issues.total !== 0) || isCurrentRoute("/issues"),
   );
   const showReleases = $derived(
-    releases === null || releases.total !== 0 || isCurrentRoute("/releases"),
+    (releases !== null && releases.total !== 0) || isCurrentRoute("/releases"),
   );
   const showBots = $derived(
-    bots === null || bots.total !== 0 || isCurrentRoute("/bots"),
+    (bots !== null && bots.total !== 0) || isCurrentRoute("/bots"),
   );
 
   function signOut() {
