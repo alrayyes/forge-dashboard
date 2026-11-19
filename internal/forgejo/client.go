@@ -1720,16 +1720,17 @@ func worseState(a, b gitea.StatusState) gitea.StatusState {
 	return a
 }
 
-// addUnstatusedJobs counts the jobs of the running runs that have no
-// commit status yet (#4238). Forgejo writes a job's status once it has one to
-// give, so a pull request just opened has statuses for the jobs that started and
-// none for the ones queued behind them, which the pipeline dialog lists all the
-// same. Left out, the Waiting count turns up when the statuses do. Only the
-// queued and unknown jobs are added: a running one is already counted by
-// splitRunning, and a finished one has its status. Any failure to read the jobs
-// keeps counts as they were. Only a run listed by the same read as the statuses
-// is looked at, and a status is matched to its job by run number and position, in a run that
-// some status points at.
+// addUnstatusedJobs adds the jobs that have no commit status yet (#4238).
+// Forgejo writes a status only once a job has one to give. A pull request just
+// opened has statuses for the jobs that started and none for the ones queued
+// behind them, yet the pipeline dialog lists them all. Left out, the Waiting
+// count would turn up only when the statuses do.
+//
+// Only queued and unknown jobs are added. A running job is already counted by
+// splitRunning, and a finished one has its status. A status is matched to its
+// job by run number and position, so only a run that some status points at is
+// read, and only one listed by the same read as the statuses. Any failure to
+// read the jobs keeps counts as they were.
 func (c *Client) addUnstatusedJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status, counts dashboard.CheckCounts) dashboard.CheckCounts {
 	going := slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
 		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
