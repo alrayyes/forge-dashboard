@@ -91,3 +91,82 @@ func TestListOpenPullRequests_AnUnnamedJobStateWithNoStatusYetCountsAsUnknown(t 
 
 	assert.Equal(t, dashboard.CheckCounts{Running: 1, Unknown: 1}, got.Checks)
 }
+
+// A run that is going can have every job that started finished and the rest
+// still queued, with no status for them yet. The statuses read success then,
+// and the row must still count the queued jobs and read pending (#4252).
+func TestListOpenPullRequests_FinishedStatusesOfARunningRunStillCountItsQueuedJobs(t *testing.T) {
+	t.Parallel()
+
+	f := forge{
+		statuses: []map[string]string{
+			jobStatus("success", "ci / lint (pull_request)", 2, 0),
+			jobStatus("success", "ci / test (pull_request)", 2, 1),
+		},
+		runs:  []map[string]any{actionsRun(12, 2, "running", nil)},
+		jobs:  map[int][]string{12: {"success", "success", "waiting", "waiting"}},
+		state: "success",
+	}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Passed: 2, Waiting: 2}, got.Checks)
+	assert.Equal(t, dashboard.CIPending, got.CI)
+}
+
+// A pull request that has no statuses yet is still read against its runs.
+func TestListOpenPullRequests_ARowWithNoStatusesStillCountsTheQueuedJobsOfARunningRun(t *testing.T) {
+	t.Parallel()
+
+	f := forge{
+		runs:  []map[string]any{actionsRun(12, 2, "running", nil)},
+		jobs:  map[int][]string{12: {"waiting", "waiting"}},
+		state: "pending",
+	}
+
+	got := f.pullRequest(t)
+
+	assert.Equal(t, dashboard.CheckCounts{Waiting: 2}, got.Checks)
+	assert.Equal(t, dashboard.CIPending, got.CI)
+}
+
+// A row whose checks are all done reads the runs of its commit, one request,
+// and no job of a finished run: that is the whole cost of the check.
+func TestListOpenPullRequests_ASettledRowReadsTheRunsButNoJobs(t *testing.T) {
+	t.Parallel()
+
+	f := forge{
+		statuses: []map[string]string{jobStatus("success", "ci / lint (pull_request)", 2, 0)},
+		runs:     []map[string]any{actionsRun(12, 2, "success", nil)},
+		jobs:     map[int][]string{12: {"success"}},
+		state:    "success",
+	}
+	s := f.serve(t)
+
+	got := s.pullRequest(t)
+
+	assert.Equal(t, dashboard.CISuccess, got.CI)
+	assert.Equal(t, int32(1), s.runReads.Load())
+	assert.Equal(t, int32(0), s.jobReads.Load())
+}
+
+// A running run's jobs are read once for the row, however many of the row's
+// questions need them.
+func TestListOpenPullRequests_ARunningRunsJobsAreReadOncePerRow(t *testing.T) {
+	t.Parallel()
+
+	f := forge{
+		statuses: []map[string]string{
+			jobStatus("success", "ci / lint (pull_request)", 2, 0),
+			jobStatus("pending", "ci / test (pull_request)", 2, 1),
+		},
+		runs:  []map[string]any{actionsRun(12, 2, "running", nil)},
+		jobs:  map[int][]string{12: {"success", "running", "waiting"}},
+		state: "pending",
+	}
+	s := f.serve(t)
+
+	s.pullRequest(t)
+
+	assert.Equal(t, int32(1), s.jobReads.Load())
+}
