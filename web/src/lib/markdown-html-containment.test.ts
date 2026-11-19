@@ -571,3 +571,20 @@ describe('a tag too long to be a tag', () => {
     expect(html).not.toContain('&lt;a title');
   });
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/4358
+// A closing tag only closes a tag opened in its own container. One inside a
+// quote or list item cannot close a tag opened outside it.
+describe('a closing tag stays in its own container', () => {
+  test.each([
+    ['a quote', '> '],
+    ['a list item', '- '],
+  ])('one in %s does not close a details outside it', async (_name, lead) => {
+    const html = await renderMarkdown(`<details>\n\n${lead}</details>\n\nz`);
+    expect(html).toContain('<p>z</p>\n</details>');
+    expect(html.match(/<\/details>/g)).toHaveLength(1);
+    expect(html.indexOf('</details>')).toBeGreaterThan(
+      html.indexOf('<p>z</p>'),
+    );
+  });
+});
