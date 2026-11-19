@@ -8938,7 +8938,8 @@
     // The bar and its sort controls show only for a list of two or more rows
     // before filters (#3670).
     function syncFilterBar() {
-      // Until a snapshot has said how many rows there are, the bar stays.
+      // Until a snapshot has said how many rows there are, the bar is not drawn
+      // (#4276): it comes in once the list is known to have two or more.
       if (!listKnown) return;
       syncSearch();
       syncListControls();
@@ -10869,6 +10870,7 @@
   </div>
   <div
     class="filter-bar"
+    hidden
     role="search"
     aria-label={view === "issues" ? "Filter issues" : "Filter pull requests"}
   >
