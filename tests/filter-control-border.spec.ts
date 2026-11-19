@@ -179,7 +179,7 @@ const CONTROLS: Record<string, string[]> = {
   '/releases.html': ['input.col-filter[data-col="title"]'],
   '/bots.html': ['input.col-filter[data-col="title"]'],
   '/webhooks.html': ['input.col-filter', 'select.col-filter'],
-  '/insights.html': ['input.col-filter'],
+  '/insights.html': ['input.col-filter[data-col="title"]'],
   '/': ['input.mb-search'],
 };
 
