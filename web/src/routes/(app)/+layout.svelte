@@ -258,6 +258,10 @@
             const pending = firstRefreshPending(data.firstRefreshDone);
             // The Branches page reads its own list and keeps the pill to
             // its counts, so a snapshot from before that read can't undo them.
+            // A snapshot with no navCounts (or one from before the first
+            // refresh ends) leaves them unknown, so no count link is drawn.
+            // Every supported server sends navCounts, so that is not a state
+            // a running install stays in (#4276).
             setNavCounts(
               pending ? null : data.navCounts,
               data.mainBranchPage?.branches,

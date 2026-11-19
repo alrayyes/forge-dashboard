@@ -129,7 +129,9 @@ has the same button and Escape, and so does the search box on Main branches
 ## Short lists
 
 A page with one row, or none, has nothing to search or sort, so the filter bar,
-the phone **Filters** button and the sort control are not drawn. The count is
+the phone **Filters** button and the sort control are not drawn. Nor is the bar
+drawn before the first snapshot has arrived, so it appears once the list is
+known to have two or more rows instead of showing and then leaving. The count is
 the list before any filter, so a filter that narrows a longer list to one row
 keeps the bar and **Clear filters**. A single row also keeps the bar while a
 filter is picked, since that pick may be what hides the others, and while **Show
