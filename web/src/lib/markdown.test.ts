@@ -213,6 +213,31 @@ describe('ticket references', () => {
   });
 });
 
+// There is no item 0 on either forge. The text `#0` is the same address as
+// `/issues/0`, which stays a forge link, so it is not a reference: it reads as
+// plain text, with or without the dashboard.
+describe('item 0 in text', () => {
+  const repoUrl = 'https://github.com/alrayyes/forge-dashboard';
+  const references = { forge: 'github', tracked: () => true };
+
+  test.each(['#0', '#00', 'owner/repo#0', 'owner/repo#00'])(
+    'leave %s as plain text',
+    async (ref) => {
+      for (const opts of [{ repoUrl }, { repoUrl, references }]) {
+        const html = await renderMarkdown(`See ${ref} here`, opts);
+        expect(html, ref).toContain(`See ${ref} here`);
+        expect(html, ref).not.toContain('<a ');
+        expect(html, ref).not.toContain('data-ref-');
+      }
+    },
+  );
+
+  test('still link a number that only starts with zero', async () => {
+    const html = await renderMarkdown('See #05', { repoUrl, references });
+    expect(html).toContain('data-ref-number="05"');
+  });
+});
+
 // https://github.com/alrayyes/forge-dashboard/issues/3744
 // A reference to a repository the dashboard tracks opens that item's dialog
 // in place: it keeps a real link (the dashboard's own address, so a middle
@@ -396,6 +421,35 @@ describe('item addresses in a body the dashboard tracks', () => {
       expect(html, url).toContain('target="_blank"');
       expect(html, url).not.toContain('data-ref-');
       expect(html, url).not.toContain('opens on the forge');
+    }
+  });
+
+  // The pattern reads 1 to 9 digits: a number that long still fits a safe
+  // integer, and a longer one is no item either forge could hold.
+  test.each(['1234', '123456', '123456789'])(
+    'open item number %s in place',
+    async (n) => {
+      for (const kind of ['issues', 'pull']) {
+        const html = await renderMarkdown(
+          `[t](https://github.com/o/r/${kind}/${n})`,
+          opts,
+        );
+        expect(html, kind).toContain(
+          `href="/issues.html?issue=github/o/r/${n}"`,
+        );
+        expect(html, kind).toContain(`data-ref-number="${n}"`);
+        expect(html, kind).not.toContain('target=');
+      }
+    },
+  );
+
+  test('leave a 10-digit item number as a forge link', async () => {
+    for (const kind of ['issues', 'pull']) {
+      const url = `https://github.com/o/r/${kind}/1234567890`;
+      const html = await renderMarkdown(`[t](${url})`, opts);
+      expect(html, url).toContain(`href="${url}"`);
+      expect(html, url).toContain('target="_blank"');
+      expect(html, url).not.toContain('data-ref-');
     }
   });
 

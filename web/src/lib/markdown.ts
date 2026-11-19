@@ -312,6 +312,9 @@ function references(state: StateCore): void {
       }
       let last = 0;
       for (const m of child.content.matchAll(REFERENCE)) {
+        // There is no item 0, and `/issues/0` is no reference either (itemOf):
+        // `#0` and `#00` stay plain text.
+        if (Number(m[2]) === 0) continue;
         const text = new Token('text', '', 0);
         text.content = child.content.slice(last, m.index);
         const repo = m[1] || ownRepo;
