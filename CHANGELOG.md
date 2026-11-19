@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.83.0](https://github.com/alrayyes/forge-dashboard/compare/v9.82.1...v9.83.0) (2026-11-19)
+
+
+### Features
+
+* **web:** say Counting checks while a pull request's check list is incomplete ([#4286](https://github.com/alrayyes/forge-dashboard/issues/4286)) ([50f4e72](https://github.com/alrayyes/forge-dashboard/commit/50f4e7209fed7ace6ffe7783de2d7256c3c5150a)), closes [#4253](https://github.com/alrayyes/forge-dashboard/issues/4253)
+
+
+### Bug Fixes
+
+* show the Related band on a closed issue's dialog ([#4297](https://github.com/alrayyes/forge-dashboard/issues/4297)) ([09b6a56](https://github.com/alrayyes/forge-dashboard/commit/09b6a56224f78d418ae63daf0120b134b34be455))
+
 ## [9.82.1](https://github.com/alrayyes/forge-dashboard/compare/v9.82.0...v9.82.1) (2026-11-19)
 
 
