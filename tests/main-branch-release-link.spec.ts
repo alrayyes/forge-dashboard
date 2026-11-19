@@ -193,7 +193,8 @@ test.describe('Branches page latest release link', () => {
       'https://example.com/acme/stranger/issues/9',
     );
     await expect(stranger).toHaveAttribute('target', '_blank');
-    await expect(stranger).not.toHaveAttribute('data-ref-repo', /.*/);
+    // Still a forge link; a plain click tries its dialog first (#4269).
+    await expect(stranger).toHaveAttribute('data-ref-untracked', '');
   });
 
   test('Escape and Close close it and focus returns to the tag', async ({
