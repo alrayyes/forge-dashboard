@@ -80,10 +80,9 @@ type timelineReference struct {
 	} `json:"ref_issue"`
 }
 
-// incomingReferences reads the issue's timeline and returns the items that
-// refer to it. Costs one request per page of events and an empty page to end
-// on, as the scheduled merge read does.
-func (c *Client) incomingReferences(ctx context.Context, owner, name string, number int) ([]dashboard.ItemReference, error) {
+// timelineReferences reads the issue's timeline, one request per page of
+// events and an empty page to end on, as the scheduled merge read does.
+func (c *Client) timelineReferences(ctx context.Context, owner, name string, number int) ([]timelineReference, error) {
 	var events []timelineReference
 	for page := 1; page <= maxTimelinePages; page++ {
 		path := fmt.Sprintf("/repos/%s/%s/issues/%d/timeline?page=%d&limit=%d", owner, name, number, page, pageLimit)
@@ -100,6 +99,17 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 			break
 		}
 		events = append(events, batch...)
+	}
+
+	return events, nil
+}
+
+// incomingReferences returns the items that refer to the issue, from its
+// timeline.
+func (c *Client) incomingReferences(ctx context.Context, owner, name string, number int) ([]dashboard.ItemReference, error) {
+	events, err := c.timelineReferences(ctx, owner, name, number)
+	if err != nil {
+		return nil, err
 	}
 
 	var refs []dashboard.ItemReference

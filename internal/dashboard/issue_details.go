@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"slices"
 	"strconv"
 )
 
@@ -136,8 +137,7 @@ type IssueDetailer interface {
 func NewestFirstReferences(oldestFirst []ItemReference) []ItemReference {
 	var refs []ItemReference
 	seen := map[string]int{}
-	for i := len(oldestFirst) - 1; i >= 0; i-- {
-		ref := oldestFirst[i]
+	for _, ref := range slices.Backward(oldestFirst) {
 		key := IssueKey(ref.Forge, ref.Repo, ref.Number)
 		if at, ok := seen[key]; ok {
 			if ref.Relation == RelationCloses {
