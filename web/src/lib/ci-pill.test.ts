@@ -20,6 +20,8 @@ describe('ciPillModel', () => {
     });
 
     expect(m.word).toBe('Counting checks…');
+    // The class a phone's stylesheet keeps the words on.
+    expect(m.classes).toContain(' counting');
     expect(m.segments.map((s) => s.n)).toEqual([1, 1, 2]);
     expect(m.name).toBe(
       'Counting checks… 1 1 2: 1 passed, 1 running, 2 waiting. The list of checks is not complete yet.',
@@ -50,6 +52,7 @@ describe('ciPillModel', () => {
     });
 
     expect(m.word).toBe('Running');
+    expect(m.classes).not.toContain('counting');
   });
 
   test('a segmented pill leads with its word and carries the counts', () => {

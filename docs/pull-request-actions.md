@@ -117,10 +117,12 @@ and the title is what gets cut. The server works out stacks from the branches
 
 On Forgejo, while a run that is still going has jobs the counts leave out (it
 has none yet, or no status points at it), the server sets `checksIncomplete` on
-the pull request. The CI pill then says "Counting checks…" in place of its state
-word, keeps the counts it has so they don't shrink when the rest arrive, and its
-accessible name says the list isn't complete yet. GitHub's rollup says nothing
-about checks still to be created, so it is always false there.
+the pull request. The CI pill on the row, the pop-up header and the Bots page
+then says "Counting checks…" in place of its state word, on a phone too, keeps
+the counts it has so they don't shrink when the rest arrive, and its accessible
+name says the list isn't complete yet. The pills on an issue row don't carry the
+field yet. GitHub's rollup says nothing about checks still to be created, so it
+is always false there.
 
 On GitHub, a pull request whose workflow runs are held until someone approves
 them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says

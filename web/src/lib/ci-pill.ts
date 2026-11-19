@@ -111,7 +111,7 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
   const held = awaiting ? ' awaiting' : '';
   // A fully skipped pass keeps its state class but must not read as a pass.
   const quiet = onlySkipped(input.cls, segments) ? ' all-skipped' : '';
-  const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}`;
+  const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}${counting ? ' counting' : ''}`;
 
   const base = cancelled
     ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`

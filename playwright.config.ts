@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/page-tops.spec.ts',
   '**/filter-stale-forge-pick.spec.ts',
   '**/cancelled-pill-counts.spec.ts',
+  '**/checks-incomplete-pill.spec.ts',
   '**/pill-counts-add-up.spec.ts',
   '**/pills-axe.spec.ts',
   '**/pill-groups-combine.spec.ts',
