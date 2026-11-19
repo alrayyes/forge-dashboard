@@ -229,6 +229,21 @@ export type ReferenceOptions = {
 const ITEM_ADDRESS =
   /^\/([A-Za-z0-9][\w.-]*\/[\w.-]+)\/(?:pulls?|issues)\/(\d{1,9})\/?$/;
 
+// An item of a repository the dashboard does not track stays a forge link,
+// which a modified click and a failed lookup still use. These attributes let
+// a plain click try the item's dialog first (#4269).
+function markUntracked(
+  link: { attrSet: (name: string, value: string) => void },
+  repo: string,
+  n: string,
+  url: string,
+): void {
+  link.attrSet('data-ref-repo', repo);
+  link.attrSet('data-ref-number', n);
+  link.attrSet('data-ref-url', url);
+  link.attrSet('data-ref-untracked', '');
+}
+
 function itemOf(
   href: string,
   host: string,
@@ -292,8 +307,17 @@ function references(state: StateCore): void {
           continue;
         }
         // An item of a repository the dashboard does not track goes to the
-        // forge, and says so like an untracked `#N` does.
-        if (dashboard && item) child.meta = { opensOnForge: true };
+        // forge, and says so like an untracked `#N` does. A click first tries
+        // the dialog and falls back to this address (#4269).
+        if (dashboard && item) {
+          child.meta = { opensOnForge: true };
+          markUntracked(
+            child,
+            item.repo,
+            item.n,
+            String(child.attrGet('href')),
+          );
+        }
         inLink++;
       }
       if (child.type === 'link_close') {
@@ -336,6 +360,7 @@ function references(state: StateCore): void {
           // goes to the forge, and says so.
           const open = new Token('link_open', 'a', 1);
           open.attrSet('href', forgeUrl);
+          if (dashboard) markUntracked(open, repo, m[2], forgeUrl);
           const label = new Token('text', '', 0);
           label.content = m[0];
           const note = new Token('html_inline', '', 0);

@@ -31,8 +31,19 @@ describe('referenceFromClick', () => {
       repo: 'a/b',
       number: 12,
       url: 'https://github.com/a/b/issues/12',
+      untracked: false,
       anchor,
     });
+  });
+
+  // https://github.com/alrayyes/forge-dashboard/issues/4269
+  test('says when the repository is one the dashboard does not track', () => {
+    const untracked = { dataset: { ...anchor.dataset, refUntracked: '' } };
+    const got = referenceFromClick(
+      click({ target: { closest: () => untracked } }) as never,
+    );
+    expect(got?.untracked).toBe(true);
+    expect(referenceFromClick(click() as never)?.untracked).toBe(false);
   });
 
   test('leaves a modified or middle click to the browser', () => {

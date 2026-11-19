@@ -101,9 +101,13 @@ comments, `#12` and `owner/repo#12` open that item's pop-up in place when the
 dashboard tracks the repository. They stay real links to the dashboard's own
 address, so a middle click or copy-link still works, and closing the new pop-up
 puts focus back where the first one was opened from. A reference to a
-repository the dashboard doesn't track has no pop-up, so it links to the forge
-in a new tab, and its accessible name says so. Code, a word like `abc#12` and
-text already inside a link stay as written.
+repository the dashboard doesn't track tries the same: a plain click asks the
+forge for the item and opens its pop-up, read-only, when the forge shows it
+(a merged or closed pull request, say). When it can't be read (missing, no
+access, a rate limit), the forge opens in a new tab and the pop-up you were in
+stays. Either way the link is a real forge link, a middle or modified click
+opens the forge, and its accessible name says it opens there. Code, a word like
+`abc#12` and text already inside a link stay as written.
 
 The review comments pill on a row opens the pull request's pop-up, not the
 forge. Only buttons named for the forge, such as Open on GitHub, leave the

@@ -274,9 +274,8 @@ describe('ticket references the dashboard tracks', () => {
       references,
     });
     expect(html).toContain(
-      '<a href="https://github.com/stranger/elsewhere/issues/9" target="_blank" rel="noopener noreferrer">stranger/elsewhere#9<span class="sr-only"> (opens on the forge in a new tab)</span></a>',
+      '<a href="https://github.com/stranger/elsewhere/issues/9" data-ref-repo="stranger/elsewhere" data-ref-number="9" data-ref-url="https://github.com/stranger/elsewhere/issues/9" data-ref-untracked="" target="_blank" rel="noopener noreferrer">stranger/elsewhere#9<span class="sr-only"> (opens on the forge in a new tab)</span></a>',
     );
-    expect(html).not.toContain('data-ref-');
   });
 
   test('read a Forgejo repository from the item address', async () => {
@@ -367,6 +366,19 @@ describe('item addresses in a body the dashboard tracks', () => {
     expect(linked.match(/opens on the forge/g)).toHaveLength(1);
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/4269
+  test('mark an untracked repository item address so a click can try the dialog first', async () => {
+    const url = 'https://github.com/stranger/elsewhere/pull/9';
+    const linked = await renderMarkdown(`[the fix](${url})`, opts);
+    expect(linked).toContain('data-ref-repo="stranger/elsewhere"');
+    expect(linked).toContain('data-ref-number="9"');
+    expect(linked).toContain(`data-ref-url="${url}"`);
+    expect(linked).toContain('data-ref-untracked=""');
+    expect(linked).toContain('target="_blank"');
+    const bare = await renderMarkdown(`See ${url}\n`, opts);
+    expect(bare).toContain('data-ref-untracked=""');
+  });
+
   test('do not add the note to a link that is not an item of this forge', async () => {
     for (const url of [
       'https://github.com/o/r/issues/1#issuecomment-5',
@@ -408,7 +420,8 @@ describe('item addresses in a body the dashboard tracks', () => {
     expect(html).toContain(`href="${url}"`);
     expect(html).toContain('target="_blank"');
     expect(html).toContain('opens on the forge');
-    expect(html).not.toContain('data-ref-');
+    expect(html).toContain('data-ref-number="5"');
+    expect(html).toContain('data-ref-untracked=""');
   });
 
   // There is no item 0 on either forge, so a zero number is not a reference:
@@ -453,9 +466,8 @@ describe('item addresses in a body the dashboard tracks', () => {
     }
   });
 
-  test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
+  test('leave a fragment, a non-item page and another host external', async () => {
     for (const url of [
-      'https://github.com/stranger/elsewhere/pull/9',
       'https://github.com/o/r/issues/1#issuecomment-5',
       'https://github.com/o/r/pull/1/files',
       'https://github.com/o/r/commit/abc1234',

@@ -11,6 +11,8 @@ export type ClickedReference = {
   number: number;
   /** The item's page on the forge, for a dialog that has nothing else to show. */
   url: string;
+  /** The repository is not one the dashboard tracks: the forge may not show it. */
+  untracked: boolean;
   anchor: unknown;
 };
 
@@ -30,7 +32,12 @@ export function referenceFromClick(
     closest?: (selector: string) => unknown;
   } | null;
   const anchor = target?.closest?.('a[data-ref-number]') as {
-    dataset: { refRepo?: string; refNumber?: string; refUrl?: string };
+    dataset: {
+      refRepo?: string;
+      refNumber?: string;
+      refUrl?: string;
+      refUntracked?: string;
+    };
   } | null;
   const { refRepo, refNumber, refUrl } = anchor?.dataset ?? {};
   if (!anchor || !refRepo || !refNumber || !/^[0-9]+$/.test(refNumber))
@@ -39,6 +46,7 @@ export function referenceFromClick(
     repo: refRepo,
     number: Number(refNumber),
     url: refUrl ?? '',
+    untracked: anchor.dataset.refUntracked !== undefined,
     anchor,
   };
 }

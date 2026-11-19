@@ -66,6 +66,7 @@
     detailsPrefetcher,
     type DetailsRef,
   } from "#lib/details-cache.js";
+  import { probeReference } from "#lib/reference-probe.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
@@ -597,7 +598,13 @@
   // A reference in the dialog's text was clicked (#3744), and whether the
   // dashboard tracks a repository. Set once the board exists below.
   let referenceFollowed: (
-    ref: { forge: string; repo: string; number: number; url: string },
+    ref: {
+      forge: string;
+      repo: string;
+      number: number;
+      url: string;
+      untracked?: boolean;
+    },
     triggerId: string,
   ) => void = () => {};
   let repoTracked: (forge: string, repo: string) => boolean = () => false;
@@ -2525,11 +2532,31 @@
     // closes, then the item's opens, with focus going back to what opened the
     // first. A pull request this page lists opens as one; anything else opens
     // as an issue, and the dialog says plainly if the forge cannot show it.
-    function followReference(
-      ref: { forge: string; repo: string; number: number; url: string },
+    // An item of a repository the dashboard does not track (#4269) is tried
+    // first: if the forge shows it, it opens like any other, and if not, the
+    // dialog stays where it is and the forge opens in a new tab.
+    async function followReference(
+      ref: {
+        forge: string;
+        repo: string;
+        number: number;
+        url: string;
+        untracked?: boolean;
+      },
       triggerId: string,
     ) {
       const wanted = { forge: ref.forge, repo: ref.repo, number: ref.number };
+      if (ref.untracked) {
+        const found = await probeReference(wanted);
+        if (found === null) {
+          window.open(ref.url, "_blank", "noopener,noreferrer");
+          return;
+        }
+        detailsCache.set(detailsKey({ ...wanted, subject: "issue" }), {
+          details: found,
+          readAt: Date.now(),
+        });
+      }
       afterDetailsClosed = () => {
         const pr = pullsView
           ? allPRs.find((p) => sameAddress(wanted, p))
