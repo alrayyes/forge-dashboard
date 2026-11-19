@@ -364,6 +364,41 @@
   {/snippet}
 </Story>
 
+<!-- A patched pill drops a description its new draw no longer has, and keeps its own tip when the new draw names another. -->
+<Story
+  name="Patches a pill's description"
+  play={async () => {
+    const draw = (describedBy: string | null, text: string) => {
+      const band = document.createElement("div");
+      const pill = document.createElement("a");
+      pill.className = "linked-pr";
+      pill.setAttribute("href", "/pr/1");
+      if (describedBy) pill.setAttribute("aria-describedby", describedBy);
+      pill.textContent = text;
+      band.append(pill);
+      return band;
+    };
+    const pillOf = (band: HTMLElement) =>
+      band.querySelector(".linked-pr") as HTMLElement;
+
+    const dropped = draw("tip-old", "old");
+    const before = pillOf(dropped);
+    await expect(patchPills(dropped, draw(null, "new"))).toBe(true);
+    await expect(pillOf(dropped)).toBe(before);
+    await expect(before.textContent).toBe("new");
+    await expect(before.hasAttribute("aria-describedby")).toBe(false);
+
+    const kept = draw("tip-old", "old");
+    await expect(patchPills(kept, draw("tip-new", "new"))).toBe(true);
+    await expect(pillOf(kept).textContent).toBe("new");
+    await expect(pillOf(kept).getAttribute("aria-describedby")).toBe("tip-old");
+  }}
+>
+  {#snippet template()}
+    <p>Pills with and without a description.</p>
+  {/snippet}
+</Story>
+
 <!-- Pills with no address and no id can't be matched, so nothing is patched. -->
 <Story
   name="Does not patch pills it cannot tell apart"
