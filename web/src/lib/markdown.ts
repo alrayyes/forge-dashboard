@@ -33,6 +33,17 @@
 //     forges draw them (#1995). Never an image, and the plugin skips code.
 //     Emoticons like `:)` stay as typed: the forges don't expand them and
 //     they would rewrite ordinary text.
+// Not covered by the allow-list (#4292). It stops script, handlers, styles,
+// forms, frames, remote images and dangerous link schemes. It does not stop
+// an author looking like something else:
+//   - a link that names one address and goes to another, which a Markdown
+//     link could always do;
+//   - text in a heading or `summary` that looks like a status or approval;
+//   - a fake blockquote or fake command: `<blockquote>` and `<code>` styled
+//     as the forge's own quote or a `@dependabot` command, to be copied;
+//   - content in a collapsed `details`;
+//   - output size: each unclosed `<a href="...">` is closed and gets
+//     `target` and `rel`, so a body of them renders about four times larger.
 // The library is imported on first use, so the dashboard's own chunk doesn't
 // carry it.
 import type MarkdownIt from 'markdown-it';
