@@ -1,7 +1,16 @@
 // Renders the Markdown a forge hands back (a pull request description, a
 // comment, release notes) to HTML that is safe to insert. The server doesn't
 // sanitise it (#1506), so the safety lives here:
-//   - markdown-it with `html: false` escapes raw HTML as text;
+//   - raw HTML is escaped as text, except the allow-listed tags below, which
+//     markdown-it parses (`html: true`, narrowed by rules further down) and
+//     which are rebuilt as tokens (#4241). A Dependabot description is HTML
+//     inside Markdown. Only `details`, `summary`, `p`, `br`, `ul`, `ol`,
+//     `li`, `blockquote`, `code`, `pre`, `em`, `strong`, `a` (its `href`) and
+//     `h1`-`h6` count, and every attribute but that `href` is dropped. The
+//     author's markup is never echoed: a tag that doesn't match one strict
+//     pattern is text, an unclosed tag is closed with its container and a
+//     stray closer is dropped. `a` goes through the link rules below, and an
+//     `<img>` is not a tag at all, so images stay on the proxy;
 //   - its default link validator refuses javascript:, vbscript: and data:
 //     links, which stay as plain text;
 //   - an image loads only when the caller's `imageSource` maps its address to
@@ -286,6 +295,276 @@ function references(state: StateCore): void {
   }
 }
 
+// --- Allow-listed raw HTML (#4241) -------------------------------------------
+//
+// The tags a block may open or close, and those that may sit inside a line.
+const BLOCK_TAGS = new Set([
+  'details',
+  'summary',
+  'p',
+  'ul',
+  'ol',
+  'li',
+  'blockquote',
+  'pre',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+]);
+const INLINE_TAGS = new Set(['a', 'br', 'code', 'em', 'strong']);
+// A deeper stack is shown as text, so nesting can't be used to build a tower.
+const MAX_RAW_DEPTH = 16;
+// A tag longer than this is text, which also bounds the work per `<`.
+const MAX_TAG_LENGTH = 4096;
+
+// One tag: a name and attributes, each a plain name with an optional quoted
+// or bare value. `<a/onclick=x>`, `<a x=">` and the like don't match and stay
+// text. A closing tag takes no attributes.
+const TAG =
+  /^<(\/?)([A-Za-z][A-Za-z0-9]*)((?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>$/;
+const ATTRIBUTE =
+  /\s+([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+const BLOCK_START =
+  /^<\/?(?:details|summary|p|ul|ol|li|blockquote|pre|h[1-6])(?=[\s/>]|$)/i;
+
+type RawTag = { closing: boolean; name: string; href: string | null };
+type Tok = InstanceType<StateCore['Token']>;
+
+function parseTag(source: string, names: Set<string>): RawTag | null {
+  if (source.length > MAX_TAG_LENGTH) return null;
+  const m = TAG.exec(source);
+  if (!m) return null;
+  const name = m[2].toLowerCase();
+  if (!names.has(name)) return null;
+  const closing = m[1] === '/';
+  if (closing && (m[3] !== '' || m[4] !== '')) return null;
+  let href: string | null = null;
+  if (name === 'a' && !closing) {
+    for (const attr of m[3].matchAll(ATTRIBUTE)) {
+      if (attr[1].toLowerCase() !== 'href') continue;
+      href ??= attr[2] ?? attr[3] ?? attr[4] ?? '';
+    }
+  }
+  return { closing, name, href };
+}
+
+// The token for a tag. `markup` marks it as raw so the balancing pass knows
+// it from the parser's own; `content` keeps the source for the fallback.
+function rawToken(
+  Token: StateCore['Token'],
+  tag: RawTag,
+  source: string,
+  decode: (s: string) => string,
+): Tok {
+  const link = tag.name === 'a';
+  let type = tag.closing ? 'raw_close' : 'raw_open';
+  if (link) type = tag.closing ? 'link_close' : 'link_open';
+  if (tag.name === 'br') type = 'raw_br';
+  const token = new Token(
+    type,
+    tag.name,
+    tag.name === 'br' ? 0 : tag.closing ? -1 : 1,
+  );
+  token.markup = 'raw';
+  token.content = source;
+  if (link && !tag.closing && tag.href !== null) {
+    token.attrs = [['href', decode(tag.href)]];
+  }
+  if (tag.name === 'pre' && !tag.closing) token.attrs = [['tabindex', '0']];
+  return token;
+}
+
+const isRaw = (t: { markup: string }) => t.markup === 'raw';
+
+// Entities stay as written (they decode to text, never to a tag); a bare `&`
+// and the characters of a tag are escaped.
+function escapeRawText(text: string): string {
+  return text.replace(
+    /&(?!(?:#\d{1,7}|#[xX][0-9a-fA-F]{1,6}|[A-Za-z][A-Za-z0-9]{1,31});)|[<>"]/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c] ?? c,
+  );
+}
+
+// A block of raw HTML as tokens: text, allow-listed tags and nothing else.
+// Comments are dropped; any other `<` is text.
+function blockTokens(
+  content: string,
+  Token: StateCore['Token'],
+  decode: (s: string) => string,
+): Tok[] {
+  const out: Tok[] = [];
+  const names = new Set([...BLOCK_TAGS, ...INLINE_TAGS]);
+  let text = '';
+  let noClose = false;
+  const flush = () => {
+    if (text === '') return;
+    const t = new Token('raw_text', '', 0);
+    t.content = text;
+    out.push(t);
+    text = '';
+  };
+  let i = 0;
+  while (i < content.length) {
+    const lt = content.indexOf('<', i);
+    if (lt === -1) {
+      text += content.slice(i);
+      break;
+    }
+    text += content.slice(i, lt);
+    i = lt + 1;
+    if (content.startsWith('<!--', lt) && !noClose) {
+      const close = content.indexOf(COMMENT_CLOSE, lt + COMMENT_SEARCH_FROM);
+      if (close !== -1) {
+        i = close + COMMENT_CLOSE.length;
+        continue;
+      }
+      noClose = true;
+    }
+    const gt = content.slice(lt, lt + MAX_TAG_LENGTH).indexOf('>');
+    const source = gt === -1 ? '' : content.slice(lt, lt + gt + 1);
+    const tag = source === '' ? null : parseTag(source, names);
+    if (!tag) {
+      text += '<';
+      continue;
+    }
+    flush();
+    out.push(rawToken(Token, tag, source, decode));
+    i = lt + source.length;
+  }
+  flush();
+  return out;
+}
+
+// Opens and closes what the author opened, within the container it was
+// opened in: a markdown container (list item, quote) closing closes the raw
+// tags opened inside it, an unclosed tag is closed at the end, a closer with
+// no opener is dropped, and a link never nests in a link.
+function balance(
+  tokens: Tok[],
+  Token: StateCore['Token'],
+  insideLink: boolean,
+): Tok[] {
+  const out: Tok[] = [];
+  const open: { name: string; level: number }[] = [];
+  let level = 0;
+  let links = insideLink ? 1 : 0;
+  const closeTop = () => {
+    const e = open.pop();
+    if (!e) return;
+    const link = e.name === 'a';
+    const t = new Token(link ? 'link_close' : 'raw_close', e.name, -1);
+    t.markup = 'raw';
+    out.push(t);
+    if (link) links--;
+  };
+  for (const t of tokens) {
+    if (isRaw(t) && t.nesting === 1) {
+      if (open.length >= MAX_RAW_DEPTH) {
+        const text = new Token('text', '', 0);
+        text.content = t.content;
+        out.push(text);
+        continue;
+      }
+      if (t.tag === 'a') {
+        if (links > 0) t.attrs = null;
+        links++;
+      }
+      open.push({ name: t.tag, level });
+      out.push(t);
+    } else if (isRaw(t) && t.nesting === -1) {
+      let at = open.length - 1;
+      while (at >= 0 && open[at].level === level && open[at].name !== t.tag) {
+        at--;
+      }
+      if (at < 0 || open[at].level !== level) continue;
+      while (open.length > at + 1) closeTop();
+      open.pop();
+      if (t.tag === 'a') links--;
+      out.push(t);
+    } else if (t.nesting === -1) {
+      while (open.length > 0 && open[open.length - 1].level === level) {
+        closeTop();
+      }
+      level--;
+      if (t.type === 'link_close') links--;
+      out.push(t);
+    } else if (t.nesting === 1) {
+      level++;
+      if (t.type === 'link_open') {
+        if (links > 0) t.attrs = null;
+        links++;
+      }
+      out.push(t);
+    } else {
+      if (t.type === 'inline' && t.children) {
+        t.children = balance(t.children, Token, links > 0);
+      }
+      out.push(t);
+    }
+  }
+  while (open.length > 0) closeTop();
+  return out;
+}
+
+// Core rule: raw HTML blocks become tokens, then every token stream is
+// balanced.
+function rawHtml(decode: (s: string) => string) {
+  return (state: StateCore): void => {
+    const tokens: Tok[] = [];
+    for (const t of state.tokens) {
+      if (t.type === 'html_block') {
+        tokens.push(...blockTokens(t.content, state.Token, decode));
+      } else {
+        tokens.push(t);
+      }
+    }
+    state.tokens = balance(tokens, state.Token, false);
+  };
+}
+
+// An allow-listed tag in a line of text. Anything else is left to the text
+// rule, so it is shown as typed.
+function rawInline(decode: (s: string) => string) {
+  return (state: StateInline, silent: boolean): boolean => {
+    const { src, pos } = state;
+    if (src.charCodeAt(pos) !== 0x3c) return false;
+    const window = src.slice(pos, pos + MAX_TAG_LENGTH);
+    const gt = window.indexOf('>');
+    if (gt === -1) return false;
+    const source = window.slice(0, gt + 1);
+    const tag = parseTag(source, INLINE_TAGS);
+    if (!tag) return false;
+    if (!silent) {
+      // Pushed flat: the balancing pass owns the nesting, and the parser's
+      // own depth counter must not drift on an unclosed run of them.
+      state.pushPending();
+      state.tokens.push(rawToken(state.Token, tag, source, decode));
+    }
+    state.pos = pos + source.length;
+    return true;
+  };
+}
+
+// An HTML block only starts at an allow-listed block tag; markdown-it's own
+// rule does the rest (where it ends, what a comment or blank line does).
+function narrowHtmlBlock(md: Renderer): void {
+  const rule = md.block.ruler.__rules__.find((r) => r.name === 'html_block');
+  if (!rule) throw new Error('markdown-it has no html_block rule');
+  const original = rule.fn;
+  md.block.ruler.at(
+    'html_block',
+    (state: StateBlock, start: number, end: number, silent: boolean) => {
+      const pos = state.bMarks[start] + state.tShift[start];
+      if (!BLOCK_START.test(state.src.slice(pos, pos + 16))) return false;
+      return original(state, start, end, silent);
+    },
+    { alt: ['paragraph', 'reference', 'blockquote'] },
+  );
+}
+
 const MONO_LABEL = /^(#\d+|[0-9a-f]{7,40})$/;
 
 function create(
@@ -295,13 +574,26 @@ function create(
     options?: { shortcuts?: Record<string, never> },
   ) => void,
 ): Renderer {
-  const md = new MarkdownItCtor({ html: false, linkify: true });
+  // `html: true` only lets markdown-it's HTML block rule run; it is narrowed
+  // to the allow-list, its inline rule is replaced and its tokens rebuilt.
+  const md = new MarkdownItCtor({ html: true, linkify: true });
   emoji(md, { shortcuts: {} });
+  const decode = (value: string) => md.utils.unescapeAll(value);
+  narrowHtmlBlock(md);
+  md.inline.ruler.disable('html_inline');
+  md.inline.ruler.before('html_inline', 'raw-html-inline', rawInline(decode));
   md.block.ruler.before('paragraph', 'html-comment', commentBlock);
   md.inline.ruler.before('autolink', 'html-comment', commentInline);
   md.core.ruler.after('inline', 'drop-empty-blocks', dropEmptyBlocks);
   md.core.ruler.after('inline', 'task-lists', taskLists);
   md.core.ruler.after('linkify', 'references', references);
+  // Registered last of the rules after `inline`, so it runs first.
+  md.core.ruler.after('inline', 'raw-html', rawHtml(decode));
+  // Nothing from the source is ever echoed.
+  md.renderer.rules.html_block = (tokens, idx) =>
+    md.utils.escapeHtml(tokens[idx].content);
+  md.renderer.rules.raw_text = (tokens, idx) =>
+    escapeRawText(tokens[idx].content);
   // A code block can scroll sideways, and a keyboard can only scroll what
   // takes focus.
   for (const rule of ['fence', 'code_block'] as const) {

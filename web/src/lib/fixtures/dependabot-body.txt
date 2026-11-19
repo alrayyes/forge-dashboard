@@ -1,0 +1,35 @@
+Bumps [peter-evans/create-pull-request](https://github.com/peter-evans/create-pull-request) from 8.1.2 to 8.1.3.
+<details>
+<summary>Release notes</summary>
+<p><em>Sourced from <a href="https://github.com/peter-evans/create-pull-request/releases">peter-evans/create-pull-request's releases</a>.</em></p>
+<blockquote>
+<h2>Create Pull Request v8.1.3</h2>
+<h2>What's Changed</h2>
+<ul>
+<li>fix: handle <code>&lt;detached&gt;</code> HEAD by <a href="https://github.com/someone"><code>@​someone</code></a> in <a href="https://redirect.github.com/peter-evans/create-pull-request/pull/4521">peter-evans/create-pull-request#4521</a></li>
+</ul>
+<p><strong>Full Changelog</strong>: <a href="https://github.com/peter-evans/create-pull-request/compare/v8.1.2...v8.1.3">https://github.com/peter-evans/create-pull-request/compare/v8.1.2...v8.1.3</a></p>
+</blockquote>
+</details>
+<details>
+<summary>Commits</summary>
+<ul>
+<li><a href="https://github.com/peter-evans/create-pull-request/commit/abc1234"><code>abc1234</code></a> fix: detached HEAD (<a href="https://redirect.github.com/peter-evans/create-pull-request/issues/4521">#4521</a>)</li>
+</ul>
+</details>
+<br />
+
+[![Dependabot compatibility score](https://dependabot-badges.githubapp.com/badges/compatibility_score?dependency-name=x&package-manager=github_actions&previous-version=8.1.2&new-version=8.1.3)](https://docs.github.com/en/github/managing-security-vulnerabilities/about-dependabot-security-updates#about-compatibility-scores)
+
+Dependabot will resolve any conflicts with this PR as long as you don't alter it yourself.
+
+<details>
+<summary>Dependabot commands and options</summary>
+<br />
+
+You can trigger Dependabot actions by commenting on this PR:
+
+- `@dependabot rebase` will rebase this PR
+- `@dependabot merge` will merge this PR after your CI passes on it
+
+</details>

@@ -1015,7 +1015,7 @@
             {#if releaseNotes.text.trim() === ""}
               <p class="details-note">No release notes.</p>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens (no attribute but a checked href survives), images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
               <div
                 class="markdown"
                 use:imageFallback
@@ -1037,7 +1037,7 @@
             {:else if isBot}
               <details class="details-collapsed">
                 <summary>Show the generated description</summary>
-                <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens (no attribute but a checked href survives), images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                 <div
                   class="markdown"
                   use:imageFallback
@@ -1045,7 +1045,7 @@
                 ></div>
               </details>
             {:else}
-              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+              <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens (no attribute but a checked href survives), images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
               <div
                 class="markdown"
                 use:imageFallback
@@ -1119,7 +1119,7 @@
                       {#if c.edited}<span class="comment-edited">edited</span
                         >{/if}
                     </div>
-                    <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with html:false, images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
+                    <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens (no attribute but a checked href survives), images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                     <div
                       class="markdown"
                       use:imageFallback
@@ -1546,6 +1546,18 @@
   .markdown :global(h4) {
     font-size: 0.875rem;
     margin: 14px 0 6px;
+  }
+  /* The tags a bot's description is written in (#4241). */
+  .markdown :global(summary) {
+    cursor: pointer;
+  }
+  .markdown :global(details) {
+    margin: 8px 0;
+  }
+  .markdown :global(blockquote) {
+    margin: 8px 0;
+    padding-left: 12px;
+    border-left: 3px solid var(--border);
   }
   .markdown :global(pre) {
     overflow-x: auto;

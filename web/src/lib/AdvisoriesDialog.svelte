@@ -522,7 +522,7 @@
   {#if item.description}
     <h3 class="adv-h3">Description</h3>
     {#if html[item.number]}
-      <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
+      <!-- nosemgrep: svelte-at-html -- html holds only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens, the image rule off and non-http(s)/mailto links turned to text, never raw forge text -->
       <div class="markdown adv-description">{@html html[item.number]}</div>
     {:else}
       <p class="adv-status">Loading the description&hellip;</p>
