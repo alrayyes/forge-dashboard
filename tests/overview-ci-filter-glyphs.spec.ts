@@ -324,3 +324,20 @@ test('a state with no pull request is not offered, and its glyph is not either',
   await expect(group.locator('[data-pill="no-checks"]')).toBeHidden();
   await expect(group.locator('svg[data-glyph="slash"]')).toBeHidden();
 });
+
+test('every CI filter pill ships with aria-pressed, before any script runs', async ({
+  page,
+}) => {
+  // syncQuickPills sets the attribute on load, so a page that is read before
+  // its script runs, or whose script fails, is the only place a dropped
+  // initial attribute shows. Read the served markup, not the live DOM.
+  const response = await page.request.get('/pull-requests.html');
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  const pills = html.match(/<button\b[^>]*\bci-filter-pill\b[^>]*>/g) ?? [];
+  // Four states, in the bar and again in the phone sheet.
+  expect(pills.length).toBe(STATES.length * 2);
+  for (const pill of pills) {
+    expect(pill).toMatch(/\baria-pressed="false"/);
+  }
+});
