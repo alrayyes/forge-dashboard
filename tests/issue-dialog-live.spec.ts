@@ -614,6 +614,90 @@ test('a pull request looked up late does not open over a pull request the reader
   await expect(pullDialog(page)).not.toContainText('Pull request 11');
 });
 
+test('a pull request looked up late does not open over a read-only pull request the reader chose since', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  // Issue 1 is closed by two pull requests the board leaves out. The reader
+  // asks for PR 10 from a row pill, and the answer is held. They then ask for
+  // PR 11 the same way, which answers at once and opens read only. No other
+  // dialog opened in between, so only the read-only open itself tells the
+  // late answer it is stale.
+  world.issues[1] = {
+    ...world.issues[1],
+    linkedPullRequests: [linked(10), linked(11)],
+    mentionedByPullRequests: [],
+  };
+  world.pulls[11] = {
+    ...world.pulls[10],
+    number: 11,
+    title: 'Pull request 11',
+  };
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let asked = 0;
+  await start(page, world, [10, 11], () =>
+    asked++ === 0 ? held : Promise.resolve(),
+  );
+  const pills = page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('.linked-pr');
+  await expect(pills).toHaveCount(2);
+
+  await pills.nth(0).click();
+  await expect.poll(() => asked).toBe(1);
+  await pills.nth(1).click();
+  await expect(pullDialog(page)).toContainText('Pull request 11');
+
+  release();
+  await page.waitForTimeout(500);
+  await expect(pullDialog(page)).toContainText('Pull request 11');
+  await expect(pullDialog(page)).not.toContainText('Pull request 10');
+});
+
+test('the label chips stay the elements they were when the references arrive', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.issues[1] = { ...world.issues[1], mentionedByPullRequests: [] };
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const chip = dialog.locator('.details-attributes .attr-chip.label');
+  await expect(chip).toHaveText('enhancement');
+  await tag(dialog);
+
+  // The issue now refers to another issue: its details answer with a
+  // reference, which adds a pill and leaves the labels as they were.
+  world.references[1] = [
+    {
+      forge: 'github',
+      repo: REPO,
+      number: 60,
+      title: 'Item 60',
+      url: `https://example.com/${REPO}/issues/60`,
+      pageUrl: `/issues.html?issue=github/${REPO}/60`,
+      kind: 'issue',
+      state: 'open',
+      direction: 'outgoing',
+      relation: 'refs',
+    },
+  ];
+  world.issues[1] = { ...world.issues[1], updatedAt: ago(1) };
+  await push(page, world);
+  await expect(dialog.locator('.related-band .linked-pr')).toHaveCount(2);
+
+  expect(await survivors(dialog), 'the label chip was replaced').toContain(
+    'labels',
+  );
+});
+
 test('the overview rows follow a linked pull request without a reload', async ({
   page,
 }) => {
