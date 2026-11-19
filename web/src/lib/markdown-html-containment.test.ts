@@ -256,6 +256,7 @@ describe('an unclosed pre', () => {
     for (const open of [
       '<pre><a href="https://example.test/x">',
       '<pre><h1>',
+      '<pre class="x">',
     ]) {
       const html = await renderMarkdown(
         `${open}\n\nrest [real](https://r.example)\n\n- item`,
