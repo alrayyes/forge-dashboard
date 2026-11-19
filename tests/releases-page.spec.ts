@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 function makePR(overrides: Record<string, unknown> = {}) {
@@ -44,6 +45,7 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
         forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
         pullRequests,
         issues: [],
+        navCounts: navCountsFor(pullRequests, 0),
       }),
     }),
   );
