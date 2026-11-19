@@ -16,7 +16,9 @@ after your own merge) lands at once. When rows land ahead of what you are readin
 the page scrolls by the same amount so nothing you can see moves. The pull
 request pop-up itself doesn't hold the board: the list behind it keeps updating,
 and the pop-up follows its own pull request (including a merge result or a
-failure line). Keyboard focus on a row doesn't hold either, and stays on the row
+failure line). A change to any other row leaves the pop-up exactly as it is,
+buttons included, so a click in it lands on what you were pointing at.
+Keyboard focus on a row doesn't hold either, and stays on the row
 when the list redraws. When rows land, one polite line tells a screen reader
 what changed ("List updated: 1 added, 2 removed"). One live control leads the
 right-hand controls in the header of every list card (Pull requests, Bots,
