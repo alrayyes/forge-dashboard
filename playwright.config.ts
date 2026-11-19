@@ -281,6 +281,7 @@ const singleUserSpecs = [
   '**/author-name-ellipsis.spec.ts',
   '**/error-pages.spec.ts',
   '**/label-multi-select.spec.ts',
+  '**/label-filter-chips.spec.ts',
   '**/legal.spec.ts',
   '**/pull-request-rows-live.spec.ts',
   '**/issue-rows-live.spec.ts',

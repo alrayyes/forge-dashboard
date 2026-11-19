@@ -1,3 +1,5 @@
+import { labelKey } from './label-filter';
+
 // The ink on a label's chip. A label's colour is arbitrary and forge-supplied,
 // not one of this app's own pre-checked pairs, so the ink is whichever of true
 // black or true white reads better against it. The rows and the Label filter
@@ -33,4 +35,31 @@ export function labelTextColor(bgHex: string): string {
   const blackContrast = contrastRatio(bg, 0);
   const whiteContrast = contrastRatio(bg, 1);
   return blackContrast >= whiteContrast ? '#000000' : '#ffffff';
+}
+
+const HEX = /^[0-9a-f]{6}$/i;
+
+// The colour each label name wears in the Label filter, by labelKey. A pick is
+// stored by name, so a chip has to look its colour up, and one name can carry
+// different colours in different repos. The rule is that a name gets a colour
+// only when every item in scope that colours it agrees; where they differ it
+// gets none and the chip stays neutral, rather than claim a colour that is only
+// some repos' label. A copy with no usable colour takes no part in the vote.
+export function labelChipColors(
+  items: readonly { labels?: { name: string; color?: string }[] }[],
+): Map<string, string> {
+  const seen = new Map<string, string | null>();
+  for (const item of items) {
+    for (const { name, color } of item.labels ?? []) {
+      if (!color || !HEX.test(color)) continue;
+      const key = labelKey(name);
+      const hex = color.toLowerCase();
+      const known = seen.get(key);
+      if (known === undefined) seen.set(key, hex);
+      else if (known !== hex) seen.set(key, null);
+    }
+  }
+  const colors = new Map<string, string>();
+  for (const [key, hex] of seen) if (hex) colors.set(key, hex);
+  return colors;
 }

@@ -41,7 +41,7 @@ export interface FilterableItem {
   // merge. Both are the server's answers; absent from an older server.
   behind?: boolean;
   empty?: boolean;
-  labels?: { name: string }[];
+  labels?: { name: string; color?: string }[];
   review?: { decision: string; requestedReviewers: number };
   // True for a bot's housekeeping issue; the server decides (#980).
   housekeeping?: boolean;

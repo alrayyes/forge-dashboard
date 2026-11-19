@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   contrastRatio,
+  labelChipColors,
   labelTextColor,
   relativeLuminance,
 } from './label-color';
@@ -61,5 +62,59 @@ describe('labelTextColor', () => {
         contrastRatio(bg, other),
       );
     }
+  });
+});
+
+// The Label filter's pick is stored by name, so a chip in it has to look its
+// colour up. A name can carry different colours in different repos. The rule:
+// one colour when every item in scope that carries the name agrees on it, and
+// none (a neutral chip) when they differ, so the filter never claims a colour
+// that is only some repos' label.
+describe('labelChipColors', () => {
+  const item = (...labels: { name: string; color?: string }[]) => ({ labels });
+
+  test('a name every item colours the same gets that colour', () => {
+    const colors = labelChipColors([
+      item({ name: 'bug', color: 'd73a4a' }),
+      item({ name: 'bug', color: 'd73a4a' }, { name: 'docs', color: '0075ca' }),
+    ]);
+    expect(colors.get('bug')).toBe('d73a4a');
+    expect(colors.get('docs')).toBe('0075ca');
+  });
+
+  test('a name with different colours in different repos gets none', () => {
+    const colors = labelChipColors([
+      item({ name: 'bug', color: 'd73a4a' }),
+      item({ name: 'bug', color: '0075ca' }),
+    ]);
+    expect(colors.has('bug')).toBe(false);
+  });
+
+  test('names meet without regard to case, and so do the colours', () => {
+    const colors = labelChipColors([
+      item({ name: 'Bug', color: 'D73A4A' }),
+      item({ name: 'bug', color: 'd73a4a' }),
+    ]);
+    expect(colors.get('bug')).toBe('d73a4a');
+  });
+
+  test('a copy with no colour does not count as a different one', () => {
+    const colors = labelChipColors([
+      item({ name: 'bug' }),
+      item({ name: 'bug', color: 'd73a4a' }),
+    ]);
+    expect(colors.get('bug')).toBe('d73a4a');
+  });
+
+  test('a colour that is not six hex digits is ignored', () => {
+    const colors = labelChipColors([
+      item({ name: 'bug', color: 'red' }, { name: 'x', color: '#d73a4a' }),
+    ]);
+    expect(colors.has('bug')).toBe(false);
+    expect(colors.has('x')).toBe(false);
+  });
+
+  test('items with no labels are fine', () => {
+    expect(labelChipColors([{}, item()]).size).toBe(0);
   });
 });

@@ -10,6 +10,7 @@
 // matches without regard to case.
 
 import { avatarSrc } from './avatar';
+import { labelTextColor } from './label-color';
 
 const SEPARATOR = '\n';
 const HINT = 'Shows items with any of the ticked labels.';
@@ -195,6 +196,9 @@ export interface PickChoice {
   // initial, which stays if there is no URL or it fails to load.
   imageUrl?: string;
   imageKind?: 'avatar' | 'logo';
+  // Set to draw the name as a chip, like a row's label. `color` is six hex
+  // digits; without one the chip is neutral.
+  chip?: { color?: string };
   // The forge the image comes from, so the proxy URL names it.
   forge?: string;
 }
@@ -223,7 +227,13 @@ export interface PickFilterControl {
 export interface LabelFilterControl {
   // Redraws the choices and which are ticked, leaving the open panel and the
   // focused box where they are.
-  render(offered: string[], picked: string[]): void;
+  // `colors` is each label's colour by labelKey (labelChipColors); a label
+  // without one is drawn as a neutral chip.
+  render(
+    offered: string[],
+    picked: string[],
+    colors?: ReadonlyMap<string, string>,
+  ): void;
   // Says a line to a screen reader, politely, once.
   announce(text: string): void;
   // Takes the page-wide listener off when the page goes.
@@ -267,6 +277,17 @@ export function pickImageNode(
     wrap.appendChild(img);
   }
   return wrap;
+}
+
+// A chip's look: the label's colour behind its name, with the ink the rows use,
+// or the neutral chip when it has none. Set on the name, so the checkbox and the
+// accessible name are untouched.
+function styleChip(name: HTMLElement, choice: PickChoice) {
+  name.classList.toggle('pick-chip', !!choice.chip);
+  const color = choice.chip?.color;
+  name.style.backgroundColor = color ? `#${color}` : '';
+  name.style.borderColor = color ? `#${color}` : '';
+  name.style.color = color ? labelTextColor(color) : '';
 }
 
 // A group of checkboxes behind a disclosure button, not a native
@@ -465,6 +486,7 @@ export function mountPickFilter(
       }
       const key = labelKey(choice.value);
       const sig = `${choice.imageKind ?? ''}|${choice.imageUrl ?? ''}`;
+      const look = choice.chip ? `chip|${choice.chip.color ?? ''}` : '';
       let row = rows.get(key) as HTMLLabelElement | undefined;
       // A row whose picture changes swaps only the picture, so the checkbox
       // keeps keyboard focus; otherwise the row is left alone.
@@ -473,6 +495,11 @@ export function mountPickFilter(
         const image = pickImageNode(choice, cfg.imageSrc);
         if (image) row.querySelector('input')?.after(image);
         row.dataset.sig = sig;
+      }
+      if (row && row.dataset.look !== look) {
+        row.dataset.look = look;
+        const name = row.querySelector<HTMLElement>('.pick-name');
+        if (name) styleChip(name, choice);
       }
       if (!row) {
         row = node('label', 'label-filter-option');
@@ -484,7 +511,10 @@ export function mountPickFilter(
         row.append(box);
         const image = pickImageNode(choice, cfg.imageSrc);
         if (image) row.append(image);
-        row.append(node('span', 'pick-name', choice.text));
+        const name = node('span', 'pick-name', choice.text);
+        styleChip(name, choice);
+        row.dataset.look = look;
+        row.append(name);
       }
       rows.delete(key);
       const text = row.querySelector('.pick-name');
@@ -561,9 +591,13 @@ export function mountLabelFilter(
   const control = mountPickFilter(host, LABEL_CONFIG, onChange);
   return {
     ...control,
-    render: (offered, picked) =>
+    render: (offered, picked, colors) =>
       control.render(
-        offered.map((name) => ({ value: name, text: name })),
+        offered.map((name) => ({
+          value: name,
+          text: name,
+          chip: { color: colors?.get(labelKey(name)) },
+        })),
         picked,
       ),
   };
