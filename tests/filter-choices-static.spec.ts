@@ -124,7 +124,7 @@ test.describe('forge buttons on Insights (#1427)', () => {
       ...forgeHealth(forge),
       capabilities: { ...forgeHealth(forge).capabilities, label },
     });
-    const gitea = { forge: 'gitea', reachable: true, repoCount: 1 };
+    const gitea = { ...forgeHealth('forgejo'), forge: 'gitea' };
     await open(
       page,
       '/insights.html',
@@ -142,7 +142,10 @@ test.describe('forge buttons on Insights (#1427)', () => {
       [
         health('github', 'GitHub'),
         health('forgejo', 'Codeberg'),
-        { ...gitea, capabilities: { label: 'Gitea' } },
+        {
+          ...gitea,
+          capabilities: { ...gitea.capabilities, label: 'Gitea' },
+        },
       ],
     );
     await expect(forgeLabel(page, 'gitea')).toBeVisible();
