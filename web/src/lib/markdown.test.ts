@@ -399,6 +399,35 @@ describe('item addresses in a body the dashboard tracks', () => {
     }
   });
 
+  // The pattern reads 1 to 9 digits: a number that long still fits a safe
+  // integer, and a longer one is no item either forge could hold.
+  test.each(['1234', '123456', '123456789'])(
+    'open item number %s in place',
+    async (n) => {
+      for (const kind of ['issues', 'pull']) {
+        const html = await renderMarkdown(
+          `[t](https://github.com/o/r/${kind}/${n})`,
+          opts,
+        );
+        expect(html, kind).toContain(
+          `href="/issues.html?issue=github/o/r/${n}"`,
+        );
+        expect(html, kind).toContain(`data-ref-number="${n}"`);
+        expect(html, kind).not.toContain('target=');
+      }
+    },
+  );
+
+  test('leave a 10-digit item number as a forge link', async () => {
+    for (const kind of ['issues', 'pull']) {
+      const url = `https://github.com/o/r/${kind}/1234567890`;
+      const html = await renderMarkdown(`[t](${url})`, opts);
+      expect(html, url).toContain(`href="${url}"`);
+      expect(html, url).toContain('target="_blank"');
+      expect(html, url).not.toContain('data-ref-');
+    }
+  });
+
   test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
     for (const url of [
       'https://github.com/stranger/elsewhere/pull/9',
