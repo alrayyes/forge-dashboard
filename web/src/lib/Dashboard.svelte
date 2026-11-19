@@ -59,6 +59,7 @@
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
+  import { labelTextColor } from "#lib/label-color.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import LiveControl from "#lib/LiveControl.svelte";
   import {
@@ -879,43 +880,6 @@
       });
       wrap.appendChild(repoName);
       return wrap;
-    }
-
-    // WCAG relative-luminance/contrast math (same formula this codebase's
-    // own design tokens were hand-verified against) — picks whichever of
-    // near-black/near-white ink actually reads against a label's real
-    // background color, since that color is arbitrary and forge-supplied,
-    // not one of our own palette's pre-checked pairs.
-    function relativeLuminance(hex: string): number {
-      function channel(c: number): number {
-        c = c / 255;
-        return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      }
-      const r = channel(Number.parseInt(hex.substr(0, 2), 16));
-      const g = channel(Number.parseInt(hex.substr(2, 2), 16));
-      const b = channel(Number.parseInt(hex.substr(4, 2), 16));
-      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-    }
-
-    function contrastRatio(l1: number, l2: number): number {
-      const lighter = Math.max(l1, l2);
-      const darker = Math.min(l1, l2);
-      return (lighter + 0.05) / (darker + 0.05);
-    }
-
-    function labelTextColor(bgHex: string): string {
-      // True black/white, not this app's own --ink/--ink-3 tokens — a
-      // themed near-black measurably under-performs pure black against
-      // an arbitrary background (caught live: GitHub's own default "bug"
-      // red, #d73a4a, cleared 4.5:1 against pure black at 4.59:1 but
-      // only hit 4.2:1 against this app's #0b0f14 — the decision math
-      // and the applied color have to agree on which black they mean, or
-      // a label can fail axe-core's contrast check despite this function
-      // "picking the higher-contrast option").
-      const bg = relativeLuminance(bgHex);
-      const blackContrast = contrastRatio(bg, 0);
-      const whiteContrast = contrastRatio(bg, 1);
-      return blackContrast >= whiteContrast ? "#000000" : "#ffffff";
     }
 
     // A real button — see the comment above ciPill on why the row isn't

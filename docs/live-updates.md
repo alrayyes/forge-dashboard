@@ -317,6 +317,12 @@ Escape closes the group and puts focus back on the button, and each change is
 announced once with the number of results. A label on a row does the same as
 its checkbox: click it to add it to the pick, click it again to remove it.
 
+Each choice is drawn as the chip a row shows: the label's colour behind its
+name, with the same black or white ink. The name stays text and the checkbox
+still carries the ticked state, so the colour is only a way to pick by sight.
+When a name has different colours in different repos on the page, its chip is
+neutral rather than claim one repo's colour.
+
 It matches any rather than all because that is the question a triage usually
 asks, and because every label offered then still leads to a non-empty list.
 Some trackers match all and some any, and users of both ask for the other, so

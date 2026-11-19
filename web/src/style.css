@@ -6309,3 +6309,19 @@ footer a[aria-current="page"] {
     min-height: 44px;
   }
 }
+
+/* A label in the Label filter, drawn as the chip a row shows: the colour
+   itself is set inline from the label (and the ink from the rows' contrast
+   rule); a name with several colours, or none, gets this neutral chip. The
+   checkbox beside it still carries the ticked state, so colour says nothing
+   the name and the box do not. */
+.pick-chip {
+  box-sizing: border-box;
+  min-width: 0;
+  color: var(--ink-2);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 7px;
+  line-height: 1.3;
+}

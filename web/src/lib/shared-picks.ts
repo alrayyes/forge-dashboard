@@ -8,10 +8,12 @@ import {
   type SharedFilterState,
   touchKey,
 } from './filters';
+import { labelChipColors } from './label-color';
 import {
   AUTHOR_CONFIG,
   joinLabels,
   type LabelFilterControl,
+  labelKey,
   mountLabelFilter,
   mountPickFilter,
   type PickChoice,
@@ -84,6 +86,7 @@ export class SharedPicks {
   // What the repo and author controls offer now, for the filter chips.
   repoChoices: PickChoice[] = [];
   authorChoices: PickChoice[] = [];
+  private labelColors: ReadonlyMap<string, string> = new Map();
   private drawn: Partial<Record<PickKey, string>> = {};
 
   constructor(
@@ -151,9 +154,14 @@ export class SharedPicks {
       labelPool,
     );
     const staleLabel = reconcilePick(state, 'label', labels, hold);
+    this.labelColors = labelChipColors(labelPool);
     this.draw(
       'label',
-      labels.map((name) => ({ value: name, text: name })),
+      labels.map((name) => ({
+        value: name,
+        text: name,
+        chip: { color: this.labelColors.get(labelKey(name)) },
+      })),
       state,
       labelPool.length,
     );
@@ -174,6 +182,7 @@ export class SharedPicks {
       this.label?.render(
         choices.map((c) => c.value),
         picked,
+        this.labelColors,
       );
     else this[key]?.render(choices, picked);
     setVisible(
