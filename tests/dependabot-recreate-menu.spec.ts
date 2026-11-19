@@ -6,6 +6,7 @@ import {
   openActionsDialog,
 } from './actions-dialog-helper';
 import { waitOutConfirmGuard } from './confirm-guard-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Bots page row draws Dependabot's Rebase as the main button of a split
@@ -59,9 +60,7 @@ function mockDashboard(page: Page, pr: Mock, forgeExtra: Mock = {}) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1, ...forgeExtra },
-        ],
+        forges: [forgeHealth('github', forgeExtra)],
         pullRequests: [pr],
         issues: [],
       }),

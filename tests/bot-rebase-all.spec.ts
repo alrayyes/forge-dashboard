@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Bots page header asks every listed, out-of-date bot pull request to
@@ -46,10 +47,7 @@ async function open(page: Page, pullRequests: unknown[], forges?: unknown[]) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: forges ?? [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: forges ?? [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests,
         issues: [],
         repos: [],
@@ -245,13 +243,10 @@ test('Dependabot rows on a GitHub App with no token are not counted', async ({
     page,
     [pr(1), renovate(4)],
     [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
+      forgeHealth('github', {
         dependabotCommandsBlocked: 'Dependabot needs a personal token.',
-      },
-      { forge: 'forgejo', reachable: true, repoCount: 1 },
+      }),
+      forgeHealth('forgejo'),
     ],
   );
   await expect(
@@ -360,13 +355,10 @@ test('the chips count the rows the filters leave, not held CI or waiting request
       }),
     ],
     [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
+      forgeHealth('github', {
         dependabotCommandsBlocked: 'Dependabot needs a personal token.',
-      },
-      { forge: 'forgejo', reachable: true, repoCount: 1 },
+      }),
+      forgeHealth('forgejo'),
     ],
   );
   await page
@@ -391,13 +383,10 @@ test('the reason is its own line and a narrower view narrows the chips and the b
     page,
     [pr(1), renovate(4)],
     [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
+      forgeHealth('github', {
         dependabotCommandsBlocked: 'Dependabot needs a personal token.',
-      },
-      { forge: 'forgejo', reachable: true, repoCount: 1 },
+      }),
+      forgeHealth('forgejo'),
     ],
   );
   const reason = page.locator('.rebase-all-reason');
@@ -435,14 +424,7 @@ test('with nothing rebasable the reason sits under the headline and the button s
   await open(
     page,
     [pr(1)],
-    [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
-        dependabotCommandsBlocked: reason,
-      },
-    ],
+    [forgeHealth('github', { dependabotCommandsBlocked: reason })],
   );
   const button = page.locator('#rebase-all-button');
   await expect(button).toHaveAttribute('aria-disabled', 'true');
@@ -622,12 +604,9 @@ test(`the strip passes axe in light and dark with zero chips`, async ({
         page,
         [pr(1)],
         [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
+          forgeHealth('github', {
             dependabotCommandsBlocked: 'Dependabot needs a personal token.',
-          },
+          }),
         ],
       );
 
