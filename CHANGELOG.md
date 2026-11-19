@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.80.1](https://github.com/alrayyes/forge-dashboard/compare/v9.80.0...v9.80.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** say Show full output when a failure excerpt is already visible ([#4239](https://github.com/alrayyes/forge-dashboard/issues/4239)) ([9e210ce](https://github.com/alrayyes/forge-dashboard/commit/9e210ce8a327f596e4cfeb907ef9cecab05f7b8a))
+
 ## [9.80.0](https://github.com/alrayyes/forge-dashboard/compare/v9.79.1...v9.80.0) (2026-11-19)
 
 
