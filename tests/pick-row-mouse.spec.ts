@@ -67,8 +67,11 @@ async function open(
     page.locator('#shared-repo-filter-button').first(),
   ).toBeAttached();
   const filters = page.getByRole('button', { name: /^Filters/ });
-  if (await filters.isVisible()) await filters.click();
   const button = page.locator(`#shared-${which}-filter-button:visible`).first();
+  // The bar is not drawn until the list is known (#4276), so wait for either
+  // the Filters button (phone) or the pick button itself (desktop).
+  await expect(filters.or(button)).toBeVisible();
+  if (await filters.isVisible()) await filters.click();
   await button.click();
   return button.locator('xpath=..');
 }
