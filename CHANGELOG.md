@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.86.0](https://github.com/alrayyes/forge-dashboard/compare/v9.85.1...v9.86.0) (2026-11-19)
+
+
+### Features
+
+* **web:** list what an issue refers to in its Related band ([#4336](https://github.com/alrayyes/forge-dashboard/issues/4336)) ([c14d714](https://github.com/alrayyes/forge-dashboard/commit/c14d714b1aaff967c6e6b98d37a85722ffdc1d14))
+
 ## [9.85.1](https://github.com/alrayyes/forge-dashboard/compare/v9.85.0...v9.85.1) (2026-11-19)
 
 
