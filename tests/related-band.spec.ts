@@ -229,9 +229,9 @@ test('an issue dialog pins the closing pull request name: relation, number, draf
   const closedBy = row(dialog, 'Closed by').locator('.linked-pr');
   await expect(closedBy).toHaveCount(1);
   await expect(closedBy).toHaveAccessibleName(
-    'Closed by: Pull request #142 draft Running 3 2 1: 3 passed, 2 running, 1 failed',
+    'Closed by: PR #142 · Draft Running 3 2 1: 3 passed, 2 running, 1 failed',
   );
-  await expect(closedBy).toContainText('draft');
+  await expect(closedBy).toContainText('PR #142 · Draft');
   await expect(closedBy.locator('.ci-pill').first()).toBeVisible();
   // Five mentions sit under the fold of six, so no toggle.
   await expect(row(dialog, 'Mentioned by').locator('.linked-pr')).toHaveCount(
@@ -269,7 +269,7 @@ test('an issue referenced by a pull request pins the pill name: Referenced by, t
   );
   await expect(
     row(dialog, 'Referenced by').locator('.linked-pr'),
-  ).toHaveAccessibleName('Referenced by: Pull request #13');
+  ).toHaveAccessibleName('Referenced by: PR #13 · Open');
 });
 
 test('a row of more than six shows six, and the keyboard opens and folds the rest', async ({
@@ -377,13 +377,77 @@ test('a closed issue that is off the board shows what refers to it, with each st
   ]);
   await expect(
     row(dialog, 'Closed by').locator('.linked-pr'),
-  ).toHaveAccessibleName('Closed by: Pull request #4100 merged');
+  ).toHaveAccessibleName('Closed by: PR #4100 · Merged');
+  await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveText(
+    'PR #4100 · Merged',
+  );
   await expect(
     row(dialog, 'Mentioned by').locator('.linked-pr'),
   ).toHaveAccessibleName('Mentioned by: Issue #4150 closed');
   // What the issue itself refers to is not drawn by this band yet.
   await expect(dialog.locator('.related-count')).toHaveText('2');
 });
+
+test('an open pull request pill under Closed by says its state', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(142)] }),
+  );
+  const pill = row(dialog, 'Closed by').locator('.linked-pr');
+  await expect(pill).toHaveText('PR #142 · Open');
+  await expect(pill).toHaveAccessibleName('Closed by: PR #142 · Open');
+});
+
+// The target of a pill is the pill plus the hit area its ::after adds. The
+// sizes are logged so the pull request can state what was measured.
+const targetSize = (pill: Locator) =>
+  pill.evaluate((el) => {
+    const after = getComputedStyle(el, '::after');
+    const box = el.getBoundingClientRect();
+    return {
+      height: Math.max(box.height, Number.parseFloat(after.height) || 0),
+      width: Math.max(box.width, Number.parseFloat(after.width) || 0),
+    };
+  });
+
+for (const [name, viewport, floor] of [
+  ['desktop', { width: 1280, height: 800 }, 24],
+  ['phone', { width: 390, height: 800 }, 44],
+] as const) {
+  test(`every state of a pull request pill is a ${floor}px target on ${name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const board = await openIssue(
+      page,
+      issue({
+        linkedPullRequests: [linked(142), linked(143, { draft: true })],
+      }),
+    );
+    const sizes: Record<string, unknown> = {};
+    const pills = row(board, 'Closed by').locator('.linked-pr');
+    for (const [i, state] of ['Open', 'Draft'].entries()) {
+      await expect(pills.nth(i)).toContainText(`· ${state}`);
+      sizes[state] = await targetSize(pills.nth(i));
+    }
+    await page.keyboard.press('Escape');
+
+    const closed = await openClosedIssue(page, [
+      reference(4100),
+      reference(4101, { state: 'closed' }),
+    ]);
+    const states = row(closed, 'Closed by').locator('.linked-pr');
+    for (const [i, state] of ['Merged', 'Closed'].entries()) {
+      await expect(states.nth(i)).toContainText(`· ${state}`);
+      sizes[state] = await targetSize(states.nth(i));
+    }
+    console.log(`SIZES ${name} ${JSON.stringify(sizes)}`);
+    for (const size of Object.values(sizes) as { height: number }[])
+      expect(size.height).toBeGreaterThanOrEqual(floor);
+  });
+}
 
 test('a closed issue that nothing refers to has no band and no error', async ({
   page,

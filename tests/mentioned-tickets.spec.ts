@@ -213,7 +213,7 @@ test.describe('the issue dialog', () => {
 
     const pill = issueDialog(page).locator('.mention-pill');
     await expect(pill).toHaveCount(1);
-    await expect(pill).toHaveAccessibleName(/^Mentioned by: Pull request #7 /);
+    await expect(pill).toHaveAccessibleName(/^Mentioned by: PR #7 · Open/);
     await expect(pill).toHaveAttribute('href', mentioning(7).pageUrl);
     await expect(issueDialog(page).getByText('Mentioned by')).toBeVisible();
   });

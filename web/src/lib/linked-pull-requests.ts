@@ -57,8 +57,41 @@ const sameRepo = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 const stateOf = (pr: LinkedPullRequest) =>
   pr.draft ? ' draft' : pr.state && pr.state !== 'open' ? ` ${pr.state}` : '';
 
+// An entry from an issue's details says its state as a word after the number
+// ("PR #12 · Merged"), so a pill under "Closed by" doesn't read as if it closes
+// something itself (#4283). The pills on a board row carry no state and keep
+// the shorter form; the Related band gives them one with withBoardState.
+const stated = (pr: LinkedPullRequest) =>
+  pr.kind === 'pullRequest' && pr.state !== undefined;
+
+// A closed or merged pull request says so even when it was a draft.
+const stateWord = (pr: LinkedPullRequest) => {
+  const state = pr.state ?? 'open';
+  if (state === 'open') return pr.draft ? 'Draft' : 'Open';
+  return `${state[0].toUpperCase()}${state.slice(1)}`;
+};
+
+/**
+ * The board's pills are all open pull requests, so the Related band can say
+ * so: the same entries as an issue's own details give, with a state.
+ */
+export const withBoardState = (
+  list: LinkedPullRequest[] | undefined,
+): LinkedPullRequest[] | undefined =>
+  list?.map((pr) => ({
+    ...pr,
+    kind: pr.kind ?? 'pullRequest',
+    state: pr.state ?? 'open',
+  }));
+
 const nounOf = (pr: LinkedPullRequest) =>
   pr.kind === 'issue' ? 'Issue' : 'Pull request';
+
+/** The number and state as the pill reads them, with no pipeline. */
+const headOf = (pr: LinkedPullRequest, issueRepo: string) =>
+  stated(pr)
+    ? `PR ${numberOf(pr, issueRepo)} · ${stateWord(pr)}`
+    : `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
 
 const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
   sameRepo(pr.repo, issueRepo) ? `#${pr.number}` : `${pr.repo}#${pr.number}`;
@@ -76,7 +109,7 @@ export function linkedPillText(
   issueRepo: string,
   ci?: PillCi | null,
 ) {
-  const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
+  const head = headOf(pr, issueRepo);
   return ci ? `${head} ${ciText(ci)}` : head;
 }
 
@@ -90,12 +123,13 @@ export function linkedPillName(
   ci?: PillCi | null,
   relation: Relation = 'closes',
 ) {
-  const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
+  const head = headOf(pr, issueRepo);
   const says = relation === 'refs' ? 'references, does not close' : relation;
-  if (!ci) return `${nounOf(pr)} ${head}, ${says} this issue`;
+  const noun = stated(pr) ? '' : `${nounOf(pr)} `;
+  if (!ci) return `${noun}${head}, ${says} this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
-  return `${nounOf(pr)} ${head} ${said}, ${says} this issue`;
+  return `${noun}${head} ${said}, ${says} this issue`;
 }
 
 /** What a pull request does to the issue its pill sits on. */
@@ -112,7 +146,9 @@ export function linkedDialogName(
   ci?: PillCi | null,
   relation: Relation = 'closes',
 ) {
-  const head = `${nounOf(pr)} ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
+  const head = stated(pr)
+    ? headOf(pr, issueRepo)
+    : `${nounOf(pr)} ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
   const said = ci
     ? ci.segments.length > 0
       ? pillName(ci.label, ci.segments)
@@ -264,12 +300,13 @@ export function linkedPills(
     const text = linkedPillText(pr, issueRepo);
     const ref = numberOf(pr, issueRepo);
     const number = `#${pr.number}`;
-    if (text.startsWith(ref) && ref.length > number.length) {
+    const at = text.indexOf(ref);
+    if (at >= 0 && ref.length > number.length) {
       const refNode = element('span', 'linked-pr-ref');
       const repoNode = element('span', 'linked-pr-repo', pr.repo);
       repoNode.title = pr.repo;
       refNode.append(repoNode, element('span', 'linked-pr-number', number));
-      link.append(refNode, text.slice(ref.length));
+      link.append(text.slice(0, at), refNode, text.slice(at + ref.length));
     } else {
       link.textContent = text;
     }
