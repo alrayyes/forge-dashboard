@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
-import { type ItemReference, incomingRows } from './issue-references.js';
+import {
+  type ItemReference,
+  incomingRows,
+  mergeRows,
+} from './issue-references.js';
 
 const ref = (over: Partial<ItemReference>): ItemReference => ({
   forge: 'github',
@@ -37,5 +41,49 @@ describe('incomingRows', () => {
     const rows = incomingRows([ref({ direction: 'outgoing' })]);
 
     expect(rows.linkedPullRequests).toEqual([]);
+  });
+});
+
+describe('mergeRows', () => {
+  const drawn = (number: number, ci: 'passed' | 'none') => ({
+    ...incomingRows([ref({ number })]).linkedPullRequests[0],
+    ci,
+  });
+
+  test('keeps what the board drew when the details list nothing', () => {
+    const board = {
+      linkedPullRequests: [drawn(13, 'passed')],
+      referencedByPullRequests: [],
+      mentionedByPullRequests: [],
+    };
+
+    expect(mergeRows(board, incomingRows([])).linkedPullRequests).toEqual([
+      drawn(13, 'passed'),
+    ]);
+  });
+
+  test('keeps the board pill, with its checks, over the same item from the details', () => {
+    const board = {
+      linkedPullRequests: [drawn(13, 'passed')],
+      referencedByPullRequests: [],
+      mentionedByPullRequests: [],
+    };
+    const merged = mergeRows(board, incomingRows([ref({ number: 13 })]));
+
+    expect(merged.linkedPullRequests).toEqual([drawn(13, 'passed')]);
+  });
+
+  test('adds an item only the details know, after the board pills', () => {
+    const board = {
+      linkedPullRequests: [drawn(13, 'passed')],
+      referencedByPullRequests: [],
+      mentionedByPullRequests: [],
+    };
+    const merged = mergeRows(
+      board,
+      incomingRows([ref({ number: 14 }), ref({ number: 13 })]),
+    );
+
+    expect(merged.linkedPullRequests.map((p) => p.number)).toEqual([13, 14]);
   });
 });

@@ -204,7 +204,11 @@
   } from "#lib/closing-issues.js";
   import { type MentionedIssue, mentionPills } from "#lib/mentioned-issues.js";
   import { relatedBandData } from "#lib/related-band.js";
-  import { type ItemReference, incomingRows } from "#lib/issue-references.js";
+  import {
+    type ItemReference,
+    incomingRows,
+    mergeRows,
+  } from "#lib/issue-references.js";
   import {
     type LinkedPullRequest,
     linkedPills,
@@ -2707,7 +2711,17 @@
       const open = issueDialog;
       if (!open || !detailsDialog) return;
       if (listedIssue(open.forge, open.repo, open.number)) return;
-      const item = { ...open.item, ...incomingRows(references) };
+      const item = {
+        ...open.item,
+        ...mergeRows(
+          {
+            linkedPullRequests: open.item.linkedPullRequests ?? [],
+            referencedByPullRequests: open.item.referencedByPullRequests ?? [],
+            mentionedByPullRequests: open.item.mentionedByPullRequests ?? [],
+          },
+          incomingRows(references),
+        ),
+      };
       const shown = attributesSignature(item);
       if (shown === open.shown) return;
       open.item = item;

@@ -63,3 +63,37 @@ export function incomingRows(
   }
   return rows;
 }
+
+/**
+ * What the board already drew for the issue plus what its details found. A
+ * pill the board drew stays as it is, since it carries the checks the details
+ * do not know; an item only the details list is added after it.
+ */
+export function mergeRows(
+  board: IncomingRows,
+  found: IncomingRows,
+): IncomingRows {
+  const all = [
+    ...board.linkedPullRequests,
+    ...board.referencedByPullRequests,
+    ...board.mentionedByPullRequests,
+  ];
+  const drawn = new Set(all.map((p) => `${p.forge}/${p.repo}#${p.number}`));
+  const added = (rows: LinkedPullRequest[]) =>
+    rows.filter((p) => !drawn.has(`${p.forge}/${p.repo}#${p.number}`));
+
+  return {
+    linkedPullRequests: [
+      ...board.linkedPullRequests,
+      ...added(found.linkedPullRequests),
+    ],
+    referencedByPullRequests: [
+      ...board.referencedByPullRequests,
+      ...added(found.referencedByPullRequests),
+    ],
+    mentionedByPullRequests: [
+      ...board.mentionedByPullRequests,
+      ...added(found.mentionedByPullRequests),
+    ],
+  };
+}
