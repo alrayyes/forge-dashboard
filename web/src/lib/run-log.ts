@@ -226,15 +226,27 @@ export function checkLinkLabel(text: string, check: string): string {
   return `${text} (opens in a new tab): ${check}`;
 }
 
-// The output toggle's words. Closed beside a failure excerpt the row already
-// shows, a press opens more than is on screen, so it says "full" instead of
-// reading as a toggle for text that is already there (#4236).
+// The output toggle's visible words. Closed beside a failure excerpt the row
+// already shows, a press opens more than is on screen, so it says "Full output"
+// instead of reading as a toggle for text that is already there (#4236). Short
+// enough to keep the row's one line at 390px, where "Show full output" wraps.
 export function outputToggleLabel(
   shown: boolean,
   excerptVisible: boolean,
 ): string {
   if (shown) return 'Hide output';
-  return excerptVisible ? 'Show full output' : 'Show output';
+  return excerptVisible ? 'Full output' : 'Show output';
+}
+
+// The toggle's accessible name, before the job. It spells out what the press
+// does and still contains the visible words (WCAG 2.5.3).
+export function outputToggleName(
+  shown: boolean,
+  excerptVisible: boolean,
+): string {
+  return !shown && excerptVisible
+    ? 'Show full output'
+    : outputToggleLabel(shown, excerptVisible);
 }
 
 // Whether a running job's output can't be read yet: a forge that sets

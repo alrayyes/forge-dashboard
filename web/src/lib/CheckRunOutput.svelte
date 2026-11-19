@@ -13,6 +13,7 @@
     logUrl,
     notePlaces,
     outputToggleLabel,
+    outputToggleName,
     parseLogLines,
     type RepoRef,
   } from "#lib/run-log.js";
@@ -50,6 +51,7 @@
   const url = $derived(logUrl(repo, jobId, run));
   let shown = $state(false);
   const toggleLabel = $derived(outputToggleLabel(shown, excerptVisible));
+  const toggleName = $derived(outputToggleName(shown, excerptVisible));
   let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");
   const lines = $derived(parseLogLines(text));
@@ -145,7 +147,7 @@
     aria-controls={panelId}
     disabled={!url}
     onclick={toggle}
-    aria-label="{toggleLabel}: {name}"
+    aria-label="{toggleName}: {name}"
     >{toggleLabel}<svg
       class="run-chevron"
       viewBox="0 0 16 16"

@@ -5687,11 +5687,12 @@ footer a[aria-current="page"] {
   white-space: nowrap;
   cursor: pointer;
 }
-/* "Show output", "Show full output" and "Hide output" take one width, so the
-   label swap moves nothing. */
+/* "Show output", "Full output" and "Hide output" take one width, so the label
+   swap moves nothing. It stays 8.5em: wider, a short-named row at 390px no
+   longer fits its toggle on the line of its name (#4236). */
 .run-toggle {
   justify-content: flex-end;
-  min-width: 11em;
+  min-width: 8.5em;
   box-sizing: border-box;
 }
 /* The Copy slot before the output is ready: kept in the layout, not seen. */

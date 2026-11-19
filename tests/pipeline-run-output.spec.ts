@@ -304,7 +304,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     const withExcerpt = dialog.getByRole('button', {
       name: 'Show full output: build',
     });
-    await expect(withExcerpt).toHaveText('Show full output');
+    await expect(withExcerpt).toHaveText('Full output');
     await expect(
       dialog.getByRole('button', { name: 'Show output: docs' }),
     ).toHaveText('Show output');
@@ -314,6 +314,47 @@ test.describe('a check run output in the pipeline dialog', () => {
     const hide = dialog.getByRole('button', { name: 'Hide output: build' });
     await expect(hide).toHaveText('Hide output');
     expect((await hide.boundingBox())?.width).toBe(before?.width);
+  });
+
+  test('at 390px a short-named row keeps its toggle on the line of its name (#4236)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await setup(
+      page,
+      { status: 200, body: { text: 'line\n', truncated: false } },
+      [
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          url: runUrl,
+          jobId: 9,
+          excerpt: 'boom: exit 1',
+        },
+        {
+          name: 'docs',
+          status: 'completed',
+          conclusion: 'failure',
+          url: `${runUrl}1`,
+          jobId: 10,
+        },
+      ],
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    for (const [job, label] of [
+      ['build', 'Show full output'],
+      ['docs', 'Show output'],
+    ]) {
+      const row = dialog.locator('li.pipeline-check', { hasText: job });
+      const toggle = row.getByRole('button', { name: `${label}: ${job}` });
+      const name = row.locator('.pipeline-check-name');
+      await expect(toggle).toBeVisible();
+      const t = await toggle.boundingBox();
+      const n = await name.boundingBox();
+      // Same line: the toggle's top is not below the name's bottom.
+      expect(t?.y).toBeLessThan((n?.y ?? 0) + (n?.height ?? 0));
+    }
   });
 
   test('the output is reachable from the keyboard and hides again', async ({

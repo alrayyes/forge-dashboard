@@ -81,7 +81,7 @@
     const toggle = within(canvasElement).getByRole("button", {
       name: "Show full output: test / go",
     });
-    await expect(toggle).toHaveTextContent("Show full output");
+    await expect(toggle).toHaveTextContent(/^Full output$/);
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(toggle.getBoundingClientRect().height).toBeGreaterThanOrEqual(
       24,
