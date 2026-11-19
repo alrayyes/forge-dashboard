@@ -37,6 +37,9 @@ type ForgeCapabilities struct {
 	StatusPageURL string `json:"statusPageUrl"`
 	// RateLimitModel names how the forge budgets requests.
 	RateLimitModel string `json:"rateLimitModel"`
+	// RateLimitDocsURL is the forge's published rules for its request budget,
+	// or empty when it has none to link to.
+	RateLimitDocsURL string `json:"rateLimitDocsUrl"`
 	// IssueRefSyntax names the forms the forge's text uses to reference an issue.
 	IssueRefSyntax string `json:"issueRefSyntax"`
 	// Label is the forge's name as a person reads it.
@@ -78,6 +81,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		ReportsRepoPermissions:     false,
 		StatusPageURL:              "https://www.githubstatus.com/",
 		RateLimitModel:             RateLimitGraphQLAndREST,
+		RateLimitDocsURL:           "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
 		IssueRefSyntax:             IssueRefHashOrGHPref,
 		Label:                      "GitHub",
 		BotLoginSuffix:             "[bot]",
@@ -103,6 +107,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		ReportsRepoPermissions:     true,
 		StatusPageURL:              "",
 		RateLimitModel:             RateLimitRESTOnly,
+		RateLimitDocsURL:           "",
 		IssueRefSyntax:             IssueRefHash,
 		Label:                      "Forgejo",
 	},

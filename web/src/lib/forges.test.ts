@@ -9,6 +9,7 @@ import {
   forgeLabelOf,
   forgeListText,
   isKnownForge,
+  rateLimitDocsUrlOf,
   rateLimitModelOf,
   registerForgeCapabilities,
   resetForgeCapabilities,
@@ -111,6 +112,7 @@ describe('forgeCan', () => {
       expect(FORGE_LABELS[forge]).toBe(caps.label as string);
       expect(rateLimitModelOf(forge)).toBe(caps.rateLimitModel as string);
       expect(statusPageUrlOf(forge)).toBe(caps.statusPageUrl as string);
+      expect(rateLimitDocsUrlOf(forge)).toBe(caps.rateLimitDocsUrl as string);
       expect(advisoryFactsOf(forge)).toEqual({
         source: caps.advisorySource as string,
         unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
@@ -150,6 +152,62 @@ describe('forgeCan', () => {
 
     expect(forgeCan('gitea', 'servesRunningLog')).toBe(true);
     expect(forgeCan('gitea', 'serverLogExcerpts')).toBe(false);
+  });
+});
+
+describe('rateLimitDocsUrlOf', () => {
+  test('a forge learns its rate limit docs from the capabilities the API sent', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: { rateLimitDocsUrl: 'https://docs.example/limits' },
+      },
+    ]);
+
+    expect(rateLimitDocsUrlOf('gitea')).toBe('https://docs.example/limits');
+  });
+
+  test('a forge with none, or one never heard of, has no link', () => {
+    expect(rateLimitDocsUrlOf('forgejo')).toBe('');
+    expect(rateLimitDocsUrlOf('nowhere')).toBe('');
+  });
+
+  test('an empty answer clears the seeded link, and reset puts it back', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { rateLimitDocsUrl: '' } },
+    ]);
+    expect(rateLimitDocsUrlOf('github')).toBe('');
+
+    resetForgeCapabilities();
+
+    expect(rateLimitDocsUrlOf('github')).toContain('docs.github.com');
+  });
+});
+
+describe('rateLimitModelOf', () => {
+  // Kept on purpose, like the flags: a read that names the forge but not the
+  // model leaves what the page already learned. The API always sends the
+  // model, so this only shields a partial payload from erasing it.
+  test('a re-registration without a model keeps the one already learned', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'graphql_and_rest' } },
+    ]);
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+
+    expect(rateLimitModelOf('gitea')).toBe('graphql_and_rest');
+  });
+
+  test('a re-registration with a new model replaces the old one', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'graphql_and_rest' } },
+    ]);
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { rateLimitModel: 'rest' } },
+    ]);
+
+    expect(rateLimitModelOf('gitea')).toBe('rest');
   });
 });
 

@@ -6,6 +6,7 @@ import {
   forgeCan,
   forgeFlag,
   forgeLabelOf,
+  rateLimitDocsUrlOf,
   rateLimitModelOf,
   registerForgeCapabilities,
   resetForgeCapabilities,
@@ -27,6 +28,7 @@ describe.each(PROTOTYPE_KEYS)('a forge named %s', (forge) => {
     expect(advisoryFactsOf(forge)).toBeUndefined();
     expect(rateLimitModelOf(forge)).toBe('');
     expect(statusPageUrlOf(forge)).toBe('');
+    expect(rateLimitDocsUrlOf(forge)).toBe('');
   });
 
   test('has no flags', () => {

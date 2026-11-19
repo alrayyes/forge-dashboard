@@ -13,6 +13,7 @@
       "reportsRepoPermissions": true,
       "statusPageUrl": "",
       "rateLimitModel": "rest",
+      "rateLimitDocsUrl": "",
       "issueRefSyntax": "hash",
       "label": "Forgejo"
     },
@@ -28,6 +29,7 @@
       "reportsRepoPermissions": false,
       "statusPageUrl": "https://www.githubstatus.com/",
       "rateLimitModel": "graphql_and_rest",
+      "rateLimitDocsUrl": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
       "issueRefSyntax": "hash_or_gh_prefix",
       "label": "GitHub"
     }
