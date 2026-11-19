@@ -56,6 +56,7 @@ describe('forge pill group', () => {
       'failing',
       'running',
       'passing',
+      'cancelled',
       'no-checks',
     ]);
     expect(pillLabel('no-checks')).toBe('No checks');

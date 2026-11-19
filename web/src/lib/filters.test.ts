@@ -26,6 +26,7 @@ import {
   optionPool,
   PILL_GROUPS,
   pillGroupOf,
+  pillLabel,
   QUICK_FILTERS,
   refsChoiceLabel,
   refsChoiceShort,
@@ -331,6 +332,65 @@ describe('the No checks quick filter', () => {
         { status: 'failure' },
       ),
     ).toBe(true);
+  });
+});
+
+// The Cancelled pill lists the pull requests whose row reads Cancelled, which
+// is the server's own `ci: cancelled` (#4331).
+describe('the Cancelled quick filter', () => {
+  test('is a quick filter in the CI group, between Passing and No checks', () => {
+    expect(QUICK_FILTERS).toContain('cancelled');
+    expect(pillGroupOf('cancelled')).toBe('ci');
+    expect(pillLabel('cancelled')).toBe('Cancelled');
+    expect([...PILL_GROUPS.ci]).toEqual([
+      'failing',
+      'running',
+      'passing',
+      'cancelled',
+      'no-checks',
+    ]);
+  });
+
+  test('matches a cancelled pull request and nothing else', () => {
+    expect(
+      matchesQuickFilter(choiceItem({ ci: 'cancelled' }), 'cancelled'),
+    ).toBe(true);
+    for (const ci of ['success', 'failure', 'pending', 'none', undefined])
+      expect(matchesQuickFilter(choiceItem({ ci }), 'cancelled')).toBe(false);
+  });
+
+  test('a cancelled pull request is in no other CI pill', () => {
+    const item = choiceItem({ ci: 'cancelled' });
+    for (const pill of ['failing', 'running', 'passing', 'no-checks'])
+      expect(matchesQuickFilter(item, pill)).toBe(false);
+  });
+
+  test('is offered only while a pull request is cancelled, or is picked', () => {
+    const button = { dataset: { pill: 'cancelled' }, hidden: false };
+    const offered = (pool: FilterableItem[], active: string) => {
+      offerPills(
+        [button as unknown as HTMLElement],
+        pools([], pool),
+        actives(active),
+      );
+      return !button.hidden;
+    };
+    expect(
+      offered(
+        [choiceItem({ ci: 'cancelled' }), choiceItem({ ci: 'success' })],
+        '',
+      ),
+    ).toBe(true);
+    expect(offered([choiceItem({ ci: 'success' })], '')).toBe(false);
+    expect(offered([choiceItem({ ci: 'success' })], 'cancelled')).toBe(true);
+  });
+
+  test('combines with a pill of another group, as the others do', () => {
+    const pick = { ci: 'cancelled', merge: 'conflicting' };
+    const both = choiceItem({ ci: 'cancelled', mergeStatus: 'conflicting' });
+    const onlyCancelled = choiceItem({ ci: 'cancelled' });
+    expect(matchesFilters(both, true, {}, pick)).toBe(true);
+    expect(matchesFilters(onlyCancelled, true, {}, pick)).toBe(false);
   });
 });
 
