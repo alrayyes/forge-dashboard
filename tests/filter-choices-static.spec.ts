@@ -31,7 +31,12 @@ function pr(number: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-async function open(page: Page, path: string, pullRequests: unknown[]) {
+async function open(
+  page: Page,
+  path: string,
+  pullRequests: unknown[],
+  forges: unknown[] = [forgeHealth('github')],
+) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
@@ -41,7 +46,7 @@ async function open(page: Page, path: string, pullRequests: unknown[]) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [forgeHealth('github')],
+        forges,
         pullRequests,
         issues: [],
         openIssueCount: 0,
@@ -111,6 +116,46 @@ test.describe('forge buttons on Insights (#1427)', () => {
     page.locator(
       `.filter-bar label:has(input[data-col="forge"][value="${value}"])`,
     );
+
+  test('the buttons are the forges the API reports, named by its labels (#3976)', async ({
+    page,
+  }) => {
+    const health = (forge: 'github' | 'forgejo', label: string) => ({
+      ...forgeHealth(forge),
+      capabilities: { ...forgeHealth(forge).capabilities, label },
+    });
+    const gitea = { forge: 'gitea', reachable: true, repoCount: 1 };
+    await open(
+      page,
+      '/insights.html',
+      [
+        pr(1),
+        pr(2, { forge: 'forgejo', repo: 'ryan/infra' }),
+        pr(3, {
+          forge: 'gitea',
+          repo: 'ryan/tools',
+          allowedActions: [],
+          status: null,
+          kind: 'regular',
+        }),
+      ],
+      [
+        health('github', 'GitHub'),
+        health('forgejo', 'Codeberg'),
+        { ...gitea, capabilities: { label: 'Gitea' } },
+      ],
+    );
+    await expect(forgeLabel(page, 'gitea')).toBeVisible();
+    await expect(page.locator('.filter-bar .forge-segmented label')).toHaveText(
+      ['All', 'GitHub', 'Codeberg', 'Gitea'],
+    );
+    await page.locator('input[data-col="forge"][value="gitea"]').check({
+      force: true,
+    });
+    await expect(
+      page.locator('input[data-col="forge"][value="gitea"]'),
+    ).toBeChecked();
+  });
 
   test('a forge with nothing to chart is not offered', async ({ page }) => {
     await open(page, '/insights.html', [pr(1)]);

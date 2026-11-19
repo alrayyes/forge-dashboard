@@ -8,7 +8,7 @@
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
-  import { forgeLabelOf } from "#lib/forges.js";
+  import { forgeIds, forgeLabelOf } from "#lib/forges.js";
   import {
     releaseHeldPick as releaseHeldPickWiring,
     setHideDependencyDashboard,
@@ -205,6 +205,13 @@
   // each (#1620).
   let heldList: Filters.HeldPick[] = $state([]);
   let heldPicksEl: HTMLDivElement | undefined = $state();
+
+  // The forge buttons: every forge the API has reported, so a new one needs no
+  // edit here. Reading the answer makes the list follow the registry (#3976).
+  const forgeList = $derived.by(() => {
+    void dashboardRead.data;
+    return forgeIds().map((id) => ({ id, label: forgeLabelOf(id) }));
+  });
 
   function releaseHeldPick(pick: Filters.HeldPick) {
     heldList = releaseHeldPickWiring(sharedState, pick);
@@ -757,26 +764,18 @@
           />
           <span>All</span>
         </label>
-        <label>
-          <input
-            type="radio"
-            name="forge"
-            class="col-filter"
-            data-col="forge"
-            value="github"
-          />
-          <span>GitHub</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="forge"
-            class="col-filter"
-            data-col="forge"
-            value="forgejo"
-          />
-          <span>Forgejo</span>
-        </label>
+        {#each forgeList as forge (forge.id)}
+          <label>
+            <input
+              type="radio"
+              name="forge"
+              class="col-filter"
+              data-col="forge"
+              value={forge.id}
+            />
+            <span>{forge.label}</span>
+          </label>
+        {/each}
       </fieldset>
       <div id="shared-repo-filter" bind:this={repoHost}></div>
       <span class="search-wrap">
