@@ -1,6 +1,7 @@
 package forgejo_test
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -318,6 +319,52 @@ func TestGetIssueDetails_ATimelineErrorLeavesTheIssueWithoutReferences(t *testin
 			assert.Empty(t, got.References)
 		})
 	}
+}
+
+// A page that fails after others were read keeps what those pages held: the
+// references are an addition, and a partial list beats none (#4322).
+func TestGetIssueDetails_KeepsTheReferencesOfPagesReadBeforeAFailure(t *testing.T) {
+	t.Parallel()
+
+	for name, later := range map[string]http.HandlerFunc{
+		"server error": func(w http.ResponseWriter, _ *http.Request) { http.Error(w, "boom", http.StatusInternalServerError) },
+		"bad body":     func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte("not json")) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Query().Get("page") == "1" {
+					writeJSON(t, w, []any{refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true)})
+
+					return
+				}
+				later(w, r)
+			})
+
+			got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			require.Len(t, got.References, 1)
+			assert.Equal(t, 12, got.References[0].Number)
+		})
+	}
+}
+
+// A cancelled read is not a timeline that is unavailable: the caller gave up,
+// so the error reaches it instead of a thread that looks complete (#4322).
+func TestGetIssueDetails_ACancelledContextIsAnError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, _ *http.Request) {
+		cancel()
+		writeJSON(t, w, []any{})
+	})
+
+	_, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(ctx, "alrayyes", "a", 5)
+
+	require.ErrorIs(t, err, context.Canceled)
 }
 
 // Forgejo drops rows it won't show after paging, so a short page is not the

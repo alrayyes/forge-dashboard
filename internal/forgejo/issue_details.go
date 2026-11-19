@@ -38,11 +38,14 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	}
 	details.Kind = dashboard.ItemKindIssue
 	// The references are an addition to the thread, so a timeline that fails
-	// leaves the issue without them instead of failing the whole read.
+	// leaves the issue with the ones read before it failed instead of failing
+	// the whole read. A caller that gave up still gets the error.
 	details.References, err = c.incomingReferences(ctx, owner, name, number)
 	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return dashboard.IssueDetails{}, fmt.Errorf("forgejo: read timeline: %w", ctxErr)
+		}
 		slog.Debug("forgejo timeline unavailable", "repo", owner+"/"+name, "issue", number, "err", err)
-		details.References = nil
 	}
 	if issue.PullRequest != nil {
 		details.Kind = dashboard.ItemKindPullRequest
@@ -90,7 +93,8 @@ type timelineReference struct {
 }
 
 // timelineReferences reads the issue's timeline, one request per page of
-// events and an empty page to end on, as the scheduled merge read does.
+// events and an empty page to end on, as the scheduled merge read does. A page
+// that fails returns the events of the pages before it along with the error.
 func (c *Client) timelineReferences(ctx context.Context, owner, name string, number int) ([]timelineReference, error) {
 	var events []timelineReference
 	for page := 1; page <= maxTimelinePages; page++ {
@@ -98,11 +102,11 @@ func (c *Client) timelineReferences(ctx context.Context, owner, name string, num
 		slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
 		body, resp, err := c.rawRequest(ctx, http.MethodGet, path, nil)
 		if err != nil {
-			return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+			return events, c.forgejoError(ctx, http.MethodGet, path, resp, err)
 		}
 		var batch []timelineReference
 		if err := json.Unmarshal(body, &batch); err != nil {
-			return nil, fmt.Errorf("forgejo: unmarshal timeline response: %w", err)
+			return events, fmt.Errorf("forgejo: unmarshal timeline response: %w", err)
 		}
 		if len(batch) == 0 {
 			break
@@ -114,12 +118,10 @@ func (c *Client) timelineReferences(ctx context.Context, owner, name string, num
 }
 
 // incomingReferences returns the items that refer to the issue, from its
-// timeline.
+// timeline. When the read fails part way it returns the ones read so far along
+// with the error.
 func (c *Client) incomingReferences(ctx context.Context, owner, name string, number int) ([]dashboard.ItemReference, error) {
 	events, err := c.timelineReferences(ctx, owner, name, number)
-	if err != nil {
-		return nil, err
-	}
 
 	var refs []dashboard.ItemReference
 	for _, e := range events {
@@ -148,5 +150,5 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 		refs = append(refs, ref)
 	}
 
-	return dashboard.NewestFirstReferences(refs), nil
+	return dashboard.NewestFirstReferences(refs), err
 }
