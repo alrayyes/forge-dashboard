@@ -187,6 +187,18 @@ func TestIsSignedAttachment_FollowsTheForgesPrefix(t *testing.T) {
 		"https://evil.example/attachments/abc":         false,
 		"https://github.com/user-attachments/assets/1": false,
 		"%zz": false,
+		// A host that only ends with, starts with or contains the forge's host is someone else's.
+		"https://evilfiles.third.example/attachments/x":                  false,
+		"https://evil-files.third.example/attachments/x":                 false,
+		"https://files.third.example.evil.example/attachments/x":         false,
+		"https://sub.files.third.example/attachments/x":                  false,
+		"https://evil.example/https://files.third.example/attachments/x": false,
+		"https://files.third.example@evil.example/attachments/x":         false,
+		"https://files.third.example:8443/attachments/x":                 false,
+		"https://files.third.example:443/attachments/x":                  false,
+		"https://files.third.example./attachments/x":                     false,
+		"//files.third.example/attachments/x":                            false,
+		"https:files.third.example/attachments/x":                        false,
 	} {
 		assert.Equal(t, want, isSignedAttachment(prefix, "", raw), raw)
 	}
