@@ -273,7 +273,26 @@ func isSignedAttachment(prefix, origin, raw string) bool {
 		home.Scheme, home.Host = o.Scheme, o.Host
 	}
 
-	return u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) && strings.HasPrefix(u.Path, home.Path)
+	return u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) && cleanPath(u) && strings.HasPrefix(u.Path, home.Path)
+}
+
+// cleanPath reports whether the link's path is already in its resolved form: no
+// dot segments, empty segments, backslashes, or escapes that hide a separator,
+// a dot or another escape. A path that changes under cleaning could resolve
+// outside the prefix the plain text test sees (#4247).
+func cleanPath(u *url.URL) bool {
+	segs := strings.Split(strings.TrimPrefix(u.EscapedPath(), "/"), "/")
+	for i, seg := range segs {
+		dec, err := url.PathUnescape(seg)
+		if err != nil || dec == "." || dec == ".." || strings.ContainsAny(dec, `/\%`) {
+			return false
+		}
+		if seg == "" && i < len(segs)-1 {
+			return false
+		}
+	}
+
+	return true
 }
 
 // imageItemOf reads which issue, pull request, comment or release the image sits in.
