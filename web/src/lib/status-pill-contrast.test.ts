@@ -139,6 +139,11 @@ function failures(source: string, theme: Map<string, string>): string[] {
     const { fg, bg } = tone(source, status, theme);
     const glyph = ratio(fg, sunken);
     if (glyph < 3) out.push(`${status} glyph is ${glyph.toFixed(2)}:1`);
+    // A pressed pill's inset ring is drawn in currentColor, the tone. It is the
+    // cue beyond fill, so on the neutral states it has to stand out from the
+    // page by itself (1.4.11), not lean on a faint fill change (#4300).
+    const ring = ratio(fg, page);
+    if (ring < 3) out.push(`${status} pressed ring is ${ring.toFixed(2)}:1`);
     const word = ratio(fg, bg);
     if (word < 4.5) out.push(`${status} pressed word is ${word.toFixed(2)}:1`);
     const count = ratio(over(fg, bg, opacity), bg);
@@ -188,6 +193,16 @@ describe('Status pill colours', () => {
       '$1 #ffff00;',
     );
     expect(failures(bad, light).length).toBeGreaterThan(0);
+  });
+
+  test('fails when a neutral pill rings in a colour too faint for the page', () => {
+    const bad = css.replace(
+      /(\.ci-filter-pill\[data-status="none"\] \{[^}]*--mb-tone:)\s*[^;]+;/,
+      '$1 #cccccc;',
+    );
+    expect(
+      failures(bad, light).some((f) => f.includes('none pressed ring')),
+    ).toBe(true);
   });
 
   test('fails when the edge is the faint divider colour', () => {
