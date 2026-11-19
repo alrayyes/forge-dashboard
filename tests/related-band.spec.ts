@@ -92,7 +92,12 @@ const details = {
 
 async function mockBoard(
   page: Page,
-  board: { pullRequests?: unknown[]; issues?: unknown[] },
+  board: {
+    pullRequests?: unknown[];
+    issues?: unknown[];
+    // What the issue's details list as its references.
+    references?: unknown[];
+  },
 ) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -112,7 +117,11 @@ async function mockBoard(
       route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(details),
+        body: JSON.stringify(
+          endpoint === 'issues'
+            ? { ...details, references: board.references ?? [] }
+            : details,
+        ),
       }),
     );
 }
@@ -136,8 +145,12 @@ async function openPullRequest(page: Page, pr = pullRequest()) {
   return prDialog(page);
 }
 
-async function openIssue(page: Page, item = issue()) {
-  await mockBoard(page, { issues: [item] });
+async function openIssue(
+  page: Page,
+  item = issue(),
+  references: unknown[] = [],
+) {
+  await mockBoard(page, { issues: [item], references });
   await page.goto('/issues.html');
   await page
     .locator('#issue-rows .row')
@@ -374,6 +387,7 @@ test('a closed issue that is off the board shows what refers to it, with each st
   await expect(dialog.locator('.related-label')).toHaveText([
     'Closed by',
     'Mentioned by',
+    'Refs',
   ]);
   await expect(
     row(dialog, 'Closed by').locator('.linked-pr'),
@@ -384,8 +398,85 @@ test('a closed issue that is off the board shows what refers to it, with each st
   await expect(
     row(dialog, 'Mentioned by').locator('.linked-pr'),
   ).toHaveAccessibleName('Mentioned by: Issue #4150 closed');
-  // What the issue itself refers to is not drawn by this band yet.
-  await expect(dialog.locator('.related-count')).toHaveText('2');
+  // What the issue itself refers to follows, in rows of its own (#4272).
+  await expect(row(dialog, 'Refs').locator('.linked-pr')).toHaveAccessibleName(
+    'Refs: PR #4200 · Merged',
+  );
+  await expect(dialog.locator('.related-count')).toHaveText('3');
+});
+
+const outgoing = (number: number, over: Record<string, unknown> = {}) =>
+  reference(number, { direction: 'outgoing', relation: 'refs', ...over });
+
+test('an issue on the board lists what it refers to, after what refers to it', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(142)] }),
+    [
+      outgoing(4297, { kind: 'issue', state: 'open' }),
+      outgoing(4300, { relation: 'mentions', kind: 'issue', state: 'closed' }),
+    ],
+  );
+
+  await expect(dialog.locator('.related-label')).toHaveText([
+    'Closed by',
+    'Refs',
+    'Mentions',
+  ]);
+  const refsPill = row(dialog, 'Refs').locator('.linked-pr');
+  await expect(refsPill).toHaveAccessibleName('Refs: Issue #4297');
+  await expect(refsPill).toHaveAttribute(
+    'title',
+    'This issue references this, it does not close it',
+  );
+  await expect(
+    row(dialog, 'Mentions').locator('.linked-pr'),
+  ).toHaveAccessibleName('Mentions: Issue #4300 closed');
+  await expect(row(dialog, 'Refs')).toContainText(
+    'Italic: this issue references these, it does not close them.',
+  );
+  await expect(dialog.locator('.related-count')).toHaveText('3');
+});
+
+test('a pill for what the issue refers to is a link to the item', async ({
+  page,
+}) => {
+  const dialog = await openIssue(page, issue(), [outgoing(4297)]);
+
+  await expect(row(dialog, 'Refs').locator('a.linked-pr')).toHaveAttribute(
+    'href',
+    `/pull-requests.html?pr=github/${REPO}/4297`,
+  );
+});
+
+test('the rows for what an issue refers to have no axe violations', async ({
+  page,
+}) => {
+  await openIssue(page, issue({ linkedPullRequests: [linked(142)] }), [
+    outgoing(4297),
+    outgoing(4300, { relation: 'mentions' }),
+  ]);
+
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const results = await new AxeBuilder({ page })
+      .include('.related-band')
+      .analyze();
+    expect(results.violations, scheme).toEqual([]);
+  }
+});
+
+test('an issue that refers to nothing has no outgoing rows', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(142)] }),
+  );
+
+  await expect(dialog.locator('.related-label')).toHaveText(['Closed by']);
 });
 
 test('an open pull request pill under Closed by says its state', async ({
