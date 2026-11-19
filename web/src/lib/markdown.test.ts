@@ -366,6 +366,39 @@ describe('item addresses in a body the dashboard tracks', () => {
     expect(html).not.toContain('target=');
   });
 
+  test('read a leading-zero pull request number as the item it names', async () => {
+    const html = await renderMarkdown(
+      '[t](https://github.com/o/r/pull/05)',
+      opts,
+    );
+    expect(html).toContain('href="/issues.html?issue=github/o/r/5"');
+    expect(html).toContain('data-ref-number="5"');
+    expect(html).toContain('data-ref-url="https://github.com/o/r/issues/5"');
+    expect(html).not.toContain('target=');
+  });
+
+  test('send a leading-zero number on an untracked repository to the forge, saying so', async () => {
+    const url = 'https://github.com/stranger/elsewhere/issues/05';
+    const html = await renderMarkdown(`[t](${url})`, opts);
+    expect(html).toContain(`href="${url}"`);
+    expect(html).toContain('target="_blank"');
+    expect(html).toContain('opens on the forge');
+    expect(html).not.toContain('data-ref-');
+  });
+
+  // There is no item 0 on either forge, so a zero number is not a reference:
+  // the link stays a plain forge link instead of opening an empty dialog.
+  test.each(['0', '00'])('leave item number %s as a forge link', async (n) => {
+    for (const kind of ['issues', 'pull']) {
+      const url = `https://github.com/o/r/${kind}/${n}`;
+      const html = await renderMarkdown(`[t](${url})`, opts);
+      expect(html, url).toContain(`href="${url}"`);
+      expect(html, url).toContain('target="_blank"');
+      expect(html, url).not.toContain('data-ref-');
+      expect(html, url).not.toContain('opens on the forge');
+    }
+  });
+
   test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
     for (const url of [
       'https://github.com/stranger/elsewhere/pull/9',
