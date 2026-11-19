@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.82.1](https://github.com/alrayyes/forge-dashboard/compare/v9.82.0...v9.82.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **forgejo:** count queued jobs on every pull request row ([#4296](https://github.com/alrayyes/forge-dashboard/issues/4296)) ([c417f79](https://github.com/alrayyes/forge-dashboard/commit/c417f793aebab3192a4c135799c9ab2880759017)), closes [#4238](https://github.com/alrayyes/forge-dashboard/issues/4238) [#4252](https://github.com/alrayyes/forge-dashboard/issues/4252)
+
 ## [9.82.0](https://github.com/alrayyes/forge-dashboard/compare/v9.81.1...v9.82.0) (2026-11-19)
 
 
