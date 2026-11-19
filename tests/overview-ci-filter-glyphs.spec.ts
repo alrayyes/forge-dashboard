@@ -10,10 +10,34 @@ import { test } from './server-fixture';
 // https://www.w3.org/WAI/WCAG22/Understanding/use-of-color.html
 
 const STATES = [
-  { ci: 'failure', label: 'Failing', glyph: 'cross' },
-  { ci: 'pending', label: 'Running', glyph: 'arc' },
-  { ci: 'success', label: 'Passing', glyph: 'check' },
-  { ci: 'none', label: 'No checks', glyph: 'slash' },
+  {
+    ci: 'failure',
+    label: 'Failing',
+    glyph: 'cross',
+    tone: '--critical',
+    bg: '--critical-bg',
+  },
+  {
+    ci: 'pending',
+    label: 'Running',
+    glyph: 'arc',
+    tone: '--warning',
+    bg: '--warning-bg',
+  },
+  {
+    ci: 'success',
+    label: 'Passing',
+    glyph: 'check',
+    tone: '--good',
+    bg: '--good-bg',
+  },
+  {
+    ci: 'none',
+    label: 'No checks',
+    glyph: 'slash',
+    tone: '--ink-2',
+    bg: '--neutral-bg',
+  },
 ] as const;
 
 function pr(number: number, ci: string) {
@@ -132,43 +156,48 @@ test('only the glyph is coloured until the pill is pressed', async ({
 });
 
 for (const scheme of ['light', 'dark'] as const) {
-  test(`a pressed Failing pill takes the critical pair and an inset ring, with no tick, in ${scheme}`, async ({
-    page,
-  }) => {
-    await open(page, scheme);
-    await visible(page, 'Failing').click();
-    await expect(visible(page, 'Failing')).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    );
-    const got = await visible(page, 'Failing').evaluate((b) => {
-      const probe = document.createElement('i');
-      document.body.append(probe);
-      const resolved = (v: string) => {
-        probe.style.color = `var(${v})`;
+  for (const { label, tone, bg } of STATES) {
+    test(`a pressed ${label} pill takes its state's pair and an inset ring, with no tick, in ${scheme}`, async ({
+      page,
+    }) => {
+      await open(page, scheme);
+      await visible(page, label).click();
+      await expect(visible(page, label)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+      const got = await visible(page, label).evaluate(
+        (b, vars) => {
+          const probe = document.createElement('i');
+          document.body.append(probe);
+          const resolved = (v: string) => {
+            probe.style.color = `var(${v})`;
 
-        return getComputedStyle(probe).color;
-      };
-      const s = getComputedStyle(b);
-      const out = {
-        critical: resolved('--critical'),
-        criticalBg: resolved('--critical-bg'),
-        color: s.color,
-        bg: s.backgroundColor,
-        shadow: s.boxShadow,
-        tick: getComputedStyle(b, '::before').content,
-      };
-      probe.remove();
+            return getComputedStyle(probe).color;
+          };
+          const s = getComputedStyle(b);
+          const out = {
+            tone: resolved(vars.tone),
+            toneBg: resolved(vars.bg),
+            color: s.color,
+            bg: s.backgroundColor,
+            shadow: s.boxShadow,
+            tick: getComputedStyle(b, '::before').content,
+          };
+          probe.remove();
 
-      return out;
+          return out;
+        },
+        { tone, bg },
+      );
+      expect(got.bg).toBe(got.toneBg);
+      expect(got.color).toBe(got.tone);
+      expect(got.shadow).toContain('inset');
+      expect(got.shadow).toContain(got.tone);
+      // The glyph and the ring carry the pick, so the tick goes.
+      expect(['none', 'normal']).toContain(got.tick);
     });
-    expect(got.bg).toBe(got.criticalBg);
-    expect(got.color).toBe(got.critical);
-    expect(got.shadow).toContain('inset');
-    expect(got.shadow).toContain(got.critical);
-    // The glyph and the ring carry the pick, so the tick goes.
-    expect(['none', 'normal']).toContain(got.tick);
-  });
+  }
 }
 
 test('All keeps the accent fill and its tickless look when pressed', async ({
@@ -294,4 +323,21 @@ test('a state with no pull request is not offered, and its glyph is not either',
   ).toBeVisible();
   await expect(group.locator('[data-pill="no-checks"]')).toBeHidden();
   await expect(group.locator('svg[data-glyph="slash"]')).toBeHidden();
+});
+
+test('every CI filter pill ships with aria-pressed, before any script runs', async ({
+  page,
+}) => {
+  // syncQuickPills sets the attribute on load, so a page that is read before
+  // its script runs, or whose script fails, is the only place a dropped
+  // initial attribute shows. Read the served markup, not the live DOM.
+  const response = await page.request.get('/pull-requests.html');
+  expect(response.ok()).toBe(true);
+  const html = await response.text();
+  const pills = html.match(/<button\b[^>]*\bci-filter-pill\b[^>]*>/g) ?? [];
+  // Four states, in the bar and again in the phone sheet.
+  expect(pills.length).toBe(STATES.length * 2);
+  for (const pill of pills) {
+    expect(pill).toMatch(/\baria-pressed="false"/);
+  }
 });
