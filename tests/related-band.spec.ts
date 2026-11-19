@@ -377,12 +377,41 @@ test('a closed issue that is off the board shows what refers to it, with each st
   ]);
   await expect(
     row(dialog, 'Closed by').locator('.linked-pr'),
-  ).toHaveAccessibleName('Closed by: Pull request #4100 merged');
+  ).toHaveAccessibleName('Closed by: PR #4100 · Merged');
+  await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveText(
+    'PR #4100 · Merged',
+  );
   await expect(
     row(dialog, 'Mentioned by').locator('.linked-pr'),
   ).toHaveAccessibleName('Mentioned by: Issue #4150 closed');
   // What the issue itself refers to is not drawn by this band yet.
   await expect(dialog.locator('.related-count')).toHaveText('2');
+});
+
+test('a pull request pill in a closed issue is a 24px target on desktop and 44px on a phone', async ({
+  page,
+}) => {
+  const size = (pill: Locator) =>
+    pill.evaluate((el) => {
+      const after = getComputedStyle(el, '::after');
+      const box = el.getBoundingClientRect();
+      return {
+        height: Math.max(box.height, Number.parseFloat(after.height) || 0),
+        width: Math.max(box.width, Number.parseFloat(after.width) || 0),
+      };
+    });
+  let dialog = await openClosedIssue(page, [reference(4100)]);
+  let pill = row(dialog, 'Closed by').locator('.linked-pr');
+  await expect
+    .poll(async () => (await size(pill)).height)
+    .toBeGreaterThanOrEqual(24);
+
+  await page.setViewportSize({ width: 390, height: 800 });
+  dialog = await openClosedIssue(page, [reference(4100)]);
+  pill = row(dialog, 'Closed by').locator('.linked-pr');
+  await expect
+    .poll(async () => (await size(pill)).height)
+    .toBeGreaterThanOrEqual(44);
 });
 
 test('a closed issue that nothing refers to has no band and no error', async ({

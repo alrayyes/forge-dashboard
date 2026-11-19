@@ -124,6 +124,58 @@ describe('linkedPillName', () => {
   });
 });
 
+// A pull request in the Related band says its state as a word after the
+// number, so "Closed by" never reads as if the pill itself closes something
+// (#4283). The name carries the same words.
+describe('a pull request pill in the Related band', () => {
+  test.each([
+    ['open', 'PR #12 · Open'],
+    ['merged', 'PR #12 · Merged'],
+    ['closed', 'PR #12 · Closed'],
+  ] as const)('reads its %s state', (state, text) => {
+    expect(
+      linkedPillText(pr({ kind: 'pullRequest', state }), 'alrayyes/app'),
+    ).toBe(text);
+  });
+
+  test('says a draft is a draft', () => {
+    expect(
+      linkedPillText(
+        pr({ kind: 'pullRequest', state: 'open', draft: true }),
+        'alrayyes/app',
+      ),
+    ).toBe('PR #12 · Draft');
+  });
+
+  test('keeps the whole repo when it is another one', () => {
+    expect(
+      linkedPillText(
+        pr({ kind: 'pullRequest', state: 'merged', repo: 'alrayyes/other' }),
+        'alrayyes/app',
+      ),
+    ).toBe('PR alrayyes/other#12 · Merged');
+  });
+
+  test('has an accessible name that contains the visible text', () => {
+    const p = pr({ kind: 'pullRequest', state: 'merged' });
+    expect(linkedDialogName(p, 'alrayyes/app')).toBe(
+      'Closed by: PR #12 · Merged',
+    );
+    expect(linkedDialogName(p, 'alrayyes/app')).toContain(
+      linkedPillText(p, 'alrayyes/app'),
+    );
+    expect(linkedPillName(p, 'alrayyes/app')).toContain(
+      linkedPillText(p, 'alrayyes/app'),
+    );
+  });
+
+  test('leaves an issue entry worded as before', () => {
+    expect(
+      linkedPillText(pr({ kind: 'issue', state: 'closed' }), 'alrayyes/app'),
+    ).toBe('#12 closed');
+  });
+});
+
 describe('splitLinked', () => {
   const list = (n: number) =>
     Array.from({ length: n }, (_, i) => pr({ number: i + 1 }));
