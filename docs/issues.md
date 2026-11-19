@@ -22,12 +22,23 @@ The board's pills only know open pull requests, and a closed issue is not on
 the board. So when the board has no row for the issue (a closed one, opened from
 a pull request's pill or a `#12`), the Related band is drawn from the issue's
 own details instead: `references` lists the items that refer to it from the
-forge's timeline, issues as well as pull requests, each with its state (open,
-closed or merged), the newest first and at most 50. GitHub reads them in the
-same query; Forgejo reads the timeline once more. The timeline can't tell a
-`Refs` from a plain mention, so only a closing keyword is told apart: the rest
-are under "Mentioned by". An issue nothing refers to has no band. Commits that
-mention the issue are not listed.
+forge's timeline (`direction` is `incoming`), issues as well as pull requests,
+each with its state (open, closed or merged), the newest first and at most 50.
+GitHub reads them in the same query; Forgejo reads the timeline once more. The
+timeline can't tell a `Refs` from a plain mention, so only a closing keyword is
+told apart: the rest are under "Mentioned by". An issue nothing refers to has no
+band. Commits that mention the issue are not listed.
+
+The same list also holds what the item's own title and description refer to
+(`direction` is `outgoing`), at most 20 more. The forge doesn't record that, so
+the server reads the text the way it reads a pull request's (`Refs #12`, `#12`,
+`owner/repo#12`, a link to an item on the forge) and looks each item up for its
+title and state: one more GraphQL request on GitHub, one request per item on
+Forgejo. Each carries a `relation`: `closes` (a pull request's closing keyword;
+the base branch is not checked here), `refs` for `Refs`, `Related to` or `See`,
+and `mentions` for the rest. An item that can't be read is left out. If the
+lookup itself fails, the outgoing entries are left out and the thread still
+loads.
 
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
