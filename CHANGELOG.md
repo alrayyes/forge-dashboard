@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.1](https://github.com/alrayyes/forge-dashboard/compare/v9.88.0...v9.88.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** keep drawn nav links when a later snapshot has no navCounts ([#4359](https://github.com/alrayyes/forge-dashboard/issues/4359)) ([ccfcdc3](https://github.com/alrayyes/forge-dashboard/commit/ccfcdc3c7acac236387fe716409beba61d5ecab7)), closes [#4318](https://github.com/alrayyes/forge-dashboard/issues/4318)
+
 ## [9.88.0](https://github.com/alrayyes/forge-dashboard/compare/v9.87.1...v9.88.0) (2026-11-19)
 
 
