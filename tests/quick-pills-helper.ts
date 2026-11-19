@@ -11,6 +11,7 @@ const GROUP_OF: Record<string, PillGroup> = {
   Failing: 'ci',
   Running: 'ci',
   Passing: 'ci',
+  Cancelled: 'ci',
   'No checks': 'ci',
   Conflicting: 'merge',
   'Out of date': 'merge',
