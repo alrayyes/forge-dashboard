@@ -2295,6 +2295,7 @@
       triggerId: string,
       fallbackFocusId = "",
     ) {
+      dialogOpens++;
       dialogKey = prKey(item);
       dialogGone = false;
       lastChromeSig = "";
@@ -2317,6 +2318,9 @@
     // does not list it). The dialog draws its status from its own details, so
     // a close or a reopen in the forge reaches it through a re-read.
     let afterDetailsClosed: (() => void) | null = null;
+    // Bumped each time a dialog opens. An answer that was asked for before the
+    // reader opened another one is stale and opens nothing (#4328).
+    let dialogOpens = 0;
     let issueDialog: {
       forge: string;
       repo: string;
@@ -2363,6 +2367,12 @@
       ]);
     }
 
+    // The label chips are drawn again only when the labels changed: a change
+    // to a linked pull request leaves them as they are (#4328).
+    function labelsOf(item: IssueDialogItem): string {
+      return JSON.stringify(item.labels ?? []);
+    }
+
     function followIssueDialog(issues: IssueItem[]) {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
@@ -2373,10 +2383,14 @@
         const item = { ...open.item, ...listed };
         const shown = attributesSignature(item, open.outgoing);
         if (shown !== open.shown) {
+          const relabelled = labelsOf(open.item) !== labelsOf(item);
           open.item = item;
           open.shown = shown;
           const status = issueStatus(item, open.outgoing);
-          detailsDialog.setAttributes(status.attributes, status.related);
+          detailsDialog.setAttributes(
+            relabelled ? status.attributes : undefined,
+            status.related,
+          );
         }
       }
       const now = listed?.updatedAt;
@@ -2414,6 +2428,7 @@
       triggerId: string,
       fallbackFocusId = "",
     ) {
+      dialogOpens++;
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2490,6 +2505,7 @@
       triggerId = addressFocus(item),
       fallbackFocusId = drawnAddressFallback(),
     ) {
+      dialogOpens++;
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2660,9 +2676,12 @@
         openDetailsDialog(listed, triggerId, "title-filter");
         return;
       }
+      const opens = dialogOpens;
       const looked = listed
         ? { found: listed }
         : await lookUpPullRequest(wanted);
+      // The reader opened something else while the answer was on its way.
+      if (opens !== dialogOpens) return;
       if ("found" in looked) {
         openPullRequestReadOnly(looked.found, triggerId, "title-filter");
         return;
@@ -2809,8 +2828,12 @@
       open.item = item;
       open.outgoing = outgoing;
       open.shown = shown;
-      const status = issueStatus(item, outgoing);
-      detailsDialog.setAttributes(status.attributes, status.related);
+      // Only the three rows were merged in: the labels are what they were, so
+      // the chips stay and the band is brought up to date (#4328).
+      detailsDialog.setAttributes(
+        undefined,
+        issueStatus(item, outgoing).related,
+      );
     };
 
     pullRequestFound = () => {

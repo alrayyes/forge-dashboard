@@ -256,6 +256,7 @@ const singleUserSpecs = [
   '**/in-place-dialogs.spec.ts',
   '**/issue-close.spec.ts',
   '**/issue-dialog.spec.ts',
+  '**/issue-dialog-live.spec.ts',
   '**/issue-dialog-closing-pr.spec.ts',
   '**/phone-card-action-row.spec.ts',
   '**/phone-action-bar.spec.ts',

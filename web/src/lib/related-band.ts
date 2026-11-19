@@ -156,6 +156,9 @@ export function relatedBandData(
 /** A row's pills whose hidden ones the reader opened, so a redrawn band keeps them open. */
 const expanded = new Set<string>();
 
+/** The pills a toggle keeps out of the page while the row is folded (#4328): patchPills writes them too. */
+export const foldedExtras = new WeakMap<HTMLElement, HTMLElement[]>();
+
 /**
  * Draws a band row's pills: the first DIALOG_SHOWN_PILLS, and when more are
  * kept back one persistent toggle after them. It stays where it is, reads
@@ -177,6 +180,7 @@ export function foldedPills<T>(
   toggle.type = 'button';
   toggle.className = 'linked-pr-more related-toggle';
   const extra = rest.map(pill);
+  foldedExtras.set(toggle, extra);
   const draw = (open: boolean) => {
     // The chevron is a node of its own: the pills' ::after is the phone hit area.
     const chevron = document.createElement('span');

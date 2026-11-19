@@ -1,13 +1,19 @@
 <script lang="ts">
+  import { patchPills } from "./patch-pills";
   import type { RelatedBandData } from "./related-band";
   let { band }: { band: RelatedBandData } = $props();
 
-  // Mounts a row's pills, and swaps them when the page hands over another set.
+  // Mounts a row's pills. When the page hands over another draw of the same
+  // pills, the ones that read differently are written where they stand, so
+  // focus and the pointer's place stay (#4328); any other set replaces them.
   function mount(host: HTMLElement, node: HTMLElement) {
     host.replaceChildren(node);
     return {
       update(next: HTMLElement) {
-        if (host.firstChild !== next) host.replaceChildren(next);
+        const shown = host.firstElementChild;
+        if (shown === next) return;
+        if (shown instanceof HTMLElement && patchPills(shown, next)) return;
+        host.replaceChildren(next);
       },
     };
   }

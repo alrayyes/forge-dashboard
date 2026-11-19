@@ -322,11 +322,14 @@
   // requests that will close it) for another set the page built, so the open
   // dialog follows the board without closing.
   //
+  // `attributes` is left out when only the pills changed, so the label chips
+  // stay the nodes they are (#4328).
+  //
   // The swap replaces the nodes, so a pill link holding keyboard focus would
   // drop it to the page. Focus goes back to the same link (by href) in the
   // new set, or to the close button when that pull request is gone.
   export function setAttributes(
-    attributes: HTMLElement,
+    attributes: HTMLElement | undefined,
     related?: RelatedBandData,
   ) {
     if (!target?.status) return;
@@ -337,7 +340,14 @@
         dialogEl?.querySelector(".related-band")?.contains(held))
         ? held.getAttribute("href")
         : null;
-    target = { ...target, status: { ...target.status, attributes, related } };
+    target = {
+      ...target,
+      status: {
+        ...target.status,
+        attributes: attributes ?? target.status.attributes,
+        related,
+      },
+    };
     if (href === null) return;
     void tick().then(() => {
       if (!dialogEl?.open) return;
