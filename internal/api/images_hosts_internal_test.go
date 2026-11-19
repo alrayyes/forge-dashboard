@@ -193,3 +193,36 @@ func TestIsSignedAttachment_FollowsTheForgesPrefix(t *testing.T) {
 	assert.False(t, isSignedAttachment("", "", prefix+"abc"), "a forge with no prefix signs nothing")
 	assert.True(t, isSignedAttachment(prefix, "http://127.0.0.1:9", "http://127.0.0.1:9/attachments/abc"), "a test origin stands in for the prefix's")
 }
+
+// A path that climbs out of the prefix, or hides a separator or dot segment
+// behind an escape, must not get the signed lookup (#4247).
+func TestIsSignedAttachment_RefusesPathsThatEscapeThePrefix(t *testing.T) {
+	t.Parallel()
+	const prefix = "https://files.third.example/attachments/"
+	for raw, want := range map[string]bool{
+		prefix + "abc":          true,
+		prefix + "a/b/c.png":    true,
+		prefix + "a%20b.png":    true,
+		prefix + "../x":         false,
+		prefix + "a/../../x":    false,
+		prefix + "./abc":        false,
+		prefix + "a/./b":        false,
+		prefix + "%2e%2e/x":     false,
+		prefix + "%2E%2E/x":     false,
+		prefix + ".%2e/x":       false,
+		prefix + "a%2f..%2fx":   false,
+		prefix + "a%2Fb":        false,
+		prefix + "%252e%252e/x": false,
+		prefix + "a%252fb":      false,
+		prefix + `..\x`:         false,
+		prefix + "a%5cb":        false,
+		prefix + "a%5Cb":        false,
+		prefix + "a//b":         false,
+		"https://files.third.example/Attachments/abc":    false,
+		"https://files.third.example/ATTACHMENTS/abc":    false,
+		"https://files.third.example/attachments/..":     false,
+		"https://files.third.example/attachments/%2e%2e": false,
+	} {
+		assert.Equal(t, want, isSignedAttachment(prefix, "", raw), raw)
+	}
+}
