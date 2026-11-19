@@ -152,6 +152,7 @@ async function start(
   // Pull requests the board leaves out; a click on their pill looks them up.
   hidden: number[] = [],
   lookUp: () => Promise<void> = async () => {},
+  path = '/issues.html',
 ) {
   await page.addInitScript(() => {
     const w = window as unknown as {
@@ -191,8 +192,9 @@ async function start(
     const n = Number(new URL(route.request().url()).searchParams.get('number'));
     return route.fulfill({ json: detailsOf(world.pullText[n] ?? '') });
   });
-  await page.goto('/issues.html');
-  await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
+  await page.goto(path);
+  if (path === '/issues.html')
+    await expect(page.locator('#issue-rows > .row')).toHaveCount(2);
 }
 
 // One snapshot pushed down the live stream: the forge's state changing.
@@ -541,6 +543,75 @@ test('clicking a related pull request, then its related issue, while the open it
   );
   const axe = await new AxeBuilder({ page }).include('dialog[open]').analyze();
   expect(axe.violations).toEqual([]);
+});
+
+test('a pull request looked up late does not open over what the reader chose since', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await start(page, world, [10], () => held);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  await expect(issueDialog(page)).toContainText('Issue one text.');
+
+  // The click closes the issue's dialog and asks for the pull request.
+  await closedBy(issueDialog(page)).click();
+  await expect(issueDialog(page)).toHaveCount(0);
+
+  // The reader opens another issue before the answer comes.
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 2' })
+    .locator('button.title')
+    .click();
+  await expect(issueDialog(page)).toContainText('Issue two text.');
+  release();
+  await page.waitForTimeout(500);
+
+  await expect(pullDialog(page)).toHaveCount(0);
+  await expect(issueDialog(page)).toContainText('Issue two text.');
+});
+
+test('a pull request looked up late does not open over a pull request the reader chose since', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  // Issue 2 is closed by PR 11, which the board leaves out, and PR 30 closes
+  // it, so the reader can reach issue 2 from a pull request on the board.
+  world.issues[2] = { ...world.issues[2], linkedPullRequests: [linked(11)] };
+  world.pulls[11] = {
+    ...world.pulls[10],
+    number: 11,
+    title: 'Pull request 11',
+  };
+  world.pulls[30] = { ...world.pulls[30], closesIssues: [ticket(2)] };
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await start(page, world, [11], () => held, '/pull-requests.html');
+  const row = page.getByRole('button', { name: /^#30 / });
+  await row.click();
+  await band(pullDialog(page), 'Closes').locator('.linked-pr').click();
+  await expect(issueDialog(page)).toContainText('Issue two text.');
+
+  // The click closes the issue's dialog and asks for PR 11, which is held.
+  await closedBy(issueDialog(page)).click();
+  await expect(issueDialog(page)).toHaveCount(0);
+
+  // The reader opens a pull request from the board before the answer comes.
+  await row.click();
+  await expect(pullDialog(page)).toContainText('Pull request 30');
+  release();
+  await page.waitForTimeout(500);
+
+  await expect(pullDialog(page)).toContainText('Pull request 30');
+  await expect(pullDialog(page)).not.toContainText('Pull request 11');
 });
 
 test('the overview rows follow a linked pull request without a reload', async ({

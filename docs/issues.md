@@ -197,7 +197,9 @@ or modified click opens that page in a new tab. A plain click closes the
 issue's pop-up and opens the pull request's in its place, on the page you are
 on, so you stay where you are and the address and the browser history don't
 change. On the Pull requests page a pull request the board lists opens with its
-actions. One the dashboard doesn't hold is named in a note instead.
+actions. One the dashboard doesn't hold is named in a note instead. If you open
+another pop-up while that lookup is still on its way, the late answer opens
+nothing.
 Closing that pop-up puts keyboard focus back on the pill in the list. The links
 follow the board while the pop-up stays open, and only what changed is written:
 a pill whose pull request changed (merged, closed, its checks) stays the same

@@ -2293,6 +2293,7 @@
       triggerId: string,
       fallbackFocusId = "",
     ) {
+      dialogOpens++;
       dialogKey = prKey(item);
       dialogGone = false;
       lastChromeSig = "";
@@ -2315,6 +2316,9 @@
     // does not list it). The dialog draws its status from its own details, so
     // a close or a reopen in the forge reaches it through a re-read.
     let afterDetailsClosed: (() => void) | null = null;
+    // Bumped each time a dialog opens. An answer that was asked for before the
+    // reader opened another one is stale and opens nothing (#4328).
+    let dialogOpens = 0;
     let issueDialog: {
       forge: string;
       repo: string;
@@ -2422,6 +2426,7 @@
       triggerId: string,
       fallbackFocusId = "",
     ) {
+      dialogOpens++;
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2498,6 +2503,7 @@
       triggerId = addressFocus(item),
       fallbackFocusId = drawnAddressFallback(),
     ) {
+      dialogOpens++;
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2668,9 +2674,12 @@
         openDetailsDialog(listed, triggerId, "title-filter");
         return;
       }
+      const opens = dialogOpens;
       const looked = listed
         ? { found: listed }
         : await lookUpPullRequest(wanted);
+      // The reader opened something else while the answer was on its way.
+      if (opens !== dialogOpens) return;
       if ("found" in looked) {
         openPullRequestReadOnly(looked.found, triggerId, "title-filter");
         return;
