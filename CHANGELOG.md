@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.85.1](https://github.com/alrayyes/forge-dashboard/compare/v9.85.0...v9.85.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** leave the open pull request dialog alone when another row changes ([#4335](https://github.com/alrayyes/forge-dashboard/issues/4335)) ([e15dba7](https://github.com/alrayyes/forge-dashboard/commit/e15dba780c3eeffe5afc6bb3468264ce6f73ab25)), closes [#4327](https://github.com/alrayyes/forge-dashboard/issues/4327)
+
 ## [9.85.0](https://github.com/alrayyes/forge-dashboard/compare/v9.84.1...v9.85.0) (2026-11-19)
 
 
