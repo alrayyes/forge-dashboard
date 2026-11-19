@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.87.1](https://github.com/alrayyes/forge-dashboard/compare/v9.87.0...v9.87.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** keep the issue dialog's pills in place while the board updates ([#4337](https://github.com/alrayyes/forge-dashboard/issues/4337)) ([a83dff1](https://github.com/alrayyes/forge-dashboard/commit/a83dff15fd6b733c162a35868d933aa002daab82)), closes [#4328](https://github.com/alrayyes/forge-dashboard/issues/4328)
+
 ## [9.87.0](https://github.com/alrayyes/forge-dashboard/compare/v9.86.0...v9.87.0) (2026-11-19)
 
 
