@@ -670,7 +670,8 @@ function rawInline(decode: (s: string) => string) {
 // container, else at the end of the container: an unclosed one would take all
 // the rest. So a `<pre` is a block only when that closer comes before a code
 // fence or another `<pre`, which a closer further on would otherwise swallow.
-// The cost is a pre that holds a line starting with a fence, shown as text.
+// The cost is a pre that holds a line starting with a fence, or one indented
+// 4+ spaces that looks like one, shown as text (still contained).
 const PRE_OPEN = /^<pre(?=[\s>])/i;
 const PRE_CLOSE = /<\/pre>/i;
 const FENCE_OPEN = /^(?:`{3}|~{3})/;

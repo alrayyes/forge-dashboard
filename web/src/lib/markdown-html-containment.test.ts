@@ -182,7 +182,7 @@ describe('a container tag that spans blank lines', () => {
   });
 });
 
-// Which tags may stay open across a blank line is a list of six names. Each
+// Which tags may stay open across a blank line is a list of five names (`summary` is not one). Each
 // test here fails if one is added to it or dropped from it, and if the pass
 // that closes the others picks the wrong tag.
 describe('only the container tags stay open across a blank line', () => {
@@ -340,6 +340,20 @@ describe('an unclosed pre', () => {
       expect(html).toContain('<pre tabindex="0">');
       expect(html).toContain('<p>after</p>');
     }
+  });
+
+  test('an indented closer right after its quote is code, not its closer', async () => {
+    // The line after the quote is the container's end, and it is not part of it.
+    const html = await renderMarkdown('> <pre>\n>\n    </pre>');
+    expect(html).toContain('<blockquote>\n<p>&lt;pre&gt;</p>');
+    expect(html.slice(0, html.indexOf('</blockquote>'))).not.toContain('<pre');
+  });
+
+  test('a fence mark inside a line of text does not stop it', async () => {
+    const html = await renderMarkdown('<pre>\nuse ``` here\n</pre>\n\nafter');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('use ``` here');
+    expect(html).toContain('<p>after</p>');
   });
 
   test('a closer after the end of its quote ends nothing', async () => {
