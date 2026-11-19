@@ -109,7 +109,7 @@ describe('a container tag that spans blank lines', () => {
   });
 
   test('details, blockquote and lists hold the Markdown between their tags', async () => {
-    for (const tag of ['details', 'blockquote', 'ul']) {
+    for (const tag of ['details', 'blockquote', 'ul', 'ol', 'li']) {
       const html = await renderMarkdown(
         `<${tag}>\n\nsome **text** and [a link](https://a.example)\n\n</${tag}>\n\nafter`,
       );
@@ -179,6 +179,75 @@ describe('a container tag that spans blank lines', () => {
     const q = quote.slice(0, quote.indexOf('</blockquote>'));
     expect(q).toMatch(/<details>[\s\S]*text[\s\S]*<\/details>/);
     expect(quote.slice(quote.indexOf('</blockquote>'))).toContain('out');
+  });
+});
+
+// Which tags may stay open across a blank line is a list of six names. Each
+// test here fails if one is added to it or dropped from it, and if the pass
+// that closes the others picks the wrong tag.
+describe('only the container tags stay open across a blank line', () => {
+  const after = (html: string, text: string) => html.slice(html.indexOf(text));
+
+  test('an unclosed link in a details ends with its block', async () => {
+    const html = await renderMarkdown(
+      '<details>\n<a href="https://example.test/x">\n\nrest [real](https://r.example)\n\n</details>',
+    );
+    const link = html.slice(
+      html.indexOf('<a href="https://example.test/x"'),
+      html.indexOf('</a>') + 4,
+    );
+    expect(link).not.toContain('rest');
+    expect(html).toContain('<a href="https://r.example"');
+  });
+
+  test('an unclosed summary does not take the text after it', async () => {
+    const html = await renderMarkdown(
+      '<details>\n<summary>S\n\nrest\n\n</details>',
+    );
+    expect(html.indexOf('</summary>')).toBeLessThan(html.indexOf('rest'));
+  });
+
+  test('a list item holds the Markdown after a blank line', async () => {
+    const html = await renderMarkdown(
+      '<ul>\n<li>one\n\nmore text\n\n</li>\n</ul>',
+    );
+    expect(html.indexOf('more text')).toBeLessThan(html.indexOf('</li>'));
+  });
+
+  test('a paragraph around an unclosed link closes, and so does what it holds', async () => {
+    // The pass closes from the outermost tag that may not span blocks, not
+    // the innermost: the p, the list inside it and the link all end here.
+    const html = await renderMarkdown(
+      '<details>\n<p>\n<ul>\n<li>\n<a href="https://example.test/x">\n\nrest\n\n</details>',
+    );
+    const rest = html.indexOf('rest');
+    expect(html.indexOf('</p>')).toBeLessThan(rest);
+    expect(html.indexOf('</ul>')).toBeLessThan(rest);
+    expect(html.indexOf('</li>')).toBeLessThan(rest);
+    expect(html.indexOf('</a>')).toBeLessThan(rest);
+    expect(after(html, 'rest')).not.toContain('<a ');
+  });
+});
+
+describe('the limits on a tag', () => {
+  test('sixteen open tags nest and a seventeenth is text', async () => {
+    const sixteen = '<details>'.repeat(16);
+    const html = await renderMarkdown(`${sixteen}<em>x`);
+    expect(html.match(/<details>/g)).toHaveLength(16);
+    expect(html).toContain('&lt;em&gt;');
+    const fifteen = await renderMarkdown(`${'<details>'.repeat(15)}<em>x`);
+    expect(fifteen).toContain('<em>');
+  });
+
+  test('a tag of exactly the longest length is a tag, one longer is text', async () => {
+    const tag = (pad: number) =>
+      `<a title="${'x'.repeat(pad)}" href="https://e.example">y</a>`;
+    const base = tag(0).length - 'y</a>'.length;
+    const html = await renderMarkdown(tag(4096 - base));
+    // Linkify also links the address in text, so the text is what tells.
+    expect(html).not.toContain('&lt;a title');
+    const longer = await renderMarkdown(tag(4096 - base + 1));
+    expect(longer).toContain('&lt;a title');
   });
 });
 
