@@ -2546,6 +2546,10 @@ paths:
         one for each comment's reactions (up to 50), so the reaction calls run
         at most eight at a time and stop at the first rate limit.
 
+        `references` lists the items that refer to the issue. GitHub adds
+        them to the same query; Forgejo reads the issue's timeline once more
+        (one request for the first page of events).
+
         Every text is Markdown exactly as the forge stores it (`format` is
         always `markdown`). The server neither converts nor sanitises it, so a
         client must render it with raw HTML disabled. Each text is cut at
@@ -5812,7 +5816,15 @@ components:
     IssueDetails:
       type: object
       required:
-        [kind, state, description, comments, commentCount, commentsTruncated]
+        [
+          kind,
+          state,
+          description,
+          comments,
+          commentCount,
+          commentsTruncated,
+          references,
+        ]
       description: What the issue dialog shows.
       properties:
         kind:
@@ -5848,6 +5860,81 @@ components:
         commentsTruncated:
           type: boolean
           description: True when `commentCount` is more than the comments returned.
+        references:
+          type: array
+          maxItems: 50
+          items:
+            $ref: "#/components/schemas/ItemReference"
+          description: |
+            The items that refer to this one, as the forge's own timeline
+            records them, newest first, at most the first 50. They are read
+            from the forge, so a closed or merged item shows them as well as an
+            open one: the board's own pills list open pull requests only. An
+            empty array means nothing refers to it. Only the entries whose
+            `direction` is `incoming` are returned for now; `outgoing` is part
+            of the contract so a later release can add what this item refers
+            to without another change.
+
+    ItemReference:
+      type: object
+      required:
+        [
+          forge,
+          repo,
+          number,
+          title,
+          url,
+          pageUrl,
+          kind,
+          state,
+          direction,
+          relation,
+        ]
+      description: One issue or pull request that is related to the item whose details were asked for.
+      properties:
+        forge:
+          $ref: "#/components/schemas/Forge"
+        repo:
+          type: string
+          description: The related item's repository as `owner/name`, which is not always the asked-for item's own.
+        number:
+          type: integer
+          minimum: 1
+        title:
+          type: string
+          description: The related item's title, as the forge has it now.
+        url:
+          type: string
+          description: The related item's address on the forge.
+        pageUrl:
+          type: string
+          description: |
+            The address on this dashboard that opens the related item's pop-up:
+            `/pull-requests.html?pr=` or `/issues.html?issue=`, then
+            `forge/owner/name/number`. A relative address.
+        kind:
+          type: string
+          enum: [issue, pullRequest]
+          description: What the related number is. A forge shares one number space between the two.
+        state:
+          type: string
+          enum: [open, closed, merged]
+          description: Where the related item stands. Only a pull request is `merged`; `closed` means closed without merging.
+        direction:
+          type: string
+          enum: [incoming, outgoing]
+          description: |
+            `incoming` when the related item refers to the asked-for one,
+            `outgoing` when the asked-for one refers to it.
+        relation:
+          type: string
+          enum: [closes, refs, mentions]
+          description: |
+            What the referring item does to the referred-to one. `closes`
+            closes it when merged (a closing keyword). `refs` references it
+            without closing it (`Refs`, `Related to`, `See`). `mentions` only
+            names it. The forge's timeline does not tell the last two apart,
+            so a read from it says `mentions` for both.
 
     IssuePullRequest:
       type: object

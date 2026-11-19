@@ -203,6 +203,59 @@ func TestContract_IssueDetails(t *testing.T) {
 	validateAgainstSpec(t, req, got)
 }
 
+// What refers to an issue is read from the forge, so a closed one has it too
+// (#4271). Each entry gets the address that opens it on this dashboard, and an
+// issue nothing refers to answers an empty list, never null.
+func TestIssueDetails_ReferencesCarryTheirDashboardAddress(t *testing.T) {
+	t.Parallel()
+
+	details := sampleIssueDetails()
+	details.References = []dashboard.ItemReference{
+		{
+			Forge: dashboard.ForgeGitHub, Repo: "alrayyes/tempus-fugit", Number: 12, Title: "Fix it",
+			URL: "https://github.com/alrayyes/tempus-fugit/pull/12", Kind: dashboard.ItemKindPullRequest,
+			State: dashboard.ReferencedStateMerged, Direction: dashboard.ReferenceIncoming, Relation: dashboard.RelationCloses,
+		},
+		{
+			Forge: dashboard.ForgeGitHub, Repo: "alrayyes/other", Number: 3, Title: "Follow-up",
+			URL: "https://github.com/alrayyes/other/issues/3", Kind: dashboard.ItemKindIssue,
+			State: dashboard.ReferencedStateClosed, Direction: dashboard.ReferenceIncoming, Relation: dashboard.RelationMentions,
+		},
+	}
+	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: details}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
+
+	require.Equal(t, http.StatusOK, got.status, string(got.body))
+	validateAgainstSpec(t, req, got)
+	var body struct {
+		References []map[string]any `json:"references"`
+	}
+	require.NoError(t, json.Unmarshal(got.body, &body))
+	require.Len(t, body.References, 2)
+	assert.Equal(t, "/pull-requests.html?pr=github/alrayyes/tempus-fugit/12", body.References[0]["pageUrl"])
+	assert.Equal(t, "/issues.html?issue=github/alrayyes/other/3", body.References[1]["pageUrl"])
+	assert.Equal(t, "incoming", body.References[0]["direction"])
+	assert.Equal(t, "closes", body.References[0]["relation"])
+	assert.Equal(t, "merged", body.References[0]["state"])
+}
+
+func TestIssueDetails_NothingReferringIsAnEmptyList(t *testing.T) {
+	t.Parallel()
+
+	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: sampleIssueDetails()}
+	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+
+	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
+	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
+
+	require.Equal(t, http.StatusOK, got.status, string(got.body))
+	validateAgainstSpec(t, req, got)
+	assert.Contains(t, string(got.body), `"references":[]`)
+}
+
 // A commenter in an issue's dialog carries their profile page, built on the
 // web address of an issue the board holds for the forge (#1991).
 func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
