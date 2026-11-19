@@ -109,9 +109,11 @@
 
   // A page with nothing to show leaves the navigation (#1228), and a page whose
   // count isn't known yet (null) isn't drawn either (#4276): an item appears
-  // once it is known to have something, so the menu only grows as the counts
-  // arrive and never shrinks. The page you are on keeps its own link. Branches
-  // always shows.
+  // once it is known to have something, so the menu grows as the counts arrive.
+  // A count that then goes to zero removes its link, and the first refresh
+  // running again makes every count unknown; a snapshot without counts changes
+  // nothing (#4318). The page you are on keeps its own link. Branches always
+  // shows.
   const showPulls = $derived(
     (pulls !== null && pulls.total !== 0) || isCurrentRoute("/pull-requests"),
   );
@@ -258,10 +260,10 @@
             const pending = firstRefreshPending(data.firstRefreshDone);
             // The Branches page reads its own list and keeps the pill to
             // its counts, so a snapshot from before that read can't undo them.
-            // A snapshot with no navCounts (or one from before the first
-            // refresh ends) leaves them unknown, so no count link is drawn.
-            // Every supported server sends navCounts, so that is not a state
-            // a running install stays in (#4276).
+            // A snapshot from before the first refresh ends makes them
+            // unknown, so no count link is drawn. One with no navCounts keeps
+            // the last known counts (#4318); every supported server sends
+            // them (#4276).
             setNavCounts(
               pending ? null : data.navCounts,
               data.mainBranchPage?.branches,
