@@ -2178,8 +2178,7 @@
               Pull request pills on an issue show how it is linked. Upright
               means the pull request closes the issue, italic means it only
               references or mentions it and does not close it. The pop-up's
-              Related band says which in the row's label, and the pop-up has no
-              line of its own for it.
+              Related band says which in the row's label.
             </p>
             <label class="check-row">
               <input
