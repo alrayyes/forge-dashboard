@@ -269,6 +269,22 @@ One ticket per group, each doing moves with its own mutation proof:
   row had no duration before, so it read 0.0. Each assertion was proven red
   by breaking the component or `live-control.ts` on a scratch copy (see the
   pull request for the list).
+- The ninth move, from `footer-consistency`: `Footer` already had stories
+  for its version states, so no component changed. They are now `play`
+  functions: the four links and their order, the GitHub link's `href`,
+  `target`, `rel` and decorative mark, the version, Disclaimer and Privacy
+  `href`s, nothing marked current on the home page, the dev label's wording,
+  the one link marked `aria-current="page"` on the disclaimer, privacy and
+  changelog pages, the current link's 2px underline, and axe in both themes.
+  The "dev build" test is gone (a story on `/disclaimer.html` holds the same
+  assertions, and the error-pages test still reads the real dev label), and the
+  360px test gave up its underline check. The page-by-page footer checks, the
+  real error pages, the layout match across pages and axe with the overflow
+  check stay, since they read real pages. On one worker the spec took 5.3 s
+  over 7 runs before and 4.3 s over 6 after. The eight stories take about 0.1
+  s each. Each assertion was proven red by breaking the component or its style
+  rule (see the pull request for the list). The CSV row for
+  `footer-consistency` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
