@@ -2,12 +2,25 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { writesForgeEntryByHand } from './forge-entries-by-hand';
 
 // Every mocked `forges` entry comes from forgeHealth() (#4030), so `capabilities`
 // is filled in one place. A file that still writes an entry by hand is listed
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
 const stillByHand = [
+  'conflict-not-confirmed-reason.spec.ts',
+  'issue-close.spec.ts',
+  'pipeline-run-output.spec.ts',
+  'pull-request-renovate-rebase.spec.ts',
+  'rerun-count.spec.ts',
+  'row-claim-state-pills.spec.ts',
+  'startup-banner.spec.ts',
+  'startup-state.spec.ts',
+  'stream-after-first-poll.spec.ts',
+  'unreachable-age-tick.spec.ts',
+  'unreachable-once.spec.ts',
+  'webhooks-clear-filters.spec.ts',
   'actions-dialog-helper.spec.ts',
   'activity-persistence.spec.ts',
   'address-open-focus.spec.ts',
@@ -135,17 +148,45 @@ const stillByHand = [
 ];
 
 const dir = join(import.meta.dir, '..', 'tests');
-const byHand = /\{\s*forge:\s*[^,}]+,\s*reachable:/;
 
 const writtenByHand = readdirSync(dir)
-  .filter((name) => name.endsWith('.ts'))
-  .filter((name) => byHand.test(readFileSync(join(dir, name), 'utf8')))
+  .filter((name) => name.endsWith('.ts') && name !== 'forge-health-helper.ts')
+  .filter((name) =>
+    writesForgeEntryByHand(readFileSync(join(dir, name), 'utf8')),
+  )
   .sort();
 
 test('no spec writes a forge entry by hand unless it is on the list (#4030)', () => {
-  expect(writtenByHand.filter((name) => !stillByHand.includes(name))).toEqual(
-    [],
-  );
+  const added = writtenByHand.filter((name) => !stillByHand.includes(name));
+  // Build the entry with forgeHealth() from tests/forge-health-helper.ts, which
+  // fills `capabilities`. Do not add the file to the list above.
+  expect(
+    added,
+    'build each forge entry with forgeHealth() from tests/forge-health-helper.ts instead of adding the file to stillByHand',
+  ).toEqual([]);
+});
+
+test.each([
+  ['plain', "{ forge: 'github', reachable: true, repoCount: 1 }"],
+  ['reachable first', "{ reachable: true, forge: 'github' }"],
+  ['leading spread', "{ ...base, forge: 'github', reachable: true }"],
+  ['key between', "{ forge: 'github', repoCount: 1, reachable: true }"],
+  ['quoted keys', "{ 'forge': 'github', \"reachable\": true }"],
+  ['space before colon', "{ forge : 'github', reachable : true }"],
+  ['shorthand', '{ forge, reachable: true, repoCount: 1 }'],
+  ['multi-line', "{\n  forge: 'github',\n  reachable: true,\n}"],
+  ['inside a list', 'forges: [{ forge: pr.forge, reachable: true }]'],
+])('the detector catches a hand-written entry: %s (#4030)', (_name, source) => {
+  expect(writesForgeEntryByHand(source)).toBe(true);
+});
+
+test.each([
+  ['forgeHealth call', "forgeHealth('github', { reachable: false })"],
+  ['forge only', "{ forge: 'github', repoCount: 1 }"],
+  ['keys on different objects', "{ a: { forge: 'x' }, reachable: true }"],
+  ['text, not keys', "const forgeName = 'reachable';"],
+])('the detector leaves alone: %s (#4030)', (_name, source) => {
+  expect(writesForgeEntryByHand(source)).toBe(false);
 });
 
 test('a spec on the list still writes one, so the list shrinks as they convert (#4030)', () => {
