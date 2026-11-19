@@ -232,8 +232,11 @@ function itemOf(
   }
   if (url.origin !== host || url.search || url.hash) return null;
   const m = ITEM_ADDRESS.exec(url.pathname);
+  if (!m) return null;
   // `/issues/05` is item 5 on both forges, so the number is read as one.
-  return m ? { repo: m[1], n: String(Number(m[2])) } : null;
+  // There is no item 0, so `/issues/0` and `/issues/00` stay forge links.
+  const n = Number(m[2]);
+  return n > 0 ? { repo: m[1], n: String(n) } : null;
 }
 
 const REFERENCE =
