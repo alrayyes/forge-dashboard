@@ -1992,6 +1992,7 @@ export function authorChoices(items: FilterableItem[]): PickChoice[] {
         group: grouped ? forgeLabelOf(item.forge) : undefined,
         imageUrl: item.authorAvatarUrl || undefined,
         imageKind: 'avatar',
+        forge: item.forge,
       });
     else if (!have.imageUrl && item.authorAvatarUrl)
       have.imageUrl = item.authorAvatarUrl;

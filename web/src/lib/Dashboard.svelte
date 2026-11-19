@@ -831,6 +831,7 @@
       // name beside it already says which repository. A failed load drops
       // the image and leaves the name alone.
       const logo = avatarSrc(
+        item.forge,
         reposByKey.get(Filters.repoKey(item.forge, item.repo))?.logoUrl,
       );
       if (logo) {
@@ -2927,6 +2928,7 @@
       if (item.author) titleHover.track(nameSpan, item.author);
       authorCell.appendChild(nameSpan);
       const avatar = avatarSrc(
+        item.forge,
         (item as PullRequestItem | IssueItem).authorAvatarUrl,
       );
       if (item.author) {

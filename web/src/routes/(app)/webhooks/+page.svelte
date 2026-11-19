@@ -1413,6 +1413,7 @@
                 </td>
                 <td role="cell" data-label="Repo"
                   ><RepoLogo
+                    forge={repo.forge}
                     url={repo.logoUrl}
                     name={repo.fullName}
                   />{#if repo.url}<a
@@ -1651,7 +1652,11 @@
                   <span class="dot"></span>
                   {forgeLabelOf(repo.forge)}
                 </span>
-                <RepoLogo url={repo.logoUrl} name={repo.fullName} />
+                <RepoLogo
+                  forge={repo.forge}
+                  url={repo.logoUrl}
+                  name={repo.fullName}
+                />
                 {#if repo.url}
                   <a
                     class="repo-link"
