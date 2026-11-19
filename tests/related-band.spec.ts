@@ -254,6 +254,8 @@ test('an issue dialog pins the closing pull request name: relation, number, draf
   );
   await expect(dialog.locator('.related-toggle')).toHaveCount(0);
   await expect(dialog.locator('.related-count')).toHaveText('6');
+  // The row's label says it; no line of its own under Mentioned by (#4356).
+  await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
 test('an issue also referenced by pull requests has a Referenced by row and no hint line', async ({
@@ -403,6 +405,8 @@ test('a closed issue that is off the board shows what refers to it, with each st
     'Refs: PR #4200 · Merged',
   );
   await expect(dialog.locator('.related-count')).toHaveText('3');
+  // No line of its own under Mentioned by or any other row (#4356).
+  await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
 const outgoing = (number: number, over: Record<string, unknown> = {}) =>
