@@ -274,8 +274,9 @@ function itemOf(
   return n > 0 ? { repo: m[1], n: String(n) } : null;
 }
 
+// 1 to 9 digits, the same cap as ITEM_ADDRESS: a longer number is no item.
 const REFERENCE =
-  /(?<![\w/&#.@-])([A-Za-z0-9][\w.-]*\/(?!\d+#)[\w.-]+)?#(\d+)(?![\w-])/g;
+  /(?<![\w/&#.@-])([A-Za-z0-9][\w.-]*\/(?!\d+#)[\w.-]+)?#(\d{1,9})(?![\w-])/g;
 
 // Turns references into links to the item on the same forge. Only plain
 // text tokens are touched: code spans and blocks are other token types, and
@@ -353,7 +354,9 @@ function references(state: StateCore): void {
         const text = new Token('text', '', 0);
         text.content = child.content.slice(last, m.index);
         const repo = m[1] || ownRepo;
-        const forgeUrl = `${host}/${repo}/issues/${m[2]}`;
+        // `#05` is item 5, as `/issues/05` is in itemOf.
+        const n = String(Number(m[2]));
+        const forgeUrl = `${host}/${repo}/issues/${n}`;
         if (
           dashboard &&
           /^[a-z]+$/.test(dashboard.forge) &&
@@ -364,14 +367,14 @@ function references(state: StateCore): void {
           // rule below turns an address that is not absolute http(s) into
           // text. Every part is a number or the characters REFERENCE allows.
           const link = new Token('html_inline', '', 0);
-          link.content = `<a href="/issues.html?issue=${dashboard.forge}/${repo}/${m[2]}" data-ref-repo="${repo}" data-ref-number="${m[2]}" data-ref-url="${forgeUrl}">${m[0]}</a>`;
+          link.content = `<a href="/issues.html?issue=${dashboard.forge}/${repo}/${n}" data-ref-repo="${repo}" data-ref-number="${n}" data-ref-url="${forgeUrl}">${m[0]}</a>`;
           out.push(text, link);
         } else {
           // Nothing to open here: a repository the dashboard does not track
           // goes to the forge, and says so.
           const open = new Token('link_open', 'a', 1);
           open.attrSet('href', forgeUrl);
-          if (dashboard) markUntracked(open, repo, m[2], forgeUrl);
+          if (dashboard) markUntracked(open, repo, n, forgeUrl);
           const label = new Token('text', '', 0);
           label.content = m[0];
           const note = new Token('html_inline', '', 0);

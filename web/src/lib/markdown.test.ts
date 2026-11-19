@@ -232,9 +232,49 @@ describe('item 0 in text', () => {
     },
   );
 
-  test('still link a number that only starts with zero', async () => {
+  // Text and link forms of one address behave one way: a leading zero is read
+  // as the number it names (`#05` is item 5, like `/issues/05`).
+  test('read a number that only starts with zero as the item it names', async () => {
     const html = await renderMarkdown('See #05', { repoUrl, references });
-    expect(html).toContain('data-ref-number="05"');
+    expect(html).toContain('data-ref-number="5"');
+    expect(html).toContain('/forge-dashboard/5"');
+    expect(html).toContain(
+      'data-ref-url="https://github.com/alrayyes/forge-dashboard/issues/5"',
+    );
+    expect(html).toContain('>#05</a>');
+  });
+
+  test('link item 1, the lowest item', async () => {
+    const html = await renderMarkdown('See #1', { repoUrl, references });
+    expect(html).toContain('data-ref-number="1"');
+    expect(html).toContain('>#1</a>');
+  });
+
+  // Same 1 to 9 digit cap as the link form (ITEM_ADDRESS).
+  test.each(['#123456789', 'stranger/elsewhere#123456789'])(
+    'link %s, nine digits',
+    async (ref) => {
+      const html = await renderMarkdown(`See ${ref} here`, {
+        repoUrl,
+        references,
+      });
+      expect(html).toContain('data-ref-number="123456789"');
+      expect(html).toContain(`>${ref}</a>`);
+    },
+  );
+
+  test.each([
+    '#1234567890',
+    '#12345678901234567890',
+    'stranger/elsewhere#1234567890',
+    'alrayyes/forge-dashboard#12345678901234567890',
+  ])('leave %s, ten or more digits, as plain text', async (ref) => {
+    for (const opts of [{ repoUrl }, { repoUrl, references }]) {
+      const html = await renderMarkdown(`See ${ref} here`, opts);
+      expect(html, ref).toContain(`See ${ref} here`);
+      expect(html, ref).not.toContain('<a ');
+      expect(html, ref).not.toContain('data-ref-');
+    }
   });
 });
 
@@ -268,6 +308,20 @@ describe('ticket references the dashboard tracks', () => {
     expect(html).not.toContain('target=');
   });
 
+  test('read a leading zero on an untracked repository as the item it names', async () => {
+    const html = await renderMarkdown('See stranger/elsewhere#05', {
+      repoUrl,
+      references,
+    });
+    expect(html).toContain('data-ref-number="5"');
+    expect(html).toContain(
+      'data-ref-url="https://github.com/stranger/elsewhere/issues/5"',
+    );
+    expect(html).toContain(
+      'href="https://github.com/stranger/elsewhere/issues/5"',
+    );
+    expect(html).toContain('>stranger/elsewhere#05<');
+  });
   test('link an untracked repository to the forge, named as external', async () => {
     const html = await renderMarkdown('See stranger/elsewhere#9', {
       repoUrl,
