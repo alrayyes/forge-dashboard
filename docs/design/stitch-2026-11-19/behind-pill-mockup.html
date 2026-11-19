@@ -1,0 +1,59 @@
+<title>Behind Bot Pill</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--sunk:#eceff4;--fg:#1c2230;--mute:#5b6577;--line:#d9dee7;--strong:#aab3c2;--ok:#17653a;--bad:#a52424;--warn:#8a4b00;--warnbg:#fdf0d9;--info:#1f4fa3;--infobg:#e4edfb}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#10141b;--card:#182030;--sunk:#222c40;--fg:#e6eaf2;--mute:#a1abbd;--line:#2c374b;--strong:#4a5670;--ok:#7fd8a3;--bad:#f59a9a;--warn:#f1b86a;--warnbg:#3a2a10;--info:#8db4f5;--infobg:#17294a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#10141b;--card:#182030;--sunk:#222c40;--fg:#e6eaf2;--mute:#a1abbd;--line:#2c374b;--strong:#4a5670;--ok:#7fd8a3;--bad:#f59a9a;--warn:#f1b86a;--warnbg:#3a2a10;--info:#8db4f5;--infobg:#17294a;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif;padding-block:24px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:860px;margin:auto;display:grid;gap:20px}
+h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 8px}p{margin:0 0 8px;color:var(--mute);max-width:65ch}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:16px;min-width:0}
+.phone{width:360px;max-width:100%;border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--bg)}
+.bar{display:grid;grid-template-columns:repeat(8,1fr);background:var(--card);border-top:1px solid var(--line)}
+.tab{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 1px;font-size:10px;min-width:0;color:var(--mute)}
+.tab.cur{color:var(--fg);font-weight:600}
+.ico{width:18px;height:18px;border:2px solid currentColor;border-radius:4px;box-sizing:border-box}
+.np{display:flex;flex-wrap:wrap;justify-content:center;width:100%;border:1px solid var(--strong);border-radius:8px;background:var(--sunk);font-size:10px;font-weight:600;font-variant-numeric:tabular-nums;overflow:hidden}
+.np .t{flex:1 1 100%;text-align:center;height:16px;line-height:16px;border-bottom:1px solid var(--strong)}
+.np .c{display:inline-flex;align-items:center;gap:1px;height:15px;padding:0 2px}
+.np svg{width:8px;height:8px}
+.bad{color:var(--bad)}.ok{color:var(--ok)}.wn{color:var(--warn)}
+.wrapx{display:flex;flex-wrap:wrap;gap:20px}
+.hdr{display:inline-flex;align-items:center;height:20px;border:1px solid var(--strong);border-radius:999px;background:var(--sunk);font-size:11px;font-weight:600;overflow:hidden}
+.hdr span{display:inline-flex;align-items:center;gap:3px;padding:0 6px;height:100%}
+.hdr .t{border-right:1px solid var(--strong)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;padding:12px}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 12px;border:1px solid var(--line);border-radius:999px;background:var(--card);font-weight:600;font-size:14px}
+.chip.on{border-color:var(--warn);background:var(--warnbg);color:var(--warn)}
+.row{padding:10px 12px;border-top:1px solid var(--line);display:grid;gap:6px}
+.tag{font-size:12px;font-weight:600;padding:1px 8px;border-radius:6px;display:inline-block}
+.tag.w{background:var(--warnbg);color:var(--warn)}.tag.i{background:var(--infobg);color:var(--info)}
+.act{font:inherit;font-size:14px;min-height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--fg)}
+</style>
+<main>
+<header><h1>Behind bot pull requests</h1>
+<p>Recommendation: one glyph count in the existing menu pill, and the readable version as a chip on the Pull requests page. Drawn at the real tab width (360px bar, eight tabs).</p></header>
+
+<section class="card"><h2>A. The bottom tab, before and after</h2>
+<div class="wrapx">
+<div><p>Today</p><div class="phone"><div class="bar">
+<div class="tab cur"><div class="np"><span class="t">12</span><span class="c bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>2</span><span class="c ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>7</span></div><div class="ico"></div>PRs</div>
+<div class="tab"><div class="ico"></div>Issues</div><div class="tab"><div class="ico"></div>Repos</div><div class="tab"><div class="ico"></div>Runs</div></div></div></div>
+<div><p>With a behind count</p><div class="phone"><div class="bar">
+<div class="tab cur"><div class="np"><span class="t">12</span><span class="c bad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>2</span><span class="c ok"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"/></svg>7</span><span class="c wn"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 19V5M5 12l7-7 7 7"/></svg>3</span></div><div class="ico"></div>PRs</div>
+<div class="tab"><div class="ico"></div>Issues</div><div class="tab"><div class="ico"></div>Repos</div><div class="tab"><div class="ico"></div>Runs</div></div></div></div>
+</div>
+<p style="margin-top:12px">At about 45px the tab fits two cells on a row, so the fourth count starts a second row. The pill grows by one 15px row, no wider. Only the glyph and number, as with every other count. The up arrow is a guess that needs a check against the other glyphs.</p>
+<p>Desktop header pill, 20px high: <span class="hdr"><span class="t">12</span><span class="bad">⊘ 2</span><span class="ok">✓ 7</span><span class="wn">↑ 3</span></span></p></section>
+
+<section class="card"><h2>B. On the Pull requests page: the readable chip</h2>
+<div class="phone"><div class="chips">
+<span class="chip">All 12</span><span class="chip">Passing 7</span><span class="chip on">3 behind the base branch</span></div>
+<div class="row"><b>Bump vite to 7.1.2</b><div><span class="tag w">Behind main</span> <span class="tag">Renovate</span></div><div><button class="act">Rebase</button></div></div>
+<div class="row"><b>Bump svelte to 5.39.0</b><div><span class="tag i">Rebase requested</span> <span class="tag">Renovate</span></div><div><button class="act">Cancel rebase</button></div></div>
+<div class="row"><b>Bump golang.org/x/net</b><div><span class="tag w">Behind main</span> <span class="tag">Dependabot</span></div><div><button class="act">Rebase</button></div></div></div>
+<p style="margin-top:12px">The chip wraps under the others on a phone and has room for words. It counts green bot pull requests behind the base branch. Dependabot never shows "Rebase requested", because the forge gives no signal for it.</p></section>
+
+<section class="card"><h2>Accessible names</h2>
+<p>The menu pill stays aria-hidden. The link's name gains "3 behind the base branch" in words, built where it already says failed and passed. The chip's name is its visible text.</p></section>
+</main>
