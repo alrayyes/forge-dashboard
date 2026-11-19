@@ -15,7 +15,10 @@
   install: `scripts/vale.sh` runs the `vale` on your `PATH` only when it is
   the version CI pins, and otherwise the pinned `jdkato/vale` image through
   Docker. A newer binary misses errors the pinned one reports, so with a
-  different version and no Docker the script fails and says so.
+  different version and no Docker the script fails and says so. The style
+  packages in `.vale.ini` are pinned to exact release URLs for the same
+  reason: a newer release can need a newer Vale. Bump them together with the
+  Vale pin, never to "latest"; `scripts/test-vale-pin.sh` fails on a bare name.
 
   `ltex-cli-plus` needs nothing installed: the hook fetches and caches it
   on first use. The pre-push hook runs it only when the push contains
