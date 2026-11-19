@@ -301,7 +301,7 @@
         </div>
         <div class="release-notes">
           {#if r.version in rendered}
-            <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with html:false, the image rule off and non-http(s)/mailto links turned to text -->
+            <!-- nosemgrep: svelte-at-html -- renderMarkdown() output only: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens, the image rule off and non-http(s)/mailto links turned to text -->
             {@html rendered[r.version]}
           {:else}
             <p class="plain-notes">{plainNotes(r)}</p>

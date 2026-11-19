@@ -212,6 +212,48 @@
   })}
 </Story>
 
+<!-- Dependabot writes its description as HTML inside Markdown (#4241). -->
+<Story
+  asChild
+  name="Dependabot description"
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: ROUTE,
+        body: {
+          description: body(
+            'Bumps [x](https://github.com/o/x) from 1 to 2.\n<details>\n<summary>Release notes</summary>\n<p><em>Sourced from <a href="https://github.com/o/x/releases">x\'s releases</a>.</em></p>\n<blockquote>\n<ul>\n<li>fix: <code>&lt;detached&gt;</code> HEAD</li>\n</ul>\n</blockquote>\n</details>\n<details>\n<summary>Commits</summary>\n<ul>\n<li><a href="https://github.com/o/x/commit/abc1234">abc1234</a> fix</li>\n</ul>\n</details>\n',
+          ),
+          comments: [],
+          commentCount: 0,
+          commentsTruncated: false,
+        },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    await loaded(canvasElement);
+    await userEvent.click(
+      document.querySelector(".details-collapsed summary") as HTMLElement,
+    );
+    const markdown = document.querySelector(".markdown") as HTMLElement;
+    await waitFor(() =>
+      expect(markdown.querySelectorAll("details")).toHaveLength(2),
+    );
+    expect(markdown.textContent).not.toContain("<details>");
+    expect(markdown.querySelector("blockquote li code")?.textContent).toBe(
+      "<detached>",
+    );
+    expect(markdown.querySelectorAll("a[rel~=noopener]")).toHaveLength(3);
+  }}
+>
+  {@render opener({
+    ...PULL_REQUEST,
+    title: "chore(deps): bump x from 1 to 2",
+    kind: "dependency",
+    number: 4241,
+  })}
+</Story>
+
 <!-- An issue: its filer is shown, and there are no release notes. -->
 <Story
   asChild

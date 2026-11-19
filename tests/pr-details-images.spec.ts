@@ -347,6 +347,13 @@ for (const width of [360, 390, 1280]) {
     ).toBeVisible();
     const byUrl = (url: string) =>
       askedFor.find((p) => p.get('url') === url) as URLSearchParams;
+    // A lazy image is visible (its alt text has a box) before its request is
+    // made, so wait for both requests rather than reading them at once.
+    for (const url of [FORGE_IMAGE, `${FORGE_IMAGE}-2`]) {
+      await expect
+        .poll(() => askedFor.some((p) => p.get('url') === url))
+        .toBe(true);
+    }
     expect(byUrl(`${FORGE_IMAGE}-2`).get('comment')).toBe('4242');
     expect(byUrl(FORGE_IMAGE).has('comment')).toBe(false);
     expect(byUrl(FORGE_IMAGE).get('number')).toBe('42');

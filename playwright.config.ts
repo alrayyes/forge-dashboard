@@ -125,6 +125,7 @@ const singleUserSpecs = [
   '**/pr-details-cache.spec.ts',
   '**/pr-details-dialog.spec.ts',
   '**/pr-details-description-scroll.spec.ts',
+  '**/pr-details-dependabot-description.spec.ts',
   '**/pr-details-images.spec.ts',
   '**/pr-details-short-viewport.spec.ts',
   '**/pr-details-task-lists.spec.ts',
