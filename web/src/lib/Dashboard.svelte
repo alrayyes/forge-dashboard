@@ -66,6 +66,8 @@
     detailsPrefetcher,
     type DetailsRef,
   } from "#lib/details-cache.js";
+  import { probeReference } from "#lib/reference-probe.js";
+  import { createReferencePrefetcher } from "#lib/reference-prefetch.js";
   import { addressFocusFallback } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
@@ -598,9 +600,20 @@
   // A reference in the dialog's text was clicked (#3744), and whether the
   // dashboard tracks a repository. Set once the board exists below.
   let referenceFollowed: (
-    ref: { forge: string; repo: string; number: number; url: string },
+    ref: {
+      forge: string;
+      repo: string;
+      number: number;
+      url: string;
+      untracked?: boolean;
+    },
     triggerId: string,
-  ) => void = () => {};
+  ) => boolean = () => false;
+  let referenceWarmed: (ref: {
+    forge: string;
+    repo: string;
+    number: number;
+  }) => void = () => {};
   let repoTracked: (forge: string, repo: string) => boolean = () => false;
 
   // The Issues settings (#1630). The server applies them to what it sends, so
@@ -2386,6 +2399,8 @@
         forge: item.forge,
         repo: item.repo,
         number: item.number,
+        // Nothing here writes to a repository the board does not track.
+        readOnly: !trackedRepo(item.forge, item.repo),
       });
       issueDialog = {
         forge: item.forge,
@@ -2527,11 +2542,37 @@
     // closes, then the item's opens, with focus going back to what opened the
     // first. A pull request this page lists opens as one; anything else opens
     // as an issue, and the dialog says plainly if the forge cannot show it.
+    // An item of a repository the dashboard does not track (#4269) is a forge
+    // link that is warmed while the pointer or focus rests on it. A click
+    // opens its dialog only once the forge has answered; before that it
+    // returns false and the link is followed as it is, to the forge in a new
+    // tab, which no browser blocks and which waits for nothing.
+    const untrackedItems = createReferencePrefetcher({
+      probe: (r) => probeReference(r),
+      isKnown: (r) =>
+        detailsCache.get(detailsKey({ ...r, subject: "issue" })) !== undefined,
+      remember: (r, details) =>
+        detailsCache.set(detailsKey({ ...r, subject: "issue" }), {
+          details,
+          readAt: Date.now(),
+        }),
+    });
+    referenceWarmed = (ref) => {
+      void untrackedItems.warm(ref);
+    };
+
     function followReference(
-      ref: { forge: string; repo: string; number: number; url: string },
+      ref: {
+        forge: string;
+        repo: string;
+        number: number;
+        url: string;
+        untracked?: boolean;
+      },
       triggerId: string,
-    ) {
+    ): boolean {
       const wanted = { forge: ref.forge, repo: ref.repo, number: ref.number };
+      if (ref.untracked && !untrackedItems.isReady(wanted)) return false;
       afterDetailsClosed = () => {
         const pr = pullsView
           ? allPRs.find((p) => sameAddress(wanted, p))
@@ -2551,6 +2592,7 @@
         );
       };
       detailsDialog?.close();
+      return true;
     }
 
     // Whether the dashboard tracks a repository: the forge's snapshot lists it,
@@ -11385,6 +11427,7 @@
   onPullRequestFound={() => pullRequestFound()}
   onReferences={(references) => issueReferencesRead(references)}
   onReference={(ref, triggerId) => referenceFollowed(ref, triggerId)}
+  onWarmReference={(ref) => referenceWarmed(ref)}
   trackedRepo={(forge, repo) => repoTracked(forge, repo)}
 />
 

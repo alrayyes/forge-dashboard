@@ -175,3 +175,32 @@ describe('Close with a comment', () => {
     expect(posts.at(-2)?.body.body).toBe('Second.');
   });
 });
+
+describe('an issue of a repository the board does not track', () => {
+  const stranger = { ...target, readOnly: true };
+
+  test('open shows no actions, no field and no status', () => {
+    const actions = setup();
+    actions.open(stranger);
+
+    expect(chrome.actions).toEqual([]);
+    expect(chrome.option).toBeNull();
+  });
+
+  test('a read saying it is closed adds no Reopen button', () => {
+    const actions = setup();
+    actions.open(stranger);
+    actions.forgeState(true);
+
+    expect(chrome.actions).toEqual([]);
+  });
+
+  test('a read saying it is open adds no Close button', () => {
+    const actions = setup();
+    actions.open(stranger);
+    actions.forgeState(true);
+    actions.forgeState(false);
+
+    expect(chrome.actions).toEqual([]);
+  });
+});

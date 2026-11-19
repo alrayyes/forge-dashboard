@@ -74,7 +74,8 @@
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import RelatedBand from "#lib/RelatedBand.svelte";
-  import { tick } from "svelte";
+  import { onDestroy, tick } from "svelte";
+  import { createDwell } from "#lib/reference-dwell.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
@@ -85,6 +86,7 @@
   import { renderMarkdown } from "#lib/markdown.js";
   import {
     type ClickedReference,
+    referenceAt,
     referenceFromClick,
   } from "#lib/reference-links.js";
   import {
@@ -154,6 +156,7 @@
     onPullRequestFound,
     onReferences,
     onReference,
+    onWarmReference,
     trackedRepo,
   }: {
     onEscape?: () => boolean;
@@ -168,10 +171,19 @@
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
+    // Returns false when it left the click alone (an item of an untracked
+    // repository the forge has not answered for yet): the link is followed.
     onReference?: (
       reference: ClickedReference & { forge: string },
       triggerId: string,
-    ) => void;
+    ) => boolean;
+    // The pointer or focus is on a reference to an untracked repository (#4269):
+    // time to ask the forge whether it can show it.
+    onWarmReference?: (reference: {
+      forge: string;
+      repo: string;
+      number: number;
+    }) => void;
     // Whether the dashboard tracks this repository (`owner/name`) on a forge,
     // which decides if a reference is a dashboard link or goes to the forge.
     // Without `onReference` that link is followed as a plain link to the
@@ -782,10 +794,40 @@
       return;
     }
     const reference = onReference ? referenceFromClick(event) : null;
-    if (!reference) return;
-    event.preventDefault();
-    if (target)
-      onReference?.({ ...reference, forge: target.forge }, returnFocusId);
+    if (!reference || !target) return;
+    const handled = onReference?.(
+      { ...reference, forge: target.forge },
+      returnFocusId,
+    );
+    if (handled !== false) event.preventDefault();
+  }
+
+  // A reference to an untracked repository under the pointer or focus is
+  // asked of the forge now, so a click can open its dialog (#4269).
+  function warmReference(event: Event) {
+    dwell.cancel();
+    const reference = untrackedReference(event);
+    if (reference) onWarmReference?.(reference);
+  }
+
+  function untrackedReference(event: Event) {
+    const found = referenceAt(event.target);
+    if (!found?.untracked || !target) return null;
+    return { forge: target.forge, repo: found.repo, number: found.number };
+  }
+
+  // A pointer passing over only asks after it rests for a moment; focus and
+  // pointer-down above ask at once.
+  const dwell = createDwell<{ forge: string; repo: string; number: number }>(
+    (reference) => onWarmReference?.(reference),
+  );
+  onDestroy(() => dwell.cancel());
+
+  function restOnReference(event: Event) {
+    const found = referenceAt(event.target);
+    const reference = untrackedReference(event);
+    if (reference && found) dwell.rest(found.anchor, reference);
+    else dwell.cancel();
   }
 
   function relativeTime(iso: string): string {
@@ -869,6 +911,10 @@
   onclose={onClose}
   oncancel={onCancel}
   onclick={onBackdrop}
+  onpointerover={restOnReference}
+  onpointerleave={() => dwell.cancel()}
+  onpointerdown={warmReference}
+  onfocusin={warmReference}
 >
   {#if target}
     <div class="details-header">

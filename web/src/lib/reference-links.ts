@@ -11,8 +11,33 @@ export type ClickedReference = {
   number: number;
   /** The item's page on the forge, for a dialog that has nothing else to show. */
   url: string;
+  /** The repository is not one the dashboard tracks: the forge may not show it. */
+  untracked: boolean;
   anchor: unknown;
 };
+
+/** The reference a node sits in, if it is one the dashboard rendered. */
+export function referenceAt(target: unknown): ClickedReference | null {
+  const node = target as { closest?: (selector: string) => unknown } | null;
+  const anchor = node?.closest?.('a[data-ref-number]') as {
+    dataset: {
+      refRepo?: string;
+      refNumber?: string;
+      refUrl?: string;
+      refUntracked?: string;
+    };
+  } | null;
+  const { refRepo, refNumber, refUrl } = anchor?.dataset ?? {};
+  if (!anchor || !refRepo || !refNumber || !/^[0-9]+$/.test(refNumber))
+    return null;
+  return {
+    repo: refRepo,
+    number: Number(refNumber),
+    url: refUrl ?? '',
+    untracked: anchor.dataset.refUntracked !== undefined,
+    anchor,
+  };
+}
 
 export function referenceFromClick(
   event: Pick<
@@ -26,19 +51,5 @@ export function referenceFromClick(
   > & { target: unknown },
 ): ClickedReference | null {
   if (!isPlainClick(event)) return null;
-  const target = event.target as {
-    closest?: (selector: string) => unknown;
-  } | null;
-  const anchor = target?.closest?.('a[data-ref-number]') as {
-    dataset: { refRepo?: string; refNumber?: string; refUrl?: string };
-  } | null;
-  const { refRepo, refNumber, refUrl } = anchor?.dataset ?? {};
-  if (!anchor || !refRepo || !refNumber || !/^[0-9]+$/.test(refNumber))
-    return null;
-  return {
-    repo: refRepo,
-    number: Number(refNumber),
-    url: refUrl ?? '',
-    anchor,
-  };
+  return referenceAt(event.target);
 }
