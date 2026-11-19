@@ -24,10 +24,7 @@
     startPresence,
   } from "#lib/presence-browser.js";
   import NavPills from "#lib/NavPills.svelte";
-  import {
-    firstRefreshLoading,
-    firstRefreshPending,
-  } from "#lib/first-refresh.js";
+  import { firstRefreshLoading } from "#lib/first-refresh.js";
   import {
     firstRefresh,
     setFirstRefresh,
@@ -257,7 +254,6 @@
             }
             settleDashboardRead(data);
             setFirstRefresh(data.firstRefreshDone);
-            const pending = firstRefreshPending(data.firstRefreshDone);
             // The Branches page reads its own list and keeps the pill to
             // its counts, so a snapshot from before that read can't undo them.
             // A snapshot from before the first refresh ends makes them
@@ -265,7 +261,8 @@
             // the last known counts (#4318); every supported server sends
             // them (#4276).
             setNavCounts(
-              pending ? null : data.navCounts,
+              data.navCounts,
+              data.firstRefreshDone,
               data.mainBranchPage?.branches,
               isCurrentRoute("/"),
             );

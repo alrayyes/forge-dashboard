@@ -10514,7 +10514,8 @@
       // which are which (#716). The nav counts both from the full list.
       setFirstRefresh(data.firstRefreshDone);
       setNavCounts(
-        firstRefreshPending(data.firstRefreshDone) ? null : data.navCounts,
+        data.navCounts,
+        data.firstRefreshDone,
         data.mainBranchPage?.branches,
       );
       // The snapshot carries the viewer's two flags (#1630), so no second
