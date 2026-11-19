@@ -59,18 +59,33 @@ const stateOf = (pr: LinkedPullRequest) =>
 
 // An entry from an issue's details says its state as a word after the number
 // ("PR #12 · Merged"), so a pill under "Closed by" doesn't read as if it closes
-// something itself (#4283). The board's pills carry no state and keep the
-// shorter form.
+// something itself (#4283). The pills on a board row carry no state and keep
+// the shorter form; the Related band gives them one with withBoardState.
 const stated = (pr: LinkedPullRequest) =>
   pr.kind === 'pullRequest' && pr.state !== undefined;
 
-const stateWord = (pr: LinkedPullRequest) =>
-  pr.draft
-    ? 'Draft'
-    : `${(pr.state ?? 'open')[0].toUpperCase()}${(pr.state ?? 'open').slice(1)}`;
+// A closed or merged pull request says so even when it was a draft.
+const stateWord = (pr: LinkedPullRequest) => {
+  const state = pr.state ?? 'open';
+  if (state === 'open') return pr.draft ? 'Draft' : 'Open';
+  return `${state[0].toUpperCase()}${state.slice(1)}`;
+};
+
+/**
+ * The board's pills are all open pull requests, so the Related band can say
+ * so: the same entries as an issue's own details give, with a state.
+ */
+export const withBoardState = (
+  list: LinkedPullRequest[] | undefined,
+): LinkedPullRequest[] | undefined =>
+  list?.map((pr) => ({
+    ...pr,
+    kind: pr.kind ?? 'pullRequest',
+    state: pr.state ?? 'open',
+  }));
 
 const nounOf = (pr: LinkedPullRequest) =>
-  pr.kind === 'issue' ? 'Issue' : stated(pr) ? 'PR' : 'Pull request';
+  pr.kind === 'issue' ? 'Issue' : 'Pull request';
 
 /** The number and state as the pill reads them, with no pipeline. */
 const headOf = (pr: LinkedPullRequest, issueRepo: string) =>

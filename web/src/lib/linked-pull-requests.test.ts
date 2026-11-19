@@ -12,6 +12,7 @@ import {
   missingNote,
   parsePullRequestAddress,
   splitLinked,
+  withBoardState,
 } from './linked-pull-requests';
 
 // The issue row's pills and the address that opens a pull request's pop-up.
@@ -147,6 +148,19 @@ describe('a pull request pill in the Related band', () => {
     ).toBe('PR #12 · Draft');
   });
 
+  test('a closed or merged draft says its state, not Draft', () => {
+    for (const [state, word] of [
+      ['closed', 'Closed'],
+      ['merged', 'Merged'],
+    ] as const)
+      expect(
+        linkedPillText(
+          pr({ kind: 'pullRequest', state, draft: true }),
+          'alrayyes/app',
+        ),
+      ).toBe(`PR #12 · ${word}`);
+  });
+
   test('keeps the whole repo when it is another one', () => {
     expect(
       linkedPillText(
@@ -167,6 +181,28 @@ describe('a pull request pill in the Related band', () => {
     expect(linkedPillName(p, 'alrayyes/app')).toContain(
       linkedPillText(p, 'alrayyes/app'),
     );
+  });
+
+  test('needs both a pull request kind and a state', () => {
+    expect(linkedPillText(pr({ state: 'merged' }), 'alrayyes/app')).toBe(
+      '#12 merged',
+    );
+    expect(linkedPillText(pr({ kind: 'pullRequest' }), 'alrayyes/app')).toBe(
+      '#12',
+    );
+  });
+
+  test('gives the board its open entries as pull requests with a state', () => {
+    expect(withBoardState(undefined)).toBeUndefined();
+    const [a, b] = withBoardState([pr(), pr({ draft: true })]) ?? [];
+    expect(linkedPillText(a, 'alrayyes/app')).toBe('PR #12 · Open');
+    expect(linkedPillText(b, 'alrayyes/app')).toBe('PR #12 · Draft');
+    expect(linkedDialogName(a, 'alrayyes/app')).toBe(
+      'Closed by: PR #12 · Open',
+    );
+    expect(
+      withBoardState([pr({ state: 'merged', kind: 'pullRequest' })]),
+    ).toEqual([pr({ state: 'merged', kind: 'pullRequest' })]);
   });
 
   test('leaves an issue entry worded as before', () => {

@@ -212,6 +212,7 @@
   import {
     type LinkedPullRequest,
     linkedPills,
+    withBoardState,
     linkedPillId,
     missingNote,
     type PillCi,
@@ -2764,7 +2765,7 @@
         linkedPills(
           `${prKey(item)}${key}`,
           item.repo,
-          list,
+          withBoardState(list),
           undefined,
           linkedCi,
           (linked) =>

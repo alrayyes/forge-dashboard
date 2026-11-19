@@ -6,6 +6,7 @@
   import {
     type LinkedPullRequest,
     linkedPills,
+    withBoardState,
   } from "./linked-pull-requests.js";
   import { mentionPills } from "./mentioned-issues.js";
   import { relatedBandData } from "./related-band.js";
@@ -89,7 +90,7 @@
       linkedPills(
         key,
         REPO,
-        list,
+        withBoardState(list),
         undefined,
         renderCi,
         () => {},
@@ -143,9 +144,7 @@
     const name = canvasElement
       .querySelector(".linked-pr")
       ?.getAttribute("aria-label");
-    await expect(name).toBe(
-      "Closed by: Pull request #142 draft Running 3: 3 passed",
-    );
+    await expect(name).toBe("Closed by: PR #142 · Draft Running 3: 3 passed");
   }}
 />
 
@@ -170,6 +169,28 @@
     await expect(pill.getAttribute("aria-label")).toBe(
       "Closes: alrayyes/a-very-long-repository-name-for-a-wrapped-pill#4, opens the issue",
     );
+  }}
+/>
+
+<!-- A pull request in another repo keeps its state word, and the repo is its own node. -->
+<Story
+  name="Issue, cross-repo pull request"
+  args={{
+    band: issueBand([
+      pr(12, { repo: "alrayyes/other", kind: "pullRequest", state: "merged" }),
+    ]),
+  }}
+  play={async ({ canvasElement }) => {
+    const pill = canvasElement.querySelector(".linked-pr") as HTMLElement;
+    await expect(pill.textContent).toBe("PR alrayyes/other#12 · Merged");
+    await expect(pill.firstChild?.textContent).toBe("PR ");
+    await expect(pill.querySelector(".linked-pr-repo")?.textContent).toBe(
+      "alrayyes/other",
+    );
+    await expect(pill.querySelector(".linked-pr-number")?.textContent).toBe(
+      "#12",
+    );
+    await expect(pill.lastChild?.textContent).toBe(" · Merged");
   }}
 />
 

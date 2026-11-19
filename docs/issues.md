@@ -221,10 +221,12 @@ text,
 after the closing pills; a row shows two of several and a count that opens the
 rest, and the band shows six and a "+N more" toggle that folds back. Upright
 means the pull request closes the issue, italic means it only references it.
-On a closed issue the band reads each pull request from the issue's own
-details and says its state in words, "PR #N · Open", "· Merged" or
-"· Closed" ("· Draft" for a draft), so a pill under "Closed by" doesn't read
-as if it closes something itself. The accessible name says the same words.
+In the pop-up's Related band every pull request pill says its state in words,
+"PR #N · Open", "· Merged" or "· Closed" ("· Draft" for an open draft), so a
+pill under "Closed by" doesn't read as if it closes something itself. The
+accessible name says the same words. A closed issue's band reads each pull
+request from the issue's own details; a listed issue's reads the board's open
+ones. The pills on the row keep the shorter number.
 A pill says so in its tooltip ("References this issue, does
 not close it") and in its accessible name. The same sentence shows under the
 pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
