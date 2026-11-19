@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.83.2](https://github.com/alrayyes/forge-dashboard/compare/v9.83.1...v9.83.2) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** word a pull request's pill as its state, not as 'Closes' ([#4306](https://github.com/alrayyes/forge-dashboard/issues/4306)) ([8ebfde4](https://github.com/alrayyes/forge-dashboard/commit/8ebfde406e0bbf5183194c0fba375ab456c1b445))
+
 ## [9.83.1](https://github.com/alrayyes/forge-dashboard/compare/v9.83.0...v9.83.1) (2026-11-19)
 
 
