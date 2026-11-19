@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   contrastRatio,
+  labelChipColor,
   labelChipColors,
   labelTextColor,
   relativeLuminance,
@@ -124,5 +125,24 @@ describe('labelChipColors', () => {
 
   test('items with no labels are fine', () => {
     expect(labelChipColors([{}, item()]).size).toBe(0);
+  });
+});
+
+describe('labelChipColor', () => {
+  test('a good colour comes back lower-case', () => {
+    expect(labelChipColor('D73A4A')).toBe('d73a4a');
+  });
+
+  test('a missing or malformed colour gives the neutral chip', () => {
+    for (const bad of [undefined, '', 'red', '#d73a4a', 'd73a4', 'd73a4ab']) {
+      expect(labelChipColor(bad)).toBeUndefined();
+    }
+  });
+
+  test('the row and the filter agree on every colour', () => {
+    for (const color of ['d73a4a', 'D73A4A', 'red', '#fff', undefined]) {
+      const filter = labelChipColors([{ labels: [{ name: 'x', color }] }]);
+      expect(labelChipColor(color)).toBe(filter.get('x'));
+    }
   });
 });

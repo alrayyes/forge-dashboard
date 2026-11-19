@@ -39,6 +39,13 @@ export function labelTextColor(bgHex: string): string {
 
 const HEX = /^[0-9a-f]{6}$/i;
 
+// The colour a chip may wear, as lower-case hex without the `#`, or undefined
+// for the neutral chip. The rows and the Label filter both ask this, so a
+// malformed colour looks the same in both.
+export function labelChipColor(color: string | undefined): string | undefined {
+  return color && HEX.test(color) ? color.toLowerCase() : undefined;
+}
+
 // The colour each label name wears in the Label filter, by labelKey. A pick is
 // stored by name, so a chip has to look its colour up, and one name can carry
 // different colours in different repos. The rule is that a name gets a colour
@@ -51,9 +58,9 @@ export function labelChipColors(
   const seen = new Map<string, string | null>();
   for (const item of items) {
     for (const { name, color } of item.labels ?? []) {
-      if (!color || !HEX.test(color)) continue;
+      const hex = labelChipColor(color);
+      if (!hex) continue;
       const key = labelKey(name);
-      const hex = color.toLowerCase();
       const known = seen.get(key);
       if (known === undefined) seen.set(key, hex);
       else if (known !== hex) seen.set(key, null);
