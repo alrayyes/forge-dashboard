@@ -33,6 +33,17 @@
 //     forges draw them (#1995). Never an image, and the plugin skips code.
 //     Emoticons like `:)` stay as typed: the forges don't expand them and
 //     they would rewrite ordinary text.
+// Not covered by the allow-list (#4292). It stops script, handlers, styles,
+// forms, frames, remote images and dangerous link schemes. It does not stop
+// an author looking like something else:
+//   - a link that names one address and goes to another, which a Markdown
+//     link could always do;
+//   - text in a heading or `summary` that looks like a status or approval;
+//   - a fake blockquote or fake command: `<blockquote>` and `<code>` styled
+//     as the forge's own quote or a `@dependabot` command, to be copied;
+//   - content in a collapsed `details`;
+//   - output size: each unclosed `<a href="...">` is closed and gets
+//     `target` and `rel`, so a body of them renders about four times larger.
 // The library is imported on first use, so the dashboard's own chunk doesn't
 // carry it.
 import type MarkdownIt from 'markdown-it';
@@ -655,10 +666,30 @@ function rawInline(decode: (s: string) => string) {
   };
 }
 
+// markdown-it ends a `<pre` block at the first line holding `</pre>` in its
+// container, else at the end of the container: an unclosed one would take all
+// the rest. So a `<pre` is a block only when that closer comes before a code
+// fence or another `<pre`, which a closer further on would otherwise swallow.
+// The cost is a pre that holds a line starting with a fence, or one indented
+// 4+ spaces that looks like one, shown as text (still contained).
+const PRE_OPEN = /^<pre(?=[\s>]|$)/i;
+const PRE_CLOSE = /<\/pre>/i;
+const FENCE_OPEN = /^(?:`{3}|~{3})/;
+
+function preCloses(state: StateBlock, start: number, end: number): boolean {
+  for (let line = start; line < end; line++) {
+    const from = state.bMarks[line] + state.tShift[line];
+    const text = state.src.slice(from, state.eMarks[line]);
+    if (PRE_CLOSE.test(text)) return true;
+    if (line > start && (FENCE_OPEN.test(text) || PRE_OPEN.test(text))) {
+      return false;
+    }
+  }
+  return false;
+}
+
 // An HTML block only starts at an allow-listed block tag; markdown-it's own
 // rule does the rest (where it ends, what a comment or blank line does).
-const lastPreClose = new WeakMap<StateBlock, number>();
-
 function narrowHtmlBlock(md: Renderer): void {
   const rule = md.block.ruler.__rules__.find((r) => r.name === 'html_block');
   if (!rule) throw new Error('markdown-it has no html_block rule');
@@ -668,15 +699,8 @@ function narrowHtmlBlock(md: Renderer): void {
     (state: StateBlock, start: number, end: number, silent: boolean) => {
       const pos = state.bMarks[start] + state.tShift[start];
       if (!BLOCK_START.test(state.src.slice(pos, pos + 16))) return false;
-      // markdown-it ends a `<pre` block only at `</pre>`, else at the end of
-      // the container: an unclosed one would be all the rest of the body.
-      if (/^<pre(?=[\s>])/i.test(state.src.slice(pos, pos + 5))) {
-        let last = lastPreClose.get(state);
-        if (last === undefined) {
-          last = state.src.toLowerCase().lastIndexOf('</pre>');
-          lastPreClose.set(state, last);
-        }
-        if (pos > last) return false;
+      if (PRE_OPEN.test(state.src.slice(pos, pos + 5))) {
+        if (!preCloses(state, start, end)) return false;
       }
       return original(state, start, end, silent);
     },
