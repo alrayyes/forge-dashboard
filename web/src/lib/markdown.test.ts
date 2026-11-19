@@ -337,6 +337,33 @@ describe('item addresses in a body the dashboard tracks', () => {
   });
 });
 
+// The release dialog renders notes with repoUrl = repoUrlOf(release address),
+// so the address of a release must name its repository too (#4230).
+describe('release notes open items in the dashboard', () => {
+  const references = { forge: 'github', tracked: () => true };
+  const releases = [
+    'https://github.com/alrayyes/forge-dashboard/releases/tag/v16.0.45',
+    'https://git.example.org/alrayyes/forge-dashboard/releases/tag/v16.0.45',
+  ];
+
+  test.each(releases)('read the repository from %s', async (release) => {
+    const base = release.split('/releases')[0];
+    expect(repoUrlOf(release)).toBe(base);
+    expect(repoUrlOf(`${base}/releases`)).toBe(base);
+    const url = `${base}/issues/529`;
+    const html = await renderMarkdown(`Fixes ${url} and #3`, {
+      repoUrl: repoUrlOf(release),
+      references: {
+        ...references,
+        forge: release.includes('github') ? 'github' : 'forgejo',
+      },
+    });
+    expect(html).toContain('data-ref-number="529"');
+    expect(html).toContain('data-ref-number="3"');
+    expect(html).not.toContain('target=');
+  });
+});
+
 describe('repoUrlOf', () => {
   test('strips the item part of a GitHub or Forgejo address', () => {
     expect(repoUrlOf('https://github.com/o/r/pull/12')).toBe(

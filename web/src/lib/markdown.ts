@@ -218,7 +218,7 @@ export type ReferenceOptions = {
 // `/owner/repo/pull/12`, `/issues/12` or Forgejo's `/pulls/12`, with no query,
 // fragment (`#issuecomment-1`) or further path (`/files`).
 const ITEM_ADDRESS =
-  /^\/([A-Za-z0-9][\w.-]*\/[\w.-]+)\/(?:pulls?|issues)\/(\d+)\/?$/;
+  /^\/([A-Za-z0-9][\w.-]*\/[\w.-]+)\/(?:pulls?|issues)\/(\d{1,9})\/?$/;
 
 function itemOf(
   href: string,
