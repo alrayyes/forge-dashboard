@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.80.0](https://github.com/alrayyes/forge-dashboard/compare/v9.79.1...v9.80.0) (2026-11-19)
+
+
+### Features
+
+* **dialogs:** add a Related band to the pull request and issue pop-ups ([#4240](https://github.com/alrayyes/forge-dashboard/issues/4240)) ([eaef31c](https://github.com/alrayyes/forge-dashboard/commit/eaef31c8e07260579ed14963f030e6b6f002f2ef))
+
 ## [9.79.1](https://github.com/alrayyes/forge-dashboard/compare/v9.79.0...v9.79.1) (2026-11-19)
 
 
