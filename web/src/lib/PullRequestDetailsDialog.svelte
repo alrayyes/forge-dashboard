@@ -327,19 +327,34 @@
   //
   // The swap replaces the nodes, so a pill link holding keyboard focus would
   // drop it to the page. Focus goes back to the same link (by href) in the
-  // new set, or to the close button when that pull request is gone.
+  // new set (the same one of them when a pull request is in two rows), or to
+  // the close button when that pull request is gone.
   export function setAttributes(
     attributes: HTMLElement | undefined,
     related?: RelatedBandData,
   ) {
     if (!target?.status) return;
     const held = document.activeElement;
+    const links = () =>
+      dialogEl
+        ? [
+            ...dialogEl.querySelectorAll<HTMLAnchorElement>(
+              ".details-attributes a[href], .related-band a[href]",
+            ),
+          ]
+        : [];
     const href =
-      held instanceof HTMLAnchorElement &&
-      (target.status.attributes.contains(held) ||
-        dialogEl?.querySelector(".related-band")?.contains(held))
+      held instanceof HTMLAnchorElement && links().includes(held)
         ? held.getAttribute("href")
         : null;
+    // The same pull request can sit in two rows, so the href alone is not
+    // enough: which of the links with it the reader was on is kept too.
+    const place =
+      href === null
+        ? 0
+        : links()
+            .filter((a) => a.getAttribute("href") === href)
+            .indexOf(held as HTMLAnchorElement);
     target = {
       ...target,
       status: {
@@ -351,12 +366,12 @@
     if (href === null) return;
     void tick().then(() => {
       if (!dialogEl?.open) return;
-      const same = [
-        ...dialogEl.querySelectorAll<HTMLAnchorElement>(
-          ".details-attributes a[href], .related-band a[href]",
-        ),
-      ].find((a) => a.getAttribute("href") === href);
-      if (same) same.focus();
+      // A pill patched in place kept focus; nothing to put back.
+      if (held instanceof HTMLElement && document.activeElement === held)
+        return;
+      const same = links().filter((a) => a.getAttribute("href") === href);
+      const back = same[Math.min(place, same.length - 1)];
+      if (back) back.focus();
       else focusClose();
     });
   }

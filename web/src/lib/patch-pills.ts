@@ -34,7 +34,7 @@ const KEPT = 'aria-describedby';
 function write(old: HTMLElement, fresh: HTMLElement) {
   if (old.outerHTML === fresh.outerHTML) return;
   for (const name of old.getAttributeNames())
-    if (name !== KEPT && !fresh.hasAttribute(name)) old.removeAttribute(name);
+    if (!fresh.hasAttribute(name)) old.removeAttribute(name);
   for (const name of fresh.getAttributeNames()) {
     if (name === KEPT) continue;
     const value = fresh.getAttribute(name) as string;
