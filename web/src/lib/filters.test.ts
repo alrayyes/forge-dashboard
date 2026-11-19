@@ -359,6 +359,15 @@ describe('the Cancelled quick filter', () => {
       expect(matchesQuickFilter(choiceItem({ ci }), 'cancelled')).toBe(false);
   });
 
+  test('matches a draft whose CI was cancelled', () => {
+    expect(
+      matchesQuickFilter(
+        choiceItem({ ci: 'cancelled', draft: true }),
+        'cancelled',
+      ),
+    ).toBe(true);
+  });
+
   test('a cancelled pull request is in no other CI pill', () => {
     const item = choiceItem({ ci: 'cancelled' });
     for (const pill of ['failing', 'running', 'passing', 'no-checks'])

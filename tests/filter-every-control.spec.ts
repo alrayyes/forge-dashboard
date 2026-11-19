@@ -126,8 +126,17 @@ function prsFor(base: number, kind: string | undefined) {
     }),
     // One filler row has auto-merge off too, so the pill paired with Off still
     // matches only some of that pool and stays offered (#3669).
+    // One more filler row is cancelled, so the Cancelled pill is offered (#4350).
     ...Array.from({ length: 25 }, (_, i) =>
-      pr(base + 8 + i, kind, i === 0 ? { autoMergeEnabled: false } : {}),
+      pr(
+        base + 8 + i,
+        kind,
+        i === 0
+          ? { autoMergeEnabled: false }
+          : i === 1
+            ? { ci: 'cancelled' }
+            : {},
+      ),
     ),
   ];
 }
@@ -275,7 +284,7 @@ function pill(name: string, id: string): Control {
   const forge = id === 'github' || id === 'forgejo';
   const group = forge
     ? 'forge'
-    : ['failing', 'running', 'passing', 'no-checks'].includes(id)
+    : ['failing', 'running', 'passing', 'cancelled', 'no-checks'].includes(id)
       ? 'ci'
       : ['conflicting', 'out-of-date'].includes(id)
         ? 'merge'
@@ -443,8 +452,10 @@ function combined(board: Board): Control[] {
 // A round is the controls set together, then read back. The combined round
 // comes last, since its picks would leave a pill or the Off answer nothing to
 // show. On the pull request board that Off answer and one pill (a pill and the
-// answer both offered over the full list) get the one round before it.
+// answer both offered over the full list) get the one round before it. The
+// Cancelled pill goes first: the Off answer hides the only cancelled rows.
 const PULLS_ROUNDS: Control[][] = [
+  [pill('Cancelled', 'cancelled')],
   [autoMerge('off'), pill('Failing', 'failing')],
   combined('pulls'),
 ];
