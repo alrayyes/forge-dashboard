@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.79.0](https://github.com/alrayyes/forge-dashboard/compare/v9.78.0...v9.79.0) (2026-11-19)
+
+
+### Features
+
+* **web:** show the CI pill glyphs in the status filter ([#4237](https://github.com/alrayyes/forge-dashboard/issues/4237)) ([44a056d](https://github.com/alrayyes/forge-dashboard/commit/44a056d1f4bad72f552d24e49b053a5f1f0649d6)), closes [#4221](https://github.com/alrayyes/forge-dashboard/issues/4221)
+
 ## [9.78.0](https://github.com/alrayyes/forge-dashboard/compare/v9.77.0...v9.78.0) (2026-11-19)
 
 
