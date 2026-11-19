@@ -57,12 +57,12 @@ type Deps struct {
 	// no client id and secret, leaves the connection routes answering 400.
 	ForgejoOAuth *oauth.Forgejo
 
-	// GitHubImageProxy fetches a GitHub item's embedded images. Nil means the
-	// real GitHub hosts; only tests set it, to reach a local server.
-	GitHubImageProxy *imageproxy.Proxy
-	// GitHubImageOrigin is where a user-attachment link lives. Empty means
-	// https://github.com; only tests set it.
-	GitHubImageOrigin string
+	// ImageProxies replaces, by forge, the proxy built from a forge's fixed
+	// image hosts. Only tests set it, to reach a local server.
+	ImageProxies map[string]*imageproxy.Proxy
+	// ImageOrigins replaces, by forge, the scheme and host of its signed
+	// attachment prefix. Only tests set it.
+	ImageOrigins map[string]string
 	// ImageConcurrency is how many image fetches may run upstream at once,
 	// ImageQueueWait how long another waits for a slot before a 503, and
 	// ImageCacheTTL how long a fetched image is reused. Zero means the

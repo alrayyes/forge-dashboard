@@ -14,48 +14,41 @@ import (
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
-// githubImageHosts are the hosts GitHub serves an image embedded in a pull
-// request, issue or release from: its own attachment route and the user-content
-// hosts that route redirects to. A public gist's raw files live on another (#3888). Avatars and
-// repository logos live on two more (#3467). Nothing else is fetched (#3405).
-var githubImageHosts = []string{
-	"github.com",
-	"user-images.githubusercontent.com",
-	"private-user-images.githubusercontent.com",
-	"raw.githubusercontent.com",
-	"gist.githubusercontent.com",
-	"avatars.githubusercontent.com",
-	"repository-images.githubusercontent.com",
-}
-
-// imageProxyFor builds the proxy for one forge. Forgejo's allowed host is the
-// saved instance, trusted to be on a private address, and the only place its
-// token goes. GitHub's are fixed public hosts, reached without the token: its
-// attachment links carry their own signature.
+// imageProxyFor builds the proxy for one forge from what its capabilities say.
+// A forge that names fixed hosts is reached on those, over https and without
+// the token: its attachment links carry their own signature. One that names
+// none reads from the saved instance, trusted to be on a private address, and
+// the only place its token goes.
 func imageProxyFor(deps Deps, forge string, creds settings.Credentials) (*imageproxy.Proxy, *statusError) {
-	switch forge {
-	case "github":
-		if deps.GitHubImageProxy != nil {
-			return deps.GitHubImageProxy, nil
-		}
-
-		return imageproxy.New(imageproxy.Config{Hosts: githubImageHosts, Scheme: "https"}), nil
-	case "forgejo":
-		u, err := url.Parse(creds.ForgejoURL)
-		if err != nil || creds.ForgejoURL == "" || u.Host == "" {
-			return nil, &statusError{http.StatusBadRequest, "no forgejo credentials saved"}
-		}
-
-		return imageproxy.New(imageproxy.Config{
-			Hosts:      []string{u.Host},
-			Scheme:     u.Scheme,
-			Token:      creds.ForgejoToken,
-			TokenHost:  u.Host,
-			AllowLocal: true,
-		}), nil
-	default:
+	caps, ok := dashboard.CapabilitiesOf(dashboard.Forge(forge))
+	if !ok {
 		return nil, forgeProblem(forge)
 	}
+
+	return imageProxyForCapabilities(deps, forge, caps, creds)
+}
+
+func imageProxyForCapabilities(deps Deps, forge string, caps dashboard.ForgeCapabilities, creds settings.Credentials) (*imageproxy.Proxy, *statusError) {
+	if len(caps.ImageHosts) > 0 {
+		if p := deps.ImageProxies[forge]; p != nil {
+			return p, nil
+		}
+		hosts := append(append([]string{}, caps.ImageHosts...), caps.AvatarHosts...)
+
+		return imageproxy.New(imageproxy.Config{Hosts: hosts, Scheme: "https"}), nil
+	}
+	u, err := url.Parse(creds.ForgejoURL)
+	if err != nil || creds.ForgejoURL == "" || u.Host == "" {
+		return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
+	}
+
+	return imageproxy.New(imageproxy.Config{
+		Hosts:      []string{u.Host},
+		Scheme:     u.Scheme,
+		Token:      creds.ForgejoToken,
+		TokenHost:  u.Host,
+		AllowLocal: true,
+	}), nil
 }
 
 // imageFailure is what a caller is told about a refused or failed fetch: a
@@ -90,10 +83,14 @@ func imageRefusalLevel(err error) slog.Level {
 	return slog.LevelWarn
 }
 
-// noteSkippedAvatar remembers the host of a Forgejo avatar the proxy refused
-// only because it isn't the saved instance's, so Settings can say so (#3683).
+// noteSkippedAvatar remembers the host of an avatar the proxy refused only
+// because it isn't the saved instance's, so Settings can say so (#3683). Only a
+// forge that reads from its own instance has such a host.
 func noteSkippedAvatar(deps Deps, q url.Values, raw string, err error) {
-	if deps.skipped == nil || q.Get("forge") != "forgejo" || q.Get("kind") != string(imageAvatar) {
+	if deps.skipped == nil || q.Get("kind") != string(imageAvatar) {
+		return
+	}
+	if caps, ok := dashboard.CapabilitiesOf(dashboard.Forge(q.Get("forge"))); !ok || len(caps.ImageHosts) > 0 {
 		return
 	}
 	if errors.Is(err, imageproxy.ErrHostNotListed) {
@@ -202,31 +199,32 @@ func imageWidthOf(q url.Values) (int, bool) {
 	return n, true
 }
 
-// fetchImage reads raw through the proxy. A GitHub user-attachment link is
-// tried at its signed address first, which is what a private repository
-// serves; if that can't be found, isn't an allowed host or fails to load, the
-// link as written is fetched, so nothing that loaded before stops loading
-// (#3469).
+// fetchImage reads raw through the proxy. A link under the forge's signed
+// attachment prefix is tried at its signed address first, which is what a
+// private repository serves; if that can't be found, isn't an allowed host or
+// fails to load, the link as written is fetched, so nothing that loaded before
+// stops loading (#3469).
 func fetchImage(ctx context.Context, deps Deps, creds settings.Credentials, proxy *imageproxy.Proxy, q url.Values, raw string, limit int) (imageproxy.Image, error) {
-	if q.Get("forge") == "github" {
-		if signed := signedGitHubImage(ctx, deps, creds, q, raw); signed != "" {
+	forge := q.Get("forge")
+	if caps, ok := dashboard.CapabilitiesOf(dashboard.Forge(forge)); ok && caps.SignedAttachmentPrefix != "" {
+		if signed := signedImage(ctx, deps, creds, forge, caps.SignedAttachmentPrefix, q, raw); signed != "" {
 			img, err := proxy.FetchMax(ctx, signed, limit)
 			if err == nil {
 				return img, nil
 			}
-			slog.Warn("signed image fetch failed, trying the link as written", "forge", "github", "kind", err)
+			slog.Warn("signed image fetch failed, trying the link as written", "forge", forge, "kind", err)
 		}
 	}
 
 	return proxy.FetchMax(ctx, raw, limit) //nolint:wrapcheck // the kinds are mapped by imageFailure
 }
 
-// signedGitHubImage returns the signed address the item's rendered HTML uses
-// for a user-attachment link, or "" when there is none. The token goes to the
-// GitHub API in that lookup and nowhere else: the image itself is fetched by
-// the proxy, which holds no token.
-func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credentials, q url.Values, raw string) string {
-	if !isGitHubAttachment(deps, raw) {
+// signedImage returns the signed address the item's rendered HTML uses for an
+// attachment link, or "" when there is none. The token goes to the forge's API
+// in that lookup and nowhere else: the image itself is fetched by the proxy,
+// which holds no token.
+func signedImage(ctx context.Context, deps Deps, creds settings.Credentials, forge, prefix string, q url.Values, raw string) string {
+	if !isSignedAttachment(prefix, deps.ImageOrigins[forge], raw) {
 		return ""
 	}
 	item, ok := imageItemOf(q)
@@ -237,7 +235,7 @@ func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credential
 	if !ok {
 		return ""
 	}
-	src, serr := pickForgeSource(deps, creds, "github")
+	src, serr := pickForgeSource(deps, creds, forge)
 	if serr != nil {
 		return ""
 	}
@@ -247,7 +245,7 @@ func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credential
 	}
 	signed, err := resolver.SignedImageURL(ctx, owner, name, item, raw)
 	if err != nil {
-		slog.Warn("image link lookup failed", "forge", "github", "kind", err)
+		slog.Warn("image link lookup failed", "forge", forge, "kind", err)
 
 		return ""
 	}
@@ -255,18 +253,27 @@ func signedGitHubImage(ctx context.Context, deps Deps, creds settings.Credential
 	return signed
 }
 
-// isGitHubAttachment reports whether raw is a github.com/user-attachments
-// link, the one kind a private repository won't serve unsigned.
-func isGitHubAttachment(deps Deps, raw string) bool {
-	origin := deps.GitHubImageOrigin
-	if origin == "" {
-		origin = "https://github.com"
+// isSignedAttachment reports whether raw is under prefix, the one kind of link
+// a private repository won't serve unsigned. A non-empty origin stands in for
+// the prefix's scheme and host, which only tests set.
+func isSignedAttachment(prefix, origin, raw string) bool {
+	if prefix == "" {
+		return false
 	}
 	u, err := url.Parse(raw)
-	home, herr := url.Parse(origin)
+	home, herr := url.Parse(prefix)
+	if err != nil || herr != nil {
+		return false
+	}
+	if origin != "" {
+		o, oerr := url.Parse(origin)
+		if oerr != nil {
+			return false
+		}
+		home.Scheme, home.Host = o.Scheme, o.Host
+	}
 
-	return err == nil && herr == nil && u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) &&
-		strings.HasPrefix(u.Path, "/user-attachments/")
+	return u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) && strings.HasPrefix(u.Path, home.Path)
 }
 
 // imageItemOf reads which issue, pull request, comment or release the image sits in.

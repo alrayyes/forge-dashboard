@@ -328,6 +328,11 @@ forge or a third party: it asks `GET /api/v1/images`, which fetches it in
 repository's image then needs no token in the browser, and a stranger's image
 can't fire a tracking pixel when the dialog opens.
 
+- The rules are the forge's capabilities (`imageHosts`, `avatarHosts` and
+  `signedAttachmentPrefix` in `capabilitiesByForge`), not branches on its name:
+  a forge naming fixed hosts is fetched from them with no token, one naming none
+  from the saved instance, and a link under the signed prefix gets the lookup
+  below. A third forge is one more table entry.
 - The allowed hosts are a list, not a pattern. Forgejo: the saved instance's
   host and port, and its token goes there and nowhere else. GitHub: `github.com`,
   `user-images.githubusercontent.com`, `private-user-images.githubusercontent.com`,
