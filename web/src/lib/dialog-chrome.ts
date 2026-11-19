@@ -12,7 +12,6 @@ export function chromeIsCurrent<T extends object>(
 ): boolean {
   if (shown.sig !== next.sig) return false;
   if (shown.item === next.item) return true;
-  if (!shown.item || !next.item) return false;
 
   return JSON.stringify(shown.item) === JSON.stringify(next.item);
 }

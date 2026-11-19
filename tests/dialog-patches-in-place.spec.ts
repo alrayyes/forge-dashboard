@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
@@ -130,6 +131,28 @@ const removed = (page: Page) =>
 // Two polls of the one-second schedule, so a change has landed for certain.
 const settle = (page: Page) => page.waitForTimeout(3500);
 
+const footerNames = (page: Page) =>
+  page
+    .getByRole('dialog', { name: /^Pull request details/ })
+    .locator('.details-footer')
+    .evaluate((el) =>
+      [...el.querySelectorAll('button, input')].map(
+        (b) =>
+          b.getAttribute('aria-label') ??
+          b.textContent?.trim() ??
+          b.getAttribute('id') ??
+          '',
+      ),
+    );
+
+async function expectNoViolations(page: Page) {
+  const results = await new AxeBuilder({ page })
+    .include('dialog[open]')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+    .analyze();
+  expect(results.violations).toEqual([]);
+}
+
 const dialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Pull request details/ });
 
@@ -153,6 +176,7 @@ test('a change to another item leaves the open dialog alone', async ({
   };
   await serve(page, board, () => details('The description.'));
   await open(page, board);
+  const names = await footerNames(page);
 
   board.pullRequests = [
     pullRequest(1),
@@ -161,6 +185,8 @@ test('a change to another item leaves the open dialog alone', async ({
   await settle(page);
 
   expect(await removed(page)).toEqual([]);
+  expect(await footerNames(page)).toEqual(names);
+  await expectNoViolations(page);
 });
 
 test('a poll that changes nothing leaves the open dialog alone', async ({
@@ -192,6 +218,7 @@ test('a state change of the open item keeps the header, band, body, scroll and f
   await watch(page);
   const pill = dialog(page).locator('.related-band .linked-pr').first();
   await pill.focus();
+  const names = await footerNames(page);
   const scrolled = await dialog(page)
     .locator('.details-body')
     .evaluate((el) => {
@@ -215,7 +242,10 @@ test('a state change of the open item keeps the header, band, body, scroll and f
       'data-probe',
       /.+/,
     );
+  // The footer is the one part that follows the new state.
+  await expect.poll(() => footerNames(page)).not.toEqual(names);
   await expect(pill).toBeFocused();
+  await expectNoViolations(page);
   expect(
     await dialog(page)
       .locator('.details-body')
