@@ -607,6 +607,10 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(dialog.locator('.pipeline-live-status')).toHaveText(
       'Log excerpt loaded for test.',
     );
+    // The excerpt is on screen now, so the toggle opens more than it (#4236).
+    await expect(
+      failed.getByRole('button', { name: 'Show full output: test' }),
+    ).toHaveText('Show full output');
     expect(asked).toHaveLength(1);
   });
 

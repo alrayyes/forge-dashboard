@@ -723,6 +723,8 @@
             onloaded={(loaded) =>
               (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
             earlier={excerptFlows[keyOf.get(check) ?? ""]}
+            excerptVisible={!!(check.excerpt ?? excerpts[excerptKey(check)]) &&
+              !outputLoaded[keyOf.get(check) ?? ""]}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with

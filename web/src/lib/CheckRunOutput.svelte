@@ -12,6 +12,7 @@
     loadRunLog,
     logUrl,
     notePlaces,
+    outputToggleLabel,
     parseLogLines,
     type RepoRef,
   } from "#lib/run-log.js";
@@ -25,6 +26,7 @@
     forgeName,
     onloaded,
     earlier,
+    excerptVisible = false,
   }: {
     name: string;
     jobId: number;
@@ -40,10 +42,14 @@
     // The excerpt's copy flow. Its button leaves when this panel loads, so a
     // copy pressed meanwhile reports here instead of into nothing (#3343).
     earlier?: CopyFlow;
+    // Whether the row is showing a failure excerpt. Closed, the toggle then
+    // says it opens the full output (#4236).
+    excerptVisible?: boolean;
   } = $props();
 
   const url = $derived(logUrl(repo, jobId, run));
   let shown = $state(false);
+  const toggleLabel = $derived(outputToggleLabel(shown, excerptVisible));
   let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");
   const lines = $derived(parseLogLines(text));
@@ -139,8 +145,8 @@
     aria-controls={panelId}
     disabled={!url}
     onclick={toggle}
-    aria-label="{shown ? 'Hide output' : 'Show output'}: {name}"
-    >{shown ? "Hide output" : "Show output"}<svg
+    aria-label="{toggleLabel}: {name}"
+    >{toggleLabel}<svg
       class="run-chevron"
       viewBox="0 0 16 16"
       width="12"

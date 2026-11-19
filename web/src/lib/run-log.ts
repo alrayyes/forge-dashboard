@@ -226,6 +226,17 @@ export function checkLinkLabel(text: string, check: string): string {
   return `${text} (opens in a new tab): ${check}`;
 }
 
+// The output toggle's words. Closed beside a failure excerpt the row already
+// shows, a press opens more than is on screen, so it says "full" instead of
+// reading as a toggle for text that is already there (#4236).
+export function outputToggleLabel(
+  shown: boolean,
+  excerptVisible: boolean,
+): string {
+  if (shown) return 'Hide output';
+  return excerptVisible ? 'Show full output' : 'Show output';
+}
+
 // Whether a running job's output can't be read yet: a forge that sets
 // servesRunningLog serves it, and GitHub answers 404 until the job finishes. A
 // forge with no capabilities counts as not serving it.

@@ -13,6 +13,7 @@ import {
   logToCopy,
   logUrl,
   notePlaces,
+  outputToggleLabel,
   parseLogLines,
 } from './run-log';
 
@@ -665,5 +666,22 @@ describe('checkControl on a running job', () => {
     expect(checkControl(running, { forge: 'gitea', fullName: 'a/b' })).toBe(
       'output',
     );
+  });
+});
+
+// The toggle says what pressing it does: with an excerpt already on screen it
+// opens more, so "Show output" would read as a broken toggle (#4236).
+describe('outputToggleLabel', () => {
+  test('closed with no excerpt offers Show output', () => {
+    expect(outputToggleLabel(false, false)).toBe('Show output');
+  });
+
+  test('closed beside a visible excerpt offers Show full output', () => {
+    expect(outputToggleLabel(false, true)).toBe('Show full output');
+  });
+
+  test('open says Hide output, whether or not there was an excerpt', () => {
+    expect(outputToggleLabel(true, false)).toBe('Hide output');
+    expect(outputToggleLabel(true, true)).toBe('Hide output');
   });
 });
