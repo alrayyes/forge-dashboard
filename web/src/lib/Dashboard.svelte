@@ -70,7 +70,7 @@
   } from "#lib/details-cache.js";
   import { probeReference } from "#lib/reference-probe.js";
   import { createReferencePrefetcher } from "#lib/reference-prefetch.js";
-  import { addressFocusFallback } from "#lib/address-focus.js";
+  import { addressFocusFallback, chainedReturn } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
@@ -2315,6 +2315,7 @@
       fallbackFocusId = "",
     ) {
       dialogOpens++;
+      endChainUnlessSwap(triggerId);
       dialogKey = prKey(item);
       dialogGone = false;
       lastChromeSig = "";
@@ -2340,6 +2341,22 @@
     // Bumped each time a dialog opens. An answer that was asked for before the
     // reader opened another one is stale and opens nothing (#4328).
     let dialogOpens = 0;
+    // Where focus goes when the last dialog of a chain closes (#4351): the
+    // first swap's trigger, since the pill a later swap was clicked on lives in
+    // a dialog that is gone by then. Null outside a chain.
+    let swappedFocus: string | null = null;
+    function swapFocus(own: string): string {
+      swappedFocus = chainedReturn(swappedFocus, own);
+      return swappedFocus;
+    }
+    // A dialog that opens with any other trigger than the chain's is not a
+    // swap (a row, the address, a reference to something else), so the chain
+    // is over, whichever way the earlier one ended: a close, a lookup that
+    // found nothing, or one that answered after the reader moved on. This is
+    // the only place the chain is cleared, so no early return can leak it.
+    function endChainUnlessSwap(triggerId: string) {
+      if (swappedFocus !== triggerId) swappedFocus = null;
+    }
     let issueDialog: {
       forge: string;
       repo: string;
@@ -2448,6 +2465,7 @@
       fallbackFocusId = "",
     ) {
       dialogOpens++;
+      endChainUnlessSwap(triggerId);
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2525,6 +2543,7 @@
       fallbackFocusId = drawnAddressFallback(),
     ) {
       dialogOpens++;
+      endChainUnlessSwap(triggerId);
       dialogKey = null;
       dialogGone = false;
       lastChromeSig = "";
@@ -2636,12 +2655,13 @@
     ): boolean {
       const wanted = { forge: ref.forge, repo: ref.repo, number: ref.number };
       if (ref.untracked && !untrackedItems.isReady(wanted)) return false;
+      const back = swapFocus(triggerId);
       afterDetailsClosed = () => {
         const pr = pullsView
           ? allPRs.find((p) => sameAddress(wanted, p))
           : undefined;
         if (pr) {
-          openDetailsDialog(pr, triggerId, "title-filter");
+          openDetailsDialog(pr, back, "title-filter");
           return;
         }
         openIssueDialog(
@@ -2650,7 +2670,7 @@
             title: `Issue #${ref.number}`,
             url: ref.url,
           },
-          triggerId,
+          back,
           "title-filter",
         );
       };
@@ -2672,7 +2692,8 @@
     // One dialog at a time: the pull request's closes, then the issue's opens
     // once its close has run, with focus returning to the pull request's title.
     function followIssueFromDialog(pr: PullRequestItem, issue: ClosingIssue) {
-      afterDetailsClosed = () => openClosingIssue(pr, issue, addressFocus(pr));
+      const back = swapFocus(addressFocus(pr));
+      afterDetailsClosed = () => openClosingIssue(pr, issue, back);
       detailsDialog?.close();
     }
 
@@ -2699,7 +2720,9 @@
       const looked = listed
         ? { found: listed }
         : await lookUpPullRequest(wanted);
-      // The reader opened something else while the answer was on its way.
+      // The reader opened something else while the answer was on its way. That
+      // dialog already settled the chain (endChainUnlessSwap), and clearing
+      // here would erase the one it may have started since.
       if (opens !== dialogOpens) return;
       if ("found" in looked) {
         openPullRequestReadOnly(looked.found, triggerId, "title-filter");
@@ -2723,8 +2746,8 @@
       item: IssueDialogItem,
       linked: LinkedPullRequest,
     ) {
-      afterDetailsClosed = () =>
-        void openLinkedPullRequest(linked, linkedPillId(prKey(item), linked));
+      const back = swapFocus(linkedPillId(prKey(item), linked));
+      afterDetailsClosed = () => void openLinkedPullRequest(linked, back);
       detailsDialog?.close();
     }
 
