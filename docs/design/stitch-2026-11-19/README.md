@@ -13,5 +13,6 @@ screenshot of those screens omits timestamps and row text.
 | filters-pr-phone-sheet.jpg   | 0a8e23b77ebe44aabbe5c5eabb01cde9 |
 | log-wide-dialog.png          | 2eb5214cdca0436aaedaccabfc8b4d49 |
 | log-phone-sheet.png          | 34b0f06ed48f4ab18a11fc702ceaba7a |
+| result-bar-pr-desktop.png    | 74dab754a65b426b94669a0723c00c8d |
 
 `*-mockup.html` are real-size HTML drafts of the pill and the behind count.
