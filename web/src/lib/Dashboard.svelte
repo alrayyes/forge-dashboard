@@ -2397,6 +2397,8 @@
         forge: item.forge,
         repo: item.repo,
         number: item.number,
+        // Nothing here writes to a repository the board does not track.
+        readOnly: !trackedRepo(item.forge, item.repo),
       });
       issueDialog = {
         forge: item.forge,

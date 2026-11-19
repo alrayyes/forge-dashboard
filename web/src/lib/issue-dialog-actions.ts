@@ -14,7 +14,14 @@ import type { LockInfo } from './lock-info';
 import type { DetailsChrome } from './PullRequestDetailsDialog.svelte';
 import { rowClaim } from './row-claim';
 
-export type IssueTarget = { forge: string; repo: string; number: number };
+// readOnly: the board does not track the repository, so the dialog only shows
+// the issue and offers nothing that writes to the forge.
+export type IssueTarget = {
+  forge: string;
+  repo: string;
+  number: number;
+  readOnly?: boolean;
+};
 
 export type IssueActionsHost = {
   // Draws the footer area. Synchronous: this finds its new nodes by id.
@@ -177,6 +184,8 @@ export function createIssueActions(host: IssueActionsHost) {
   }
 
   function chrome(): DetailsChrome {
+    if (target?.readOnly)
+      return { status: null, feedback: null, option: null, actions: [] };
     const status =
       phase === 'closed' || phase === 'reopening'
         ? node('p', 'status-area details-closed', CLOSED_STATUS)
