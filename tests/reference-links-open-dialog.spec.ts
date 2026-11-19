@@ -153,25 +153,39 @@ test.describe('references open the dialog (#3744)', () => {
   });
 
   // https://github.com/alrayyes/forge-dashboard/issues/4269
-  test('a reference to an untracked repository the forge can show opens its dialog', async ({
+  // An item of an untracked repository stays a forge link. The forge is asked
+  // while the pointer or focus rests on it; a click opens the dialog only if
+  // that answer is in, and otherwise follows the link, which no browser blocks.
+  const strangerLink = (page: Page) =>
+    prDialog(page).getByRole('link', { name: /^stranger\/elsewhere#9/ });
+
+  async function answerIssues(page: Page, status: number, text = 'Merged') {
+    let asked = 0;
+    await page.route('**/api/v1/issues/details*', (route: Route) => {
+      asked++;
+      const fullName = new URL(route.request().url()).searchParams.get(
+        'fullName',
+      );
+      return route.fulfill({
+        status,
+        contentType: 'application/json',
+        body: JSON.stringify(
+          status === 200
+            ? { ...details(`${text} text of ${fullName}`), state: 'closed' }
+            : { error: 'not found' },
+        ),
+      });
+    });
+    return () => asked;
+  }
+
+  test('a mention the forge can show opens its dialog once the pointer has rested on it', async ({
     page,
   }) => {
     const trigger = await open(page);
-    await page.route('**/api/v1/issues/details*', (route: Route) => {
-      const asked = new URL(route.request().url()).searchParams;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...details(`Merged text of ${asked.get('fullName')}`),
-          state: 'closed',
-        }),
-      });
-    });
-    const link = prDialog(page).getByRole('link', {
-      name: /^stranger\/elsewhere#9/,
-    });
-    // Still a forge link, for a middle click and for a failed lookup.
+    await answerIssues(page, 200);
+    const link = strangerLink(page);
+    // Still a forge link, for a middle click and for a click that is early.
     await expect(link).toHaveAttribute(
       'href',
       'https://github.com/stranger/elsewhere/issues/9',
@@ -181,16 +195,18 @@ test.describe('references open the dialog (#3744)', () => {
       'stranger/elsewhere#9 (opens on the forge in a new tab)',
     );
     const before = page.url();
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await link.hover();
+    await answered;
 
     await link.click();
 
     await expect(issueDialog(page)).toBeVisible();
-    // The tab opened inside the click is closed again.
-    await expect.poll(() => page.context().pages().length).toBe(1);
     await expect(issueDialog(page)).toContainText(
       'Merged text of stranger/elsewhere',
     );
     await expect(prDialog(page)).toBeHidden();
+    expect(page.context().pages()).toHaveLength(1);
     expect(page.url()).toBe(before);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -202,25 +218,35 @@ test.describe('references open the dialog (#3744)', () => {
     await expect(trigger).toBeFocused();
   });
 
-  test('a reference the forge cannot show falls back to the forge in a new tab', async ({
+  test('focus on the link asks the forge too, so Enter opens the dialog', async ({
     page,
   }) => {
     await open(page);
-    await page.route('**/api/v1/issues/details*', (route: Route) =>
-      route.fulfill({
-        status: 404,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: 'not found' }),
-      }),
-    );
-    const link = prDialog(page).getByRole('link', {
-      name: /^stranger\/elsewhere#9/,
-    });
+    await answerIssues(page, 200);
+    const link = strangerLink(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await link.focus();
+    await answered;
+
+    await page.keyboard.press('Enter');
+
+    await expect(issueDialog(page)).toBeVisible();
+    expect(page.context().pages()).toHaveLength(1);
+  });
+
+  test('a mention the forge cannot show follows the link to the forge in a new tab', async ({
+    page,
+  }) => {
+    await open(page);
+    await answerIssues(page, 404);
+    const link = strangerLink(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await link.hover();
+    await answered;
     const popup = page.context().waitForEvent('page');
 
     await link.click();
 
-    // Opened inside the click, then sent to the forge, so Safari allows it.
     const tab = await popup;
     await tab.waitForURL('https://github.com/stranger/elsewhere/issues/9', {
       waitUntil: 'commit',
@@ -228,17 +254,15 @@ test.describe('references open the dialog (#3744)', () => {
     await tab.close();
     // The dialog the reader was in is still there.
     await expect(prDialog(page)).toBeVisible();
-    await expect(link).toHaveAccessibleName(
-      'stranger/elsewhere#9 (opens on the forge in a new tab)',
-    );
+    await expect(issueDialog(page)).toBeHidden();
   });
 
-  test('a second click while the forge is being asked does nothing, and the link says it is busy', async ({
+  test('a click before the forge has answered follows the link, and a late answer opens nothing', async ({
     page,
   }) => {
-    await open(page);
-    let asked = 0;
+    const trigger = await open(page);
     let answer: () => void = () => {};
+    let asked = 0;
     await page.route('**/api/v1/issues/details*', async (route: Route) => {
       asked++;
       await new Promise<void>((resolve) => {
@@ -250,19 +274,49 @@ test.describe('references open the dialog (#3744)', () => {
         body: JSON.stringify({ ...details('Slow text'), state: 'closed' }),
       });
     });
-    const link = prDialog(page).getByRole('link', {
-      name: /^stranger\/elsewhere#9/,
+    const link = strangerLink(page);
+    await link.hover();
+    await expect.poll(() => asked).toBe(1);
+    const popup = page.context().waitForEvent('page');
+
+    await link.click();
+
+    const tab = await popup;
+    await tab.waitForURL('https://github.com/stranger/elsewhere/issues/9', {
+      waitUntil: 'commit',
     });
+    await tab.close();
+    await expect(prDialog(page)).toBeVisible();
 
-    await link.click();
-    await expect(link).toHaveAttribute('aria-busy', 'true');
-    await link.click();
-    // One lookup for two clicks; the dialog's own read comes after it opens.
-    expect(asked).toBe(1);
+    // The reader moves on; the answer then arrives. Nothing may open now or
+    // when some later dialog closes.
+    await page.keyboard.press('Escape');
+    await expect(prDialog(page)).toBeHidden();
     answer();
+    await expect(issueDialog(page)).toBeHidden();
+    await trigger.click();
+    await expect(prDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(prDialog(page)).toBeHidden();
+    await expect(issueDialog(page)).toBeHidden();
+  });
 
-    await expect(issueDialog(page)).toContainText('Slow text');
-    await expect.poll(() => page.context().pages().length).toBe(1);
+  test('a modified click on a warmed mention is left to the browser', async ({
+    page,
+  }) => {
+    await open(page);
+    await answerIssues(page, 200);
+    const link = strangerLink(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await link.hover();
+    await answered;
+    const popup = page.context().waitForEvent('page');
+
+    await link.click({ modifiers: ['ControlOrMeta'] });
+
+    await (await popup).close();
+    await expect(prDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toBeHidden();
   });
 
   for (const width of [360, 390, 1280]) {

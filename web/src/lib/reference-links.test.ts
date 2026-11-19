@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { referenceFromClick } from './reference-links';
+import { referenceAt, referenceFromClick } from './reference-links';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3744
 // A click on a rendered reference hands the dialog host the repository and
@@ -63,5 +63,17 @@ describe('referenceFromClick', () => {
     expect(
       referenceFromClick(click({ target: { closest: () => bad } }) as never),
     ).toBeNull();
+  });
+});
+
+// https://github.com/alrayyes/forge-dashboard/issues/4269
+describe('referenceAt', () => {
+  test('reads the reference under the pointer or focus, with no click', () => {
+    const untracked = { dataset: { ...anchor.dataset, refUntracked: '' } };
+    const got = referenceAt({ closest: () => untracked });
+    expect(got?.repo).toBe('a/b');
+    expect(got?.untracked).toBe(true);
+    expect(referenceAt({ closest: () => null })).toBeNull();
+    expect(referenceAt(null)).toBeNull();
   });
 });

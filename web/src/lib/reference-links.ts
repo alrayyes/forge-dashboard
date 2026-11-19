@@ -16,22 +16,10 @@ export type ClickedReference = {
   anchor: unknown;
 };
 
-export function referenceFromClick(
-  event: Pick<
-    MouseEvent,
-    | 'defaultPrevented'
-    | 'button'
-    | 'metaKey'
-    | 'ctrlKey'
-    | 'shiftKey'
-    | 'altKey'
-  > & { target: unknown },
-): ClickedReference | null {
-  if (!isPlainClick(event)) return null;
-  const target = event.target as {
-    closest?: (selector: string) => unknown;
-  } | null;
-  const anchor = target?.closest?.('a[data-ref-number]') as {
+/** The reference a node sits in, if it is one the dashboard rendered. */
+export function referenceAt(target: unknown): ClickedReference | null {
+  const node = target as { closest?: (selector: string) => unknown } | null;
+  const anchor = node?.closest?.('a[data-ref-number]') as {
     dataset: {
       refRepo?: string;
       refNumber?: string;
@@ -49,4 +37,19 @@ export function referenceFromClick(
     untracked: anchor.dataset.refUntracked !== undefined,
     anchor,
   };
+}
+
+export function referenceFromClick(
+  event: Pick<
+    MouseEvent,
+    | 'defaultPrevented'
+    | 'button'
+    | 'metaKey'
+    | 'ctrlKey'
+    | 'shiftKey'
+    | 'altKey'
+  > & { target: unknown },
+): ClickedReference | null {
+  if (!isPlainClick(event)) return null;
+  return referenceAt(event.target);
 }

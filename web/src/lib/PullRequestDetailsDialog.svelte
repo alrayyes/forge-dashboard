@@ -85,6 +85,7 @@
   import { renderMarkdown } from "#lib/markdown.js";
   import {
     type ClickedReference,
+    referenceAt,
     referenceFromClick,
   } from "#lib/reference-links.js";
   import {
@@ -154,6 +155,7 @@
     onPullRequestFound,
     onReferences,
     onReference,
+    onWarmReference,
     trackedRepo,
   }: {
     onEscape?: () => boolean;
@@ -168,10 +170,19 @@
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
+    // Returns false when it left the click alone (an item of an untracked
+    // repository the forge has not answered for yet): the link is followed.
     onReference?: (
       reference: ClickedReference & { forge: string },
       triggerId: string,
-    ) => void;
+    ) => boolean;
+    // The pointer or focus is on a reference to an untracked repository (#4269):
+    // time to ask the forge whether it can show it.
+    onWarmReference?: (reference: {
+      forge: string;
+      repo: string;
+      number: number;
+    }) => void;
     // Whether the dashboard tracks this repository (`owner/name`) on a forge,
     // which decides if a reference is a dashboard link or goes to the forge.
     // Without `onReference` that link is followed as a plain link to the
@@ -782,10 +793,24 @@
       return;
     }
     const reference = onReference ? referenceFromClick(event) : null;
-    if (!reference) return;
-    event.preventDefault();
-    if (target)
-      onReference?.({ ...reference, forge: target.forge }, returnFocusId);
+    if (!reference || !target) return;
+    const handled = onReference?.(
+      { ...reference, forge: target.forge },
+      returnFocusId,
+    );
+    if (handled !== false) event.preventDefault();
+  }
+
+  // A reference to an untracked repository under the pointer or focus is
+  // asked of the forge now, so a click can open its dialog (#4269).
+  function warmReference(event: Event) {
+    const reference = referenceAt(event.target);
+    if (reference?.untracked && target)
+      onWarmReference?.({
+        forge: target.forge,
+        repo: reference.repo,
+        number: reference.number,
+      });
   }
 
   function relativeTime(iso: string): string {
@@ -869,6 +894,9 @@
   onclose={onClose}
   oncancel={onCancel}
   onclick={onBackdrop}
+  onpointerover={warmReference}
+  onpointerdown={warmReference}
+  onfocusin={warmReference}
 >
   {#if target}
     <div class="details-header">
@@ -1430,12 +1458,6 @@
       animation: none;
     }
   }
-  /* An item of an untracked repository, while the forge is asked (#4269). */
-  .markdown :global(a[aria-busy="true"]) {
-    cursor: progress;
-    opacity: 0.6;
-  }
-
   .markdown :global(a:has(> img.md-image)) {
     cursor: zoom-in;
   }
