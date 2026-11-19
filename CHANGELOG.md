@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.84.0](https://github.com/alrayyes/forge-dashboard/compare/v9.83.3...v9.84.0) (2026-11-19)
+
+
+### Features
+
+* **web:** open a mentioned item of an untracked repository in the dialog ([#4275](https://github.com/alrayyes/forge-dashboard/issues/4275)) ([b9db9bb](https://github.com/alrayyes/forge-dashboard/commit/b9db9bb91dac9a1b35fe62e0088f54bdcf60a4d8))
+
 ## [9.83.3](https://github.com/alrayyes/forge-dashboard/compare/v9.83.2...v9.83.3) (2026-11-19)
 
 
