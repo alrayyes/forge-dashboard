@@ -438,10 +438,11 @@ function blockTokens(
   return out;
 }
 
-// Opens and closes what the author opened, within the container it was
-// opened in: a markdown container (list item, quote) closing closes the raw
-// tags opened inside it, an unclosed tag is closed at the end, a closer with
-// no opener is dropped, and a link never nests in a link.
+// Opens and closes what the author opened, within the run it was opened in
+// (an HTML block, or a line of text): a markdown container (list item, quote)
+// closing closes the raw tags opened inside it, an unclosed tag is closed at
+// the end of the run, a closer with no opener is dropped, and a link never
+// nests in a link.
 function balance(
   tokens: Tok[],
   Token: StateCore['Token'],
@@ -516,7 +517,15 @@ function rawHtml(decode: (s: string) => string) {
     const tokens: Tok[] = [];
     for (const t of state.tokens) {
       if (t.type === 'html_block') {
-        tokens.push(...blockTokens(t.content, state.Token, decode));
+        // Balanced on its own: a tag left open ends with its block, so it
+        // can't wrap the Markdown that follows.
+        tokens.push(
+          ...balance(
+            blockTokens(t.content, state.Token, decode),
+            state.Token,
+            false,
+          ),
+        );
       } else {
         tokens.push(t);
       }
@@ -589,7 +598,8 @@ function create(
   md.core.ruler.after('linkify', 'references', references);
   // Registered last of the rules after `inline`, so it runs first.
   md.core.ruler.after('inline', 'raw-html', rawHtml(decode));
-  // Nothing from the source is ever echoed.
+  // The core rule replaces every html_block token, so this never runs; it
+  // stays so that a token that got past it is shown as text, not as HTML.
   md.renderer.rules.html_block = (tokens, idx) =>
     md.utils.escapeHtml(tokens[idx].content);
   md.renderer.rules.raw_text = (tokens, idx) =>
@@ -639,8 +649,15 @@ function create(
     if (!/^(https?:|mailto:)/i.test(href)) {
       tokens[idx].tag = 'span';
       tokens[idx].attrs = null;
-      const close = tokens.slice(idx + 1).find((t) => t.type === 'link_close');
-      if (close) close.tag = 'span';
+      // Its own closer is the one at the same depth.
+      let depth = 1;
+      for (let i = idx + 1; i < tokens.length; i++) {
+        if (tokens[i].type === 'link_open') depth++;
+        if (tokens[i].type === 'link_close' && --depth === 0) {
+          tokens[i].tag = 'span';
+          break;
+        }
+      }
       return self.renderToken(tokens, idx, options);
     }
     // Release notes ask for it: a link labelled `#123` or a commit hash is a

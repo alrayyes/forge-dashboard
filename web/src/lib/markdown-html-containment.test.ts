@@ -39,14 +39,13 @@ describe('an unclosed raw tag ends with its block', () => {
 
   test('an unclosed heading does not make the rest of the body a heading', async () => {
     const html = await renderMarkdown(`<h1>Giant\n\n${body}`);
-    expect(html.startsWith('<h1>Giant</h1>\n<h1>Heading</h1>')).toBe(true);
+    expect(html.startsWith('<h1>Giant\n</h1><h1>Heading</h1>')).toBe(true);
     expect(html).toContain('<a href="https://github.com/x/y"');
   });
 
   test('an unclosed paragraph is not adopted by the paragraph after it', async () => {
     const html = await renderMarkdown('<p>unclosed\n\nnext **x**');
-    expect(html).not.toMatch(/<p>[\s\S]*<p>/);
-    expect(html).toContain('<strong>x</strong>');
+    expect(html).toBe('<p>unclosed\n</p><p>next <strong>x</strong></p>\n');
   });
 
   test('an unclosed inline tag ends with its line of text', async () => {
