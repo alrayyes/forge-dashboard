@@ -27,6 +27,11 @@ export type ForgeCapabilities = {
   rateLimitModel: string;
   // The forge's published rules for its request budget, empty when it has none.
   rateLimitDocsUrl: string;
+  // The fixed hosts an image in the forge's text may come from; empty means
+  // the item's own instance. And the prefix of an attachment link the server
+  // must look up signed, empty when there is none (#4156).
+  imageHosts: string[];
+  signedAttachmentPrefix: string;
 };
 
 export type ForgeFlag =
@@ -272,6 +277,14 @@ export function registerForgeCapabilities(
     if (model) setOwn(RATE_LIMIT_MODELS, f.forge, model);
     const docs = f.capabilities?.rateLimitDocsUrl;
     if (typeof docs === 'string') setOwn(RATE_LIMIT_DOCS, f.forge, docs);
+    const hosts = f.capabilities?.imageHosts;
+    if (Array.isArray(hosts)) {
+      const prefix = f.capabilities?.signedAttachmentPrefix;
+      setOwn(IMAGE_POLICIES, f.forge, {
+        hosts: [...hosts],
+        ...(prefix ? { signedAttachmentPrefix: prefix } : {}),
+      });
+    }
     const source = f.capabilities?.advisorySource;
     if (source) {
       setOwn(ADVISORY_FACTS, f.forge, {

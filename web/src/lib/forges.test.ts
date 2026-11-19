@@ -8,6 +8,7 @@ import {
   forgeIds,
   forgeLabelOf,
   forgeListText,
+  imagePolicyOf,
   isKnownForge,
   rateLimitDocsUrlOf,
   rateLimitModelOf,
@@ -117,7 +118,42 @@ describe('forgeCan', () => {
         source: caps.advisorySource as string,
         unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
       });
+      const prefix = caps.signedAttachmentPrefix as string;
+      expect(imagePolicyOf(forge)).toEqual({
+        hosts: caps.imageHosts as string[],
+        ...(prefix ? { signedAttachmentPrefix: prefix } : {}),
+      });
     }
+  });
+
+  test("a registered forge brings its own image policy, replacing the seed's", () => {
+    registerForgeCapabilities([
+      {
+        forge: 'gitea',
+        capabilities: {
+          imageHosts: ['cdn.gitea.test'],
+          signedAttachmentPrefix: 'https://cdn.gitea.test/files/',
+        },
+      },
+      {
+        forge: 'github',
+        capabilities: { imageHosts: [], signedAttachmentPrefix: '' },
+      },
+    ]);
+
+    expect(imagePolicyOf('gitea')).toEqual({
+      hosts: ['cdn.gitea.test'],
+      signedAttachmentPrefix: 'https://cdn.gitea.test/files/',
+    });
+    expect(imagePolicyOf('github')).toEqual({ hosts: [] });
+  });
+
+  test('a read that names no image fields keeps the image policy it had', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { label: 'GitHub' } },
+    ]);
+
+    expect(imagePolicyOf('github')?.hosts).toContain('github.com');
   });
 
   test('a registered third forge brings its own rate limit model', () => {
