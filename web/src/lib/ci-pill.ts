@@ -47,8 +47,9 @@ export type CiPillModel = {
   // A failed pill whose pipeline has checks running or queued: the failure
   // stands, but the run can still change, so the pill says it is not over.
   live: boolean;
-  // A Cancelled pill's counts (#3395), drawn as words after the state: the
-  // checks that passed before the stop and the ones it cancelled.
+  // A Cancelled pill's counts (#3395): the checks that passed before the stop
+  // and the ones it cancelled. They are drawn as segments (#4323) and said in
+  // words by the name.
   cancelled?: { passed: number; cancelled: number };
   // The accessible name, without the "Open pipeline" a button adds.
   name: string;
@@ -71,14 +72,14 @@ function cancelledCounts(
   return { passed: Math.max(0, input.counts.passed), cancelled: n };
 }
 
-// "4 passed, 9 cancelled": a zero passed count is left out, not said.
-function cancelledWords({
+function cancelledSegments({
   passed,
   cancelled,
-}: NonNullable<CiPillModel['cancelled']>): string {
-  return passed > 0
-    ? `${passed} passed, ${cancelled} cancelled`
-    : `${cancelled} cancelled`;
+}: NonNullable<CiPillModel['cancelled']>): CheckSegment[] {
+  return [
+    ...(passed > 0 ? [{ kind: 'passed' as const, n: passed }] : []),
+    { kind: 'cancelled' as const, n: cancelled },
+  ];
 }
 
 // "13 checks", or "1 check".
@@ -99,8 +100,11 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
   const counting =
     input.incomplete === true && !awaiting && input.cls !== 'cancelled';
   const cancelled = cancelledCounts(input, awaiting);
-  const segments =
-    input.segmented === false || awaiting || input.cls === 'cancelled'
+  // A Cancelled pill with counts draws the same parts a failed or passed one
+  // does (#4323): a passed part, when any passed, and a cancelled part.
+  const segments = cancelled
+    ? cancelledSegments(cancelled)
+    : input.segmented === false || awaiting || input.cls === 'cancelled'
       ? []
       : checkSegments(input.counts);
   const word = counting ? COUNTING : pillWord(input.cls, input.word, segments);
@@ -114,7 +118,9 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
   const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}${counting ? ' counting' : ''}`;
 
   const base = cancelled
-    ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`
+    ? // The visible word and counts first, as the neighbours' names lead
+      // (WCAG 2.5.3), then how many checks the run held.
+      `${pillName(word, segments)} out of ${cancelledTotal(cancelled)}.`
     : segmented
       ? `${pillName(word, segments)}${live ? ', still running' : ''}`
       : word;
@@ -182,25 +188,7 @@ export function renderCiPill(
     const glyphs = checkGlyphElements(model.glyph);
     if (glyphs.length > 0) for (const g of glyphs) root.appendChild(g);
     else root.appendChild(span('dot'));
-    if (model.cancelled) {
-      const { passed, cancelled } = model.cancelled;
-      // One text run, so the pill's gap sits between the glyph and the text and
-      // not inside it. The cancelled part leaves a phone when a passed part
-      // stays, so the pill keeps to one line; the name and the tooltip say it
-      // whole.
-      const run = span('ci-cancel');
-      run.appendChild(document.createTextNode(`${model.word} · `));
-      if (passed > 0) {
-        run.appendChild(span('ci-cancel-passed', `${passed} passed`));
-        run.appendChild(span('ci-cancel-extra', `, ${cancelled} cancelled`));
-      } else {
-        run.appendChild(span('ci-cancel-passed', `${cancelled} cancelled`));
-      }
-      root.appendChild(run);
-      root.title = model.name;
-    } else {
-      root.appendChild(document.createTextNode(model.word));
-    }
+    root.appendChild(document.createTextNode(model.word));
   } else {
     // The word sits in its own span so a phone can hide it and keep the marker.
     const label = span('ci-seg ci-seg-label');
@@ -215,6 +203,8 @@ export function renderCiPill(
       label.appendChild(live);
     }
     root.appendChild(label);
+    // A Cancelled pill's tooltip says its counts whole (#3395).
+    if (model.cancelled) root.title = model.name;
     for (const { kind, n } of model.segments) {
       const seg = span(`ci-seg ci-seg-${kind}`);
       // The counts are said in words by the name (or, on a badge, by the hidden

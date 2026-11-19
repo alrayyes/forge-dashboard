@@ -30,6 +30,7 @@ function pr(number: number, title: string, checks: object) {
 const PRS = [
   pr(1, 'Some passed', { passed: 4, cancelled: 9 }),
   pr(2, 'None passed', { passed: 0, cancelled: 13 }),
+  { ...pr(3, 'Neighbour failed', { passed: 4, failed: 2 }), ci: 'failure' },
 ];
 
 async function open(page: Page) {
@@ -69,24 +70,63 @@ const fitsWidth = (page: Page) =>
   );
 
 test.describe('Cancelled pill counts (#3395)', () => {
-  test('at 1280px it reads the passed and cancelled counts', async ({
+  test('at 1280px it reads the word and one glyphed count per state', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await open(page);
 
-    expect(await text(page, 'Some passed')).toBe(
-      'Cancelled · 4 passed, 9 cancelled',
-    );
+    expect(await text(page, 'Some passed')).toBe('Cancelled 4 9');
   });
 
-  test('at 390px it keeps the passed count and does not overflow', async ({
+  // The pill is the same capsule its neighbours are (#4323): the segmented
+  // class, the label and one part per count, not a flat run of text.
+  test('it is built from the same segmented parts as a failed pill', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await open(page);
+
+    const cancelled = pill(page, 'Some passed');
+    const failed = pill(page, 'Neighbour failed');
+    await expect(cancelled).toHaveClass(/\bsegmented\b/);
+    await expect(cancelled.locator('.ci-seg-label .ci-word')).toHaveText(
+      'Cancelled',
+    );
+    await expect(cancelled.locator('.ci-seg-passed')).toHaveText('4');
+    await expect(cancelled.locator('.ci-seg-cancelled')).toHaveText('9');
+    await expect(cancelled.locator('.ci-cancel')).toHaveCount(0);
+    await expect(cancelled.locator('svg.check-glyph')).toHaveCount(2);
+    // The same ring the segmented neighbours draw, and one line tall like them.
+    const look = (el: Element) => {
+      const s = getComputedStyle(el);
+
+      return {
+        ring: s.boxShadow !== 'none',
+        height: el.getBoundingClientRect().height,
+        padding: s.padding,
+      };
+    };
+    // The word takes the neutral ink of the cancelled count, not the amber the
+    // segmented label falls back to.
+    const ink = (sel: string) =>
+      cancelled.locator(sel).evaluate((el) => getComputedStyle(el).color);
+    expect(await ink('.ci-seg-label')).toBe(await ink('.ci-seg-cancelled'));
+    const c = await cancelled.evaluate(look);
+    const f = await failed.evaluate(look);
+    expect(c.ring).toBe(true);
+    expect(c.padding).toBe(f.padding);
+    expect(c.height).toBe(f.height);
+  });
+
+  test('at 390px it drops the word like its neighbours and does not overflow', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await open(page);
 
-    expect(await text(page, 'Some passed')).toBe('Cancelled · 4 passed');
+    expect(await text(page, 'Some passed')).toBe('4 9');
+    expect(await text(page, 'Neighbour failed')).toBe('4 2');
     expect(await fitsWidth(page)).toBe(true);
   });
 
@@ -101,19 +141,24 @@ test.describe('Cancelled pill counts (#3395)', () => {
     await page.setViewportSize({ width: 1280, height: 900 });
     await open(page);
 
-    expect(await text(page, 'None passed')).toBe('Cancelled · 13 cancelled');
+    expect(await text(page, 'None passed')).toBe('Cancelled 13');
+    await expect(
+      pill(page, 'None passed').locator('.ci-seg-passed'),
+    ).toHaveCount(0);
   });
 
   test('the name and the tooltip say the counts whole', async ({ page }) => {
     await open(page);
 
-    const name =
-      'CI status: Cancelled. 4 passed, 9 cancelled out of 13 checks.';
+    const name = 'Cancelled 4 9: 4 passed, 9 cancelled out of 13 checks.';
     await expect(pill(page, 'Some passed')).toHaveAttribute(
       'aria-label',
       `${name} Open pipeline`,
     );
     await expect(pill(page, 'Some passed')).toHaveAttribute('title', name);
+    await expect(pill(page, 'Some passed')).toHaveAccessibleName(
+      `${name} Open pipeline`,
+    );
   });
 
   test('at 390px the pill text is not clipped', async ({ page }) => {
