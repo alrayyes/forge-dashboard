@@ -49,7 +49,8 @@ draft or you hid it opens read only, without actions in the footer. One that
 isn't open any more gets a note over the list instead. Closing a pop-up opened
 this way leaves you on the page, with keyboard focus on that pull request's
 title in the list. If your filters leave the row out, or it was opened read
-only, focus goes to the title filter box.
+only, focus goes to the Filters button on a phone, or the title filter box
+elsewhere, since the box would open its suggestion list on a phone.
 
 The pop-up loads when it opens, from `GET /api/v1/pull-requests/details`, and
 never as part of the dashboard snapshot, so a forge's budget isn't spent on

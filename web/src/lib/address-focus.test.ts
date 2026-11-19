@@ -1,6 +1,10 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { addressFocusFallback, chainedReturn } from './address-focus';
+import {
+  addressFocusFallback,
+  chainedReturn,
+  titleOrFiltersFallback,
+} from './address-focus';
 
 // The fallback for a pull request opened from its address: where focus goes
 // on close when its row is filtered out. The title box hides over one row
@@ -11,15 +15,21 @@ const drawnIds = (...ids: string[]) => {
 };
 
 describe('addressFocusFallback', () => {
-  test('names the title box while it is drawn', () => {
+  test('names the title box while it is drawn and no Filters button is', () => {
+    expect(
+      addressFocusFallback(drawnIds('title-filter', 'pr-sort-select')),
+    ).toBe('title-filter');
+  });
+
+  test('names the Filters button on a phone, where the title box is also drawn', () => {
     expect(
       addressFocusFallback(
         drawnIds('title-filter', 'filters-button', 'pr-sort-select'),
       ),
-    ).toBe('title-filter');
+    ).toBe('filters-button');
   });
 
-  test('names the Filters button when the title box is hidden on a phone', () => {
+  test('names the Filters button when the title box is hidden', () => {
     expect(
       addressFocusFallback(drawnIds('filters-button', 'pr-sort-select')),
     ).toBe('filters-button');
@@ -31,16 +41,13 @@ describe('addressFocusFallback', () => {
     );
   });
 
-  test('prefers the title box, then the Filters button, then the sort box', () => {
+  test('prefers the Filters button, then the title box, then the sort box', () => {
+    expect(
+      addressFocusFallback(drawnIds('title-filter', 'filters-button')),
+    ).toBe('filters-button');
     expect(
       addressFocusFallback(drawnIds('title-filter', 'pr-sort-select')),
     ).toBe('title-filter');
-    expect(
-      addressFocusFallback(drawnIds('title-filter', 'filters-button')),
-    ).toBe('title-filter');
-    expect(
-      addressFocusFallback(drawnIds('filters-button', 'pr-sort-select')),
-    ).toBe('filters-button');
     expect(addressFocusFallback(drawnIds('pr-sort-select'))).toBe(
       'pr-sort-select',
     );
@@ -77,6 +84,20 @@ describe('chainedReturn', () => {
   test('uses the pill own id when the earlier swap named none', () => {
     expect(chainedReturn('', 'pill-in-gone-dialog')).toBe(
       'pill-in-gone-dialog',
+    );
+  });
+});
+
+describe('titleOrFiltersFallback', () => {
+  test('names the Filters button where one is drawn', () => {
+    expect(
+      titleOrFiltersFallback(drawnIds('title-filter', 'filters-button')),
+    ).toBe('filters-button');
+  });
+
+  test('names the title box otherwise', () => {
+    expect(titleOrFiltersFallback(drawnIds('title-filter'))).toBe(
+      'title-filter',
     );
   });
 });

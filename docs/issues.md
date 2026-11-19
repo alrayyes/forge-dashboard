@@ -206,11 +206,12 @@ nothing.
 Closing that pop-up puts keyboard focus back on the pill in the list. When
 pop-ups follow one another through pills (an issue, its pull request, the issue
 again), closing the last returns focus to where the first swap would have
-returned it. The links follow the board while the pop-up stays open, and only
-what changed is written: a pill whose pull request changed (merged, closed, its
-checks) stays the same element, so keyboard focus and an open "+N more" fold
-stay, the label chips are drawn again only when the labels changed, and a pull
-request the issue doesn't link to changes nothing in the pop-up.
+returned it, which is the pill or title that opened the first pop-up. The
+links follow the board while the pop-up stays open, and only what changed is
+written: a pill whose pull request changed (merged, closed, its checks) stays
+the same element, so keyboard focus and an open "+N more" fold stay, the label
+chips are drawn again only when the labels changed, and a pull request the issue
+doesn't link to changes nothing in the pop-up.
 
 The server works this out, from the pull requests it already holds, so it costs
 the forge no request. It counts a draft, and a pull request you hid, but not
@@ -277,10 +278,12 @@ issue. The "Closes" pills on [pull
 requests](pull-request-pages.md#issues-a-pull-request-closes) open the same
 pop-up in place instead. Closing the pop-up leaves you on the page, with
 keyboard focus on that issue's title in the list. If your filters leave the row
-out, focus goes to the **Filter by title** box instead, so it never falls back
-to the top of the page. The address loses `?issue=` so a reload doesn't open it
-again. If the issue is closed, hidden by your settings, or in a repo the
-dashboard doesn't track, no pop-up opens and a note over the list says why.
+out, focus goes to the **Filters** button on a phone, or the **Filter by title**
+box elsewhere, so it never falls back to the top of the page. A phone's title
+box would open its suggestion list. The address loses `?issue=` so a reload
+doesn't open it again. If the issue is closed, hidden by your settings, or in a
+repo the dashboard doesn't track, no pop-up opens and a note over the list says
+why.
 
 ## Issues in Settings
 

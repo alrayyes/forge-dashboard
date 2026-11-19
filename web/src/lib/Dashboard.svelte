@@ -70,7 +70,11 @@
   } from "#lib/details-cache.js";
   import { probeReference } from "#lib/reference-probe.js";
   import { createReferencePrefetcher } from "#lib/reference-prefetch.js";
-  import { addressFocusFallback, chainedReturn } from "#lib/address-focus.js";
+  import {
+    addressFocusFallback,
+    chainedReturn,
+    titleOrFiltersFallback,
+  } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
@@ -2345,8 +2349,14 @@
     // first swap's trigger, since the pill a later swap was clicked on lives in
     // a dialog that is gone by then. Null outside a chain.
     let swappedFocus: string | null = null;
+    // What opened the dialog that is open now. A swap out of it goes back to the
+    // pill it was clicked from only when that pill is on the page; a pill that
+    // sits on the other page's rows is not, so it goes back to this (#4360).
+    let openedFrom = "";
     function swapFocus(own: string): string {
-      swappedFocus = chainedReturn(swappedFocus, own);
+      const drawn =
+        (document.getElementById(own)?.getClientRects().length ?? 0) > 0;
+      swappedFocus = chainedReturn(swappedFocus, drawn ? own : openedFrom);
       return swappedFocus;
     }
     // A dialog that opens with any other trigger than the chain's is not a
@@ -2356,6 +2366,7 @@
     // the only place the chain is cleared, so no early return can leak it.
     function endChainUnlessSwap(triggerId: string) {
       if (swappedFocus !== triggerId) swappedFocus = null;
+      openedFrom = triggerId;
     }
     let issueDialog: {
       forge: string;
@@ -2537,6 +2548,16 @@
       });
     }
 
+    // Where a pop-up reached by a pill or an in-text reference sends focus when
+    // its opener is gone: the Filters button on a phone, else the title box. The
+    // issues page has no row of its own to name, so a hidden title box falls
+    // through to the first drawn control in the bar (#4360).
+    function phoneAwareTitleFallback() {
+      return titleOrFiltersFallback(
+        (id) => (document.getElementById(id)?.getClientRects().length ?? 0) > 0,
+      );
+    }
+
     function openPullRequestReadOnly(
       item: PullRequestItem,
       triggerId = addressFocus(item),
@@ -2616,7 +2637,7 @@
           url: issue.url,
         },
         triggerId,
-        "title-filter",
+        phoneAwareTitleFallback(),
       );
     }
 
@@ -2661,7 +2682,7 @@
           ? allPRs.find((p) => sameAddress(wanted, p))
           : undefined;
         if (pr) {
-          openDetailsDialog(pr, back, "title-filter");
+          openDetailsDialog(pr, back, phoneAwareTitleFallback());
           return;
         }
         openIssueDialog(
@@ -2671,7 +2692,7 @@
             url: ref.url,
           },
           back,
-          "title-filter",
+          phoneAwareTitleFallback(),
         );
       };
       detailsDialog?.close();
@@ -2713,7 +2734,7 @@
       // with its actions; elsewhere, or when the board leaves it out, it is
       // read only.
       if (listed && pullsView) {
-        openDetailsDialog(listed, triggerId, "title-filter");
+        openDetailsDialog(listed, triggerId, phoneAwareTitleFallback());
         return;
       }
       const opens = dialogOpens;
@@ -2725,7 +2746,11 @@
       // here would erase the one it may have started since.
       if (opens !== dialogOpens) return;
       if ("found" in looked) {
-        openPullRequestReadOnly(looked.found, triggerId, "title-filter");
+        openPullRequestReadOnly(
+          looked.found,
+          triggerId,
+          phoneAwareTitleFallback(),
+        );
         return;
       }
       const text =
@@ -2815,7 +2840,7 @@
         openIssueDialog(
           found,
           `details-trigger-${domSafeId(prKey(found as PullRequestItem))}`,
-          "title-filter",
+          phoneAwareTitleFallback(),
         );
         return;
       }

@@ -482,10 +482,12 @@ test.describe('references inside the issue dialog', () => {
       pullDialog(page).locator('.details-actions button').first(),
     ).toBeVisible();
 
-    // The issue's row is not on this page, so focus goes to the filter box.
+    // The closing-issue pill on the pull request's row opened the chain, and
+    // the swap to the next pull request keeps it (#4360).
     await page.keyboard.press('Escape');
     await expect(pullDialog(page)).toBeHidden();
-    await expect(page.locator('#title-filter')).toBeFocused();
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    await expect(closingPill(page, 1)).toBeFocused();
   });
 
   for (const [path, label] of [
