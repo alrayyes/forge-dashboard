@@ -18,6 +18,17 @@
   const forgePillList = () =>
     forgeIds().map((id) => ({ id, label: Filters.pillLabel(id) }));
   let forgePills = $state(forgePillList());
+  // The CI group's pills, each as the status whose glyph and tone it wears
+  // (#4246). The overview has no cancelled, unknown or approval pills.
+  const CI_PILL_STATUS: Record<
+    (typeof Filters.PILL_GROUPS.ci)[number],
+    CiFilterStatus
+  > = {
+    failing: "failed",
+    running: "running",
+    passing: "passed",
+    "no-checks": "none",
+  };
   let pillClick: (button: HTMLButtonElement) => void = () => {};
   let pillsDrawn: () => void = () => {};
   function refreshForgePills() {
@@ -61,6 +72,7 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { labelTextColor } from "#lib/label-color.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import CiFilterPill, { type CiFilterStatus } from "#lib/CiFilterPill.svelte";
   import LiveControl from "#lib/LiveControl.svelte";
   import {
     checkFeed,
@@ -10649,6 +10661,17 @@
               data-pill={pill.id}
               aria-pressed="false"
               onclick={(e) => pillClick(e.currentTarget)}>{pill.label}</button
+            >
+          {/each}
+        {:else if group === "ci"}
+          {#each Filters.PILL_GROUPS.ci as pill (pill)}
+            <CiFilterPill
+              status={CI_PILL_STATUS[pill]}
+              class="quick-pill"
+              data-pill={pill}
+              aria-pressed="false"
+              onclick={(e) => pillClick(e.currentTarget)}
+              >{Filters.pillLabel(pill)}</CiFilterPill
             >
           {/each}
         {:else}

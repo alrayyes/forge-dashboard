@@ -4174,7 +4174,7 @@ footer a.mono:focus-visible {
   flex: none;
 }
 .pipeline-check-status .check-glyph,
-.mb-pill .check-glyph,
+.ci-filter-pill .check-glyph,
 .ci-pill .check-glyph {
   width: 14px;
   height: 14px;
@@ -4201,12 +4201,12 @@ footer a.mono:focus-visible {
 /* Running carries both glyphs: the spinning arc, and a still clock for
    prefers-reduced-motion. Amber stays Running's colour; Queued is blue. */
 .pipeline-check-status .check-glyph-clock,
-.mb-pill .check-glyph-clock,
+.ci-filter-pill .check-glyph-clock,
 .ci-pill .check-glyph-clock {
   display: none;
 }
 .pipeline-check-status .check-glyph-arc,
-.mb-pill .check-glyph-arc,
+.ci-filter-pill .check-glyph-arc,
 .ci-pill .check-glyph-arc {
   animation: check-spin 1.2s linear infinite;
 }
@@ -4234,12 +4234,12 @@ footer a.mono:focus-visible {
 }
 @media (prefers-reduced-motion: reduce) {
   .pipeline-check-status .check-glyph-arc,
-  .mb-pill .check-glyph-arc,
+  .ci-filter-pill .check-glyph-arc,
   .ci-pill .check-glyph-arc {
     display: none;
   }
   .pipeline-check-status .check-glyph-clock,
-  .mb-pill .check-glyph-clock,
+  .ci-filter-pill .check-glyph-clock,
   .ci-pill .check-glyph-clock {
     display: block;
   }
@@ -6253,47 +6253,63 @@ footer a[aria-current="page"] {
   font-variant-numeric: tabular-nums;
   opacity: 0.85;
 }
-/* Status pills (#4221) wear the CI pill's glyphs. Unpressed, only the glyph is
-   tinted, in the tone the row's pill uses; pressed, the pill takes the state's
-   pair and a 1px inset ring, so "selected" is the ring and aria-pressed, never
-   colour alone. The ring is a shadow, so a press moves nothing. */
-.mb-pill[data-status="failed"] {
+/* CI filter pills (#4221, #4246) wear the CI pill's glyphs, on the Main
+   branches status filter and the pull request overview's CI filter alike.
+   Unpressed, only the glyph is tinted, in the tone the row's pill uses;
+   pressed, the pill takes the state's pair and a 1px inset ring, so "selected"
+   is the ring and aria-pressed, never colour alone. The ring is a shadow, so a
+   press moves nothing. */
+.ci-filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+/* display above would otherwise beat the hidden attribute a filter sets on a
+   pill that would show nothing (#1427). */
+.ci-filter-pill[hidden] {
+  display: none;
+}
+.ci-filter-pill[data-status="failed"] {
   --mb-tone: var(--critical);
   --mb-tone-bg: var(--critical-bg);
 }
-.mb-pill[data-status="passed"] {
+.ci-filter-pill[data-status="passed"] {
   --mb-tone: var(--good);
   --mb-tone-bg: var(--good-bg);
 }
-.mb-pill[data-status="running"],
-.mb-pill[data-status="awaiting_approval"] {
+.ci-filter-pill[data-status="running"],
+.ci-filter-pill[data-status="awaiting_approval"] {
   --mb-tone: var(--warning);
   --mb-tone-bg: var(--warning-bg);
 }
-.mb-pill[data-status="cancelled"],
-.mb-pill[data-status="unknown"],
-.mb-pill[data-status="none"] {
+.ci-filter-pill[data-status="cancelled"],
+.ci-filter-pill[data-status="unknown"],
+.ci-filter-pill[data-status="none"] {
   --mb-tone: var(--ink-2);
   --mb-tone-bg: var(--neutral-bg);
 }
 /* --border is 1.2:1 on the dark page; the control edge clears 3:1. */
-.mb-pill[data-status] {
+.ci-filter-pill[data-status] {
   border-color: var(--control-border);
 }
-.mb-pill[data-status]:hover {
+.ci-filter-pill[data-status]:hover {
   border-color: var(--ink-3);
 }
-.mb-pill[data-status] .check-glyph {
+.ci-filter-pill[data-status] .check-glyph {
   color: var(--mb-tone);
 }
-.mb-pill[data-status][aria-pressed="true"] {
+.ci-filter-pill[data-status][aria-pressed="true"] {
   background: var(--mb-tone-bg);
   border-color: var(--mb-tone-bg);
   color: var(--mb-tone);
   box-shadow: inset 0 0 0 1px currentColor;
 }
+/* The glyph and the ring carry the pick, so the overview's tick goes. */
+.quick-pill.ci-filter-pill[aria-pressed="true"]::before {
+  content: none;
+}
 @media (forced-colors: active) {
-  .mb-pill[data-status][aria-pressed="true"] {
+  .ci-filter-pill[data-status][aria-pressed="true"] {
     border-color: Highlight;
     box-shadow: none;
   }
