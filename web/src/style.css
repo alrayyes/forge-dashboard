@@ -2295,6 +2295,14 @@ a.ci-pill:hover {
   .ci-seg-label + .ci-seg {
     border-left: 0;
   }
+  /* A pill counting its checks keeps its words on a phone: they are the one
+     cue that the counts are not final. */
+  .ci-pill.counting .ci-seg-label {
+    display: inline-flex;
+  }
+  .ci-pill.counting .ci-seg-label .ci-word {
+    display: inline;
+  }
 }
 /* A pill that carries its pull request's pipeline: the number, then the same
    badge the pull request's row draws, shrunk to sit inside the pill. */

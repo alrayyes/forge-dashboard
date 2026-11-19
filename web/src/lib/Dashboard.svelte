@@ -364,6 +364,8 @@
     // GitHub holds this pull request's workflow runs until someone approves
     // them (#1280). The server decides; the page only says so.
     awaitingWorkflowApproval?: boolean;
+    // The server's fact that the forge hasn't listed every check yet (#4253).
+    checksIncomplete?: boolean;
     autoMergeEnabled: boolean | null;
     // Who holds an enabled auto-merge. Omitted means the server doesn't
     // know, and the page doesn't guess (#1596).
@@ -1031,6 +1033,9 @@
           ? "Waiting for workflow approval"
           : CI_LABELS[status] || status,
         awaiting,
+        // The dialog's own list is read in full, so only the snapshot's pill
+        // can be counting.
+        incomplete: !live && item.checksIncomplete === true,
         counts:
           SEGMENTED_CI.has(status) || status === "cancelled"
             ? (live?.counts ?? item.checks)

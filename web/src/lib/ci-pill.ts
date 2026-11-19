@@ -29,6 +29,9 @@ export type CiPillInput = {
   glyph: string;
   word: string;
   awaiting?: boolean;
+  // The server's fact that the forge hasn't listed every check yet, so the
+  // counts are some of them. The pill says it is counting and keeps the counts.
+  incomplete?: boolean;
   counts?: CheckCounts;
   // False for a state that has its own word and no counts (held, a branch's
   // cancelled). A pull request's cancelled pill is the exception: it words the
@@ -88,14 +91,19 @@ function cancelledTotal({
   return `${total} ${total === 1 ? 'check' : 'checks'}`;
 }
 
+const COUNTING = 'Counting checks…';
+const COUNTING_NOTE = 'The list of checks is not complete yet.';
+
 export function ciPillModel(input: CiPillInput): CiPillModel {
   const awaiting = input.awaiting === true;
+  const counting =
+    input.incomplete === true && !awaiting && input.cls !== 'cancelled';
   const cancelled = cancelledCounts(input, awaiting);
   const segments =
     input.segmented === false || awaiting || input.cls === 'cancelled'
       ? []
       : checkSegments(input.counts);
-  const word = pillWord(input.cls, input.word, segments);
+  const word = counting ? COUNTING : pillWord(input.cls, input.word, segments);
   const segmented = segments.length > 0;
   const live =
     input.cls === 'failure' &&
@@ -103,7 +111,18 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
   const held = awaiting ? ' awaiting' : '';
   // A fully skipped pass keeps its state class but must not read as a pass.
   const quiet = onlySkipped(input.cls, segments) ? ' all-skipped' : '';
-  const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}`;
+  const classes = `ci-pill ${input.cls}${held}${quiet}${segmented ? ' segmented' : ''}${counting ? ' counting' : ''}`;
+
+  const base = cancelled
+    ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`
+    : segmented
+      ? `${pillName(word, segments)}${live ? ', still running' : ''}`
+      : word;
+  // The name holds the visible words (WCAG 2.5.3) and says what the ellipsis
+  // only hints at.
+  const name = counting
+    ? `${base}${base.endsWith('…') ? '' : '.'} ${COUNTING_NOTE}`
+    : base;
 
   return {
     classes,
@@ -112,11 +131,7 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     segments,
     live,
     cancelled,
-    name: cancelled
-      ? `CI status: ${word}. ${cancelledWords(cancelled)} out of ${cancelledTotal(cancelled)}.`
-      : segmented
-        ? `${pillName(word, segments)}${live ? ', still running' : ''}`
-        : word,
+    name,
   };
 }
 

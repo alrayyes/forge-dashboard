@@ -1158,10 +1158,11 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	if p.Head != nil {
 		sha = p.Head.Sha
 	}
-	ci, checks, err := c.ciStatus(ctx, owner, name, sha)
+	ci, checks, incomplete, err := c.ciStatus(ctx, owner, name, sha)
 	if err != nil {
 		ci = dashboard.CINone
 		checks = dashboard.CheckCounts{}
+		incomplete = false
 	}
 	var created, updated time.Time
 	if p.Created != nil {
@@ -1188,6 +1189,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		UpdatedAt:               updated,
 		CI:                      ci,
 		Checks:                  checks,
+		ChecksIncomplete:        incomplete,
 		MergeStatus:             verdict.Status,
 		ConflictConfirmed:       verdict.Confirmed,
 		ConflictFiles:           verdict.Files,
@@ -1294,16 +1296,19 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 
 // ciStatus resolves the combined commit status for sha, which Forgejo
 // updates for both external CI and its own Actions runs.
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, dashboard.CheckCounts, error) {
+//
+// incomplete is true while a run that is still going has jobs the counts
+// leave out (#4253).
+func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, dashboard.CheckCounts, bool, error) {
 	if sha == "" {
-		return dashboard.CINone, dashboard.CheckCounts{}, nil
+		return dashboard.CINone, dashboard.CheckCounts{}, false, nil
 	}
 	c = c.withContext(ctx)
 	ctx = withJobPagesMemo(ctx)
 
 	combined, whole, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, dashboard.CheckCounts{}, err
+		return dashboard.CINone, dashboard.CheckCounts{}, false, err
 	}
 
 	counts := checkCountsOf(combined.Statuses)
@@ -1316,6 +1321,7 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 	// Every row reads its commit's runs, not only one with a pending or failed
 	// status: the jobs still queued in a running run have no status yet, so a
 	// row of finished statuses can hide them (#4252).
+	incomplete := false
 	runs, haveRuns := c.commitRuns(ctx, owner, name, sha)
 	if haveRuns && maybeCancelled {
 		state, counts = c.excuseCancelled(ctx, owner, name, runs, combined.Statuses, state, counts)
@@ -1324,9 +1330,10 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		counts = c.splitWaiting(ctx, owner, name, runs, combined.Statuses, counts)
 		counts = c.addUnstatusedJobs(ctx, owner, name, runs, combined.Statuses, counts)
 		state = settledState(state, counts, combined.Statuses)
+		incomplete = c.runsHaveUncountedJobs(ctx, owner, name, runs, combined.Statuses)
 	}
 
-	return state, counts, nil
+	return state, counts, incomplete, nil
 }
 
 // excuseCancelled takes the failure statuses of cancelled jobs out of the
@@ -1769,6 +1776,32 @@ func (c *Client) addUnstatusedJobs(ctx context.Context, owner, name string, runs
 	}
 
 	return counts
+}
+
+// runsHaveUncountedJobs is whether a run that is still going has jobs the
+// counts leave out: it has none yet, or no status points at it, so its jobs
+// are left to statuses that haven't come (#4253). The counts then are some of
+// the checks, and the page says so instead of letting them look final. A run
+// whose jobs can't be read says nothing. The jobs come from the memo the
+// counts were worked out from, so this costs no request.
+func (c *Client) runsHaveUncountedJobs(ctx context.Context, owner, name string, runs []*gitea.ActionWorkflowRun, statuses []*gitea.Status) bool {
+	going := slices.DeleteFunc(slices.Clone(runs), func(r *gitea.ActionWorkflowRun) bool {
+		return checkStateFromWorkflowStatus(r.Status) != dashboard.CheckRunning
+	})
+	going = withoutShadowedPushRuns(going)
+
+	_, named := statusedJobs(statuses)
+	for _, run := range going {
+		if !named[run.RunNumber] {
+			return true
+		}
+		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)
+		if err == nil && len(jobs) == 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // statusedJobs is the (run number, position) of every job a status points at,

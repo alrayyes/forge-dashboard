@@ -123,5 +123,5 @@ func pollFingerprint(pr PullRequest) string {
 		autoMerge = strconv.FormatBool(*pr.AutoMergeEnabled)
 	}
 
-	return fmt.Sprintf("%v|%+v|%v|%s|%s|%v", pr.CI, pr.Checks, pr.MergeStatus, autoMerge, pr.HeadSHA, pr.Behind)
+	return fmt.Sprintf("%v|%+v|%v|%s|%s|%v|%v", pr.CI, pr.Checks, pr.MergeStatus, autoMerge, pr.HeadSHA, pr.Behind, pr.ChecksIncomplete)
 }

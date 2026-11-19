@@ -7,6 +7,54 @@ const counts = { passed: 8, running: 1, waiting: 2, failed: 3 };
 // One model for the pull request rows, the bots board, the issue pills and the
 // Main branches page, so the three never word or class a pill differently.
 describe('ciPillModel', () => {
+  // While the server says the forge hasn't listed every check, the counts are
+  // some of them, so the pill says it is counting. The counts stay, so they
+  // never shrink when the rest arrive, and the name carries the words.
+  test('an incomplete check list says Counting checks and keeps the counts', () => {
+    const m = ciPillModel({
+      cls: 'pending',
+      glyph: 'running',
+      word: 'Running',
+      counts: { passed: 1, running: 1, waiting: 2, failed: 0 },
+      incomplete: true,
+    });
+
+    expect(m.word).toBe('Counting checks…');
+    // The class a phone's stylesheet keeps the words on.
+    expect(m.classes).toContain(' counting');
+    expect(m.segments.map((s) => s.n)).toEqual([1, 1, 2]);
+    expect(m.name).toBe(
+      'Counting checks… 1 1 2: 1 passed, 1 running, 2 waiting. The list of checks is not complete yet.',
+    );
+  });
+
+  test('an incomplete check list with no counts yet still says it', () => {
+    const m = ciPillModel({
+      cls: 'pending',
+      glyph: 'running',
+      word: 'Running',
+      incomplete: true,
+    });
+
+    expect(m.word).toBe('Counting checks…');
+    expect(m.name).toBe(
+      'Counting checks… The list of checks is not complete yet.',
+    );
+  });
+
+  test('a complete check list keeps the state word', () => {
+    const m = ciPillModel({
+      cls: 'pending',
+      glyph: 'running',
+      word: 'Running',
+      counts: { passed: 1, running: 1, waiting: 2, failed: 0 },
+      incomplete: false,
+    });
+
+    expect(m.word).toBe('Running');
+    expect(m.classes).not.toContain('counting');
+  });
+
   test('a segmented pill leads with its word and carries the counts', () => {
     const m = ciPillModel({
       cls: 'failure',
