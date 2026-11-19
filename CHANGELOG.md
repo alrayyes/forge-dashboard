@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.87.0](https://github.com/alrayyes/forge-dashboard/compare/v9.86.0...v9.87.0) (2026-11-19)
+
+
+### Features
+
+* **web:** add a Cancelled pill to the overview CI filter ([#4344](https://github.com/alrayyes/forge-dashboard/issues/4344)) ([07aa929](https://github.com/alrayyes/forge-dashboard/commit/07aa9293d07bd995ece91abce3ee52d780c6af00)), closes [#4331](https://github.com/alrayyes/forge-dashboard/issues/4331)
+
 ## [9.86.0](https://github.com/alrayyes/forge-dashboard/compare/v9.85.1...v9.86.0) (2026-11-19)
 
 
