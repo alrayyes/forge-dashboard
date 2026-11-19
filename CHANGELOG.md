@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.4](https://github.com/alrayyes/forge-dashboard/compare/v9.88.3...v9.88.4) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** cap text item references at 9 digits like the link form ([#4382](https://github.com/alrayyes/forge-dashboard/issues/4382)) ([ac98ea1](https://github.com/alrayyes/forge-dashboard/commit/ac98ea188db2250876709768e362a95a17890659)), closes [#4309](https://github.com/alrayyes/forge-dashboard/issues/4309)
+
 ## [9.88.3](https://github.com/alrayyes/forge-dashboard/compare/v9.88.2...v9.88.3) (2026-11-19)
 
 
