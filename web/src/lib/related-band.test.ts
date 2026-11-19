@@ -9,7 +9,6 @@ import {
   foldToggleText,
   relatedBandData,
   relatedCount,
-  relatedHint,
   relatedRows,
   relationLabel,
 } from './related-band';
@@ -87,7 +86,22 @@ describe('the rows', () => {
       mentions: [ref('a/app', 3)],
     });
     expect(rows.map((r) => r.label)).toEqual(['Closes', 'Refs', 'Mentions']);
-    expect(rows.map((r) => r.hint)).toEqual([false, true, true]);
+  });
+
+  test('no row carries a hint, the pill says it does not close', () => {
+    const lists = {
+      closes: [ref('a/app', 1)],
+      refs: [ref('a/app', 2)],
+      mentions: [ref('a/app', 3)],
+    };
+    const node = {} as HTMLElement;
+    const nodes = { closes: node, refs: node, mentions: node };
+    for (const side of ['pull-request', 'issue', 'issue-outgoing'] as const) {
+      for (const row of relatedRows(side, lists))
+        expect(Object.keys(row)).not.toContain('hint');
+      for (const row of relatedBandData(side, lists, nodes)?.rows ?? [])
+        expect(Object.keys(row)).not.toContain('hintText');
+    }
   });
 
   test('an issue has Closed by, Referenced by, Mentioned by', () => {
@@ -123,16 +137,6 @@ describe('what an issue refers to', () => {
     expect(relationLabel('issue-outgoing', 'refs')).toBe('Refs');
     expect(relationLabel('issue-outgoing', 'mentions')).toBe('Mentions');
     expect(relationLabel('issue-outgoing', 'closes')).toBe('Closes');
-  });
-
-  test('has a hint that says the issue does it', () => {
-    expect(relatedHint('issue-outgoing', 'closes')).toBe('');
-    expect(relatedHint('issue-outgoing', 'refs')).toBe(
-      'Italic: this issue references these, it does not close them.',
-    );
-    expect(relatedHint('issue-outgoing', 'mentions')).toBe(
-      'Italic: this issue mentions these, it does not close them.',
-    );
   });
 
   test('follows the incoming rows, each under its own key', () => {

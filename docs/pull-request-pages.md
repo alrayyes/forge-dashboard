@@ -207,7 +207,9 @@ doesn't close it. The tooltip also shows under the pill on keyboard focus, and
 Escape hides it. It behaves like a closing pill: the first two show, a count
 opens the rest, a press opens the ticket's pop-up in place and Escape returns
 focus to the pill, and on a phone the hit area is 44 pixels. The pull
-request's pop-up lists them among the attributes too.
+request's pop-up lists them among the attributes too. The pop-up's Related band
+has no line of its own under the Refs or Mentions row: the row's label and the
+pill's name say it.
 
 ## Tickets a pull request mentions
 

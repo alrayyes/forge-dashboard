@@ -30,9 +30,6 @@
         <span class="related-label">{row.label}</span>
         <div class="related-pills">
           <div class="related-host" use:mount={row.node}></div>
-          {#if row.hintText}
-            <span class="related-hint">{row.hintText}</span>
-          {/if}
         </div>
       </div>
     {/each}
@@ -85,12 +82,6 @@
   }
   .related-pills {
     min-width: 0;
-  }
-  .related-hint {
-    display: block;
-    margin-top: 4px;
-    font-size: 0.75rem;
-    color: var(--ink-2);
   }
   /* The row builders' pills, drawn here as they are on a row, at the band's
      size, and a mention drawn like a ref: 26px tall (24px is the floor), a gap that holds wrapped lines
