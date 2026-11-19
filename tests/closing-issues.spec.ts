@@ -164,7 +164,7 @@ test.describe('the pill on a pull request row', () => {
       .click();
 
     const popup = page.getByRole('dialog', { name: /^Pull request details/ });
-    await expect(popup.locator('.closing-issue')).toHaveText('Closes #12');
+    await expect(popup.locator('.closing-issue')).toHaveText('#12');
   });
 
   test('has no accessibility violations in light, dark and at 390 px', async ({
