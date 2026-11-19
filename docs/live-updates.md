@@ -293,7 +293,10 @@ when nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge
-and the page's filter pills come from one count. A branch with no pipeline is
+and the page's filter pills come from one count. A snapshot that carries no
+`navCounts` leaves the Branches badge as it was, like the others. Every
+supported server sends them, so this is a rule for a server that doesn't, not a
+case to handle. A branch with no pipeline is
 counted as `none`, so a branch's states add up to the total. A repo ignored for
 pull requests is left out of both.
 
