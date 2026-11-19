@@ -184,8 +184,10 @@ for (const b of BOXES) {
         page,
       }) => {
         await b.open(page);
-        await b.box(page).fill(b.text);
+        // The other control is set first: a title that matches one forge
+        // leaves the Forge filter nothing to offer (#4273).
         await b.other(page);
+        await b.box(page).fill(b.text);
         await b.button(page).click();
         await expect(b.box(page)).toHaveValue('');
         await expect(b.box(page)).toBeFocused();
