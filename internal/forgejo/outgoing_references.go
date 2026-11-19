@@ -43,24 +43,31 @@ func (c *Client) lookUpTargets(ctx context.Context, targets []dashboard.Outgoing
 		}
 		c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 
-		ref := dashboard.ItemReference{
-			Forge: dashboard.ForgeForgejo, Repo: target.Repo, Number: int(issue.Index), Title: issue.Title,
-			URL: issue.HTMLURL, Kind: dashboard.ItemKindIssue, State: dashboard.ReferencedStateOpen,
-		}
-		if issue.Repository != nil && issue.Repository.FullName != "" {
-			ref.Repo = issue.Repository.FullName
-		}
-		if issue.PullRequest != nil {
-			ref.Kind = dashboard.ItemKindPullRequest
-		}
-		if issue.State == gitea.StateClosed {
-			ref.State = dashboard.ReferencedStateClosed
-			if issue.PullRequest != nil && issue.PullRequest.HasMerged {
-				ref.State = dashboard.ReferencedStateMerged
-			}
-		}
-		refs = append(refs, ref)
+		refs = append(refs, referenceTo(target.Repo, issue))
 	}
 
 	return refs
+}
+
+// referenceTo is the reference an issue read from Forgejo makes, as the
+// outgoing entry for the item named as repo.
+func referenceTo(repo string, issue *gitea.Issue) dashboard.ItemReference {
+	ref := dashboard.ItemReference{
+		Forge: dashboard.ForgeForgejo, Repo: repo, Number: int(issue.Index), Title: issue.Title,
+		URL: issue.HTMLURL, Kind: dashboard.ItemKindIssue, State: dashboard.ReferencedStateOpen,
+	}
+	if issue.Repository != nil && issue.Repository.FullName != "" {
+		ref.Repo = issue.Repository.FullName
+	}
+	if issue.PullRequest != nil {
+		ref.Kind = dashboard.ItemKindPullRequest
+	}
+	if issue.State == gitea.StateClosed {
+		ref.State = dashboard.ReferencedStateClosed
+		if issue.PullRequest != nil && issue.PullRequest.HasMerged {
+			ref.State = dashboard.ReferencedStateMerged
+		}
+	}
+
+	return ref
 }

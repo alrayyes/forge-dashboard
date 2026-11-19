@@ -3,12 +3,23 @@ package dashboard_test
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// numbered is "#from#sep#from+1..." up to, not including, to.
+func numbered(from, to int, sep string) string {
+	var b strings.Builder
+	for n := from; n < to; n++ {
+		fmt.Fprintf(&b, "#%d%s", n, sep)
+	}
+
+	return b.String()
+}
 
 // echoResolver answers every target as an open issue titled by its number, and
 // remembers what it was asked.
@@ -91,10 +102,7 @@ func TestOutgoingReferences_NeverNamesTheItemItself(t *testing.T) {
 func TestOutgoingReferences_StopsAtTheCap(t *testing.T) {
 	t.Parallel()
 
-	body := ""
-	for n := 100; n < 100+dashboard.MaxOutgoingReferences+5; n++ {
-		body += fmt.Sprintf("#%d ", n)
-	}
+	body := numbered(100, 100+dashboard.MaxOutgoingReferences+5, " ")
 	var asked []dashboard.OutgoingTarget
 	got := outgoing(t, dashboard.ItemKindIssue, "T", body, echoResolver(&asked))
 
@@ -150,14 +158,7 @@ func TestOutgoingReferences_KeepsTheOrderOfTheText(t *testing.T) {
 func TestOutgoingReferences_TheCapHoldsAcrossRelations(t *testing.T) {
 	t.Parallel()
 
-	body := "Refs "
-	for n := 100; n < 115; n++ {
-		body += fmt.Sprintf("#%d, ", n)
-	}
-	body += "\n\n"
-	for n := 200; n < 215; n++ {
-		body += fmt.Sprintf("#%d ", n)
-	}
+	body := "Refs " + numbered(100, 115, ", ") + "\n\n" + numbered(200, 215, " ")
 	var asked []dashboard.OutgoingTarget
 	got := outgoing(t, dashboard.ItemKindIssue, "T", body, echoResolver(&asked))
 
