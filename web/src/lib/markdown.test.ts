@@ -353,6 +353,19 @@ describe('item addresses in a body the dashboard tracks', () => {
     }
   });
 
+  // Both forges resolve /issues/05 to item 5 (GitHub redirects, Forgejo
+  // serves it), so it is the same reference as /issues/5.
+  test('read a leading-zero item number as the item it names', async () => {
+    const html = await renderMarkdown(
+      '[t](https://github.com/o/r/issues/05)',
+      opts,
+    );
+    expect(html).toContain('href="/issues.html?issue=github/o/r/5"');
+    expect(html).toContain('data-ref-number="5"');
+    expect(html).toContain('data-ref-url="https://github.com/o/r/issues/5"');
+    expect(html).not.toContain('target=');
+  });
+
   test('leave an untracked repository, a fragment, a non-item page and another host external', async () => {
     for (const url of [
       'https://github.com/stranger/elsewhere/pull/9',
