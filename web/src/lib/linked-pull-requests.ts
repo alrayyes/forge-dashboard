@@ -23,6 +23,14 @@ export type LinkedPullRequest = {
   ci: string;
   checks: CheckCounts;
   awaitingWorkflowApproval: boolean;
+  /**
+   * Set only on an entry that came from an issue's own details (#4271), where
+   * the item may be an issue, or a pull request that is closed or merged. The
+   * board's pills are always open pull requests and leave all three out.
+   */
+  kind?: 'issue' | 'pullRequest';
+  state?: 'open' | 'closed' | 'merged';
+  url?: string;
 };
 
 /**
@@ -44,8 +52,13 @@ export const SHOWN_PILLS = 2;
 
 const sameRepo = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
-// Every linked pull request is open, so only a draft says its state.
-const stateOf = (pr: LinkedPullRequest) => (pr.draft ? ' draft' : '');
+// The board's linked pull requests are all open, so only a draft says its
+// state. One read from an issue's details says closed or merged as well.
+const stateOf = (pr: LinkedPullRequest) =>
+  pr.draft ? ' draft' : pr.state && pr.state !== 'open' ? ` ${pr.state}` : '';
+
+const nounOf = (pr: LinkedPullRequest) =>
+  pr.kind === 'issue' ? 'Issue' : 'Pull request';
 
 const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
   sameRepo(pr.repo, issueRepo) ? `#${pr.number}` : `${pr.repo}#${pr.number}`;
@@ -79,10 +92,10 @@ export function linkedPillName(
 ) {
   const head = `${numberOf(pr, issueRepo)}${stateOf(pr)}`;
   const says = relation === 'refs' ? 'references, does not close' : relation;
-  if (!ci) return `Pull request ${head}, ${says} this issue`;
+  if (!ci) return `${nounOf(pr)} ${head}, ${says} this issue`;
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
-  return `Pull request ${head} ${said}, ${says} this issue`;
+  return `${nounOf(pr)} ${head} ${said}, ${says} this issue`;
 }
 
 /** What a pull request does to the issue its pill sits on. */
@@ -99,7 +112,7 @@ export function linkedDialogName(
   ci?: PillCi | null,
   relation: Relation = 'closes',
 ) {
-  const head = `Pull request ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
+  const head = `${nounOf(pr)} ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
   const said = ci
     ? ci.segments.length > 0
       ? pillName(ci.label, ci.segments)

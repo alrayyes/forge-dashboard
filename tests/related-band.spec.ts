@@ -319,6 +319,81 @@ test('a plain click on a closing pill swaps the dialog for the issue, with its t
   await expect(issueDialog(page)).toContainText('ryankes');
 });
 
+// A closed issue is not on the board, so no snapshot row carries what refers
+// to it (#4271): the dialog reads it from the issue's own details.
+const reference = (number: number, over: Record<string, unknown> = {}) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Item ${number}`,
+  url: `https://example.com/${REPO}/issues/${number}`,
+  pageUrl: `/pull-requests.html?pr=github/${REPO}/${number}`,
+  kind: 'pullRequest',
+  state: 'merged',
+  direction: 'incoming',
+  relation: 'closes',
+  ...over,
+});
+
+async function openClosedIssue(page: Page, references: unknown[]) {
+  await mockBoard(page, {
+    pullRequests: [pullRequest({ closesIssues: [ticket(4055)] })],
+    issues: [],
+  });
+  await page.route('**/api/v1/issues/details*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ...details, state: 'closed', references }),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  await page
+    .getByRole('button', { name: /Pull request 1/ })
+    .first()
+    .click();
+  await row(prDialog(page), 'Closes').locator('.linked-pr').click();
+  await expect(issueDialog(page)).toBeVisible();
+  return issueDialog(page);
+}
+
+test('a closed issue that is off the board shows what refers to it, with each state', async ({
+  page,
+}) => {
+  const dialog = await openClosedIssue(page, [
+    reference(4100),
+    reference(4150, {
+      kind: 'issue',
+      state: 'closed',
+      relation: 'mentions',
+      pageUrl: `/issues.html?issue=github/${REPO}/4150`,
+    }),
+    reference(4200, { direction: 'outgoing', relation: 'refs' }),
+  ]);
+
+  await expect(dialog.locator('.related-label')).toHaveText([
+    'Closed by',
+    'Mentioned by',
+  ]);
+  await expect(
+    row(dialog, 'Closed by').locator('.linked-pr'),
+  ).toHaveAccessibleName('Closed by: Pull request #4100 merged');
+  await expect(
+    row(dialog, 'Mentioned by').locator('.linked-pr'),
+  ).toHaveAccessibleName('Mentioned by: Issue #4150 closed');
+  // What the issue itself refers to is not drawn by this band yet.
+  await expect(dialog.locator('.related-count')).toHaveText('2');
+});
+
+test('a closed issue that nothing refers to has no band and no error', async ({
+  page,
+}) => {
+  const dialog = await openClosedIssue(page, []);
+
+  await expect(band(dialog)).toHaveCount(0);
+  await expect(dialog.getByRole('alert')).toHaveCount(0);
+});
+
 test('a dialog with nothing related has no band and no empty row', async ({
   page,
 }) => {

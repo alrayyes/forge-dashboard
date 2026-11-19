@@ -1,4 +1,5 @@
 <script module lang="ts">
+  import type { ItemReference } from "./issue-references";
   import type { RelatedBandData } from "./related-band";
 
   // The header's status, drawn by the row's own builders in Dashboard.svelte
@@ -132,6 +133,8 @@
     // Only the issues endpoint says it: a forge shares one number space, so
     // what was asked for as an issue can be a pull request (#4188).
     kind?: "issue" | "pullRequest";
+    // Only the issues endpoint says it: the items that refer to this one.
+    references?: ItemReference[];
     // With kind `pullRequest`: the title, author and state the board has no
     // row for, so the header can say them. The server says the facts, the
     // dialog words them.
@@ -149,6 +152,7 @@
     onClosed,
     onIssueState,
     onPullRequestFound,
+    onReferences,
     onReference,
     trackedRepo,
   }: {
@@ -159,6 +163,8 @@
     // What was opened as an issue turned out to be a pull request (#4188), and
     // the dialog now shows it as one. The page drops the issue's own state.
     onPullRequestFound?: () => void;
+    // An issue's details arrived with the items that refer to it (#4271).
+    onReferences?: (references: ItemReference[]) => void;
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
@@ -441,8 +447,9 @@
   }
 
   function showIssueState(item: DetailsTarget, shown: Details) {
-    if (item.subject === "issue" && shown.state)
-      onIssueState?.(shown.state === "closed");
+    if (item.subject !== "issue") return;
+    if (shown.state) onIssueState?.(shown.state === "closed");
+    onReferences?.(shown.references ?? []);
   }
 
   // Set when a refresh failed while earlier details are on screen; cleared by
