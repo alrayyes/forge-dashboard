@@ -74,7 +74,8 @@
   // the dialog opens and never as part of the snapshot. Dashboard.svelte calls
   // open() from a row's trigger and holds nothing else of this dialog's state.
   import RelatedBand from "#lib/RelatedBand.svelte";
-  import { tick } from "svelte";
+  import { onDestroy, tick } from "svelte";
+  import { createDwell } from "#lib/reference-dwell.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
@@ -804,13 +805,29 @@
   // A reference to an untracked repository under the pointer or focus is
   // asked of the forge now, so a click can open its dialog (#4269).
   function warmReference(event: Event) {
-    const reference = referenceAt(event.target);
-    if (reference?.untracked && target)
-      onWarmReference?.({
-        forge: target.forge,
-        repo: reference.repo,
-        number: reference.number,
-      });
+    dwell.cancel();
+    const reference = untrackedReference(event);
+    if (reference) onWarmReference?.(reference);
+  }
+
+  function untrackedReference(event: Event) {
+    const found = referenceAt(event.target);
+    if (!found?.untracked || !target) return null;
+    return { forge: target.forge, repo: found.repo, number: found.number };
+  }
+
+  // A pointer passing over only asks after it rests for a moment; focus and
+  // pointer-down above ask at once.
+  const dwell = createDwell<{ forge: string; repo: string; number: number }>(
+    (reference) => onWarmReference?.(reference),
+  );
+  onDestroy(() => dwell.cancel());
+
+  function restOnReference(event: Event) {
+    const found = referenceAt(event.target);
+    const reference = untrackedReference(event);
+    if (reference && found) dwell.rest(found.anchor, reference);
+    else dwell.cancel();
   }
 
   function relativeTime(iso: string): string {
@@ -894,7 +911,8 @@
   onclose={onClose}
   oncancel={onCancel}
   onclick={onBackdrop}
-  onpointerover={warmReference}
+  onpointerover={restOnReference}
+  onpointerleave={() => dwell.cancel()}
   onpointerdown={warmReference}
   onfocusin={warmReference}
 >
