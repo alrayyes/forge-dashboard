@@ -320,17 +320,19 @@ takes the Out of date badge's place. With no release pull requests open the
 page says nothing is waiting to ship.
 
 The pills ahead of the list are four labelled groups, **Forge** (GitHub,
-Forgejo), **CI** (Failing, Running, Passing, No checks), **Merge** (Conflicting,
-Out of date) and **Review** (Ready, Needs review, Review requested). Each group
-is single choice with its own **All**, and the groups combine: Forgejo with
-Failing shows the failing Forgejo pull requests. A chip removes one value, and
-**Clear filters** resets every group. A pill is offered only when it would show
-something and not when it matches every pull request. A single pill saved before
-the groups existed (`pr.quick`) moves, by its name, into whichever group holds
-it, once, unless that group already has a pick. The pills are the only CI
-filter: the board header has no separate CI status dropdown, on this page,
-Releases, and Bots. The **No checks** pill shows the pull requests that have no
-CI configured. A CI status saved from when the dropdown existed becomes the
+Forgejo), **CI** (Failing, Running, Passing, Cancelled, No checks), **Merge**
+(Conflicting, Out of date) and **Review** (Ready, Needs review, Review
+requested). Each group is single choice with its own **All**, and the groups
+combine: Forgejo with Failing shows the failing Forgejo pull requests. A chip
+removes one value, and **Clear filters** resets every group. A pill is offered
+only when it would show something and not when it matches every pull request. A
+single pill saved before the groups existed (`pr.quick`) moves, by its name,
+into whichever group holds it, once, unless that group already has a pick. The
+pills are the only CI filter: the board header has no separate CI status
+dropdown, on this page, Releases, and Bots. The **Cancelled** pill shows the
+pull requests whose row reads Cancelled, the ones whose only non-passing runs
+were cancelled. The **No checks** pill shows the pull requests that have no CI
+configured. A CI status saved from when the dropdown existed becomes the
 matching CI pill when the page loads, unless a CI pill is already picked, in
 which case it is dropped, so nothing stays filtered out of sight. The **Out of
 date** pill, on this page and on Bots, keeps the pull requests whose base branch

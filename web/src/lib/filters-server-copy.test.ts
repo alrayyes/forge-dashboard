@@ -259,6 +259,7 @@ describe('the saved quick pill becomes a per-group pick', () => {
   test.each([
     ['failing', 'ci'],
     ['no-checks', 'ci'],
+    ['cancelled', 'ci'],
     ['conflicting', 'merge'],
     ['out-of-date', 'merge'],
     ['ready', 'review'],

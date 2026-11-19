@@ -74,6 +74,7 @@ export const QUICK_FILTERS = [
   'failing',
   'running',
   'passing',
+  'cancelled',
   'no-checks',
   'ready',
   'needs-review',
@@ -94,7 +95,7 @@ export const PILL_GROUPS = {
   get forge(): readonly string[] {
     return forgeIds();
   },
-  ci: ['failing', 'running', 'passing', 'no-checks'],
+  ci: ['failing', 'running', 'passing', 'cancelled', 'no-checks'],
   merge: ['conflicting', 'out-of-date'],
   review: ['ready', 'needs-review', 'review-requested'],
 } as const;
@@ -111,6 +112,7 @@ export const PILL_LABELS: Record<string, string> = {
   failing: 'Failing',
   running: 'Running',
   passing: 'Passing',
+  cancelled: 'Cancelled',
   'no-checks': 'No checks',
   conflicting: 'Conflicting',
   'out-of-date': 'Out of date',
@@ -171,6 +173,10 @@ export function matchesQuickFilter(
       return item.ci === 'pending';
     case 'passing':
       return item.ci === 'success';
+    case 'cancelled':
+      // The server's own word for a run that was only cancelled, the one the
+      // row's Cancelled pill reads (#4331).
+      return item.ci === 'cancelled';
     case 'no-checks':
       return item.ci === 'none';
     case 'ready':

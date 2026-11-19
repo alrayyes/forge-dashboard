@@ -19,7 +19,8 @@
     forgeIds().map((id) => ({ id, label: Filters.pillLabel(id) }));
   let forgePills = $state(forgePillList());
   // The CI group's pills, each as the status whose glyph and tone it wears
-  // (#4246). The overview has no cancelled, unknown or approval pills.
+  // (#4246). The overview has a Cancelled pill (#4331) but no unknown or
+  // approval ones.
   const CI_PILL_STATUS: Record<
     (typeof Filters.PILL_GROUPS.ci)[number],
     CiFilterStatus
@@ -27,6 +28,7 @@
     failing: "failed",
     running: "running",
     passing: "passed",
+    cancelled: "cancelled",
     "no-checks": "none",
   };
   let pillClick: (button: HTMLButtonElement) => void = () => {};
