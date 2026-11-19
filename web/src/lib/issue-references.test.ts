@@ -3,6 +3,7 @@ import {
   type ItemReference,
   incomingRows,
   mergeRows,
+  outgoingRows,
 } from './issue-references.js';
 
 const ref = (over: Partial<ItemReference>): ItemReference => ({
@@ -85,5 +86,47 @@ describe('mergeRows', () => {
     );
 
     expect(merged.linkedPullRequests.map((p) => p.number)).toEqual([13, 14]);
+  });
+});
+
+describe('outgoingRows', () => {
+  test('sorts what the issue refers to into closes, refs and mentions, in the order given', () => {
+    const rows = outgoingRows([
+      ref({ number: 1, direction: 'outgoing', relation: 'refs' }),
+      ref({ number: 2, direction: 'outgoing', relation: 'mentions' }),
+      ref({ number: 3, direction: 'outgoing', relation: 'refs' }),
+      ref({ number: 4, direction: 'outgoing', relation: 'closes' }),
+    ]);
+
+    expect(rows.closes.map((p) => p.number)).toEqual([4]);
+    expect(rows.refs.map((p) => p.number)).toEqual([1, 3]);
+    expect(rows.mentions.map((p) => p.number)).toEqual([2]);
+  });
+
+  test('keeps the kind, state and addresses the pill draws', () => {
+    const [row] = outgoingRows([
+      ref({
+        direction: 'outgoing',
+        relation: 'refs',
+        kind: 'issue',
+        state: 'closed',
+      }),
+    ]).refs;
+
+    expect(row).toMatchObject({
+      forge: 'github',
+      repo: 'alrayyes/a',
+      number: 1,
+      kind: 'issue',
+      state: 'closed',
+      url: 'https://example.com/1',
+      pageUrl: '/pull-requests.html?pr=github/alrayyes/a/1',
+    });
+  });
+
+  test('leaves out what refers to the issue', () => {
+    const rows = outgoingRows([ref({ direction: 'incoming' })]);
+
+    expect(rows).toEqual({ closes: [], refs: [], mentions: [] });
   });
 });

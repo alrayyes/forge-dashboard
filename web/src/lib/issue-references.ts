@@ -25,6 +25,13 @@ export type IncomingRows = {
   mentionedByPullRequests: LinkedPullRequest[];
 };
 
+/** What the issue itself refers to, by what it does. */
+export type OutgoingRows = {
+  closes: LinkedPullRequest[];
+  refs: LinkedPullRequest[];
+  mentions: LinkedPullRequest[];
+};
+
 const none = { passed: 0, running: 0, waiting: 0, failed: 0 };
 
 /**
@@ -47,21 +54,35 @@ export function incomingRows(
   for (const ref of references) {
     if (ref.direction !== 'incoming') continue;
 
-    rowOf[ref.relation].push({
-      forge: ref.forge,
-      repo: ref.repo,
-      number: ref.number,
-      draft: false,
-      pageUrl: ref.pageUrl,
-      ci: 'none',
-      checks: none,
-      awaitingWorkflowApproval: false,
-      kind: ref.kind,
-      state: ref.state,
-      url: ref.url,
-    });
+    rowOf[ref.relation].push(pill(ref));
   }
   return rows;
+}
+
+/** The outgoing references: what the issue closes, references and mentions. */
+export function outgoingRows(
+  references: readonly ItemReference[],
+): OutgoingRows {
+  const rows: OutgoingRows = { closes: [], refs: [], mentions: [] };
+  for (const ref of references)
+    if (ref.direction === 'outgoing') rows[ref.relation].push(pill(ref));
+  return rows;
+}
+
+function pill(ref: ItemReference): LinkedPullRequest {
+  return {
+    forge: ref.forge,
+    repo: ref.repo,
+    number: ref.number,
+    draft: false,
+    pageUrl: ref.pageUrl,
+    ci: 'none',
+    checks: none,
+    awaitingWorkflowApproval: false,
+    kind: ref.kind,
+    state: ref.state,
+    url: ref.url,
+  };
 }
 
 /**

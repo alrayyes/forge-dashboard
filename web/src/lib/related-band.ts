@@ -13,15 +13,22 @@ export const DIALOG_SHOWN_PILLS = 6;
 /** What a pull request does to an issue, or an issue to a pull request. */
 export type RelatedRelation = 'closes' | 'refs' | 'mentions';
 
-/** Whose dialog the band sits in. */
-export type RelatedSide = 'pull-request' | 'issue';
+/**
+ * Whose dialog the band sits in, or which of an issue's two directions a row
+ * is: 'issue' is what refers to the issue, 'issue-outgoing' what the issue
+ * itself refers to (#4272).
+ */
+export type RelatedSide = 'pull-request' | 'issue' | 'issue-outgoing';
+
+const DOES: Record<RelatedRelation, string> = {
+  closes: 'Closes',
+  refs: 'Refs',
+  mentions: 'Mentions',
+};
 
 const LABELS: Record<RelatedSide, Record<RelatedRelation, string>> = {
-  'pull-request': {
-    closes: 'Closes',
-    refs: 'Refs',
-    mentions: 'Mentions',
-  },
+  'pull-request': DOES,
+  'issue-outgoing': DOES,
   issue: {
     closes: 'Closed by',
     refs: 'Referenced by',
@@ -37,9 +44,10 @@ export const relationLabel = (side: RelatedSide, relation: RelatedRelation) =>
 export function relatedHint(side: RelatedSide, relation: RelatedRelation) {
   if (relation === 'closes') return '';
   const verb = relation === 'refs' ? 'reference' : 'mention';
-  return side === 'issue'
-    ? `Italic: these ${verb} the issue, they do not close it.`
-    : `Italic: this pull request ${verb}s these, it does not close them.`;
+  if (side === 'issue')
+    return `Italic: these ${verb} the issue, they do not close it.`;
+  const who = side === 'issue-outgoing' ? 'issue' : 'pull request';
+  return `Italic: this ${who} ${verb}s these, it does not close them.`;
 }
 
 /** The pills a row shows, and the ones kept behind the count. */
@@ -74,6 +82,8 @@ export function relatedCount(lists: (readonly Ref[] | undefined)[]) {
 }
 
 export type RelatedRow = {
+  /** Unique in a band: an issue has a refs row for each direction. */
+  key: string;
   relation: RelatedRelation;
   label: string;
   /** Whether the row carries the italic hint. */
@@ -89,6 +99,7 @@ export function relatedRows(
   return order
     .filter((relation) => (lists[relation]?.length ?? 0) > 0)
     .map((relation) => ({
+      key: side === 'issue-outgoing' ? `outgoing-${relation}` : relation,
       relation,
       label: relationLabel(side, relation),
       hint: relation !== 'closes',
@@ -104,26 +115,42 @@ export type RelatedBandRow = RelatedRow & {
 
 export type RelatedBandData = { count: number; rows: RelatedBandRow[] };
 
-/**
- * The band for one dialog: the rows that have items and a node, the count of
- * distinct items, and undefined when there is nothing to show.
- */
-export function relatedBandData(
-  side: RelatedSide,
-  lists: Partial<Record<RelatedRelation, readonly Ref[] | undefined>>,
-  nodes: Partial<Record<RelatedRelation, HTMLElement | null>>,
-): RelatedBandData | undefined {
-  const rows = relatedRows(side, lists).flatMap((row) => {
+type BandLists = Partial<Record<RelatedRelation, readonly Ref[] | undefined>>;
+type BandNodes = Partial<Record<RelatedRelation, HTMLElement | null>>;
+
+const rowsWithNodes = (side: RelatedSide, lists: BandLists, nodes: BandNodes) =>
+  relatedRows(side, lists).flatMap((row) => {
     const node = nodes[row.relation];
     return node
       ? [{ ...row, hintText: relatedHint(side, row.relation), node }]
       : [];
   });
+
+/**
+ * The band for one dialog: the rows that have items and a node, the count of
+ * distinct items, and undefined when there is nothing to show. An issue's
+ * band takes what the issue itself refers to as `outgoing`, drawn after the
+ * rows of what refers to it.
+ */
+export function relatedBandData(
+  side: RelatedSide,
+  lists: BandLists,
+  nodes: BandNodes,
+  outgoing?: { lists: BandLists; nodes: BandNodes },
+): RelatedBandData | undefined {
+  const rows = [
+    ...rowsWithNodes(side, lists, nodes),
+    ...(outgoing
+      ? rowsWithNodes('issue-outgoing', outgoing.lists, outgoing.nodes)
+      : []),
+  ];
   if (rows.length === 0) return undefined;
-  return {
-    count: relatedCount([lists.closes, lists.refs, lists.mentions]),
-    rows,
-  };
+  const all = [lists, outgoing?.lists ?? {}].flatMap((l) => [
+    l.closes,
+    l.refs,
+    l.mentions,
+  ]);
+  return { count: relatedCount(all), rows };
 }
 
 /** A row's pills whose hidden ones the reader opened, so a redrawn band keeps them open. */
