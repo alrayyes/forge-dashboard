@@ -15,7 +15,10 @@
       "rateLimitModel": "rest",
       "rateLimitDocsUrl": "",
       "issueRefSyntax": "hash",
-      "label": "Forgejo"
+      "label": "Forgejo",
+      "imageHosts": [],
+      "avatarHosts": [],
+      "signedAttachmentPrefix": ""
     },
     "github": {
       "autoMergeHeldByApp": false,
@@ -31,7 +34,19 @@
       "rateLimitModel": "graphql_and_rest",
       "rateLimitDocsUrl": "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
       "issueRefSyntax": "hash_or_gh_prefix",
-      "label": "GitHub"
+      "label": "GitHub",
+      "imageHosts": [
+        "github.com",
+        "user-images.githubusercontent.com",
+        "private-user-images.githubusercontent.com",
+        "raw.githubusercontent.com",
+        "gist.githubusercontent.com"
+      ],
+      "avatarHosts": [
+        "avatars.githubusercontent.com",
+        "repository-images.githubusercontent.com"
+      ],
+      "signedAttachmentPrefix": "https://github.com/user-attachments/"
     }
   }
 }

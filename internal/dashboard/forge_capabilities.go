@@ -44,6 +44,18 @@ type ForgeCapabilities struct {
 	IssueRefSyntax string `json:"issueRefSyntax"`
 	// Label is the forge's name as a person reads it.
 	Label string `json:"label"`
+	// ImageHosts are the fixed public hosts an image embedded in the forge's
+	// text may come from, matched by exact name over https and fetched without
+	// the token. Empty means the forge's own saved instance, the one place its
+	// token goes. Never nil, so the API sends a list.
+	ImageHosts []string `json:"imageHosts"`
+	// AvatarHosts are further fixed hosts only avatars and repository logos
+	// load from. Empty for a forge whose avatars live on its own instance.
+	AvatarHosts []string `json:"avatarHosts"`
+	// SignedAttachmentPrefix is the address prefix of an attachment the forge
+	// serves only at a signed link found in the item's rendered body, or empty
+	// when it has none. The server then looks that link up before fetching.
+	SignedAttachmentPrefix string `json:"signedAttachmentPrefix"`
 	// BotLoginSuffix is what the forge appends to a bot account's login
 	// ("[bot]" on GitHub), or empty when it has no bot accounts of this kind.
 	// Server-side only: profile links are built here, so it is not in the API.
@@ -84,7 +96,21 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		RateLimitDocsURL:           "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
 		IssueRefSyntax:             IssueRefHashOrGHPref,
 		Label:                      "GitHub",
-		BotLoginSuffix:             "[bot]",
+		// An image in a pull request, issue or release comes from GitHub's
+		// attachment route and the user-content hosts it redirects to. A public
+		// gist's raw files live on another (#3888). Nothing else is fetched
+		// (#3405).
+		ImageHosts: []string{
+			"github.com",
+			"user-images.githubusercontent.com",
+			"private-user-images.githubusercontent.com",
+			"raw.githubusercontent.com",
+			"gist.githubusercontent.com",
+		},
+		// Avatars and repository logos live on two more (#3467).
+		AvatarHosts:            []string{"avatars.githubusercontent.com", "repository-images.githubusercontent.com"},
+		SignedAttachmentPrefix: "https://github.com/user-attachments/",
+		BotLoginSuffix:         "[bot]",
 		// Pages checked to exist. A bot's login is not its page: Dependabot's
 		// is an organisation at /dependabot (/apps/dependabot only lands on a
 		// docs page), Renovate's is its app page (/renovate is a 404). GitHub
@@ -110,6 +136,9 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		RateLimitDocsURL:           "",
 		IssueRefSyntax:             IssueRefHash,
 		Label:                      "Forgejo",
+		// No fixed hosts: its images come from the saved instance.
+		ImageHosts:  []string{},
+		AvatarHosts: []string{},
 	},
 }
 
