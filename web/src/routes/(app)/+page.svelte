@@ -27,6 +27,7 @@
   import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
   import AdvisoriesNotice from "#lib/AdvisoriesNotice.svelte";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import StatusPills from "#lib/StatusPills.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
   import ListSkeleton from "#lib/ListSkeleton.svelte";
@@ -82,7 +83,6 @@
     CI_SLOT,
     SEGMENTED_STATUSES,
     STATUS_LABEL,
-    statusCount,
     type StatusPill,
     type ForgeFilter,
     rowsToWatch,
@@ -209,17 +209,6 @@
     const nav = branchNavCount(counts);
     untrack(() => setBranchNavCount(nav));
   });
-
-  const STATUS_PILLS: { key: StatusPill; label: string }[] = [
-    { key: "all", label: "All" },
-    { key: "failed", label: "Failing" },
-    { key: "passed", label: "Passing" },
-    { key: "running", label: "Running" },
-    { key: "cancelled", label: "Cancelled" },
-    { key: "awaiting_approval", label: "Waiting for approval" },
-    { key: "unknown", label: "Unknown" },
-    { key: "none", label: "No pipeline" },
-  ];
 
   const rowKey = branchKey;
 
@@ -583,47 +572,6 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
     }
-    .mb-group {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      min-width: 0;
-      max-width: 100%;
-    }
-    .mb-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      min-height: 36px;
-      padding: 0 12px;
-      font: inherit;
-      font-size: 0.8125rem;
-      color: var(--ink);
-      background: var(--surface-sunken);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      cursor: pointer;
-    }
-    .mb-pill:hover {
-      border-color: var(--border-strong);
-    }
-    .mb-pill[aria-pressed="true"] {
-      background: var(--pill-active);
-      border-color: var(--pill-active);
-      color: var(--accent-ink);
-    }
-    .mb-pill[aria-pressed="true"] .mb-count {
-      opacity: var(--pill-active-count-opacity);
-    }
-    @media (forced-colors: active) {
-      /* Forced colors drops the accent fill (#3377): a thicker system-colour
-         border marks the pressed pill, padding cut to match. */
-      .mb-pill[aria-pressed="true"] {
-        border: 3px solid Highlight;
-        padding: 0 10px;
-      }
-    }
-    .mb-pill:focus-visible,
     .mb-toggle:focus-visible,
     .mb-search:focus-visible {
       outline: 2px solid var(--accent);
@@ -633,11 +581,6 @@
       align-self: center;
       font-size: 0.75rem;
       color: var(--ink-muted);
-    }
-    .mb-count {
-      font-size: 0.75rem;
-      font-variant-numeric: tabular-nums;
-      opacity: 0.85;
     }
     .mb-search {
       flex: 1 1 220px;
@@ -936,11 +879,6 @@
     }
     /* The 44px phone policy (#1753) runs to 760px, past the 420px layout
        break below, so the pills get their height here. */
-    @media (max-width: 760px) {
-      .mb-pill {
-        min-height: 44px;
-      }
-    }
     @media (max-width: 420px) {
       .mb-wrap {
         padding-top: 16px;
@@ -1087,18 +1025,12 @@
       {/if}
 
       <div class="mb-bar">
-        <div class="mb-group" role="group" aria-label="Filter by status">
-          {#each STATUS_PILLS.filter( (p) => statusOffered.has(p.key) ) as { key, label } (key)}
-            <button
-              type="button"
-              class="mb-pill"
-              aria-pressed={filter.status === key}
-              onclick={() => setStatus(key)}
-              >{label}
-              <span class="mb-count">{statusCount(counts, key)}</span></button
-            >
-          {/each}
-        </div>
+        <StatusPills
+          offered={statusOffered}
+          {counts}
+          status={filter.status}
+          onselect={setStatus}
+        />
         <div class="mb-group" role="group" aria-label="Filter by forge">
           <button
             type="button"
