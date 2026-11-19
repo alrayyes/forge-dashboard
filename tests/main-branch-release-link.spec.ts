@@ -162,6 +162,40 @@ test.describe('Branches page latest release link', () => {
     expect(results.violations).toEqual([]);
   });
 
+  // https://github.com/alrayyes/forge-dashboard/issues/4230
+  test('an item address in the notes opens in the dashboard when the repository is tracked', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      [
+        'Fixes https://example.com/acme/longtag/issues/529',
+        '',
+        'See https://example.com/acme/stranger/issues/9',
+      ].join('\n'),
+    );
+    await releaseLink(page, 'acme/shipped').click();
+    const dialog = page.locator('dialog.details-dialog');
+
+    const tracked = dialog.locator('a[data-ref-repo="acme/longtag"]');
+    await expect(tracked).toHaveAttribute(
+      'href',
+      '/issues.html?issue=github/acme/longtag/529',
+    );
+    await expect(tracked).toHaveAttribute('data-ref-number', '529');
+    await expect(tracked).not.toHaveAttribute('target', /.*/);
+
+    const stranger = dialog.getByRole('link', {
+      name: /acme\/stranger\/issues\/9/,
+    });
+    await expect(stranger).toHaveAttribute(
+      'href',
+      'https://example.com/acme/stranger/issues/9',
+    );
+    await expect(stranger).toHaveAttribute('target', '_blank');
+    await expect(stranger).not.toHaveAttribute('data-ref-repo', /.*/);
+  });
+
   test('Escape and Close close it and focus returns to the tag', async ({
     page,
   }) => {

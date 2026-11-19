@@ -298,6 +298,15 @@ describe('item addresses in a body the dashboard tracks', () => {
     expect(html).not.toContain('target=');
   });
 
+  test('leave a number too long to be an item as a forge link', async () => {
+    const html = await renderMarkdown(
+      '[t](https://github.com/o/r/issues/1234567890)',
+      opts,
+    );
+    expect(html).toContain('target="_blank"');
+    expect(html).not.toContain('data-ref-');
+  });
+
   test('read a Forgejo /pulls/N address', async () => {
     const html = await renderMarkdown(
       '[x](https://git.example.org/me/app/pulls/3)',

@@ -161,7 +161,9 @@
       triggerId: string,
     ) => void;
     // Whether the dashboard tracks this repository (`owner/name`) on a forge,
-    // which decides if a reference opens a dialog or goes to the forge.
+    // which decides if a reference is a dashboard link or goes to the forge.
+    // Without `onReference` that link is followed as a plain link to the
+    // Issues page, which opens the item (#4230).
     trackedRepo?: (forge: string, repo: string) => boolean;
   } = $props();
 
@@ -459,7 +461,7 @@
       jobs.push(
         renderMarkdown(text, {
           repoUrl: repoUrlOf(current.url),
-          references: onReference
+          references: trackedRepo
             ? {
                 forge: current.forge,
                 tracked: (repo) => trackedRepo?.(current.forge, repo) ?? false,
