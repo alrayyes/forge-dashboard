@@ -40,16 +40,6 @@ const LABELS: Record<RelatedSide, Record<RelatedRelation, string>> = {
 export const relationLabel = (side: RelatedSide, relation: RelatedRelation) =>
   LABELS[side][relation];
 
-/** The italic cue's words. Refs and mentions pills are drawn dotted and italic. */
-export function relatedHint(side: RelatedSide, relation: RelatedRelation) {
-  if (relation === 'closes') return '';
-  const verb = relation === 'refs' ? 'reference' : 'mention';
-  if (side === 'issue')
-    return `Italic: these ${verb} the issue, they do not close it.`;
-  const who = side === 'issue-outgoing' ? 'issue' : 'pull request';
-  return `Italic: this ${who} ${verb}s these, it does not close them.`;
-}
-
 /** The pills a row shows, and the ones kept behind the count. */
 export function foldSplit<T>(list: T[], limit: number = DIALOG_SHOWN_PILLS) {
   return { shown: list.slice(0, limit), rest: list.slice(limit) };
@@ -86,8 +76,6 @@ export type RelatedRow = {
   key: string;
   relation: RelatedRelation;
   label: string;
-  /** Whether the row carries the italic hint. */
-  hint: boolean;
 };
 
 /** The rows the band has, in order. A row with no items is left out, and so is the band when none has. */
@@ -102,13 +90,10 @@ export function relatedRows(
       key: side === 'issue-outgoing' ? `outgoing-${relation}` : relation,
       relation,
       label: relationLabel(side, relation),
-      hint: relation !== 'closes',
     }));
 }
 
 export type RelatedBandRow = RelatedRow & {
-  /** The italic cue's words, empty for a row with none. */
-  hintText: string;
   /** The row's pills, as the row builders draw them. */
   node: HTMLElement;
 };
@@ -121,9 +106,7 @@ type BandNodes = Partial<Record<RelatedRelation, HTMLElement | null>>;
 const rowsWithNodes = (side: RelatedSide, lists: BandLists, nodes: BandNodes) =>
   relatedRows(side, lists).flatMap((row) => {
     const node = nodes[row.relation];
-    return node
-      ? [{ ...row, hintText: relatedHint(side, row.relation), node }]
-      : [];
+    return node ? [{ ...row, node }] : [];
   });
 
 /**

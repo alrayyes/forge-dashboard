@@ -220,6 +220,8 @@ test('every pill name leads with the relation and contains the visible text', as
   await expect(
     row(dialog, 'Mentions').locator('.linked-pr'),
   ).toHaveAccessibleName('Mentions: #9, opens the issue');
+  // The label and the pill's name say it; no line of its own under a row.
+  await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
 test('an issue dialog pins the closing pull request name: relation, number, draft word and pipeline', async ({
@@ -254,7 +256,7 @@ test('an issue dialog pins the closing pull request name: relation, number, draf
   await expect(dialog.locator('.related-count')).toHaveText('6');
 });
 
-test('an issue also referenced by pull requests has a Referenced by row with the hint', async ({
+test('an issue also referenced by pull requests has a Referenced by row and no hint line', async ({
   page,
 }) => {
   const dialog = await openIssue(
@@ -268,9 +270,7 @@ test('an issue also referenced by pull requests has a Referenced by row with the
     'Closed by',
     'Referenced by',
   ]);
-  await expect(
-    row(dialog, 'Referenced by').locator('.related-hint'),
-  ).toHaveText('Italic: these reference the issue, they do not close it.');
+  await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
 test('an issue referenced by a pull request pins the pill name: Referenced by, then the pull request', async ({
@@ -434,9 +434,7 @@ test('an issue on the board lists what it refers to, after what refers to it', a
   await expect(
     row(dialog, 'Mentions').locator('.linked-pr'),
   ).toHaveAccessibleName('Mentions: Issue #4300 closed');
-  await expect(row(dialog, 'Refs')).toContainText(
-    'Italic: this issue references these, it does not close them.',
-  );
+  await expect(dialog.locator('.related-hint')).toHaveCount(0);
   await expect(dialog.locator('.related-count')).toHaveText('3');
 });
 

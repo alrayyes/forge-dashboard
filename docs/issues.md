@@ -43,8 +43,7 @@ loads.
 The Related band draws the outgoing entries below the rows of what refers to
 the issue, whether or not the board lists the issue: "Refs" and "Mentions", each
 pill named for what the issue does. Its accessible name starts with the row, as
-in "Refs: Issue" and the number. Its italic hint reads "Italic: this issue
-references these, it does not close them." The count at the top of the band
+in "Refs: Issue" and the number. The count at the top of the band
 counts each item once, across all the rows. An item the dashboard tracks opens
 in the pop-up as the other pills do; any other is a link to its page on the
 forge.
@@ -250,9 +249,8 @@ ones. The pills on the row keep the shorter number.
 A pill says so in its tooltip ("References this issue, does
 not close it") and in its accessible name. The same sentence shows under the
 pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
-and the pill keeps focus. The pop-up spells it out under
-"Referenced by" ("Italic: these reference the issue, they do not close it.")
-so a phone reader gets it without hover. Settings repeats it under
+and the pill keeps focus. The pop-up's rows have no line of their own for it:
+the row's label and the pill's accessible name carry it. Settings repeats it under
 Behaviour, in the Issues card: upright means the pull request closes the
 issue, italic means it only references it and does not close it. How a
 mention is read is in [Tickets a pull request

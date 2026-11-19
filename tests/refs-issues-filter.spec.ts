@@ -331,10 +331,7 @@ test.describe('the refs pill on an issue row', () => {
       'Referenced by',
     ]);
     await expect(popup.locator('.refs-pill')).toHaveCount(2);
-    // Reachable without hover, so a phone reader gets it too.
-    await expect(popup.locator('.related-hint')).toHaveText(
-      'Italic: these reference the issue, they do not close it.',
-    );
+    await expect(popup.locator('.related-hint')).toHaveCount(0);
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
