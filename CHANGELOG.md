@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.81.0](https://github.com/alrayyes/forge-dashboard/compare/v9.80.2...v9.81.0) (2026-11-19)
+
+
+### Features
+
+* **web:** show labels as coloured chips in the Labels filter ([#4278](https://github.com/alrayyes/forge-dashboard/issues/4278)) ([d01bfd3](https://github.com/alrayyes/forge-dashboard/commit/d01bfd30d3ab435d23a9f0b65ab238f3421ed590)), closes [#4274](https://github.com/alrayyes/forge-dashboard/issues/4274)
+
 ## [9.80.2](https://github.com/alrayyes/forge-dashboard/compare/v9.80.1...v9.80.2) (2026-11-19)
 
 
