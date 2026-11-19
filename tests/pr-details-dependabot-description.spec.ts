@@ -100,6 +100,29 @@ for (const scheme of ['light', 'dark'] as const) {
       await md.locator('summary', { hasText: 'Commits' }).click();
       await expect(md.locator('details[open] li').first()).toBeVisible();
 
+      // The commands section is the last details. It holds Markdown, not
+      // just tags, so its list items and code spans must be inside it.
+      const commands = md.locator('details', {
+        has: page.locator('summary', {
+          hasText: 'Dependabot commands and options',
+        }),
+      });
+      await expect(commands.locator('code').first()).toBeHidden();
+      await commands
+        .locator('summary', { hasText: 'Dependabot commands and options' })
+        .click();
+      await expect(commands).toHaveJSProperty('open', true);
+      await expect(commands.locator('li')).toHaveCount(2);
+      await expect(
+        commands.locator('li code', { hasText: '@dependabot rebase' }),
+      ).toBeVisible();
+      await expect(
+        commands.locator('li code', { hasText: '@dependabot merge' }),
+      ).toBeVisible();
+      await expect(commands).toContainText(
+        'You can trigger Dependabot actions by commenting on this PR',
+      );
+
       // Links keep the link rules.
       for (const a of await md.locator('a').all()) {
         await expect(a).toHaveAttribute('rel', 'noopener noreferrer');
