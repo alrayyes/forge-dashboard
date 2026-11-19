@@ -9,6 +9,7 @@
     withBoardState,
   } from "./linked-pull-requests.js";
   import { mentionPills } from "./mentioned-issues.js";
+  import { patchPills } from "./patch-pills.js";
   import { relatedBandData } from "./related-band.js";
 
   const { Story } = defineMeta({
@@ -47,10 +48,11 @@
     if (p.ci === "none") return null;
     const badge = document.createElement("span");
     badge.className = "ci-pill";
-    badge.textContent = "Running 3";
+    const label = p.ci === "success" ? "Passed" : "Running";
+    badge.textContent = `${label} 3`;
     return {
       badge,
-      label: "Running",
+      label,
       segments: [{ kind: "passed" as const, n: 3 }],
     };
   };
@@ -107,6 +109,28 @@
       },
     );
   };
+
+  // The band the "Patches in place" story shows; its button swaps in a fresh
+  // draw of the same pills, one pull request's checks having finished.
+  let live = $state.raw(
+    issueBand([pr(1, { ci: "pending" }), pr(2, { ci: "pending" })]),
+  );
+  const finished = () =>
+    issueBand([pr(1, { ci: "pending" }), pr(2, { ci: "success" })]);
+
+  // The same for a row of eight, so the last two sit behind the fold, and for
+  // a draw that has another pull request.
+  const eight = (last: Partial<LinkedPullRequest>) =>
+    issueBand(
+      Array.from({ length: 8 }, (_, i) =>
+        pr(i + 1, { ci: "pending", ...(i === 7 ? last : {}) }),
+      ),
+    );
+  let folded = $state.raw(eight({}));
+  let grown = $state.raw(issueBand([pr(1, { ci: "pending" })]));
+  let swapped = $state.raw(
+    issueBand([pr(1, { ci: "pending" }), pr(2, { ci: "pending" })]),
+  );
 </script>
 
 <!-- A pull request: what it closes, references and mentions. -->
@@ -221,3 +245,145 @@
     await expect(canvasElement.querySelector(".related-band")).toBeNull();
   }}
 />
+
+<!-- A pill whose pull request changed is written where it stands: the same element, its text and name new, its neighbour untouched (#4328). -->
+<Story
+  name="Patches in place"
+  play={async ({ canvasElement }) => {
+    const pills = () => [...canvasElement.querySelectorAll(".linked-pr")];
+    const [first, second] = pills();
+    await expect(second.getAttribute("aria-label")).toContain("Running");
+    // Whatever the new draw doesn't have is taken off.
+    second.setAttribute("data-stale", "1");
+    await userEvent.click(
+      canvasElement.querySelector("button.change") as Element,
+    );
+    const [afterFirst, afterSecond] = pills();
+    await expect(afterFirst).toBe(first);
+    await expect(afterSecond).toBe(second);
+    await expect(second.getAttribute("aria-label")).toContain("Passed");
+    await expect(second.getAttribute("aria-label")).not.toContain("Running");
+    await expect(second.textContent).toContain("Passed");
+    await expect(second.hasAttribute("data-stale")).toBe(false);
+  }}
+>
+  {#snippet template()}
+    <RelatedBand band={live!} />
+    <button type="button" class="change" onclick={() => (live = finished())}>
+      Change
+    </button>
+  {/snippet}
+</Story>
+
+<!-- A pill kept behind the fold is written too, so it is right when the fold opens. -->
+<Story
+  name="Patches a folded pill"
+  play={async ({ canvasElement }) => {
+    const toggle = canvasElement.querySelector(
+      ".related-toggle",
+    ) as HTMLButtonElement;
+    await expect(canvasElement.querySelectorAll(".linked-pr").length).toBe(6);
+    await userEvent.click(
+      canvasElement.querySelector("button.change") as Element,
+    );
+    await expect(canvasElement.querySelector(".related-toggle")).toBe(toggle);
+    await userEvent.click(toggle);
+    const all = [...canvasElement.querySelectorAll(".linked-pr")];
+    await expect(all.length).toBe(8);
+    await expect(all[7].getAttribute("aria-label")).toContain("Passed");
+    await expect(all[0].getAttribute("aria-label")).toContain("Running");
+  }}
+>
+  {#snippet template()}
+    <RelatedBand band={folded!} />
+    <button
+      type="button"
+      class="change"
+      onclick={() => (folded = eight({ ci: "success" }))}
+    >
+      Change
+    </button>
+  {/snippet}
+</Story>
+
+<!-- Another pull request in the draw: the band is replaced, not patched. -->
+<Story
+  name="Replaces when a pull request is added"
+  play={async ({ canvasElement }) => {
+    const before = canvasElement.querySelector(".linked-pr");
+    await userEvent.click(
+      canvasElement.querySelector("button.change") as Element,
+    );
+    const after = [...canvasElement.querySelectorAll(".linked-pr")];
+    await expect(after.length).toBe(2);
+    await expect(after[0]).not.toBe(before);
+  }}
+>
+  {#snippet template()}
+    <RelatedBand band={grown!} />
+    <button
+      type="button"
+      class="change"
+      onclick={() =>
+        (grown = issueBand([
+          pr(1, { ci: "pending" }),
+          pr(2, { ci: "pending" }),
+        ]))}
+    >
+      Change
+    </button>
+  {/snippet}
+</Story>
+
+<!-- The same number of pills but another pull request: not the same pill, so the band is replaced. -->
+<Story
+  name="Replaces when a pull request is swapped"
+  play={async ({ canvasElement }) => {
+    const before = [...canvasElement.querySelectorAll(".linked-pr")];
+    await userEvent.click(
+      canvasElement.querySelector("button.change") as Element,
+    );
+    const after = [...canvasElement.querySelectorAll(".linked-pr")];
+    await expect(after[1]).not.toBe(before[1]);
+    await expect(after[1].getAttribute("href")).toContain("/3");
+  }}
+>
+  {#snippet template()}
+    <RelatedBand band={swapped!} />
+    <button
+      type="button"
+      class="change"
+      onclick={() =>
+        (swapped = issueBand([
+          pr(1, { ci: "pending" }),
+          pr(3, { ci: "pending" }),
+        ]))}
+    >
+      Change
+    </button>
+  {/snippet}
+</Story>
+
+<!-- Pills with no address and no id can't be matched, so nothing is patched. -->
+<Story
+  name="Does not patch pills it cannot tell apart"
+  play={async () => {
+    const draw = (text: string) => {
+      const band = document.createElement("div");
+      for (const label of ["a", "b"]) {
+        const pill = document.createElement("span");
+        pill.className = "linked-pr";
+        pill.textContent = `${label} ${text}`;
+        band.append(pill);
+      }
+      return band;
+    };
+    const current = draw("old");
+    await expect(patchPills(current, draw("new"))).toBe(false);
+    await expect(current.textContent).toBe("a oldb old");
+  }}
+>
+  {#snippet template()}
+    <p>No pills with an address.</p>
+  {/snippet}
+</Story>

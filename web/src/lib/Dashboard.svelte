@@ -2361,6 +2361,12 @@
       ]);
     }
 
+    // The label chips are drawn again only when the labels changed: a change
+    // to a linked pull request leaves them as they are (#4328).
+    function labelsOf(item: IssueDialogItem): string {
+      return JSON.stringify(item.labels ?? []);
+    }
+
     function followIssueDialog(issues: IssueItem[]) {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
@@ -2371,10 +2377,14 @@
         const item = { ...open.item, ...listed };
         const shown = attributesSignature(item, open.outgoing);
         if (shown !== open.shown) {
+          const relabelled = labelsOf(open.item) !== labelsOf(item);
           open.item = item;
           open.shown = shown;
           const status = issueStatus(item, open.outgoing);
-          detailsDialog.setAttributes(status.attributes, status.related);
+          detailsDialog.setAttributes(
+            relabelled ? status.attributes : undefined,
+            status.related,
+          );
         }
       }
       const now = listed?.updatedAt;
@@ -2807,8 +2817,12 @@
       open.item = item;
       open.outgoing = outgoing;
       open.shown = shown;
-      const status = issueStatus(item, outgoing);
-      detailsDialog.setAttributes(status.attributes, status.related);
+      // Only the three rows were merged in: the labels are what they were, so
+      // the chips stay and the band is brought up to date (#4328).
+      detailsDialog.setAttributes(
+        undefined,
+        issueStatus(item, outgoing).related,
+      );
     };
 
     pullRequestFound = () => {

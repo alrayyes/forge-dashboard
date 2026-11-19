@@ -199,7 +199,11 @@ on, so you stay where you are and the address and the browser history don't
 change. On the Pull requests page a pull request the board lists opens with its
 actions. One the dashboard doesn't hold is named in a note instead.
 Closing that pop-up puts keyboard focus back on the pill in the list. The links
-follow the board while the pop-up stays open.
+follow the board while the pop-up stays open, and only what changed is written:
+a pill whose pull request changed (merged, closed, its checks) stays the same
+element, so keyboard focus and an open "+N more" fold stay, the label chips are
+drawn again only when the labels changed, and a pull request the issue doesn't
+link to changes nothing in the pop-up.
 
 The server works this out, from the pull requests it already holds, so it costs
 the forge no request. It counts a draft, and a pull request you hid, but not
