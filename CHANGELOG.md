@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.3](https://github.com/alrayyes/forge-dashboard/compare/v9.88.2...v9.88.3) (2026-11-19)
+
+
+### Bug Fixes
+
+* **forgejo:** keep a cancelled context and partial timeline pages right ([#4379](https://github.com/alrayyes/forge-dashboard/issues/4379)) ([e7d4dac](https://github.com/alrayyes/forge-dashboard/commit/e7d4dacb799b6e9030828a252f3616b90cb3f08e)), closes [#4322](https://github.com/alrayyes/forge-dashboard/issues/4322)
+
 ## [9.88.2](https://github.com/alrayyes/forge-dashboard/compare/v9.88.1...v9.88.2) (2026-11-19)
 
 
