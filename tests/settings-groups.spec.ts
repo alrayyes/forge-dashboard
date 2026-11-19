@@ -159,7 +159,10 @@ test.describe('settings groups', () => {
     await expect(note).toContainText(
       'italic means it only references or mentions it',
     );
-    await expect(note).toContainText('the pop-up has no line of its own');
+    await expect(note).toContainText(
+      "Related band says which in the row's label.",
+    );
+    await expect(note).not.toContainText('line of its own');
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();

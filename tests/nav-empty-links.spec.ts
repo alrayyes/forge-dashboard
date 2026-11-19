@@ -364,20 +364,43 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, '/releases.html')).toBeVisible();
   });
 
-  test('the Pull requests link comes back without a reload when a pull request opens (#1415)', async ({
-    page,
-  }) => {
-    const state: Snapshot = { pullRequests: [], openIssueCount: 0 };
-    await mockDashboard(page, state);
-    await page.clock.install();
-    await page.goto('/settings.html');
-    await expect(header(page, PULLS)).toHaveCount(0);
+  for (const width of [390, 1280]) {
+    test(`the Pull requests link comes back without a reload when a pull request opens at ${width}px (#1415)`, async ({
+      page,
+    }) => {
+      const state: Snapshot = { pullRequests: [], openIssueCount: 0 };
+      let reads = 0;
+      page.on('request', (request) => {
+        if (/\/api\/v1\/dashboard(\?.*)?$/.test(request.url())) reads++;
+      });
+      await page.setViewportSize({ width, height: 844 });
+      await mockDashboard(page, state);
+      await page.clock.install();
+      await page.goto('/settings.html');
+      // No link is drawn before the first snapshot lands (#4276), so a count of
+      // zero here proves nothing about whether the page has read yet. The poll
+      // timer is only armed once that read is answered.
+      await expect.poll(() => reads).toBeGreaterThan(0);
+      await expect(header(page, PULLS)).toHaveCount(0);
 
-    state.pullRequests = [makePR(1)];
-    await page.clock.runFor(31_000);
-    await expect(header(page, PULLS)).toBeVisible();
-    await expect(tab(page, PULLS)).toHaveCount(1);
-  });
+      state.pullRequests = [makePR(1)];
+      // One interval at a time until the page has read again: a runFor that
+      // lands before the timer is armed moves the clock past it for good.
+      await expect
+        .poll(async () => {
+          await page.clock.runFor(31_000);
+          return reads;
+        })
+        .toBeGreaterThan(1);
+      // The header nav is hidden below the tablet width and the tab bar takes
+      // over, so each is checked in the DOM and the one on show for its look.
+      await expect(header(page, PULLS)).toHaveCount(1);
+      await expect(tab(page, PULLS)).toHaveCount(1);
+      await expect(
+        width < 768 ? tab(page, PULLS) : header(page, PULLS),
+      ).toBeVisible();
+    });
+  }
 
   test('a page typed into the address bar with a count of zero still opens with its own empty state', async ({
     page,

@@ -9,7 +9,15 @@ import { readFileSync } from 'node:fs';
 
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
-// Every selector in the stylesheet that draws a pressed pill's ::before.
+// The e2e journey also guards this in a browser, but only for the pills it
+// visits. This test reads the stylesheet, so a tick drawn under any class is
+// caught without one.
+
+const pressed = /\[aria-pressed=(["']?)true\1\]/;
+const pseudo = /::?(before|after)$/;
+
+// Every selector in the stylesheet that draws a pressed element's ::before or
+// ::after, under any class.
 function tickSelectors(source: string): string[] {
   const found: string[] = [];
   for (const m of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
@@ -20,10 +28,7 @@ function tickSelectors(source: string): string[] {
       .split(',')
       .map((part) => part.trim());
     for (const selector of selectors) {
-      if (
-        selector.includes('[aria-pressed="true"]') &&
-        selector.endsWith('::before')
-      ) {
+      if (pressed.test(selector) && pseudo.test(selector)) {
         found.push(selector);
       }
     }
@@ -33,6 +38,26 @@ function tickSelectors(source: string): string[] {
 }
 
 describe('The pressed pill tick', () => {
+  test('is found under any class, quoting or pseudo-element spelling', () => {
+    const sample = [
+      '.a[aria-pressed="true"]::before { content: "x"; }',
+      ".b[aria-pressed='true']::after { content: 'x'; }",
+      '.c[aria-pressed=true]:before { content: "x"; }',
+      '.d[aria-pressed="true"], .e[aria-pressed="false"]::before { x: y; }',
+      '.f[aria-pressed="true"] { color: red; }',
+    ].join('\n');
+    expect(tickSelectors(sample)).toEqual([
+      '.a[aria-pressed="true"]::before',
+      ".b[aria-pressed='true']::after",
+      '.c[aria-pressed=true]:before',
+    ]);
+  });
+
+  test('is drawn only on the quick pill', () => {
+    const others = tickSelectors(css).filter((s) => !s.includes('.quick-pill'));
+    expect(others).toEqual([]);
+  });
+
   test('is scoped away from the CI filter pill by its own selector', () => {
     const ticks = tickSelectors(css).filter((s) => s.includes('.quick-pill'));
     expect(ticks.length).toBeGreaterThan(0);
