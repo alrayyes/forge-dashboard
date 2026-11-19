@@ -22,6 +22,7 @@ const singleUserSpecs = [
   '**/forced-colors-current-page.spec.ts',
   '**/filter-pill-count-contrast.spec.ts',
   '**/status-pill-glyphs.spec.ts',
+  '**/overview-ci-filter-glyphs.spec.ts',
   '**/result-count.spec.ts',
   '**/advisory-chip-fit.spec.ts',
   '**/dashboard-error-banner.spec.ts',

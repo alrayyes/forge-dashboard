@@ -119,7 +119,7 @@ const declared = (body: string, prop: string) =>
 
 // A status pill's tone and tinted background, as the stylesheet declares them.
 function tone(source: string, status: string, theme: Map<string, string>) {
-  const body = rule(source, `.mb-pill[data-status="${status}"]`);
+  const body = rule(source, `.ci-filter-pill[data-status="${status}"]`);
   const read = (prop: string) => {
     const v = declared(body, prop);
     if (!v) throw new Error(`${status} sets no ${prop}`);
@@ -146,7 +146,8 @@ function failures(source: string, theme: Map<string, string>): string[] {
       out.push(`${status} pressed count is ${count.toFixed(2)}:1`);
   }
   const edge = resolve(
-    declared(rule(source, '.mb-pill[data-status]'), 'border-color') ?? '',
+    declared(rule(source, '.ci-filter-pill[data-status]'), 'border-color') ??
+      '',
     theme,
   );
   const edgeRatio = ratio(edge, page);
@@ -183,7 +184,7 @@ describe('Status pill colours', () => {
 
   test('fails when a glyph colour is made unreadable', () => {
     const bad = css.replace(
-      /(\.mb-pill\[data-status="passed"\] \{[^}]*--mb-tone:)\s*[^;]+;/,
+      /(\.ci-filter-pill\[data-status="passed"\] \{[^}]*--mb-tone:)\s*[^;]+;/,
       '$1 #ffff00;',
     );
     expect(failures(bad, light).length).toBeGreaterThan(0);
@@ -191,7 +192,7 @@ describe('Status pill colours', () => {
 
   test('fails when the edge is the faint divider colour', () => {
     const bad = css.replace(
-      /(\.mb-pill\[data-status\] \{[^}]*border-color:)\s*[^;]+;/,
+      /(\.ci-filter-pill\[data-status\] \{[^}]*border-color:)\s*[^;]+;/,
       '$1 var(--border);',
     );
     expect(
