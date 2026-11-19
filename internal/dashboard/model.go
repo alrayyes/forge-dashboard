@@ -371,6 +371,12 @@ type PullRequest struct {
 	// failing in CI, so a client uses this to say "waiting for approval"
 	// instead of "check failed". Always present; false on Forgejo.
 	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
+	// ChecksIncomplete is true while the forge has not yet listed every check
+	// of the head commit, so Checks counts some of them and the rest will
+	// arrive. A fact for the client to word; the server sends no text. Always
+	// present; false on GitHub, whose rollup says nothing about checks still to
+	// be created.
+	ChecksIncomplete bool `json:"checksIncomplete"`
 	// FailingOnlyForApproval is true when held runs are the only reason CI reads
 	// as failing: no job really failed. The menu pill counts such a pull
 	// request in the total but not as failed. Server-side only, so the API shape
