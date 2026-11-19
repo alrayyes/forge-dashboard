@@ -1,8 +1,5 @@
-import {
-  branchNavCount,
-  countMainBranches,
-  type MainBranch,
-} from './main-branches';
+import type { MainBranch } from './main-branches';
+import { nextNavCounts } from './nav-counts-next';
 
 // The numbers each nav item shows (#1315): how many items its page lists and
 // how many of them are failing. The server counts all but Branches
@@ -56,17 +53,12 @@ export function setNavCounts(
   branchRows: readonly MainBranch[] | undefined,
   keepPageBranches = false,
 ) {
-  navCounts.value = raw
-    ? {
-        branches:
-          (keepPageBranches && pageBranches) ||
-          branchNavCount(countMainBranches(branchRows ?? [])),
-        pullRequests: raw.pullRequests,
-        issues: { total: raw.issues.total, failed: 0 },
-        releases: raw.releases,
-        bots: raw.bots,
-      }
-    : null;
+  navCounts.value = nextNavCounts(
+    navCounts.value,
+    raw,
+    branchRows,
+    keepPageBranches ? pageBranches : null,
+  );
 }
 
 // The Branches page reads its own list, which can be a poll newer than the

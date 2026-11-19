@@ -290,6 +290,64 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, PULLS)).toHaveCount(0);
   });
 
+  test('a later snapshot without navCounts keeps the links already drawn (#4318)', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
+      reads++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          ...(reads === 1 ? { navCounts: navCountsFor([makePR(1)], 0) } : {}),
+        }),
+      });
+    });
+    await page.goto('/settings.html');
+    await expect(header(page, PULLS)).toHaveCount(1);
+
+    await page.clock.runFor(31_000);
+    await expect.poll(() => reads).toBeGreaterThan(1);
+    await expect(header(page, PULLS)).toHaveCount(1);
+    await expect(tab(page, PULLS)).toHaveCount(1);
+  });
+
+  test("the links stay out while the server's first refresh runs, even when the snapshot carries counts, and come in when it ends (#4318)", async ({
+    page,
+  }) => {
+    await page.clock.install();
+    let reads = 0;
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
+      reads++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          firstRefreshDone: reads > 1,
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      });
+    });
+    await page.goto('/settings.html');
+    await expect.poll(() => reads).toBeGreaterThan(0);
+    await expect(header(page, PULLS)).toHaveCount(0);
+
+    await page.clock.runFor(31_000);
+    await expect(header(page, PULLS)).toHaveCount(1);
+  });
+
   test('a count that rises brings its link in without a reload', async ({
     page,
   }) => {
