@@ -250,6 +250,7 @@
   } from "#lib/rate-limit.js";
   import type { LockInfo } from "#lib/lock-info.js";
   import { type RowClaim, rowClaim } from "#lib/row-claim.js";
+  import { chromeIsCurrent } from "#lib/dialog-chrome.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -2230,7 +2231,13 @@
         chrome.option?.outerHTML,
         ...chrome.actions.map((a) => a.outerHTML),
       ].join("\n");
-      if (sig === lastChromeSig && item === lastChromeItem) return;
+      if (
+        chromeIsCurrent(
+          { sig: lastChromeSig, item: lastChromeItem },
+          { sig, item },
+        )
+      )
+        return;
       lastChromeSig = sig;
       lastChromeItem = item;
 
