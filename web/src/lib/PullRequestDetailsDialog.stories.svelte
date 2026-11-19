@@ -243,7 +243,7 @@
     expect(markdown.querySelector("blockquote li code")?.textContent).toBe(
       "<detached>",
     );
-    expect(markdown.querySelectorAll("a[rel~=noopener]")).toHaveLength(2);
+    expect(markdown.querySelectorAll("a[rel~=noopener]")).toHaveLength(3);
   }}
 >
   {@render opener({
