@@ -115,6 +115,15 @@ describe('linkedPillName', () => {
     );
   });
 
+  test('says in its tooltip what the issue does to what it refers to', () => {
+    expect(linkedPillTitle('refs', 'issue-outgoing')).toBe(
+      'This issue references this, it does not close it',
+    );
+    expect(linkedPillTitle('mentions', 'issue-outgoing')).toBe(
+      'This issue mentions this',
+    );
+  });
+
   test('carries the whole repo when it is another one, and still the visible text', () => {
     const other = pr({ repo: 'alrayyes/other', draft: true });
     const name = linkedPillName(other, 'alrayyes/app');
@@ -362,6 +371,16 @@ describe('linkedDialogName', () => {
     expect(linkedDialogName(pr(), 'alrayyes/app', null, 'mentions')).toBe(
       'Mentioned by: Pull request #12',
     );
+  });
+
+  test('says what the issue itself does when the pill is something it refers to', () => {
+    const issue = pr({ kind: 'issue', state: 'open', number: 7 });
+    const name = (relation: 'closes' | 'refs' | 'mentions') =>
+      linkedDialogName(issue, 'alrayyes/app', null, relation, 'issue-outgoing');
+
+    expect(name('refs')).toStartWith('Refs: ');
+    expect(name('mentions')).toStartWith('Mentions: ');
+    expect(name('refs')).toContain('#7');
   });
 
   test('names the repo of a pull request in another one', () => {

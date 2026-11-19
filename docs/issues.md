@@ -40,6 +40,15 @@ and `mentions` for the rest. An item that can't be read is left out. If the
 lookup itself fails, the outgoing entries are left out and the thread still
 loads.
 
+The Related band draws the outgoing entries below the rows of what refers to
+the issue, whether or not the board lists the issue: "Refs" and "Mentions", each
+pill named for what the issue does. Its accessible name starts with the row, as
+in "Refs: Issue" and the number. Its italic hint reads "Italic: this issue
+references these, it does not close them." The count at the top of the band
+counts each item once, across all the rows. An item the dashboard tracks opens
+in the pop-up as the other pills do; any other is a link to its page on the
+forge.
+
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
 whether it is open, closed or merged, taken from the same answer. The status

@@ -7,8 +7,11 @@ import {
   foldSplit,
   foldToggleName,
   foldToggleText,
+  relatedBandData,
   relatedCount,
+  relatedHint,
   relatedRows,
+  relationLabel,
 } from './related-band';
 
 // The Related band at the top of the pull request and issue dialogs (#4220):
@@ -109,5 +112,85 @@ describe('the rows', () => {
       }).map((r) => r.relation),
     ).toEqual(['mentions']);
     expect(relatedRows('pull-request', {})).toEqual([]);
+  });
+});
+
+describe('what an issue refers to', () => {
+  const node = () => ({}) as HTMLElement;
+  const one = [ref('alrayyes/a', 1)];
+
+  test('is labelled as the item does it, not as it is done to the issue', () => {
+    expect(relationLabel('issue-outgoing', 'refs')).toBe('Refs');
+    expect(relationLabel('issue-outgoing', 'mentions')).toBe('Mentions');
+    expect(relationLabel('issue-outgoing', 'closes')).toBe('Closes');
+  });
+
+  test('has a hint that says the issue does it', () => {
+    expect(relatedHint('issue-outgoing', 'closes')).toBe('');
+    expect(relatedHint('issue-outgoing', 'refs')).toBe(
+      'Italic: this issue references these, it does not close them.',
+    );
+    expect(relatedHint('issue-outgoing', 'mentions')).toBe(
+      'Italic: this issue mentions these, it does not close them.',
+    );
+  });
+
+  test('follows the incoming rows, each under its own key', () => {
+    const band = relatedBandData(
+      'issue',
+      { refs: one },
+      { refs: node() },
+      { lists: { refs: [ref('alrayyes/b', 2)] }, nodes: { refs: node() } },
+    );
+
+    expect(band?.rows.map((r) => [r.key, r.label])).toEqual([
+      ['refs', 'Referenced by'],
+      ['outgoing-refs', 'Refs'],
+    ]);
+  });
+
+  test('keys the same item apart in each direction', () => {
+    const band = relatedBandData(
+      'issue',
+      { refs: one },
+      { refs: node() },
+      { lists: { refs: one }, nodes: { refs: node() } },
+    );
+
+    expect(new Set(band?.rows.map((r) => r.key)).size).toBe(2);
+  });
+
+  test('makes a band of its own when nothing refers to the issue', () => {
+    const band = relatedBandData(
+      'issue',
+      {},
+      {},
+      { lists: { mentions: one }, nodes: { mentions: node() } },
+    );
+
+    expect(band?.rows.map((r) => r.key)).toEqual(['outgoing-mentions']);
+    expect(band?.count).toBe(1);
+  });
+
+  test('counts an item once across both directions', () => {
+    const band = relatedBandData(
+      'issue',
+      { closes: one },
+      { closes: node() },
+      { lists: { refs: one }, nodes: { refs: node() } },
+    );
+
+    expect(band?.count).toBe(1);
+  });
+
+  test('draws no outgoing row without a node', () => {
+    const band = relatedBandData(
+      'issue',
+      {},
+      {},
+      { lists: { refs: one }, nodes: {} },
+    );
+
+    expect(band).toBeUndefined();
   });
 });

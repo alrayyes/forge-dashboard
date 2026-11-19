@@ -11,7 +11,11 @@ import {
 import { isKnownForge } from './forges';
 import { addPillTip, focusPill } from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
-import { foldedPills, relationLabel } from './related-band.js';
+import {
+  foldedPills,
+  type RelatedSide,
+  relationLabel,
+} from './related-band.js';
 
 /** Matches components.schemas.LinkedPullRequest in api/openapi.yaml. */
 export type LinkedPullRequest = {
@@ -145,6 +149,7 @@ export function linkedDialogName(
   issueRepo: string,
   ci?: PillCi | null,
   relation: Relation = 'closes',
+  side: RelatedSide = 'issue',
 ) {
   const head = stated(pr)
     ? headOf(pr, issueRepo)
@@ -154,7 +159,7 @@ export function linkedDialogName(
       ? pillName(ci.label, ci.segments)
       : ci.label
     : '';
-  return `${relationLabel('issue', relation)}: ${said ? `${head} ${said}` : head}`;
+  return `${relationLabel(side, relation)}: ${said ? `${head} ${said}` : head}`;
 }
 
 /** The pill's classes: a ref and a mention are each drawn apart from a close. */
@@ -170,11 +175,24 @@ export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
 }
 
 /** The pill's tooltip: what the pull request does to the issue, which the italic alone doesn't say. */
-export function linkedPillTitle(relation: Relation) {
+export function linkedPillTitle(
+  relation: Relation,
+  side: RelatedSide = 'issue',
+) {
+  if (side === 'issue-outgoing')
+    return relation === 'refs'
+      ? 'This issue references this, it does not close it'
+      : `This issue ${relation === 'closes' ? 'closes' : 'mentions'} this`;
   if (relation === 'closes') return 'Closes this issue when it merges';
   const verb = relation === 'refs' ? 'References' : 'Mentions';
   return `${verb} this issue, does not close it`;
 }
+
+const OUTGOING_WORDING: Record<Relation, string> = {
+  closes: 'this issue closes',
+  refs: 'this issue references',
+  mentions: 'this issue mentions',
+};
 
 const MORE_WORDING: Record<Relation, string> = {
   closes: 'will close',
@@ -267,6 +285,7 @@ export function linkedPills(
   onFollow?: (pr: LinkedPullRequest) => void,
   relation: Relation = 'closes',
   inDialog = false,
+  side: RelatedSide = 'issue',
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -318,12 +337,12 @@ export function linkedPills(
     link.setAttribute(
       'aria-label',
       inDialog
-        ? linkedDialogName(pr, issueRepo, ci, relation)
+        ? linkedDialogName(pr, issueRepo, ci, relation, side)
         : linkedPillName(pr, issueRepo, ci, relation),
     );
-    link.title = linkedPillTitle(relation);
+    link.title = linkedPillTitle(relation, side);
     return relation === 'refs'
-      ? addPillTip(link, linkedPillTitle(relation))
+      ? addPillTip(link, linkedPillTitle(relation, side))
       : link;
   };
   if (inDialog)
@@ -331,7 +350,9 @@ export function linkedPills(
       `${issueKey}:linked:${relation}`,
       list,
       pill,
-      `pull requests that ${MORE_WORDING[relation]} this issue`,
+      side === 'issue-outgoing'
+        ? `items ${OUTGOING_WORDING[relation]}`
+        : `pull requests that ${MORE_WORDING[relation]} this issue`,
     );
   wrap.append(...shown.map(pill));
   if (rest.length === 0) return wrap;

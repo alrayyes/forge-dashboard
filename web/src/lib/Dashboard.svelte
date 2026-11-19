@@ -210,6 +210,8 @@
     type ItemReference,
     incomingRows,
     mergeRows,
+    type OutgoingRows,
+    outgoingRows,
   } from "#lib/issue-references.js";
   import {
     type LinkedPullRequest,
@@ -2321,8 +2323,16 @@
       // The row's reference, and a fingerprint of what the attributes show
       // (labels and the pills), so a poll redraws them only when they change.
       item: IssueDialogItem;
+      // What the issue itself refers to, as its details list it (#4272).
+      outgoing: OutgoingRows;
       shown: string;
     } | null = null;
+
+    const noOutgoing = (): OutgoingRows => ({
+      closes: [],
+      refs: [],
+      mentions: [],
+    });
 
     function listedIssue(
       forge: string,
@@ -2338,8 +2348,12 @@
     // A snapshot that no longer lists the open dialog's issue (it was
     // closed), lists it again (reopened), or lists it changed has the dialog
     // read the forge again, quietly, so its status and thread follow.
-    function attributesSignature(item: IssueDialogItem): string {
+    function attributesSignature(
+      item: IssueDialogItem,
+      outgoing: OutgoingRows,
+    ): string {
       return JSON.stringify([
+        outgoing,
         item.labels,
         item.linkedPullRequests,
         item.referencedByPullRequests,
@@ -2355,11 +2369,11 @@
         // The pills come from the snapshot, not from the forge read, so they
         // follow every poll; the labels come along with them.
         const item = { ...open.item, ...listed };
-        const shown = attributesSignature(item);
+        const shown = attributesSignature(item, open.outgoing);
         if (shown !== open.shown) {
           open.item = item;
           open.shown = shown;
-          const status = issueStatus(item);
+          const status = issueStatus(item, open.outgoing);
           detailsDialog.setAttributes(status.attributes, status.related);
         }
       }
@@ -2416,10 +2430,15 @@
         seenUpdatedAt: listedIssue(item.forge, item.repo, item.number)
           ?.updatedAt,
         item,
-        shown: attributesSignature(item),
+        outgoing: noOutgoing(),
+        shown: attributesSignature(item, noOutgoing()),
       };
       detailsDialog?.open(
-        { ...item, subject: "issue", status: issueStatus(item) },
+        {
+          ...item,
+          subject: "issue",
+          status: issueStatus(item, noOutgoing()),
+        },
         triggerId,
         fallbackFocusId,
       );
@@ -2762,27 +2781,33 @@
     // The board's pills know open pull requests only, and a closed issue is
     // not on the board at all. Its own details list what refers to it, so the
     // band is drawn from them, as long as the board has no row for the issue:
-    // a listed one follows the snapshot's pills with every poll.
+    // a listed one follows the snapshot's pills with every poll. What the
+    // issue itself refers to is only in the details, listed or not (#4272).
     issueReferencesRead = (references) => {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
-      if (listedIssue(open.forge, open.repo, open.number)) return;
-      const item = {
-        ...open.item,
-        ...mergeRows(
-          {
-            linkedPullRequests: open.item.linkedPullRequests ?? [],
-            referencedByPullRequests: open.item.referencedByPullRequests ?? [],
-            mentionedByPullRequests: open.item.mentionedByPullRequests ?? [],
-          },
-          incomingRows(references),
-        ),
-      };
-      const shown = attributesSignature(item);
+      const outgoing = outgoingRows(references);
+      const item = listedIssue(open.forge, open.repo, open.number)
+        ? open.item
+        : {
+            ...open.item,
+            ...mergeRows(
+              {
+                linkedPullRequests: open.item.linkedPullRequests ?? [],
+                referencedByPullRequests:
+                  open.item.referencedByPullRequests ?? [],
+                mentionedByPullRequests:
+                  open.item.mentionedByPullRequests ?? [],
+              },
+              incomingRows(references),
+            ),
+          };
+      const shown = attributesSignature(item, outgoing);
       if (shown === open.shown) return;
       open.item = item;
+      open.outgoing = outgoing;
       open.shown = shown;
-      const status = issueStatus(item);
+      const status = issueStatus(item, outgoing);
       detailsDialog.setAttributes(status.attributes, status.related);
     };
 
@@ -2797,7 +2822,10 @@
       });
     };
 
-    function issueStatus(item: IssueDialogItem): DetailsStatus {
+    function issueStatus(
+      item: IssueDialogItem,
+      outgoing: OutgoingRows,
+    ): DetailsStatus {
       const state = issueStateElement(false);
       const attributes = el("div", "attr-cluster");
       attributes.setAttribute("role", "group");
@@ -2811,6 +2839,7 @@
         key: string,
         list: LinkedPullRequest[] | undefined,
         relation: "closes" | "refs" | "mentions",
+        side: "issue" | "issue-outgoing" = "issue",
       ) =>
         linkedPills(
           `${prKey(item)}${key}`,
@@ -2827,6 +2856,7 @@
               : followLinkedFromDialog(item, linked),
           relation,
           true,
+          side,
         );
       const related = relatedBandData(
         "issue",
@@ -2843,6 +2873,29 @@
             item.mentionedByPullRequests,
             "mentions",
           ),
+        },
+        {
+          lists: outgoing,
+          nodes: {
+            closes: pills(
+              ":dialog:out",
+              outgoing.closes,
+              "closes",
+              "issue-outgoing",
+            ),
+            refs: pills(
+              ":dialog:out:refs",
+              outgoing.refs,
+              "refs",
+              "issue-outgoing",
+            ),
+            mentions: pills(
+              ":dialog:out:mentions",
+              outgoing.mentions,
+              "mentions",
+              "issue-outgoing",
+            ),
+          },
         },
       );
       return { state, attributes, related };

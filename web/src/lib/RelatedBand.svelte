@@ -19,7 +19,7 @@
       <h3 id="related-band-title" class="related-title">Related</h3>
       <span class="related-count">{band.count}</span>
     </div>
-    {#each band.rows as row (row.relation)}
+    {#each band.rows as row (row.key)}
       <div class="related-row" role="group" aria-label={row.label}>
         <span class="related-label">{row.label}</span>
         <div class="related-pills">
