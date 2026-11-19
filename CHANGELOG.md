@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.82.0](https://github.com/alrayyes/forge-dashboard/compare/v9.81.1...v9.82.0) (2026-11-19)
+
+
+### Features
+
+* **web:** share the CI pill glyphs with the pull request overview's filter ([#4291](https://github.com/alrayyes/forge-dashboard/issues/4291)) ([20dffb3](https://github.com/alrayyes/forge-dashboard/commit/20dffb3f3f4766e3cf413fb9d6865e03119b16d6)), closes [#4246](https://github.com/alrayyes/forge-dashboard/issues/4246)
+
 ## [9.81.1](https://github.com/alrayyes/forge-dashboard/compare/v9.81.0...v9.81.1) (2026-11-19)
 
 
