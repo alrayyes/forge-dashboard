@@ -11,6 +11,7 @@ import {
   pickOnly,
   pickTexts,
   toggleLabels,
+  togglePicks,
 } from './label-filter-helper';
 import { type PillGroup, quickPill } from './quick-pills-helper';
 import { rateLimit } from './rate-limit-mock';
@@ -1472,15 +1473,20 @@ test.describe('dashboard page', () => {
     test('a repo selection that no longer exists once the forge filter narrows clears itself, not just the control', async ({
       page,
     }) => {
+      // A Forgejo repo is picked too: a pick on GitHub alone would leave one
+      // forge in scope and the Forge filter would not be drawn (#4273).
       await pickOnly(page, 'repo', 'github:alrayyes/only-here');
-      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
+      await togglePicks(page, 'repo', 'forgejo:shared/tools');
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
       await selectForge(page, 'forgejo');
 
       // "alrayyes/only-here" doesn't exist under Forgejo — the stale
       // selection has to clear, or this would silently show zero rows
       // with no visible reason why.
-      await expect.poll(() => pickedValues(page, 'repo')).toEqual([]);
+      await expect
+        .poll(() => pickedValues(page, 'repo'))
+        .toEqual(['forgejo:shared/tools']);
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('Forgejo A');
     });

@@ -14,6 +14,8 @@ import {
   effectivePill,
   type FilterableItem,
   failingFilters,
+  forgeFilterOffered,
+  forgeScope,
   matchesFilters,
   matchesQuickFilter,
   matchesRefs,
@@ -31,6 +33,7 @@ import {
   type SharedFilterState,
   setPill,
   showBlockedChip,
+  staleForgePick,
 } from './filters';
 
 // Which fixed choices a set of items offers (#1427). Pure, so these run without
@@ -853,5 +856,61 @@ describe('offerDrafts', () => {
 
   test('does nothing without a button', () => {
     expect(() => offerDrafts(null, [], 0)).not.toThrow();
+  });
+});
+
+// The Forge filter is offered only while the repos in scope span more than one
+// forge, and a forge pick that has become redundant is cleared, not hidden.
+// https://github.com/alrayyes/forge-dashboard/issues/4273
+describe('the Forge filter follows the repos in scope (#4273)', () => {
+  const gh = (repo: string) => choiceItem({ forge: 'github', repo });
+  const fj = (repo: string) => choiceItem({ forge: 'forgejo', repo });
+  const items = [gh('a/app'), gh('a/lib'), fj('b/app')];
+
+  test('is offered for repos on two forges and for no repo filter', () => {
+    expect(forgeFilterOffered(forgeScope(items, true, {}))).toBe(true);
+    expect(
+      forgeFilterOffered(
+        forgeScope(items, true, { repo: 'github:a/app\nforgejo:b/app' }),
+      ),
+    ).toBe(true);
+  });
+
+  test('is not offered once the repo filter leaves one forge', () => {
+    expect(
+      forgeFilterOffered(forgeScope(items, true, { repo: 'github:a/app' })),
+    ).toBe(false);
+    expect(
+      forgeFilterOffered(
+        forgeScope(items, true, { repo: 'github:a/app\ngithub:a/lib' }),
+      ),
+    ).toBe(false);
+  });
+
+  test('ignores a forge pick, so choosing a forge does not hide the filter', () => {
+    expect(
+      forgeFilterOffered(forgeScope(items, true, { forge: 'github' })),
+    ).toBe(true);
+  });
+
+  test('a forge pick is stale once the repo filter makes the filter go', () => {
+    const repo = 'github:a/app';
+    const narrowed = forgeScope(items, true, { repo });
+    expect(staleForgePick(narrowed, 'github', repo)).toBe(true);
+    expect(staleForgePick(narrowed, 'forgejo', repo)).toBe(true);
+    expect(staleForgePick(narrowed, '', repo)).toBe(false);
+    expect(staleForgePick(forgeScope(items, true, {}), 'github', '')).toBe(
+      false,
+    );
+  });
+
+  test('a forge pick stays while no repo pick narrowed the scope, so it can be cleared', () => {
+    const onlyGithub = [gh('a/app'), gh('a/lib')];
+    expect(staleForgePick(onlyGithub, 'github', '')).toBe(false);
+    expect(staleForgePick(onlyGithub, 'github', undefined)).toBe(false);
+  });
+
+  test('an empty scope clears nothing, since nothing has loaded to judge by', () => {
+    expect(staleForgePick([], 'github', 'github:a/app')).toBe(false);
   });
 });

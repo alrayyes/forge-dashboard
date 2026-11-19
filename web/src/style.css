@@ -1520,7 +1520,9 @@ select.col-filter {
   position: relative;
   display: inline-flex;
 }
-/* A forge nothing is on isn't offered (#1427). */
+/* A forge nothing is on isn't offered (#1427), and with fewer than two the
+   whole group goes (#4273). */
+.forge-segmented[hidden],
 .forge-segmented label[hidden] {
   display: none;
 }

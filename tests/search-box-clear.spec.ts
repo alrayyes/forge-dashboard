@@ -130,6 +130,10 @@ const BOXES = [
     text: 'Change 3',
     // A second control that the clear must leave alone.
     other: async (page: Page) => {
+      // The Forge group is drawn once the snapshot shows two forges (#4273).
+      await expect(
+        page.getByRole('group', { name: 'Filter by forge' }),
+      ).toBeVisible();
       await page.locator('input[data-col="forge"][value="forgejo"]').check({
         force: true,
       });
@@ -184,8 +188,10 @@ for (const b of BOXES) {
         page,
       }) => {
         await b.open(page);
-        await b.box(page).fill(b.text);
+        // The other control is set first: a title that matches one forge
+        // leaves the Forge filter nothing to offer (#4273).
         await b.other(page);
+        await b.box(page).fill(b.text);
         await b.button(page).click();
         await expect(b.box(page)).toHaveValue('');
         await expect(b.box(page)).toBeFocused();

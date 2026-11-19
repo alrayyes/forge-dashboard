@@ -297,7 +297,10 @@ repo whose only issue is that one isn't offered until **Hide Dependency
 Dashboard** is unchecked. Hiding it again clears a repo picked on that basis.
 The Created and Updated ranges and the forge buttons on Insights follow the same
 rule: a range or a forge appears only when something in the results is in it,
-and a pick that nothing matches any more is cleared. On the pull request page
+and a pick that nothing matches any more is cleared. The Forge filter as a
+whole goes once the repo filter (and the title) leave repos on one forge, since
+it could only return an empty list. A forge picked at that moment is cleared,
+which changes nothing for rows already on that forge. On the pull request page
 the repo, author and label choices and the age choices also follow the board's
 own filters (the quick pills, Auto-merge and the closing-issue choice; on the
 issue page, the closing-pull-request choice), so an author with nothing in the
@@ -402,8 +405,9 @@ list, so it leaves the bar. That goes for the repo, author, and label filters
 alike. It comes back as soon as a second value turns up, and it stays while it
 holds a pick, even a pick that is the only option, so you can still clear it.
 If it was in focus when it went, focus moves to the control before it. The
-forge buttons and the created and updated ranges already offer only the
-choices that exist and always keep their "any" choice, so they stay.
+created and updated ranges already offer only the choices that exist and
+always keep their "any" choice, so they stay. The forge buttons follow the
+rule above.
 
 A live update redraws an open panel's choices without moving you: keyboard
 focus stays on the checkbox you are on, even when the update adds a second forge

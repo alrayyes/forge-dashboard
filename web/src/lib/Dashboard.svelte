@@ -7914,16 +7914,13 @@
       return picks;
     }
 
-    // The items a forge pill is worth clicking for (#1427): choosing a forge
-    // clears the repo, author, label and age picks that no longer match, so
-    // only the title (which stays) and the board's own filters narrow it.
+    // The items a forge pill is worth clicking for (#1427, #4273): see
+    // Filters.forgeScope for what it leaves in.
     function forgePillPool(): FilterableItem[] {
-      const items = itemsOnScreen();
-      return Filters.optionPool(
-        items,
+      return Filters.forgeScope(
+        itemsOnScreen(),
         pullsView,
-        { title: sharedState.shared.title ?? "" },
-        "",
+        sharedState.shared,
         pullsView ? sharedState.pr : withSettings(sharedState.issue),
       );
     }
@@ -8015,8 +8012,21 @@
       };
       clearPick(staleCreated, "shared", "created");
       clearPick(staleUpdated, "shared", "updated");
+      // A forge pick the hidden Forge filter would leave active is dropped
+      // outright: it filters nothing, so there is nothing to hold (#4273).
+      const forgeScope = forgePillPool();
+      const staleForge = Filters.staleForgePick(
+        forgeScope,
+        sharedState.shared.forge ?? "",
+        sharedState.shared.repo,
+      );
+      if (staleForge) {
+        sharedState.shared.forge = "";
+        syncQuickPills();
+      }
       const cleared =
-        !holdPicks && (stalePicks || staleCreated || staleUpdated);
+        !holdPicks &&
+        (stalePicks || staleCreated || staleUpdated || staleForge);
       if (cleared) Filters.saveState(sharedState);
       else if (serverCopyLoaded && Filters.takeMigratedAuthor())
         Filters.saveState(sharedState);
@@ -8042,7 +8052,7 @@
       Filters.offerPills(
         document.querySelectorAll<HTMLElement>(".quick-pill"),
         {
-          forge: forgePillPool(),
+          forge: forgeScope,
           ci: sharedPoolExcluding("", "apply", "ci"),
           merge: sharedPoolExcluding("", "apply", "merge"),
           review: sharedPoolExcluding("", "apply", "review"),
@@ -10677,7 +10687,8 @@
      single-choice group with its own All, combined with AND. Once in the
      filter bar (class quick-pills) and once in the phone Filters sheet (class
      sheet-pills), so the two cannot drift apart. The issues page has only
-     Forge. -->
+     Forge. Each group starts hidden: offerPills shows it once a snapshot says
+     it is worth offering, so a Forge group that never is never flashes (#4273). -->
 {#snippet pillGroups(sheet: boolean)}
   {#each Filters.PILL_GROUP_NAMES as group (group)}
     {#if group === "forge" || pullsView}
@@ -10686,6 +10697,7 @@
         role="group"
         aria-labelledby="pill-label-{sheet ? 'sheet' : 'bar'}-{group}"
         data-group={group}
+        hidden
       >
         <span
           class="pill-group-label"
