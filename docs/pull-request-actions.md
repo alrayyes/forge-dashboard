@@ -115,6 +115,13 @@ stack. On a phone the chip is short, what it waits for goes on a second line,
 and the title is what gets cut. The server works out stacks from the branches
 (`stack`, `stackedOn` and `stackChildren` on each pull request).
 
+On Forgejo, while a run that is still going has jobs the counts leave out (it
+has none yet, or no status points at it), the server sets `checksIncomplete` on
+the pull request. The CI pill then says "Counting checks…" in place of its state
+word, keeps the counts it has so they don't shrink when the rest arrive, and its
+accessible name says the list isn't complete yet. GitHub's rollup says nothing
+about checks still to be created, so it is always false there.
+
 On GitHub, a pull request whose workflow runs are held until someone approves
 them (`awaitingWorkflowApproval`) doesn't read "Failed". The CI pill says
 "Waiting for workflow approval" and still opens the pipeline panel. An "Approve
