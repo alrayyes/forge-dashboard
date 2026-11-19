@@ -149,14 +149,17 @@ test.describe('settings groups', () => {
       .toBe(true);
   });
 
-  test('Behaviour says upright pull request pills close an issue and italic ones only reference it, and passes axe', async ({
+  test('Behaviour says upright pull request pills close an issue and italic ones only reference or mention it, and passes axe', async ({
     page,
   }) => {
     await page.goto('/settings.html#behaviour');
     const note = page.locator('#pill-style-hint');
     await expect(note).toBeVisible();
     await expect(note).toContainText('Upright means the pull request closes');
-    await expect(note).toContainText('italic means it only references');
+    await expect(note).toContainText(
+      'italic means it only references or mentions it',
+    );
+    await expect(note).toContainText('the pop-up has no line of its own');
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
