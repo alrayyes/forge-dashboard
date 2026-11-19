@@ -57,3 +57,6 @@ func (a *Aggregator) DebounceRememberedForTest() int {
 
 // MergeRefusalForTest exposes mergeRefusal to the external tests.
 func MergeRefusalForTest(err error) ActionRefusal { return mergeRefusal(err) }
+
+// PollFingerprintForTest is what a CI poll can change about pr.
+func PollFingerprintForTest(pr PullRequest) string { return pollFingerprint(pr) }

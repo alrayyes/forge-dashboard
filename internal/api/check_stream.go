@@ -288,7 +288,7 @@ func rowSignature(snap dashboard.Snapshot, s checkSubject) (sig string, found bo
 	case subjectPullRequest:
 		for _, pr := range snap.PullRequests {
 			if string(pr.Forge) == s.Forge && pr.Repo == s.FullName && pr.Number == s.Number {
-				return fmt.Sprintf("%s|%+v", pr.CI, pr.Checks), true
+				return fmt.Sprintf("%s|%+v|%v", pr.CI, pr.Checks, pr.ChecksIncomplete), true
 			}
 		}
 	case subjectMainBranch:

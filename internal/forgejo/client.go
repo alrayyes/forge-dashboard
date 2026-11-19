@@ -1792,7 +1792,7 @@ func (c *Client) runsHaveUncountedJobs(ctx context.Context, owner, name string, 
 
 	_, named := statusedJobs(statuses)
 	for _, run := range going {
-		if len(statuses) > 0 && !named[run.RunNumber] {
+		if !named[run.RunNumber] {
 			return true
 		}
 		jobs, err := c.listActionRunJobs(ctx, owner, name, run.ID)

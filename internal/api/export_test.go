@@ -68,3 +68,9 @@ func (c *checkWatches) Open(ctx context.Context, id string) *CheckWatch {
 }
 func (c *checkWatches) Close(id string, w *CheckWatch) { c.close(id, w) }
 func (c *checkWatches) Find(id string) *CheckWatch     { return c.find(id) }
+
+// PullRequestRowSignatureForTest is what about a pull request's row in snap
+// means its job list may have changed.
+func PullRequestRowSignatureForTest(snap dashboard.Snapshot, forge, fullName string, number int) (string, bool) {
+	return rowSignature(snap, checkSubject{Kind: subjectPullRequest, Forge: forge, FullName: fullName, Number: number})
+}
