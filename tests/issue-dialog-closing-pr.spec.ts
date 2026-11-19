@@ -147,10 +147,16 @@ test('the dialog shows the closing pull request with the row pill text and its n
   const name = await rowPills(page).getAttribute('aria-label');
   await expect(dialogPills(page)).toHaveAttribute(
     'aria-label',
-    `Closed by: ${(name ?? '').replace(/, closes this issue$/, '')}`,
+    `Closed by: ${(name ?? '')
+      .replace(/, closes this issue$/, '')
+      .replace('Pull request #12', 'PR #12 · Open')}`,
   );
+  // The band says the state in words where the row says only the number.
   await expect(dialogPills(page)).toHaveText(
-    (await rowPills(page).textContent()) ?? '',
+    ((await rowPills(page).textContent()) ?? '').replace(
+      '#12',
+      'PR #12 · Open',
+    ),
   );
   await expect(dialogPills(page)).toHaveAttribute('href', linked(12).pageUrl);
 });
@@ -170,7 +176,6 @@ test('the dialog pill shows the same CI state as the row, failing and passing', 
 
   const signature = (pill: Locator) =>
     pill.evaluate((el) => ({
-      text: el.textContent,
       ci: [...el.querySelectorAll('*')].map((n) => ({
         cls: n.className,
         color: getComputedStyle(n).color,
@@ -234,7 +239,7 @@ test('the pills follow the pull request list while the dialog stays open', async
   list = [linked(12, { draft: true }), linked(13)];
   await refresh();
   await expect(dialogPills(page)).toHaveCount(2);
-  await expect(dialogPills(page).first()).toContainText('draft');
+  await expect(dialogPills(page).first()).toContainText('· Draft');
 
   list = [];
   await refresh();
@@ -416,10 +421,10 @@ test('the dialog lists the referencing pull requests under Referenced by, after 
     'Referenced by',
   ]);
   await expect(dialogPills(page).first()).toHaveAccessibleName(
-    /^Closed by: Pull request #12 /,
+    /^Closed by: PR #12 · Open /,
   );
   await expect(dialogPills(page).last()).toHaveAccessibleName(
-    /^Referenced by: Pull request #13 /,
+    /^Referenced by: PR #13 · Open /,
   );
 
   list = [issue(1, [linked(12)], [linked(13), linked(14)])];
