@@ -356,6 +356,28 @@ describe('an unclosed pre', () => {
     expect(html).toContain('<p>after</p>');
   });
 
+  test('a fence on the line right after the open tag stops it', async () => {
+    const html = await renderMarkdown(
+      '<pre>\n```\n</pre>\n```\n\nrest [real](https://r.example)',
+    );
+    expect(html).toContain('&lt;pre&gt;');
+    expect(html).toContain('<a href="https://r.example"');
+  });
+
+  test('a pre closed on its own opening line is a block', async () => {
+    const html = await renderMarkdown('<pre>x</pre>\n\nafter');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('<p>after</p>');
+  });
+
+  test('two backticks or tildes, or a pre tag in text, do not stop it', async () => {
+    for (const line of ['``x``', '~~x~~', 'use <pre> here']) {
+      const html = await renderMarkdown(`<pre>\n${line}\n</pre>\n\nafter`);
+      expect(html).toContain('<pre tabindex="0">');
+      expect(html).toContain('<p>after</p>');
+    }
+  });
+
   test('a closer after the end of its quote ends nothing', async () => {
     const html = await renderMarkdown(
       '> <pre>\n> inside [real](https://r.example)\n\nafter\n\n</pre>',
