@@ -1,4 +1,4 @@
-import { labelKey } from './label-filter';
+import { labelKey } from './label-name';
 
 // The ink on a label's chip. A label's colour is arbitrary and forge-supplied,
 // not one of this app's own pre-checked pairs, so the ink is whichever of true
