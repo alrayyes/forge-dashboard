@@ -442,10 +442,17 @@ test.describe('pills inside the pull request dialog', () => {
     expect(new URL(page.url()).pathname).toBe('/issues.html');
     expect(new URL(page.url()).search).toBe('');
 
-    // This page has no row for the pull request, so focus goes to the filter.
+    // The pull request's pill on the issue's row sent focus there on the
+    // first swap, and the swap back keeps it (#4351).
     await page.keyboard.press('Escape');
-    await expect(issueDialog(page)).toBeHidden();
-    await expect(page.locator('#title-filter')).toBeFocused();
+    // Settled: until no dialog is open, the pill the first swap's close
+    // focused can still be what the check sees.
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    await expect(
+      page
+        .locator('#issue-rows .row', { hasText: 'Issue 1' })
+        .locator('.linked-pr'),
+    ).toBeFocused();
   });
 });
 
