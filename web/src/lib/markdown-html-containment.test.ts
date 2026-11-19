@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { renderMarkdown } from './markdown';
 
 // https://github.com/alrayyes/forge-dashboard/issues/4241
@@ -80,5 +81,143 @@ describe('attributes and links in links', () => {
     );
     expect(html.match(/<a /g)).toHaveLength(1);
     expect(html).not.toContain('b.example');
+  });
+});
+
+// A container tag may span blank lines, because Markdown sits inside it in
+// the real Dependabot body. It still ends with its own Markdown container.
+describe('a container tag that spans blank lines', () => {
+  const inside = (html: string, tag: string) => {
+    const open = html.indexOf(`<${tag}`);
+    const close = html.indexOf(`</${tag}>`);
+    return open === -1 || close === -1 ? '' : html.slice(open, close);
+  };
+
+  test('the real Dependabot commands section keeps its text inside', async () => {
+    const dependabot = readFileSync(
+      new URL('./fixtures/dependabot-body.txt', import.meta.url),
+      'utf8',
+    );
+    const html = await renderMarkdown(dependabot);
+    const commands = html.slice(html.lastIndexOf('<details>'));
+    expect(commands).toContain(
+      '<summary>Dependabot commands and options</summary>',
+    );
+    expect(commands.slice(0, commands.indexOf('</details>'))).toContain(
+      '@dependabot rebase',
+    );
+  });
+
+  test('details, blockquote and lists hold the Markdown between their tags', async () => {
+    for (const tag of ['details', 'blockquote', 'ul']) {
+      const html = await renderMarkdown(
+        `<${tag}>\n\nsome **text** and [a link](https://a.example)\n\n</${tag}>\n\nafter`,
+      );
+      const held = inside(html, tag);
+      expect(held).toContain('<strong>text</strong>');
+      expect(held).toContain('<a href="https://a.example"');
+      expect(html.slice(html.indexOf(`</${tag}>`))).toContain('after');
+      expect(html).not.toContain('&lt;/');
+    }
+  });
+
+  test('(a) a summary then text then the closer', async () => {
+    const html = await renderMarkdown(
+      '<details>\n<summary>S</summary>\n\ntext\n\n</details>',
+    );
+    expect(html).toBe(
+      '<details>\n<summary>S</summary>\n<p>text</p>\n</details>',
+    );
+  });
+
+  test('(b) one never closed ends with its container, real links survive', async () => {
+    const html = await renderMarkdown(
+      '<details>\n<summary>S</summary>\n\ntext [one](https://one.example)\n\n- item [two](https://two.example)',
+    );
+    expect(html).toContain('<a href="https://one.example"');
+    expect(html).toContain('<a href="https://two.example"');
+    expect(html.match(/<details>/g)).toHaveLength(1);
+    expect(html.match(/<\/details>/g)).toHaveLength(1);
+    expect(html.endsWith('</details>')).toBe(true);
+  });
+
+  test('(b) one never closed in a quote does not take what follows the quote', async () => {
+    const html = await renderMarkdown(
+      '> <details>\n> <summary>S</summary>\n>\n> inside\n\noutside [link](https://o.example)',
+    );
+    const quote = html.slice(0, html.indexOf('</blockquote>'));
+    expect(quote).toContain('inside');
+    expect(quote).toContain('</details>');
+    expect(html.slice(html.indexOf('</blockquote>'))).toContain(
+      '<a href="https://o.example"',
+    );
+    expect(html.slice(html.indexOf('</blockquote>'))).not.toContain('details');
+  });
+
+  test('(c) an unclosed link inside it still ends with its block', async () => {
+    const html = await renderMarkdown(
+      '<details>\n<p><a href="https://example.test/x">\n\nrest [real](https://r.example)\n\n</details>',
+    );
+    expect(html).toContain('<a href="https://r.example"');
+    const link = html.slice(
+      html.indexOf('<a href="https://example.test/x"'),
+      html.indexOf('</a>') + 4,
+    );
+    expect(link).not.toContain('rest');
+  });
+
+  test('(d) inside a list item and a quote', async () => {
+    const item = await renderMarkdown(
+      '- <details>\n  <summary>S</summary>\n\n  text\n\n  </details>\n- next',
+    );
+    expect(item).toMatch(
+      /<li>[\s\S]*<details>[\s\S]*text[\s\S]*<\/details>[\s\S]*<\/li>\s*<li>next<\/li>/,
+    );
+    const quote = await renderMarkdown(
+      '> <details>\n> <summary>S</summary>\n>\n> text\n>\n> </details>\n\nout',
+    );
+    const q = quote.slice(0, quote.indexOf('</blockquote>'));
+    expect(q).toMatch(/<details>[\s\S]*text[\s\S]*<\/details>/);
+    expect(quote.slice(quote.indexOf('</blockquote>'))).toContain('out');
+  });
+});
+
+describe('an unclosed pre', () => {
+  test('is shown as text, so it takes nothing after it', async () => {
+    for (const open of [
+      '<pre><a href="https://example.test/x">',
+      '<pre><h1>',
+    ]) {
+      const html = await renderMarkdown(
+        `${open}\n\nrest [real](https://r.example)\n\n- item`,
+      );
+      expect(html).not.toContain('<pre');
+      expect(html).not.toContain('example.test');
+      expect(html).toContain('<a href="https://r.example"');
+      expect(html).toContain('<li>item</li>');
+    }
+  });
+
+  test('a closed one keeps its text and is focusable', async () => {
+    const html = await renderMarkdown('<pre>\nline <b>x</b>\n</pre>');
+    expect(html).toContain('<pre tabindex="0">');
+    expect(html).toContain('line ');
+    expect(html).toContain('</pre>');
+  });
+});
+
+describe('a tag too long to be a tag', () => {
+  test('stays text, however well formed', async () => {
+    const long = `<a title="${'x'.repeat(4100)}" href="https://e.example">y</a>`;
+    const html = await renderMarkdown(long);
+    expect(html).not.toMatch(/<a [^>]*title/);
+    expect(html).toContain('&lt;a title');
+  });
+
+  test('one just under the limit is a tag', async () => {
+    const ok = `<a title="${'x'.repeat(3900)}" href="https://e.example">y</a>`;
+    const html = await renderMarkdown(ok);
+    expect(html).toContain('<a href="https://e.example"');
+    expect(html).not.toContain('&lt;a title');
   });
 });
