@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly, pickTexts } from './label-filter-helper';
 import { rateLimit } from './rate-limit-mock';
 import { landOnPullRequests, test } from './server-fixture';
@@ -17,9 +18,13 @@ interface ForgeStatus {
   repoCount: number;
   rateLimitGraphQL?: RateLimit;
   rateLimitREST?: RateLimit;
+  capabilities?: object;
 }
 
 interface PullRequestFixture {
+  allowedActions?: string[];
+  status?: null;
+  kind?: string;
   forge: string;
   repo: string;
   number: number;
@@ -872,5 +877,61 @@ test.describe('insights page', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+// #4073: the forge buttons come from the forges the API reports, named by the
+// label it sends, not a fixed GitHub/Forgejo pair.
+test.describe('insights forge filter', () => {
+  const forgeRadio = (page: Page, value: string) =>
+    page.locator(
+      `[aria-label="Filter Insights charts"] input[data-col="forge"][value="${value}"]`,
+    );
+
+  test('offers a forge the API reports beyond the two shipped, by its label', async ({
+    page,
+  }) => {
+    const tea = (forge: 'github' | 'forgejo', label: string) => {
+      const health = forgeHealth(forge);
+      return {
+        ...health,
+        reachable: true,
+        repoCount: 1,
+        capabilities: { ...health.capabilities, label },
+      };
+    };
+    await mockDashboard(page, {
+      forges: [
+        tea('github', 'Octo'),
+        { ...tea('github', 'Tea'), forge: 'gitea' },
+      ],
+      pullRequests: [
+        pr('success'),
+        pr('success', {
+          forge: 'gitea',
+          number: 2,
+          // Stated, so the mock needs no allowed-actions row for a forge the
+          // table has never heard of.
+          allowedActions: [],
+          status: null,
+          kind: 'regular',
+        }),
+      ],
+    });
+    await page.goto('/insights.html');
+
+    const radio = (name: string) =>
+      page
+        .locator('input[data-col="forge"]')
+        .and(page.getByRole('radio', { name }));
+    await expect(radio('Octo')).toHaveCount(1);
+    await expect(radio('Tea')).toHaveCount(1);
+    await expect(radio('GitHub')).toHaveCount(0);
+    await expect(forgeRadio(page, 'forgejo')).toBeHidden();
+
+    await radio('Tea').first().check();
+    await expect(
+      page.locator('[data-ci-status="success"] .ci-count'),
+    ).toHaveText('1');
   });
 });

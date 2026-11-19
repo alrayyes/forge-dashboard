@@ -42,7 +42,9 @@ One Go binary serves all of it. `web/` builds to static files that
   dashboard and Main branches answers carries it as `capabilities`, so a
   client asks what a forge
   can do instead of testing its name, and the web pages read a forge's label
-  from it. `Forge.Valid()` and `dashboard.Forges()` answer from this table
+  from it, and offer a button per reported forge in their forge filters
+  (Insights included), not a fixed pair. `Forge.Valid()` and
+  `dashboard.Forges()` answer from this table
   (a test fails if the display order and the table disagree), so request
   checks and forge lists need no edit for a new forge. Adding a forge means
   filling in this value and the order list, besides its adapter.

@@ -8,7 +8,7 @@
   import { firstRefresh } from "#lib/first-refresh.svelte.js";
   import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
-  import { forgeLabelOf } from "#lib/forges.js";
+  import { forgeIds, forgeLabelOf } from "#lib/forges.js";
   import {
     releaseHeldPick as releaseHeldPickWiring,
     setHideDependencyDashboard,
@@ -200,6 +200,12 @@
   $effect(() =>
     titleBox && titleClear ? wireClearBox(titleBox, titleClear) : undefined,
   );
+  // The forges the API has reported. The registry is plain data, so the read
+  // that fills it is what this waits on, for the labels as much as the ids.
+  const forgeChoices = $derived.by(() => {
+    void dashboardRead.data;
+    return forgeIds().map((id) => ({ id, label: forgeLabelOf(id) }));
+  });
   let filterBarEl: HTMLDivElement | undefined = $state();
   // Saved picks this page does not offer, said out loud with a way to drop
   // each (#1620).
@@ -279,30 +285,35 @@
       { label: labelHost, repo: repoHost, author: authorHost },
       applyPicks,
     );
+    // The forge radios wire themselves (onchange), since a forge the API
+    // reports later brings its own after this runs.
     filterBarEl
-      ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
+      ?.querySelectorAll<HTMLInputElement | HTMLSelectElement>(
+        '.col-filter:not([data-col="forge"])',
+      )
       .forEach((c) => {
-        const apply = () => {
-          const col = (c as HTMLElement).dataset.col ?? "";
-          const value =
-            c instanceof HTMLInputElement && c.type === "radio"
-              ? c.value
-              : c.value.trim().toLowerCase();
-          setSharedControl(sharedState, col, value);
-          // Each pick narrows what the others can offer (#1427).
-          if (
-            col === "forge" ||
-            col === "repo" ||
-            col === "author" ||
-            col === "label"
-          )
-            updateSharedFilterOptions();
-          else if (col === "title") updateSharedFilterOptions(true);
-          Filters.saveState(sharedState, col);
-        };
-        c.addEventListener("input", apply);
-        c.addEventListener("change", apply);
+        c.addEventListener("input", () => applyControl(c));
+        c.addEventListener("change", () => applyControl(c));
       });
+  }
+
+  function applyControl(c: HTMLInputElement | HTMLSelectElement) {
+    const col = (c as HTMLElement).dataset.col ?? "";
+    const value =
+      c instanceof HTMLInputElement && c.type === "radio"
+        ? c.value
+        : c.value.trim().toLowerCase();
+    setSharedControl(sharedState, col, value);
+    // Each pick narrows what the others can offer (#1427).
+    if (
+      col === "forge" ||
+      col === "repo" ||
+      col === "author" ||
+      col === "label"
+    )
+      updateSharedFilterOptions();
+    else if (col === "title") updateSharedFilterOptions(true);
+    Filters.saveState(sharedState, col);
   }
 
   // Matches sharedState's own initial default above — resynced from the
@@ -754,29 +765,23 @@
             data-col="forge"
             value=""
             checked
+            onchange={(e) => applyControl(e.currentTarget)}
           />
           <span>All</span>
         </label>
-        <label>
-          <input
-            type="radio"
-            name="forge"
-            class="col-filter"
-            data-col="forge"
-            value="github"
-          />
-          <span>GitHub</span>
-        </label>
-        <label>
-          <input
-            type="radio"
-            name="forge"
-            class="col-filter"
-            data-col="forge"
-            value="forgejo"
-          />
-          <span>Forgejo</span>
-        </label>
+        {#each forgeChoices as { id, label } (id)}
+          <label>
+            <input
+              type="radio"
+              name="forge"
+              class="col-filter"
+              data-col="forge"
+              value={id}
+              onchange={(e) => applyControl(e.currentTarget)}
+            />
+            <span>{label}</span>
+          </label>
+        {/each}
       </fieldset>
       <div id="shared-repo-filter" bind:this={repoHost}></div>
       <span class="search-wrap">
