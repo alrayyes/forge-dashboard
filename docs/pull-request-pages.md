@@ -102,9 +102,11 @@ dashboard tracks the repository. They stay real links to the dashboard's own
 address, so a middle click or copy-link still works, and closing the new pop-up
 puts focus back where the first one was opened from. A reference to a
 repository the dashboard doesn't track stays a forge link, opened in a new tab,
-and asks the forge about the item while the pointer or focus rests on it. If
-the forge has shown it by the time you click (a merged or closed pull request,
-say), a plain click opens its read-only pop-up instead. A click before that, or
+and asks the forge about the item while the pointer rests on it for a moment
+(150 ms), or while focus or a press is on it. If the forge has shown it by the
+time you click (a merged or closed pull request, say), a plain click opens its
+read-only pop-up instead: no Close, Comment or Reopen, since the dashboard
+doesn't track that repository. A click before that, or
 for an item the forge can't read (missing, no access, a rate limit), just
 follows the link to the forge. A middle or modified click always does. Its
 accessible name says it opens on the forge. Code, a word like `abc#12`

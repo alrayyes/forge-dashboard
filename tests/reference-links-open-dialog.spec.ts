@@ -301,6 +301,107 @@ test.describe('references open the dialog (#3744)', () => {
     await expect(issueDialog(page)).toBeHidden();
   });
 
+  // The dialog for a repository the board does not track only shows the item:
+  // nothing in it closes, reopens or comments (#4269).
+  const WRITE_ACTIONS = [
+    /^Close issue/,
+    /^Close with a comment/,
+    /^Reopen issue/,
+    /^Comment and close/,
+    /^Close pull request/,
+    /^Merge/,
+    /^Comment$/,
+  ];
+
+  async function expectReadOnly(page: Page, dialog = issueDialog(page)) {
+    await expect(dialog).toBeVisible();
+    // Wait out the dialog's own read, which is what adds the buttons.
+    await expect(dialog).toContainText('text of stranger/elsewhere');
+    for (const name of WRITE_ACTIONS)
+      await expect(dialog.getByRole('button', { name })).toHaveCount(0);
+    await expect(dialog.getByRole('textbox')).toHaveCount(0);
+  }
+
+  for (const state of ['open', 'closed']) {
+    test(`${state === 'open' ? 'an open' : 'a closed'} issue of an untracked repository has no write action`, async ({
+      page,
+    }) => {
+      await open(page);
+      await page.route('**/api/v1/issues/details*', (route: Route) => {
+        const fullName = new URL(route.request().url()).searchParams.get(
+          'fullName',
+        );
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...details(`Issue text of ${fullName}`),
+            state,
+          }),
+        });
+      });
+      const link = strangerLink(page);
+      const answered = page.waitForResponse('**/api/v1/issues/details*');
+      await link.hover();
+      await answered;
+
+      await link.click();
+
+      await expectReadOnly(page);
+    });
+  }
+
+  test('a pull request of an untracked repository has no write action', async ({
+    page,
+  }) => {
+    await open(page);
+    await page.route('**/api/v1/issues/details*', (route: Route) => {
+      const fullName = new URL(route.request().url()).searchParams.get(
+        'fullName',
+      );
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...details(`Change text of ${fullName}`),
+          kind: 'pullRequest',
+          state: 'closed',
+          pullRequest: {
+            title: 'A change elsewhere',
+            state: 'merged',
+            author: 'stranger',
+          },
+        }),
+      });
+    });
+    const link = strangerLink(page);
+    const answered = page.waitForResponse('**/api/v1/issues/details*');
+    await link.hover();
+    await answered;
+
+    await link.click();
+
+    await expectReadOnly(page, page.getByRole('dialog', { name: /details/ }));
+  });
+
+  test('sweeping the pointer over a mention asks the forge only once it rests', async ({
+    page,
+  }) => {
+    await open(page);
+    const asked = await answerIssues(page, 200);
+    const link = strangerLink(page);
+
+    // A drive-by: over the link and away again before the dwell is up.
+    const box = (await link.boundingBox()) as { x: number; y: number };
+    await page.mouse.move(box.x + 2, box.y + 2);
+    await page.mouse.move(box.x + 2, box.y - 400);
+    await page.waitForTimeout(400);
+    expect(asked()).toBe(0);
+
+    await link.hover();
+    await expect.poll(() => asked()).toBe(1);
+  });
+
   test('a modified click on a warmed mention is left to the browser', async ({
     page,
   }) => {
