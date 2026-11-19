@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly, pickTexts } from './label-filter-helper';
 import { rateLimit } from './rate-limit-mock';
 import { landOnPullRequests, test } from './server-fixture';
@@ -731,12 +732,14 @@ test.describe('insights page', () => {
           pr('success', { labels: [{ name: 'docs', color: 'ededed' }] }),
           pr('failure', {
             number: 2,
+            forge: 'forgejo',
             repo: 'alrayyes/other',
             author: 'other',
             labels: [{ name: 'bug', color: 'ededed' }],
           }),
         ],
         issues: [issue()],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
       });
       await page.goto('/insights.html');
       await expect(

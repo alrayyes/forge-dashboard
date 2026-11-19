@@ -1737,21 +1737,71 @@ export function ageChoices(
   );
 }
 
+// The items the Forge filter is judged over: what the title and the repo
+// filter leave (and `extra`, the board's own filters). The forge, author, label
+// and age picks are left out, since choosing a forge clears the ones that no
+// longer match. The one place the Forge filter's scope is decided (#4273).
+export function forgeScope(
+  items: FilterableItem[],
+  isPR: boolean,
+  shared: Record<string, string>,
+  extra?: Record<string, string>,
+): FilterableItem[] {
+  return optionPool(
+    items,
+    isPR,
+    { title: shared.title ?? '', repo: shared.repo ?? '' },
+    '',
+    extra,
+  );
+}
+
+// The Forge filter is worth showing only while the scope spans several forges.
+export function forgeFilterOffered(scope: FilterableItem[]): boolean {
+  return new Set(scope.map((item) => item.forge)).size > 1;
+}
+
+// A forge pick that the repo filter has just made redundant, so hiding the Forge
+// filter would leave it active out of sight. Clearing it is safe: with one forge
+// in scope it changes nothing, or it was showing an empty list. Without a repo
+// pick the filter stays while a forge is picked (see offerPills), so it can be
+// cleared there. An empty scope says nothing yet (no data loaded): clear nothing.
+export function staleForgePick(
+  scope: FilterableItem[],
+  pick: string,
+  repoPick: string | undefined,
+): boolean {
+  return (
+    Boolean(pick) &&
+    parsePick(repoPick).length > 0 &&
+    scope.length > 0 &&
+    !forgeFilterOffered(scope)
+  );
+}
+
 // Shows a forge button only when some result is on that forge, or it is the
-// one picked, so it can be seen and cleared (#1427). "All" always stays. The
-// pick comes from the saved filter state, not from which radio is checked:
-// on a page load the radios are restored after the choices are built.
+// one picked, so it can be seen and cleared (#1427). "All" always stays, and
+// the whole group goes when the forges present are fewer than two, unless one
+// is picked (#4273). The pick comes from the saved filter state, not from which
+// radio is checked: on a page load the radios are restored after the choices
+// are built.
 export function offerForges(
   scope: ParentNode,
   present: Set<string>,
   picked: string,
 ): void {
-  for (const input of scope.querySelectorAll<HTMLInputElement>(
+  const inputs = scope.querySelectorAll<HTMLInputElement>(
     'input[type="radio"][data-col="forge"]',
-  )) {
+  );
+  for (const input of inputs) {
     const label = input.closest('label');
     if (!label || !input.value) continue;
     label.hidden = !(present.has(input.value) || input.value === picked);
+  }
+  const hide = present.size < 2 && !picked;
+  for (const input of inputs) {
+    const group = input.closest('fieldset');
+    if (group) group.hidden = hide;
   }
 }
 

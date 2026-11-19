@@ -298,6 +298,7 @@ const singleUserSpecs = [
   '**/filter-bar-single-row.spec.ts',
   '**/title-filter-clear.spec.ts',
   '**/search-box-clear.spec.ts',
+  '**/forge-filter-single-forge.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

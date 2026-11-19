@@ -237,14 +237,39 @@
         sharedTitleDatalist ?? null,
         Filters.distinctValues((item) => item.title, optionPool("")),
       );
-    // A forge button is offered only when something here is on that forge.
+    // The Forge filter is offered only while the repos in scope span several
+    // forges, and a pick it would leave active out of sight is dropped (#4273).
+    const forgeScope = [
+      ...Filters.forgeScope(
+        lastSnapshot.pullRequests,
+        false,
+        sharedState.shared,
+        undefined,
+      ),
+      ...Filters.forgeScope(
+        lastSnapshot.issues,
+        false,
+        sharedState.shared,
+        issueFilters(),
+      ),
+    ];
+    const staleForge = Filters.staleForgePick(
+      forgeScope,
+      sharedState.shared.forge ?? "",
+      sharedState.shared.repo,
+    );
+    if (staleForge) {
+      sharedState.shared.forge = "";
+      syncSharedControlsToState();
+    }
     if (filterBarEl)
       Filters.offerForges(
         filterBarEl,
-        new Set(optionPool("forge").map((item) => item.forge)),
+        new Set(forgeScope.map((item) => item.forge)),
         sharedState.shared.forge ?? "",
       );
-    if (!holdPicks && stalePicks) Filters.saveState(sharedState);
+    if (!holdPicks && (stalePicks || staleForge))
+      Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
   }
 
