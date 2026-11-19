@@ -98,6 +98,14 @@ describe('labelChipColors', () => {
     expect(colors.get('bug')).toBe('d73a4a');
   });
 
+  test('Bug and bug are one label, so two colours for it clash', () => {
+    const colors = labelChipColors([
+      item({ name: 'Bug', color: 'd73a4a' }),
+      item({ name: 'bug', color: '0075ca' }),
+    ]);
+    expect(colors.size).toBe(0);
+  });
+
   test('a copy with no colour does not count as a different one', () => {
     const colors = labelChipColors([
       item({ name: 'bug' }),
