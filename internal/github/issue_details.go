@@ -176,31 +176,19 @@ type crossReferenceNode struct {
 }
 
 // incomingReferences turns the timeline's cross references into the items that
-// refer to this one, newest first (GitHub lists oldest first), one entry per
-// item. An item that both mentioned and closed it counts as closing. GitHub's
-// timeline does not tell a reference from a mention, so every other one is a
-// mention.
+// refer to this one. GitHub's timeline does not tell a reference from a
+// mention, so every one that does not close is a mention.
 func incomingReferences(nodes []crossReferenceNode) []dashboard.ItemReference {
 	var refs []dashboard.ItemReference
-	seen := map[string]int{}
-	for i := len(nodes) - 1; i >= 0; i-- {
-		src := nodes[i].Source
+	for _, node := range nodes {
+		src := node.Source
 		if src == nil || src.Number == 0 {
 			continue
 		}
 		relation := dashboard.RelationMentions
-		if nodes[i].WillCloseTarget {
+		if node.WillCloseTarget {
 			relation = dashboard.RelationCloses
 		}
-		key := dashboard.IssueKey(dashboard.ForgeGitHub, src.Repository.NameWithOwner, src.Number)
-		if at, ok := seen[key]; ok {
-			if relation == dashboard.RelationCloses {
-				refs[at].Relation = relation
-			}
-
-			continue
-		}
-		seen[key] = len(refs)
 		ref := dashboard.ItemReference{
 			Forge: dashboard.ForgeGitHub, Repo: src.Repository.NameWithOwner, Number: src.Number,
 			Title: src.Title, URL: src.URL, Kind: dashboard.ItemKindIssue,
@@ -212,5 +200,5 @@ func incomingReferences(nodes []crossReferenceNode) []dashboard.ItemReference {
 		refs = append(refs, ref)
 	}
 
-	return refs[:min(len(refs), dashboard.MaxReferences)]
+	return dashboard.NewestFirstReferences(refs)
 }

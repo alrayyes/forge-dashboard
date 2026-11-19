@@ -81,10 +81,8 @@ type timelineReference struct {
 }
 
 // incomingReferences reads the issue's timeline and returns the items that
-// refer to it, newest first (the timeline lists oldest first), one entry per
-// item. An item that both mentioned and closed it counts as closing. Costs one
-// request per page of events, and an empty page to end on, as the scheduled
-// merge read does.
+// refer to it. Costs one request per page of events and an empty page to end
+// on, as the scheduled merge read does.
 func (c *Client) incomingReferences(ctx context.Context, owner, name string, number int) ([]dashboard.ItemReference, error) {
 	var events []timelineReference
 	for page := 1; page <= maxTimelinePages; page++ {
@@ -105,9 +103,7 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 	}
 
 	var refs []dashboard.ItemReference
-	seen := map[string]int{}
-	for i := len(events) - 1; i >= 0; i-- {
-		e := events[i]
+	for _, e := range events {
 		if !referenceEvents[e.Type] || e.RefIssue == nil || e.RefIssue.Repository == nil || e.RefIssue.Number == 0 {
 			continue
 		}
@@ -116,15 +112,6 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 			relation = dashboard.RelationCloses
 		}
 		repo := e.RefIssue.Repository.FullName
-		key := dashboard.IssueKey(dashboard.ForgeForgejo, repo, e.RefIssue.Number)
-		if at, ok := seen[key]; ok {
-			if relation == dashboard.RelationCloses {
-				refs[at].Relation = relation
-			}
-
-			continue
-		}
-		seen[key] = len(refs)
 		ref := dashboard.ItemReference{
 			Forge: dashboard.ForgeForgejo, Repo: repo, Number: e.RefIssue.Number,
 			Title: e.RefIssue.Title, URL: e.RefIssue.HTMLURL, Kind: dashboard.ItemKindIssue,
@@ -142,5 +129,5 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 		refs = append(refs, ref)
 	}
 
-	return refs[:min(len(refs), dashboard.MaxReferences)], nil
+	return dashboard.NewestFirstReferences(refs), nil
 }

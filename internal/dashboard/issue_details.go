@@ -128,3 +128,27 @@ type IssueDetails struct {
 type IssueDetailer interface {
 	GetIssueDetails(ctx context.Context, owner, name string, number int) (IssueDetails, error)
 }
+
+// NewestFirstReferences turns a forge's cross references, oldest first and
+// possibly naming one item more than once, into the list the API returns:
+// newest first, one entry per item, at most MaxReferences. An item that both
+// mentioned and closed the issue counts as closing.
+func NewestFirstReferences(oldestFirst []ItemReference) []ItemReference {
+	var refs []ItemReference
+	seen := map[string]int{}
+	for i := len(oldestFirst) - 1; i >= 0; i-- {
+		ref := oldestFirst[i]
+		key := IssueKey(ref.Forge, ref.Repo, ref.Number)
+		if at, ok := seen[key]; ok {
+			if ref.Relation == RelationCloses {
+				refs[at].Relation = RelationCloses
+			}
+
+			continue
+		}
+		seen[key] = len(refs)
+		refs = append(refs, ref)
+	}
+
+	return refs[:min(len(refs), MaxReferences)]
+}
