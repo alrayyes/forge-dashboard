@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { addressFocusFallback } from './address-focus';
+import { addressFocusFallback, chainedReturn } from './address-focus';
 
 // The fallback for a pull request opened from its address: where focus goes
 // on close when its row is filtered out. The title box hides over one row
@@ -55,6 +55,28 @@ describe('addressFocusFallback', () => {
     ).toBe('updated-filter');
     expect(addressFocusFallback(drawnIds('clear-filters-button'))).toBe(
       'clear-filters-button',
+    );
+  });
+});
+
+// Dialogs swapped one for another return focus to where the first swap sent
+// it, not to a pill inside a dialog that is gone (#4351).
+describe('chainedReturn', () => {
+  test('keeps what the first swap sent focus to', () => {
+    expect(chainedReturn('details-trigger-1', 'pill-in-gone-dialog')).toBe(
+      'details-trigger-1',
+    );
+  });
+
+  test('uses the pill own id when no swap came before', () => {
+    expect(chainedReturn(null, 'pill-in-gone-dialog')).toBe(
+      'pill-in-gone-dialog',
+    );
+  });
+
+  test('uses the pill own id when the earlier swap named none', () => {
+    expect(chainedReturn('', 'pill-in-gone-dialog')).toBe(
+      'pill-in-gone-dialog',
     );
   });
 });
