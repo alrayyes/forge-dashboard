@@ -27,6 +27,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			AdvisoryUnknownNeedsReason: false,
 			StatusPageURL:              "https://www.githubstatus.com/",
 			RateLimitModel:             "graphql_and_rest",
+			RateLimitDocsURL:           "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
 			IssueRefSyntax:             "hash_or_gh_prefix",
 			ReportsRepoPermissions:     false,
 			Label:                      "GitHub",
@@ -44,6 +45,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			AdvisoryUnknownNeedsReason: true,
 			StatusPageURL:              "",
 			RateLimitModel:             "rest",
+			RateLimitDocsURL:           "",
 			IssueRefSyntax:             "hash",
 			ReportsRepoPermissions:     true,
 			Label:                      "Forgejo",
@@ -58,12 +60,13 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			require.True(t, ok)
 			assert.Equal(t, tc.want, got)
 
-			// Every text capability is filled in. The status page and the bot
-			// suffix may be empty: the forge has no status page, or no bot accounts.
+			// Every text capability is filled in. The status page, the rate limit
+			// docs and the bot suffix may be empty: the forge has no such page,
+			// or no bot accounts.
 			v := reflect.ValueOf(got)
 			for i := range v.NumField() {
 				name := v.Type().Field(i).Name
-				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" && name != "BotLoginSuffix" {
+				if v.Field(i).Kind() == reflect.String && name != "StatusPageURL" && name != "RateLimitDocsURL" && name != "BotLoginSuffix" {
 					assert.NotEmpty(t, v.Field(i).String(), name)
 				}
 			}

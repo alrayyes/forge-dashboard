@@ -6184,6 +6184,7 @@ components:
         - reportsRepoPermissions
         - statusPageUrl
         - rateLimitModel
+        - rateLimitDocsUrl
         - issueRefSyntax
         - label
       properties:
@@ -6244,6 +6245,12 @@ components:
           description: >-
             How the forge budgets requests. Open-ended; today
             `graphql_and_rest` (two separate allowances) and `rest`.
+        rateLimitDocsUrl:
+          type: string
+          description: >-
+            The forge's published rules for its request budget, or an empty
+            string when it has none. A client links to it from the rate limit
+            explanation and shows no link when it is empty.
         issueRefSyntax:
           type: string
           description: >-
