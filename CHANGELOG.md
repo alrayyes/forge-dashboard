@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.81.1](https://github.com/alrayyes/forge-dashboard/compare/v9.81.0...v9.81.1) (2026-11-19)
+
+
+### Bug Fixes
+
+* **web:** render the allow-listed HTML in a Dependabot description ([#4254](https://github.com/alrayyes/forge-dashboard/issues/4254)) ([b50cb99](https://github.com/alrayyes/forge-dashboard/commit/b50cb9959c7bb1b68d433901fd627a57d808102f))
+
 ## [9.81.0](https://github.com/alrayyes/forge-dashboard/compare/v9.80.2...v9.81.0) (2026-11-19)
 
 
