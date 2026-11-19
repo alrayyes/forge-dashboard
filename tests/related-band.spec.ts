@@ -490,6 +490,128 @@ test('the rows for what an issue refers to have no axe violations', async ({
   }
 });
 
+test('a board refresh leaves the outgoing pills the reader is on in place', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(142)] }),
+    [
+      outgoing(4297, { kind: 'issue', state: 'open' }),
+      outgoing(4300, { relation: 'mentions', kind: 'issue', state: 'open' }),
+    ],
+  );
+  await page.route('**/api/v1/dashboard/refresh*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests: [],
+        issues: [issue({ linkedPullRequests: [linked(142)] })],
+      }),
+    }),
+  );
+
+  // A redraw replaces the nodes, and with them the reader's focus and any open
+  // tooltip, with nothing different to see. Tagging the nodes shows it.
+  const refsPill = row(dialog, 'Refs').locator('.linked-pr');
+  const mentionsPill = row(dialog, 'Mentions').locator('.linked-pr');
+  await refsPill.evaluate((el) => el.setAttribute('data-probe', 'refs'));
+  await mentionsPill.evaluate((el) =>
+    el.setAttribute('data-probe', 'mentions'),
+  );
+  await refsPill.focus();
+  await expect(refsPill).toBeFocused();
+
+  const refresh = page.locator('#force-refresh-button');
+  const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
+  // The open dialog is modal and covers the button, so the page clicks it.
+  await refresh.evaluate((el) => (el as HTMLButtonElement).click());
+  await answered;
+  // The class goes once the snapshot has been applied.
+  await expect(refresh).not.toHaveClass(/is-refreshing/);
+
+  await expect(dialog.locator('[data-probe="refs"]')).toHaveCount(1);
+  await expect(dialog.locator('[data-probe="mentions"]')).toHaveCount(1);
+  await expect(refsPill).toBeFocused();
+
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const results = await new AxeBuilder({ page })
+      .include('.related-band')
+      .analyze();
+    expect(results.violations, scheme).toEqual([]);
+  }
+});
+
+test('the fold toggle of each outgoing row says what the issue does to the items behind it', async ({
+  page,
+}) => {
+  const eight = (relation: string, first: number) =>
+    [0, 1, 2, 3, 4, 5, 6, 7].map((n) =>
+      outgoing(first + n, { relation, kind: 'issue', state: 'open' }),
+    );
+  const dialog = await openIssue(page, issue(), [
+    ...eight('closes', 100),
+    ...eight('refs', 200),
+    ...eight('mentions', 300),
+  ]);
+
+  for (const [label, wording] of [
+    ['Closes', 'this issue closes'],
+    ['Refs', 'this issue references'],
+    ['Mentions', 'this issue mentions'],
+  ] as const) {
+    const toggle = row(dialog, label).locator('.related-toggle');
+    await expect(toggle).toHaveAccessibleName(
+      `+2 more, 2 more items ${wording}`,
+    );
+    await toggle.click();
+    await expect(toggle).toHaveAccessibleName(
+      `Show fewer, hides 2 items ${wording}`,
+    );
+  }
+});
+
+test('the tooltip of a Refs pill for what the issue refers to says the issue references it', async ({
+  page,
+}) => {
+  const dialog = await openIssue(page, issue(), [outgoing(4297)]);
+  const pill = row(dialog, 'Refs').locator('.linked-pr');
+
+  const tip = page.locator(`#${await pill.getAttribute('aria-describedby')}`);
+  await expect(tip).toHaveAttribute('role', 'tooltip');
+  await expect(tip).toHaveText(
+    'This issue references this, it does not close it',
+  );
+});
+
+test('an issue the board lists keeps the board rows, whatever its details list as incoming', async ({
+  page,
+}) => {
+  const dialog = await openIssue(
+    page,
+    issue({ linkedPullRequests: [linked(142)] }),
+    [
+      reference(4100),
+      reference(4101, { relation: 'refs' }),
+      reference(4102, { relation: 'mentions' }),
+      outgoing(4297),
+    ],
+  );
+
+  await expect(dialog.locator('.related-label')).toHaveText([
+    'Closed by',
+    'Refs',
+  ]);
+  await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveText([
+    'PR #142 · Open',
+  ]);
+  await expect(dialog.locator('.related-count')).toHaveText('2');
+});
+
 test('an issue that refers to nothing has no outgoing rows', async ({
   page,
 }) => {
