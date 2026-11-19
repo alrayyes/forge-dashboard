@@ -8,13 +8,6 @@ import { join } from 'node:path';
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
 const stillByHand = [
-  'bot-rebase-all-left-out.spec.ts',
-  'bot-rebase-all.spec.ts',
-  'bot-rebase-pickup.spec.ts',
-  'bot-row-rebase.spec.ts',
-  'dependabot-ack.spec.ts',
-  'dependabot-recreate-menu.spec.ts',
-  'renovate-rebase-requested.spec.ts',
   'actions-dialog-helper.spec.ts',
   'activity-persistence.spec.ts',
   'address-open-focus.spec.ts',

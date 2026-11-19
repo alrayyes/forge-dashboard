@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 import { dismissToasts } from './toast-helper';
@@ -42,7 +43,7 @@ function dependabotRequest(
 
 function makePR(botRequest?: MockBotRequest) {
   return {
-    forge: 'github',
+    forge: 'github' as const,
     repo: 'alrayyes/forge-dashboard',
     number: 42,
     title: 'Bump a dependency',
@@ -62,7 +63,7 @@ function makePR(botRequest?: MockBotRequest) {
 function snapshot(pr: ReturnType<typeof makePR>) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge)],
     pullRequests: [pr],
     issues: [],
   };

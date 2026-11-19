@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 import { dismissToasts } from './toast-helper';
@@ -17,7 +18,7 @@ import { dismissToasts } from './toast-helper';
 // request when a later snapshot no longer has it.
 
 interface MockPR {
-  forge: string;
+  forge: 'github' | 'forgejo';
   repo: string;
   number: number;
   title: string;
@@ -78,7 +79,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(pr: MockPR, generatedAt = new Date().toISOString()) {
   return {
     generatedAt,
-    forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge)],
     pullRequests: [pr],
     issues: [],
   };
