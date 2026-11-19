@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.0](https://github.com/alrayyes/forge-dashboard/compare/v9.87.1...v9.88.0) (2026-11-19)
+
+
+### Features
+
+* **web:** open a Mentions pill for an untracked item in the dialog ([#4343](https://github.com/alrayyes/forge-dashboard/issues/4343)) ([9731471](https://github.com/alrayyes/forge-dashboard/commit/97314711da17b66adbb117aef91ddfa7ed1a1719)), closes [#4321](https://github.com/alrayyes/forge-dashboard/issues/4321)
+
 ## [9.87.1](https://github.com/alrayyes/forge-dashboard/compare/v9.87.0...v9.87.1) (2026-11-19)
 
 
