@@ -257,6 +257,8 @@ describe('an unclosed pre', () => {
       '<pre><a href="https://example.test/x">',
       '<pre><h1>',
       '<pre class="x">',
+      '<pre\tclass="x">',
+      '<pre',
     ]) {
       const html = await renderMarkdown(
         `${open}\n\nrest [real](https://r.example)\n\n- item`,
@@ -372,11 +374,69 @@ describe('an unclosed pre', () => {
   });
 
   test('two backticks or tildes, or a pre tag in text, do not stop it', async () => {
-    for (const line of ['``x``', '~~x~~', 'use <pre> here']) {
+    for (const line of ['``x``', '~~x~~', '***', 'use <pre> here']) {
       const html = await renderMarkdown(`<pre>\n${line}\n</pre>\n\nafter`);
       expect(html).toContain('<pre tabindex="0">');
       expect(html).toContain('<p>after</p>');
     }
+  });
+
+  test('only a full closer ends it, wherever it sits on its line', async () => {
+    // `</pre foo` is not a closer, so the fence after it still stops the pre.
+    const near = await renderMarkdown(
+      '<pre>\nx\n</pre foo\n\n```\n</pre>\n```\n\nrest [real](https://r.example)',
+    );
+    expect(near).toContain('&lt;pre&gt;');
+    expect(near).toContain('<a href="https://r.example"');
+    // Text after the closer on its line does not stop it being one.
+    const tail = await renderMarkdown('<pre>x</pre> tail\n\nafter');
+    expect(tail).toContain('<pre tabindex="0">');
+    expect(tail).toContain('<p>after</p>');
+  });
+
+  test('a bare pre tag on a line of its own stops an earlier one', async () => {
+    const html = await renderMarkdown(
+      '<pre>\nlost\n\nrest [real](https://r.example)\n\n<pre\n\nmore\n</pre>',
+    );
+    expect(html).toContain('<a href="https://r.example"');
+    // A self-closing lookalike is not a pre tag.
+    const slash = await renderMarkdown('<pre>\n<pre/>\n</pre>\n\nafter');
+    expect(slash).toContain('<pre tabindex="0">');
+  });
+
+  test('a lookalike closer or fence does not decide it', async () => {
+    // None of these ends a pre, so the fence after them still stops it.
+    for (const near of ['a/pre> b', '</pre >']) {
+      const html = await renderMarkdown(
+        `<pre>\n${near}\n\n\`\`\`\n</pre>\n\`\`\`\n\nrest [real](https://r.example)`,
+      );
+      expect(html).toContain('&lt;pre&gt;');
+      expect(html).toContain('<a href="https://r.example"');
+    }
+    // A fence with an info string is a fence.
+    const info = await renderMarkdown(
+      '<pre>\n\n```js\n</pre>\n```\n\nrest [real](https://r.example)',
+    );
+    expect(info).toContain('&lt;pre&gt;');
+    expect(info).toContain('<a href="https://r.example"');
+  });
+
+  test('every pre is judged on its own, whatever came before it', async () => {
+    // Closed pres in a row.
+    const two = await renderMarkdown('<pre>x</pre>\n\n<pre>y</pre>');
+    expect(two.match(/<pre tabindex="0">/g)).toHaveLength(2);
+    // An unclosed one after a closed one.
+    const after = await renderMarkdown(
+      '<pre>x</pre>\n\n<pre>\n\nrest [real](https://r.example)',
+    );
+    expect(after.match(/<pre tabindex="0">/g)).toHaveLength(1);
+    expect(after).toContain('<a href="https://r.example"');
+    // Two stopped by a fence in a row.
+    const fenced =
+      '<pre>\n```\n</pre>\n```\n\n<pre>\n```\n</pre>\n```\n\nrest [real](https://r.example)';
+    expect((await renderMarkdown(fenced)).match(/&lt;pre&gt;/g)).toHaveLength(
+      2,
+    );
   });
 
   test('a closer after the end of its quote ends nothing', async () => {

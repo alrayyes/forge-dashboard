@@ -672,7 +672,7 @@ function rawInline(decode: (s: string) => string) {
 // fence or another `<pre`, which a closer further on would otherwise swallow.
 // The cost is a pre that holds a line starting with a fence, or one indented
 // 4+ spaces that looks like one, shown as text (still contained).
-const PRE_OPEN = /^<pre(?=[\s>])/i;
+const PRE_OPEN = /^<pre(?=[\s>]|$)/i;
 const PRE_CLOSE = /<\/pre>/i;
 const FENCE_OPEN = /^(?:`{3}|~{3})/;
 
