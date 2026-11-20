@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"testing"
 
@@ -497,6 +498,35 @@ func TestGetIssueDetails_IgnoresTimelineEventsThatAreNotReferences(t *testing.T)
 	require.NoError(t, err)
 	require.Len(t, got.References, 1)
 	assert.Equal(t, 30, got.References[0].Number)
+}
+
+// A page with no events ends the walk: it is the last request, however many
+// pages the cap would allow.
+func TestGetIssueDetails_StopsReadingTheTimelineAtAnEmptyPage(t *testing.T) {
+	t.Parallel()
+
+	var asked []string
+	var mu sync.Mutex
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		page := r.URL.Query().Get("page")
+		mu.Lock()
+		asked = append(asked, page)
+		mu.Unlock()
+		if page == "1" {
+			writeJSON(t, w, []any{refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true)})
+
+			return
+		}
+		writeJSON(t, w, []any{})
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 1)
+	mu.Lock()
+	defer mu.Unlock()
+	assert.Equal(t, []string{"1", "2"}, asked, "one page of events, then the empty page that ends the walk")
 }
 
 // The read stops after ten pages of fifty events. The timeline lists oldest
