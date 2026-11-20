@@ -13,11 +13,74 @@ const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 // visits. This test reads the stylesheet, so a tick drawn under any class is
 // caught without one.
 
-// The attribute in any spelling: spaces inside the brackets, any case, `~=`,
-// an `i` flag, or bare presence.
-const pressed = /\[\s*aria-pressed\s*(?:~?=\s*(["']?)true\1\s*[is]?\s*)?\]/i;
-// A pseudo-element in any case, optionally followed by pseudo-classes.
-const pseudo = /::?(before|after)(?::[\w-]+(?:\([^)]*\))?)*$/i;
+// Undo CSS escapes, so `tr\75 e` reads as `true`. A hex escape takes up to six
+// digits and one optional space after them, which is why `\75e` is U+075E and
+// not `ue`. Any other escaped character stands for itself.
+function unescapeCss(value: string): string {
+  return value.replace(
+    /\\(?:([0-9a-f]{1,6})[ \t\n\r\f]?|([\s\S]))/gi,
+    (_, hex: string | undefined, plain: string | undefined) =>
+      hex ? String.fromCodePoint(Number.parseInt(hex, 16)) : (plain ?? ''),
+  );
+}
+
+// The attribute in any spelling: spaces inside the brackets, any case, an
+// `i` flag, bare presence, and every operator (`=`, `~=`, `|=`, `^=`, `$=`,
+// `*=`) with a quoted, unquoted or escaped value.
+const attribute =
+  /\[\s*aria-pressed\s*(?:([~|^$*]?)=\s*(?:"([^"]*)"|'([^']*)'|([^\s\]"']*))\s*[is]?\s*)?\]/gi;
+
+// Whether the operator can match the value `true`, the one pressed state.
+function matchesTrue(operator: string, value: string): boolean {
+  const wanted = value.toLowerCase();
+  switch (operator) {
+    case '^':
+      return wanted !== '' && 'true'.startsWith(wanted);
+    case '$':
+      return wanted !== '' && 'true'.endsWith(wanted);
+    case '*':
+      return wanted !== '' && 'true'.includes(wanted);
+    default:
+      // `=`, `~=` and `|=` all match the whole word `true` and nothing less.
+      return wanted === 'true';
+  }
+}
+
+function isPressed(selector: string): boolean {
+  for (const m of unescapeCss(selector).matchAll(attribute)) {
+    const value = m[2] ?? m[3] ?? m[4];
+    if (value === undefined || matchesTrue(m[1], value)) return true;
+  }
+
+  return false;
+}
+
+// A pseudo-element in any case, optionally followed by pseudo-classes. The
+// pseudo-classes are peeled off the end one at a time, so an argument may
+// nest parentheses to any depth (`:not(:is(.a))`).
+function endsInPseudoElement(selector: string): boolean {
+  let rest = selector;
+  for (;;) {
+    if (rest.endsWith(')')) {
+      let depth = 0;
+      let open = -1;
+      for (let i = rest.length - 1; i >= 0; i--) {
+        if (rest[i] === ')') depth++;
+        else if (rest[i] === '(' && --depth === 0) {
+          open = i;
+          break;
+        }
+      }
+      if (open < 0) return false;
+      rest = rest.slice(0, open);
+    }
+    const pseudoClass = /:[\w-]+$/.exec(rest);
+    if (!pseudoClass || /^:(before|after)$/i.test(pseudoClass[0])) break;
+    rest = rest.slice(0, pseudoClass.index);
+  }
+
+  return /::?(before|after)$/i.test(rest);
+}
 
 // Split a selector list on its top-level commas, so a comma inside :is(),
 // :where(), :not() or an attribute value stays in one selector.
@@ -58,7 +121,7 @@ function tickSelectors(source: string): string[] {
         .replace(/\s+\)/g, ')'),
     ).map((part) => part.trim());
     for (const selector of selectors) {
-      if (pressed.test(selector) && pseudo.test(selector)) {
+      if (isPressed(selector) && endsInPseudoElement(selector)) {
         found.push(selector);
       }
     }
@@ -96,6 +159,52 @@ describe('The pressed pill tick', () => {
     ]);
   });
 
+  test('keeps a comma inside a quoted attribute value in one selector', () => {
+    const double = '.a[data-x="a,b"][aria-pressed="true"]::before';
+    const single = ".c[data-x='a,b'][aria-pressed='true']::after";
+    const sample = `${double}, .d { x: y; }\n${single} { x: y; }`;
+    expect(tickSelectors(sample)).toEqual([double, single]);
+  });
+
+  test('ignores a bracket inside a quoted attribute value', () => {
+    // The `]` would close the bracket early, and the comma after it would
+    // split the selector, if the quote did not hide it.
+    const closing = '.a[data-x="]x,y"][aria-pressed="true"]::before';
+    const opening = ".b[data-x='[x,y'][aria-pressed='true']::after";
+    const sample = `${closing} { x: y; }\n${opening} { x: y; }`;
+    expect(tickSelectors(sample)).toEqual([closing, opening]);
+  });
+
+  test('does not end a quote on the other quote character', () => {
+    const selector = `.a[data-x="it's, odd"][aria-pressed="true"]::before`;
+    expect(tickSelectors(`${selector}, .b { x: y; }`)).toEqual([selector]);
+  });
+
+  test('splits after a closed attribute bracket', () => {
+    const sample = '.a[x], .b[aria-pressed="true"]::before { x: y; }';
+    expect(tickSelectors(sample)).toEqual(['.b[aria-pressed="true"]::before']);
+  });
+
+  test('keeps a comma inside an unquoted attribute bracket in one selector', () => {
+    const selector = '.a[data-x=a,b][aria-pressed="true"]::before';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
+  test('splits after a closed parenthesis', () => {
+    const sample = '.a:not(.b), .c[aria-pressed="true"]::before { x: y; }';
+    expect(tickSelectors(sample)).toEqual(['.c[aria-pressed="true"]::before']);
+  });
+
+  test('finds a pseudo-element followed by a pseudo-class with an argument', () => {
+    const selector = '.a[aria-pressed="true"]::before:not(.b)';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
+  test('finds a pseudo-element followed by a pseudo-class with nested parentheses', () => {
+    const selector = '.a[aria-pressed="true"]::before:not(:is(.b))';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
   const spellings = [
     '[aria-pressed="true" i]',
     '[aria-pressed = "true"]',
@@ -104,6 +213,19 @@ describe('The pressed pill tick', () => {
     '[aria-pressed="TRUE"]',
     '[aria-pressed]',
     '[aria-pressed~="true"]',
+    '[aria-pressed|="true"]',
+    '[aria-pressed^="tr"]',
+    '[aria-pressed$="ue"]',
+    '[aria-pressed*="ru"]',
+    '[aria-pressed*=ru]',
+    '[aria-pressed=true i]',
+    '[aria-pressed=tr\\75 e]',
+    '[aria-pressed="tr\\75 e"]',
+    '[aria-pressed="tr\\000075e"]',
+    '[aria-pressed="\\t\\rue"]',
+    '[aria-pressed="\\74 rue"]',
+    '[aria-pressed="\\74rue"]',
+    '[aria-\\70ressed="true"]',
   ];
   for (const spelling of spellings) {
     test(`finds the attribute spelled ${spelling}`, () => {
@@ -111,6 +233,35 @@ describe('The pressed pill tick', () => {
       expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
     });
   }
+
+  // An operator that cannot match the value `true` is not a pressed tick.
+  const notPressed = [
+    '[aria-pressed="false"]',
+    '[aria-pressed="mixed"]',
+    '[aria-pressed^="ru"]',
+    '[aria-pressed$="tr"]',
+    '[aria-pressed*="xyz"]',
+    '[aria-pressed=]',
+    '[aria-pressed^=]',
+    '[aria-pressed^=""]',
+    '[aria-pressed$=""]',
+    '[aria-pressed*=""]',
+    '[aria-pressed|="tr"]',
+    '[aria-pressed~="tr"]',
+    // `\75e` is one escape for U+075E, not `u` then `e`.
+    '[aria-pressed="tr\\75e"]',
+    '[aria-pressed="\\66 alse"]',
+  ];
+  for (const spelling of notPressed) {
+    test(`leaves the attribute spelled ${spelling} alone`, () => {
+      expect(tickSelectors(`.a${spelling}::before { x: y; }`)).toEqual([]);
+    });
+  }
+
+  test('does not find a selector with an unbalanced closing parenthesis', () => {
+    const selector = '.a[aria-pressed="true"]::before:hover)';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([]);
+  });
 
   test('leaves a pill that is not pressed alone', () => {
     const sample = '.a[aria-pressed="false"]::before { x: y; }';
