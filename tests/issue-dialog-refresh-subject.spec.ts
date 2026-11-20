@@ -217,83 +217,116 @@ for (const width of [1280, 390]) {
 // A Mentions pill to a merged pull request (so untracked) is a pull request
 // from the first frame: the first read of it said so, and the dialog does
 // not call it an issue while a later read is on its way.
-test.describe('a mentioned pull request that is not on the board', () => {
-  test.beforeEach(async ({ page }) => {
-    await page.clock.install({ time: new Date() });
-    await mockBoard(page);
-    await page.unroute('**/api/v1/dashboard*');
-    await page.route('**/api/v1/dashboard*', (route: Route) => {
-      polls++;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [forgeHealth('github')],
-          pullRequests: [
-            pullRequest('github', REPO, 1, {
-              mentionsIssues: [
-                { ...mention('github', REPO, 4343), tracked: false },
-              ],
-            }),
-          ],
-          issues: [],
-        }),
+for (const width of [1280, 390]) {
+  test.describe(`a mentioned pull request that is not on the board at ${width}px`, () => {
+    test.beforeEach(async ({ page }) => {
+      await page.clock.install({ time: new Date() });
+      await page.setViewportSize({ width, height: 844 });
+      await mockBoard(page);
+      await page.unroute('**/api/v1/dashboard*');
+      await page.route('**/api/v1/dashboard*', (route: Route) => {
+        polls++;
+        return route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [forgeHealth('github')],
+            pullRequests: [
+              pullRequest('github', REPO, 1, {
+                mentionsIssues: [
+                  { ...mention('github', REPO, 4343), tracked: false },
+                ],
+              }),
+            ],
+            issues: [],
+          }),
+        });
+      });
+      let reads = 0;
+      await page.unroute('**/api/v1/issues/details*');
+      await page.route('**/api/v1/issues/details*', async (route: Route) => {
+        reads++;
+        // The first read warms the pill; every later one is slow.
+        if (reads > 1) await new Promise((r) => setTimeout(r, 1500));
+        await route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            ...details('The merged one.'),
+            kind: 'pullRequest',
+            state: 'closed',
+            pullRequest: {
+              title: 'Merged thing',
+              state: 'merged',
+              author: null,
+            },
+          }),
+        });
       });
     });
-    let reads = 0;
-    await page.unroute('**/api/v1/issues/details*');
-    await page.route('**/api/v1/issues/details*', async (route: Route) => {
-      reads++;
-      // The first read warms the pill; every later one is slow.
-      if (reads > 1) await new Promise((r) => setTimeout(r, 1500));
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          ...details('The merged one.'),
-          kind: 'pullRequest',
-          state: 'closed',
-          pullRequest: { title: 'Merged thing', state: 'merged', author: null },
-        }),
-      });
-    });
-  });
 
-  test('opens as a pull request, never as an issue, and stays one', async ({
-    page,
-  }) => {
-    await page.goto('/pull-requests.html');
-    await page
-      .getByRole('button', { name: /Pull request alrayyes\/forge-dashboard#1/ })
-      .first()
-      .click();
-    const pill = prDialog(page).locator('.mention-pill');
-    const answered = page.waitForResponse('**/api/v1/issues/details*');
-    await pill.hover();
-    await answered;
-    await pill.click();
-    // Every frame until the slow read settles.
-    const seen = await page.evaluate(
-      () =>
-        new Promise<string[]>((resolve) => {
-          const labels = new Set<string>();
-          const look = () => {
-            const d = document.querySelector('dialog[open]');
-            if (d) labels.add(d.getAttribute('aria-label') ?? '');
-          };
-          const timer = setInterval(look, 20);
-          setTimeout(() => {
-            clearInterval(timer);
-            resolve([...labels]);
-          }, 2000);
-        }),
-    );
-    expect(seen.filter((l) => l.startsWith('Issue details'))).toEqual([]);
-    await expect(prDialog(page)).toBeVisible();
-    await pastARefresh(page);
-    await expect(prDialog(page)).toBeVisible();
-    await expect(issueDialog(page)).toHaveCount(0);
-    await axeBothSchemes(page, 'mentioned pull request after refresh');
+    test('opens as a pull request, never as an issue, and stays one', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      await page
+        .getByRole('button', {
+          name: /Pull request alrayyes\/forge-dashboard#1/,
+        })
+        .first()
+        .click();
+      const pill = prDialog(page).locator('.mention-pill');
+      const answered = page.waitForResponse('**/api/v1/issues/details*');
+      await pill.hover();
+      await answered;
+      await pill.click();
+      // Samples the dialog every 20 ms. It relies on the 1500 ms delay of the
+      // second read (see the route above): the first 1000 ms are all spent
+      // while that read is still out, so what the dialog shows then is what the
+      // warm read gave it, with nothing newer to lean on.
+      const sampled = await page.evaluate(
+        () =>
+          new Promise<{
+            labels: string[];
+            early: { skeleton: boolean; text: string }[];
+          }>((resolve) => {
+            const labels = new Set<string>();
+            const early: { skeleton: boolean; text: string }[] = [];
+            const start = Date.now();
+            const look = () => {
+              const d = document.querySelector('dialog[open]');
+              if (!d) return;
+              labels.add(d.getAttribute('aria-label') ?? '');
+              if (Date.now() - start >= 300 && Date.now() - start < 1000)
+                early.push({
+                  skeleton: d.querySelector('.details-skeleton') !== null,
+                  text: d.textContent ?? '',
+                });
+            };
+            const timer = setInterval(look, 20);
+            setTimeout(() => {
+              clearInterval(timer);
+              resolve({ labels: [...labels], early });
+            }, 2000);
+          }),
+      );
+      const seen = sampled.labels;
+      // While the slow read is out the dialog already shows the pull request:
+      // title, state and body, and no skeleton in any frame.
+      expect(sampled.early.length).toBeGreaterThan(5);
+      for (const frame of sampled.early) {
+        expect(frame.skeleton).toBe(false);
+        expect(frame.text).toContain('Merged thing');
+        expect(frame.text).toMatch(/merged/i);
+        expect(frame.text).toContain('The merged one.');
+      }
+      expect(seen.filter((l) => l.startsWith('Issue details'))).toEqual([]);
+      await expect(prDialog(page)).toBeVisible();
+      await pastARefresh(page);
+      await expect(prDialog(page)).toBeVisible();
+      await expect(issueDialog(page)).toHaveCount(0);
+      await axeBothSchemes(page, 'mentioned pull request after refresh');
+    });
   });
-});
+}
