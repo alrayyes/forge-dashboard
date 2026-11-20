@@ -74,6 +74,9 @@ test('a missing lower-annotations.json is an error that names the file', () => {
   try {
     const r = s.run();
     expect(r.exitCode).not.toBe(0);
+    // The prefix is what separates classify.py's own exit from the
+    // FileNotFoundError traceback, which names the file too.
+    expect(r.stderr.toString()).toContain('classify.py: missing');
     expect(r.stderr.toString()).toContain('lower-annotations.json');
   } finally {
     rmSync(s.dir, { recursive: true, force: true });
