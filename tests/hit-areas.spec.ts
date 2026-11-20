@@ -220,6 +220,11 @@ async function settledOverflow(page: Page): Promise<number> {
   return last;
 }
 
+const sweepArgs = (
+  size: { target: number },
+  options: { overlap?: boolean; within?: string },
+) => [size.target, options.overlap ?? true, options.within ?? ''] as const;
+
 // Measures the open page at every size and adds what is too small to
 // `problems`, so a test that visits several pages reports all of them.
 async function sweepAll(
@@ -251,11 +256,20 @@ async function sweepAll(
       problems.push(
         `${label} @${size.width}: scrolls sideways by ${overflow}px`,
       );
-    const result = await page.evaluate(sweepInPage, [
-      size.target,
-      options.overlap ?? true,
-      options.within ?? '',
-    ] as const);
+    // A control still painting its first styles reads as too small, so the
+    // sweep runs again until it finds nothing. A control that really is too
+    // small fails every run, and the last result is the one reported.
+    let result = await page.evaluate(sweepInPage, sweepArgs(size, options));
+    await expect
+      .poll(
+        async () => {
+          result = await page.evaluate(sweepInPage, sweepArgs(size, options));
+          return result.checked > 0 && result.offenders.length === 0;
+        },
+        { timeout: 3_000 },
+      )
+      .toBe(true)
+      .catch(() => {});
     expect(result.checked, `${label} @${size.width}: controls`).toBeGreaterThan(
       0,
     );
