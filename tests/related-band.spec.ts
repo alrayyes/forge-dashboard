@@ -437,6 +437,19 @@ test('a closed issue that is off the board shows what refers to it, with each st
   await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
+// The band's Merged word is painted in the dark token too (#4455). The test
+// above reads light; dark is otherwise only covered by the contrast test.
+test('the Merged word in the Related band is the dark Merged purple in the dark theme', async ({
+  page,
+}) => {
+  await page.emulateMedia({ colorScheme: 'dark' });
+  const dialog = await openClosedIssue(page, [reference(4100)]);
+
+  const merged = row(dialog, 'Closed by').locator('.linked-pr-merged');
+  await expect(merged).toHaveText('Merged');
+  await expect(merged).toHaveCSS('color', 'rgb(183, 155, 240)');
+});
+
 const outgoing = (number: number, over: Record<string, unknown> = {}) =>
   reference(number, { direction: 'outgoing', relation: 'refs', ...over });
 
