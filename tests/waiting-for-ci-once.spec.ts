@@ -178,6 +178,25 @@ for (const scheme of ['light', 'dark'] as const) {
         }
       });
 
+      test('a locked Merge beside a Passed pill says where to look, not only that it is updating', async ({
+        page,
+      }) => {
+        // The snapshot still waits on a check that the job list never shows
+        // (#4433), so the lock can outlast one refresh.
+        await open(page, [PLAIN], 'success');
+        const r = row(page, 'Plain');
+        await expect(r.locator('.ci-pill')).toContainText('Passed');
+        const merge = r.getByRole('button', { name: 'Merge', exact: true });
+
+        await expect(merge).toHaveAttribute('aria-disabled', 'true');
+        await expect(merge).toHaveAccessibleDescription(
+          /updating from the latest ci results/i,
+        );
+        await expect(merge).toHaveAccessibleDescription(
+          /open the pull request on the forge/i,
+        );
+      });
+
       test('a locked Merge looks different from an enabled one and has no axe violations', async ({
         page,
       }) => {

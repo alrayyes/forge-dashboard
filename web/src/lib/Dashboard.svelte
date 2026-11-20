@@ -4054,6 +4054,10 @@
           return lockedActionButton(
             "Merge",
             "Updating from the latest CI results",
+            undefined,
+            // The forge can count a check the job list never shows, so the
+            // lock can outlast a refresh (#4433): say where to look.
+            "Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
           );
         const described =
           idScope === "" && snapshotWaitsOnCi(item) && chipSaysCiWait(item)

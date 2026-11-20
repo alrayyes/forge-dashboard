@@ -91,8 +91,12 @@ automatically"). An armed one shows the waiting chip instead, and the locked
 Merge is described by the chip's hint. The pop-up shows the block either way.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row prints no wait, whatever the last refresh said, and Merge
-stays locked until the next refresh. A locked Merge has a dashed edge, so it
-reads as locked in forced colours too.
+stays locked until the next refresh, with "Updating from the latest CI results".
+If it is still locked after one, the forge is counting a check the jobs don't
+show, such as a status from an external CI. On Forgejo the pipeline list shows
+those statuses beside the jobs, so the pill waits with them; the note beside the
+locked Merge points at the pull request on the forge for the rest. A locked
+Merge has a dashed edge, so it reads as locked in forced colours too.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).

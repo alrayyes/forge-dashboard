@@ -2024,8 +2024,35 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		}
 	}
 	c.rememberFailedJobs(owner, name, checks, excerptKeys)
+	checks, probes = c.withUnjobbedStatuses(ctx, owner, name, sha, checks, probes)
 
 	return checks, probes, nil
+}
+
+// withUnjobbedStatuses adds the commit statuses that are no Actions job's own
+// to the job list (#4433). The roll-up counts every status, so a pending one
+// from an external CI keeps the pull request pending; a list of jobs alone
+// would show it finished. A status that points at a job is that job, already
+// listed. A status read that fails leaves the jobs as they are.
+func (c *Client) withUnjobbedStatuses(ctx context.Context, owner, name, sha string, checks []dashboard.Check, probes []string) ([]dashboard.Check, []string) {
+	combined, _, err := c.combinedStatus(ctx, owner, name, sha)
+	if err != nil {
+		slog.Debug("forgejo statuses unreadable, only jobs are listed", "repo", owner+"/"+name, "sha", sha, "error", err)
+
+		return checks, probes
+	}
+	for _, s := range combined.Statuses {
+		if s == nil {
+			continue
+		}
+		if _, _, isJob := jobTarget(s); isJob {
+			continue
+		}
+		checks = append(checks, dashboard.Check{Name: s.Context, State: checkStateFromCombinedState(s.State), URL: s.TargetURL})
+		probes = append(probes, "")
+	}
+
+	return checks, probes
 }
 
 // queuedRunCheck is the one check that stands in for a run still going that
@@ -2058,13 +2085,12 @@ func (c *Client) statusChecks(ctx context.Context, owner, name, sha string) ([]d
 func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
 	c = c.withContext(ctx)
 
-	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
+	// Paged, as the roll-up reads it: the SDK's own call stops at the forge's
+	// first page of 30 (#4433).
+	combined, _, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return nil, err
 	}
-	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 	checks := make([]dashboard.Check, 0, len(combined.Statuses))
 	for _, s := range combined.Statuses {
 		checks = append(checks, dashboard.Check{
