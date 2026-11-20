@@ -588,3 +588,28 @@ describe('a closing tag stays in its own container', () => {
     );
   });
 });
+
+// https://github.com/alrayyes/forge-dashboard/issues/4378
+// The same tag open at two depths. A closer closes the one in its own
+// container, and a closer in a deeper container closes neither.
+describe('a closing tag finds the opener at its own depth', () => {
+  test('one in the inner quote closes the inner details only', async () => {
+    const html = await renderMarkdown(
+      '<details>\n\n> <details>\n>\n> x\n>\n> </details>\n\ny\n\n</details>\n\nz',
+    );
+    expect(html).toBe(
+      '<details>\n<blockquote>\n<details>\n<p>x</p>\n</details>\n</blockquote>\n<p>y</p>\n</details>\n<p>z</p>\n',
+    );
+  });
+
+  test('one in a deeper quote closes neither', async () => {
+    const html = await renderMarkdown(
+      '<details>\n\n> <details>\n>\n> > </details>\n>\n> x\n\ny\n\n</details>\n\nz',
+    );
+    expect(html.match(/<\/details>/g)).toHaveLength(2);
+    expect(html.indexOf('<p>x</p>')).toBeLessThan(html.indexOf('</details>'));
+    expect(html.indexOf('<p>y</p>')).toBeLessThan(
+      html.lastIndexOf('</details>'),
+    );
+  });
+});
