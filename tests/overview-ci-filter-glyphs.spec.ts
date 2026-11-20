@@ -149,25 +149,35 @@ test('only the glyph is coloured until the pill is pressed', async ({
   page,
 }) => {
   await open(page);
-  const colours = await page
-    .locator('.filter-bar .quick-pills[data-group="ci"] .ci-filter-pill')
-    .evaluateAll((pills) =>
-      pills.map((p) => ({
-        glyph: getComputedStyle(p.querySelector('svg') as Element).color,
-        word: getComputedStyle(p).color,
-        bg: getComputedStyle(p).backgroundColor,
-      })),
-    );
-  expect(colours).toHaveLength(STATES.length);
-  for (const c of colours) {
-    expect(c.word).toBe(colours[0].word);
-    expect(c.bg).toBe(colours[0].bg);
-  }
+  const readColours = () =>
+    page
+      .locator('.filter-bar .quick-pills[data-group="ci"] .ci-filter-pill')
+      .evaluateAll((pills) =>
+        pills.map((p) => ({
+          glyph: getComputedStyle(p.querySelector('svg') as Element).color,
+          word: getComputedStyle(p).color,
+          bg: getComputedStyle(p).backgroundColor,
+        })),
+      );
   // Cancelled and No checks share the neutral tone, so the glyph shape is
-  // what tells them apart (the other three differ by colour too).
-  expect(new Set(colours.map((c) => c.glyph)).size).toBe(
-    new Set(STATES.map((s) => s.tone)).size,
-  );
+  // what tells them apart (the other three differ by colour too). Retries
+  // until every pill is painted, so one unstyled read can't pass or fail it.
+  await expect
+    .poll(async () => {
+      const colours = await readColours();
+      return {
+        count: colours.length,
+        sameWord: colours.every((c) => c.word === colours[0].word),
+        sameBg: colours.every((c) => c.bg === colours[0].bg),
+        glyphs: new Set(colours.map((c) => c.glyph)).size,
+      };
+    })
+    .toEqual({
+      count: STATES.length,
+      sameWord: true,
+      sameBg: true,
+      glyphs: new Set(STATES.map((s) => s.tone)).size,
+    });
 });
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -181,36 +191,44 @@ for (const scheme of ['light', 'dark'] as const) {
         'aria-pressed',
         'true',
       );
-      const got = await visible(page, label).evaluate(
-        (b, vars) => {
-          const probe = document.createElement('i');
-          document.body.append(probe);
-          const resolved = (v: string) => {
-            probe.style.color = `var(${v})`;
+      const read = () =>
+        visible(page, label).evaluate(
+          (b, vars) => {
+            const probe = document.createElement('i');
+            document.body.append(probe);
+            const resolved = (v: string) => {
+              probe.style.color = `var(${v})`;
 
-            return getComputedStyle(probe).color;
-          };
-          const s = getComputedStyle(b);
-          const out = {
-            tone: resolved(vars.tone),
-            toneBg: resolved(vars.bg),
-            color: s.color,
-            bg: s.backgroundColor,
-            shadow: s.boxShadow,
-            tick: getComputedStyle(b, '::before').content,
-          };
-          probe.remove();
+              return getComputedStyle(probe).color;
+            };
+            const s = getComputedStyle(b);
+            const out = {
+              tone: resolved(vars.tone),
+              toneBg: resolved(vars.bg),
+              color: s.color,
+              bg: s.backgroundColor,
+              shadow: s.boxShadow,
+              tick: getComputedStyle(b, '::before').content,
+            };
+            probe.remove();
 
-          return out;
-        },
-        { tone, bg },
-      );
-      expect(got.bg).toBe(got.toneBg);
-      expect(got.color).toBe(got.tone);
-      expect(got.shadow).toContain('inset');
-      expect(got.shadow).toContain(got.tone);
-      // The glyph and the ring carry the pick, so the tick goes.
-      expect(['none', 'normal']).toContain(got.tick);
+            return out;
+          },
+          { tone, bg },
+        );
+      // Retries until the pill has taken its state's pair and ring.
+      await expect
+        .poll(async () => {
+          const got = await read();
+          return {
+            bg: got.bg === got.toneBg,
+            color: got.color === got.tone,
+            ring: got.shadow.includes('inset') && got.shadow.includes(got.tone),
+            // The glyph and the ring carry the pick, so the tick goes.
+            tick: ['none', 'normal'].includes(got.tick),
+          };
+        })
+        .toEqual({ bg: true, color: true, ring: true, tick: true });
     });
   }
 }
@@ -228,7 +246,6 @@ test('All keeps the accent fill and its tickless look when pressed', async ({
     .locator('.filter-bar .quick-pills[data-group="ci"]')
     .getByRole('button', { name: 'All', exact: true });
   await expect(all).toHaveAttribute('aria-pressed', 'true');
-  const bg = await all.evaluate((b) => getComputedStyle(b).backgroundColor);
   const accent = await page.evaluate(() => {
     const probe = document.createElement('i');
     probe.style.color = 'var(--accent)';
@@ -238,7 +255,7 @@ test('All keeps the accent fill and its tickless look when pressed', async ({
 
     return c;
   });
-  expect(bg).toBe(accent);
+  await expect(all).toHaveCSS('background-color', accent);
 });
 
 test('the Running glyph spins, and under reduced motion shows a still clock', async ({
@@ -256,15 +273,18 @@ test('the Running glyph spins, and under reduced motion shows a still clock', as
         spin: style('arc').animationName,
       };
     });
-  expect(await read()).toEqual({
+  await expect.poll(read).toEqual({
     arc: 'block',
     clock: 'none',
     spin: 'check-spin',
   });
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const still = await read();
-  expect(still.arc).toBe('none');
-  expect(still.clock).toBe('block');
+  await expect
+    .poll(async () => {
+      const still = await read();
+      return { arc: still.arc, clock: still.clock };
+    })
+    .toEqual({ arc: 'none', clock: 'block' });
   await expect(running.locator('svg[data-glyph="clock"]')).toBeVisible();
 });
 
@@ -275,10 +295,20 @@ test('pressing a pill does not change its width', async ({ page }) => {
     group
       .locator('.ci-filter-pill')
       .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().width));
+  // Wait for the pills to be laid out and still before taking the baseline.
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await widths());
+      const still = now !== '[]' && now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
   const before = await widths();
   for (const { label } of STATES) {
     await visible(page, label).click();
-    expect(await widths(), `${label} pressed`).toEqual(before);
+    await expect.poll(widths, { message: `${label} pressed` }).toEqual(before);
   }
 });
 

@@ -121,28 +121,44 @@ test('only the glyph is coloured until the pill is pressed', async ({
   page,
 }) => {
   await open(page);
-  const colours = await statusGroup(page)
-    .locator('.mb-pill[data-status]')
-    .evaluateAll((pills) =>
-      pills.map((p) => ({
-        status: p.getAttribute('data-status'),
-        glyph: getComputedStyle(p.querySelector('svg') as Element).color,
-        word: getComputedStyle(p).color,
-        bg: getComputedStyle(p).backgroundColor,
-      })),
-    );
-  expect(colours).toHaveLength(7);
-  const [first] = colours;
-  for (const c of colours) {
-    expect(c.word, c.status ?? '').toBe(first.word);
-    expect(c.bg, c.status ?? '').toBe(first.bg);
-  }
-  const glyphOf = (s: string) => colours.find((c) => c.status === s)?.glyph;
-  expect(new Set(colours.map((c) => c.glyph)).size).toBeGreaterThan(3);
-  expect(glyphOf('cancelled')).toBe(glyphOf('unknown'));
-  expect(glyphOf('none')).toBe(glyphOf('unknown'));
-  expect(glyphOf('running')).toBe(glyphOf('awaiting_approval'));
-  expect(glyphOf('failed')).not.toBe(glyphOf('passed'));
+  const readColours = () =>
+    statusGroup(page)
+      .locator('.mb-pill[data-status]')
+      .evaluateAll((pills) =>
+        pills.map((p) => ({
+          status: p.getAttribute('data-status'),
+          glyph: getComputedStyle(p.querySelector('svg') as Element).color,
+          word: getComputedStyle(p).color,
+          bg: getComputedStyle(p).backgroundColor,
+        })),
+      );
+  // Retries until every pill is painted, so one unstyled read can't decide it.
+  await expect
+    .poll(async () => {
+      const colours = await readColours();
+      const [first] = colours;
+      const glyphOf = (s: string) => colours.find((c) => c.status === s)?.glyph;
+      return {
+        count: colours.length,
+        sameWord: colours.every((c) => c.word === first.word),
+        sameBg: colours.every((c) => c.bg === first.bg),
+        manyGlyphs: new Set(colours.map((c) => c.glyph)).size > 3,
+        neutralShared:
+          glyphOf('cancelled') === glyphOf('unknown') &&
+          glyphOf('none') === glyphOf('unknown'),
+        activeShared: glyphOf('running') === glyphOf('awaiting_approval'),
+        failedApart: glyphOf('failed') !== glyphOf('passed'),
+      };
+    })
+    .toEqual({
+      count: 7,
+      sameWord: true,
+      sameBg: true,
+      manyGlyphs: true,
+      neutralShared: true,
+      activeShared: true,
+      failedApart: true,
+    });
 });
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -152,48 +168,55 @@ for (const scheme of ['light', 'dark'] as const) {
     await open(page, scheme);
     await pill(page, 'Failing').click();
     await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
-    const styles = await statusGroup(page)
-      .locator('.mb-pill[data-status]')
-      .evaluateAll((pills) => {
-        const probe = document.createElement('i');
-        document.body.append(probe);
-        const resolved = (v: string) => {
-          probe.style.color = `var(${v})`;
+    const read = () =>
+      statusGroup(page)
+        .locator('.mb-pill[data-status]')
+        .evaluateAll((pills) => {
+          const probe = document.createElement('i');
+          document.body.append(probe);
+          const resolved = (v: string) => {
+            probe.style.color = `var(${v})`;
 
-          return getComputedStyle(probe).color;
-        };
-        const out = {
-          critical: resolved('--critical'),
-          criticalBg: resolved('--critical-bg'),
-          pills: pills.map((p) => ({
-            status: p.getAttribute('data-status'),
-            color: getComputedStyle(p).color,
-            bg: getComputedStyle(p).backgroundColor,
-            shadow: getComputedStyle(p).boxShadow,
-          })),
-        };
-        probe.remove();
+            return getComputedStyle(probe).color;
+          };
+          const out = {
+            critical: resolved('--critical'),
+            criticalBg: resolved('--critical-bg'),
+            pills: pills.map((p) => ({
+              status: p.getAttribute('data-status'),
+              color: getComputedStyle(p).color,
+              bg: getComputedStyle(p).backgroundColor,
+              shadow: getComputedStyle(p).boxShadow,
+            })),
+          };
+          probe.remove();
 
-        return out;
-      });
-    const failing = styles.pills.find((p) => p.status === 'failed');
-    expect(failing?.bg).toBe(styles.criticalBg);
-    expect(failing?.color).toBe(styles.critical);
-    expect(failing?.shadow).toContain('inset');
-    expect(failing?.shadow).toContain(styles.critical);
-    for (const other of styles.pills.filter((p) => p.status !== 'failed')) {
-      expect(other.bg, other.status ?? '').not.toBe(styles.criticalBg);
-      expect(other.shadow, other.status ?? '').toBe('none');
-    }
+          return out;
+        });
+    // Retries until the pressed pill is painted and the others have let go.
+    await expect
+      .poll(async () => {
+        const styles = await read();
+        const failing = styles.pills.find((p) => p.status === 'failed');
+        const others = styles.pills.filter((p) => p.status !== 'failed');
+        return {
+          bg: failing?.bg === styles.criticalBg,
+          color: failing?.color === styles.critical,
+          ring:
+            !!failing?.shadow.includes('inset') &&
+            failing.shadow.includes(styles.critical),
+          othersQuiet: others.every(
+            (o) => o.bg !== styles.criticalBg && o.shadow === 'none',
+          ),
+        };
+      })
+      .toEqual({ bg: true, color: true, ring: true, othersQuiet: true });
   });
 }
 
 test('All keeps the teal fill when pressed', async ({ page }) => {
   await open(page);
   await pill(page, 'All').click();
-  const bg = await pill(page, 'All').evaluate(
-    (b) => getComputedStyle(b).backgroundColor,
-  );
   const teal = await page.evaluate(() => {
     const probe = document.createElement('i');
     probe.style.color = 'var(--pill-active)';
@@ -203,7 +226,7 @@ test('All keeps the teal fill when pressed', async ({ page }) => {
 
     return c;
   });
-  expect(bg).toBe(teal);
+  await expect(pill(page, 'All')).toHaveCSS('background-color', teal);
 });
 
 test('the Running glyph spins, and under reduced motion shows a still clock', async ({
@@ -221,16 +244,19 @@ test('the Running glyph spins, and under reduced motion shows a still clock', as
         spin: style('arc').animationName,
       };
     });
-  expect(await read()).toEqual({
+  await expect.poll(read).toEqual({
     arc: 'block',
     clock: 'none',
     spin: 'check-spin',
   });
 
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  const still = await read();
-  expect(still.arc).toBe('none');
-  expect(still.clock).toBe('block');
+  await expect
+    .poll(async () => {
+      const still = await read();
+      return { arc: still.arc, clock: still.clock };
+    })
+    .toEqual({ arc: 'none', clock: 'block' });
   await expect(running.locator('svg[data-glyph="clock"]')).toBeVisible();
   await expect(running.locator('svg[data-glyph="arc"]')).toBeHidden();
 });
@@ -245,19 +271,20 @@ for (const scheme of ['light', 'dark'] as const) {
     await page.keyboard.press('Tab');
     const failing = pill(page, 'Failing');
     await expect(failing).toBeFocused();
-    const ring = await failing.evaluate((b) => {
-      const s = getComputedStyle(b);
-      return {
-        outline: s.outlineStyle,
-        width: Number.parseFloat(s.outlineWidth),
-        offset: Number.parseFloat(s.outlineOffset),
-        shadow: s.boxShadow,
-      };
-    });
-    expect(ring.outline).toBe('solid');
-    expect(ring.width).toBeGreaterThanOrEqual(2);
-    expect(ring.offset).toBeGreaterThan(0);
-    expect(ring.shadow).toContain('inset');
+    // Retries until both rings are painted; the focus ring can lag the focus.
+    await expect
+      .poll(() =>
+        failing.evaluate((b) => {
+          const s = getComputedStyle(b);
+          return {
+            outline: s.outlineStyle,
+            wide: Number.parseFloat(s.outlineWidth) >= 2,
+            offset: Number.parseFloat(s.outlineOffset) > 0,
+            inner: s.boxShadow.includes('inset'),
+          };
+        }),
+      )
+      .toEqual({ outline: 'solid', wide: true, offset: true, inner: true });
   });
 }
 
@@ -273,25 +300,38 @@ for (const scheme of ['light', 'dark'] as const) {
         .analyze();
       expect(results.violations).toEqual([]);
 
-      const layout = await page.evaluate(() => {
-        const bar = document.querySelector('.mb-bar') as HTMLElement;
-        const group = document.querySelector('.mb-group') as HTMLElement;
-        const el = document.documentElement;
+      const layout = () =>
+        page.evaluate(() => {
+          const bar = document.querySelector('.mb-bar') as HTMLElement;
+          const group = document.querySelector('.mb-group') as HTMLElement;
+          const el = document.documentElement;
 
-        return {
-          scrolls: el.scrollWidth > el.clientWidth,
-          barDirection: getComputedStyle(bar).flexDirection,
-          groupWrap: getComputedStyle(group).flexWrap,
-          heights: [...document.querySelectorAll('.mb-pill')].map(
-            (p) => p.getBoundingClientRect().height,
-          ),
-        };
-      });
-      expect(layout.scrolls).toBe(false);
-      expect(layout.groupWrap).toBe('wrap');
-      expect(layout.barDirection).toBe(width <= 420 ? 'column' : 'row');
-      const smallest = Math.min(...layout.heights);
-      expect(smallest).toBeGreaterThanOrEqual(width <= 760 ? 44 : 24);
+          return {
+            scrolls: el.scrollWidth > el.clientWidth,
+            barDirection: getComputedStyle(bar).flexDirection,
+            groupWrap: getComputedStyle(group).flexWrap,
+            heights: [...document.querySelectorAll('.mb-pill')].map(
+              (p) => p.getBoundingClientRect().height,
+            ),
+          };
+        });
+      // Retries until the bar has laid out at this width.
+      await expect
+        .poll(async () => {
+          const now = await layout();
+          return {
+            scrolls: now.scrolls,
+            groupWrap: now.groupWrap,
+            barDirection: now.barDirection,
+            tall: Math.min(...now.heights) >= (width <= 760 ? 44 : 24),
+          };
+        })
+        .toEqual({
+          scrolls: false,
+          groupWrap: 'wrap',
+          barDirection: width <= 420 ? 'column' : 'row',
+          tall: true,
+        });
     });
   }
 }
@@ -312,9 +352,19 @@ test('pressing a pill does not change its width', async ({ page }) => {
     statusGroup(page)
       .locator('.mb-pill')
       .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().width));
+  // Wait for the pills to be laid out and still before taking the baseline.
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await widths());
+      const still = now !== '[]' && now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
   const before = await widths();
   for (const { label } of STATUSES) {
     await pill(page, label).click();
-    expect(await widths(), `${label} pressed`).toEqual(before);
+    await expect.poll(widths, { message: `${label} pressed` }).toEqual(before);
   }
 });
