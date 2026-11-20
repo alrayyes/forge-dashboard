@@ -41,11 +41,18 @@ export const closingDialogText = (issue: ClosingIssue, prRepo: string) =>
   issueNumber(issue, prRepo);
 
 /** The pill's accessible name in the band: the relation first, then the number it contains and where the pill goes. */
-export function closingDialogName(issue: ClosingIssue, prRepo: string) {
+export function closingDialogName(
+  issue: ClosingIssue,
+  prRepo: string,
+  external = false,
+) {
   const number = issueNumber(issue, prRepo);
+  const where = external
+    ? 'opens on the forge in a new tab'
+    : 'opens the issue';
   return issue.relation === 'refs'
-    ? `Refs: ${number}, does not close, opens the issue`
-    : `Closes: ${number}, opens the issue`;
+    ? `Refs: ${number}, does not close, ${where}`
+    : `Closes: ${number}, ${where}`;
 }
 
 /** The pill's class: a refs pill is drawn apart from a closes one. */
@@ -150,6 +157,9 @@ export const closingPillId = (prKey: string, issue: ClosingIssue) =>
  * a dialog, a plain click on that link hands the issue over so the dialog can
  * be swapped for the issue's. With inDialog, the pills are the Related band's:
  * bare numbers, names that lead with the relation, and the band's own fold.
+ * With untrackedRepo, a pill in a dialog whose repository it says the
+ * dashboard does not track is a link to the forge in a new tab instead, so a
+ * click leaves the dialog open (#4461).
  */
 export function closingPills(
   prKey: string,
@@ -158,6 +168,7 @@ export function closingPills(
   onOpen?: (issue: ClosingIssue, triggerId: string) => void,
   onFollow?: (issue: ClosingIssue) => void,
   inDialog = false,
+  untrackedRepo?: (repo: string) => boolean,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitClosing(list);
@@ -167,7 +178,12 @@ export function closingPills(
       onOpen !== undefined ? 'button' : 'a',
       closingPillClass(issue),
     );
-    if (link instanceof HTMLAnchorElement) {
+    const external = inDialog && untrackedRepo?.(issue.repo) === true;
+    if (link instanceof HTMLAnchorElement && external) {
+      link.href = issue.url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    } else if (link instanceof HTMLAnchorElement) {
       link.href = issue.pageUrl;
       // Inside a dialog: a plain click swaps it for the issue's, the address
       // stays a real link for a new tab.
@@ -187,7 +203,10 @@ export function closingPills(
       const bare = sameRepo(issue.repo, prRepo);
       if (!appendRepoRef(link, issue.repo, issue.number, bare))
         link.textContent = closingDialogText(issue, prRepo);
-      link.setAttribute('aria-label', closingDialogName(issue, prRepo));
+      link.setAttribute(
+        'aria-label',
+        closingDialogName(issue, prRepo, external),
+      );
     } else {
       link.textContent = closingPillText(issue, prRepo);
       link.setAttribute('aria-label', closingPillName(issue, prRepo));

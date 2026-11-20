@@ -22,6 +22,8 @@ class FakeNode {
   title = '';
   href = '';
   attrs: Record<string, string> = {};
+  target = '';
+  rel = '';
   listeners: Record<string, (event?: unknown) => void> = {};
   focused = false;
   classList = {
@@ -444,5 +446,104 @@ describe('the pills a row shows and the count that holds the rest', () => {
     expect(host.className).toBe('pill-tip-host');
     expect(asNode(host.children[0]).focused).toBe(true);
     expect(host.focused).toBe(false);
+  });
+});
+
+// A pill in a dialog for a pull request in a repository the dashboard does not
+// track links to the forge in a new tab, so a click leaves the dialog open
+// (#4461). The page wiring is foreign-relation-pill.spec.ts.
+describe('a pill for a pull request in an untracked repository', () => {
+  const foreign = (over: Partial<LinkedPullRequest> = {}) =>
+    pr({
+      repo: 'alrayyes/other',
+      kind: 'pullRequest',
+      state: 'merged',
+      url: 'https://example.com/alrayyes/other/pull/12',
+      ...over,
+    });
+  const untracked = (forge: string, repo: string) =>
+    forge === 'github' && repo === 'alrayyes/other';
+  const inDialog = (p: LinkedPullRequest, onFollow = () => {}) =>
+    asNode(
+      wrapOf(
+        [p],
+        undefined,
+        undefined,
+        onFollow,
+        'mentions',
+        true,
+        'issue',
+        untracked,
+      ).children[0],
+    ) as FakeAnchor;
+
+  test('links to the forge in a new tab and says so in its name', () => {
+    const pill = inDialog(foreign());
+    expect(pill.href).toBe('https://example.com/alrayyes/other/pull/12');
+    expect(pill.target).toBe('_blank');
+    expect(pill.rel).toBe('noopener noreferrer');
+    expect(pill.attrs['aria-label']).toBe(
+      'Mentioned by: PR alrayyes/other#12 · Merged, opens on the forge in a new tab',
+    );
+  });
+
+  test('does not hand a plain click to the dialog', () => {
+    expect(Object.keys(inDialog(foreign()).listeners)).toEqual([]);
+  });
+
+  test('a tracked repository keeps the page address and the follow', () => {
+    const pill = inDialog(foreign({ repo: 'alrayyes/app' }));
+    expect(pill.href).toBe('/pull-requests.html?pr=github/alrayyes/app/12');
+    expect(pill.target).toBe('');
+    expect(Object.keys(pill.listeners)).toEqual(['click']);
+    expect(pill.attrs['aria-label']).toBe('Mentioned by: PR #12 · Merged');
+  });
+
+  test('is asked about the entry forge as well as its repo', () => {
+    const pill = inDialog(foreign({ forge: 'forgejo' }));
+    expect(pill.target).toBe('');
+  });
+
+  test('an entry with no forge address keeps the page address', () => {
+    const pill = inDialog(foreign({ url: undefined }));
+    expect(pill.href).toBe('/pull-requests.html?pr=github/alrayyes/app/12');
+    expect(pill.target).toBe('');
+  });
+
+  test('an issue keeps opening in the dialog', () => {
+    const pill = inDialog(foreign({ kind: 'issue' }));
+    expect(pill.target).toBe('');
+    expect(Object.keys(pill.listeners)).toEqual(['click']);
+  });
+
+  test('outside a dialog the board row is left as it is', () => {
+    const pill = asNode(
+      wrapOf(
+        [foreign()],
+        undefined,
+        undefined,
+        undefined,
+        'closes',
+        false,
+        'issue',
+        untracked,
+      ).children[0],
+    ) as FakeAnchor;
+    expect(pill.target).toBe('');
+    expect(pill.href).toBe('/pull-requests.html?pr=github/alrayyes/app/12');
+  });
+});
+
+describe('linkedDialogName for an external pill', () => {
+  test('adds where the pill goes, and only then', () => {
+    const p = pr({ repo: 'alrayyes/other' });
+    expect(linkedDialogName(p, 'alrayyes/app', null, 'refs', 'issue')).toBe(
+      'Referenced by: Pull request alrayyes/other#12',
+    );
+    expect(
+      linkedDialogName(p, 'alrayyes/app', null, 'refs', 'issue', true),
+    ).toBe(
+      'Referenced by: Pull request alrayyes/other#12, opens on the forge in a new tab',
+    );
   });
 });
