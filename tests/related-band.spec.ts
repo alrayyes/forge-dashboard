@@ -592,6 +592,23 @@ test('the tooltip of a Refs pill for what the issue refers to says the issue ref
   );
 });
 
+test('the tooltip of an outgoing Closes or Mentions pill says what the issue does to it', async ({
+  page,
+}) => {
+  const dialog = await openIssue(page, issue(), [
+    outgoing(4297, { relation: 'closes' }),
+    outgoing(4300, { relation: 'mentions' }),
+  ]);
+
+  for (const [label, said] of [
+    ['Closes', 'This issue closes this'],
+    ['Mentions', 'This issue mentions this'],
+  ] as const) {
+    const pill = row(dialog, label).locator('.linked-pr');
+    await expect(pill).toHaveAttribute('title', said);
+  }
+});
+
 test('an issue the board lists keeps the board rows, whatever its details list as incoming', async ({
   page,
 }) => {
