@@ -32,13 +32,17 @@ const linked = (number: number) => ({
   awaitingWorkflowApproval: false,
 });
 
-const pullRequest = (number: number, closesIssues: unknown[] = []) => ({
+const pullRequest = (
+  number: number,
+  closesIssues: unknown[] = [],
+  author = 'ryankes',
+) => ({
   forge: 'github',
   repo: REPO,
   number,
   title: `Pull request ${number}`,
   url: `https://github.com/${REPO}/pull/${number}`,
-  author: 'ryankes',
+  author,
   draft: false,
   ci: 'success',
   labels: [],
@@ -92,7 +96,7 @@ const mockedBoard = (route: Route) =>
       generatedAt: new Date().toISOString(),
       forges: [forgeHealth('github')],
       pullRequests: [
-        pullRequest(1, [closing(5)]),
+        pullRequest(1, [closing(5)], 'someone-else'),
         pullRequest(2, [closing(5)]),
         pullRequest(3, [closing(6)]),
       ],
@@ -127,6 +131,8 @@ const prDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Pull request details/ });
 const issueDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Issue details/ });
+const rowPill = (page: Page, rows: string, text: string, pill: string) =>
+  page.locator(`${rows} .row`, { hasText: text }).locator(pill).first();
 const rowTitle = (page: Page, rows: string, text: string): Locator =>
   page.locator(`${rows} .row`, { hasText: text }).locator('button.title');
 
@@ -214,6 +220,60 @@ for (const width of [1280, 390]) {
 
       await expect(first).toBeFocused();
       await expectTitleBoxUntouched(page);
+    });
+
+    test('a row pill, its issue, then a pull request pill: closing returns to the row pill', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const pill = rowPill(
+        page,
+        '#pr-rows',
+        'Pull request 2',
+        '.closing-issue',
+      );
+      await pill.click();
+      await expect(issueDialog(page)).toBeVisible();
+      await issueDialog(page).locator('.linked-pr', { hasText: '#1' }).click();
+      await expect(prDialog(page)).toContainText('Pull request 1');
+
+      await closeAndSettle(page);
+
+      await expect(pill).toBeFocused();
+      await expectTitleBoxUntouched(page);
+    });
+
+    test('a pull request opened from its address, its row filtered out: closing moves focus off the Title box on a phone', async ({
+      page,
+      baseURL,
+    }) => {
+      await page.context().addCookies([
+        {
+          name: 'forge-board-filters',
+          value: encodeURIComponent(
+            JSON.stringify({
+              rev: 2_000_000_000,
+              shared: { author: 'github:ryankes' },
+            }),
+          ),
+          url: baseURL,
+        },
+      ]);
+      await page.goto(`/pull-requests.html?pr=github/${REPO}/1`);
+      await expect(prDialog(page)).toBeVisible();
+      await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+
+      await closeAndSettle(page);
+
+      if (width === 390) {
+        await expectTitleBoxUntouched(page);
+        await expect(page.locator('#filters-button')).toBeFocused();
+      } else {
+        await expect(page.locator('#title-filter')).toBeFocused();
+      }
+      await page.context().clearCookies({ name: 'forge-board-filters' });
     });
 
     test('a chain that ended leaves nothing behind for the next swap', async ({
