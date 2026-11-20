@@ -25,6 +25,9 @@ export default mergeConfig(
       browser: {
         enabled: true,
         headless: true,
+        // Vitest's default is 60 s. Under load a slow Chromium start should
+        // be a slow pass, not a failure, so it is explicit and larger.
+        connectTimeout: 180_000,
         provider: playwright(),
         instances: [{ browser: 'chromium' }],
       },
