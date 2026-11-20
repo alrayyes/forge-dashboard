@@ -367,6 +367,51 @@ func TestGetIssueDetails_ACancelledContextIsAnError(t *testing.T) {
 	require.ErrorIs(t, err, context.Canceled)
 }
 
+// The pages read before a failure all count, not just the last of them.
+func TestGetIssueDetails_KeepsTheReferencesOfEveryPageReadBeforeAFailure(t *testing.T) {
+	t.Parallel()
+
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Query().Get("page") {
+		case "1":
+			writeJSON(t, w, []any{refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true)})
+		case "2":
+			writeJSON(t, w, []any{refEvent("pull_ref", "neutered", "alrayyes/a", 13, "open", false)})
+		default:
+			http.Error(w, "boom", http.StatusInternalServerError)
+		}
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	require.Len(t, got.References, 2)
+	assert.Equal(t, 13, got.References[0].Number)
+	assert.Equal(t, 12, got.References[1].Number)
+}
+
+// A caller that gives up part way through gets the error even though earlier
+// pages held references: a partial list is for a forge failure, not a cancel.
+func TestGetIssueDetails_ACancelDuringALaterPageIsAnError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "1" {
+			writeJSON(t, w, []any{refEvent("pull_ref", "closes", "alrayyes/a", 12, "closed", true)})
+
+			return
+		}
+		cancel()
+		writeJSON(t, w, []any{refEvent("pull_ref", "neutered", "alrayyes/a", 13, "open", false)})
+	})
+
+	_, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(ctx, "alrayyes", "a", 5)
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
 // Forgejo drops rows it won't show after paging, so a short page is not the
 // last one and a reference can sit on the page after it.
 func TestGetIssueDetails_ReadsPastAShortTimelinePage(t *testing.T) {
