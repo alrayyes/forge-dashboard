@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -110,4 +111,22 @@ test('still counts a non-test Go file whose name only contains test', () => {
   expect(newerInput(root, bin)).toBe(
     path.join('internal', 'testing_helpers.go'),
   );
+});
+
+test('skips a broken symlink instead of throwing, and still finds a real stale input', () => {
+  const { root, bin } = repo({ 'internal/real.go': 1100 });
+  symlinkSync(
+    path.join(root, 'gone.go'),
+    path.join(root, 'internal', 'aaa-dangling.go'),
+  );
+  expect(newerInput(root, bin)).toBe(path.join('internal', 'real.go'));
+});
+
+test('is null when the only odd entry is a broken symlink', () => {
+  const { root, bin } = repo({ 'internal/real.go': 900 });
+  symlinkSync(
+    path.join(root, 'gone.go'),
+    path.join(root, 'internal', 'dangling.go'),
+  );
+  expect(newerInput(root, bin)).toBeNull();
 });

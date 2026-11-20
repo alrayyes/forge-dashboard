@@ -26,6 +26,18 @@ function* walk(dir: string, go: boolean): Generator<string> {
   }
 }
 
+// A file's mtime, or null for one that vanished or is a broken symlink. A
+// dangling link is not compiled in (go:embed would refuse to build it), so it
+// is no input; it must not hide a real one by throwing mid-walk.
+function mtimeOf(file: string): number | null {
+  try {
+    return statSync(file).mtimeMs;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
 // The path (relative to root) of an input file modified after the binary, or
 // null when the binary is at least as new as all of them.
 export function newerInput(root: string, binary: string): string | null {
@@ -37,7 +49,7 @@ export function newerInput(root: string, binary: string): string | null {
       return existsSync(dir) ? [...walk(dir, goDirs.has(d))] : [];
     }),
   ];
-  const newer = candidates.find((f) => statSync(f).mtimeMs > built);
+  const newer = candidates.find((f) => (mtimeOf(f) ?? 0) > built);
   return newer === undefined ? null : path.relative(root, newer);
 }
 
