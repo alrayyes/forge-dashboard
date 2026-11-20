@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.6](https://github.com/alrayyes/forge-dashboard/compare/v9.90.5...v9.90.6) (2026-11-20)
+
+
+### Bug Fixes
+
+* **api:** hide the version from signed-out visitors ([#4512](https://github.com/alrayyes/forge-dashboard/issues/4512)) ([ee97a48](https://github.com/alrayyes/forge-dashboard/commit/ee97a485278f5b9bb827f6884f922e2aef301aac)), closes [#4427](https://github.com/alrayyes/forge-dashboard/issues/4427)
+
 ## [9.90.5](https://github.com/alrayyes/forge-dashboard/compare/v9.90.4...v9.90.5) (2026-11-20)
 
 
