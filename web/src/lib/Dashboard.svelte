@@ -3178,8 +3178,13 @@
       if (oneLine) parts.titleCell.appendChild(parts.area);
       else statusCell.insertBefore(parts.area, parts.waitSlot);
     }
+    // Building a row must not read layout: a read there lays the page out in
+    // the middle of a redraw and moves focus handoffs (filter-pick-panel-focus).
+    // New rows take the placement the last resize measured; the observer below
+    // measures once the list is laid out, before the next paint.
+    let oneLineKnown = false;
     function placeAllNotes() {
-      const oneLine = oneLineList();
+      const oneLine = oneLineKnown;
       for (const cell of document.querySelectorAll<HTMLElement>(
         "#pr-rows .row .status-cell",
       ))
@@ -3398,7 +3403,7 @@
           waitSlot,
           titleCell: titleCellEl,
         });
-        placeNotes(statusCell, oneLineList());
+        placeNotes(statusCell, oneLineKnown);
         // The row draws one control: the action the server marked primary,
         // or, while Merge is locked, the greyed Merge with its reason. Every
         // other action is in the details pop-up's footer, built by the same
@@ -4797,9 +4802,11 @@
     // (a filter, a page change) takes its armed state with it.
     const prRowsEl = document.getElementById("pr-rows");
     if (prRowsEl && typeof ResizeObserver !== "undefined") {
-      let was = `${oneLineList()}${onPhone()}`;
+      let was = "";
       new ResizeObserver(() => {
-        const now = `${oneLineList()}${onPhone()}`;
+        oneLineKnown = oneLineList();
+        const phoneNow = onPhone();
+        const now = `${oneLineKnown}${phoneNow}`;
         if (now === was) return;
         was = now;
         placeAllNotes();
