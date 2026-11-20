@@ -90,6 +90,9 @@ type ItemReference struct {
 	State     ReferencedState    `json:"state"`
 	Direction ReferenceDirection `json:"direction"`
 	Relation  ReferenceRelation  `json:"relation"`
+	// Body is the referring item's description, which a forge client sets so
+	// ClassifyIncoming can read how it names the issue. Never sent.
+	Body string `json:"-"`
 }
 
 // ReferencePageURL is the address on this dashboard that opens the referenced
@@ -132,16 +135,16 @@ type IssueDetailer interface {
 
 // NewestFirstReferences turns a forge's cross references, oldest first and
 // possibly naming one item more than once, into the list the API returns:
-// newest first, one entry per item, at most MaxReferences. An item that both
-// mentioned and closed the issue counts as closing.
+// newest first, one entry per item, at most MaxReferences. An item holds the
+// strongest relation any of its entries has: closes, then refs, then mentions.
 func NewestFirstReferences(oldestFirst []ItemReference) []ItemReference {
 	var refs []ItemReference
 	seen := map[string]int{}
 	for _, ref := range slices.Backward(oldestFirst) {
 		key := IssueKey(ref.Forge, ref.Repo, ref.Number)
 		if at, ok := seen[key]; ok {
-			if ref.Relation == RelationCloses {
-				refs[at].Relation = RelationCloses
+			if relationRank[ref.Relation] > relationRank[refs[at].Relation] {
+				refs[at].Relation = ref.Relation
 			}
 
 			continue
@@ -151,4 +154,34 @@ func NewestFirstReferences(oldestFirst []ItemReference) []ItemReference {
 	}
 
 	return refs[:min(len(refs), MaxReferences)]
+}
+
+// relationRank orders what an item can do to an issue, strongest highest.
+var relationRank = map[ReferenceRelation]int{RelationMentions: 1, RelationRefs: 2, RelationCloses: 3}
+
+// ClassifyIncoming sets each incoming reference's relation to the issue repo#number
+// from the referring item's own text (Body), since a forge's timeline can't tell
+// a Refs from a plain mention. A closing relation the forge reported is kept.
+// Otherwise a Refs, Related to or See on the issue makes it refs, and the rest
+// stay mentions, which is how the board reads an open pull request, so an open
+// and a merged one with the same text land in the same group. It returns a
+// copy without the text.
+func ClassifyIncoming(refs []ItemReference, forge Forge, repo string, number int, baseURL string) []ItemReference {
+	want := IssueKey(forge, repo, number)
+	out := make([]ItemReference, len(refs))
+	for i, ref := range refs {
+		if ref.Relation != RelationCloses && ref.Direction == ReferenceIncoming {
+			for _, named := range ReferencedIssueRefs(forge, ref.Title, ref.Body, ref.Repo, ref.Number, baseURL) {
+				if IssueKey(forge, named.Repo, named.Number) == want {
+					ref.Relation = RelationRefs
+
+					break
+				}
+			}
+		}
+		ref.Body = ""
+		out[i] = ref
+	}
+
+	return out
 }

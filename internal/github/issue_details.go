@@ -47,8 +47,8 @@ fragment issueThread on Issue {
         willCloseTarget
         source {
           __typename
-          ... on Issue { number title url state repository { nameWithOwner } }
-          ... on PullRequest { number title url state repository { nameWithOwner } }
+          ... on Issue { number title url body state repository { nameWithOwner } }
+          ... on PullRequest { number title url body state repository { nameWithOwner } }
         }
       }
     }
@@ -80,8 +80,8 @@ fragment pullRequestThread on PullRequest {
         willCloseTarget
         source {
           __typename
-          ... on Issue { number title url state repository { nameWithOwner } }
-          ... on PullRequest { number title url state repository { nameWithOwner } }
+          ... on Issue { number title url body state repository { nameWithOwner } }
+          ... on PullRequest { number title url body state repository { nameWithOwner } }
         }
       }
     }
@@ -135,7 +135,12 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	item := resp.Repository.Item
 	details := threadDetails(item.graphqlDetailsThread)
 	details.Kind = dashboard.ItemKindIssue
-	details.References = incomingReferences(item.TimelineItems.Nodes)
+	fullName := owner + "/" + name
+	base := dashboard.WebBase(item.URL, fullName)
+	if base == "" {
+		base = "https://github.com"
+	}
+	details.References = dashboard.ClassifyIncoming(incomingReferences(item.TimelineItems.Nodes), dashboard.ForgeGitHub, fullName, number, base)
 	if item.Typename == "PullRequest" {
 		details.Kind = dashboard.ItemKindPullRequest
 		details.PullRequest = &dashboard.IssuePullRequest{Title: item.Title, State: pullRequestStateOf(item.State)}
@@ -174,6 +179,7 @@ type crossReferenceNode struct {
 		Number     int    `json:"number"`
 		Title      string `json:"title"`
 		URL        string `json:"url"`
+		Body       string `json:"body"`
 		State      string `json:"state"`
 		Repository struct {
 			NameWithOwner string `json:"nameWithOwner"`
@@ -197,7 +203,7 @@ func incomingReferences(nodes []crossReferenceNode) []dashboard.ItemReference {
 		}
 		ref := dashboard.ItemReference{
 			Forge: dashboard.ForgeGitHub, Repo: src.Repository.NameWithOwner, Number: src.Number,
-			Title: src.Title, URL: src.URL, Kind: dashboard.ItemKindIssue,
+			Title: src.Title, URL: src.URL, Body: src.Body, Kind: dashboard.ItemKindIssue,
 			State: pullRequestStateOf(src.State), Direction: dashboard.ReferenceIncoming, Relation: relation,
 		}
 		if src.Typename == "PullRequest" {

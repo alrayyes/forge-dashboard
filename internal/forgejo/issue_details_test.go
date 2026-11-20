@@ -282,6 +282,44 @@ func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
 	assert.Equal(t, dashboard.ReferencedStateClosed, got.References[2].State)
 }
 
+// The timeline can't tell a Refs from a mention, so the referring item's own
+// text decides, the way the board reads an open pull request's (#4430).
+func TestGetIssueDetails_AMergedPullRequestThatSaysRefsReferencesTheIssue(t *testing.T) {
+	t.Parallel()
+
+	withBody := func(event map[string]any, body string) map[string]any {
+		event["ref_issue"].(map[string]any)["body"] = body
+
+		return event
+	}
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []any{})
+
+			return
+		}
+		writeJSON(t, w, []any{
+			withBody(refEvent("pull_ref", "neutered", "alrayyes/a", 10, "closed", true), "Refs #5"),
+			withBody(refEvent("pull_ref", "neutered", "alrayyes/a", 11, "open", false), "Refs #5"),
+			withBody(refEvent("pull_ref", "neutered", "alrayyes/a", 12, "closed", true), "Touches #5"),
+			withBody(refEvent("pull_ref", "neutered", "alrayyes/a", 13, "closed", true), "Refs #5 and #5 again"),
+			withBody(refEvent("pull_ref", "closes", "alrayyes/a", 14, "closed", true), "Closes #5, Refs #5"),
+		})
+	})
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	relations := map[int]dashboard.ReferenceRelation{}
+	for _, ref := range got.References {
+		relations[ref.Number] = ref.Relation
+	}
+	assert.Equal(t, map[int]dashboard.ReferenceRelation{
+		10: dashboard.RelationRefs, 11: dashboard.RelationRefs, 12: dashboard.RelationMentions,
+		13: dashboard.RelationRefs, 14: dashboard.RelationCloses,
+	}, relations)
+}
+
 // issueWithTimeline serves alrayyes/a#5 with an empty thread and the given
 // timeline handler.
 func issueWithTimeline(t *testing.T, timeline http.HandlerFunc) *httptest.Server {
