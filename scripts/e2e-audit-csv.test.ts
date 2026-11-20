@@ -118,3 +118,21 @@ test('docs/e2e-audit.md states the number of web unit test files', () => {
   );
   expect(Number(stated?.[1]), `set it to ${found}`).toBe(found);
 });
+
+// The first paragraph states how many specs and tests the audit covers. It
+// said 303 files while the classifier counted 306. The CSV is checked against
+// the classifier above, so its rows are the classifier's numbers.
+// Fix: edit the counts in docs/e2e-audit.md to what this reports.
+test('docs/e2e-audit.md states the number of specs and tests', () => {
+  const rows = readFileSync(csv, 'utf8').trim().split('\n').slice(1);
+  const specs = rows.length;
+  const tests = rows.reduce((sum, r) => sum + Number(r.split(',')[2]), 0);
+  const doc = readFileSync(path.join(root, 'docs/e2e-audit.md'), 'utf8');
+  const stated = doc.match(/\(([\d,]+) files, ([\d,]+) tests\)/);
+  expect(stated, 'the doc no longer states the spec and test counts').not.toBe(
+    null,
+  );
+  const num = (s?: string) => Number((s ?? '').replace(/,/g, ''));
+  const want = `set it to ${specs.toLocaleString('en-US')} files, ${tests.toLocaleString('en-US')} tests`;
+  expect([num(stated?.[1]), num(stated?.[2])], want).toEqual([specs, tests]);
+});
