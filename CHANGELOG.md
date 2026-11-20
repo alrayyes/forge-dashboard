@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.90.2](https://github.com/alrayyes/forge-dashboard/compare/v9.90.1...v9.90.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **test:** define the $state rune in the unit test preload ([#4470](https://github.com/alrayyes/forge-dashboard/issues/4470)) ([97f1474](https://github.com/alrayyes/forge-dashboard/commit/97f14746e6b9b296152805168f2efa661562909c)), closes [#4466](https://github.com/alrayyes/forge-dashboard/issues/4466)
+* **web:** link a relation pill to an untracked repository to the forge ([#4467](https://github.com/alrayyes/forge-dashboard/issues/4467)) ([a8aa204](https://github.com/alrayyes/forge-dashboard/commit/a8aa2042f71d2ed057cdcb9106606e01f0e12f70)), closes [#4461](https://github.com/alrayyes/forge-dashboard/issues/4461)
+
 ## [9.90.1](https://github.com/alrayyes/forge-dashboard/compare/v9.90.0...v9.90.1) (2026-11-20)
 
 
