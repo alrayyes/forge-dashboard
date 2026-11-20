@@ -366,9 +366,6 @@
     if (href === null) return;
     void tick().then(() => {
       if (!dialogEl?.open) return;
-      // A pill patched in place kept focus; nothing to put back.
-      if (held instanceof HTMLElement && document.activeElement === held)
-        return;
       const same = links().filter((a) => a.getAttribute("href") === href);
       const back = same[Math.min(place, same.length - 1)];
       if (back) back.focus();
