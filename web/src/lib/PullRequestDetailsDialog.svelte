@@ -415,9 +415,13 @@
       // under that key: open it as one now, with no flip after the read.
       const asPr = asPullRequest(item);
       const known = detailsCache.get(detailsKey(refOf(asPr) as DetailsRef));
-      if (known && (!hit || (hit.details as Details).kind === "pullRequest")) {
+      // A read of the issue key that already said "pull request" counts too:
+      // the warm-up of an untracked reference leaves exactly that (#4402).
+      const seenAsPullRequest =
+        hit !== undefined && (hit.details as Details).kind === "pullRequest";
+      if ((known && !hit) || seenAsPullRequest) {
         target = asPr;
-        hit = known;
+        hit = known ?? hit;
         referencedKey = detailsKey(refOf(asPr) as DetailsRef);
         onPullRequestFound?.();
       }
