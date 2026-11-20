@@ -241,6 +241,8 @@ describe('The pressed pill tick', () => {
     '[aria-pressed^="ru"]',
     '[aria-pressed$="tr"]',
     '[aria-pressed*="xyz"]',
+    '[aria-pressed=]',
+    '[aria-pressed^=]',
     '[aria-pressed^=""]',
     '[aria-pressed$=""]',
     '[aria-pressed*=""]',
@@ -255,6 +257,11 @@ describe('The pressed pill tick', () => {
       expect(tickSelectors(`.a${spelling}::before { x: y; }`)).toEqual([]);
     });
   }
+
+  test('does not find a selector with an unbalanced closing parenthesis', () => {
+    const selector = '.a[aria-pressed="true"]::before:hover)';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([]);
+  });
 
   test('leaves a pill that is not pressed alone', () => {
     const sample = '.a[aria-pressed="false"]::before { x: y; }';
