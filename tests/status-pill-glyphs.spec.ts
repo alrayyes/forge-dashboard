@@ -352,9 +352,19 @@ test('pressing a pill does not change its width', async ({ page }) => {
     statusGroup(page)
       .locator('.mb-pill')
       .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().width));
+  // Wait for the pills to be laid out and still before taking the baseline.
+  let last = '';
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await widths());
+      const still = now !== '[]' && now === last;
+      last = now;
+      return still;
+    })
+    .toBe(true);
   const before = await widths();
   for (const { label } of STATUSES) {
     await pill(page, label).click();
-    expect(await widths(), `${label} pressed`).toEqual(before);
+    await expect.poll(widths, { message: `${label} pressed` }).toEqual(before);
   }
 });

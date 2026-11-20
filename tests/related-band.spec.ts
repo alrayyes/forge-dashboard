@@ -817,18 +817,21 @@ for (const width of [1280, 390]) {
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
           .analyze();
         expect(results.violations, `${path}`).toEqual([]);
-        expect(
-          await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth <=
-              document.documentElement.clientWidth,
-          ),
-        ).toBe(true);
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document.documentElement.scrollWidth <=
+                document.documentElement.clientWidth,
+            ),
+          )
+          .toBe(true);
         for (const pill of await band(dialog).locator('.linked-pr').all())
-          expect(
-            (await pill.boundingBox())?.height ?? 0,
-            await pill.innerText(),
-          ).toBeGreaterThanOrEqual(24);
+          await expect
+            .poll(async () => (await pill.boundingBox())?.height ?? 0, {
+              message: await pill.innerText(),
+            })
+            .toBeGreaterThanOrEqual(24);
 
         const shots = process.env.RELATED_BAND_SHOTS;
         if (shots)
