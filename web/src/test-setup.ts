@@ -14,3 +14,12 @@ export function resetFilterState(): void {
 }
 
 beforeEach(resetFilterState);
+
+// bun loads a .svelte.ts module as plain TypeScript, with no Svelte compiler,
+// so the $state rune is an undefined name there (#4466). A file that reached
+// time.svelte.ts without its own stand-in passed only when another file had
+// already mocked the module for the whole process, and failed under the random
+// orders that ran it first. A plain value has the same reads and writes, which
+// is all a unit test needs from the rune. Defined here, before any test file
+// loads, so no order decides.
+(globalThis as Record<string, unknown>).$state = <T>(value: T): T => value;
