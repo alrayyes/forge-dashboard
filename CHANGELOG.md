@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.5](https://github.com/alrayyes/forge-dashboard/compare/v9.90.4...v9.90.5) (2026-11-20)
+
+
+### Bug Fixes
+
+* **web:** open a merged pull request's pop-up from its pill ([#4478](https://github.com/alrayyes/forge-dashboard/issues/4478)) ([b58a7ee](https://github.com/alrayyes/forge-dashboard/commit/b58a7eebfdc7a017bf7f69afe30e6b37067df732)), closes [#4477](https://github.com/alrayyes/forge-dashboard/issues/4477)
+
 ## [9.90.4](https://github.com/alrayyes/forge-dashboard/compare/v9.90.3...v9.90.4) (2026-11-20)
 
 
