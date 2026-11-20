@@ -11,7 +11,6 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 const stillByHand = [
   'conflict-not-confirmed-reason.spec.ts',
   'issue-close.spec.ts',
-  'pipeline-run-output.spec.ts',
   'pull-request-renovate-rebase.spec.ts',
   'rerun-count.spec.ts',
   'row-claim-state-pills.spec.ts',
@@ -20,7 +19,6 @@ const stillByHand = [
   'stream-after-first-poll.spec.ts',
   'unreachable-age-tick.spec.ts',
   'unreachable-once.spec.ts',
-  'webhooks-clear-filters.spec.ts',
   'actions-dialog-helper.spec.ts',
   'activity-persistence.spec.ts',
   'address-open-focus.spec.ts',
@@ -185,6 +183,10 @@ test.each([
   ['forge only', "{ forge: 'github', repoCount: 1 }"],
   ['keys on different objects', "{ a: { forge: 'x' }, reachable: true }"],
   ['text, not keys', "const forgeName = 'reachable';"],
+  [
+    'words in a string inside a block',
+    "async () => { const title = 'the forge is reachable now'; await go(); }",
+  ],
 ])('the detector leaves alone: %s (#4030)', (_name, source) => {
   expect(writesForgeEntryByHand(source)).toBe(false);
 });
