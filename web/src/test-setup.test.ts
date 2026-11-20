@@ -8,6 +8,7 @@ import {
   test,
 } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   hasTouched,
   heldPicks,
@@ -66,5 +67,22 @@ describe('the unit test preload', () => {
     );
     const test = bunfig.split(/^\[test\]$/m)[1] ?? '';
     expect(test).toMatch(/preload\s*=\s*\[[^\]]*\.\/web\/src\/test-setup\.ts/);
+  });
+
+  // time.svelte.ts is a rune module that bun loads as plain TypeScript, where
+  // $state is undefined (#4466). action-error.test.ts reaches it with no mock
+  // of its own, so it passed only after another file had mocked the module
+  // for the whole process, and failed under the random orders that ran it
+  // first. Run it alone in a fresh process: the preload has to be enough.
+  test('a file that reaches a rune module passes without another file first', () => {
+    const root = fileURLToPath(new URL('../../', import.meta.url));
+    const run = Bun.spawnSync(
+      ['bun', 'test', 'web/src/lib/action-error.test.ts'],
+      { cwd: root, stdout: 'pipe', stderr: 'pipe' },
+    );
+    expect(run.stderr.toString() + run.stdout.toString()).not.toContain(
+      '$state is not defined',
+    );
+    expect(run.exitCode).toBe(0);
   });
 });
