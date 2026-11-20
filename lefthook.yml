@@ -141,7 +141,7 @@ commit-msg:
 # pre-push --verbose` lists each skip. The globs are each job's real inputs,
 # and scripts/lefthook-globs.test.ts pins them to the Dockerfile's COPY
 # sources and the go:embed targets. A push that only edits this file runs
-# the Go, Storybook and image jobs, since it can change how they run.
+# the Go tests, Storybook, component tests and image build, since it can change how they run.
 pre-push:
   jobs:
     # Everything cheap, together: no job edits a file another one reads.
@@ -161,6 +161,8 @@ pre-push:
               - "cmd/**"
               - "internal/**"
               - "api/openapi.yaml"
+              - "docs/rate-limits.md"
+              - "tests/generated/**"
               - "scripts/go-docker.sh"
               - "web/**"
               - "package.json"
@@ -184,7 +186,6 @@ pre-push:
               - "go.sum"
               - ".golangci.yml"
               - ".golangci.yaml"
-              - "api/openapi.yaml"
               - "scripts/golangci-lint-docker.sh"
               - "scripts/go-docker.sh"
             run: scripts/golangci-lint-docker.sh golangci-lint run ./...

@@ -63,7 +63,8 @@ docs-only push skips the Go tests, Go lint, Storybook, component tests and
 image build. `lefthook run pre-push --verbose` lists each skip. The filters
 are each job's inputs (the Dockerfile's `COPY` sources, the `go:embed` targets,
 the build scripts), and `scripts/lefthook-globs.test.ts` fails when one drifts.
-A push that only edits `lefthook.yml` runs the Go, Storybook and image jobs.
+A push that only edits `lefthook.yml` runs the Go tests, Storybook, the
+component tests and the image build, but not Go lint or the `go mod` checks.
 CI still runs everything the hook skips, and the CI-only list at the top of
 `lefthook.yml` still holds.
 
