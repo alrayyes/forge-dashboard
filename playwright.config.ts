@@ -319,6 +319,9 @@ if (unlisted.length > 0) {
 
 export default defineConfig({
   testDir: 'tests',
+  // Fails the run before any server starts when ./forge-dashboard-e2e is older
+  // than its inputs; skipped when E2E_BINARY is set.
+  globalSetup: './tests/global-setup.ts',
   projects: [{ name: 'single-user', testMatch: singleUserSpecs }],
   // CI runs the suite as shards, each writing a blob report. The final e2e job
   // merges them into the JUnit XML the pages job publishes next to the Go test
