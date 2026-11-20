@@ -89,6 +89,30 @@ func TestClassifyIncoming_AnOpenAndAMergedPullRequestWithTheSameTextAgree(t *tes
 	}
 }
 
+// A merged pull request's description is what its author wrote, whatever the
+// merge commit says, so how Refs is written must not change the group (#4429).
+func TestClassifyIncoming_AMergedPullRequestIsReadHoweverRefsIsWritten(t *testing.T) {
+	t.Parallel()
+
+	for _, body := range []string{
+		"Touches #7 first.\n\nRefs #7",
+		"Summary\r\n\r\nRefs #7\r\n",
+		"refs #7",
+		"Refs: #7",
+		"* Refs #7",
+		"Fixes the bug (Refs #7)",
+		"Refs #3, #7",
+		"Refs alrayyes/a#7",
+	} {
+		open := classify(referrer(12, dashboard.RelationMentions, dashboard.ReferencedStateOpen, body))
+		merged := classify(referrer(12, dashboard.RelationMentions, dashboard.ReferencedStateMerged, body))
+
+		require.Len(t, merged, 1)
+		assert.Equal(t, dashboard.RelationRefs, merged[0].Relation, "%q: a merged pull request is referenced by", body)
+		assert.Equal(t, open[0].Relation, merged[0].Relation, "%q: open and merged agree", body)
+	}
+}
+
 func TestClassifyIncoming_ABareLinkStaysAMention(t *testing.T) {
 	t.Parallel()
 
