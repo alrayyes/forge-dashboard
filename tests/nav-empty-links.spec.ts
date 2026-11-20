@@ -348,6 +348,29 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect(header(page, PULLS)).toHaveCount(1);
   });
 
+  test("a list page keeps the links out too while the server's first refresh runs, even when the snapshot carries counts (#4365)", async ({
+    page,
+  }) => {
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          firstRefreshDone: false,
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      }),
+    );
+    await page.goto('/releases.html');
+    await expect(header(page, '/releases.html')).toHaveCount(1);
+    await expect(header(page, PULLS)).toHaveCount(0);
+  });
+
   test('a count that rises brings its link in without a reload', async ({
     page,
   }) => {

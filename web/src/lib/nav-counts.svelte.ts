@@ -50,12 +50,14 @@ export const navCounts = $state<{ value: NavCounts | null }>({ value: null });
 
 export function setNavCounts(
   raw: ServerNavCounts | undefined | null,
+  firstRefreshDone: boolean | undefined | null,
   branchRows: readonly MainBranch[] | undefined,
   keepPageBranches = false,
 ) {
   navCounts.value = nextNavCounts(
     navCounts.value,
     raw,
+    firstRefreshDone,
     branchRows,
     keepPageBranches ? pageBranches : null,
   );
