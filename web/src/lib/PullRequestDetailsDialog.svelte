@@ -1,5 +1,4 @@
 <script module lang="ts">
-  import { MERGE_GLYPH } from "./check-glyphs";
   import type { ItemReference } from "./issue-references";
   import type { RelatedBandData } from "./related-band";
 
@@ -1014,7 +1013,14 @@
                       class="merged-glyph"
                       viewBox="0 0 16 16"
                       aria-hidden="true"
-                      focusable="false">{@html MERGE_GLYPH}</svg
+                      focusable="false"
+                      ><!-- The shapes of MERGE_GLYPH in check-glyphs.ts, drawn
+                        here because forge-fed markup never goes through {@html}. -->
+                      <circle cx="8" cy="8" r="6.25" />
+                      <circle cx="6" cy="5.4" r="1" />
+                      <circle cx="6" cy="10.6" r="1" />
+                      <circle cx="10.2" cy="8.6" r="1" />
+                      <path d="M6 6.4v3.2M6 6.4c0 1.4 1.2 2.2 3.2 2.2" /></svg
                     >{/if}{stateWord || "Open"}</span
                 >
               </div>
