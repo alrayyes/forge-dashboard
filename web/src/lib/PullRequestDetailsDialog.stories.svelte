@@ -87,6 +87,14 @@
     await waitFor(() =>
       expect(document.querySelector("dialog[open]")).not.toBeNull(),
     );
+    // The status describes the title, so it follows it in the DOM (#4405).
+    const title = document.querySelector(".details-title");
+    const status = document.querySelector(".details-status");
+    if (title && status)
+      expect(
+        title.compareDocumentPosition(status) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
   };
 
   const loaded = async (canvasElement: HTMLElement) => {
