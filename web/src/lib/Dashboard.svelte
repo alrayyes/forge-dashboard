@@ -71,9 +71,10 @@
   import { probeReference } from "#lib/reference-probe.js";
   import { createReferencePrefetcher } from "#lib/reference-prefetch.js";
   import {
-    addressFocusFallback,
+    ADDRESS_CANDIDATES,
     chainedReturn,
-    titleOrFiltersFallback,
+    POPUP_CANDIDATES,
+    focusFallback,
   } from "#lib/address-focus.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import type { CheckCounts } from "#lib/check-counts.js";
@@ -2600,12 +2601,12 @@
       return `details-trigger-${domSafeId(prKey(item))}`;
     }
 
-    // The control focus falls back to when the row is filtered out, one that
-    // is drawn (#3844): the title box hides over one row (#3823).
-    function drawnAddressFallback() {
-      return addressFocusFallback((id) => {
+    // The first of a candidate list that is drawn and enabled (#3844): the
+    // title box hides over one row (#3823), and a disabled select takes no
+    // focus (#3886).
+    function drawnFallback(candidates: readonly string[]) {
+      return focusFallback(candidates, (id) => {
         const el = document.getElementById(id);
-        // A disabled select takes no focus (#3886).
         return (
           (el?.getClientRects().length ?? 0) > 0 &&
           !(el as HTMLButtonElement).disabled
@@ -2613,20 +2614,10 @@
       });
     }
 
-    // Where a pop-up reached by a pill or an in-text reference sends focus when
-    // its opener is gone: the Filters button on a phone, else the title box. The
-    // issues page has no row of its own to name, so a hidden title box falls
-    // through to the first drawn control in the bar (#4360).
-    function phoneAwareTitleFallback() {
-      return titleOrFiltersFallback(
-        (id) => (document.getElementById(id)?.getClientRects().length ?? 0) > 0,
-      );
-    }
-
     function openPullRequestReadOnly(
       item: PullRequestItem,
       triggerId = addressFocus(item),
-      fallbackFocusId = drawnAddressFallback(),
+      fallbackFocusId = drawnFallback(ADDRESS_CANDIDATES),
     ) {
       dialogOpens++;
       endChainUnlessSwap(triggerId);
@@ -2702,7 +2693,7 @@
           url: issue.url,
         },
         triggerId,
-        phoneAwareTitleFallback(),
+        drawnFallback(POPUP_CANDIDATES),
       );
     }
 
@@ -2747,7 +2738,7 @@
           ? allPRs.find((p) => sameAddress(wanted, p))
           : undefined;
         if (pr) {
-          openDetailsDialog(pr, back, phoneAwareTitleFallback());
+          openDetailsDialog(pr, back, drawnFallback(POPUP_CANDIDATES));
           return;
         }
         openIssueDialog(
@@ -2757,7 +2748,7 @@
             url: ref.url,
           },
           back,
-          phoneAwareTitleFallback(),
+          drawnFallback(POPUP_CANDIDATES),
         );
       };
       detailsDialog?.close();
@@ -2799,7 +2790,7 @@
       // with its actions; elsewhere, or when the board leaves it out, it is
       // read only.
       if (listed && pullsView) {
-        openDetailsDialog(listed, triggerId, phoneAwareTitleFallback());
+        openDetailsDialog(listed, triggerId, drawnFallback(POPUP_CANDIDATES));
         return;
       }
       const opens = dialogOpens;
@@ -2814,7 +2805,7 @@
         openPullRequestReadOnly(
           looked.found,
           triggerId,
-          phoneAwareTitleFallback(),
+          drawnFallback(POPUP_CANDIDATES),
         );
         return;
       }
@@ -2829,7 +2820,7 @@
           url: linked.url ?? "",
         },
         triggerId,
-        phoneAwareTitleFallback(),
+        drawnFallback(POPUP_CANDIDATES),
       );
     }
 
@@ -2865,7 +2856,7 @@
         openDetailsDialog(
           onBoard,
           addressFocus(onBoard),
-          drawnAddressFallback(),
+          drawnFallback(ADDRESS_CANDIDATES),
         );
         return;
       }
@@ -2908,7 +2899,7 @@
         openIssueDialog(
           found,
           `details-trigger-${domSafeId(prKey(found as PullRequestItem))}`,
-          phoneAwareTitleFallback(),
+          drawnFallback(POPUP_CANDIDATES),
         );
         return;
       }
