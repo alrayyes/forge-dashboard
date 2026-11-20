@@ -87,6 +87,16 @@ const style = (page: Page, name: string) =>
     return { bg: s.backgroundColor, ink: s.color };
   });
 
+// The colours of the label chip on the first row that carries it.
+const rowStyle = (page: Page, name: string) =>
+  page
+    .locator('#pr-rows > .row .label-chip', { hasText: name })
+    .first()
+    .evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { bg: s.backgroundColor, ink: s.color, inline: el.style.cssText };
+    });
+
 async function axe(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -99,46 +109,40 @@ test.describe('Label filter: coloured chips', () => {
     page,
   }) => {
     await open(page);
-    expect(await style(page, 'bug')).toEqual({
-      bg: 'rgb(215, 58, 74)',
-      ink: 'rgb(0, 0, 0)',
-    });
-    expect(await style(page, 'dark')).toEqual({
-      bg: 'rgb(11, 15, 20)',
-      ink: 'rgb(255, 255, 255)',
-    });
+    await expect
+      .poll(() => style(page, 'bug'))
+      .toEqual({ bg: 'rgb(215, 58, 74)', ink: 'rgb(0, 0, 0)' });
+    await expect
+      .poll(() => style(page, 'dark'))
+      .toEqual({ bg: 'rgb(11, 15, 20)', ink: 'rgb(255, 255, 255)' });
   });
 
   test('the option matches the chip on the row', async ({ page }) => {
     await open(page);
-    const row = await page
-      .locator('#pr-rows > .row .label-chip', { hasText: 'bug' })
-      .first()
-      .evaluate((el) => {
-        const s = getComputedStyle(el);
-        return { bg: s.backgroundColor, ink: s.color };
-      });
-    expect(await style(page, 'bug')).toEqual(row);
+    // Retries until the row chip and the option are both styled and agree.
+    await expect
+      .poll(async () => {
+        const row = await rowStyle(page, 'bug');
+        const option = await style(page, 'bug');
+        return row.bg !== '' && row.bg === option.bg && row.ink === option.ink;
+      })
+      .toBe(true);
   });
 
   test('a malformed colour is the same neutral chip in the row and the filter', async ({
     page,
   }) => {
     await open(page);
-    const row = await page
-      .locator('#pr-rows > .row .label-chip', { hasText: 'odd' })
-      .first()
-      .evaluate((el) => {
-        const s = getComputedStyle(el);
+    await expect
+      .poll(async () => {
+        const row = await rowStyle(page, 'odd');
+        const option = await style(page, 'odd');
         return {
-          bg: s.backgroundColor,
-          ink: s.color,
-          inline: el.style.cssText,
+          inline: row.inline,
+          same: row.bg === option.bg && row.ink === option.ink,
         };
-      });
-    const filter = await style(page, 'odd');
-    expect(row.inline).toBe('');
-    expect({ bg: row.bg, ink: row.ink }).toEqual(filter);
+      })
+      .toEqual({ inline: '', same: true });
     expect(await chip(page, 'odd').evaluate((el) => el.style.cssText)).toBe('');
   });
 
@@ -146,9 +150,10 @@ test.describe('Label filter: coloured chips', () => {
     page,
   }) => {
     await open(page);
-    const triage = await style(page, 'triage');
-    for (const colour of ['rgb(251, 202, 4)', 'rgb(0, 117, 202)'])
-      expect(triage.bg).not.toBe(colour);
+    // Retries past an unstyled read, which is ''.
+    await expect
+      .poll(async () => (await style(page, 'triage')).bg)
+      .not.toMatch(/^$|^rgb\(251, 202, 4\)$|^rgb\(0, 117, 202\)$/);
     // The page's own surface, not a label colour.
     const plain = await chip(page, 'triage').evaluate(
       (el) => el.style.backgroundColor,
@@ -176,7 +181,10 @@ test.describe('Label filter: coloured chips', () => {
     await expect(
       labelPanel(page).getByRole('checkbox', { name: 'bug' }),
     ).toBeChecked();
-    expect((await style(page, 'bug')).bg).toBe('rgb(215, 58, 74)');
+    await expect(chip(page, 'bug')).toHaveCSS(
+      'background-color',
+      'rgb(215, 58, 74)',
+    );
   });
 
   test('keyboard: a chip option takes focus and ticks with Space', async ({

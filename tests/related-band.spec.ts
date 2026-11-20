@@ -178,9 +178,7 @@ test('a pull request dialog has a Related band between the title and the descrip
   const refsRow = row(dialog, 'Refs').locator('.linked-pr');
   await expect(refsRow).toHaveCount(1);
   await expect(refsRow).toHaveText('alrayyes/other#7');
-  expect(await refsRow.evaluate((el) => getComputedStyle(el).borderStyle)).toBe(
-    'dotted',
-  );
+  await expect(refsRow).toHaveCSS('border-top-style', 'dotted');
   await expect(row(dialog, 'Mentions')).toHaveCount(0);
   // The count is the distinct items, not the rows.
   await expect(dialog.locator('.related-count')).toHaveText('3');
@@ -668,6 +666,13 @@ const targetSize = (pill: Locator) =>
     };
   });
 
+// Waits until the target is laid out at the floor, so the read that logs it
+// isn't taken before the hit area's ::after has a size.
+const settledTarget = (pill: Locator, floor: number) =>
+  expect
+    .poll(async () => (await targetSize(pill)).height)
+    .toBeGreaterThanOrEqual(floor);
+
 for (const [name, viewport, floor] of [
   ['desktop', { width: 1280, height: 800 }, 24],
   ['phone', { width: 390, height: 800 }, 44],
@@ -686,6 +691,7 @@ for (const [name, viewport, floor] of [
     const pills = row(board, 'Closed by').locator('.linked-pr');
     for (const [i, state] of ['Open', 'Draft'].entries()) {
       await expect(pills.nth(i)).toContainText(`· ${state}`);
+      await settledTarget(pills.nth(i), floor);
       sizes[state] = await targetSize(pills.nth(i));
     }
     await page.keyboard.press('Escape');
@@ -697,6 +703,7 @@ for (const [name, viewport, floor] of [
     const states = row(closed, 'Closed by').locator('.linked-pr');
     for (const [i, state] of ['Merged', 'Closed'].entries()) {
       await expect(states.nth(i)).toContainText(`· ${state}`);
+      await settledTarget(states.nth(i), floor);
       sizes[state] = await targetSize(states.nth(i));
     }
     console.log(`SIZES ${name} ${JSON.stringify(sizes)}`);
@@ -753,9 +760,7 @@ test('the label and count meet 4.5:1 on the band, and a focused pill ring is not
     expect((pill?.y ?? 0) + (pill?.height ?? 0)).toBeLessThanOrEqual(
       (box?.y ?? 0) + (box?.height ?? 0) - ring,
     );
-    expect(
-      await band(dialog).evaluate((el) => getComputedStyle(el).overflow),
-    ).toBe('visible');
+    await expect(band(dialog)).toHaveCSS('overflow', 'visible');
   }
 });
 
