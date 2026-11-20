@@ -1,0 +1,210 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { openActionsDialog } from './actions-dialog-helper';
+import { factsOf } from './check-facts';
+import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
+import { test } from './server-fixture';
+
+// The wait for CI is said once on a row, in the same place whether or not
+// auto-merge is armed, and only while the CI pill says the checks are still
+// running. The status line, the locked Merge and the armed chip all read the
+// snapshot while the pill can read the live jobs, so a row could say both
+// "Passed" and "Waiting for CI".
+// https://github.com/alrayyes/forge-dashboard/issues/4408
+
+const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+
+function pr(number: number, title: string, over: Record<string, unknown> = {}) {
+  return {
+    forge: 'github',
+    repo: 'alrayyes/app',
+    number,
+    title,
+    url: `https://example.test/pull/${number}`,
+    author: 'claude',
+    draft: false,
+    ci: 'pending',
+    checks: { passed: 1, running: 1, waiting: 0, failed: 0 },
+    labels: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date(Date.now() - number * 1000).toISOString(),
+    mergeStatus: 'blocked',
+    ...over,
+  };
+}
+
+const ARMED = {
+  autoMergeEnabled: true,
+  autoMerge: {
+    state: 'waiting',
+    code: 'checks_pending',
+    message: 'Auto-merge is waiting for the checks to pass.',
+  },
+};
+
+const PLAIN = pr(1, 'Plain');
+const ARMED_PR = pr(2, 'Armed', ARMED);
+const READY = pr(3, 'Ready', { ci: 'success', mergeStatus: 'mergeable' });
+
+async function open(
+  page: Page,
+  pullRequests: unknown[],
+  jobState?: string,
+): Promise<void> {
+  if (jobState) {
+    await serveChecks(page, () =>
+      [0, 1].map((i) => ({
+        name: `job-${i}`,
+        ...factsOf(jobState),
+        jobId: 100 + i,
+        url: '',
+      })),
+    );
+  } else {
+    await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+      route.abort(),
+    );
+  }
+  await page.route('**/api/v1/dashboard', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests,
+        issues: [],
+        openIssueCount: 0,
+        repos: [],
+        hiddenDrafts: 0,
+      }),
+    }),
+  );
+  await page.goto('/pull-requests.html');
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(
+    pullRequests.length,
+  );
+}
+
+const row = (page: Page, title: string) =>
+  page.locator('#pr-rows > .row', { hasText: title });
+
+// Every element on the row that says it is waiting for CI.
+const waitingWords = (scope: Locator) => scope.getByText(/waiting for ci/i);
+
+async function y(locator: Locator): Promise<number> {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error('not on screen');
+  return box.y;
+}
+
+async function axe(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
+  expect(results.violations).toEqual([]);
+}
+
+for (const scheme of ['light', 'dark'] as const) {
+  for (const width of [1400, 390]) {
+    test.describe(`${scheme}, ${width}px`, () => {
+      test.beforeEach(async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 900 });
+      });
+
+      test('the message sits on the same side of the pill on an armed and an unarmed row', async ({
+        page,
+      }) => {
+        await open(page, [PLAIN, ARMED_PR]);
+        const plain = row(page, 'Plain');
+        const armed = row(page, 'Armed');
+
+        // Every element that says it, on both rows, on one side of the pill.
+        const sides = async (r: Locator) => {
+          const pill = await y(r.locator('.ci-pill'));
+          const found = await waitingWords(r).all();
+          expect(found.length).toBeGreaterThan(0);
+          return Promise.all(
+            found.map(async (e) => Math.sign((await y(e)) - pill)),
+          );
+        };
+        const [plainSide] = await sides(plain);
+        for (const side of [...(await sides(plain)), ...(await sides(armed))])
+          expect(side).toBe(plainSide);
+      });
+
+      test('an armed row says it once and keeps a locked Merge with a reason', async ({
+        page,
+      }) => {
+        await open(page, [PLAIN, ARMED_PR]);
+        const armed = row(page, 'Armed');
+        const merge = armed.getByRole('button', {
+          name: 'Merge',
+          exact: true,
+        });
+
+        await expect(waitingWords(armed)).toHaveCount(1);
+        await expect(armed.locator('.wait-chip')).toBeVisible();
+        await expect(armed.locator('.status-area')).toHaveCount(0);
+        await expect(merge).toHaveAttribute('aria-disabled', 'true');
+        await expect(merge).toHaveAccessibleDescription(/checks/i);
+
+        // The unarmed row keeps its line and its next step.
+        const plain = row(page, 'Plain');
+        await expect(plain.locator('.status-area')).toContainText(
+          'Waiting for CI to finish',
+        );
+        await expect(plain.locator('.status-area')).toContainText(
+          'Merge unlocks automatically',
+        );
+      });
+
+      test('the pop-up says it once too', async ({ page }) => {
+        await open(page, [ARMED_PR]);
+        const dialog = await openActionsDialog(row(page, 'Armed'));
+        await expect(waitingWords(dialog)).toHaveCount(1);
+      });
+
+      test('a pill that says Passed leaves no waiting words on the row', async ({
+        page,
+      }) => {
+        await open(page, [PLAIN, ARMED_PR], 'success');
+        for (const title of ['Plain', 'Armed']) {
+          const r = row(page, title);
+          await expect(r.locator('.ci-pill')).toContainText('Passed');
+          await expect(waitingWords(r)).toHaveCount(0);
+          await expect(r.locator('.status-area')).toHaveCount(0);
+          await expect(r.locator('.wait-chip')).toHaveCount(0);
+        }
+      });
+
+      test('a locked Merge looks different from an enabled one and has no axe violations', async ({
+        page,
+      }) => {
+        await open(page, [PLAIN, ARMED_PR, READY]);
+        const style = (b: Locator) =>
+          b.evaluate((el) => {
+            const s = getComputedStyle(el);
+            return `${s.borderTopStyle}|${s.backgroundColor}|${s.color}`;
+          });
+        const locked = await style(
+          row(page, 'Plain').getByRole('button', {
+            name: 'Merge',
+            exact: true,
+          }),
+        );
+        const enabled = await style(
+          row(page, 'Ready').getByRole('button', {
+            name: 'Merge',
+            exact: true,
+          }),
+        );
+        expect(locked).not.toBe(enabled);
+        // Forced colors drop background and text colour, so the border style
+        // has to carry the difference.
+        expect(locked.split('|')[0]).not.toBe(enabled.split('|')[0]);
+        await axe(page);
+      });
+    });
+  }
+}

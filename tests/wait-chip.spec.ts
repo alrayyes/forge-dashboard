@@ -292,6 +292,8 @@ test.describe('the waiting chip on a bot rebase', () => {
     page,
   }) => {
     await ask(page);
+    // The click left the pointer where the chip now is.
+    await page.mouse.move(0, 0);
     const chip = chipOf(page);
     const tip = chip.locator('.wait-chip-tip');
     await expect(tip).toHaveCSS('opacity', '0');

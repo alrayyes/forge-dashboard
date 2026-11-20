@@ -2784,6 +2784,8 @@ a.ci-pill:hover {
   cursor: default;
   background: var(--neutral-bg);
   color: var(--ink-3);
+  /* Colour alone is dropped in forced colours; a dashed edge isn't. */
+  border-style: dashed;
 }
 /* A Retry button (lockedActionButton's own onRetry param set) is
    genuinely clickable, unlike a plain dead-end lock — the flat grey/
@@ -2793,6 +2795,7 @@ a.ci-pill:hover {
    Real .row-action colors instead, the same as every other clickable
    button in this file. */
 .row-action-locked .row-action:not([aria-disabled]) {
+  border-style: solid;
   cursor: pointer;
   background: var(--accent);
   color: var(--accent-ink);
@@ -3140,15 +3143,6 @@ a.ci-pill:hover {
   /* Above the row's stretched link, like every other control in the cell. */
   position: relative;
   z-index: 1;
-}
-
-/* Wider than a phone the slot is drawn above the status, as it always was
-   (#3264 only moves it on a phone). It follows the status in the markup, so
-   Tab visits an armed row's chip after the pill there. */
-@media (min-width: 761px) {
-  .wait-slot {
-    order: -1;
-  }
 }
 
 .wait-chip {

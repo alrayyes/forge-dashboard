@@ -85,6 +85,15 @@ The row shows `status` in one place: a block with an icon and words ahead of its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
+A wait on CI is said once, below the CI pill, on every row. An unarmed pull
+request shows the block ("Waiting for CI to finish", "Merge unlocks
+automatically"). An armed one shows the waiting chip instead, and the locked
+Merge is described by the chip's hint. The pop-up shows the block either way.
+The words follow the CI pill: while the pill reads the live jobs and says they
+have finished, the row prints no wait, whatever the last refresh said, and Merge
+stays locked until the next refresh. A locked Merge has a dashed edge, so it
+reads as locked in forced colours too.
+
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).
 It is the same action the server marks `primary`. The page draws that button

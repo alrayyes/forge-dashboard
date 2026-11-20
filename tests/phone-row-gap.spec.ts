@@ -153,63 +153,32 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
   });
 });
 
-// #3264 acceptance: only the phone layout changes. At 820px and wider the
-// reserved slot stays above the pill, where main has always drawn it. These
-// offsets from the row's top edge were measured on main before the fix.
-test.describe('wider rows keep the wait slot above the pill (#3264)', () => {
+// The slot is below the pill at every width, so an armed row and a plain one
+// say what they wait on on the same side of it.
+test.describe('wider rows draw the wait slot below the pill', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
 
-  // Offsets from the row's top edge, compared as booleans (never rounded, so
-  // there is no -0). A missing or unrendered element reads as false.
-  const atOffsets = (
-    row: import('@playwright/test').Locator,
-    want: Record<string, number>,
-  ) =>
-    expect
-      .poll(() =>
-        row.evaluate((r, want) => {
-          const rowBox = r.getBoundingClientRect();
-          if (rowBox.height <= 0) return false;
-          return Object.entries(want).every(([sel, offset]) => {
-            const b = r.querySelector(sel)?.getBoundingClientRect();
-            return (
-              b !== undefined &&
-              b !== null &&
-              b.height > 0 &&
-              Math.abs(b.top - rowBox.top - offset) < 0.5
-            );
-          });
-        }, want),
-      )
-      .toBe(true);
-
   for (const width of [820, 1280]) {
-    test(`${width}px: plain row has the slot at 12 and the pill at 62`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await mockDashboard(page, [BOT_PR]);
-      await page.goto('/bots.html');
-      const row = page.locator('#pr-rows > .row').first();
-      await expect(row).toBeVisible();
-      await atOffsets(row, { '.wait-slot': 12, '.ci-slot': 62 });
-    });
-
-    test(`${width}px: armed row has the slot at 12, the pill at 62, the status line at 92`, async ({
-      page,
-    }) => {
-      await page.setViewportSize({ width, height: 900 });
-      await mockDashboard(page, [ARMED_PR]);
-      await page.goto('/bots.html');
-      const row = page.locator('#pr-rows > .row').first();
-      await expect(row.locator('.wait-chip')).toBeVisible();
-      await atOffsets(row, {
-        '.wait-slot': 12,
-        '.ci-slot': 62,
-        '.status-area': 92,
+    for (const [name, pr] of [
+      ['plain', BOT_PR],
+      ['armed', ARMED_PR],
+    ] as const) {
+      test(`${width}px: ${name} row has the slot after the pill`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await mockDashboard(page, [pr]);
+        await page.goto('/bots.html');
+        const row = page.locator('#pr-rows > .row').first();
+        await expect(row.locator('.ci-slot')).toBeVisible();
+        const ci = await row.locator('.ci-slot').boundingBox();
+        const slot = await row.locator('.wait-slot').boundingBox();
+        expect(slot?.y ?? 0).toBeGreaterThanOrEqual(
+          (ci?.y ?? Number.POSITIVE_INFINITY) + (ci?.height ?? 0),
+        );
       });
-    });
+    }
   }
 });
