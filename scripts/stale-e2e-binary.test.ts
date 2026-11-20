@@ -95,3 +95,19 @@ test('the message is null for a fresh binary', () => {
   const { root, bin } = repo({ 'internal/a.go': 900 });
   expect(staleBinaryMessage(root, bin)).toBeNull();
 });
+
+test('ignores Go test files and testdata, which are not compiled into the binary', () => {
+  const { root, bin } = repo({
+    'internal/a_test.go': 1100,
+    'cmd/forge-dashboard/main_test.go': 1100,
+    'internal/dashboard/testdata/case.json': 1100,
+  });
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('still counts a non-test Go file whose name only contains test', () => {
+  const { root, bin } = repo({ 'internal/testing_helpers.go': 1100 });
+  expect(newerInput(root, bin)).toBe(
+    path.join('internal', 'testing_helpers.go'),
+  );
+});

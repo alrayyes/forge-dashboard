@@ -14,11 +14,15 @@ const inputFiles = ['go.mod', 'go.sum'];
 const buildCommand =
   'go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard';
 
-function* walk(dir: string): Generator<string> {
+// Go does not compile _test.go files or testdata directories into a binary.
+const goDirs = new Set(['cmd', 'internal']);
+
+function* walk(dir: string, go: boolean): Generator<string> {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* walk(full);
-    else yield full;
+    if (entry.isDirectory()) {
+      if (!(go && entry.name === 'testdata')) yield* walk(full, go);
+    } else if (!(go && entry.name.endsWith('_test.go'))) yield full;
   }
 }
 
@@ -30,7 +34,7 @@ export function newerInput(root: string, binary: string): string | null {
     ...inputFiles.map((f) => path.join(root, f)).filter(existsSync),
     ...inputDirs.flatMap((d) => {
       const dir = path.join(root, d);
-      return existsSync(dir) ? [...walk(dir)] : [];
+      return existsSync(dir) ? [...walk(dir, goDirs.has(d))] : [];
     }),
   ];
   const newer = candidates.find((f) => statSync(f).mtimeMs > built);
