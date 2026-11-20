@@ -54,6 +54,16 @@ before a push.
 Every one of these is what a hook or CI runs — see `lefthook.yml` and
 `.github/workflows/*.yml` for exactly which.
 
+The pre-push hook runs in two steps. The quick lint and test jobs go first, in
+parallel. Then the three heavy ones run one at a time: the Storybook
+screenshots, the component tests and the image build. Side by side, and beside
+other pushes from the same machine, they starved each other into timeouts. A
+job with a file filter runs only when the push touches a matching file, so a
+docs-only push skips the Go tests, Go lint, Storybook, component tests and
+image build. `lefthook run pre-push --verbose` lists each skip. Nothing CI
+runs is dropped from the hook, so the CI-only list at the top of
+`lefthook.yml` still holds.
+
 CI runs a job only when a file it reads changed. The first job, `changes`,
 maps the pull request's diff to areas with `scripts/changed-areas.sh`, and
 each job runs when its area is set:
