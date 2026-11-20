@@ -97,6 +97,10 @@ show, such as a status from an external CI. On Forgejo the pipeline list shows
 those statuses beside the jobs, so the pill waits with them; the note beside the
 locked Merge points at the pull request on the forge for the rest. A locked
 Merge has a dashed edge, so it reads as locked in forced colours too.
+An armed row follows the pill the same way, whatever its status says, when the
+last refresh read CI as pending: the chip goes, and a Cancel auto-merge button
+takes its place on the row until the next refresh. The reason beside the locked
+Merge is printed, so a tap reads it without a hover.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).

@@ -1580,13 +1580,28 @@
       );
     }
 
-    // The snapshot says the wait is on CI but the pill, which reads the live
-    // jobs, has moved on. The words follow the pill, so a row never says
-    // Passed beside "Waiting for CI".
-    function ciWaitIsStale(pr: PullRequestItem): boolean {
-      if (!snapshotWaitsOnCi(pr)) return false;
+    // The pill, which reads the live jobs, says the checks are over.
+    function ciPillIsDone(pr: PullRequestItem): boolean {
       const { status, awaiting } = ciModel(pr);
       return status !== "pending" && !awaiting;
+    }
+
+    // The snapshot says the wait is on CI but the pill has moved on. The words
+    // follow the pill, so a row never says Passed beside "Waiting for CI".
+    function ciWaitIsStale(pr: PullRequestItem): boolean {
+      return snapshotWaitsOnCi(pr) && ciPillIsDone(pr);
+    }
+
+    // The same for an armed auto-merge, which carries its own code: the row's
+    // status may be another wait (a draft) while the auto-merge still says CI.
+    // Only a snapshot that read CI as pending can go stale: a run that ended
+    // already (a cancelled one) is what the chip names.
+    function autoMergeCiWaitIsStale(pr: PullRequestItem): boolean {
+      return (
+        pr.autoMerge?.code === "checks_pending" &&
+        pr.ci === "pending" &&
+        ciPillIsDone(pr)
+      );
     }
 
     // An armed auto-merge waiting on CI says so in its chip, so the status
@@ -1596,7 +1611,7 @@
         pr.autoMerge?.state === "waiting" &&
         pr.autoMerge.code === "checks_pending" &&
         !isSettled(pr) &&
-        !ciWaitIsStale(pr)
+        !autoMergeCiWaitIsStale(pr)
       );
     }
 
@@ -1609,8 +1624,7 @@
     // row is settled.
     function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
       if (!pr.autoMerge) return null;
-      if (pr.autoMerge.code === "checks_pending" && ciWaitIsStale(pr))
-        return null;
+      if (autoMergeCiWaitIsStale(pr)) return null;
       const chip = autoMergeChip({
         state: pr.autoMerge.state,
         code: pr.autoMerge.code,
@@ -3266,7 +3280,14 @@
         // (#3264).
         const waitSlot = el("div", "wait-slot");
         const autoMergeWait = autoMergeWaitChip(pr);
+        // A stale wait hides the chip and Disarm with it, so Disarm stays on
+        // the row in its place until the next refresh (#4435).
+        const staleDisarm =
+          !autoMergeWait && !settledRow && autoMergeCiWaitIsStale(pr)
+            ? cancelAutoMergeCell(pr)
+            : null;
         if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
+        else if (staleDisarm) waitSlot.appendChild(staleDisarm);
         else {
           const queuedWait = queuedWaitChip(pr);
           if (queuedWait) waitSlot.appendChild(queuedWait);
