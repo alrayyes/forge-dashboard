@@ -2800,16 +2800,19 @@
         );
         return;
       }
-      const text =
-        "failed" in looked
-          ? `Could not look up pull request ${wanted.repo} #${wanted.number}. Try again.`
-          : missingNote(wanted);
-      // The Issues page has a note under its filters; the Pull requests page
-      // says it in its own status line.
-      if (note) {
-        note.textContent = text;
-        note.hidden = false;
-      } else setHideStatus(text);
+      // Merged or closed, so the board leaves it out (#4477). The issues
+      // route reads a pull request too, and the pop-up turns into the pull
+      // request's once it answers, as for a `#12` in a description. If the
+      // forge can't show it, that pop-up says why: this never closes empty.
+      openIssueDialog(
+        {
+          ...wanted,
+          title: `Pull request #${wanted.number}`,
+          url: linked.url ?? "",
+        },
+        triggerId,
+        phoneAwareTitleFallback(),
+      );
     }
 
     // One dialog at a time: the issue's closes, then the pull request's opens

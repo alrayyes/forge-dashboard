@@ -69,6 +69,14 @@ repository still opens in the pop-up when the forge can show it, the way a
 `#12` does. The row's own pills are all pull requests the dashboard holds, so
 they are not affected.
 
+A pull request pill in a tracked repository whose pull request is not on the
+board (merged or closed, so no longer listed) opens that pull request's pop-up
+all the same, in any row (Closed by, Referenced by, Mentioned by, Closes, Refs,
+Mentions). The pop-up is read only, with the real title, who opened it and
+whether it was merged or closed, read from the forge the way a `#12` is. Closing
+it returns focus to the pill. If the forge can't show it, the pop-up stays open
+and says why. The pop-up never closes with nothing shown.
+
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
 whether it is open, closed or merged, taken from the same answer. A merged
@@ -248,10 +256,10 @@ Bots for a release or a dependency update) still opens the same pop-up from a
 link or a bookmark, then drops `?pr=` so a reload doesn't open it again. A
 draft while **Show drafts** is off, or a pull request you hid, opens read only,
 without the actions, since it has no row to act from. A pull request that isn't
-open any more, or whose repo the dashboard doesn't track, opens nothing from a
-row, and the page says so in a note over the list. Inside the pop-up, a pill to
-such a pull request is a forge link instead, as the Related band section above
-says.
+open any more opens from a pill in the pop-up as described above, and from its
+`?pr=` address the page says so in a note over the list. Inside the pop-up, a
+pill to a pull request in a repo the dashboard doesn't track is a forge link
+instead, as the Related band section above says.
 
 ## Pull requests that mention an issue
 
