@@ -36,6 +36,7 @@ const pullRequest = (
   number: number,
   closesIssues: unknown[] = [],
   author = 'ryankes',
+  mentionsIssues: unknown[] = [],
 ) => ({
   forge: 'github',
   repo: REPO,
@@ -52,6 +53,7 @@ const pullRequest = (
   behind: false,
   kind: 'regular',
   closesIssues,
+  mentionsIssues,
 });
 const issue = (number: number, linkedPullRequests: unknown[] = []) => ({
   forge: 'github',
@@ -97,7 +99,11 @@ const mockedBoard = (route: Route) =>
       forges: [forgeHealth('github')],
       pullRequests: [
         pullRequest(1, [closing(5)], 'someone-else'),
-        pullRequest(2, [closing(5)]),
+        // Pull request 2 mentions pull request 3, which the forge's mention
+        // list marks untracked: only open issues are tracked there.
+        pullRequest(2, [closing(5)], 'ryankes', [
+          { ...closing(3), tracked: false },
+        ]),
         pullRequest(3, [closing(6)]),
       ],
       issues: [
@@ -106,6 +112,19 @@ const mockedBoard = (route: Route) =>
       ],
     }),
   });
+
+const outgoingToIssue = (number: number) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Item ${number}`,
+  url: `https://github.com/${REPO}/issues/${number}`,
+  pageUrl: `/issues.html?issue=github/${REPO}/${number}`,
+  kind: 'issue',
+  state: 'open',
+  direction: 'outgoing',
+  relation: 'refs',
+});
 
 async function mockBoard(page: Page) {
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -119,9 +138,17 @@ async function mockBoard(page: Page) {
           ...details,
           description: {
             ...details.description,
-            text: endpoint === 'pull-requests' ? 'Related to #5.' : 'The text.',
+            text:
+              endpoint === 'pull-requests'
+                ? 'Related to #5.'
+                : 'See #3 and #6.',
           },
           state: 'open',
+          // Issue 5 refers to issue 6: an outgoing pill in its dialog.
+          ...(endpoint === 'issues' &&
+          new URL(route.request().url()).searchParams.get('number') === '5'
+            ? { references: [outgoingToIssue(6)] }
+            : {}),
         }),
       }),
     );
@@ -274,6 +301,174 @@ for (const width of [1280, 390]) {
         await expect(page.locator('#title-filter')).toBeFocused();
       }
       await page.context().clearCookies({ name: 'forge-board-filters' });
+    });
+
+    test('a #N to a pull request from a chained issue: closing returns to the first pull request', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const first = rowTitle(page, '#pr-rows', 'Pull request 1');
+      await first.click();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+      await issueDialog(page)
+        .getByRole('link', { name: '#3', exact: true })
+        .click();
+      await expect(prDialog(page)).toContainText('Pull request 3');
+
+      await closeAndSettle(page);
+
+      await expect(first).toBeFocused();
+      await expectTitleBoxUntouched(page);
+    });
+
+    test('a #N to an issue from a chained issue: closing returns to the first pull request', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const first = rowTitle(page, '#pr-rows', 'Pull request 3');
+      await first.click();
+      await prDialog(page).getByRole('link', { name: '#5' }).click();
+      await expect(issueDialog(page)).toContainText('Issue 5');
+      await issueDialog(page)
+        .getByRole('link', { name: '#6', exact: true })
+        .click();
+      await expect(issueDialog(page)).toContainText('Issue 6');
+
+      await closeAndSettle(page);
+
+      await expect(first).toBeFocused();
+      await expectTitleBoxUntouched(page);
+    });
+
+    test('an outgoing pill to an issue, mid-chain: closing returns to the first pull request', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const first = rowTitle(page, '#pr-rows', 'Pull request 1');
+      await first.click();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toContainText('Issue 5');
+      await issueDialog(page)
+        .locator('.related-band .linked-pr', { hasText: '#6' })
+        .click();
+      await expect(issueDialog(page)).toContainText('Issue 6');
+
+      await closeAndSettle(page);
+
+      await expect(first).toBeFocused();
+      await expectTitleBoxUntouched(page);
+    });
+
+    test('a pull request the board does not hold, opened from its address, then its issue: closing moves focus off the Title box on a phone', async ({
+      page,
+    }) => {
+      // Only the lookup (includeHidden) knows pull request 9.
+      await page.route('**/api/v1/dashboard?includeDrafts=true*', (route) =>
+        route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({
+            generatedAt: new Date().toISOString(),
+            forges: [forgeHealth('github')],
+            pullRequests: [pullRequest(9, [closing(5)])],
+            issues: [issue(5)],
+          }),
+        }),
+      );
+      await page.goto(`/pull-requests.html?pr=github/${REPO}/9`);
+      await expect(prDialog(page)).toContainText('Pull request 9');
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+
+      await closeAndSettle(page);
+
+      if (width === 390) {
+        await expectTitleBoxUntouched(page);
+        await expect(page.locator('#filters-button')).toBeFocused();
+      } else {
+        await expect(page.locator('#title-filter')).toBeFocused();
+      }
+    });
+
+    test('a read-only pull request opened from a row pill after a chain ended swaps back to that pill', async ({
+      page,
+    }) => {
+      await page.goto('/issues.html');
+      await rowTitle(page, '#issue-rows', 'Issue 5').click();
+      await issueDialog(page).locator('.linked-pr', { hasText: '#1' }).click();
+      await expect(prDialog(page)).toBeVisible();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+      await closeAndSettle(page);
+
+      // The first chain is over. A pill on another row opens a pull request
+      // the Issues page can only show read only; its own swap is a new one.
+      const pill = rowPill(page, '#issue-rows', 'Issue 6', '.linked-pr');
+      await pill.click();
+      await expect(prDialog(page)).toContainText('Pull request 3');
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toContainText('Issue 6');
+      await closeAndSettle(page);
+
+      await expect(pill).toBeFocused();
+    });
+
+    test('a single swap from the control a chain ended on returns where a fresh page does', async ({
+      page,
+    }) => {
+      // The chain is cleared when the next dialog opens, not when its last one
+      // closes, so it can outlive its close. A swap from the very control it
+      // ended on must not behave differently for that: both runs below end on
+      // the row pill, as a page that never had a chain does.
+      const pill = () => rowPill(page, '#issue-rows', 'Issue 5', '.linked-pr');
+      const swapOnce = async () => {
+        await pill().click();
+        await expect(prDialog(page)).toBeVisible();
+        await prDialog(page).locator('.closing-issue').first().click();
+        await expect(issueDialog(page)).toBeVisible();
+        await closeAndSettle(page);
+        await expect(pill()).toBeFocused();
+        await expectTitleBoxUntouched(page);
+      };
+      await page.goto('/issues.html');
+      await swapOnce();
+
+      // A chain of two swaps that ends on the same pill, then the single swap.
+      await rowTitle(page, '#issue-rows', 'Issue 5').click();
+      await issueDialog(page).locator('.linked-pr', { hasText: '#1' }).click();
+      await expect(prDialog(page)).toBeVisible();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+      await closeAndSettle(page);
+      await expect(pill()).toBeFocused();
+      await swapOnce();
+    });
+
+    test('a mention pill for a pull request the board holds, mid-chain: closing returns to the first pull request', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const first = rowTitle(page, '#pr-rows', 'Pull request 1');
+      await first.click();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+      await issueDialog(page).locator('.linked-pr', { hasText: '#2' }).click();
+      await expect(prDialog(page)).toContainText('Pull request 2');
+
+      // The pill follows in the dialog only once the forge has answered for
+      // it, which focus asks for.
+      const pill = prDialog(page).locator('.mention-pill');
+      const answered = page.waitForResponse('**/api/v1/issues/details*');
+      await pill.focus();
+      await answered;
+      await pill.click();
+      await expect(prDialog(page)).toContainText('Pull request 3');
+
+      await closeAndSettle(page);
+
+      await expect(first).toBeFocused();
+      await expectTitleBoxUntouched(page);
     });
 
     test('a chain that ended leaves nothing behind for the next swap', async ({
