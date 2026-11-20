@@ -68,6 +68,41 @@ function mockDashboard(
   );
 }
 
+// Delays of the timers the page arms, read back from the page: page.clock
+// cannot say whether the poll timer exists yet. A runFor before it is armed
+// moves the clock past a timer that does not exist, so a check that "no early
+// read happens" would pass without testing anything. Call after
+// page.clock.install(), so the wrapper sits over the fake setTimeout.
+async function recordTimers(page: Page) {
+  await page.addInitScript(() => {
+    const armed: number[] = [];
+    (window as unknown as { __armed: number[] }).__armed = armed;
+    const setTimeoutWas = window.setTimeout.bind(window) as (
+      fn: () => void,
+      ms?: number,
+      ...rest: unknown[]
+    ) => number;
+    window.setTimeout = ((
+      fn: () => void,
+      ms?: number,
+      ...rest: unknown[]
+    ): number => {
+      armed.push(ms ?? 0);
+      return setTimeoutWas(fn, ms, ...rest);
+    }) as typeof window.setTimeout;
+  });
+}
+
+// The poll timer is any armed delay from a second to the five minutes the page
+// caps advice at, other than the 20 s guard that aborts a read the server holds
+// (READ_TIMEOUT_MS). An hour-long timer from elsewhere on the page is not it.
+async function pollTimersArmed(page: Page) {
+  const armed = await page.evaluate(
+    () => (window as unknown as { __armed: number[] }).__armed,
+  );
+  return armed.filter((ms) => ms >= 1_000 && ms <= 300_000 && ms !== 20_000);
+}
+
 const header = (page: Page, href: string) =>
   page.locator(`header nav a[href="${href}"]`);
 const tab = (page: Page, href: string) =>
@@ -232,6 +267,80 @@ test.describe('empty pages leave the navigation (#1228)', () => {
 
     await page.clock.runFor(31_000);
     await expect(header(page, PULLS)).toHaveCount(1);
+  });
+
+  test('after a failed first read the page reads again after the fallback delay and not before (#4453)', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await recordTimers(page);
+    let reads = 0;
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
+      reads++;
+      if (reads === 1) return route.fulfill({ status: 500, body: '' });
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      });
+    });
+    await page.goto('/settings.html');
+    await expect
+      .poll(async () => (await pollTimersArmed(page)).length)
+      .toBeGreaterThan(0);
+    expect(reads).toBe(1);
+
+    await page.clock.runFor(29_000);
+    await page.waitForTimeout(300);
+    expect(reads).toBe(1);
+
+    await page.clock.runFor(2_000);
+    await expect.poll(() => reads).toBe(2);
+    await expect(header(page, PULLS)).toHaveCount(1);
+  });
+
+  test('advice under a second is ignored and the page reads at the fallback delay (#4453)', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await recordTimers(page);
+    let reads = 0;
+    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
+      reads++;
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests: [makePR(1)],
+          issues: [],
+          openIssueCount: 0,
+          readIntervalSeconds: 0.5,
+          navCounts: navCountsFor([makePR(1)], 0),
+        }),
+      });
+    });
+    await page.goto('/settings.html');
+    await expect(header(page, PULLS)).toHaveCount(1);
+    await expect
+      .poll(async () => (await pollTimersArmed(page)).length)
+      .toBeGreaterThan(0);
+    expect(reads).toBe(1);
+
+    await page.clock.runFor(29_000);
+    await page.waitForTimeout(300);
+    expect(reads).toBe(1);
+
+    await page.clock.runFor(2_000);
+    await expect.poll(() => reads).toBe(2);
   });
 
   test('a snapshot that never carries navCounts keeps the count links out (#4276)', async ({
@@ -401,14 +510,18 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       await page.setViewportSize({ width, height: 844 });
       await mockDashboard(page, state);
       await page.clock.install();
+      await recordTimers(page);
       await page.goto('/settings.html');
       // No link is drawn before the first snapshot lands (#4276), so a count of
       // zero here proves nothing about whether the page has read yet. This wait
       // only guarantees the first answer has gone out, built from the empty
-      // state, and nothing about the page having handled it: the poll timer is
-      // armed once it has, which the stepping below allows for.
+      // state, and nothing about the page having handled it.
       await expect.poll(() => answered).toBeGreaterThan(0);
       await expect(header(page, PULLS)).toHaveCount(0);
+      // The page has handled it once the poll timer is armed.
+      await expect
+        .poll(async () => (await pollTimersArmed(page)).length)
+        .toBeGreaterThan(0);
 
       // The poll is not early: well inside the interval no second read is sent.
       await page.clock.runFor(25_000);
