@@ -46,10 +46,10 @@ spec's file name and it appears in the `lower` column.
   with no browser-only token. Time is assumed proportional to test count. It is
   not a measured saving.
 - Most specs mock `/api/v1/dashboard` with `page.route`, so they check the UI
-  over canned state. `web/` has 107 unit test files, all in `web/src/lib` (pure
-  functions or fake DOM), and no Svelte component harness. Class C is therefore
-  blocked on one, tracked as its own ticket, except where a lib function already
-  carries the logic.
+  over canned state. `web/` has 151 unit test files, all in `web/src/lib` (pure
+  functions or fake DOM; `bun run test:unit` fails when this count drifts), and
+  no Svelte component harness. Class C is therefore blocked on one, tracked as
+  its own ticket, except where a lib function already carries the logic.
 - A class D claim needs a mutation of the code under test that turns the lower
   test red. Name matching alone never earns D.
 
