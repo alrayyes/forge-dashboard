@@ -142,7 +142,7 @@ func NewMux(deps Deps) http.Handler {
 
 	mux.HandleFunc("GET /healthz", handleHealth)
 	mux.HandleFunc("GET /readyz", handleReady(deps))
-	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
+	mux.Handle("GET /api/version", auth.RequireAuth(deps.AuthStore)(handleVersion(deps.Version)))
 
 	mux.HandleFunc("GET /api/v1/auth/registration-status", handleRegistrationStatus(deps.AuthService))
 	mux.Handle("POST /api/v1/auth/register/begin", limitAuthAttempts(deps, handleRegisterBegin(deps.AuthService)))

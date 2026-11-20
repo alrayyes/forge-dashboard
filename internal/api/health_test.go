@@ -18,11 +18,31 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestVersion_NoSessionNeeded_AnswersTheRunningVersion(t *testing.T) {
+func TestVersion_SignedOut_IsRefusedWithoutTheVersion(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	resp, err := testClient(t).Get(srv.URL + "/api/version")
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
+	assert.NotContains(t, string(body), testVersion)
+	assert.NotContains(t, string(body), "apiVersion")
+}
+
+func TestVersion_WithASession_AnswersTheRunningVersion(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/version", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 
@@ -31,6 +51,21 @@ func TestVersion_NoSessionNeeded_AnswersTheRunningVersion(t *testing.T) {
 	var got api.Version
 	require.NoError(t, readJSON(resp, &got))
 	assert.Equal(t, testVersion, got.Version)
+}
+
+func TestVersion_WithAnAPIToken_AnswersTheRunningVersion(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/version", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer "+createAPIToken(t, srv.URL, sessionCookie))
+	resp, err := testClient(t).Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
 type fakeDB struct{ err error }

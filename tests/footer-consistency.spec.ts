@@ -11,6 +11,9 @@ import { test } from './server-fixture';
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
 const EXPECTED = ['GitHub', 'v1.2.3', 'Disclaimer', 'Privacy'] as const;
+// A signed-out visitor is never told the version (#4427), so the footer has
+// no version link to show.
+const EXPECTED_SIGNED_OUT = ['GitHub', 'Disclaimer', 'Privacy'] as const;
 
 // Which footer link is current at each path; absent means none.
 const SIGNED_IN: Record<string, string | undefined> = {
@@ -42,9 +45,13 @@ async function mockVersion(page: Page) {
   );
 }
 
-async function expectFooter(page: Page, current: string | undefined) {
+async function expectFooter(
+  page: Page,
+  current: string | undefined,
+  expected: readonly string[] = EXPECTED,
+) {
   const links = page.locator('footer a');
-  await expect.soft(links).toHaveText([...EXPECTED]);
+  await expect.soft(links).toHaveText([...expected]);
   await expect
     .soft(page.locator('footer'))
     .not.toContainText('Read-only mirror');
@@ -87,13 +94,33 @@ test.describe('the footer is the same on every page', () => {
       await context.clearCookies();
     });
 
-    test('every page shows the same footer items', async ({ page }) => {
-      await mockVersion(page);
+    // The real server answers /api/version with a 401 here, so nothing is
+    // mocked: the footer has to cope with the refusal, not a canned version.
+    test('every page shows the footer without a version', async ({ page }) => {
       for (const [path, current] of Object.entries(SIGNED_OUT)) {
         await test.step(path, async () => {
           await page.goto(path);
-          await expectFooter(page, current);
+          await expectFooter(page, current, EXPECTED_SIGNED_OUT);
+          await expect(page.locator('#footer-version')).toBeEmpty();
         });
+      }
+    });
+
+    test('the public pages have no axe violations in light and dark', async ({
+      page,
+    }) => {
+      for (const scheme of ['light', 'dark'] as const) {
+        for (const path of Object.keys(SIGNED_OUT)) {
+          await test.step(`${path} ${scheme}`, async () => {
+            await page.emulateMedia({ colorScheme: scheme });
+            await page.goto(path);
+            await expectFooter(page, SIGNED_OUT[path], EXPECTED_SIGNED_OUT);
+            const results = await new AxeBuilder({ page })
+              .withTags(AXE_TAGS)
+              .analyze();
+            expect(results.violations).toEqual([]);
+          });
+        }
       }
     });
   });
