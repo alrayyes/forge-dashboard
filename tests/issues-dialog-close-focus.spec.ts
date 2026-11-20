@@ -7,7 +7,7 @@ import { test } from './server-fixture';
 // an issue named in the address whose row is filtered out, for an in-text
 // reference followed from a pop-up, for a chain of four, and for a chain whose
 // opening row a poll removed. Each path hands the pop-up a fallback
-// (`phoneAwareTitleFallback`) and the pop-up re-checks every candidate at close
+// (`drawnFallback(POPUP_CANDIDATES)`) and the pop-up re-checks every candidate at close
 // time, so a stale id costs one skipped candidate and never the page (#4417).
 // Companion to dialog-chain-close-focus.spec.ts, which drives the pull request
 // side. Mocks /api/v1/dashboard and the details endpoints only and writes no
