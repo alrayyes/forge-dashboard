@@ -70,16 +70,30 @@ async function interceptRendererChunk(page: Page, mode: 'abort' | 'hold') {
 }
 
 test.describe('release history page', () => {
-  test('reachable without a session, unlike the dashboard itself', async ({
+  // The newest entry is the running version, so the page and its data need a
+  // session like the dashboard does (#4426).
+  test('signed out, the page sends you to sign in and the data is refused', async ({
     page,
     context,
   }) => {
     await context.clearCookies();
     await page.goto('/changelog.html');
+    await expect(page).toHaveURL(/\/login\.html$/);
+
+    const data = await page.request.get('/changelog.json', {
+      maxRedirects: 0,
+    });
+    expect(data.status()).toBe(302);
+    expect(await data.text()).not.toContain('version');
+  });
+
+  test('signed in, the page and its data load', async ({ page }) => {
+    await page.goto('/changelog.html');
     await expect(page).toHaveURL(/\/changelog\.html$/);
     await expect(page.locator('.changelog-header h1')).toHaveText(
       'Release history',
     );
+    expect((await page.request.get('/changelog.json')).status()).toBe(200);
   });
 
   test('makes no request to GitHub and reads one same-origin JSON file', async ({

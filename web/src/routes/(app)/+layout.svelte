@@ -64,16 +64,16 @@
     );
   }
 
-  // Release history, disclaimer and privacy are inside this (app) route
+  // Disclaimer and privacy are inside this (app) route
   // group by file location, but are meant to stay reachable without a
   // session (nav.js's old behavior read a document.body.dataset.
-  // pageRequiresAuth = "false" flag these three pages set, and skipped
+  // pageRequiresAuth = "false" flag these pages set, and skipped
   // its redirect-to-login on a 401 — see the fetch below). Rather than
   // that DOM flag (a mount-order race between this layout's onMount and
   // each page's own, and nothing sets it once nav.js is retired here),
   // this reuses isCurrentRoute's own tolerant path matching against
   // currentPath directly: no child-to-parent signaling needed.
-  const PUBLIC_ROUTES = ["/changelog", "/disclaimer", "/privacy"];
+  const PUBLIC_ROUTES = ["/disclaimer", "/privacy"];
 
   function isPublicRoute(): boolean {
     return PUBLIC_ROUTES.some((route) => isCurrentRoute(route));
@@ -152,7 +152,7 @@
     // other page asks, so the badges are there too, and asks again every 30
     // seconds (the server's own advice for a re-read) so a number that changes
     // while the page is open changes here (#1315). Asked only once a session
-    // exists: the changelog, disclaimer and privacy pages are open to
+    // exists: the disclaimer and privacy pages are open to
     // visitors, who have none (#1261).
     //
     // One read at a time, like the dashboard's own poll: the next is timed from
@@ -296,10 +296,10 @@
 
     // ---- who's signed in ----
     // Ported from nav.js verbatim in behavior: same endpoint, same 401
-    // redirect target — except release history, disclaimer and privacy
+    // redirect target — except disclaimer and privacy
     // (see isPublicRoute above), which stay put on a 401 instead of
     // redirecting, same as nav.js's own pageRequiresAuth === "false" skip
-    // used to for those three pages.
+    // used to for those pages.
     fetch("/api/v1/auth/session", { headers: { Accept: "application/json" } })
       .then((res) => {
         if (res.status === 401) {

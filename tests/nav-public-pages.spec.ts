@@ -7,7 +7,7 @@ import { test } from './server-fixture';
 // Every signed-in test mocks /api/v1/dashboard. The signed-out one clears the
 // session cookie the server fixture sets.
 
-// #1261: the changelog, disclaimer and privacy pages are open to visitors, so
+// #1261: the disclaimer and privacy pages are open to visitors, so
 // the layout never asked them for the nav counts. A signed-in user there saw
 // every link, with no numbers.
 
@@ -56,7 +56,7 @@ function mockDashboard(
 const header = (page: Page, href: string) =>
   page.locator(`header nav a[href="${href}"]`);
 
-for (const path of ['/changelog.html', '/disclaimer.html', '/privacy.html']) {
+for (const path of ['/disclaimer.html', '/privacy.html']) {
   test.describe(path, () => {
     test('a signed-in user gets the same nav as elsewhere: empty links hidden', async ({
       page,
@@ -98,7 +98,7 @@ test.describe('signed out', () => {
     await context.clearCookies();
   });
 
-  test('signed out, the changelog asks for no counts and still renders', async ({
+  test('signed out, the disclaimer asks for no counts and still renders', async ({
     page,
   }) => {
     let asked = false;
@@ -106,7 +106,7 @@ test.describe('signed out', () => {
       asked = true;
       return route.abort();
     });
-    await page.goto('/changelog.html');
+    await page.goto('/disclaimer.html');
 
     await expect(page.getByRole('heading', { level: 1 }).first()).toBeVisible();
     expect(asked).toBe(false);

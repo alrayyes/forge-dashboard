@@ -39,7 +39,7 @@ cancel-run.spec.ts,24.502,22,7,C,web/src/lib/cancel-run.test.ts,16.7
 cancelled-only-row.spec.ts,6.384,5,1,C,,5.1
 cancelled-pill-counts.spec.ts,1.945,8,7,A,,0.2
 card-spacing.spec.ts,0.748,1,1,A,,0.0
-changelog.spec.ts,17.506,20,9,C,web/src/lib/changelog-notes.test.ts,9.6
+changelog.spec.ts,17.506,21,9,C,web/src/lib/changelog-notes.test.ts,10.0
 checking-for-conflicts.spec.ts,7.653,3,2,A,,2.6
 checks-incomplete-pill.spec.ts,,3,1,C,,0.0
 ci-pill-actions.spec.ts,2.958,4,4,A,web/src/lib/ci-pill.test.ts,0.0
