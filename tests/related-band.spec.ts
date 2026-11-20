@@ -258,6 +258,26 @@ test('an issue dialog pins the closing pull request name: relation, number, draf
   await expect(dialog.locator('.related-hint')).toHaveCount(0);
 });
 
+for (const count of [2, 3, 4, 6, 7]) {
+  test(`a Mentioned by row of ${count} pills has no hint line`, async ({
+    page,
+  }) => {
+    const dialog = await openIssue(
+      page,
+      issue({
+        mentionedByPullRequests: Array.from({ length: count }, (_, i) =>
+          linked(30 + i),
+        ),
+      }),
+    );
+    await expect(row(dialog, 'Mentioned by')).toBeVisible();
+    await expect(row(dialog, 'Mentioned by').locator('.linked-pr')).toHaveCount(
+      Math.min(count, 6),
+    );
+    await expect(dialog.locator('.related-hint')).toHaveCount(0);
+  });
+}
+
 test('an issue also referenced by pull requests has a Referenced by row and no hint line', async ({
   page,
 }) => {
