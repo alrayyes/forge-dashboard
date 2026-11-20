@@ -207,3 +207,18 @@ func TestBoardIndexes_APullRequestWithAllThreeIsInTheStrongestOnly(t *testing.T)
 		assert.Len(t, dashboard.PullRequestsMentioning(prs)[key], tc.mention, name)
 	}
 }
+
+// ClassifyIncoming is for what refers to the issue. An outgoing reference's
+// text is the issue's own, so it says nothing about what the item does to it.
+func TestClassifyIncoming_AnOutgoingReferenceKeepsItsRelationWhateverItsTextSays(t *testing.T) {
+	t.Parallel()
+
+	outgoing := referrer(12, dashboard.RelationMentions, dashboard.ReferencedStateOpen, "Refs #7")
+	outgoing.Direction = dashboard.ReferenceOutgoing
+
+	got := classify(outgoing)
+
+	require.Len(t, got, 1)
+	assert.Equal(t, dashboard.RelationMentions, got[0].Relation)
+	assert.Empty(t, got[0].Body, "the text is still dropped")
+}

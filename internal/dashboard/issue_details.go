@@ -72,7 +72,8 @@ const (
 	// RelationRefs references the item without closing it.
 	RelationRefs ReferenceRelation = "refs"
 	// RelationMentions names the item. A forge's timeline can't tell it from
-	// refs, so a read of what refers to an item says mentions for both.
+	// refs, so a forge client reports both as mentions and ClassifyIncoming
+	// reads the referring item's text to tell them apart.
 	RelationMentions ReferenceRelation = "mentions"
 )
 
