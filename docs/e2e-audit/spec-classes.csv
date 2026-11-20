@@ -290,7 +290,7 @@ update-branch-on-row.spec.ts,6.043,13,5,C,,3.7
 update-branch-request.spec.ts,8.081,8,0,C,,8.1
 upstream-error-banner.spec.ts,1.779,2,1,A,,0.9
 wait-chip.spec.ts,19.647,19,6,C,web/src/lib/wait-chip.test.ts,13.4
-waiting-for-ci-once.spec.ts,,11,1,C,,0.0
+waiting-for-ci-once.spec.ts,,13,2,C,,0.0
 webhooks-clear-filters.spec.ts,4.29,7,6,A,,0.6
 webhooks-failing-repo.spec.ts,2.099,3,1,C,,1.4
 webhooks-filter-choices.spec.ts,1.331,10,1,C,web/src/lib/webhooks-filter.test.ts,1.2

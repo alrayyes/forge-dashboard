@@ -303,6 +303,57 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
+// The stale-CI rule hides the armed chip only for a snapshot that read CI as
+// pending (#4482). The other waits are not about CI, and a run that already
+// ended is what the chip names, so a Passed pill never hides them.
+test.describe('the stale-CI rule hides only a pending CI wait', () => {
+  const armedWith = (title: string, code: string, over = {}) =>
+    pr(10, title, {
+      autoMergeEnabled: true,
+      autoMerge: { state: 'waiting', code, message: `Held: ${code}.` },
+      ...over,
+    });
+
+  for (const [code, label] of [
+    ['stacked', 'Waiting for parent'],
+    ['behind', 'Waiting for update'],
+  ] as const) {
+    test(`a ${code} wait keeps its chip beside a Passed pill, with no stale Disarm in its place`, async ({
+      page,
+    }) => {
+      await open(page, [armedWith('Armed', code)], 'success');
+      const r = row(page, 'Armed');
+      await expect(r.locator('.ci-pill')).toContainText('Passed');
+
+      const chip = r.locator('.wait-chip');
+      await expect(chip.locator('.wait-chip-label')).toHaveText(label);
+      // The chip carries the one Disarm; a stale rule would add one beside it.
+      const disarm = r.getByRole('button', {
+        name: /disarm|cancel auto-merge/i,
+      });
+      await expect(disarm).toHaveCount(1);
+      await expect(
+        chip.getByRole('button', { name: /disarm|cancel auto-merge/i }),
+      ).toHaveCount(1);
+    });
+  }
+
+  test('a CI wait whose snapshot already ended keeps its chip beside a Passed pill', async ({
+    page,
+  }) => {
+    await open(
+      page,
+      [armedWith('Ended', 'checks_pending', { ci: 'failure' })],
+      'success',
+    );
+    const r = row(page, 'Ended');
+    await expect(r.locator('.ci-pill')).toContainText('Passed');
+    await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
+      'Waiting for CI',
+    );
+  });
+});
+
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 900 } });
 
