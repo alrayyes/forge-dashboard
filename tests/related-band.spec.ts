@@ -898,7 +898,7 @@ for (const width of [1280, 390]) {
         for (const pill of await band(dialog).locator('.linked-pr').all())
           await expect
             .poll(async () => (await pill.boundingBox())?.height ?? 0, {
-              message: await pill.innerText(),
+              message: (await pill.textContent())?.trim(),
             })
             .toBeGreaterThanOrEqual(24);
 

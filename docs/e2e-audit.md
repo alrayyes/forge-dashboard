@@ -1,20 +1,42 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (252 files, 2,237 tests) against
+Read-only audit of every `tests/*.spec.ts` (303 files, 2,683 tests) against
 `main`. No spec was edited, moved, or deleted. The per-spec table is
 [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.
 
+## Regenerating the table
+
+The CSV is output, never edited by hand. From the repository root:
+
+```sh
+python3 docs/e2e-audit/classify.py . docs/e2e-audit/spec-classes.csv
+```
+
+The script reads `tests/*.spec.ts`, `tests/e2e-durations.json`, the unit tests
+in `web/src/lib` and the Go tests under `internal/`. Change a spec, a duration
+or one of those tests and the CSV is out of date. `scripts/e2e-audit-csv.test.ts`
+reruns the script and fails on any difference, in `bun run test:unit` and so in
+the pre-push hook and CI, so the next slice regenerates the table in the same
+pull request that changes the spec. Regenerate again after rebasing onto a
+`main` that changed specs: two pull requests that each regenerate can both pass
+and still leave `main` red until the next regeneration.
+
+The one input a scan cannot find is a lower test proven red by hand, such as a
+story. List it in
+[`e2e-audit/lower-annotations.json`](e2e-audit/lower-annotations.json) under the
+spec's file name and it appears in the `lower` column.
+
 ## Method
 
 - Duration is the per-spec figure in `tests/e2e-durations.json`, in seconds. It
-  sums to about 1,472 s over 235 specs. Seventeen specs have no recorded
+  sums to about 1,543 s over 257 specs. Forty-six specs have no recorded
   duration and count as 0; the CSV leaves the cell empty.
 - Classes: **A** browser-only (layout, CSS, focus, keyboard, axe, viewport);
   **B** UI over logic a Go test covers; **C** UI over wording or state a unit or
   component test could cover; **D** fully covered below. A spec takes A when
   half or more of its tests use a browser-only API, or when listed by hand
-  (`mono-figures`). The rest default to C. B is a hand-picked list of six specs,
+  (`mono-figures`). The rest default to C. B is a hand-picked list of three specs,
   and D is set by hand from the two deleted specs, since neither is detected.
   Mixed specs get their dominant class.
 - The token scan only sees assertions written in the spec body. Browser
@@ -35,14 +57,14 @@ Read-only audit of every `tests/*.spec.ts` (252 files, 2,237 tests) against
 
 | Class                           | Specs | Summed duration |
 | ------------------------------- | ----- | --------------- |
-| A browser-only                  | 115   | 554 s           |
-| B Go covers the logic           | 4     | 15 s            |
-| C needs a lib or component test | 131   | 898 s           |
+| A browser-only                  | 156   | 733 s           |
+| B Go covers the logic           | 3     | 12 s            |
+| C needs a lib or component test | 144   | 798 s           |
 | D fully covered below           | 0     | 0 s             |
 
 D is empty today. The two specs that qualified (`filter-save-order`,
 `filter-mixed-case`) were deleted earlier with their own mutation proof. The
-upper bound over classes B and C is about 671 s of the 1,472 s run, and almost
+upper bound over classes B and C is about 596 s of the 1,543 s run, and almost
 none of it is safe to cut until the lower test exists. The order that keeps
 coverage is: write the lower test, prove it red under a mutation, then trim the
 spec.
@@ -111,41 +133,43 @@ class B in the CSV until one does.
 
 ### UI over state a component test could cover (class C)
 
-131 specs, 898 s. No lower test exists for most. Where a lib test partly matches
+144 specs, 798 s. No lower test exists for most. Where a lib test partly matches
 (`dashboard`, `settings`, `webhooks-filter-choices`), the CSV names it.
 Confidence is low wherever no lower test was found.
 
 ### Browser-only (class A)
 
-115 specs, 554 s. These stay. Some still carry state-only tests beside the
+156 specs, 733 s. These stay. Some still carry state-only tests beside the
 layout ones; the upper bound counts those.
 
 ## Specs worth moving first
 
-Ranked by estimated movable seconds, class A excluded.
+Ranked by estimated movable seconds, class A excluded. The figures come from the
+CSV, so the table is the state at its last regeneration.
 
-| #   | Spec                           | Duration | Tests | Browser-only | Est. movable | Lower test, or the missing one                          |
-| --- | ------------------------------ | -------- | ----- | ------------ | ------------ | ------------------------------------------------------- |
-| 1   | `dashboard`                    | 51.2 s   | 100   | 15           | 43.6 s       | `dashboard-read` partly; missing: row and state tests   |
-| 2   | `filter-every-control`         | 29.8 s   | 3     | 0            | 29.8 s       | Missing: see below                                      |
-| 3   | `cancel-run`                   | 25.4 s   | 24    | 7            | 18.0 s       | `cancel-run.test.ts` (proven); missing: dialog wording  |
-| 4   | `settings`                     | 21.2 s   | 49    | 11           | 16.4 s       | Go settings tests for server rules; missing: form state |
-| 5   | `settings-groups`              | 27.4 s   | 22    | 9            | 16.2 s       | `settings-groups.test.ts` (proven, hash routing only)   |
-| 6   | `wait-chip`                    | 22.8 s   | 20    | 6            | 16.0 s       | `wait-chip.test.ts` (proven)                            |
-| 7   | `webhooks-page`                | 17.0 s   | 56    | 8            | 14.5 s       | Missing: page state tests                               |
-| 8   | `pipeline-run-output`          | 26.8 s   | 53    | 26           | 13.7 s       | Missing: log-view state tests                           |
-| 9   | `copy-failure`                 | 14.4 s   | 17    | 3            | 11.9 s       | Missing: clipboard failure message                      |
-| 10  | `pr-dialog-actions`            | 21.6 s   | 30    | 14           | 11.5 s       | Missing: actions enabled                                |
-| 11  | `first-refresh-loading`        | 21.1 s   | 13    | 6            | 11.4 s       | `first-refresh.test.ts` (proven); missing: banner state |
-| 12  | `label-multi-select`           | 13.9 s   | 26    | 5            | 11.2 s       | Missing: selection state                                |
-| 13  | `main-branches-page`           | 19.9 s   | 40    | 18           | 11.0 s       | `main-branch-snapshot-runs` partly; missing: page state |
-| 14  | `pull-request-checks`          | 17.1 s   | 41    | 15           | 10.9 s       | Missing: checks list state                              |
-| 15  | `pull-request-action-refusals` | 17.1 s   | 10    | 4            | 10.3 s       | Missing: refusal wording                                |
+| #   | Spec                        | Duration | Tests | Browser-only | Est. movable | Lower test, or the missing one                          |
+| --- | --------------------------- | -------- | ----- | ------------ | ------------ | ------------------------------------------------------- |
+| 1   | `dashboard`                 | 38.8 s   | 100   | 15           | 33.0 s       | `dashboard-read` partly; missing: row and state tests   |
+| 2   | `cancel-run`                | 24.5 s   | 22    | 7            | 16.7 s       | `cancel-run.test.ts` (proven); missing: dialog wording  |
+| 3   | `settings`                  | 21.5 s   | 49    | 11           | 16.7 s       | Go settings tests for server rules; missing: form state |
+| 4   | `settings-groups`           | 27.7 s   | 22    | 10           | 15.1 s       | `settings-groups.test.ts` (proven, hash routing only)   |
+| 5   | `webhooks-page`             | 17.4 s   | 58    | 8            | 15.0 s       | Missing: page state tests                               |
+| 6   | `main-branches-page`        | 24.9 s   | 41    | 19           | 13.4 s       | `main-branch-snapshot-runs` partly; missing: page state |
+| 7   | `wait-chip`                 | 19.6 s   | 19    | 6            | 13.4 s       | `wait-chip.test.ts` (proven)                            |
+| 8   | `copy-failure`              | 15.0 s   | 16    | 3            | 12.2 s       | `CopyDetails` stories (proven); missing: row wiring     |
+| 9   | `label-multi-select`        | 14.1 s   | 26    | 5            | 11.4 s       | Missing: selection state                                |
+| 10  | `pull-request-checks`       | 18.1 s   | 41    | 15           | 11.4 s       | Missing: checks list state                              |
+| 11  | `repo-author-multi-select`  | 14.6 s   | 24    | 6            | 11.0 s       | Missing: selection state                                |
+| 12  | `changelog`                 | 17.5 s   | 20    | 9            | 9.6 s        | `changelog-notes.test.ts` partly; missing: page state   |
+| 13  | `first-refresh-first-paint` | 10.0 s   | 15    | 2            | 8.7 s        | `first-refresh.test.ts` (proven); missing: banner state |
+| 14  | `pr-dialog-actions`         | 15.7 s   | 30    | 14           | 8.4 s        | Missing: actions enabled                                |
+| 15  | `queued-action-feedback`    | 11.9 s   | 13    | 4            | 8.3 s        | Missing: feedback state                                 |
 
 `filter-every-control` is a real navigation and cookie journey, and the token
 scan cannot see that. It loops four read-backs over every control. Fewer rounds,
 with the server round-trip in a Go test and cookie serialisation in a lib test,
-would cut most of its 29.8 s.
+would have cut most of its 29.8 s. It has since been cut to about 8 s; see the
+follow-ups.
 
 ## Follow-ups
 
@@ -241,10 +265,10 @@ One ticket per group, each doing moves with its own mutation proof:
   Copy output button and absent icon buttons, since those read the dialog. The
   other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
   became about 20.6 s (58). Both are measured here, summing the per-test
-  durations on one worker with the machine idle; the 26.8 s in the ranking
-  above is the earlier CI figure for the same spec, so the two are not
-  comparable. The CSV row takes the measured 20.6 s, and its est. movable
-  (10.1 s, 20.6 times 25 of 51 tests) is an upper bound, not a saving. The
+  durations on one worker with the machine idle, so they are not comparable
+  with the CI figures in `tests/e2e-durations.json`. At the time of that move
+  the est. movable was 10.1 s (20.6 times 25 of 51 tests), an upper bound and
+  not a saving. The
   new stories take about 0.1 s. Each assertion was proven red by breaking
   the component, `run-log.ts` or the style sheet (see the pull request for the
   list). The CSV row for `pipeline-run-output` is updated.
@@ -263,12 +287,12 @@ One ticket per group, each doing moves with its own mutation proof:
   saving is small and the measurement says so: on one worker with the machine
   idle (load under 5), the spec took 12.7 s over 28 runs before and 13.1 s over
   27 runs after, which is noise. The removed test took about 0.17 s, the
-  rewritten card tests changed by less than 0.03 s each. The CSV row takes the
-  measured 13.148 s, with 12 tests and 4 browser-only, so its est. movable is
-  13.148 times 8 of 12 tests, 8.8 s, an upper bound, and not a saving. The
-  row had no duration before, so it read 0.0. Each assertion was proven red
-  by breaking the component or `live-control.ts` on a scratch copy (see the
-  pull request for the list).
+  rewritten card tests changed by less than 0.03 s each. At the time of that
+  move the row read 13.148 s with 12 tests and 4 browser-only, so its est.
+  movable was 8.8 s (13.148 times 8 of 12 tests), an upper bound and not a
+  saving. The row had no duration before, so it read 0.0. Each assertion was
+  proven red by breaking the component or `live-control.ts` on a scratch copy
+  (see the pull request for the list).
 - The ninth move, from `footer-consistency`: `Footer` already had stories
   for its version states, so no component changed. They are now `play`
   functions: the four links and their order, the GitHub link's `href`,
@@ -296,9 +320,10 @@ One ticket per group, each doing moves with its own mutation proof:
   Open check page link, and the run link in the footer). The five e2e tests that
   held these are gone. The remaining 50 tests read the page's copy flows and stay.
   On one worker the spec took 26.9 s over 60 runs before and 24.4 s over 55
-  after, on a machine with a load of about 7, so the saving is indicative. The
-  CSV row takes 24.4 s and 50 tests, and its est. movable (24.4 times 24 of 50
-  tests, 11.7 s) is an upper bound, not a saving. Each assertion was proven red
+  after, on a machine with a load of about 7, so the saving is indicative. At the
+  time of that move the est. movable was 11.7 s (24.4 times 24 of 50 tests), an
+  upper bound and not a saving. The regenerated CSV reads the CI durations and
+  the current test count instead. Each assertion was proven red
   by breaking the code: the Watch wording, the forge's name in the link, a
   running GitHub job and a queued job getting Show output, Forgejo losing Show
   output while running, the link's `target`, the new-tab warning on the run link
