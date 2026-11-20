@@ -122,8 +122,12 @@ function pair(source: string, selector: string, theme: Map<string, string>) {
   };
 }
 
-// The pill dims on hover with a brightness filter that scales text and
-// background alike (#2004), so the hovered pair is measured as well.
+// Nothing Merged dims on hover today: the badge, the chip and the band word
+// aren't buttons. `button.ci-pill:hover` (#2004) is the dim the check pills
+// get, a brightness filter that scales text and background alike. It is read
+// here as a guard for a future hover rule on a Merged pill: if one reuses that
+// dim, the pair has to survive it. Dropping it from this check is fine the day
+// that can't happen.
 function factor(source: string): number {
   const f = declared(block(source, 'button.ci-pill:hover {'), 'filter');
   const n = f?.match(/^brightness\(([\d.]+)\)$/)?.[1];
@@ -145,9 +149,12 @@ function failures(source: string, theme: Map<string, string>): string[] {
     }
     const word = ratio(fg, bg);
     if (word < 4.5) out.push(`${selector} word is ${word.toFixed(2)}:1`);
+    // What a pill would read like if it took the check pills' hover dim.
     const hovered = ratio(dim(fg, dimmed), dim(bg, dimmed));
     if (hovered < 4.5)
-      out.push(`${selector} word on hover is ${hovered.toFixed(2)}:1`);
+      out.push(
+        `${selector} word under the check pills' hover dim is ${hovered.toFixed(2)}:1`,
+      );
     const glyph = ratio(fg, surface);
     if (glyph < 3) out.push(`${selector} glyph is ${glyph.toFixed(2)}:1`);
   }
@@ -167,7 +174,7 @@ function failures(source: string, theme: Map<string, string>): string[] {
 
 describe('Merged pill colours', () => {
   for (const [name, theme] of themes) {
-    test(`the word, glyph, edge and hovered pair read in the ${name} theme`, () => {
+    test(`the word, glyph, edge and a dimmed pair read in the ${name} theme`, () => {
       expect(failures(css, theme)).toEqual([]);
     });
   }
@@ -206,7 +213,7 @@ describe('Merged pill colours', () => {
     );
   });
 
-  test('fails when the hover dims the pill too far', () => {
+  test("fails when the check pills' hover dim is made too strong", () => {
     const bad = css.replace(
       /(button\.ci-pill:hover \{[^}]*filter:)\s*[^;]+;/,
       '$1 brightness(0.5);',

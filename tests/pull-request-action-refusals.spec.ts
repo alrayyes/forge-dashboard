@@ -315,7 +315,12 @@ for (const d of drivers) {
             'aria-hidden',
             'true',
           );
-          if (mode !== 'forced-colors') {
+          if (mode === 'forced-colors') {
+            // The tint is gone, so the 1px edge is all that sets the badge
+            // apart from the row (#4455).
+            await expect(badge).toHaveCSS('border-top-width', '1px');
+            await expect(badge).toHaveCSS('border-top-style', 'solid');
+          } else {
             await expect(badge).toHaveCSS(
               'color',
               mode === 'light' ? 'rgb(109, 63, 192)' : 'rgb(183, 155, 240)',
