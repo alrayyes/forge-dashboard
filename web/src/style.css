@@ -1103,20 +1103,21 @@ section.board {
    merge-state and comment pills (a Conflicting pill takes the same slot as the
    comment pill, and both stack there when a row has both), and the action. A
    pill is at the same x on every row and at the row's own centre, with the
-   labels, the attribute chips and the note under the title. The attribute
-   chips and the note are in the title cell (see buildRow), so nothing here
-   needs a second line except the rare extras (a close cue, a queued note, the
-   waiting chip), which take a full line of the cell. The rem in the query keeps
-   it off at large root font sizes, where the slots would outgrow the list.
-   Narrower lists keep the wrapping status cell above. */
+   labels, the attribute chips and the note under the title. The chips and the
+   note are moved into the title cell by placeNotes in Dashboard.svelte, which
+   measures the same width, so nothing here needs a second line except the
+   rare extras (a close cue, a queued note, the waiting chip), which take a
+   full line of the cell. The rem in the query keeps it off at large root font
+   sizes, where the slots would outgrow the list. Narrower lists keep the
+   wrapping status cell above, with the chips and the note in it. */
 @media (min-width: 761px) {
   @container (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
-      grid-template-columns: 200px minmax(0, 1fr) 96px var(--dt) var(--dt) 26rem 22px;
+      grid-template-columns: 184px minmax(0, 1fr) 96px var(--dt) var(--dt) 27.5rem 22px;
     }
     .row:not(.issue-row) .status-cell {
       display: grid;
-      grid-template-columns: 10rem 8rem 7rem;
+      grid-template-columns: 10.25rem 9.5rem 6.75rem;
       column-gap: 8px;
       row-gap: 4px;
       align-items: center;
@@ -1144,11 +1145,9 @@ section.board {
     .row:not(.issue-row) .status-cell > .wait-slot:empty {
       display: none;
     }
-    /* A long pill ("Conflict not confirmed") wraps inside its slot instead of
-       running under the action. */
-    .row:not(.issue-row) .status-flags .merge-pill,
-    .row:not(.issue-row) .status-flags .review-pill {
-      white-space: normal;
+    /* Under the title an empty cluster would still take a gap. */
+    .row:not(.issue-row) .attr-cluster:empty {
+      display: none;
     }
   }
 }
@@ -2062,9 +2061,6 @@ button.title {
   align-items: center;
   gap: 4px;
 }
-.attr-cluster:empty {
-  display: none;
-}
 .attr-chip {
   display: inline-flex;
   align-items: center;
@@ -2366,6 +2362,23 @@ a.ci-pill:hover {
   }
   .ci-pill.counting .ci-seg-label .ci-word {
     display: inline;
+  }
+}
+/* The Passed and Failed pills on a pull request row keep their word on the
+   phone card, as the design shows them ("Passed" and then the counts, #4502).
+   The other pills (Running, Cancelled, unknown) keep the narrow form above. */
+@media (max-width: 760px) {
+  .row .ci-pill.success .ci-seg-label,
+  .row .ci-pill.failure .ci-seg-label {
+    display: inline-flex;
+  }
+  .row .ci-pill.success .ci-seg-label .ci-word,
+  .row .ci-pill.failure .ci-seg-label .ci-word {
+    display: inline;
+  }
+  .row .ci-pill.success .ci-seg-label + .ci-seg,
+  .row .ci-pill.failure .ci-seg-label + .ci-seg {
+    border-left: 1px solid var(--border-strong);
   }
 }
 /* A pill that carries its pull request's pipeline: the number, then the same
@@ -3940,6 +3953,12 @@ footer a.mono:focus-visible {
   }
   /* One line of pills: the CI pill, then the merge-state and comment pills
      (#4502). The attribute chips are in the title cell, under the labels. */
+  /* A row with no attribute to show still builds the cluster. Empty, it is a
+     zero-height flex item that takes a whole wrapped line and the gap above
+     it (#3834). Phone only: on desktop the empty box is part of the layout. */
+  .attr-cluster:empty {
+    display: none;
+  }
   .status-cell {
     justify-content: flex-start;
   }

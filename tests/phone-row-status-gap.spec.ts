@@ -174,9 +174,9 @@ test.describe('phone row status gap (#3834)', () => {
     });
   }
 
-  // The cluster now sits under the title (#4502), so on desktop an empty one
-  // takes no box and the title keeps its width.
-  test('1104px: an empty cluster takes no box and the title keeps its width', async ({
+  // The empty-cluster rule must stay on a phone: on desktop the empty box is
+  // part of the grid and the title column is sized around it.
+  test('1104px: the title column is the width it was without the phone rule', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1104, height: 800 });
@@ -195,8 +195,9 @@ test.describe('phone row status gap (#3834)', () => {
       .poll(async () => {
         const c = await read();
         const ok =
-          c.display === 'none' &&
-          c.clusterWidth === 0 &&
+          c.display !== null &&
+          c.display !== 'none' &&
+          (c.clusterWidth ?? 0) > 0 &&
           (c.titleWidth ?? 0) > 0;
         // The measured values name what failed, as the old assertions did.
         return ok ? 'ok' : JSON.stringify(c);

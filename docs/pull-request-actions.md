@@ -246,21 +246,25 @@ Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
-On a list 1000px wide or more a pull request row is one vertically centred
-line. The status column holds three fixed slots: the CI pill, the merge-state
-and comment pills (a Conflicting pill takes the same slot as the comment pill,
-and both stack there when a row has both), and the action. A pill is at the
-same x on every row and at the row's centre. The attribute chips and the
-status note ("Waiting for CI to finish") sit under the title, so a row that
-has one is taller and its pills stay centred on the title and the note
-together. Rarer lines (a close cue, a queued note, the waiting chip) take a
-line of their own under the slots, and the waiting chip's reserved room is only
-there while a chip is. A narrower list keeps the wrapping status cell.
+On a list 1191px wide or more (74.5rem, so a large root font size turns it
+off) a pull request row is one vertically centred line. The status column
+holds three fixed slots: the CI pill, the merge-state and comment pills (a
+Conflicting pill takes the same slot as the comment pill, and both stack there
+when a row has both), and the action. A pill is at the same x on every row and
+at the row's centre. The attribute chips and the status note ("Waiting for CI
+to finish") sit under the title, so a row that has one is taller and its pills
+stay centred on the title and the note together. Rarer lines (a close cue, a
+queued note, the waiting chip) take a line of their own under the slots, and
+the waiting chip's reserved room is only there while a chip is. A narrower list
+keeps the wrapping status cell, with the chips and the note in it. Rows with
+both Merge and Update branch stack the two buttons as one block, centred on the
+pill line; that is intended.
 On a phone (760px and narrower) the card is the title with its labels, chips
 and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width
-at 44px tall. A row with no action, such as one with failing checks, ends after
-the pills. The note is plain text with no hover or press state.
+at 44px tall. The Passed and Failed pills keep their word beside the counts. A
+row with no action, such as one with failing checks, ends after the pills. The
+note is plain text with no hover or press state.
 
 What a row may claim while its forge can't be asked is decided in one place,
 `rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in

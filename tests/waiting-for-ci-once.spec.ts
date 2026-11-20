@@ -115,7 +115,7 @@ async function axe(page: Page) {
 }
 
 for (const scheme of ['light', 'dark'] as const) {
-  for (const width of [1400, 390]) {
+  for (const width of [1400, 1000, 390]) {
     test.describe(`${scheme}, ${width}px`, () => {
       test.beforeEach(async ({ page }) => {
         await page.emulateMedia({ colorScheme: scheme });
@@ -125,10 +125,11 @@ for (const scheme of ['light', 'dark'] as const) {
       test('the message sits on the same side of the pill on an armed and an unarmed row', async ({
         page,
       }) => {
-        // On the phone card the unarmed row's status note sits under the
-        // title (#4502) and the armed row's chip in the reserved slot below
-        // the pills (#1229), so the two sides differ there by design.
-        test.skip(width < 761, 'the phone card places the two differently');
+        // On the one-line row (#4502) the unarmed row's status note sits under
+        // the title and the armed row's chip in the action slot, a different
+        // place by design. Where the note stays in the status cell (a narrower
+        // list, the phone card) the two share a side.
+        test.skip(width >= 1191, 'the one-line row places the two differently');
         await open(page, [PLAIN, ARMED_PR]);
         const plain = row(page, 'Plain');
         const armed = row(page, 'Armed');

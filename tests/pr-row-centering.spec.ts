@@ -305,3 +305,49 @@ test.describe('at 390px', () => {
     await expect(row.locator('.row-action')).toHaveText(/Update branch/);
   });
 });
+
+// A large root font size turns the one-line row off (the container query is
+// in rem), and the note then has to go back into the status cell. Left under
+// the title it is squeezed into a column a few words wide and the page grows
+// to several times its height.
+test.describe('the one-line row and the root font size', () => {
+  const noteCell = (page: Page) =>
+    page
+      .locator('#pr-rows > .row', { hasText: 'Row waiting on CI' })
+      .locator('.status-area')
+      .first()
+      .evaluate((n) => ({
+        inTitle: n.closest('.title-cell') !== null,
+        inStatus: n.closest('.status-cell') !== null,
+      }));
+
+  test('at 1280px the note is under the title', async ({ page }) => {
+    await open(page, 1280);
+    expect(await noteCell(page)).toEqual({ inTitle: true, inStatus: false });
+  });
+
+  test('at 1280px and 200% root font the note stays in the status cell', async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const style = document.createElement('style');
+      style.textContent = 'html { font-size: 200% !important; }';
+      document.addEventListener('DOMContentLoaded', () =>
+        document.head.appendChild(style),
+      );
+    });
+    await open(page, 1280);
+    expect(await noteCell(page)).toEqual({ inTitle: false, inStatus: true });
+  });
+
+  test('the note follows the list when it is resized across the breakpoint', async ({
+    page,
+  }) => {
+    await open(page, 1280);
+    expect((await noteCell(page)).inTitle).toBe(true);
+    await page.setViewportSize({ width: 1000, height: 900 });
+    await expect.poll(async () => (await noteCell(page)).inStatus).toBe(true);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect.poll(async () => (await noteCell(page)).inTitle).toBe(true);
+  });
+});

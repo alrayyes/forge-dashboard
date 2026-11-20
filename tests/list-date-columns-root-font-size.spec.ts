@@ -114,7 +114,7 @@ const TRACKS_100: Record<string, Record<string, string>> = {
   '#pr-rows': {
     '320': '218px 16px',
     '390': '288px 16px',
-    '1280': '200px 212px 96px 82px 82px 416px 22px',
+    '1280': '184px 204px 96px 82px 82px 440px 22px',
   },
 };
 
