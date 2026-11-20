@@ -96,6 +96,47 @@ describe('The pressed pill tick', () => {
     ]);
   });
 
+  test('keeps a comma inside a quoted attribute value in one selector', () => {
+    const double = '.a[data-x="a,b"][aria-pressed="true"]::before';
+    const single = ".c[data-x='a,b'][aria-pressed='true']::after";
+    const sample = `${double}, .d { x: y; }\n${single} { x: y; }`;
+    expect(tickSelectors(sample)).toEqual([double, single]);
+  });
+
+  test('ignores a bracket inside a quoted attribute value', () => {
+    // The `]` would close the bracket early, and the comma after it would
+    // split the selector, if the quote did not hide it.
+    const closing = '.a[data-x="]x,y"][aria-pressed="true"]::before';
+    const opening = ".b[data-x='[x,y'][aria-pressed='true']::after";
+    const sample = `${closing} { x: y; }\n${opening} { x: y; }`;
+    expect(tickSelectors(sample)).toEqual([closing, opening]);
+  });
+
+  test('does not end a quote on the other quote character', () => {
+    const selector = `.a[data-x="it's, odd"][aria-pressed="true"]::before`;
+    expect(tickSelectors(`${selector}, .b { x: y; }`)).toEqual([selector]);
+  });
+
+  test('splits after a closed attribute bracket', () => {
+    const sample = '.a[x], .b[aria-pressed="true"]::before { x: y; }';
+    expect(tickSelectors(sample)).toEqual(['.b[aria-pressed="true"]::before']);
+  });
+
+  test('keeps a comma inside an unquoted attribute bracket in one selector', () => {
+    const selector = '.a[data-x=a,b][aria-pressed="true"]::before';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
+  test('splits after a closed parenthesis', () => {
+    const sample = '.a:not(.b), .c[aria-pressed="true"]::before { x: y; }';
+    expect(tickSelectors(sample)).toEqual(['.c[aria-pressed="true"]::before']);
+  });
+
+  test('finds a pseudo-element followed by a pseudo-class with an argument', () => {
+    const selector = '.a[aria-pressed="true"]::before:not(.b)';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
   const spellings = [
     '[aria-pressed="true" i]',
     '[aria-pressed = "true"]',
