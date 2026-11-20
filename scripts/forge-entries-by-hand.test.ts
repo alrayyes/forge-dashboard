@@ -169,6 +169,15 @@ test.each([
   ['shorthand', '{ forge, reachable: true, repoCount: 1 }'],
   ['multi-line', "{\n  forge: 'github',\n  reachable: true,\n}"],
   ['inside a list', 'forges: [{ forge: pr.forge, reachable: true }]'],
+  [
+    'after a regex literal holding a quote (#4443)',
+    "const r = /'/; x = { forge: 'a', reachable: true }",
+  ],
+  [
+    'inside a template substitution (#4443)',
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: the source under test
+    'const s = `a ${{ forge: 1, reachable: true }} b`;',
+  ],
 ])('the detector catches a hand-written entry: %s (#4030)', (_name, source) => {
   expect(writesForgeEntryByHand(source)).toBe(true);
 });
@@ -181,6 +190,26 @@ test.each([
   [
     'words in a string inside a block',
     "async () => { const title = 'the forge is reachable now'; await go(); }",
+  ],
+  [
+    'words in multi-line template text (#4443)',
+    'const t = `\n  { forge: 1, reachable: 2 }\n`; const o = { a: 1 };',
+  ],
+  [
+    'words in a line comment with an apostrophe (#4443)',
+    "// it's { forge: 1, reachable: 2 }\nconst x = 'y';",
+  ],
+  [
+    'words in a block comment (#4443)',
+    '/* { forge: 1, reachable: true } */ const x = { a: 1 };',
+  ],
+  [
+    'words in a regex literal (#4443)',
+    'const o = { a: / forge, reachable, / };',
+  ],
+  [
+    'a division is not a regex (#4443)',
+    'const q = a / b; const o = { forge: 1 }; const z = c / d;',
   ],
 ])('the detector leaves alone: %s (#4030)', (_name, source) => {
   expect(writesForgeEntryByHand(source)).toBe(false);
