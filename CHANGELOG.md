@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.90.0](https://github.com/alrayyes/forge-dashboard/compare/v9.89.2...v9.90.0) (2026-11-20)
+
+
+### Features
+
+* a Merged pill, purple, beside Passed ([#4425](https://github.com/alrayyes/forge-dashboard/issues/4425)) ([6658a14](https://github.com/alrayyes/forge-dashboard/commit/6658a14d24a67d1613efe07f2dc7af0612121a41)), closes [#4406](https://github.com/alrayyes/forge-dashboard/issues/4406)
+
+
+### Bug Fixes
+
+* list the pending statuses no job stands behind ([#4444](https://github.com/alrayyes/forge-dashboard/issues/4444)) ([997d37e](https://github.com/alrayyes/forge-dashboard/commit/997d37e0869ab2dd70bd97098ef2a9de5e07cfc0)), closes [#4433](https://github.com/alrayyes/forge-dashboard/issues/4433)
+
 ## [9.89.2](https://github.com/alrayyes/forge-dashboard/compare/v9.89.1...v9.89.2) (2026-11-20)
 
 
