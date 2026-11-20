@@ -4,6 +4,7 @@ import {
   incomingRows,
   mergeRows,
   outgoingRows,
+  rowsOf,
 } from './issue-references.js';
 
 const ref = (over: Partial<ItemReference>): ItemReference => ({
@@ -86,6 +87,69 @@ describe('mergeRows', () => {
     );
 
     expect(merged.linkedPullRequests.map((p) => p.number)).toEqual([13, 14]);
+  });
+
+  test('puts an item the details list under two relations only under the strongest', () => {
+    const none = incomingRows([]);
+    const merged = mergeRows(
+      none,
+      incomingRows([
+        ref({ number: 5, relation: 'mentions' }),
+        ref({ number: 5, relation: 'refs' }),
+        ref({ number: 5, relation: 'refs' }),
+        ref({ number: 6, relation: 'mentions' }),
+        ref({ number: 6, relation: 'closes' }),
+        ref({ number: 7, relation: 'mentions' }),
+        ref({ number: 7, relation: 'refs' }),
+        ref({ number: 7, relation: 'closes' }),
+      ]),
+    );
+
+    expect(merged.linkedPullRequests.map((p) => p.number)).toEqual([6, 7]);
+    expect(merged.referencedByPullRequests.map((p) => p.number)).toEqual([5]);
+    expect(merged.mentionedByPullRequests).toEqual([]);
+  });
+
+  test('tells two items with one number apart by their forge and repo', () => {
+    const merged = mergeRows(
+      incomingRows([ref({ number: 5 })]),
+      incomingRows([
+        ref({ number: 5, forge: 'forgejo' }),
+        ref({ number: 5, repo: 'alrayyes/b' }),
+      ]),
+    );
+
+    expect(merged.linkedPullRequests).toHaveLength(3);
+  });
+
+  test('keeps an item the board drew in its row, whatever the details say', () => {
+    const board = {
+      linkedPullRequests: [],
+      referencedByPullRequests: [],
+      mentionedByPullRequests: [drawn(9, 'passed')],
+    };
+    const merged = mergeRows(board, incomingRows([ref({ number: 9 })]));
+
+    expect(merged.linkedPullRequests).toEqual([]);
+    expect(merged.mentionedByPullRequests).toEqual([drawn(9, 'passed')]);
+  });
+});
+
+describe('rowsOf', () => {
+  test('reads the three rows of an item, an absent one as empty', () => {
+    const pill = incomingRows([ref({ number: 2 })]).linkedPullRequests;
+
+    expect(rowsOf({ linkedPullRequests: pill })).toEqual({
+      linkedPullRequests: pill,
+      referencedByPullRequests: [],
+      mentionedByPullRequests: [],
+    });
+    expect(
+      rowsOf({ referencedByPullRequests: pill }).referencedByPullRequests,
+    ).toEqual(pill);
+    expect(
+      rowsOf({ mentionedByPullRequests: pill }).mentionedByPullRequests,
+    ).toEqual(pill);
   });
 });
 
