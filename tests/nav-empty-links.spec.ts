@@ -93,15 +93,19 @@ async function recordTimers(page: Page) {
   });
 }
 
-// The poll timer is any armed delay from a second to the five minutes the page
-// caps advice at, other than the 20 s guard that aborts a read the server holds
-// (READ_TIMEOUT_MS). An hour-long timer from elsewhere on the page is not it.
-async function pollTimersArmed(page: Page) {
+// How many times the page has armed a timer of exactly this delay. The poll
+// timer is matched by its own delay (the fallback, 30 s), since the page arms
+// others before and around its first read: a 60 s presence heartbeat, a 20 s
+// guard that aborts a read the server holds, and longer ones. Matching a range
+// would be satisfied by the heartbeat alone, before the poll timer exists.
+async function timersArmed(page: Page, delayMs: number) {
   const armed = await page.evaluate(
     () => (window as unknown as { __armed: number[] }).__armed,
   );
-  return armed.filter((ms) => ms >= 1_000 && ms <= 300_000 && ms !== 20_000);
+  return armed.filter((ms) => ms === delayMs).length;
 }
+
+const FALLBACK_POLL_MS = 30_000;
 
 const header = (page: Page, href: string) =>
   page.locator(`header nav a[href="${href}"]`);
@@ -293,7 +297,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     });
     await page.goto('/settings.html');
     await expect
-      .poll(async () => (await pollTimersArmed(page)).length)
+      .poll(async () => await timersArmed(page, FALLBACK_POLL_MS))
       .toBeGreaterThan(0);
     expect(reads).toBe(1);
 
@@ -331,7 +335,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await page.goto('/settings.html');
     await expect(header(page, PULLS)).toHaveCount(1);
     await expect
-      .poll(async () => (await pollTimersArmed(page)).length)
+      .poll(async () => await timersArmed(page, FALLBACK_POLL_MS))
       .toBeGreaterThan(0);
     expect(reads).toBe(1);
 
@@ -518,9 +522,9 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       // state, and nothing about the page having handled it.
       await expect.poll(() => answered).toBeGreaterThan(0);
       await expect(header(page, PULLS)).toHaveCount(0);
-      // The page has handled it once the poll timer is armed.
+      // The page has handled it once the 30 s poll timer is armed.
       await expect
-        .poll(async () => (await pollTimersArmed(page)).length)
+        .poll(async () => await timersArmed(page, FALLBACK_POLL_MS))
         .toBeGreaterThan(0);
 
       // The poll is not early: well inside the interval no second read is sent.
