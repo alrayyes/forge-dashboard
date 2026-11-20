@@ -2024,8 +2024,35 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		}
 	}
 	c.rememberFailedJobs(owner, name, checks, excerptKeys)
+	checks, probes = c.withUnjobbedStatuses(ctx, owner, name, sha, checks, probes)
 
 	return checks, probes, nil
+}
+
+// withUnjobbedStatuses adds the commit statuses that are no Actions job's own
+// to the job list (#4433). The roll-up counts every status, so a pending one
+// from an external CI keeps the pull request pending; a list of jobs alone
+// would show it finished. A status that points at a job is that job, already
+// listed. A status read that fails leaves the jobs as they are.
+func (c *Client) withUnjobbedStatuses(ctx context.Context, owner, name, sha string, checks []dashboard.Check, probes []string) ([]dashboard.Check, []string) {
+	combined, _, err := c.combinedStatus(ctx, owner, name, sha)
+	if err != nil {
+		slog.Debug("forgejo statuses unreadable, only jobs are listed", "repo", owner+"/"+name, "sha", sha, "error", err)
+
+		return checks, probes
+	}
+	for _, s := range combined.Statuses {
+		if s == nil {
+			continue
+		}
+		if _, _, isJob := jobTarget(s); isJob {
+			continue
+		}
+		checks = append(checks, dashboard.Check{Name: s.Context, State: checkStateFromCombinedState(s.State), URL: s.TargetURL})
+		probes = append(probes, "")
+	}
+
+	return checks, probes
 }
 
 // queuedRunCheck is the one check that stands in for a run still going that

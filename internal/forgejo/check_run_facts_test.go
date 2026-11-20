@@ -79,9 +79,12 @@ func pullChecksServer(t *testing.T, runs []map[string]any, jobs map[string][]map
 		writeJSON(t, w, map[string]any{"total_count": len(jobs[r.PathValue("run")]), "jobs": jobs[r.PathValue("run")]})
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
-		writeJSON(t, w, map[string]any{"state": "success", "statuses": []map[string]any{
-			{"context": "ci/legacy", "status": "success", "target_url": "https://ci.example/1"},
-		}})
+		// Only a commit with no runs has a status of its own to list here.
+		statuses := []map[string]any{}
+		if len(runs) == 0 {
+			statuses = append(statuses, map[string]any{"context": "ci/legacy", "status": "success", "target_url": "https://ci.example/1"})
+		}
+		writeJSON(t, w, map[string]any{"state": "success", "statuses": statuses})
 	})
 	srv := httptest.NewServer(mux)
 	t.Cleanup(srv.Close)
