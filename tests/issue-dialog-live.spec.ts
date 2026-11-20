@@ -489,6 +489,158 @@ test('what an issue refers to and what refers to it are both patched in place', 
   expect(axe.violations).toEqual([]);
 });
 
+const outgoingRefs = [
+  {
+    forge: 'github',
+    repo: REPO,
+    number: 60,
+    title: 'Item 60',
+    url: `https://example.com/${REPO}/issues/60`,
+    pageUrl: `/issues.html?issue=github/${REPO}/60`,
+    kind: 'issue',
+    state: 'open',
+    direction: 'outgoing',
+    relation: 'refs',
+  },
+];
+
+test('a second poll with the same data leaves the outgoing pills where they were', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.references[1] = outgoingRefs;
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  await expect(band(dialog, 'Refs').locator('.linked-pr')).toHaveCount(1);
+
+  // The first poll adds an incoming pull request.
+  world.issues[1] = {
+    ...world.issues[1],
+    referencedByPullRequests: [linked(40)],
+  };
+  await push(page, world);
+  await expect(band(dialog, 'Referenced by').locator('.linked-pr')).toHaveCount(
+    1,
+  );
+
+  // The reader is on the outgoing pill; the next poll has nothing new.
+  const refs = band(dialog, 'Refs').locator('.linked-pr');
+  await refs.evaluate(
+    (a) => ((a as unknown as { __old: boolean }).__old = true),
+  );
+  await refs.focus();
+  // Nothing is written to the dialog for a poll that brings nothing new.
+  await dialog.evaluate((el) => {
+    const w = window as unknown as { __writes: number };
+    w.__writes = 0;
+    new MutationObserver((records) => {
+      w.__writes += records.length;
+    }).observe(el, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+  });
+  await push(page, world);
+  await push(page, world);
+  await page.waitForTimeout(200);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __writes: number }).__writes,
+    ),
+    'an identical poll wrote to the dialog',
+  ).toBe(0);
+
+  expect(
+    await refs.evaluate((a) => (a as unknown as { __old?: boolean }).__old),
+    'an identical poll replaced the outgoing pill',
+  ).toBe(true);
+  await expect(refs).toBeFocused();
+});
+
+test('a poll that undoes the last one takes the row it added away again', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  // The snapshot always carries all three lists, empty or not.
+  world.issues[1] = { ...world.issues[1], referencedByPullRequests: [] };
+  world.references[1] = outgoingRefs;
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  await expect(band(dialog, 'Refs').locator('.linked-pr')).toHaveCount(1);
+  const before = world.issues[1];
+  world.issues[1] = { ...before, referencedByPullRequests: [linked(40)] };
+  await push(page, world);
+  await expect(band(dialog, 'Referenced by')).toHaveCount(1);
+
+  // The pull request stops referring to the issue: the band is what it was
+  // before the first poll, which is not what the dialog last drew.
+  world.issues[1] = before;
+  await push(page, world);
+  await expect(band(dialog, 'Referenced by')).toHaveCount(0);
+  await expect(band(dialog, 'Refs').locator('.linked-pr')).toHaveCount(1);
+});
+
+test('details read again with the same references leave the pills in place', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.references[1] = outgoingRefs;
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const refs = band(dialog, 'Refs').locator('.linked-pr');
+  await expect(refs).toHaveCount(1);
+  await refs.evaluate(
+    (a) => ((a as unknown as { __old: boolean }).__old = true),
+  );
+
+  await dialog.evaluate((el) => {
+    const w = window as unknown as { __writes: string[] };
+    w.__writes = [];
+    new MutationObserver((records) => {
+      for (const r of records)
+        w.__writes.push(`${r.type} ${(r.target as Element).className}`);
+    }).observe(el.querySelector('.related-band') as Element, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
+  });
+  // The issue changed, so its details are read again; the references did not.
+  world.issues[1] = { ...world.issues[1], updatedAt: ago(1) };
+  world.issueText[1] = 'Issue one text, edited.';
+  await push(page, world);
+  await expect(dialog).toContainText('Issue one text, edited.');
+  await page.waitForTimeout(200);
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __writes: string[] }).__writes,
+    ),
+    'the band was written to though its references did not change',
+  ).toEqual([]);
+  expect(
+    await refs.evaluate((a) => (a as unknown as { __old?: boolean }).__old),
+    'the references were drawn again though nothing in them changed',
+  ).toBe(true);
+});
+
 test('clicking a related pull request, then its related issue, while the open item changes', async ({
   page,
 }) => {
