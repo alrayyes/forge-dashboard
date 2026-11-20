@@ -1015,7 +1015,7 @@
                       aria-hidden="true"
                       focusable="false"
                       ><!-- The shapes of MERGE_GLYPH in check-glyphs.ts, drawn
-                        here because forge-fed markup never goes through {@html}. -->
+                        here as plain markup, so no raw HTML is rendered. -->
                       <circle cx="8" cy="8" r="6.25" />
                       <circle cx="6" cy="5.4" r="1" />
                       <circle cx="6" cy="10.6" r="1" />
