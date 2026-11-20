@@ -790,13 +790,18 @@
     const drawn = (el: Element | null): el is HTMLElement =>
       el instanceof HTMLElement && el.getClientRects().length > 0;
     // The title box hides over one row (#3823), and a hidden control can't
-    // take focus, so the first drawn control in the filter bar stands in.
+    // take focus, so the first drawn control in the filter bar stands in. With
+    // one row and no filter the whole bar is hidden too (#4464), so the first
+    // drawn row title is the last stop before the page itself.
     const back =
       [
         id ? document.getElementById(id) : null,
         fallbackId ? document.getElementById(fallbackId) : null,
         ...document.querySelectorAll(
           ".filter-bar :is(button, select, input):not(:disabled)",
+        ),
+        ...document.querySelectorAll(
+          ":is(#pr-rows, #issue-rows) .row button.title",
         ),
       ].find(drawn) ?? null;
     back?.focus();
