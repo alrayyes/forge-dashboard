@@ -213,7 +213,8 @@ test('every pill name leads with the relation and contains the visible text', as
     row(dialog, 'Closes').locator('.linked-pr'),
   ).toHaveAccessibleName('Closes: #138, opens the issue');
   await expect(row(dialog, 'Refs').locator('.linked-pr')).toHaveAccessibleName(
-    'Refs: alrayyes/other#7, does not close, opens the issue',
+    // The repository is not tracked, so the pill goes to the forge (#4461).
+    'Refs: alrayyes/other#7, does not close, opens on the forge in a new tab',
   );
   await expect(
     row(dialog, 'Mentions').locator('.linked-pr'),

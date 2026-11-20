@@ -1773,6 +1773,7 @@
             undefined,
             (issue) => followIssueFromDialog(item, issue),
             true,
+            (repo) => !trackedRepo(item.forge, repo),
           ),
           refs: closingPills(
             `${prKey(item)}:dialog:refs`,
@@ -1781,6 +1782,7 @@
             undefined,
             (issue) => followIssueFromDialog(item, issue),
             true,
+            (repo) => !trackedRepo(item.forge, repo),
           ),
           mentions: mentionPills(
             `${prKey(item)}:dialog`,
@@ -2984,6 +2986,7 @@
           relation,
           true,
           side,
+          (forge, repo) => !trackedRepo(forge, repo),
         );
       const related = relatedBandData(
         "issue",

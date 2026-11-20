@@ -164,6 +164,7 @@ export function linkedDialogName(
   ci?: PillCi | null,
   relation: Relation = 'closes',
   side: RelatedSide = 'issue',
+  external = false,
 ) {
   const head = stated(pr)
     ? headOf(pr, issueRepo)
@@ -173,7 +174,8 @@ export function linkedDialogName(
       ? pillName(ci.label, ci.segments)
       : ci.label
     : '';
-  return `${relationLabel(side, relation)}: ${said ? `${head} ${said}` : head}`;
+  const name = `${relationLabel(side, relation)}: ${said ? `${head} ${said}` : head}`;
+  return external ? `${name}, opens on the forge in a new tab` : name;
 }
 
 /** The pill's classes: a ref and a mention are each drawn apart from a close. */
@@ -288,7 +290,10 @@ export const linkedPillId = (issueKey: string, pr: LinkedPullRequest) =>
  * onFollow too, a plain click on that link calls it instead of leaving the page.
  * With renderCi, a pill whose pull request has a pipeline carries it. With
  * inDialog, the pills are the Related band's: names that lead with the
- * relation, and the band's own fold.
+ * relation, and the band's own fold. With untrackedRepo, a pill in a dialog
+ * for a pull request in a repository the dashboard does not track, and that
+ * carries its forge address, is a link to the forge in a new tab instead, so a
+ * click leaves the dialog open (#4461).
  */
 export function linkedPills(
   issueKey: string,
@@ -300,6 +305,7 @@ export function linkedPills(
   relation: Relation = 'closes',
   inDialog = false,
   side: RelatedSide = 'issue',
+  untrackedRepo?: (forge: string, repo: string) => boolean,
 ): HTMLElement | null {
   if (!list || list.length === 0) return null;
   const { shown, rest } = splitLinked(list);
@@ -309,7 +315,16 @@ export function linkedPills(
       onOpen !== undefined ? 'button' : 'a',
       linkedPillClass(pr, relation),
     );
-    if (link instanceof HTMLAnchorElement) {
+    const forgeUrl =
+      inDialog && pr.kind !== 'issue' && untrackedRepo?.(pr.forge, pr.repo)
+        ? pr.url
+        : undefined;
+    const external = !!forgeUrl;
+    if (link instanceof HTMLAnchorElement && forgeUrl) {
+      link.href = forgeUrl;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+    } else if (link instanceof HTMLAnchorElement) {
       link.href = pr.pageUrl;
       // A plain click opens the dialog where the reader is; the address stays
       // a real link, so a middle or modified click opens it in a new tab.
@@ -354,7 +369,7 @@ export function linkedPills(
     link.setAttribute(
       'aria-label',
       inDialog
-        ? linkedDialogName(pr, issueRepo, ci, relation, side)
+        ? linkedDialogName(pr, issueRepo, ci, relation, side, external)
         : linkedPillName(pr, issueRepo, ci, relation),
     );
     link.title = linkedPillTitle(relation, side);
