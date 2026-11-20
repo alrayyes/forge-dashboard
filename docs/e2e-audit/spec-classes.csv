@@ -218,6 +218,7 @@ pull-request-reopen.spec.ts,6.984,9,4,C,,3.9
 pull-request-rows-live.spec.ts,5.838,14,9,A,,2.1
 pull-request-status-area.spec.ts,2.848,5,1,C,,2.3
 pull-request-update-branch.spec.ts,4.379,13,3,C,,3.4
+pulls-dialog-close-fallback.spec.ts,,2,2,A,,0.0
 queued-action-feedback.spec.ts,11.919,13,4,C,,8.3
 queued-for-reset.spec.ts,4.569,9,2,C,,3.6
 rate-limit-actions.spec.ts,2.087,4,1,C,web/src/lib/rate-limit.test.ts,1.6
