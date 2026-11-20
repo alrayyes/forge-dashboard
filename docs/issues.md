@@ -29,18 +29,22 @@ strongest: closes, then refs, then mentions. The details' items stay when a
 refresh changes the pills. `references` lists the items that refer to it from
 the forge's timeline (`direction` is `incoming`), issues as well as pull
 requests, each with its state (open, closed or merged), the newest first and at
-most 50. GitHub reads them in the same query; Forgejo reads the timeline once
-more, up to the first 10 pages of 50 events (the oldest; Forgejo can return
-short pages), so on a longer thread the newest references are left out. A
-timeline that fails part way keeps the references already read, and one that
-fails at the start leaves the issue with none; the rest of the thread still
-shows. A read the caller cancels is an error. The timeline can't tell a `Refs`
-from a plain mention, so the server reads each referring item's own description
-(not the issue's comments) the way it reads an open pull request's: a closing
-keyword the forge confirms is "Closed by", `Refs`, `Related to` or `See` on the
-issue is "Referenced by", and the rest are under "Mentioned by". A merged or
-closed pull request is grouped by the same rule as an open one. An issue nothing
-refers to has no band. Commits that mention the issue are not listed.
+most 50. GitHub reads them in the same query, the last 100 cross-reference
+events, each with the referring item's description (needed to tell a `Refs` from
+a mention), so a response can hold up to 100 descriptions. The limit stays at
+100 because lowering it would drop references on a busy thread. Forgejo reads
+the timeline once more, up to the first 10 pages of 50 events (the oldest;
+Forgejo can return short pages), so on a longer thread the newest references are
+left out. A timeline that fails part way keeps the references already read, and
+one that fails at the start leaves the issue with none; the rest of the thread
+still shows. A read the caller cancels is an error. The timeline can't tell a
+`Refs` from a plain mention, so the server reads each referring item's own
+description (not the issue's comments) the way it reads an open pull request's:
+a closing keyword the forge confirms is "Closed by", `Refs`, `Related to` or
+`See` on the issue is "Referenced by", and the rest are under "Mentioned by". A
+merged or closed pull request is grouped by the same rule as an open one. An
+issue nothing refers to has no band. Commits that mention the issue are not
+listed.
 
 The same list also holds what the item's own title and description refer to
 (`direction` is `outgoing`), at most 20 more. The forge doesn't record that, so
