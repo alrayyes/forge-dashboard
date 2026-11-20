@@ -392,27 +392,41 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       page,
     }) => {
       const state: Snapshot = { pullRequests: [], openIssueCount: 0 };
-      let reads = 0;
-      page.on('request', (request) => {
-        if (/\/api\/v1\/dashboard(\?.*)?$/.test(request.url())) reads++;
+      // Answered reads, not requests sent: a request that is still waiting on
+      // the mock has not seen any state yet.
+      let answered = 0;
+      page.on('response', (response) => {
+        if (/\/api\/v1\/dashboard(\?.*)?$/.test(response.url())) answered++;
       });
       await page.setViewportSize({ width, height: 844 });
       await mockDashboard(page, state);
       await page.clock.install();
       await page.goto('/settings.html');
       // No link is drawn before the first snapshot lands (#4276), so a count of
-      // zero here proves nothing about whether the page has read yet. The poll
-      // timer is only armed once that read is answered.
-      await expect.poll(() => reads).toBeGreaterThan(0);
+      // zero here proves nothing about whether the page has read yet. This wait
+      // only guarantees the first answer has gone out, built from the empty
+      // state, and nothing about the page having handled it: the poll timer is
+      // armed once it has, which the stepping below allows for.
+      await expect.poll(() => answered).toBeGreaterThan(0);
       await expect(header(page, PULLS)).toHaveCount(0);
 
+      // The poll is not early: well inside the interval no second read is sent.
+      await page.clock.runFor(25_000);
+      await page.waitForTimeout(300);
+      expect(answered).toBe(1);
+
       state.pullRequests = [makePR(1)];
-      // One interval at a time until the page has read again: a runFor that
-      // lands before the timer is armed moves the clock past it for good.
+      // At most two intervals, one at a time: a runFor that lands before the
+      // timer is armed moves the clock past it for good, but a poll much slower
+      // than 30 s must still fail here, so the steps are capped.
+      let steps = 0;
       await expect
         .poll(async () => {
-          await page.clock.runFor(31_000);
-          return reads;
+          if (steps < 2) {
+            steps++;
+            await page.clock.runFor(31_000);
+          }
+          return answered;
         })
         .toBeGreaterThan(1);
       // The header nav is hidden below the tablet width and the tab bar takes
