@@ -214,6 +214,13 @@ for (const width of [1280, 390]) {
   });
 }
 
+// The second read of the merged pull request takes this long, and the sampler
+// only looks in the window before it settles. The test checks the window ends
+// first, so a shortened delay fails loudly instead of blinding the sampler.
+const SECOND_READ_MS = 1500;
+const WINDOW_START_MS = 300;
+const WINDOW_END_MS = 1000;
+
 // A Mentions pill to a merged pull request (so untracked) is a pull request
 // from the first frame: the first read of it said so, and the dialog does
 // not call it an issue while a later read is on its way.
@@ -248,16 +255,16 @@ for (const width of [1280, 390]) {
       await page.route('**/api/v1/issues/details*', async (route: Route) => {
         reads++;
         // The first read warms the pill; every later one is slow.
-        if (reads > 1) await new Promise((r) => setTimeout(r, 1500));
+        if (reads > 1) await new Promise((r) => setTimeout(r, SECOND_READ_MS));
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
           body: JSON.stringify({
-            ...details('The merged one.'),
+            ...details('The landed one.'),
             kind: 'pullRequest',
             state: 'closed',
             pullRequest: {
-              title: 'Merged thing',
+              title: 'Landed thing',
               state: 'merged',
               author: null,
             },
@@ -281,27 +288,32 @@ for (const width of [1280, 390]) {
       await pill.hover();
       await answered;
       await pill.click();
-      // Samples the dialog every 20 ms. It relies on the 1500 ms delay of the
-      // second read (see the route above): the first 1000 ms are all spent
+      // Samples the dialog every 20 ms. It relies on the SECOND_READ_MS (1500 ms)
+      // delay of the second read (see the route above): the first 1000 ms are all spent
       // while that read is still out, so what the dialog shows then is what the
       // warm read gave it, with nothing newer to lean on.
       const sampled = await page.evaluate(
-        () =>
+        ([from, to]) =>
           new Promise<{
             labels: string[];
-            early: { skeleton: boolean; text: string }[];
+            early: { skeleton: boolean; text: string; status: string }[];
           }>((resolve) => {
             const labels = new Set<string>();
-            const early: { skeleton: boolean; text: string }[] = [];
+            const early: { skeleton: boolean; text: string; status: string }[] =
+              [];
             const start = Date.now();
             const look = () => {
               const d = document.querySelector('dialog[open]');
               if (!d) return;
               labels.add(d.getAttribute('aria-label') ?? '');
-              if (Date.now() - start >= 300 && Date.now() - start < 1000)
+              if (Date.now() - start >= from && Date.now() - start < to)
                 early.push({
                   skeleton: d.querySelector('.details-skeleton') !== null,
                   text: d.textContent ?? '',
+                  status:
+                    d
+                      .querySelector('[aria-label="Status"]')
+                      ?.textContent?.trim() ?? '',
                 });
             };
             const timer = setInterval(look, 20);
@@ -310,16 +322,18 @@ for (const width of [1280, 390]) {
               resolve({ labels: [...labels], early });
             }, 2000);
           }),
+        [WINDOW_START_MS, WINDOW_END_MS],
       );
       const seen = sampled.labels;
       // While the slow read is out the dialog already shows the pull request:
       // title, state and body, and no skeleton in any frame.
+      expect(WINDOW_END_MS).toBeLessThan(SECOND_READ_MS);
       expect(sampled.early.length).toBeGreaterThan(5);
       for (const frame of sampled.early) {
         expect(frame.skeleton).toBe(false);
-        expect(frame.text).toContain('Merged thing');
-        expect(frame.text).toMatch(/merged/i);
-        expect(frame.text).toContain('The merged one.');
+        expect(frame.text).toContain('Landed thing');
+        expect(frame.status).toBe('Merged');
+        expect(frame.text).toContain('The landed one.');
       }
       expect(seen.filter((l) => l.startsWith('Issue details'))).toEqual([]);
       await expect(prDialog(page)).toBeVisible();
