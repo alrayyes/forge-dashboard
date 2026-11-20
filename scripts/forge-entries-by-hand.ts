@@ -11,7 +11,14 @@ const hasKey = (body: string, name: string) => {
   return key(name).test(body);
 };
 
-export function writesForgeEntryByHand(source: string): boolean {
+// A one-line string literal is text, not keys, unless it is a quoted key.
+const withoutStrings = (source: string) =>
+  source.replace(/(['"`])(?:\\.|(?!\1)[^\n])*\1(\s*:)?/g, (text, _q, colon) =>
+    colon ? text : '""',
+  );
+
+export function writesForgeEntryByHand(raw: string): boolean {
+  const source = withoutStrings(raw);
   const open: number[] = [];
   const spans: [number, number][] = [];
   for (let i = 0; i < source.length; i++) {

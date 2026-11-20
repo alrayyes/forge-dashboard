@@ -8,7 +8,7 @@
 // and the file isn't regenerated.
 import table from './generated/forge-capabilities.json';
 
-type Forge = keyof typeof table.forges;
+export type Forge = keyof typeof table.forges;
 
 type ForgeHealthOverrides = Record<string, unknown>;
 
