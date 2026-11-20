@@ -1,5 +1,18 @@
 # Changelog
 
+## [9.89.0](https://github.com/alrayyes/forge-dashboard/compare/v9.88.6...v9.89.0) (2026-11-20)
+
+
+### Features
+
+* **web:** put the status after the title in the details pop-up ([#4410](https://github.com/alrayyes/forge-dashboard/issues/4410)) ([18baba1](https://github.com/alrayyes/forge-dashboard/commit/18baba1f9214e835f738dd7dd7dea5a355bfce45)), closes [#4405](https://github.com/alrayyes/forge-dashboard/issues/4405)
+
+
+### Bug Fixes
+
+* **web:** open a mentioned pull request as one from the first frame ([#4411](https://github.com/alrayyes/forge-dashboard/issues/4411)) ([0b49c76](https://github.com/alrayyes/forge-dashboard/commit/0b49c76e99f3ec61acccd45c075bd86fc26fd4a4)), closes [#4402](https://github.com/alrayyes/forge-dashboard/issues/4402)
+* **web:** return focus to the row pill when a pop-up chain closes ([#4409](https://github.com/alrayyes/forge-dashboard/issues/4409)) ([e69417b](https://github.com/alrayyes/forge-dashboard/commit/e69417bd537802088368eb7d5b27c92a8d1b1822)), closes [#4360](https://github.com/alrayyes/forge-dashboard/issues/4360)
+
 ## [9.88.6](https://github.com/alrayyes/forge-dashboard/compare/v9.88.5...v9.88.6) (2026-11-20)
 
 
