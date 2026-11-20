@@ -1,0 +1,25 @@
+{
+  "copy-failure.spec.ts": ["CopyDetails.stories.svelte (proven)"],
+  "error-pages.spec.ts": ["ErrorPage.stories.svelte (proven)"],
+  "filter-every-control.spec.ts": [
+    "web/src/lib/filters-cookie-roundtrip.test.ts (proven)",
+    "internal/api/filter_state_test.go (proven)"
+  ],
+  "first-refresh-loading.spec.ts": [
+    "FirstRefreshStatus.stories.svelte (proven)",
+    "NavPills.stories.svelte (proven)"
+  ],
+  "forge-health-budgets.spec.ts": ["ForgeHealth.stories.svelte (proven)"],
+  "insights-webhooks-read-failure.spec.ts": [
+    "ReadFailureAlert.stories.svelte (proven)"
+  ],
+  "live-control.spec.ts": ["LiveControl.stories.svelte (proven)"],
+  "main-branch-advisories.spec.ts": [
+    "AdvisoriesNotice.stories.svelte (proven)"
+  ],
+  "nav-branches-pills.spec.ts": ["NavPills.stories.svelte (proven)"],
+  "pipeline-run-output.spec.ts": [
+    "CheckRunOutput.stories.svelte (proven)",
+    "PipelineDialog.stories.svelte (proven)"
+  ]
+}
