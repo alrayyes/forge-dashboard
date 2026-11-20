@@ -370,6 +370,40 @@ test.describe('the pull request dialog', () => {
     await expect(issueDialog(page)).toBeHidden();
   });
 
+  test('a click on an untracked pill before the forge has answered follows the link', async ({
+    page,
+  }) => {
+    await mockBoard(page, { pullRequests: [pullRequest(1, [untracked()])] });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    // Hold the forge's answer until the click has been handled.
+    let answer: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      answer = resolve;
+    });
+    let asked = 0;
+    await page.route('**/api/v1/issues/details*', async (route: Route) => {
+      asked++;
+      await held;
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ ...details, state: 'closed' }),
+      });
+    });
+    const popup = page.context().waitForEvent('page');
+
+    await untrackedPill(page).click();
+
+    const tab = await popup;
+    await tab.waitForURL(untracked().url, { waitUntil: 'commit' });
+    await tab.close();
+    await expect(prDialog(page)).toBeVisible();
+    await expect(issueDialog(page)).toBeHidden();
+    expect(asked).toBe(1);
+    answer();
+  });
+
   test('a modified click on an untracked pill is left to the browser', async ({
     page,
   }) => {
