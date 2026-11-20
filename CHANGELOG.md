@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.3](https://github.com/alrayyes/forge-dashboard/compare/v9.90.2...v9.90.3) (2026-11-20)
+
+
+### Bug Fixes
+
+* **web:** keep focus off body when a closed pop-up's opener row is gone ([#4476](https://github.com/alrayyes/forge-dashboard/issues/4476)) ([9601bd3](https://github.com/alrayyes/forge-dashboard/commit/9601bd3ed0d9071d0ac1681c9dd9e0ce2a022081)), closes [#4464](https://github.com/alrayyes/forge-dashboard/issues/4464)
+
 ## [9.90.2](https://github.com/alrayyes/forge-dashboard/compare/v9.90.1...v9.90.2) (2026-11-20)
 
 
