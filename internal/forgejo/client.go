@@ -2085,13 +2085,12 @@ func (c *Client) statusChecks(ctx context.Context, owner, name, sha string) ([]d
 func (c *Client) checksFromCombinedStatus(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
 	c = c.withContext(ctx)
 
-	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	slog.Debug("forgejo request", "method", http.MethodGet, "url", path)
-	combined, resp, err := c.sdk.GetCombinedStatus(owner, name, sha)
+	// Paged, as the roll-up reads it: the SDK's own call stops at the forge's
+	// first page of 30 (#4433).
+	combined, _, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return nil, c.forgejoError(ctx, http.MethodGet, path, resp, err)
+		return nil, err
 	}
-	c.recordRequest(ctx, http.MethodGet, path, resp.StatusCode, requestlog.OutcomeSuccess)
 	checks := make([]dashboard.Check, 0, len(combined.Statuses))
 	for _, s := range combined.Statuses {
 		checks = append(checks, dashboard.Check{
