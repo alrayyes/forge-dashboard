@@ -608,6 +608,10 @@
   // An issue's details listed what refers to it (#4271). Set once the board
   // exists below.
   let issueReferencesRead: (references: ItemReference[]) => void = () => {};
+  let foundReferencesRead: (
+    item: { forge: string; repo: string; number: number },
+    references: ItemReference[],
+  ) => void = () => {};
   // A reference in the dialog's text was clicked (#3744), and whether the
   // dashboard tracks a repository. Set once the board exists below.
   let referenceFollowed: (
@@ -2959,6 +2963,45 @@
       detailsDialog.setAttributes(
         undefined,
         issueStatus(item, outgoing).related,
+      );
+    };
+
+    // The Related band of a merged or closed pull request the board doesn't
+    // list, from what its details say it closes, references and mentions
+    // (#4477): the rows an open pull request's band has, with the pills as the
+    // issue's outgoing ones. What refers to it, its checks and its actions
+    // stay out, since the board holds none of them.
+    foundReferencesRead = (at, references) => {
+      if (!detailsDialog) return;
+      const out = outgoingRows(references);
+      const key = prKey(at as PullRequestItem);
+      const pills = (
+        suffix: string,
+        list: LinkedPullRequest[],
+        relation: "closes" | "refs" | "mentions",
+      ) =>
+        linkedPills(
+          `${key}:found${suffix}`,
+          at.repo,
+          withBoardState(list),
+          undefined,
+          linkedCi,
+          (linked) =>
+            followReference(
+              { ...linked, url: linked.url ?? "" },
+              linkedPillId(key, linked),
+            ),
+          relation,
+          true,
+          "issue-outgoing",
+          (forge, repo) => !trackedRepo(forge, repo),
+        );
+      detailsDialog.setFoundRelated(
+        relatedBandData("pull-request", out, {
+          closes: pills("", out.closes, "closes"),
+          refs: pills(":refs", out.refs, "refs"),
+          mentions: pills(":mentions", out.mentions, "mentions"),
+        }),
       );
     };
 
@@ -11660,6 +11703,8 @@
   onIssueState={(closed) => issueStateShown(closed)}
   onPullRequestFound={() => pullRequestFound()}
   onReferences={(references) => issueReferencesRead(references)}
+  onFoundReferences={(item, references) =>
+    foundReferencesRead(item, references)}
   onReference={(ref, triggerId) => referenceFollowed(ref, triggerId)}
   onWarmReference={(ref) => referenceWarmed(ref)}
   trackedRepo={(forge, repo) => repoTracked(forge, repo)}

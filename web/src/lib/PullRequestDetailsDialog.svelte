@@ -155,6 +155,7 @@
     onIssueState,
     onPullRequestFound,
     onReferences,
+    onFoundReferences,
     onReference,
     onWarmReference,
     trackedRepo,
@@ -168,6 +169,12 @@
     onPullRequestFound?: () => void;
     // An issue's details arrived with the items that refer to it (#4271).
     onReferences?: (references: ItemReference[]) => void;
+    // A reference the board doesn't list turned out to be a pull request: what
+    // it refers to, for its Related band (#4477).
+    onFoundReferences?: (
+      item: { forge: string; repo: string; number: number },
+      references: ItemReference[],
+    ) => void;
     // A `#12` or `owner/repo#12` in the text was clicked (#3744): the page
     // swaps this dialog for that item's. Without it, references are forge
     // links.
@@ -373,6 +380,13 @@
     });
   }
 
+  // The Related band of a pull request read as a reference (#4477), which has
+  // no status block of its own to carry it. Cleared whenever the dialog opens.
+  let foundRelated = $state<RelatedBandData | undefined>();
+  export function setFoundRelated(related?: RelatedBandData) {
+    foundRelated = related;
+  }
+
   // The close button in the header: where focus goes when the control it was
   // on has gone and nothing else in the footer is left.
   export function focusClose() {
@@ -408,6 +422,7 @@
     brokenFilerAvatar = false;
     older = null;
     referencedKey = null;
+    foundRelated = undefined;
     const ref = refOf(item);
     let hit = ref ? detailsCache.get(detailsKey(ref)) : undefined;
     if (!isReleaseTarget(item) && item.subject === "issue") {
@@ -435,6 +450,7 @@
       phase = "ready";
       shownReaction = null;
       showIssueState(target ?? item, hit.details as Details);
+      showFoundState(target ?? item, hit.details as Details);
       load(true);
     } else {
       load(false, hit?.details as Details | undefined);
@@ -488,6 +504,14 @@
     if (item.subject !== "issue") return;
     if (shown.state) onIssueState?.(shown.state === "closed");
     onReferences?.(shown.references ?? []);
+  }
+
+  // A pull request that came from a reference has no status block; what it
+  // refers to still draws its band.
+  function showFoundState(item: DetailsTarget, shown: Details) {
+    if (isReleaseTarget(item) || item.subject === "issue") return;
+    if (!isReferenced(item)) return;
+    onFoundReferences?.(item, shown.references ?? []);
   }
 
   // Set when a refresh failed while earlier details are on screen; cleared by
@@ -562,6 +586,7 @@
         phase = "ready";
         shownReaction = null;
         showIssueState(current, seed);
+        showFoundState(target ?? current, seed);
       });
     }
     try {
@@ -648,6 +673,7 @@
         liveHost.textContent = "Details updated.";
       ownAction = false;
       if (!foundPullRequest) showIssueState(current, loaded);
+      else if (target) showFoundState(target, loaded);
       // A quiet swap leaves a list the reader has open alone; a full load
       // replaces everything, so the old content's state goes with it.
       if (!quiet) {
@@ -1106,6 +1132,8 @@
 
   {#if target?.status?.related}
     <RelatedBand band={target.status.related} />
+  {:else if foundRelated}
+    <RelatedBand band={foundRelated} />
   {/if}
 
   <!-- What the pull request is waiting on or blocked by, in words. -->

@@ -42,6 +42,15 @@ const reference = (number: number, over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
+const issueRef = (relation: string) => ({
+  kind: 'issue',
+  state: 'open',
+  direction: 'outgoing',
+  relation,
+  url: `https://example.com/${REPO}/issues/1`,
+  pageUrl: `/issues.html?issue=github/${REPO}/1`,
+});
+
 const noReactions = {
   thumbsUp: { count: 0, logins: [] },
   thumbsDown: { count: 0, logins: [] },
@@ -121,7 +130,21 @@ async function open(page: Page, unreadable = false) {
             reference(8, { relation: 'refs', state: 'closed' }),
             reference(6, { relation: 'closes' }),
             reference(9, { state: 'open', relation: 'mentions' }),
+            reference(11, { direction: 'outgoing', relation: 'closes' }),
+            reference(12, { direction: 'outgoing', relation: 'refs' }),
+            reference(13, { direction: 'outgoing', relation: 'mentions' }),
           ],
+        }),
+      });
+    if (number >= 20 && number <= 22)
+      return route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...thread(`Issue ${number}.`),
+          kind: 'issue',
+          state: 'open',
+          references: [],
         }),
       });
     if (unreadable && number === 7)
@@ -137,6 +160,17 @@ async function open(page: Page, unreadable = false) {
         ...thread(`Pull request ${number}, read from the forge.`),
         kind: 'pullRequest',
         state: 'closed',
+        // What the pull request itself refers to, and one thing that refers
+        // to it, which a pull request's band leaves out.
+        references:
+          number === 7
+            ? [
+                reference(22, issueRef('mentions')),
+                reference(20, issueRef('closes')),
+                reference(21, issueRef('refs')),
+                reference(30, { relation: 'mentions' }),
+              ]
+            : [],
         pullRequest: {
           title: `Merged change ${number}`,
           state: number === 8 ? 'closed' : 'merged',
@@ -183,10 +217,62 @@ for (const [group, number] of [
 
     await page.keyboard.press('Escape');
     await expect(page.locator('dialog[open]')).toHaveCount(0);
-    await expect(page.locator(':focus')).not.toHaveJSProperty(
-      'tagName',
-      'BODY',
-    );
+    await expect(
+      page.locator('#issue-rows .row').first().locator('button.title'),
+    ).toBeFocused();
+  });
+}
+
+for (const [group, number] of [
+  ['Closes', 11],
+  ['Refs', 12],
+  ['Mentions', 13],
+] as const) {
+  test(`a ${group} pill to a pull request off the board opens its pop-up`, async ({
+    page,
+  }) => {
+    await open(page);
+    await pill(page, group, number).click();
+
+    await expect(prDialog(page)).toBeVisible();
+    await expect(
+      prDialog(page).getByRole('heading', { name: `Merged change ${number}` }),
+    ).toBeVisible();
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+  });
+}
+
+for (const width of [1280, 390]) {
+  test(`the pop-up of a merged pull request shows its Related band at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    await open(page);
+    await pill(page, 'Mentioned by', 7).click();
+    const dialog = prDialog(page);
+    await expect(dialog).toContainText('read from the forge');
+
+    const rows = dialog.locator('.related-band [role="group"]');
+    await expect(rows).toHaveCount(3);
+    await expect(rows.nth(0)).toHaveAccessibleName('Closes');
+    await expect(rows.nth(1)).toHaveAccessibleName('Refs');
+    await expect(rows.nth(2)).toHaveAccessibleName('Mentions');
+    await expect(
+      dialog.getByRole('group', { name: 'Closes' }).locator('.linked-pr'),
+    ).toHaveAccessibleName(/^Closes: Issue #20/);
+
+    // A pill in it is navigable: the issue's pop-up replaces this one.
+    await dialog
+      .getByRole('group', { name: 'Closes' })
+      .locator('.linked-pr')
+      .click();
+    await expect(issueDialog(page)).toBeVisible();
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    await expect(
+      page.locator('#issue-rows .row').first().locator('button.title'),
+    ).toBeFocused();
   });
 }
 
@@ -221,6 +307,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await pill(page, 'Mentioned by', 7).click();
     await expect(prDialog(page)).toBeVisible();
     await expect(prDialog(page)).toContainText('read from the forge');
+    await expect(prDialog(page).locator('.related-band')).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
