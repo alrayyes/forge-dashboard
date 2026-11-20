@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.88.6](https://github.com/alrayyes/forge-dashboard/compare/v9.88.5...v9.88.6) (2026-11-20)
+
+
+### Bug Fixes
+
+* **web:** decide the first-refresh rule for nav counts in one place ([#4391](https://github.com/alrayyes/forge-dashboard/issues/4391)) ([030b0f6](https://github.com/alrayyes/forge-dashboard/commit/030b0f6272c31faecbce3d08868cf670695b1628)), closes [#4365](https://github.com/alrayyes/forge-dashboard/issues/4365)
+
 ## [9.88.5](https://github.com/alrayyes/forge-dashboard/compare/v9.88.4...v9.88.5) (2026-11-19)
 
 
