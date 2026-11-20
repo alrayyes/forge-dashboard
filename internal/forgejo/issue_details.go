@@ -81,6 +81,7 @@ type timelineReference struct {
 	RefIssue  *struct {
 		Number      int    `json:"number"`
 		Title       string `json:"title"`
+		Body        string `json:"body"`
 		State       string `json:"state"`
 		HTMLURL     string `json:"html_url"`
 		PullRequest *struct {
@@ -135,7 +136,7 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 		repo := e.RefIssue.Repository.FullName
 		ref := dashboard.ItemReference{
 			Forge: dashboard.ForgeForgejo, Repo: repo, Number: e.RefIssue.Number,
-			Title: e.RefIssue.Title, URL: e.RefIssue.HTMLURL, Kind: dashboard.ItemKindIssue,
+			Title: e.RefIssue.Title, URL: e.RefIssue.HTMLURL, Body: e.RefIssue.Body, Kind: dashboard.ItemKindIssue,
 			State: dashboard.ReferencedStateOpen, Direction: dashboard.ReferenceIncoming, Relation: relation,
 		}
 		if e.RefIssue.PullRequest != nil {
@@ -150,5 +151,5 @@ func (c *Client) incomingReferences(ctx context.Context, owner, name string, num
 		refs = append(refs, ref)
 	}
 
-	return dashboard.NewestFirstReferences(refs), err
+	return dashboard.ClassifyIncoming(dashboard.NewestFirstReferences(refs), dashboard.ForgeForgejo, owner+"/"+name, number, c.instanceURL), err
 }
