@@ -102,7 +102,7 @@ describe('focusFallback over the pop-up candidates', () => {
     );
   });
 
-  test('never reaches for a control only the pull requests page draws', () => {
+  test('never reaches past the Filters button and the title box', () => {
     expect(focusFallback(POPUP_CANDIDATES, drawnIds('pr-sort-select'))).toBe(
       'title-filter',
     );
