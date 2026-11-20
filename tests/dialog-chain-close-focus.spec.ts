@@ -552,19 +552,19 @@ for (const width of [1280, 390]) {
       await expect(other).toBeFocused();
     });
 
-    test('a chain cut short by a lookup that found nothing leaves nothing behind', async ({
+    test('a chain ended by a pull request the board does not hold leaves nothing behind', async ({
       page,
     }) => {
       // Pull request 1, its issue, then a pill for a pull request the board
-      // does not hold: the "not found" note shows and the chain is over.
+      // does not hold: a pop-up stays up for it (#4477), and closing it
+      // ends the chain.
       await page.goto('/pull-requests.html');
       await rowTitle(page, '#pr-rows', 'Pull request 1').click();
       await prDialog(page).locator('.closing-issue').first().click();
       await expect(issueDialog(page)).toBeVisible();
       await issueDialog(page).locator('.linked-pr', { hasText: '#9' }).click();
-      await expect(
-        page.getByRole('status').filter({ hasText: '#9' }),
-      ).toContainText('not open any more');
+      await expect(page.locator('dialog[open]')).toHaveCount(1);
+      await closeAndSettle(page);
       await expect(page.locator('dialog[open]')).toHaveCount(0);
 
       const third = rowTitle(page, '#pr-rows', 'Pull request 3');

@@ -73,6 +73,20 @@ repository still opens in the pop-up when the forge can show it, the way a
 `#12` does. The row's own pills are all pull requests the dashboard holds, so
 they are not affected.
 
+A pull request pill in a tracked repository whose pull request is not on the
+board (merged or closed, so no longer listed) opens that pull request's pop-up
+all the same, in any row (Closed by, Referenced by, Mentioned by, Closes, Refs,
+Mentions). The pop-up is read only, with the real title, who opened it and
+whether it was merged or closed, read from the forge the way a `#12` is. It has
+the same Related band as an open pull request's, drawn from what the pull
+request closes, references and mentions, with the pills in the same order and
+opening the same pop-ups. It has no pipeline, merge status or actions, because
+the board holds none of them, and the band leaves out what refers to it. Since
+the issue's pop-up is gone by then, closing it returns focus to the issue's
+title in the list, as for a `#12` that opens another pop-up. If the forge can't
+show it, the pop-up stays open and says why. The pop-up never closes with
+nothing shown.
+
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
 whether it is open, closed or merged, taken from the same answer. A merged
@@ -80,6 +94,8 @@ pull request's chip is the Merged pill (a merge glyph and the word in purple);
 Open and Closed stay plain outlines. The status chip's row is held while the
 details load, so nothing below it moves when they arrive. If the read fails, the
 issue-style pop-up stays and says why.
+The same pop-up carries the Related band described above, from what that pull
+request closes, references and mentions.
 
 ## Closing an issue from its pop-up
 
@@ -223,9 +239,10 @@ or modified click opens that page in a new tab. A plain click closes the
 issue's pop-up and opens the pull request's in its place, on the page you are
 on, so you stay where you are and the address and the browser history don't
 change. On the Pull requests page a pull request the board lists opens with its
-actions. One the dashboard doesn't hold is named in a note instead. If you open
-another pop-up while that lookup is still on its way, the late answer opens
-nothing.
+actions. One the dashboard doesn't hold (merged or closed, so no longer on
+the board) opens read only, as the Related band section above says. If you
+open another pop-up while that lookup is still on its way, the late answer
+opens nothing.
 Closing that pop-up puts keyboard focus back on the pill in the list. When
 pop-ups follow one another through pills (an issue, its pull request, the issue
 again), closing the last returns focus to where the first swap would have
@@ -254,10 +271,10 @@ Bots for a release or a dependency update) still opens the same pop-up from a
 link or a bookmark, then drops `?pr=` so a reload doesn't open it again. A
 draft while **Show drafts** is off, or a pull request you hid, opens read only,
 without the actions, since it has no row to act from. A pull request that isn't
-open any more, or whose repo the dashboard doesn't track, opens nothing from a
-row, and the page says so in a note over the list. Inside the pop-up, a pill to
-such a pull request is a forge link instead, as the Related band section above
-says.
+open any more opens from a pill in the pop-up as described above, and from its
+`?pr=` address the page says so in a note over the list. Inside the pop-up, a
+pill to a pull request in a repo the dashboard doesn't track is a forge link
+instead, as the Related band section above says.
 
 ## Pull requests that mention an issue
 

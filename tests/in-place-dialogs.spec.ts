@@ -269,7 +269,7 @@ test.describe('a linked pull request pill on the Issues page', () => {
     expect(new URL(page.url()).pathname).toBe('/issues.html');
   });
 
-  test('says plainly when the pull request is not found anywhere', async ({
+  test('keeps a pop-up open for a pull request that is not listed anywhere (#4477)', async ({
     page,
   }) => {
     await mockBoard(page, { shown: [], issues: [issue(1, [linked(12)])] });
@@ -277,10 +277,9 @@ test.describe('a linked pull request pill on the Issues page', () => {
 
     await linkedPill(page, 1).click();
 
-    await expect(pullDialog(page)).toBeHidden();
-    await expect(page.locator('#issue-address-note')).toContainText(
-      `${REPO} #12`,
-    );
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await expect(page.locator('dialog[open]')).toContainText('#12');
+    await expect(page.locator('#issue-address-note')).toBeHidden();
   });
 
   test('has no axe violations with the dialog open, in light, dark and at 390 px', async ({
@@ -529,7 +528,7 @@ test.describe('references inside the issue dialog', () => {
     });
   }
 
-  test('a reference the dashboard does not hold is said plainly on the Pull requests page', async ({
+  test('a reference the dashboard does not hold keeps a pop-up open on the Pull requests page (#4477)', async ({
     page,
   }) => {
     await mockBoard(page, {
@@ -540,8 +539,8 @@ test.describe('references inside the issue dialog', () => {
     await closingPill(page, 1).click();
     await issueDialog(page).locator('.linked-pr').click();
 
-    await expect(pullDialog(page)).toBeHidden();
-    await expect(page.locator('#hide-status')).toContainText(`${REPO} #13`);
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await expect(page.locator('dialog[open]')).toContainText('#13');
   });
 });
 
