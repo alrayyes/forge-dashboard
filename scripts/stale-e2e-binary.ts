@@ -38,6 +38,41 @@ function mtimeOf(file: string): number | null {
   }
 }
 
+// What sync-web-build.sh writes into the embedded directory. cp -a keeps each
+// file's modification time from web/build, so the newest one dates the build.
+const embeddedDir = path.join('internal', 'api', 'static');
+const syncedBundle = path.join(embeddedDir, '_app');
+const webInputDirs = [path.join('web', 'src'), path.join('web', 'static')];
+
+function newest(files: string[]): { file: string; mtime: number } | null {
+  let best: { file: string; mtime: number } | null = null;
+  for (const file of files) {
+    const mtime = mtimeOf(file);
+    if (mtime !== null && (best === null || mtime > best.mtime))
+      best = { file, mtime };
+  }
+  return best;
+}
+
+function filesUnder(root: string, dirs: string[]): string[] {
+  return dirs.flatMap((d) => {
+    const dir = path.join(root, d);
+    return existsSync(dir) ? [...walk(dir, false)] : [];
+  });
+}
+
+// The web file (relative to root) edited after the bundle was last synced into
+// the embedded directory, or null. Building the binary after the edit does not
+// help: it embeds whatever was synced. A repo that never synced a bundle has
+// nothing to compare, so it passes.
+export function unsyncedWebInput(root: string): string | null {
+  const synced = newest(filesUnder(root, [syncedBundle]));
+  if (synced === null) return null;
+  const edited = newest(filesUnder(root, webInputDirs));
+  if (edited === null || edited.mtime <= synced.mtime) return null;
+  return path.relative(root, edited.file);
+}
+
 export type StaleInput = {
   // Path relative to root.
   file: string;
@@ -83,6 +118,10 @@ export function staleBinaryMessage(
 ): string | null {
   if (!existsSync(binary)) {
     return `e2e binary ${binary} does not exist. Build it:\n  bun run build:web && ${buildCommand}\nor run tests/run-local.sh.`;
+  }
+  const unsynced = unsyncedWebInput(root);
+  if (unsynced !== null) {
+    return `${embeddedDir} was synced before ${unsynced} changed, so the binary embeds the old web bundle however recently it was built. Run bun run build:web first, then rebuild:\n  bun run build:web && ${buildCommand}\nor run tests/run-local.sh. Set E2E_BINARY to skip this check.`;
   }
   const stale = staleInput(root, binary, now);
   if (stale === null) return null;

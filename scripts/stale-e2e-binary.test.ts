@@ -146,3 +146,49 @@ test('a newer input that is not in the future still says the binary is older', (
   expect(msg).toContain('is older than');
   expect(msg).not.toContain('dated in the future');
 });
+
+test('fails when the web bundle was synced before the last web edit, even though the binary is newer', () => {
+  const { root, bin } = repo({
+    'web/src/routes/page.svelte': 900,
+    'internal/api/static/_app/version.json': 800,
+  });
+  const msg = staleBinaryMessage(root, bin);
+  expect(msg).toContain(
+    `${path.join('internal', 'api', 'static')} was synced before ${path.join('web', 'src', 'routes', 'page.svelte')}`,
+  );
+  expect(msg).toContain('Run bun run build:web first');
+  expect(msg).not.toContain('is older than');
+});
+
+test('a web/static edit after the sync counts the same way', () => {
+  const { root, bin } = repo({
+    'web/static/icon.svg': 900,
+    'internal/api/static/_app/version.json': 800,
+  });
+  expect(staleBinaryMessage(root, bin)).toContain(
+    path.join('web', 'static', 'icon.svg'),
+  );
+});
+
+test('passes when the bundle was synced after the last web edit', () => {
+  const { root, bin } = repo({
+    'web/src/routes/page.svelte': 800,
+    'web/static/icon.svg': 810,
+    'internal/api/static/_app/version.json': 900,
+  });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
+
+test('compares against the newest synced file, not the oldest', () => {
+  const { root, bin } = repo({
+    'web/src/page.svelte': 900,
+    'internal/api/static/_app/old.js': 100,
+    'internal/api/static/_app/immutable/new.js': 950,
+  });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
+
+test('does not demand a sync when the repo never built the web bundle', () => {
+  const { root, bin } = repo({ 'web/src/page.svelte': 900 });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
