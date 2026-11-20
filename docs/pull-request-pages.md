@@ -182,6 +182,13 @@ request's pop-up and opens the issue's in its place without leaving the
 page. The address and your filters stay untouched. Screen readers hear
 "Closes", the number and "opens the issue".
 
+An issue in a repository the dashboard doesn't track has no pop-up to swap in,
+so inside the pull request's pop-up its "Closes" and "Refs" pills are links to
+the issue on the forge instead, opened in a new tab. A plain click leaves the
+pop-up open, and the accessible name ends with "opens on the forge in a new
+tab". The same holds for the pills in an issue's pop-up, which
+[the Issues page](issues.md#pull-requests-that-close-an-issue) describes.
+
 The server works out which issues those are, and builds the address that opens
 each. In `GET /api/v1/dashboard` each pull request has `closesIssues`, always
 present, and each entry carries the `pageUrl` that opens it.

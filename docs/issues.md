@@ -53,8 +53,16 @@ the issue, whether or not the board lists the issue: "Refs" and "Mentions", each
 pill named for what the issue does. Its accessible name starts with the row, as
 in "Refs: Issue" and the number. The count at the top of the band
 counts each item once, across all the rows. An item the dashboard tracks opens
-in the pop-up as the other pills do; any other is a link to its page on the
-forge.
+in the pop-up as the other pills do.
+
+A pull request pill in the pop-up, in any row, whose repository the dashboard
+doesn't track is a link to the pull request on the forge instead, opened in a
+new tab. A plain click leaves the pop-up open, and the pill's accessible name
+ends with "opens on the forge in a new tab". It never swaps the pop-up for
+another: the dashboard holds nothing to show there. An issue in such a
+repository still opens in the pop-up when the forge can show it, the way a
+`#12` does. The row's own pills are all pull requests the dashboard holds, so
+they are not affected.
 
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
@@ -235,8 +243,10 @@ Bots for a release or a dependency update) still opens the same pop-up from a
 link or a bookmark, then drops `?pr=` so a reload doesn't open it again. A
 draft while **Show drafts** is off, or a pull request you hid, opens read only,
 without the actions, since it has no row to act from. A pull request that isn't
-open any more, or whose repo the dashboard doesn't track, opens nothing, and
-the page says so in a note over the list.
+open any more, or whose repo the dashboard doesn't track, opens nothing from a
+row, and the page says so in a note over the list. Inside the pop-up, a pill to
+such a pull request is a forge link instead, as the Related band section above
+says.
 
 ## Pull requests that mention an issue
 
