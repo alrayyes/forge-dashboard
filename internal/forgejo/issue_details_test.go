@@ -500,9 +500,6 @@ func TestGetIssueDetails_IgnoresTimelineEventsThatAreNotReferences(t *testing.T)
 	assert.Equal(t, 30, got.References[0].Number)
 }
 
-// The read stops after ten pages of fifty events. The timeline lists oldest
-// first, so on a longer thread the newest references are the ones left out.
-// The cap is documented in docs/rate-limits.md (#4305).
 // A page with no events ends the walk: it is the last request, however many
 // pages the cap would allow.
 func TestGetIssueDetails_StopsReadingTheTimelineAtAnEmptyPage(t *testing.T) {
@@ -532,6 +529,9 @@ func TestGetIssueDetails_StopsReadingTheTimelineAtAnEmptyPage(t *testing.T) {
 	assert.Equal(t, []string{"1", "2"}, asked, "one page of events, then the empty page that ends the walk")
 }
 
+// The read stops after ten pages of fifty events. The timeline lists oldest
+// first, so on a longer thread the newest references are the ones left out.
+// The cap is documented in docs/rate-limits.md (#4305).
 func TestGetIssueDetails_StopsReadingTheTimelineAtTenPages(t *testing.T) {
 	t.Parallel()
 
