@@ -130,3 +130,19 @@ test('is null when the only odd entry is a broken symlink', () => {
   );
   expect(newerInput(root, bin)).toBeNull();
 });
+
+test('says a future-dated input is the reason, not that the binary is old', () => {
+  const { root, bin } = repo({ 'internal/clock.go': 5000 });
+  const now = 2000 * 1000;
+  const msg = staleBinaryMessage(root, bin, now);
+  expect(msg).toContain(path.join('internal', 'clock.go'));
+  expect(msg).toContain('dated in the future');
+  expect(msg).not.toContain('is older than');
+});
+
+test('a newer input that is not in the future still says the binary is older', () => {
+  const { root, bin } = repo({ 'internal/a.go': 1100 });
+  const msg = staleBinaryMessage(root, bin, 2000 * 1000);
+  expect(msg).toContain('is older than');
+  expect(msg).not.toContain('dated in the future');
+});
