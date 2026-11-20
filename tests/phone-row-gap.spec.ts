@@ -155,7 +155,7 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
 
 // The slot is below the pill at every width, so an armed row and a plain one
 // say what they wait on on the same side of it.
-test.describe('wider rows draw the wait slot below the pill', () => {
+test.describe('wider rows draw the wait slot below the pill while it holds a chip', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
@@ -175,6 +175,12 @@ test.describe('wider rows draw the wait slot below the pill', () => {
         await expect(row.locator('.ci-slot')).toBeVisible();
         const ci = await row.locator('.ci-slot').boundingBox();
         const slot = await row.locator('.wait-slot').boundingBox();
+        // From 1191px of list width an empty slot takes no room (#4502): the
+        // row is one centred line, so there is nothing to reserve below.
+        if (width === 1280 && name === 'plain') {
+          expect(slot).toBeNull();
+          return;
+        }
         expect(slot?.y ?? 0).toBeGreaterThanOrEqual(
           (ci?.y ?? Number.POSITIVE_INFINITY) + (ci?.height ?? 0),
         );

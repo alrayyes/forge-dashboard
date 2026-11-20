@@ -284,12 +284,14 @@ for (const width of [360, 390]) {
   });
 }
 
-test('a lone Merge on a phone is compact too (#3691)', async ({ page }) => {
+test('a lone Merge on a phone fills the line of the card (#4502)', async ({
+  page,
+}) => {
   const row = await open(page, 390, pr({ behind: false }));
   const merge = (await row
     .getByRole('button', { name: 'Merge', exact: true })
     .boundingBox())!;
   const card = (await row.boundingBox())!;
   expect(merge.height).toBeGreaterThanOrEqual(44);
-  expect(merge.width).toBeLessThan(card.width * 0.6);
+  expect(merge.width).toBeGreaterThan(card.width * 0.8);
 });

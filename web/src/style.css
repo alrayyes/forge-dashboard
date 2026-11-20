@@ -1098,6 +1098,61 @@ section.board {
   }
 }
 
+/* #4502: from 1191px of list width (a 1280px window) a pull request row is
+   one centred line. The status track holds three fixed slots: the CI pill, the
+   merge-state and comment pills (a Conflicting pill takes the same slot as the
+   comment pill, and both stack there when a row has both), and the action. A
+   pill is at the same x on every row and at the row's own centre, with the
+   labels, the attribute chips and the note under the title. The attribute
+   chips and the note are in the title cell (see buildRow), so nothing here
+   needs a second line except the rare extras (a close cue, a queued note, the
+   waiting chip), which take a full line of the cell. The rem in the query keeps
+   it off at large root font sizes, where the slots would outgrow the list.
+   Narrower lists keep the wrapping status cell above. */
+@media (min-width: 761px) {
+  @container (min-width: max(1191px, 74.5rem)) {
+    .row:not(.issue-row) {
+      grid-template-columns: 200px minmax(0, 1fr) 96px var(--dt) var(--dt) 26rem 22px;
+    }
+    .row:not(.issue-row) .status-cell {
+      display: grid;
+      grid-template-columns: 10rem 8rem 7rem;
+      column-gap: 8px;
+      row-gap: 4px;
+      align-items: center;
+      justify-content: end;
+    }
+    .row:not(.issue-row) .status-cell > * {
+      grid-column: 1 / -1;
+    }
+    .row:not(.issue-row) .status-cell > .state-group {
+      grid-column: 1;
+      grid-row: 1;
+    }
+    .row:not(.issue-row) .status-cell > .status-flags {
+      grid-column: 2;
+      grid-row: 1;
+    }
+    .row:not(.issue-row) .status-cell > .row-action-bar {
+      grid-column: 3;
+      grid-row: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 4px;
+    }
+    .row:not(.issue-row) .status-cell > .wait-slot:empty {
+      display: none;
+    }
+    /* A long pill ("Conflict not confirmed") wraps inside its slot instead of
+       running under the action. */
+    .row:not(.issue-row) .status-flags .merge-pill,
+    .row:not(.issue-row) .status-flags .review-pill {
+      white-space: normal;
+    }
+  }
+}
+
 .row:last-child {
   border-bottom: none;
 }
@@ -2007,6 +2062,9 @@ button.title {
   align-items: center;
   gap: 4px;
 }
+.attr-cluster:empty {
+  display: none;
+}
 .attr-chip {
   display: inline-flex;
   align-items: center;
@@ -2375,6 +2433,14 @@ a.ci-pill:hover {
 /* One grid cell, possibly several pills — .row's own grid-template-columns
    stays fixed regardless of how many of them a given row has anything to
    say, the same reason .row-meta itself uses display:contents above. */
+/* The merge-state and comment pills share one slot after the CI pill. */
+.status-flags {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  min-width: 0;
+}
 .status-cell {
   display: flex;
   align-items: center;
@@ -3872,22 +3938,16 @@ footer a.mono:focus-visible {
   .wait-slot {
     height: 52px;
   }
-  /* The CI slot at the top right of the status area, the attributes on a
-     line of their own below it (#1563). */
+  /* One line of pills: the CI pill, then the merge-state and comment pills
+     (#4502). The attribute chips are in the title cell, under the labels. */
+  .status-cell {
+    justify-content: flex-start;
+  }
   .state-group {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+    flex: 0 0 auto;
+    justify-content: flex-start;
   }
-  .attr-cluster {
-    flex: 1 1 100%;
-    order: 1;
-  }
-  /* A row with no attribute to show still builds the cluster. Empty, it is a
-     zero-height flex item that takes a whole wrapped line and the gap above
-     it (#3834). Phone only: on desktop the empty box is part of the layout. */
-  .attr-cluster:empty {
-    display: none;
-  }
+
   .wait-chip-action {
     min-width: 44px;
     min-height: 44px;
@@ -3948,6 +4008,23 @@ footer a.mono:focus-visible {
     flex: 0 1 auto;
     min-width: 120px;
     padding-inline: 20px;
+  }
+  /* A lone action fills the line (#4502). */
+  .row-action-bar > :only-child,
+  .row-action-bar
+    > .row-action-locked:only-child:not(.row-action-locked-visible),
+  .row-action-bar > .row-action-group:only-child:not(.confirm-group) {
+    flex: 1 1 100%;
+  }
+  .row-action-bar > :only-child .row-action,
+  .row-action-bar
+    > .row-action-group:only-child:not(.confirm-group)
+    > .row-action,
+  .row-action-bar
+    > .row-action-locked:only-child:not(.row-action-locked-visible)
+    > .row-action,
+  .row-action-bar > .row-action:only-child {
+    flex: 1 1 auto;
   }
   /* At 320px the bar is 246px and two 120px minimums plus the gap need more,
      so the pair gives up a little width before it would wrap (#4099). */

@@ -4,8 +4,8 @@ import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // On a phone the one control a row draws sits in its own action row: after a
-// hairline divider, content-width and 44px tall (not a full-width slab, #3691),
-// so the thumb finds it. The
+// hairline divider, full-width and 44px tall (#4502 replaced the compact button
+// of #3691), so the thumb finds it. The
 // 44px is WCAG 2.5.5 (AAA); 2.5.8 (AA) asks 24px.
 // https://github.com/alrayyes/forge-dashboard/issues/898
 
@@ -61,7 +61,7 @@ const cases = [
 
 for (const width of [360, 390]) {
   for (const { name, overrides } of cases) {
-    test(`${width}px: ${name} is one compact 44px button after a divider`, async ({
+    test(`${width}px: ${name} is one full-width 44px button after a divider`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 900 });
@@ -74,7 +74,7 @@ for (const width of [360, 390]) {
       const box = await btn.boundingBox();
       const barBox = await bar.boundingBox();
       expect(box?.height).toBeGreaterThanOrEqual(44);
-      expect(box?.width).toBeLessThan((barBox?.width ?? 0) * 0.6);
+      expect(box?.width).toBeGreaterThan((barBox?.width ?? 0) * 0.9);
 
       const overflow = await page.evaluate(
         () => document.documentElement.scrollWidth > window.innerWidth,
@@ -106,7 +106,7 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   );
 });
 
-test('a plain Merge is centred by the phone bar rule, content width', async ({
+test('a plain Merge is centred by the phone bar rule, full width', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
@@ -121,7 +121,7 @@ test('a plain Merge is centred by the phone bar rule, content width', async ({
         (el) => Number.parseFloat(getComputedStyle(el).width) || 0,
       );
       const bar = (await row.locator('.row-action-bar').boundingBox())?.width;
-      return width > 0 && width < (bar ?? 0) * 0.6;
+      return width > 0 && width > (bar ?? 0) * 0.9;
     })
     .toBe(true);
 });
@@ -163,5 +163,5 @@ test('on a desktop the button keeps its small size beside the status', async ({
     (rowBox?.x ?? 0) + (rowBox?.width ?? 0),
   );
   expect(box?.x).toBeGreaterThanOrEqual((pill?.x ?? 0) - 1);
-  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'contents');
+  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'flex');
 });

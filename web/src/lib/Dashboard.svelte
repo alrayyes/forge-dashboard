@@ -3287,7 +3287,10 @@
         const ciSlot = el("div", "ci-slot");
         ciSlot.appendChild(ciPill(pr));
         stateGroup.appendChild(ciSlot);
-        stateGroup.appendChild(attributeCluster(pr, view !== "bots", true));
+        // The attribute chips (Draft, Out of date, auto-merge...) go under the
+        // title with the labels, so the status cell is one line of slots
+        // (#4502).
+        titleCellEl.appendChild(attributeCluster(pr, view !== "bots", true));
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
@@ -3297,11 +3300,17 @@
           conflictFacts(pr),
           pr.forge,
         );
-        if (conflictPill) statusCell.appendChild(conflictPill);
         const reviewActivity = reviewPill(pr, (triggerId) =>
           openDetailsDialog(pr, triggerId),
         );
-        if (reviewActivity) statusCell.appendChild(reviewActivity);
+        // One slot for the merge-state and comment pills, so the pill after
+        // the CI pill starts at the same x on every row (#4502).
+        if (conflictPill || reviewActivity) {
+          const flags = el("div", "status-flags");
+          if (conflictPill) flags.appendChild(conflictPill);
+          if (reviewActivity) flags.appendChild(reviewActivity);
+          statusCell.appendChild(flags);
+        }
         const mergeStatusLine = autoMergeStatusLine(pr);
         if (mergeStatusLine) statusCell.appendChild(mergeStatusLine);
 
@@ -3310,7 +3319,8 @@
         const settledRow = isSettled(pr);
         // What it is waiting on, in its own place above the actions (#1375).
         const statusAreaEl = settledRow ? null : statusArea(pr);
-        if (statusAreaEl) statusCell.appendChild(statusAreaEl);
+        // Under the title, where the note reads as part of the row's subject.
+        if (statusAreaEl) titleCellEl.appendChild(statusAreaEl);
         // The action area's reserved slot: the waiting chip lives here, so
         // it comes and goes without moving the row (#1229). It follows the
         // status in the markup as it does on screen, so Tab only moves down

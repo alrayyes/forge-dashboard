@@ -48,6 +48,7 @@ const singleUserSpecs = [
   '**/timezone.spec.ts',
   '**/auth-single-user.spec.ts',
   '**/board-title-width.spec.ts',
+  '**/pr-row-centering.spec.ts',
   '**/filter-bar-widths.spec.ts',
   '**/filter-bar-overlap.spec.ts',
   '**/filter-bar-one-control.spec.ts',

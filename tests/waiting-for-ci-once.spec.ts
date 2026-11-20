@@ -125,6 +125,10 @@ for (const scheme of ['light', 'dark'] as const) {
       test('the message sits on the same side of the pill on an armed and an unarmed row', async ({
         page,
       }) => {
+        // On the phone card the unarmed row's status note sits under the
+        // title (#4502) and the armed row's chip in the reserved slot below
+        // the pills (#1229), so the two sides differ there by design.
+        test.skip(width < 761, 'the phone card places the two differently');
         await open(page, [PLAIN, ARMED_PR]);
         const plain = row(page, 'Plain');
         const armed = row(page, 'Armed');
