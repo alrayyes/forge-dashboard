@@ -18,7 +18,9 @@ in `web/src/lib` and the Go tests under `internal/`. Change a spec, a duration
 or one of those tests and the CSV is out of date. `scripts/e2e-audit-csv.test.ts`
 reruns the script and fails on any difference, in `bun run test:unit` and so in
 the pre-push hook and CI, so the next slice regenerates the table in the same
-pull request that changes the spec.
+pull request that changes the spec. Regenerate again after rebasing onto a
+`main` that changed specs: two pull requests that each regenerate can both pass
+and still leave `main` red until the next regeneration.
 
 The one input a scan cannot find is a lower test proven red by hand, such as a
 story. List it in
@@ -166,7 +168,8 @@ CSV, so the table is the state at its last regeneration.
 `filter-every-control` is a real navigation and cookie journey, and the token
 scan cannot see that. It loops four read-backs over every control. Fewer rounds,
 with the server round-trip in a Go test and cookie serialisation in a lib test,
-would cut most of its 29.8 s.
+would have cut most of its 29.8 s. It has since been cut to about 8 s; see the
+follow-ups.
 
 ## Follow-ups
 
@@ -262,10 +265,10 @@ One ticket per group, each doing moves with its own mutation proof:
   Copy output button and absent icon buttons, since those read the dialog. The
   other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
   became about 20.6 s (58). Both are measured here, summing the per-test
-  durations on one worker with the machine idle; the 26.8 s in the ranking
-  above is the earlier CI figure for the same spec, so the two are not
-  comparable. The CSV row takes the measured 20.6 s, and its est. movable
-  (10.1 s, 20.6 times 25 of 51 tests) is an upper bound, not a saving. The
+  durations on one worker with the machine idle, so they are not comparable
+  with the CI figures in `tests/e2e-durations.json`. At the time of that move
+  the est. movable was 10.1 s (20.6 times 25 of 51 tests), an upper bound and
+  not a saving. The
   new stories take about 0.1 s. Each assertion was proven red by breaking
   the component, `run-log.ts` or the style sheet (see the pull request for the
   list). The CSV row for `pipeline-run-output` is updated.
@@ -284,12 +287,12 @@ One ticket per group, each doing moves with its own mutation proof:
   saving is small and the measurement says so: on one worker with the machine
   idle (load under 5), the spec took 12.7 s over 28 runs before and 13.1 s over
   27 runs after, which is noise. The removed test took about 0.17 s, the
-  rewritten card tests changed by less than 0.03 s each. The CSV row takes the
-  measured 13.148 s, with 12 tests and 4 browser-only, so its est. movable is
-  13.148 times 8 of 12 tests, 8.8 s, an upper bound, and not a saving. The
-  row had no duration before, so it read 0.0. Each assertion was proven red
-  by breaking the component or `live-control.ts` on a scratch copy (see the
-  pull request for the list).
+  rewritten card tests changed by less than 0.03 s each. At the time of that
+  move the row read 13.148 s with 12 tests and 4 browser-only, so its est.
+  movable was 8.8 s (13.148 times 8 of 12 tests), an upper bound and not a
+  saving. The row had no duration before, so it read 0.0. Each assertion was
+  proven red by breaking the component or `live-control.ts` on a scratch copy
+  (see the pull request for the list).
 - The ninth move, from `footer-consistency`: `Footer` already had stories
   for its version states, so no component changed. They are now `play`
   functions: the four links and their order, the GitHub link's `href`,
@@ -317,9 +320,10 @@ One ticket per group, each doing moves with its own mutation proof:
   Open check page link, and the run link in the footer). The five e2e tests that
   held these are gone. The remaining 50 tests read the page's copy flows and stay.
   On one worker the spec took 26.9 s over 60 runs before and 24.4 s over 55
-  after, on a machine with a load of about 7, so the saving is indicative. The
-  CSV row takes 24.4 s and 50 tests, and its est. movable (24.4 times 24 of 50
-  tests, 11.7 s) is an upper bound, not a saving. Each assertion was proven red
+  after, on a machine with a load of about 7, so the saving is indicative. At the
+  time of that move the est. movable was 11.7 s (24.4 times 24 of 50 tests), an
+  upper bound and not a saving. The regenerated CSV reads the CI durations and
+  the current test count instead. Each assertion was proven red
   by breaking the code: the Watch wording, the forge's name in the link, a
   running GitHub job and a queued job getting Show output, Forgejo losing Show
   output while running, the link's `target`, the new-tab warning on the run link
