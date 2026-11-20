@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.89.1](https://github.com/alrayyes/forge-dashboard/compare/v9.89.0...v9.89.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* say "Waiting for CI" once and on the same side of the pill ([#4421](https://github.com/alrayyes/forge-dashboard/issues/4421)) ([4acf698](https://github.com/alrayyes/forge-dashboard/commit/4acf69823bdec8f703e0270bafd33f29cec9529c)), closes [#4408](https://github.com/alrayyes/forge-dashboard/issues/4408)
+
 ## [9.89.0](https://github.com/alrayyes/forge-dashboard/compare/v9.88.6...v9.89.0) (2026-11-20)
 
 
