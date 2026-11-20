@@ -1037,3 +1037,111 @@ test('the overview rows follow a linked pull request without a reload', async ({
 
   await expect(pill).toContainText('Passed');
 });
+
+const mergedRef = (number: number, relation: string) => ({
+  forge: 'github',
+  repo: REPO,
+  number,
+  title: `Item ${number}`,
+  url: `https://example.com/${REPO}/pull/${number}`,
+  pageUrl: `/pull-requests.html?pr=github/${REPO}/${number}`,
+  kind: 'pullRequest',
+  state: 'merged',
+  direction: 'incoming',
+  relation,
+});
+
+test('a merged pull request from the details stays in the band of a listed issue across polls (#4462)', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.issues[1] = { ...world.issues[1], mentionedByPullRequests: [] };
+  world.references[1] = [
+    mergedRef(90, 'refs'),
+    mergedRef(91, 'mentions'),
+    mergedRef(92, 'closes'),
+  ];
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  const merged = (label: string) =>
+    band(dialog, label).locator('.linked-pr', { hasText: 'Merged' });
+  await expect(merged('Referenced by')).toHaveText(['PR #90 · Merged']);
+  await expect(merged('Mentioned by')).toHaveText(['PR #91 · Merged']);
+  await expect(merged('Closed by')).toHaveText(['PR #92 · Merged']);
+
+  // A poll changes the board's pills: the open ones follow it, and the merged
+  // ones read from the details are still there, once each.
+  world.issues[1] = {
+    ...world.issues[1],
+    linkedPullRequests: [linked(11)],
+    referencedByPullRequests: [linked(40)],
+  };
+  await push(page, world);
+  await expect(band(dialog, 'Referenced by').locator('.linked-pr')).toHaveText([
+    /PR #40/,
+    'PR #90 · Merged',
+  ]);
+  await expect(band(dialog, 'Closed by').locator('.linked-pr')).toHaveText([
+    /PR #11/,
+    'PR #92 · Merged',
+  ]);
+  await expect(merged('Mentioned by')).toHaveText(['PR #91 · Merged']);
+  await expect(dialog.locator('.related-count')).toHaveText('5');
+});
+
+test('a merged pull request the board no longer draws stays, from the details that listed it under a board pill (#4462)', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  // Every row is present, so a read that adds nothing changes nothing shown.
+  world.issues[1] = {
+    ...world.issues[1],
+    referencedByPullRequests: [],
+    mentionedByPullRequests: [],
+  };
+  // 10 is on the board and in the details, so the board's pill is the one drawn.
+  world.references[1] = [mergedRef(10, 'closes')];
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  await expect(closedBy(dialog)).toHaveText([/PR #10 · /]);
+  await expect(closedBy(dialog)).not.toContainText('Merged');
+
+  // The board drops its pill: the details still list 10, as merged.
+  world.issues[1] = { ...world.issues[1], linkedPullRequests: [] };
+  await push(page, world);
+  await expect(closedBy(dialog)).toHaveText(['PR #10 · Merged']);
+});
+
+test('a merged pull request goes from the band when a new read of the details stops listing it (#4462)', async ({
+  page,
+}) => {
+  const world = makeWorld();
+  world.issues[1] = { ...world.issues[1], mentionedByPullRequests: [] };
+  world.references[1] = [mergedRef(90, 'refs')];
+  await start(page, world);
+  await page
+    .locator('#issue-rows .row', { hasText: 'Issue 1' })
+    .locator('button.title')
+    .click();
+  const dialog = issueDialog(page);
+  await expect(dialog).toContainText('Issue one text.');
+  await expect(band(dialog, 'Referenced by').locator('.linked-pr')).toHaveCount(
+    1,
+  );
+
+  // The issue changed, so the details are read again, and 90 is not in them.
+  world.references[1] = [];
+  world.issues[1] = { ...world.issues[1], updatedAt: ago(1) };
+  await push(page, world);
+  await expect(band(dialog, 'Referenced by')).toHaveCount(0);
+});
