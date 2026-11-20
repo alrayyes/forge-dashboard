@@ -16,8 +16,32 @@ const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 // The attribute in any spelling: spaces inside the brackets, any case, `~=`,
 // an `i` flag, or bare presence.
 const pressed = /\[\s*aria-pressed\s*(?:~?=\s*(["']?)true\1\s*[is]?\s*)?\]/i;
-// A pseudo-element in any case, optionally followed by pseudo-classes.
-const pseudo = /::?(before|after)(?::[\w-]+(?:\([^)]*\))?)*$/i;
+// A pseudo-element in any case, optionally followed by pseudo-classes. The
+// pseudo-classes are peeled off the end one at a time, so an argument may
+// nest parentheses to any depth (`:not(:is(.a))`).
+function endsInPseudoElement(selector: string): boolean {
+  let rest = selector;
+  for (;;) {
+    if (rest.endsWith(')')) {
+      let depth = 0;
+      let open = -1;
+      for (let i = rest.length - 1; i >= 0; i--) {
+        if (rest[i] === ')') depth++;
+        else if (rest[i] === '(' && --depth === 0) {
+          open = i;
+          break;
+        }
+      }
+      if (open < 0) return false;
+      rest = rest.slice(0, open);
+    }
+    const pseudoClass = /:[\w-]+$/.exec(rest);
+    if (!pseudoClass || /^:(before|after)$/i.test(pseudoClass[0])) break;
+    rest = rest.slice(0, pseudoClass.index);
+  }
+
+  return /::?(before|after)$/i.test(rest);
+}
 
 // Split a selector list on its top-level commas, so a comma inside :is(),
 // :where(), :not() or an attribute value stays in one selector.
@@ -58,7 +82,7 @@ function tickSelectors(source: string): string[] {
         .replace(/\s+\)/g, ')'),
     ).map((part) => part.trim());
     for (const selector of selectors) {
-      if (pressed.test(selector) && pseudo.test(selector)) {
+      if (pressed.test(selector) && endsInPseudoElement(selector)) {
         found.push(selector);
       }
     }
@@ -134,6 +158,11 @@ describe('The pressed pill tick', () => {
 
   test('finds a pseudo-element followed by a pseudo-class with an argument', () => {
     const selector = '.a[aria-pressed="true"]::before:not(.b)';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
+  test('finds a pseudo-element followed by a pseudo-class with nested parentheses', () => {
+    const selector = '.a[aria-pressed="true"]::before:not(:is(.b))';
     expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
   });
 
