@@ -188,6 +188,25 @@ func TestErrorPages_Served_NeverShowTheVersion(t *testing.T) {
 	assert.NotContains(t, string(body), "dev build")
 }
 
+// The same for the 500 page: a handler that panics gets the real embedded
+// page, and nothing in it names the running release.
+func TestErrorPages_ServedAfterAPanic_NeverShowTheVersion(t *testing.T) {
+	t.Parallel()
+
+	static, err := fs.Sub(api.StaticFiles, "static")
+	require.NoError(t, err)
+	if _, err := fs.Stat(static, "500.html"); err != nil {
+		t.Skip("500.html isn't embedded: run bun run build:web first")
+	}
+
+	rec := get(api.RecoverPanics(static, panicking()), "/issues.html", "")
+
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Contains(t, rec.Body.String(), `id="footer-version"`) // the page is the real one
+	assert.NotContains(t, rec.Body.String(), testVersion)
+	assert.NotContains(t, rec.Body.String(), "dev build")
+}
+
 func TestErrorPages_KeepStatusTypeAndCaching(t *testing.T) {
 	t.Parallel()
 
