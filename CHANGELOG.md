@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.1](https://github.com/alrayyes/forge-dashboard/compare/v9.90.0...v9.90.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **web:** show merged pull requests in a listed issue's Related band ([#4465](https://github.com/alrayyes/forge-dashboard/issues/4465)) ([a04d5e1](https://github.com/alrayyes/forge-dashboard/commit/a04d5e1aacae0a03124c6fdf96053bd4bee775ca)), closes [#4462](https://github.com/alrayyes/forge-dashboard/issues/4462)
+
 ## [9.90.0](https://github.com/alrayyes/forge-dashboard/compare/v9.89.2...v9.90.0) (2026-11-20)
 
 
