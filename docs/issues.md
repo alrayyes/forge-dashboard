@@ -30,8 +30,11 @@ pages), so on a longer thread the newest references are left out. A timeline
 that fails part way keeps the references already read, and one that fails at
 the start leaves the issue with none; the rest of the thread still shows. A
 read the caller cancels is an error. The timeline can't tell a `Refs` from a
-plain mention, so only a closing keyword is told apart: the rest are under
-"Mentioned by". An issue nothing refers to has no band. Commits that mention
+plain mention, so the server reads each referring item's own description the way
+it reads an open pull request's: a closing keyword the forge confirms is "Closed
+by", `Refs`, `Related to` or `See` on the issue is "Referenced by", and the rest
+are under "Mentioned by". A merged or closed pull request is grouped by the same
+rule as an open one. An issue nothing refers to has no band. Commits that mention
 the issue are not listed.
 
 The same list also holds what the item's own title and description refer to
@@ -238,11 +241,16 @@ the page says so in a note over the list.
 A pull request can mention an issue without closing it, with `Refs #12` or a
 link in its description. In `GET /api/v1/dashboard` each issue lists those open
 pull requests as `mentionedByPullRequests`, always present, ordered by repo and
-number and with the same entries as `linkedPullRequests`. A pull request that
-closes the issue is only in `linkedPullRequests`, and one that references it
-with `Refs`, `Related to` or `See` is only in `referencedByPullRequests`; one
-whose `Closes` doesn't close, because it aims at a branch other than the
-default, is listed here. The
+number and with the same entries as `linkedPullRequests`. A pull request is
+under one relation to an issue, the strongest it has: closes, then references,
+then mentions. One that closes the issue is only in `linkedPullRequests`, even
+if it also says `Refs #12` or links `#12`. One that references it with `Refs`,
+`Related to` or `See` is only in `referencedByPullRequests`, even if it also
+links `#12` in plain text. One whose `Closes` doesn't close, because it aims
+at a branch other than the default, is listed here, as is one that only links
+the issue. Merged and closed pull requests follow the same order: the pop-up reads
+the pull request's own description when it draws the band, so the same text
+lands in the same group whether the pull request is open or merged. The
 server works this out from the pull requests it already holds, so it costs the
 forge no request. The
 issue's pop-up lists them under "Mentioned by" in its Related band, drawn like
