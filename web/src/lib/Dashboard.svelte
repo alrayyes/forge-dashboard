@@ -1566,11 +1566,45 @@
       return line;
     }
 
+    // The server's wait on CI, as the snapshot saw it. A pull request still
+    // checking for conflicts shares the code but is no wait on CI.
+    function snapshotWaitsOnCi(pr: PullRequestItem): boolean {
+      return (
+        pr.status?.code === "checks_pending" && pr.mergeStatus !== "checking"
+      );
+    }
+
+    // The snapshot says the wait is on CI but the pill, which reads the live
+    // jobs, has moved on. The words follow the pill, so a row never says
+    // Passed beside "Waiting for CI".
+    function ciWaitIsStale(pr: PullRequestItem): boolean {
+      if (!snapshotWaitsOnCi(pr)) return false;
+      const { status, awaiting } = ciModel(pr);
+      return status !== "pending" && !awaiting;
+    }
+
+    // An armed auto-merge waiting on CI says so in its chip, so the status
+    // line leaves the row's wording to it. The pop-up has no chip.
+    function chipSaysCiWait(pr: PullRequestItem): boolean {
+      return (
+        pr.autoMerge?.state === "waiting" &&
+        pr.autoMerge.code === "checks_pending" &&
+        !isSettled(pr) &&
+        !ciWaitIsStale(pr)
+      );
+    }
+
+    function waitChipTipId(pr: PullRequestItem): string {
+      return `${idScope}wait-chip-tip-${domSafeId(prKey(pr))}`;
+    }
+
     // The chip for an armed auto-merge that is waiting, with the button that
     // turns it off inside it. null when there is nothing to wait for, or the
     // row is settled.
     function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
       if (!pr.autoMerge) return null;
+      if (pr.autoMerge.code === "checks_pending" && ciWaitIsStale(pr))
+        return null;
       const chip = autoMergeChip({
         state: pr.autoMerge.state,
         code: pr.autoMerge.code,
@@ -1585,6 +1619,7 @@
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
         button: disarm ?? undefined,
+        tipId: waitChipTipId(pr),
       });
     }
 
@@ -3863,6 +3898,9 @@
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      if (ciWaitIsStale(item)) return null;
+      if (withFix && snapshotWaitsOnCi(item) && chipSaysCiWait(item))
+        return null;
       // The requested rebase is the fix the message asks for (#4022).
       if (!showsBehindStatus(status.code, rebaseRequested(item), withFix))
         return null;
@@ -3987,17 +4025,24 @@
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
+        if (ciWaitIsStale(item))
+          return lockedActionButton(
+            "Merge",
+            "Updating from the latest CI results",
+          );
         const described =
-          !item.status ||
-          !showsBehindStatus(
-            item.status.code,
-            rebaseRequested(item),
-            idScope === "",
-          )
-            ? undefined
-            : unconfirmedConflict(item) && item.status.code === "conflict"
-              ? conflictReasonId(item)
-              : statusAreaId(item);
+          idScope === "" && snapshotWaitsOnCi(item) && chipSaysCiWait(item)
+            ? waitChipTipId(item)
+            : !item.status ||
+                !showsBehindStatus(
+                  item.status.code,
+                  rebaseRequested(item),
+                  idScope === "",
+                )
+              ? undefined
+              : unconfirmedConflict(item) && item.status.code === "conflict"
+                ? conflictReasonId(item)
+                : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,

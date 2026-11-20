@@ -384,6 +384,8 @@ export type ChipDrawing = {
   ago?: HTMLElement;
   countdown?: HTMLElement;
   resets?: HTMLElement;
+  // The id of the tooltip, when something else on the row is described by it.
+  tipId?: string;
 };
 
 let chipCounter = 0;
@@ -397,7 +399,7 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   root.tabIndex = 0;
   root.setAttribute('role', 'group');
   root.setAttribute('aria-label', `${chip.label}, ${drawing.subject}`);
-  const tipId = `wait-chip-tip-${chipCounter++}`;
+  const tipId = drawing.tipId ?? `wait-chip-tip-${chipCounter++}`;
   root.setAttribute('aria-describedby', tipId);
 
   root.appendChild(icon(chip.icon));
