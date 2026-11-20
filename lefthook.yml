@@ -130,155 +130,241 @@ commit-msg:
 # reviewed. The one write is the test job's web build, which lands in
 # gitignored output (web/build, internal/api/static) and never in the commit.
 #
-# Parallel because of that: no job edits a file another one reads, and the
-# build's output is excluded from svelte-check (web/tsconfig.json).
+# Two groups, in order. The quick jobs run in parallel: none edits a file
+# another one reads, and the build's output is excluded from svelte-check
+# (web/tsconfig.json). The three heavy ones (storybook, component tests, the
+# image build) then run one at a time, because each starts Chromium or a
+# container build and side by side they starved each other into timeouts.
+#
+# A job with a `glob` runs only when the push touches a matching file, so a
+# docs-only push skips the Go, Storybook and image jobs; `lefthook run
+# pre-push --verbose` lists each skip. The globs are each job's real inputs,
+# and scripts/lefthook-globs.test.ts pins them to the Dockerfile's COPY
+# sources and the go:embed targets. A push that only edits this file runs
+# the Go tests, Storybook, component tests and image build, since it can change how they run.
 pre-push:
-  parallel: true
   jobs:
-    # The web build first, as in CI's go job: the embedded static files hold
-    # the built style.css, which TestStatic_ServerWiring serves. The build
-    # only writes gitignored output, and web/tsconfig.json excludes web/build,
-    # so svelte-check can run beside it.
-    - name: test
-      run: bun run build:web && scripts/go-docker.sh go test ./...
+    # Everything cheap, together: no job edits a file another one reads.
+    - group:
+        parallel: true
+        jobs:
+          # The web build first, as in CI's go job: the embedded static files hold
+          # the built style.css, which TestStatic_ServerWiring serves. The build
+          # only writes gitignored output, and web/tsconfig.json excludes web/build,
+          # so svelte-check can run beside it.
+          - name: test
+            glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
+              - "cmd/**"
+              - "internal/**"
+              - "api/openapi.yaml"
+              - "docs/rate-limits.md"
+              - "tests/generated/**"
+              - "scripts/go-docker.sh"
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "CHANGELOG.md"
+              - "scripts/sync-web-build.sh"
+              - "scripts/changelog-json.ts"
+              - "internal/api/static/**"
+              - "lefthook.yml"
+            run: bun run build:web && scripts/go-docker.sh go test ./...
 
-    # go-lint.md: golangci-lint type-checks whole packages through
-    # go/packages, so trimming the file list barely trims the run time — it
-    # belongs at the point that's paid once a branch, not on every commit.
-    - name: golangci-lint
-      run: scripts/golangci-lint-docker.sh golangci-lint run ./...
+          # go-lint.md: golangci-lint type-checks whole packages through
+          # go/packages, so trimming the file list barely trims the run time — it
+          # belongs at the point that's paid once a branch, not on every commit.
+          - name: golangci-lint
+            glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
+              - ".golangci.yml"
+              - ".golangci.yaml"
+              - "scripts/golangci-lint-docker.sh"
+              - "scripts/go-docker.sh"
+            run: scripts/golangci-lint-docker.sh golangci-lint run ./...
 
-    # No check-only flag on `go mod edit -fmt`, so the gate is running it
-    # again and diffing. A no-op on a go.mod pre-commit already canonicalized;
-    # only fails if that got bypassed.
-    - name: gomod
-      run: scripts/go-docker.sh go mod edit -fmt go.mod && git diff --exit-code go.mod
+          # No check-only flag on `go mod edit -fmt`, so the gate is running it
+          # again and diffing. A no-op on a go.mod pre-commit already canonicalized;
+          # only fails if that got bypassed.
+          - name: gomod
+            glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
+              - "scripts/go-docker.sh"
+            run: scripts/go-docker.sh go mod edit -fmt go.mod && git diff --exit-code go.mod
 
-    # go-mod.md: broader than the fmt check above — a stale require, a
-    # non-canonical version string, or a go.sum entry nothing imports
-    # anymore, none of which `go build`/`go test` catch on their own.
-    - name: gomod-tidy
-      run: scripts/go-docker.sh go mod tidy -diff
+          # go-mod.md: broader than the fmt check above — a stale require, a
+          # non-canonical version string, or a go.sum entry nothing imports
+          # anymore, none of which `go build`/`go test` catch on their own.
+          - name: gomod-tidy
+            glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
+              - "scripts/go-docker.sh"
+            run: scripts/go-docker.sh go mod tidy -diff
 
-    # go-releases.md: a broken release config should fail here, not on release
-    # day. The goreleaser version the release job runs, from its image pinned
-    # by digest, and only when the config is in the push.
-    - name: goreleaser
-      glob: ".goreleaser.yml"
-      run: scripts/goreleaser-docker.sh check
+          # go-releases.md: a broken release config should fail here, not on release
+          # day. The goreleaser version the release job runs, from its image pinned
+          # by digest, and only when the config is in the push.
+          - name: goreleaser
+            glob: ".goreleaser.yml"
+            run: scripts/goreleaser-docker.sh check
 
-    # These are `package.json` scripts rather than the commands spelled out,
-    # because CI runs the same ones and a literal copied into two files drifts
-    # the first time somebody edits one of them.
-    - name: prettier
-      run: bun run format:check
+          # These are `package.json` scripts rather than the commands spelled out,
+          # because CI runs the same ones and a literal copied into two files drifts
+          # the first time somebody edits one of them.
+          - name: prettier
+            run: bun run format:check
 
-    - name: markdownlint
-      run: bun run lint:md
+          - name: markdownlint
+            run: bun run lint:md
 
-    # Public docs say it in a sentence, not by ticket number; the script's
-    # header has the why. Its own test runs in the unit job below.
-    - name: doc ticket refs
-      run: bun run lint:refs
+          # Public docs say it in a sentence, not by ticket number; the script's
+          # header has the why. Its own test runs in the unit job below.
+          - name: doc ticket refs
+            run: bun run lint:refs
 
-    # A moved page or renamed heading must not leave a dead link or anchor;
-    # the script's header has the rules. Its own test runs in the unit job.
-    - name: doc links
-      run: bun run lint:links
+          # A moved page or renamed heading must not leave a dead link or anchor;
+          # the script's header has the rules. Its own test runs in the unit job.
+          - name: doc links
+            run: bun run lint:links
 
-    # Reads only: pre-commit already sorted what was staged, so this fails
-    # only if that got bypassed.
-    - name: sort-package-json
-      run: bun run lint:pkg
+          # Reads only: pre-commit already sorted what was staged, so this fails
+          # only if that got bypassed.
+          - name: sort-package-json
+            run: bun run lint:pkg
 
-    # A spec naming an unversioned /api/ route stops matching its mock and
-    # times out the e2e shards; the script's header has the rules. Its own
-    # test runs in the unit job below.
-    # The glob is the CI gate's: scripts/changed-areas.sh's web area.
-    - name: spec api routes
-      glob:
-        - "tests/**"
-        - "scripts/**"
-        - "web/**"
-        - ".semgrep/**"
-        - "playwright.config.ts"
-        - "biome.json"
-        - "tsconfig.json"
-        - "lighthouserc.json"
-      run: bun run lint:specs
+          # A spec naming an unversioned /api/ route stops matching its mock and
+          # times out the e2e shards; the script's header has the rules. Its own
+          # test runs in the unit job below.
+          # The glob is the CI gate's: scripts/changed-areas.sh's web area.
+          - name: spec api routes
+            glob:
+              - "tests/**"
+              - "scripts/**"
+              - "web/**"
+              - ".semgrep/**"
+              - "playwright.config.ts"
+              - "biome.json"
+              - "tsconfig.json"
+              - "lighthouserc.json"
+            run: bun run lint:specs
 
-    # The unit tests under web/src, which run in milliseconds and in the CI
-    # js job. Plain bun test, no browser and no server.
-    - name: unit
-      run: bun run test:unit
+          # The unit tests under web/src, which run in milliseconds and in the CI
+          # js job. Plain bun test, no browser and no server.
+          - name: unit
+            run: bun run test:unit
 
-    # Every other linter here runs at commit, at push and in CI. Vale ran at
-    # commit and then nothing until CI, because its invocation lived in the
-    # workflow as a block of bash with nothing a hook could reuse. It is a
-    # script now, and this is the whole-tree run that was missing.
-    - name: vale
-      run: bun run lint:prose
+          # Every other linter here runs at commit, at push and in CI. Vale ran at
+          # commit and then nothing until CI, because its invocation lived in the
+          # workflow as a block of bash with nothing a hook could reuse. It is a
+          # script now, and this is the whole-tree run that was missing.
+          - name: vale
+            run: bun run lint:prose
 
-    # Grammar and spelling. Left out of pre-commit on the grounds that it is a
-    # ~300 MB download, which it is — but it caches outside the repository and
-    # then costs about ten seconds, plus a JVM start that is real CPU when
-    # several pushes land at once. So it runs only when the push holds prose,
-    # and checks only the pushed Markdown; the script says why when it stops
-    # early, and checks the whole tree when .ltex.json or itself is in the
-    # push. CI and `bun run lint:mechanics` still check everything.
-    - name: mechanics
-      glob:
-        - "*.md"
-        - ".ltex.json"
-        - "scripts/lint-mechanics.sh"
-      run: ./scripts/lint-mechanics.sh {push_files}
+          # Grammar and spelling. Left out of pre-commit on the grounds that it is a
+          # ~300 MB download, which it is — but it caches outside the repository and
+          # then costs about ten seconds, plus a JVM start that is real CPU when
+          # several pushes land at once. So it runs only when the push holds prose,
+          # and checks only the pushed Markdown; the script says why when it stops
+          # early, and checks the whole tree when .ltex.json or itself is in the
+          # push. CI and `bun run lint:mechanics` still check everything.
+          - name: mechanics
+            glob:
+              - "*.md"
+              - ".ltex.json"
+              - "scripts/lint-mechanics.sh"
+            run: ./scripts/lint-mechanics.sh {push_files}
 
-    - name: redocly
-      run: bun run lint:api
+          - name: redocly
+            run: bun run lint:api
 
-    # OWASP's API security rules over the same spec. Whole-spec, like redocly
-    # above; the glob only decides whether it's worth running.
-    - name: spectral
-      glob:
-        - "api/**"
-        - ".spectral.yaml"
-      run: bun run lint:api:security
+          # OWASP's API security rules over the same spec. Whole-spec, like redocly
+          # above; the glob only decides whether it's worth running.
+          - name: spectral
+            glob:
+              - "api/**"
+              - ".spectral.yaml"
+            run: bun run lint:api:security
 
-    - name: biome
-      run: bun run lint:js
+          - name: biome
+            run: bun run lint:js
 
-    # Biome excludes .svelte entirely (biome.json) -- this is that file
-    # type's own check, same reasoning ci.yml's svelte-check job comment
-    # gives.
-    - name: svelte-check
-      run: bun run check:web
+          # Biome excludes .svelte entirely (biome.json) -- this is that file
+          # type's own check, same reasoning ci.yml's svelte-check job comment
+          # gives.
+          - name: svelte-check
+            run: bun run check:web
 
-    # Playwright runs TypeScript without checking it — this is the check.
-    - name: tests-types
-      run: bun run check:tests
+          # Playwright runs TypeScript without checking it — this is the check.
+          - name: tests-types
+            run: bun run check:tests
 
-    # Builds the Storybook catalog, screenshots every story into
-    # docs/storybook/ and scans each with axe. The same script CI's storybook
-    # job runs. Needs Playwright's Chromium (`bunx playwright install
-    # chromium` once), the same as tests/run-local.sh.
-    - name: storybook
-      glob:
-        - "web/**"
-        - "scripts/storybook-screenshots.ts"
-        - "package.json"
-        - "bun.lock"
-      run: bun run storybook:screenshots
+    # The three heavy jobs, one after another once the group above is done.
+    # Each starts Chromium or a container build, and run side by side (and
+    # beside the quick jobs, and beside other pushes) they starved each other
+    # into timeouts. `piped` also stops at the first failure.
+    - group:
+        piped: true
+        jobs:
+          # Builds the Storybook catalog, screenshots every story into
+          # docs/storybook/ and scans each with axe. The same script CI's storybook
+          # job runs. Needs Playwright's Chromium (`bunx playwright install
+          # chromium` once), the same as tests/run-local.sh.
+          - name: storybook
+            glob:
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "scripts/storybook-screenshots.ts"
+              - "scripts/storybook-logo-route.ts"
+              - "lefthook.yml"
+            run: bun run storybook:screenshots
 
-    # Runs the stories' play functions as component tests in Chromium (#3626).
-    # The same script CI's storybook job runs after the screenshots.
-    - name: component-tests
-      glob:
-        - "web/**"
-        - "package.json"
-        - "bun.lock"
-      run: bun run test:components
+          # Runs the stories' play functions as component tests in Chromium (#3626).
+          # The same script CI's storybook job runs after the screenshots.
+          - name: component-tests
+            glob:
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "lefthook.yml"
+            run: bun run test:components
 
-    # Proves the image still builds before anyone pushes, without publishing
-    # anything. Here rather than at commit: it builds the tree, not the commit.
-    - name: docker-build
-      run: docker build -t forge-dashboard:pre-push-check .
+          # Proves the image still builds before anyone pushes, without publishing
+          # anything. Here rather than at commit: it builds the tree, not the commit.
+          - name: docker-build
+            glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
+              - "Dockerfile"
+              - "Dockerfile.release"
+              - ".dockerignore"
+              - "cmd/**"
+              - "internal/**"
+              - "api/**"
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "CHANGELOG.md"
+              - "scripts/sync-web-build.sh"
+              - "scripts/changelog-json.ts"
+              - "internal/api/static/**"
+              - "lefthook.yml"
+            run: docker build -t forge-dashboard:pre-push-check .

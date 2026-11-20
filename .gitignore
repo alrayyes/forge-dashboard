@@ -11,7 +11,7 @@ node_modules/
 .bun-cache/
 
 # Playwright's own run output, not something to commit.
-/test-results/
+test-results/
 /playwright-report/
 
 # Lighthouse CI's own report output, uploaded as a CI artifact instead.
