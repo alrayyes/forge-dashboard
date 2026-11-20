@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"io"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -27,7 +28,7 @@ func errorPageFixture() fstest.MapFS {
 func TestStatic_UnknownPath_AnswersTheNotFoundPageWithA404(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(errorPageFixture(), false, "dev")
+	h := api.NewStaticHandler(errorPageFixture(), false)
 
 	resp := get(h, "/nope", "")
 
@@ -41,7 +42,7 @@ func TestStatic_UnknownPath_AnswersTheNotFoundPageWithA404(t *testing.T) {
 func TestStatic_MissingHashedAsset_StaysAnUncachedPlain404(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(errorPageFixture(), false, "dev")
+	h := api.NewStaticHandler(errorPageFixture(), false)
 
 	resp := get(h, "/_app/immutable/entry/gone.js", "")
 
@@ -53,7 +54,7 @@ func TestStatic_MissingHashedAsset_StaysAnUncachedPlain404(t *testing.T) {
 func TestStatic_UnknownPath_WithoutAnErrorPageFile_KeepsThePlain404(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(staticFixture(), false, "dev")
+	h := api.NewStaticHandler(staticFixture(), false)
 
 	resp := get(h, "/nope", "")
 
@@ -63,7 +64,7 @@ func TestStatic_UnknownPath_WithoutAnErrorPageFile_KeepsThePlain404(t *testing.T
 func TestStatic_HeadOnUnknownPath_Is404WithoutABody(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(errorPageFixture(), false, "dev")
+	h := api.NewStaticHandler(errorPageFixture(), false)
 	req := httptest.NewRequest(http.MethodHead, "/nope", nil)
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
@@ -75,7 +76,7 @@ func TestStatic_HeadOnUnknownPath_Is404WithoutABody(t *testing.T) {
 func TestRecoverPanics_APanickingHandler_AnswersThe500PageWithNoInternals(t *testing.T) {
 	t.Parallel()
 
-	h := api.RecoverPanics(errorPageFixture(), "dev", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := api.RecoverPanics(errorPageFixture(), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom at /srv/app/secret.go:42")
 	}))
 
@@ -91,7 +92,7 @@ func TestRecoverPanics_APanickingHandler_AnswersThe500PageWithNoInternals(t *tes
 func TestRecoverPanics_APanicOnAnAPIPath_AnswersJSON(t *testing.T) {
 	t.Parallel()
 
-	h := api.RecoverPanics(errorPageFixture(), "dev", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := api.RecoverPanics(errorPageFixture(), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic("boom")
 	}))
 
@@ -105,7 +106,7 @@ func TestRecoverPanics_APanicOnAnAPIPath_AnswersJSON(t *testing.T) {
 func TestRecoverPanics_NoPanic_PassesThrough(t *testing.T) {
 	t.Parallel()
 
-	h := api.RecoverPanics(errorPageFixture(), "dev", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	h := api.RecoverPanics(errorPageFixture(), http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTeapot)
 	}))
 
@@ -115,7 +116,7 @@ func TestRecoverPanics_NoPanic_PassesThrough(t *testing.T) {
 func TestRecoverPanics_AbortHandler_IsNotSwallowed(t *testing.T) {
 	t.Parallel()
 
-	h := api.RecoverPanics(errorPageFixture(), "dev", http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+	h := api.RecoverPanics(errorPageFixture(), http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		panic(http.ErrAbortHandler)
 	}))
 
@@ -137,7 +138,7 @@ func TestServer_UnknownAPIPath_IsJSONNotThePage(t *testing.T) {
 func TestStatic_TheErrorPageFilesThemselves_NeverAnswer200(t *testing.T) {
 	t.Parallel()
 
-	h := api.NewStaticHandler(errorPageFixture(), false, "dev")
+	h := api.NewStaticHandler(errorPageFixture(), false)
 
 	for _, path := range []string{"/404.html", "/500.html"} {
 		resp := get(h, path, "")
@@ -148,9 +149,8 @@ func TestStatic_TheErrorPageFilesThemselves_NeverAnswer200(t *testing.T) {
 	}
 }
 
-// The prerendered pages ship with scripting off, so the footer's version
-// can't be fetched in the browser. The server fills the empty placeholder
-// span instead, from the version it was built with.
+// The prerendered pages ship with scripting off and anyone can trigger one, so
+// they never carry the running version (#4427).
 
 const footerPlaceholder = `<span id="footer-version"></span>`
 
@@ -166,100 +166,38 @@ func panicking() http.Handler {
 	return http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })
 }
 
-func TestErrorPages_ReleaseBuild_ShowTheVersionLinkInTheFooter(t *testing.T) {
+// The real server, with the built pages embedded: a request for an unknown
+// address gets the 404 page, and nothing in it names the running release.
+func TestErrorPages_Served_NeverShowTheVersion(t *testing.T) {
 	t.Parallel()
 
-	want := `GitHub</a> <span id="footer-version">&#183; <a class="mono" href="/changelog.html">v1.2.3</a></span> &#183; <a>Disclaimer</a>`
+	if _, err := fs.Stat(api.StaticFiles, "static/404.html"); err != nil {
+		t.Skip("404.html isn't embedded: run bun run build:web first")
+	}
 
-	notFound := get(api.NewStaticHandler(footerPageFixture(), false, "1.2.3"), "/nope", "")
-	assert.Equal(t, http.StatusNotFound, notFound.Code)
-	assert.Contains(t, notFound.Body.String(), want)
+	srv := newTestServer(t)
+	resp, err := testClient(t).Get(srv.URL + "/no-such-page") //nolint:noctx // test against a local server
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
 
-	crashed := get(api.RecoverPanics(footerPageFixture(), "1.2.3", panicking()), "/issues.html", "")
-	assert.Equal(t, http.StatusInternalServerError, crashed.Code)
-	assert.Contains(t, crashed.Body.String(), want)
+	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Contains(t, string(body), `id="footer-version"`) // the page is the real one
+	assert.NotContains(t, string(body), testVersion)
+	assert.NotContains(t, string(body), "dev build")
 }
 
-func TestErrorPages_DevBuild_ShowTheDevLabelWithoutALink(t *testing.T) {
+func TestErrorPages_KeepStatusTypeAndCaching(t *testing.T) {
 	t.Parallel()
 
-	want := `<span id="footer-version">&#183; dev build</span>`
-
-	notFound := get(api.NewStaticHandler(footerPageFixture(), false, "dev"), "/nope", "")
-	assert.Contains(t, notFound.Body.String(), want)
-	assert.NotContains(t, notFound.Body.String(), "/changelog.html")
-
-	crashed := get(api.RecoverPanics(footerPageFixture(), "dev", panicking()), "/issues.html", "")
-	assert.Contains(t, crashed.Body.String(), want)
-	assert.NotContains(t, crashed.Body.String(), "/changelog.html")
-}
-
-func TestErrorPages_VersionWithHTMLCharacters_IsEscaped(t *testing.T) {
-	t.Parallel()
-
-	const evil = `1"><script>alert(1)</script>`
-
-	notFound := get(api.NewStaticHandler(footerPageFixture(), false, evil), "/nope", "")
-	assert.NotContains(t, notFound.Body.String(), "<script>")
-	assert.Contains(t, notFound.Body.String(), "v1&#34;&gt;&lt;script&gt;alert(1)&lt;/script&gt;</a>")
-
-	crashed := get(api.RecoverPanics(footerPageFixture(), evil, panicking()), "/issues.html", "")
-	assert.NotContains(t, crashed.Body.String(), "<script>")
-}
-
-func TestErrorPages_WithTheVersion_KeepStatusTypeAndCaching(t *testing.T) {
-	t.Parallel()
-
-	notFound := get(api.NewStaticHandler(footerPageFixture(), false, "1.2.3"), "/nope", "")
+	notFound := get(api.NewStaticHandler(footerPageFixture(), false), "/nope", "")
 	assert.Equal(t, http.StatusNotFound, notFound.Code)
 	assert.Equal(t, "text/html; charset=utf-8", notFound.Header().Get("Content-Type"))
 	assert.Equal(t, "no-cache", notFound.Header().Get("Cache-Control"))
 
-	crashed := get(api.RecoverPanics(footerPageFixture(), "1.2.3", panicking()), "/issues.html", "")
+	crashed := get(api.RecoverPanics(footerPageFixture(), panicking()), "/issues.html", "")
 	assert.Equal(t, http.StatusInternalServerError, crashed.Code)
 	assert.Equal(t, "text/html; charset=utf-8", crashed.Header().Get("Content-Type"))
 	assert.Equal(t, "no-store", crashed.Header().Get("Cache-Control"))
-}
-
-func TestInjectFooterVersion_WithoutThePlaceholder_ReportsIt(t *testing.T) {
-	t.Parallel()
-
-	_, err := api.InjectFooterVersion([]byte("<footer>no span</footer>"), "1.2.3")
-
-	require.Error(t, err)
-}
-
-// Fails loudly when a frontend change renames or drops the placeholder, so
-// the version never disappears from the error pages without anyone noticing.
-// The pages exist once the web build has run (bun run build:web).
-func TestEmbeddedErrorPages_CarryTheFooterPlaceholder(t *testing.T) {
-	t.Parallel()
-
-	static, err := fs.Sub(api.StaticFiles, "static")
-	require.NoError(t, err)
-
-	for _, name := range []string{"404.html", "500.html"} {
-		page, err := fs.ReadFile(static, name)
-		if err != nil {
-			t.Skipf("%s isn't embedded: run bun run build:web first", name)
-		}
-
-		for _, version := range []string{"dev", "1.2.3"} {
-			out, err := api.InjectFooterVersion(page, version)
-			require.NoError(t, err, "%s lost the #footer-version placeholder; the server can't show the version", name)
-			assert.NotEqual(t, string(page), string(out), name)
-			assert.Contains(t, string(out), `<span id="footer-version">&#183; `, name)
-
-			// Only the span's content may change: the separator before it and
-			// everything after stay as the frontend rendered them.
-			assert.Equal(t, stripFooterSpan(string(page)), stripFooterSpan(string(out)), name)
-		}
-	}
-}
-
-func stripFooterSpan(page string) string {
-	start := strings.Index(page, `<span id="footer-version">`)
-	end := start + strings.Index(page[start:], "</span>")
-
-	return page[:start] + page[end:]
 }
