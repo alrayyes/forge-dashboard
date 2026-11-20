@@ -138,7 +138,10 @@ commit-msg:
 #
 # A job with a `glob` runs only when the push touches a matching file, so a
 # docs-only push skips the Go, Storybook and image jobs; `lefthook run
-# pre-push --verbose` lists each skip.
+# pre-push --verbose` lists each skip. The globs are each job's real inputs,
+# and scripts/lefthook-globs.test.ts pins them to the Dockerfile's COPY
+# sources and the go:embed targets. A push that only edits this file runs
+# the Go, Storybook and image jobs, since it can change how they run.
 pre-push:
   jobs:
     # Everything cheap, together: no job edits a file another one reads.
@@ -151,11 +154,23 @@ pre-push:
           # so svelte-check can run beside it.
           - name: test
             glob:
+              - "*.go"
               - "**/*.go"
               - "go.mod"
               - "go.sum"
-              - "web/**"
+              - "cmd/**"
+              - "internal/**"
               - "api/openapi.yaml"
+              - "scripts/go-docker.sh"
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "CHANGELOG.md"
+              - "scripts/sync-web-build.sh"
+              - "scripts/changelog-json.ts"
+              - "internal/api/static/**"
+              - "lefthook.yml"
             run: bun run build:web && scripts/go-docker.sh go test ./...
 
           # go-lint.md: golangci-lint type-checks whole packages through
@@ -163,12 +178,15 @@ pre-push:
           # belongs at the point that's paid once a branch, not on every commit.
           - name: golangci-lint
             glob:
+              - "*.go"
               - "**/*.go"
               - "go.mod"
               - "go.sum"
               - ".golangci.yml"
               - ".golangci.yaml"
               - "api/openapi.yaml"
+              - "scripts/golangci-lint-docker.sh"
+              - "scripts/go-docker.sh"
             run: scripts/golangci-lint-docker.sh golangci-lint run ./...
 
           # No check-only flag on `go mod edit -fmt`, so the gate is running it
@@ -176,9 +194,11 @@ pre-push:
           # only fails if that got bypassed.
           - name: gomod
             glob:
+              - "*.go"
+              - "**/*.go"
               - "go.mod"
               - "go.sum"
-              - "**/*.go"
+              - "scripts/go-docker.sh"
             run: scripts/go-docker.sh go mod edit -fmt go.mod && git diff --exit-code go.mod
 
           # go-mod.md: broader than the fmt check above — a stale require, a
@@ -186,9 +206,11 @@ pre-push:
           # anymore, none of which `go build`/`go test` catch on their own.
           - name: gomod-tidy
             glob:
+              - "*.go"
+              - "**/*.go"
               - "go.mod"
               - "go.sum"
-              - "**/*.go"
+              - "scripts/go-docker.sh"
             run: scripts/go-docker.sh go mod tidy -diff
 
           # go-releases.md: a broken release config should fail here, not on release
@@ -302,9 +324,12 @@ pre-push:
           - name: storybook
             glob:
               - "web/**"
-              - "scripts/storybook-screenshots.ts"
               - "package.json"
               - "bun.lock"
+              - "bunfig.toml"
+              - "scripts/storybook-screenshots.ts"
+              - "scripts/storybook-logo-route.ts"
+              - "lefthook.yml"
             run: bun run storybook:screenshots
 
           # Runs the stories' play functions as component tests in Chromium (#3626).
@@ -314,19 +339,31 @@ pre-push:
               - "web/**"
               - "package.json"
               - "bun.lock"
+              - "bunfig.toml"
+              - "lefthook.yml"
             run: bun run test:components
 
           # Proves the image still builds before anyone pushes, without publishing
           # anything. Here rather than at commit: it builds the tree, not the commit.
           - name: docker-build
             glob:
+              - "*.go"
+              - "**/*.go"
+              - "go.mod"
+              - "go.sum"
               - "Dockerfile"
               - "Dockerfile.release"
               - ".dockerignore"
-              - "go.mod"
-              - "go.sum"
               - "cmd/**"
               - "internal/**"
-              - "web/**"
               - "api/**"
+              - "web/**"
+              - "package.json"
+              - "bun.lock"
+              - "bunfig.toml"
+              - "CHANGELOG.md"
+              - "scripts/sync-web-build.sh"
+              - "scripts/changelog-json.ts"
+              - "internal/api/static/**"
+              - "lefthook.yml"
             run: docker build -t forge-dashboard:pre-push-check .

@@ -60,8 +60,11 @@ screenshots, the component tests and the image build. Side by side, and beside
 other pushes from the same machine, they starved each other into timeouts. A
 job with a file filter runs only when the push touches a matching file, so a
 docs-only push skips the Go tests, Go lint, Storybook, component tests and
-image build. `lefthook run pre-push --verbose` lists each skip. Nothing CI
-runs is dropped from the hook, so the CI-only list at the top of
+image build. `lefthook run pre-push --verbose` lists each skip. The filters
+are each job's inputs (the Dockerfile's `COPY` sources, the `go:embed` targets,
+the build scripts), and `scripts/lefthook-globs.test.ts` fails when one drifts.
+A push that only edits `lefthook.yml` runs the Go, Storybook and image jobs.
+CI still runs everything the hook skips, and the CI-only list at the top of
 `lefthook.yml` still holds.
 
 CI runs a job only when a file it reads changed. The first job, `changes`,
