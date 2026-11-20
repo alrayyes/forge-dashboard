@@ -3,6 +3,7 @@ import {
   mkdirSync,
   mkdtempSync,
   rmSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from 'node:fs';
@@ -93,5 +94,101 @@ test('the message names the newer file and both build commands', () => {
 
 test('the message is null for a fresh binary', () => {
   const { root, bin } = repo({ 'internal/a.go': 900 });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
+
+test('ignores Go test files and testdata, which are not compiled into the binary', () => {
+  const { root, bin } = repo({
+    'internal/a_test.go': 1100,
+    'cmd/forge-dashboard/main_test.go': 1100,
+    'internal/dashboard/testdata/case.json': 1100,
+  });
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('still counts a non-test Go file whose name only contains test', () => {
+  const { root, bin } = repo({ 'internal/testing_helpers.go': 1100 });
+  expect(newerInput(root, bin)).toBe(
+    path.join('internal', 'testing_helpers.go'),
+  );
+});
+
+test('skips a broken symlink instead of throwing, and still finds a real stale input', () => {
+  const { root, bin } = repo({ 'internal/real.go': 1100 });
+  symlinkSync(
+    path.join(root, 'gone.go'),
+    path.join(root, 'internal', 'aaa-dangling.go'),
+  );
+  expect(newerInput(root, bin)).toBe(path.join('internal', 'real.go'));
+});
+
+test('is null when the only odd entry is a broken symlink', () => {
+  const { root, bin } = repo({ 'internal/real.go': 900 });
+  symlinkSync(
+    path.join(root, 'gone.go'),
+    path.join(root, 'internal', 'dangling.go'),
+  );
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('says a future-dated input is the reason, not that the binary is old', () => {
+  const { root, bin } = repo({ 'internal/clock.go': 5000 });
+  const now = 2000 * 1000;
+  const msg = staleBinaryMessage(root, bin, now);
+  expect(msg).toContain(path.join('internal', 'clock.go'));
+  expect(msg).toContain('dated in the future');
+  expect(msg).not.toContain('is older than');
+});
+
+test('a newer input that is not in the future still says the binary is older', () => {
+  const { root, bin } = repo({ 'internal/a.go': 1100 });
+  const msg = staleBinaryMessage(root, bin, 2000 * 1000);
+  expect(msg).toContain('is older than');
+  expect(msg).not.toContain('dated in the future');
+});
+
+test('fails when the web bundle was synced before the last web edit, even though the binary is newer', () => {
+  const { root, bin } = repo({
+    'web/src/routes/page.svelte': 900,
+    'internal/api/static/_app/version.json': 800,
+  });
+  const msg = staleBinaryMessage(root, bin);
+  expect(msg).toContain(
+    `${path.join('internal', 'api', 'static')} was synced before ${path.join('web', 'src', 'routes', 'page.svelte')}`,
+  );
+  expect(msg).toContain('Run bun run build:web first');
+  expect(msg).not.toContain('is older than');
+});
+
+test('a web/static edit after the sync counts the same way', () => {
+  const { root, bin } = repo({
+    'web/static/icon.svg': 900,
+    'internal/api/static/_app/version.json': 800,
+  });
+  expect(staleBinaryMessage(root, bin)).toContain(
+    path.join('web', 'static', 'icon.svg'),
+  );
+});
+
+test('passes when the bundle was synced after the last web edit', () => {
+  const { root, bin } = repo({
+    'web/src/routes/page.svelte': 800,
+    'web/static/icon.svg': 810,
+    'internal/api/static/_app/version.json': 900,
+  });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
+
+test('compares against the newest synced file, not the oldest', () => {
+  const { root, bin } = repo({
+    'web/src/page.svelte': 900,
+    'internal/api/static/_app/old.js': 100,
+    'internal/api/static/_app/immutable/new.js': 950,
+  });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
+
+test('does not demand a sync when the repo never built the web bundle', () => {
+  const { root, bin } = repo({ 'web/src/page.svelte': 900 });
   expect(staleBinaryMessage(root, bin)).toBeNull();
 });

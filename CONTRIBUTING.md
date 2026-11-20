@@ -240,8 +240,15 @@ own and one signed-in owner, so a spec needs no registration of its own:
   a stale one would pass a spec against old code: without `E2E_BINARY`,
   `tests/global-setup.ts` fails the run, printing that command, when
   `forge-dashboard-e2e` is older than any file under `cmd/`, `internal/`,
-  `web/src/` or `web/static/`, or than `go.mod` or `go.sum`. Setting
-  `E2E_BINARY` skips the check.
+  `web/src/` or `web/static/`, or than `go.mod` or `go.sum`. Go `_test.go`
+  files and `testdata/` directories don't count, since they aren't compiled
+  into the binary, and neither does a broken symlink. It also fails when a file
+  under `web/src/` or `web/static/` is newer than the bundle in
+  `internal/api/static/_app/`: `go build` alone leaves the old bundle embedded,
+  so run `bun run build:web` first. (Without `_app/` there is no bundle to
+  compare, and that check passes.) A watched file dated in the future is named
+  as the cause, because no rebuild can make the binary newer than it. Setting
+  `E2E_BINARY` skips all of these checks.
 - A new spec imports its `test` from `tests/server-fixture.ts` and goes at the
   end of the list in the config.
 
