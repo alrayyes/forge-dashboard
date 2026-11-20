@@ -1,4 +1,6 @@
 # Regenerates spec-classes.csv. Usage: python3 docs/e2e-audit/classify.py . docs/e2e-audit/spec-classes.csv
+# scripts/e2e-audit-csv.test.ts fails when the committed CSV differs from this output.
+# lower-annotations.json holds the one thing a scan cannot find: lower tests proven by hand.
 import json,re,glob,os,csv,sys
 root=sys.argv[1]
 dur=json.load(open(f'{root}/tests/e2e-durations.json'))
@@ -9,6 +11,7 @@ gostems={g[:-8].replace('_','-') for g in gotests}
 Bset={'settings-field-errors','filter-persistence','main-branches-server-copy'}
 Aset={'mono-figures'}  # assertions live in a helper the token scan cannot see
 Dset={'filter-save-order':'web/src/lib/filters-save-order.test.ts','filter-mixed-case':'web/src/lib/filters-mixed-case.test.ts'}
+ann=json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'lower-annotations.json')))
 rows=[]
 for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
     n=os.path.basename(p); stem=n[:-8]
@@ -18,6 +21,7 @@ for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
     nb=sum(1 for t in parts if BROWSER.search(t))
     d=dur.get(n)
     lowers=[f'web/src/lib/{l}.test.ts' for l in sorted(lib) if l==stem or stem.startswith(l+'-') or l.startswith(stem)]
+    lowers+=ann.get(n,[])
     if stem in Dset: cls='D'; lowers=[Dset[stem]]
     elif stem in Bset: cls='B'
     elif stem in Aset or (nt and nb/nt>=0.5): cls='A'
@@ -25,8 +29,9 @@ for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
     movable=0.0
     if d and nt: movable=d*(nt-nb)/nt
     rows.append(dict(spec=n,duration_s=d if d is not None else '',tests=nt,browser_only_tests=nb,cls=cls,lower=';'.join(lowers),est_movable_s=round(movable,1)))
-w=csv.DictWriter(open(sys.argv[2],'w',newline=''),fieldnames=list(rows[0]))
-w.writeheader();w.writerows(rows)
+with open(sys.argv[2],'w',newline='') as f:
+    w=csv.DictWriter(f,fieldnames=list(rows[0]),lineterminator='\n')
+    w.writeheader();w.writerows(rows)
 import collections
 agg=collections.defaultdict(lambda:[0,0.0])
 for r in rows:
