@@ -549,7 +549,13 @@ test('a second poll with the same data leaves the outgoing pills where they were
   });
   await push(page, world);
   await push(page, world);
-  await page.waitForTimeout(200);
+  // Polls are handled in order, so a later poll's visible change on the board
+  // says the identical ones before it have been handled, with no fixed wait.
+  world.issues[2] = { ...world.issues[2], title: 'Issue 2 after the polls' };
+  await push(page, world);
+  await expect(
+    page.locator('#issue-rows .row', { hasText: 'Issue 2 after the polls' }),
+  ).toHaveCount(1);
   expect(
     await page.evaluate(
       () => (window as unknown as { __writes: number }).__writes,
