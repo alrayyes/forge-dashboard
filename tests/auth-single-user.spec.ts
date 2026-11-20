@@ -34,18 +34,23 @@ test.describe('passkey login, one owner', () => {
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
   });
 
-  test('the login page shows the running version with no session at all', async ({
+  test('the login page shows no version to a signed-out visitor, and /api/version refuses them', async ({
     page,
     context,
   }) => {
     await context.clearCookies();
 
-    // /api/version needs no session, so this works on the one page a
-    // visitor can reach before ever authenticating.
     await page.goto('/login.html');
+    await expect(page.locator('footer')).toBeVisible();
+    await expect(page.locator('#footer-version')).toBeEmpty();
+    expect((await page.request.get('/api/version')).status()).toBe(401);
+  });
 
-    // This test's own concern is just that the version itself shows up
-    // with no session at all.
+  test('the footer shows the running version once signed in', async ({
+    page,
+  }) => {
+    // The default fixture signs the owner in; CI builds a dev binary.
+    await page.goto('/pull-requests.html');
     await expect(page.locator('#footer-version')).toContainText('· dev build');
   });
 

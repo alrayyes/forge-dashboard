@@ -36,7 +36,7 @@ func TestAccessLog_UnauthenticatedRequest_LogsMethodPathStatusDuration(t *testin
 	logs := withCapturedLogs(t, slog.LevelInfo)
 	srv := newTestServer(t)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/version")
+	resp, err := testClient(t).Get(srv.URL + "/api/v1/auth/registration-status")
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
@@ -44,7 +44,7 @@ func TestAccessLog_UnauthenticatedRequest_LogsMethodPathStatusDuration(t *testin
 	logged := logs.String()
 	assert.Contains(t, logged, "level=INFO")
 	assert.Contains(t, logged, "method=GET")
-	assert.Contains(t, logged, "path=/api/version")
+	assert.Contains(t, logged, "path=/api/v1/auth/registration-status")
 	assert.Contains(t, logged, "status=200")
 	assert.Contains(t, logged, "duration_ms=")
 	assert.Contains(t, logged, "remote_addr=")

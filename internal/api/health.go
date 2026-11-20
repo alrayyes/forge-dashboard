@@ -151,9 +151,10 @@ type Version struct {
 	APIVersion string `json:"apiVersion"`
 }
 
-// handleVersion answers the release tag this binary was built from —
-// public and unauthenticated, same as /healthz, so the pre-login page can
-// link to it too.
+// handleVersion answers the release tag this binary was built from. It sits
+// behind a session or API token: a signed-out visitor learns nothing about
+// the release, which is what a version fingerprint is worth to an attacker.
+// /healthz and /readyz carry no version and stay public.
 func handleVersion(version string) http.HandlerFunc {
 	return func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, Version{Version: version, APIVersion: apiMajorVersion})

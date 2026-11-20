@@ -10,7 +10,7 @@ advisory-detail-scroll-share.spec.ts,5.314,1,1,A,,0.0
 allowed-actions.spec.ts,2.646,14,0,C,web/src/lib/allowed-actions.test.ts,2.6
 ambiguous-action-outcome.spec.ts,8.826,7,4,A,,3.8
 armed-behind-status.spec.ts,3.768,4,1,C,,2.8
-auth-single-user.spec.ts,7.612,12,1,C,,7.0
+auth-single-user.spec.ts,7.612,13,1,C,,7.0
 auth.spec.ts,0.938,2,2,A,,0.0
 author-choices-per-forge.spec.ts,3.105,8,2,C,,2.3
 author-link-focus-ring.spec.ts,2.36,2,1,A,,1.2
@@ -93,7 +93,7 @@ first-refresh-loading.spec.ts,18.634,9,5,A,web/src/lib/first-refresh.test.ts;Fir
 focus-ring-consistent.spec.ts,2.983,1,1,A,,0.0
 focusout-closers.spec.ts,,4,4,A,,0.0
 fonts.spec.ts,0.091,1,1,A,,0.0
-footer-consistency.spec.ts,4.453,5,3,A,,1.8
+footer-consistency.spec.ts,4.453,6,4,A,,1.5
 forced-colors-current-page.spec.ts,3.381,2,2,A,,0.0
 forced-colors-pressed-pills.spec.ts,1.435,1,1,A,,0.0
 forced-colors-pressed-toggles.spec.ts,1.21,1,1,A,,0.0

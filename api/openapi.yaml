@@ -3149,11 +3149,14 @@ paths:
       summary: The running server's own version
       description: |
         The tag goreleaser stamped the running binary with ("dev" for a
-        build outside the release pipeline). Public and unauthenticated —
-        every page, including the pre-login screen, links to the matching
-        GitHub release from its footer so a person can tell what's
-        actually deployed without shelling into the box.
+        build outside the release pipeline). Needs a session or an API
+        token: a signed-out visitor learns nothing about the release,
+        since a version tells an attacker which known weaknesses to try.
+        The footer of every signed-in page reads it. It stays at this
+        address, outside `/api/v1`, because it says which major versions
+        the server speaks.
       tags: [health]
+      security: [{ bearerAuth: [] }]
       responses:
         "200":
           description: The running version.
@@ -3164,6 +3167,12 @@ paths:
               example:
                 version: 0.12.1
                 apiVersion: v1
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /api/v1/dashboard:
     get:

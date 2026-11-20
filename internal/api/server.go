@@ -142,7 +142,7 @@ func NewMux(deps Deps) http.Handler {
 
 	mux.HandleFunc("GET /healthz", handleHealth)
 	mux.HandleFunc("GET /readyz", handleReady(deps))
-	mux.HandleFunc("GET /api/version", handleVersion(deps.Version))
+	mux.Handle("GET /api/version", auth.RequireAuth(deps.AuthStore)(handleVersion(deps.Version)))
 
 	mux.HandleFunc("GET /api/v1/auth/registration-status", handleRegistrationStatus(deps.AuthService))
 	mux.Handle("POST /api/v1/auth/register/begin", limitAuthAttempts(deps, handleRegisterBegin(deps.AuthService)))
@@ -240,8 +240,8 @@ func NewMux(deps Deps) http.Handler {
 		// guarantee, not a runtime condition to recover from.
 		panic(err)
 	}
-	publicFiles := newStaticHandler(static, false, deps.Version)
-	privateFiles := newStaticHandler(static, true, deps.Version)
+	publicFiles := newStaticHandler(static, false)
+	privateFiles := newStaticHandler(static, true)
 
 	// The dashboard page, the settings page, and the scripts that
 	// populate them all need a session, same as the API they call — an
@@ -282,7 +282,7 @@ func NewMux(deps Deps) http.Handler {
 		})
 	}
 
-	return contentSecurityPolicyHeader(noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, deps.Version, limitRequestBody(mux)))))
+	return contentSecurityPolicyHeader(noIndex(accessLogMiddleware(deps.Service, recoverPanics(static, limitRequestBody(mux)))))
 }
 
 // contentSecurityPolicy lets the browser load an image from this server and

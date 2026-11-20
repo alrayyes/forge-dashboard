@@ -60,4 +60,6 @@ the path.
 Three things stay outside the version because something else holds their
 address: `/healthz` and `/readyz`, the forges' webhook routes under
 `/api/webhooks/`, and `GET /api/version`, which reports the release and the
-current `apiVersion`.
+current `apiVersion`. `/healthz`, `/readyz` and the webhook routes answer
+without a session; `/api/version` needs a session or an API token, so a
+signed-out visitor can't read which release is running.

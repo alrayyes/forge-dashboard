@@ -43,7 +43,10 @@ func TestMCP_GetVersion_ReturnsTheSamePayloadAsTheHTTPEndpoint(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, result.IsError)
 
-	resp, err := testClient(t).Get(srv.URL + "/api/version")
+	req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+"/api/version", nil)
+	require.NoError(t, err)
+	req.AddCookie(sessionCookie)
+	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
 	var httpBody map[string]any

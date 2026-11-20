@@ -18,8 +18,7 @@ var (
 
 	BotActionNotOffered = botActionNotOffered
 
-	InjectFooterVersion = injectFooterVersion
-	StaticFiles         = staticFiles
+	StaticFiles = staticFiles
 )
 
 // CheckWatch is the stream's watch of job lists, reachable for tests that
