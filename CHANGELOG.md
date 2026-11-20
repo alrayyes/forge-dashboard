@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.4](https://github.com/alrayyes/forge-dashboard/compare/v9.90.3...v9.90.4) (2026-11-20)
+
+
+### Bug Fixes
+
+* **web:** close the edges of the stale-CI handling on pull request rows ([#4479](https://github.com/alrayyes/forge-dashboard/issues/4479)) ([d33ff5d](https://github.com/alrayyes/forge-dashboard/commit/d33ff5df686049a9dec578036abcad302a08c804)), closes [#4435](https://github.com/alrayyes/forge-dashboard/issues/4435)
+
 ## [9.90.3](https://github.com/alrayyes/forge-dashboard/compare/v9.90.2...v9.90.3) (2026-11-20)
 
 
