@@ -12,6 +12,10 @@ import { test } from './server-fixture';
 // snapshot while the pill can read the live jobs, so a row could say both
 // "Passed" and "Waiting for CI".
 // https://github.com/alrayyes/forge-dashboard/issues/4408
+//
+// The edges (#4435): the armed chip follows the pill whatever the status says,
+// a stale armed row keeps a way to disarm, and every case says why Merge is
+// locked: live Running keeps the wait, `checking` is no wait on CI.
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
 
@@ -45,6 +49,12 @@ const ARMED = {
 
 const PLAIN = pr(1, 'Plain');
 const ARMED_PR = pr(2, 'Armed', ARMED);
+// The armed chip's code says CI, but the status is another wait.
+const ARMED_DRAFT = pr(4, 'Armed draft', {
+  ...ARMED,
+  draft: true,
+});
+const CHECKING = pr(5, 'Checking', { mergeStatus: 'checking' });
 const READY = pr(3, 'Ready', { ci: 'success', mergeStatus: 'mergeable' });
 
 async function open(
@@ -197,6 +207,71 @@ for (const scheme of ['light', 'dark'] as const) {
         );
       });
 
+      test('an armed row whose status is not a CI wait still drops the chip beside a Passed pill', async ({
+        page,
+      }) => {
+        await open(page, [ARMED_DRAFT], 'success');
+        const r = row(page, 'Armed draft');
+        await expect(r.locator('.ci-pill')).toContainText('Passed');
+        await expect(waitingWords(r)).toHaveCount(0);
+        await expect(r.locator('.wait-chip')).toHaveCount(0);
+        const merge = r.getByRole('button', { name: 'Merge', exact: true });
+        await expect(merge).toHaveAttribute('aria-disabled', 'true');
+        await expect(merge).toHaveAccessibleDescription(/draft pull request/i);
+      });
+
+      test('a stale armed row keeps Disarm on the row, and Merge keeps its reason', async ({
+        page,
+      }) => {
+        await open(page, [ARMED_PR], 'success');
+        const r = row(page, 'Armed');
+        await expect(r.locator('.wait-chip')).toHaveCount(0);
+        await expect(
+          r.getByRole('button', { name: /disarm|cancel auto-merge/i }),
+        ).toBeVisible();
+        const merge = r.getByRole('button', { name: 'Merge', exact: true });
+        await expect(merge).toHaveAttribute('aria-disabled', 'true');
+        await expect(merge).toHaveAccessibleDescription(
+          /updating from the latest ci results/i,
+        );
+      });
+
+      test('a live Running pill keeps the wait and Merge says it is waiting on checks', async ({
+        page,
+      }) => {
+        await open(page, [PLAIN, ARMED_PR], 'running');
+        for (const title of ['Plain', 'Armed']) {
+          const r = row(page, title);
+          await expect(r.locator('.ci-pill')).toContainText(/running/i);
+          await expect(waitingWords(r)).toHaveCount(1);
+          const merge = r.getByRole('button', { name: 'Merge', exact: true });
+          await expect(merge).toHaveAttribute('aria-disabled', 'true');
+          await expect(merge).toHaveAccessibleDescription(
+            /checks|waiting for ci/i,
+          );
+          await expect(merge).not.toHaveAccessibleDescription(
+            /updating from the latest ci results/i,
+          );
+        }
+      });
+
+      test('a pull request still checking for conflicts is no CI wait, so Merge never says it is updating from CI', async ({
+        page,
+      }) => {
+        await open(page, [CHECKING], 'success');
+        const r = row(page, 'Checking');
+        // The live jobs have to arrive first, or the not-stale check is empty.
+        await expect(r.locator('.ci-pill')).toContainText('Passed');
+        const merge = r.getByRole('button', { name: 'Merge', exact: true });
+        await expect(merge).toHaveAttribute('aria-disabled', 'true');
+        await expect(merge).toHaveAccessibleDescription(
+          /checking for conflicts/i,
+        );
+        await expect(merge).not.toHaveAccessibleDescription(
+          /updating from the latest ci results/i,
+        );
+      });
+
       test('a locked Merge looks different from an enabled one and has no axe violations', async ({
         page,
       }) => {
@@ -227,3 +302,23 @@ for (const scheme of ['light', 'dark'] as const) {
     });
   }
 }
+
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 900 } });
+
+  test('tapping the locked Merge on a stale row shows the reason without a hover', async ({
+    page,
+  }) => {
+    await open(page, [PLAIN], 'success');
+    const r = row(page, 'Plain');
+    await expect(r.locator('.ci-pill')).toContainText('Passed');
+    const merge = r.getByRole('button', { name: 'Merge', exact: true });
+    await merge.tap({ force: true });
+    await expect(
+      r.getByText('Updating from the latest CI results'),
+    ).toBeVisible();
+    await expect(
+      r.getByText(/open the pull request on the forge/i),
+    ).toBeVisible();
+  });
+});
