@@ -221,8 +221,13 @@ own and one signed-in owner, so a spec needs no registration of its own:
 - The route exists only in a binary built with `-tags e2e`. `run-local.sh` and CI
   build that and pass it as `E2E_BINARY`; a default build, and so a release,
   carries no route that can wipe the database. Build it yourself with
-  `go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard` to run
-  `bunx playwright test` by hand.
+  `bun run build:web && go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard`
+  to run `bunx playwright test` by hand. The binary embeds the web bundle, so
+  a stale one would pass a spec against old code: without `E2E_BINARY`,
+  `tests/global-setup.ts` fails the run, printing that command, when
+  `forge-dashboard-e2e` is older than any file under `cmd/`, `internal/`,
+  `web/src/` or `web/static/`, or than `go.mod` or `go.sum`. Setting
+  `E2E_BINARY` skips the check.
 - A new spec imports its `test` from `tests/server-fixture.ts` and goes at the
   end of the list in the config.
 

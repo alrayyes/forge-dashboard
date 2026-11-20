@@ -14,7 +14,8 @@
 //
 // The binary has to be built with `-tags e2e` (the route does not exist
 // otherwise); E2E_BINARY names it, default ./forge-dashboard-e2e at the repo
-// root. tests/run-local.sh and CI build it.
+// root. tests/run-local.sh and CI build it; tests/global-setup.ts fails a run
+// whose default binary is older than its sources.
 import { type ChildProcess, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';

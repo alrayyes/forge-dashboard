@@ -1,0 +1,97 @@
+import { afterEach, expect, test } from 'bun:test';
+import {
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { newerInput, staleBinaryMessage } from './stale-e2e-binary';
+
+const roots: string[] = [];
+afterEach(() => {
+  for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
+});
+
+// A throwaway repo with the binary at second 1000 and each input at the given
+// second; returns the repo root and the binary path.
+function repo(inputs: Record<string, number>): { root: string; bin: string } {
+  const root = mkdtempSync(path.join(tmpdir(), 'stale-e2e-'));
+  roots.push(root);
+  const bin = path.join(root, 'forge-dashboard-e2e');
+  writeFileSync(bin, '');
+  utimesSync(bin, 1000, 1000);
+  for (const [rel, secs] of Object.entries(inputs)) {
+    const file = path.join(root, rel);
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, '');
+    utimesSync(file, secs, secs);
+  }
+  return { root, bin };
+}
+
+test('names the input that is newer than the binary', () => {
+  const { root, bin } = repo({
+    'internal/a.go': 900,
+    'internal/deep/b.go': 1100,
+  });
+  expect(newerInput(root, bin)).toBe(path.join('internal', 'deep', 'b.go'));
+});
+
+test('is null when the binary is newer than every input', () => {
+  const { root, bin } = repo({
+    'cmd/main.go': 900,
+    'web/src/App.svelte': 999,
+    'go.mod': 10,
+  });
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('counts go.mod, go.sum and web/static as inputs, and tolerates a missing directory', () => {
+  for (const rel of [
+    'go.mod',
+    'go.sum',
+    'cmd/m.go',
+    'web/static/x.css',
+    'web/src/y.ts',
+  ]) {
+    const { root, bin } = repo({ [rel]: 1100 });
+    expect(newerInput(root, bin)).toBe(path.normalize(rel));
+  }
+});
+
+test('ignores files outside the inputs', () => {
+  const { root, bin } = repo({ 'docs/readme.md': 1100, 'tests/a.ts': 1100 });
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('is null for a binary of the same age as an input', () => {
+  const { root, bin } = repo({ 'cmd/a.go': 1000 });
+  expect(newerInput(root, bin)).toBeNull();
+});
+
+test('reports a missing binary as stale with the build command', () => {
+  const { root } = repo({});
+  const msg = staleBinaryMessage(root, path.join(root, 'nope'));
+  expect(msg).toContain(
+    'go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard',
+  );
+});
+
+test('the message names the newer file and both build commands', () => {
+  const { root, bin } = repo({ 'internal/a.go': 1100 });
+  const msg = staleBinaryMessage(root, bin);
+  expect(msg).toContain(path.join('internal', 'a.go'));
+  expect(msg).toContain('bun run build:web');
+  expect(msg).toContain(
+    'go build -tags e2e -o forge-dashboard-e2e ./cmd/forge-dashboard',
+  );
+  expect(staleBinaryMessage(root, bin)).not.toBeNull();
+});
+
+test('the message is null for a fresh binary', () => {
+  const { root, bin } = repo({ 'internal/a.go': 900 });
+  expect(staleBinaryMessage(root, bin)).toBeNull();
+});
