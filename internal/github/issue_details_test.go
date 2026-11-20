@@ -296,6 +296,43 @@ func TestGetIssueDetails_ReadsWhatReferToTheIssue(t *testing.T) {
 	assert.Equal(t, dashboard.RelationMentions, got.References[1].Relation)
 }
 
+// The timeline can't tell a Refs from a mention, so the referring item's own
+// text decides, the way the board reads an open pull request's (#4430).
+func TestGetIssueDetails_AMergedPullRequestThatSaysRefsReferencesTheIssue(t *testing.T) {
+	t.Parallel()
+
+	withBody := func(item map[string]any, body string) map[string]any {
+		item["body"] = body
+
+		return item
+	}
+	var queries []graphqlRequestBody
+	srv := issueDetailsServer(t, map[string]any{
+		"state": "OPEN", "body": "x", "lastEditedAt": nil, "reactionGroups": []map[string]any{},
+		"comments": map[string]any{"totalCount": 0, "nodes": []map[string]any{}},
+		"timelineItems": map[string]any{"nodes": []map[string]any{
+			crossReference(withBody(referencingItem("PullRequest", "alrayyes/a", 10, "Merged refs", "MERGED"), "Refs #7"), false),
+			crossReference(withBody(referencingItem("PullRequest", "alrayyes/a", 11, "Open refs", "OPEN"), "Refs #7"), false),
+			crossReference(withBody(referencingItem("PullRequest", "alrayyes/a", 12, "Merged mention", "MERGED"), "Touches #7"), false),
+			crossReference(withBody(referencingItem("PullRequest", "alrayyes/a", 13, "Both", "MERGED"), "Refs #7 and #7 again"), false),
+			crossReference(withBody(referencingItem("PullRequest", "alrayyes/a", 14, "Closes", "MERGED"), "Closes #7, Refs #7"), true),
+		}},
+	}, &queries)
+
+	got, err := github.NewClient("test-token", "", srv.URL).GetIssueDetails(t.Context(), "alrayyes", "a", 7)
+
+	require.NoError(t, err)
+	require.Len(t, queries, 1, "the referring text rides in the one request")
+	relations := map[int]dashboard.ReferenceRelation{}
+	for _, ref := range got.References {
+		relations[ref.Number] = ref.Relation
+	}
+	assert.Equal(t, map[int]dashboard.ReferenceRelation{
+		10: dashboard.RelationRefs, 11: dashboard.RelationRefs, 12: dashboard.RelationMentions,
+		13: dashboard.RelationRefs, 14: dashboard.RelationCloses,
+	}, relations)
+}
+
 // outgoingServer answers the details read with the given issue and the lookup
 // of what its text names (an aliased query, t0, t1 and so on) from items, keyed
 // by "owner/name#number". An item not in it comes back null, as GitHub answers
