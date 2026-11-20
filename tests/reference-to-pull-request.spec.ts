@@ -313,7 +313,10 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
         'aria-hidden',
         'true',
       );
-      if (mode !== 'forced-colors') {
+      if (mode === 'forced-colors') {
+        await expect(chip).toHaveCSS('border-top-width', '1px');
+        await expect(chip).toHaveCSS('border-top-style', 'solid');
+      } else {
         await expect(chip).toHaveCSS(
           'color',
           mode === 'light' ? 'rgb(109, 63, 192)' : 'rgb(183, 155, 240)',
