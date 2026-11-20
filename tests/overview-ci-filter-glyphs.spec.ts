@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
+import { laidOutWidths, widthJumpsWhile } from './pill-width-helper';
 import { test } from './server-fixture';
 
 // The pull request overview's CI filter draws the same glyphs, tones and pressed
@@ -191,6 +192,10 @@ for (const scheme of ['light', 'dark'] as const) {
         'aria-pressed',
         'true',
       );
+      await expect(visible(page, label)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
       const read = () =>
         visible(page, label).evaluate(
           (b, vars) => {
@@ -291,24 +296,17 @@ test('the Running glyph spins, and under reduced motion shows a still clock', as
 test('pressing a pill does not change its width', async ({ page }) => {
   await open(page);
   const group = page.locator('.filter-bar .quick-pills[data-group="ci"]');
-  const widths = () =>
-    group
-      .locator('.ci-filter-pill')
-      .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().width));
-  // Wait for the pills to be laid out and still before taking the baseline.
-  let last = '';
-  await expect
-    .poll(async () => {
-      const now = JSON.stringify(await widths());
-      const still = now !== '[]' && now === last;
-      last = now;
-      return still;
-    })
-    .toBe(true);
-  const before = await widths();
+  const pills = group.locator('.ci-filter-pill');
+  const before = await laidOutWidths(pills);
   for (const { label } of STATES) {
-    await visible(page, label).click();
-    await expect.poll(widths, { message: `${label} pressed` }).toEqual(before);
+    const jumps = await widthJumpsWhile(pills, before, async () => {
+      await visible(page, label).click();
+      await expect(visible(page, label)).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      );
+    });
+    expect(jumps, `${label} pressed`).toEqual([]);
   }
 });
 

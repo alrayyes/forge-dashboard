@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
+import { laidOutWidths, widthJumpsWhile } from './pill-width-helper';
 import { test } from './server-fixture';
 
 // The status filter on the Main branches page draws the same glyphs and colours
@@ -348,23 +349,32 @@ test('pills are 44px tall at 760px and 420px wide', async ({ page }) => {
 
 test('pressing a pill does not change its width', async ({ page }) => {
   await open(page);
-  const widths = () =>
-    statusGroup(page)
-      .locator('.mb-pill')
-      .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().width));
-  // Wait for the pills to be laid out and still before taking the baseline.
-  let last = '';
-  await expect
-    .poll(async () => {
-      const now = JSON.stringify(await widths());
-      const still = now !== '[]' && now === last;
-      last = now;
-      return still;
-    })
-    .toBe(true);
-  const before = await widths();
+  const pills = statusGroup(page).locator('.mb-pill');
+  const before = await laidOutWidths(pills);
   for (const { label } of STATUSES) {
-    await pill(page, label).click();
-    await expect.poll(widths, { message: `${label} pressed` }).toEqual(before);
+    const jumps = await widthJumpsWhile(pills, before, async () => {
+      await pill(page, label).click();
+      await expect(pill(page, label)).toHaveAttribute('aria-pressed', 'true');
+    });
+    expect(jumps, `${label} pressed`).toEqual([]);
   }
+});
+
+test('a pill that animates its padding while pressed is caught', async ({
+  page,
+}) => {
+  await open(page);
+  // The mutant: a press plays a 0.4 s padding animation that ends where it began.
+  await page.addStyleTag({
+    content: `@keyframes jump { 50% { padding-inline: 40px; } }
+      .mb-pill[aria-pressed="true"] { animation: jump 0.4s; }`,
+  });
+  const pills = statusGroup(page).locator('.mb-pill');
+  const before = await laidOutWidths(pills);
+  const { label } = STATUSES[0];
+  const jumps = await widthJumpsWhile(pills, before, async () => {
+    await pill(page, label).click();
+    await expect(pill(page, label)).toHaveAttribute('aria-pressed', 'true');
+  });
+  expect(jumps.length).toBeGreaterThan(0);
 });

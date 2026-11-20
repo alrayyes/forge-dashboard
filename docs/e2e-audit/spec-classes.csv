@@ -271,7 +271,7 @@ stale-dashboard-instance.spec.ts,0.314,1,0,C,,0.3
 stale-data-notice.spec.ts,1.089,4,1,C,,0.8
 startup-banner.spec.ts,0.58,3,0,C,,0.6
 startup-state.spec.ts,2.287,3,2,A,,0.8
-status-pill-glyphs.spec.ts,,10,7,A,,0.0
+status-pill-glyphs.spec.ts,,11,7,A,,0.0
 stream-after-first-poll.spec.ts,3.564,4,0,C,,3.6
 timezone-select-phone.spec.ts,1.779,5,5,A,,0.0
 timezone.spec.ts,3.186,11,0,C,,3.2
