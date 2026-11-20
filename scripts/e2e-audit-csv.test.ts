@@ -3,6 +3,7 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -101,4 +102,19 @@ test('an annotation for a spec that exists is accepted', () => {
   } finally {
     rmSync(s.dir, { recursive: true, force: true });
   }
+});
+
+// The Method section states how many unit test files web/ has. It was 107
+// while the tree held 150, so the number is checked here instead of trusted.
+// Fix: edit the count in docs/e2e-audit.md to what this reports.
+test('docs/e2e-audit.md states the number of web unit test files', () => {
+  const found = readdirSync(path.join(root, 'web/src/lib')).filter((f) =>
+    f.endsWith('.test.ts'),
+  ).length;
+  const doc = readFileSync(path.join(root, 'docs/e2e-audit.md'), 'utf8');
+  const stated = doc.match(/`web\/` has (\d+) unit test files/);
+  expect(stated, 'the doc no longer states the unit test file count').not.toBe(
+    null,
+  );
+  expect(Number(stated?.[1]), `set it to ${found}`).toBe(found);
 });
