@@ -11,7 +11,11 @@ gostems={g[:-8].replace('_','-') for g in gotests}
 Bset={'settings-field-errors','filter-persistence','main-branches-server-copy'}
 Aset={'mono-figures'}  # assertions live in a helper the token scan cannot see
 Dset={'filter-save-order':'web/src/lib/filters-save-order.test.ts','filter-mixed-case':'web/src/lib/filters-mixed-case.test.ts'}
-ann=json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'lower-annotations.json')))
+annpath=os.path.join(os.path.dirname(os.path.abspath(__file__)),'lower-annotations.json')
+if not os.path.exists(annpath): sys.exit(f'classify.py: missing {annpath}')
+ann=json.load(open(annpath))
+stale=sorted(set(ann)-{os.path.basename(p) for p in glob.glob(f'{root}/tests/*.spec.ts')})
+if stale: sys.exit(f'classify.py: lower-annotations.json names specs that no longer exist: {", ".join(stale)}')
 rows=[]
 for p in sorted(glob.glob(f'{root}/tests/*.spec.ts')):
     n=os.path.basename(p); stem=n[:-8]
