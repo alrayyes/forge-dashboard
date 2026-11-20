@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.89.2](https://github.com/alrayyes/forge-dashboard/compare/v9.89.1...v9.89.2) (2026-11-20)
+
+
+### Bug Fixes
+
+* **issues:** group merged pull requests that say Refs under Referenced by ([#4440](https://github.com/alrayyes/forge-dashboard/issues/4440)) ([39d2cdc](https://github.com/alrayyes/forge-dashboard/commit/39d2cdcceb7db32f67196cd5ad10b7d76fa353b6)), closes [#4430](https://github.com/alrayyes/forge-dashboard/issues/4430)
+
 ## [9.89.1](https://github.com/alrayyes/forge-dashboard/compare/v9.89.0...v9.89.1) (2026-11-20)
 
 
