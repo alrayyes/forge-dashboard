@@ -85,36 +85,52 @@ function pill(ref: ItemReference): LinkedPullRequest {
   };
 }
 
+const keyOf = (p: LinkedPullRequest) => `${p.forge}/${p.repo}#${p.number}`;
+
+/** The three rows an issue item carries, an absent one as empty. */
+export function rowsOf(item: Partial<IncomingRows>): IncomingRows {
+  return {
+    linkedPullRequests: item.linkedPullRequests ?? [],
+    referencedByPullRequests: item.referencedByPullRequests ?? [],
+    mentionedByPullRequests: item.mentionedByPullRequests ?? [],
+  };
+}
+
 /**
  * What the board already drew for the issue plus what its details found. A
  * pill the board drew stays as it is, since it carries the checks the details
- * do not know; an item only the details list is added after it.
+ * do not know; an item only the details list is added after it. Each item is
+ * drawn once, under the strongest relation: closes, then refs, then mentions.
  */
 export function mergeRows(
   board: IncomingRows,
   found: IncomingRows,
 ): IncomingRows {
-  const all = [
-    ...board.linkedPullRequests,
-    ...board.referencedByPullRequests,
-    ...board.mentionedByPullRequests,
-  ];
-  const drawn = new Set(all.map((p) => `${p.forge}/${p.repo}#${p.number}`));
-  const added = (rows: LinkedPullRequest[]) =>
-    rows.filter((p) => !drawn.has(`${p.forge}/${p.repo}#${p.number}`));
+  const drawn = new Set(
+    [
+      ...board.linkedPullRequests,
+      ...board.referencedByPullRequests,
+      ...board.mentionedByPullRequests,
+    ].map(keyOf),
+  );
+  // Strongest row first, so an item in two of the details' rows lands in the
+  // stronger one and is then taken.
+  const added = (rows: LinkedPullRequest[]) => {
+    const fresh: LinkedPullRequest[] = [];
+    for (const p of rows) {
+      if (drawn.has(keyOf(p))) continue;
+      drawn.add(keyOf(p));
+      fresh.push(p);
+    }
+    return fresh;
+  };
+  const closes = added(found.linkedPullRequests);
+  const refs = added(found.referencedByPullRequests);
+  const mentions = added(found.mentionedByPullRequests);
 
   return {
-    linkedPullRequests: [
-      ...board.linkedPullRequests,
-      ...added(found.linkedPullRequests),
-    ],
-    referencedByPullRequests: [
-      ...board.referencedByPullRequests,
-      ...added(found.referencedByPullRequests),
-    ],
-    mentionedByPullRequests: [
-      ...board.mentionedByPullRequests,
-      ...added(found.mentionedByPullRequests),
-    ],
+    linkedPullRequests: [...board.linkedPullRequests, ...closes],
+    referencedByPullRequests: [...board.referencedByPullRequests, ...refs],
+    mentionedByPullRequests: [...board.mentionedByPullRequests, ...mentions],
   };
 }

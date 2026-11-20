@@ -636,13 +636,15 @@ test('the tooltip of an outgoing Closes or Mentions pill says what the issue doe
   }
 });
 
-test('an issue the board lists keeps the board rows, whatever its details list as incoming', async ({
+test('an issue the board lists keeps its open pull request pills and adds the merged ones from its details (#4462)', async ({
   page,
 }) => {
   const dialog = await openIssue(
     page,
     issue({ linkedPullRequests: [linked(142)] }),
     [
+      // The board's pill for 142 stays as drawn, with its checks.
+      reference(142, { state: 'open' }),
       reference(4100),
       reference(4101, { relation: 'refs' }),
       reference(4102, { relation: 'mentions' }),
@@ -652,12 +654,36 @@ test('an issue the board lists keeps the board rows, whatever its details list a
 
   await expect(dialog.locator('.related-label')).toHaveText([
     'Closed by',
+    'Referenced by',
+    'Mentioned by',
     'Refs',
   ]);
   await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveText([
     'PR #142 · Open',
+    'PR #4100 · Merged',
   ]);
-  await expect(dialog.locator('.related-count')).toHaveText('2');
+  await expect(row(dialog, 'Referenced by').locator('.linked-pr')).toHaveText([
+    'PR #4101 · Merged',
+  ]);
+  await expect(row(dialog, 'Mentioned by').locator('.linked-pr')).toHaveText([
+    'PR #4102 · Merged',
+  ]);
+  await expect(dialog.locator('.related-count')).toHaveText('5');
+});
+
+test('a merged pull request that refers to a listed issue in two ways shows once, under the strongest', async ({
+  page,
+}) => {
+  const dialog = await openIssue(page, issue(), [
+    reference(4101, { relation: 'mentions' }),
+    reference(4101, { relation: 'refs' }),
+  ]);
+
+  await expect(row(dialog, 'Referenced by').locator('.linked-pr')).toHaveText([
+    'PR #4101 · Merged',
+  ]);
+  await expect(dialog.locator('.related-label')).toHaveText(['Referenced by']);
+  await expect(dialog.locator('.related-count')).toHaveText('1');
 });
 
 test('an issue that refers to nothing has no outgoing rows', async ({

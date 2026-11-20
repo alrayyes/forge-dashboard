@@ -213,11 +213,13 @@
   import { type MentionedIssue, mentionPills } from "#lib/mentioned-issues.js";
   import { relatedBandData } from "#lib/related-band.js";
   import {
+    type IncomingRows,
     type ItemReference,
     incomingRows,
     mergeRows,
     type OutgoingRows,
     outgoingRows,
+    rowsOf,
   } from "#lib/issue-references.js";
   import {
     type LinkedPullRequest,
@@ -2413,6 +2415,9 @@
       item: IssueDialogItem;
       // What the issue itself refers to, as its details list it (#4272).
       outgoing: OutgoingRows;
+      // What refers to the issue, as its details list it, merged or closed
+      // pull requests included (#4462).
+      found: IncomingRows;
       shown: string;
     } | null = null;
 
@@ -2462,7 +2467,11 @@
       if (listed) {
         // The pills come from the snapshot, not from the forge read, so they
         // follow every poll; the labels come along with them.
-        const item = { ...open.item, ...listed };
+        const item = {
+          ...open.item,
+          ...listed,
+          ...mergeRows(rowsOf(listed), open.found),
+        };
         const shown = attributesSignature(item, open.outgoing);
         if (shown !== open.shown) {
           const relabelled = labelsOf(open.item) !== labelsOf(item);
@@ -2531,6 +2540,7 @@
           ?.updatedAt,
         item,
         outgoing: noOutgoing(),
+        found: rowsOf({}),
         shown: attributesSignature(item, noOutgoing()),
       };
       detailsDialog?.open(
@@ -2902,29 +2912,24 @@
     };
 
     // The board's pills know open pull requests only, and a closed issue is
-    // not on the board at all. Its own details list what refers to it, so the
-    // band is drawn from them, as long as the board has no row for the issue:
-    // a listed one follows the snapshot's pills with every poll. What the
-    // issue itself refers to is only in the details, listed or not (#4272).
+    // not on the board at all. Its own details list what refers to it, merged
+    // and closed pull requests included, so the band is drawn from them too.
+    // For a listed issue the snapshot's pills stay as they are, with their
+    // checks, and every poll redraws them around what the details found; an
+    // item in both is drawn once, under the strongest relation. Only the
+    // referring item's description is read, not the issue's comments. What
+    // the issue itself refers to is only in the details (#4272).
     issueReferencesRead = (references) => {
       const open = issueDialog;
       if (!open || !detailsDialog) return;
       const outgoing = outgoingRows(references);
-      const item = listedIssue(open.forge, open.repo, open.number)
-        ? open.item
-        : {
-            ...open.item,
-            ...mergeRows(
-              {
-                linkedPullRequests: open.item.linkedPullRequests ?? [],
-                referencedByPullRequests:
-                  open.item.referencedByPullRequests ?? [],
-                mentionedByPullRequests:
-                  open.item.mentionedByPullRequests ?? [],
-              },
-              incomingRows(references),
-            ),
-          };
+      const found = incomingRows(references);
+      const listed = listedIssue(open.forge, open.repo, open.number);
+      const item = {
+        ...open.item,
+        ...mergeRows(rowsOf(listed ?? open.item), found),
+      };
+      open.found = found;
       const shown = attributesSignature(item, outgoing);
       if (shown === open.shown) return;
       open.item = item;
