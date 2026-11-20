@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { installFakeStream, pushStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -389,6 +390,64 @@ for (const width of [1280, 390]) {
       } else {
         await expect(page.locator('#title-filter')).toBeFocused();
       }
+    });
+
+    test("an opener row a refresh removed, one row left and no filter: closing lands on that row's title (#4464)", async ({
+      page,
+    }) => {
+      await installFakeStream(page);
+      await page.goto('/issues.html');
+      await rowTitle(page, '#issue-rows', 'Issue 5').click();
+      await issueDialog(page)
+        .locator('.related-band .linked-pr', { hasText: '#6' })
+        .click();
+      await expect(issueDialog(page)).toContainText('Issue 6');
+
+      // One row and no filter hide the whole filter bar (#3823), and the row
+      // the dialog opened from is gone, so nothing the pop-up remembers is
+      // drawn. The one row's title button is the control left to land on.
+      await pushStream(page, {
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests: [pullRequest(3, [closing(6)])],
+        issues: [issue(6, [linked(3)])],
+      });
+      await expect(page.locator('#issue-rows .row')).toHaveCount(1);
+      await expect(page.locator('.filter-bar')).toBeHidden();
+
+      await closeAndSettle(page);
+
+      await expect(rowTitle(page, '#issue-rows', 'Issue 6')).toBeFocused();
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme });
+        const axe = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(axe.violations, colorScheme).toEqual([]);
+      }
+    });
+
+    test("the same on the pull requests page: one row left, no filter, closing lands on that row's title (#4464)", async ({
+      page,
+    }) => {
+      await installFakeStream(page);
+      await page.goto('/pull-requests.html');
+      await rowTitle(page, '#pr-rows', 'Pull request 1').click();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toContainText('Issue 5');
+
+      await pushStream(page, {
+        generatedAt: new Date().toISOString(),
+        forges: [forgeHealth('github')],
+        pullRequests: [pullRequest(3, [closing(6)])],
+        issues: [issue(6, [linked(3)])],
+      });
+      await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+      await expect(page.locator('.filter-bar')).toBeHidden();
+
+      await closeAndSettle(page);
+
+      await expect(rowTitle(page, '#pr-rows', 'Pull request 3')).toBeFocused();
     });
 
     test('a read-only pull request opened from a row pill after a chain ended swaps back to that pill', async ({
