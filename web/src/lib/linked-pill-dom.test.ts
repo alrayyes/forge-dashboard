@@ -24,7 +24,20 @@ class FakeNode {
   attrs: Record<string, string> = {};
   target = '';
   rel = '';
-  listeners: Record<string, (event?: unknown) => void> = {};
+  // A real DOM stacks the handlers added for one event; dispatch runs them all.
+  handlers: Record<string, ((event?: unknown) => void)[]> = {};
+  // One function per event name that runs every handler added for it, so a
+  // test fires an event the way `listeners.click(event)` always has.
+  get listeners(): Record<string, (event?: unknown) => void> {
+    return Object.fromEntries(
+      Object.entries(this.handlers).map(([name, fns]) => [
+        name,
+        (event?: unknown) => {
+          for (const fn of fns) fn(event);
+        },
+      ]),
+    );
+  }
   focused = false;
   classList = {
     add: (c: string) => (this.className += ` ${c}`),
@@ -56,7 +69,7 @@ class FakeNode {
     this.attrs[name] = value;
   }
   addEventListener(name: string, fn: (event?: unknown) => void) {
-    this.listeners[name] = fn;
+    this.handlers[name] = [...(this.handlers[name] ?? []), fn];
   }
 }
 class FakeAnchor extends FakeNode {}
@@ -105,6 +118,27 @@ const pr = (overrides: Partial<LinkedPullRequest> = {}): LinkedPullRequest => ({
   checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
   awaitingWorkflowApproval: false,
   ...overrides,
+});
+
+describe('the fake DOM the tests stand on', () => {
+  test('runs every handler added for one event, in the order added', () => {
+    const node = new FakeNode('a');
+    const ran: string[] = [];
+    node.addEventListener('click', () => ran.push('first'));
+    node.addEventListener('click', () => ran.push('second'));
+    node.listeners.click();
+    expect(ran).toEqual(['first', 'second']);
+  });
+
+  test('hands the event to each handler', () => {
+    const node = new FakeNode('a');
+    const seen: unknown[] = [];
+    node.addEventListener('click', (e) => seen.push(e));
+    node.addEventListener('click', (e) => seen.push(e));
+    const event = { button: 0 };
+    node.listeners.click(event);
+    expect(seen).toEqual([event, event]);
+  });
 });
 
 const pillOf = (p: LinkedPullRequest) => {
@@ -244,6 +278,17 @@ describe('a pill that carries a pipeline badge', () => {
     expect(seen).toEqual([p]);
   });
 
+  test('each pill is given its own pull request', () => {
+    const first = pr({ number: 7 });
+    const second = pr({ number: 8 });
+    const seen: LinkedPullRequest[] = [];
+    wrapOf([first, second], undefined, (x) => {
+      seen.push(x);
+      return null;
+    });
+    expect(seen).toEqual([first, second]);
+  });
+
   test('the pipeline is in the text of the accessible name', () => {
     expect(withCi().attrs['aria-label']).toBe(
       linkedPillName(pr(), 'alrayyes/app', ci()),
@@ -378,6 +423,27 @@ describe('the attributes and wiring of a pill', () => {
       'References this issue, does not close it',
     ]);
     expect(pillOf(pr()).className).toBe('linked-pr');
+  });
+
+  test('a ref pill on the outgoing side says so in its title and its tip', () => {
+    const host = asNode(
+      wrapOf(
+        [pr()],
+        undefined,
+        undefined,
+        undefined,
+        'refs',
+        true,
+        'issue-outgoing',
+      ).children[0],
+    );
+    const said = 'This issue references this, it does not close it';
+    expect(asNode(host.children[0]).title).toBe(said);
+    expect(asNode(host.children[1]).children).toEqual([said]);
+  });
+
+  test('the pills sit in a wrapper of their own class', () => {
+    expect(wrapOf([pr()]).className).toBe('linked-prs');
   });
 
   test('a mention pill gets its own class and tooltip, with no tip host', () => {
