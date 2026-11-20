@@ -36,6 +36,7 @@ const pullRequest = (
   number: number,
   closesIssues: unknown[] = [],
   author = 'ryankes',
+  mentionsIssues: unknown[] = [],
 ) => ({
   forge: 'github',
   repo: REPO,
@@ -52,6 +53,7 @@ const pullRequest = (
   behind: false,
   kind: 'regular',
   closesIssues,
+  mentionsIssues,
 });
 const issue = (number: number, linkedPullRequests: unknown[] = []) => ({
   forge: 'github',
@@ -97,7 +99,11 @@ const mockedBoard = (route: Route) =>
       forges: [forgeHealth('github')],
       pullRequests: [
         pullRequest(1, [closing(5)], 'someone-else'),
-        pullRequest(2, [closing(5)]),
+        // Pull request 2 mentions pull request 3, which the forge's mention
+        // list marks untracked: only open issues are tracked there.
+        pullRequest(2, [closing(5)], 'ryankes', [
+          { ...closing(3), tracked: false },
+        ]),
         pullRequest(3, [closing(6)]),
       ],
       issues: [
@@ -437,6 +443,32 @@ for (const width of [1280, 390]) {
       await closeAndSettle(page);
       await expect(pill()).toBeFocused();
       await swapOnce();
+    });
+
+    test('a mention pill for a pull request the board holds, mid-chain: closing returns to the first pull request', async ({
+      page,
+    }) => {
+      await page.goto('/pull-requests.html');
+      const first = rowTitle(page, '#pr-rows', 'Pull request 1');
+      await first.click();
+      await prDialog(page).locator('.closing-issue').first().click();
+      await expect(issueDialog(page)).toBeVisible();
+      await issueDialog(page).locator('.linked-pr', { hasText: '#2' }).click();
+      await expect(prDialog(page)).toContainText('Pull request 2');
+
+      // The pill follows in the dialog only once the forge has answered for
+      // it, which focus asks for.
+      const pill = prDialog(page).locator('.mention-pill');
+      const answered = page.waitForResponse('**/api/v1/issues/details*');
+      await pill.focus();
+      await answered;
+      await pill.click();
+      await expect(prDialog(page)).toContainText('Pull request 3');
+
+      await closeAndSettle(page);
+
+      await expect(first).toBeFocused();
+      await expectTitleBoxUntouched(page);
     });
 
     test('a chain that ended leaves nothing behind for the next swap', async ({
