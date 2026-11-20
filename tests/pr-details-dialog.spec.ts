@@ -1060,7 +1060,7 @@ test.describe('pull request details dialog', () => {
   });
 
   for (const ci of ['pending', 'failure', 'success'] as const) {
-    test(`the CI slot leads the header and reads like the row (${ci})`, async ({
+    test(`the CI slot follows the title and reads like the row (${ci})`, async ({
       page,
     }) => {
       await mockDashboard(page, [makePR({ ci, draft: true })]);
@@ -1083,18 +1083,21 @@ test.describe('pull request details dialog', () => {
       expect(rowText).toBe(
         { pending: 'Running', failure: 'Failed', success: 'Passed' }[ci],
       );
-      // The slot sits above the title, the attributes below it.
+      // The slot sits under the title, the attributes under the slot.
       await expect
         .poll(async () => {
           const slotBox = await slot.boundingBox();
           const titleBox = await d.locator('.details-title').boundingBox();
           const attrBox = await d.locator('.attr-cluster').boundingBox();
+          const titleBottom = (titleBox?.y ?? 0) + (titleBox?.height ?? 0);
           return {
-            slotAbove: (slotBox?.y ?? Infinity) < (titleBox?.y ?? 0),
-            attrsBelow: (attrBox?.y ?? -Infinity) > (titleBox?.y ?? 0),
+            slotBelowTitle: (slotBox?.y ?? -Infinity) >= titleBottom - 1,
+            attrsBelowSlot:
+              (attrBox?.y ?? -Infinity) >=
+              (slotBox?.y ?? Infinity) + (slotBox?.height ?? 0) - 1,
           };
         })
-        .toEqual({ slotAbove: true, attrsBelow: true });
+        .toEqual({ slotBelowTitle: true, attrsBelowSlot: true });
       // A header badge is not a second pipeline button.
       await expect(d.locator('button.ci-pill')).toHaveCount(0);
     });
@@ -1208,7 +1211,7 @@ test.describe('pull request details dialog', () => {
       );
   });
 
-  test('on a 360px phone the header status has no overflow, the slot is first and the attributes wrap', async ({
+  test('on a 360px phone the header status has no overflow, the slot follows the title and the attributes wrap', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
@@ -1247,7 +1250,10 @@ test.describe('pull request details dialog', () => {
         const attrs = await d.locator('.attr-cluster').boundingBox();
         const title = await d.locator('.details-title').boundingBox();
         return {
-          slotAboveTitle: (slot?.y ?? Infinity) < (title?.y ?? 0),
+          slotBelowTitle:
+            (slot?.y ?? -Infinity) >=
+            (title?.y ?? 0) + (title?.height ?? 0) - 1,
+          slotLeftAligned: Math.abs((slot?.x ?? 0) - (title?.x ?? 1000)) <= 1,
           slotLeftOfClose:
             (slot?.x ?? 0) + (slot?.width ?? 0) <= (close?.x ?? 0),
           attrsBelowTitle:
@@ -1257,11 +1263,80 @@ test.describe('pull request details dialog', () => {
         };
       })
       .toEqual({
-        slotAboveTitle: true,
+        slotBelowTitle: true,
+        slotLeftAligned: true,
         slotLeftOfClose: true,
         attrsBelowTitle: true,
         attrsInside: true,
       });
+  });
+
+  // The status describes the title, so it comes after it in the DOM and not
+  // only on screen (#4405).
+  test(`reads repository, title, Status, filer, then the labels, with no axe-core violations (light and dark, phone and desktop)`, async ({
+    page,
+  }) => {
+    for (const scheme of ['light', 'dark'] as const) {
+      for (const width of [375, 1280]) {
+        await test.step(`${scheme} ${width}px`, async () => {
+          await page.setViewportSize({ width, height: 800 });
+          await page.emulateMedia({ colorScheme: scheme });
+          await mockDashboard(page, [
+            makePR({
+              ci: 'failure',
+              mergeStatus: 'conflicting',
+              labels: [{ name: 'kind/chore', color: 'cccccc' }],
+            }),
+          ]);
+          await mockDetails(page, details());
+          await page.goto('/pull-requests.html');
+          await trigger(page).click();
+          const d = dialog(page);
+          await expect(d.locator('.details-status')).toBeVisible();
+          // The filer shows once the details name one; a pull request row
+          // has none before that, so only what is on screen is compared.
+          const order = await d.evaluate((el) => {
+            const present = [
+              '.details-ref',
+              '.details-title',
+              '.details-status [role="group"]',
+              '.details-author',
+              '.details-attributes',
+            ]
+              .map((sel) => ({ sel, node: el.querySelector(sel) }))
+              .filter((p) => p.node !== null);
+            return present.map(({ sel }, i) =>
+              i === 0 ||
+              // biome-ignore lint/style/noNonNullAssertion: filtered above
+              present[i - 1]!.node!.compareDocumentPosition(
+                // biome-ignore lint/style/noNonNullAssertion: filtered above
+                present[i]!.node!,
+              ) & Node.DOCUMENT_POSITION_FOLLOWING
+                ? sel
+                : `${sel} is out of order`,
+            );
+          });
+          expect(order).toEqual([
+            '.details-ref',
+            '.details-title',
+            '.details-status [role="group"]',
+            '.details-attributes',
+          ]);
+          const title = await d.locator('.details-title').boundingBox();
+          const status = await d.locator('.details-status').boundingBox();
+          expect(status?.y ?? 0).toBeGreaterThanOrEqual(
+            (title?.y ?? 0) + (title?.height ?? 0) - 1,
+          );
+          expect(
+            await d.evaluate((el) => el.scrollWidth - el.clientWidth),
+          ).toBe(0);
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
+    }
   });
 
   test(`has no axe-core violations with the dialog open (light and dark)`, async ({

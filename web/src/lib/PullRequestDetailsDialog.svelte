@@ -941,25 +941,6 @@
   {#if target}
     <div class="details-header">
       <div class="details-heading">
-        {#if target.status}
-          <div
-            class="details-status"
-            {@attach adopt(target.status.state)}
-          ></div>
-        {:else if stateWord !== null}
-          <div class="details-status">
-            <div
-              class="details-state"
-              role={stateWord ? "group" : undefined}
-              aria-label={stateWord ? "Status" : undefined}
-              aria-hidden={stateWord ? undefined : true}
-            >
-              <span class="attr-chip" class:held={!stateWord}
-                >{stateWord || "Open"}</span
-              >
-            </div>
-          </div>
-        {/if}
         <p class="details-ref">
           <span class="forge-badge {forgeClassOf(target.forge)}"
             ><span class="dot"></span>{forgeLabel}</span
@@ -1004,41 +985,64 @@
                 class="title-code">{seg.text}</code
               >{:else}{seg.text}{/if}{/each}
         </h2>
-        {#if byline}
-          {#snippet filer()}
-            {#if avatarSrc(forgeId, byline?.avatar) && !brokenFilerAvatar}
-              <img
-                class="filer-avatar"
-                src={avatarSrc(forgeId, byline?.avatar) ?? undefined}
-                alt=""
-                width="20"
-                height="20"
-                loading="lazy"
-                referrerpolicy="no-referrer"
-                onerror={() => (brokenFilerAvatar = true)}
-              />
-            {/if}
-            <span class="filer-name">{byline?.name}</span>
-          {/snippet}
-          <p class="details-author">
-            <span>{byline.label}</span>
-            <!-- The avatar and the name are one link to the filer's page on
-              the forge, as on the row. Without an address, or for a deleted
-              account, they are plain text. -->
-            {#if profileHref(byline.url)}
-              <a
-                class="filer-link"
-                href={profileHref(byline.url) ?? undefined}
-                target="_blank"
-                rel="noopener noreferrer"
+        <!-- The status describes the title, so it follows it in the DOM and not
+          only on screen (#4405). The filer shares its line when there is room. -->
+        <div class="details-meta">
+          {#if target.status}
+            <div
+              class="details-status"
+              {@attach adopt(target.status.state)}
+            ></div>
+          {:else if stateWord !== null}
+            <div class="details-status">
+              <div
+                class="details-state"
+                role={stateWord ? "group" : undefined}
+                aria-label={stateWord ? "Status" : undefined}
+                aria-hidden={stateWord ? undefined : true}
               >
+                <span class="attr-chip" class:held={!stateWord}
+                  >{stateWord || "Open"}</span
+                >
+              </div>
+            </div>
+          {/if}
+          {#if byline}
+            {#snippet filer()}
+              {#if avatarSrc(forgeId, byline?.avatar) && !brokenFilerAvatar}
+                <img
+                  class="filer-avatar"
+                  src={avatarSrc(forgeId, byline?.avatar) ?? undefined}
+                  alt=""
+                  width="20"
+                  height="20"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                  onerror={() => (brokenFilerAvatar = true)}
+                />
+              {/if}
+              <span class="filer-name">{byline?.name}</span>
+            {/snippet}
+            <p class="details-author">
+              <span>{byline.label}</span>
+              <!-- The avatar and the name are one link to the filer's page on
+                the forge, as on the row. Without an address, or for a deleted
+                account, they are plain text. -->
+              {#if profileHref(byline.url)}
+                <a
+                  class="filer-link"
+                  href={profileHref(byline.url) ?? undefined}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  {@render filer()}
+                </a>
+              {:else}
                 {@render filer()}
-              </a>
-            {:else}
-              {@render filer()}
-            {/if}
-          </p>
-        {/if}
+              {/if}
+            </p>
+          {/if}
+        </div>
         {#if target.status?.attributes.hasChildNodes()}
           <div
             class="details-attributes"
@@ -1358,11 +1362,23 @@
     overflow-wrap: normal;
     white-space: nowrap;
   }
+  /* The status group, then the filer on the same line when it fits. */
+  .details-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 12px;
+    row-gap: 4px;
+    margin-top: 8px;
+  }
+  .details-meta:empty {
+    display: none;
+  }
   .details-author {
     display: flex;
     align-items: center;
     gap: 6px;
-    margin: 4px 0 0;
+    margin: 0;
     font-size: 0.78125rem;
     color: var(--ink-2);
   }
@@ -1841,10 +1857,10 @@
     outline-offset: 1px;
   }
   /* The header follows the row's tiers (#1563): the CI slot and merge state
-     above the title, the attribute chips below it. The nodes come from
+     under the title, the attribute chips below them (#4405). The nodes come from
      Dashboard.svelte's builders, so the row's global classes style them. */
   .details-status {
-    margin: 0 0 8px;
+    margin: 0;
   }
   .details-status :global(.details-state) {
     display: flex;
@@ -1955,11 +1971,6 @@
       max-height: 100dvh;
       border-radius: 0;
       border: none;
-    }
-    /* The CI slot at the top right of the header, the attributes wrapping
-       on their own line below the title. */
-    .details-status :global(.details-state) {
-      justify-content: flex-end;
     }
     /* A sticky footer: the link to the forge, then the actions at the bottom
        where a thumb reaches. */
