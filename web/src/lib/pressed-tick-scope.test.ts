@@ -13,20 +13,50 @@ const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 // visits. This test reads the stylesheet, so a tick drawn under any class is
 // caught without one.
 
-const pressed = /\[aria-pressed=(["']?)true\1\]/;
-const pseudo = /::?(before|after)$/;
+// The attribute in any spelling: spaces inside the brackets, any case, `~=`,
+// an `i` flag, or bare presence.
+const pressed = /\[\s*aria-pressed\s*(?:~?=\s*(["']?)true\1\s*[is]?\s*)?\]/i;
+// A pseudo-element in any case, optionally followed by pseudo-classes.
+const pseudo = /::?(before|after)(?::[\w-]+(?:\([^)]*\))?)*$/i;
+
+// Split a selector list on its top-level commas, so a comma inside :is(),
+// :where(), :not() or an attribute value stays in one selector.
+function splitSelectors(list: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote = '';
+  let start = 0;
+  for (let i = 0; i < list.length; i++) {
+    const ch = list[i];
+    if (quote) {
+      if (ch === quote) quote = '';
+    } else if (ch === '"' || ch === "'") {
+      quote = ch;
+    } else if (ch === '(' || ch === '[') {
+      depth++;
+    } else if (ch === ')' || ch === ']') {
+      depth--;
+    } else if (ch === ',' && depth === 0) {
+      parts.push(list.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(list.slice(start));
+
+  return parts;
+}
 
 // Every selector in the stylesheet that draws a pressed element's ::before or
 // ::after, under any class.
 function tickSelectors(source: string): string[] {
   const found: string[] = [];
   for (const m of source.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
-    const selectors = m[1]
-      .replace(/\/\*[\s\S]*?\*\//g, '')
-      .replace(/\(\s+/g, '(')
-      .replace(/\s+\)/g, ')')
-      .split(',')
-      .map((part) => part.trim());
+    const selectors = splitSelectors(
+      m[1]
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\(\s+/g, '(')
+        .replace(/\s+\)/g, ')'),
+    ).map((part) => part.trim());
     for (const selector of selectors) {
       if (pressed.test(selector) && pseudo.test(selector)) {
         found.push(selector);
@@ -51,6 +81,50 @@ describe('The pressed pill tick', () => {
       ".b[aria-pressed='true']::after",
       '.c[aria-pressed=true]:before',
     ]);
+  });
+
+  test('keeps a comma inside :is(), :where() and :not() in one selector', () => {
+    const sample = [
+      '[aria-pressed="true"]:is(.a, .b)::before { x: y; }',
+      '.c:where(.d, .e)[aria-pressed="true"]::after { x: y; }',
+      '.f:not(.g, .h)[aria-pressed="true"]::before, .i { x: y; }',
+    ].join('\n');
+    expect(tickSelectors(sample)).toEqual([
+      '[aria-pressed="true"]:is(.a, .b)::before',
+      '.c:where(.d, .e)[aria-pressed="true"]::after',
+      '.f:not(.g, .h)[aria-pressed="true"]::before',
+    ]);
+  });
+
+  const spellings = [
+    '[aria-pressed="true" i]',
+    '[aria-pressed = "true"]',
+    '[ aria-pressed="true" ]',
+    '[ARIA-PRESSED="true"]',
+    '[aria-pressed="TRUE"]',
+    '[aria-pressed]',
+    '[aria-pressed~="true"]',
+  ];
+  for (const spelling of spellings) {
+    test(`finds the attribute spelled ${spelling}`, () => {
+      const selector = `.a${spelling}::before`;
+      expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+    });
+  }
+
+  test('leaves a pill that is not pressed alone', () => {
+    const sample = '.a[aria-pressed="false"]::before { x: y; }';
+    expect(tickSelectors(sample)).toEqual([]);
+  });
+
+  test('finds ::BEFORE in capitals', () => {
+    const selector = '.a[aria-pressed="true"]::BEFORE';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
+  });
+
+  test('finds a pseudo-element followed by a pseudo-class', () => {
+    const selector = '.a[aria-pressed="true"]::before:hover';
+    expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
   });
 
   test('is drawn only on the quick pill', () => {
