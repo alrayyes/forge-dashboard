@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const failed = (name: string, extra: Record<string, unknown> = {}) => ({
@@ -31,7 +32,7 @@ const pr = (over: Record<string, unknown> = {}) => ({
 async function open(
   page: Page,
   checks: unknown[],
-  opts: { forge?: string; health?: Record<string, unknown> } = {},
+  opts: { forge?: Forge; health?: Record<string, unknown> } = {},
 ) {
   const forge = opts.forge ?? 'github';
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -41,15 +42,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          {
-            forge,
-            capabilities: { label: forge === 'forgejo' ? 'Forgejo' : 'GitHub' },
-            reachable: true,
-            repoCount: 1,
-            ...opts.health,
-          },
-        ],
+        forges: [forgeHealth(forge, opts.health)],
         pullRequests: [pr({ forge })],
         issues: [],
       }),

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -46,24 +47,22 @@ function behind(forge: string) {
   };
 }
 
-const down = (forge: string) => ({
-  forge,
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'timeout',
-  staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
-});
-const up = (forge: string) => ({ forge, reachable: true, repoCount: 1 });
+const down = (forge: Forge) =>
+  forgeHealth(forge, {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'timeout',
+    staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
+  });
+const up = (forge: Forge) => forgeHealth(forge);
 // Rows from the last run, shown before the forge has been asked this start.
-const starting = (forge: string) => ({
-  forge,
-  reachable: false,
-  starting: true,
-  repoCount: 1,
-  staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
-});
-const limited = (forge: string) => ({
+const starting = (forge: Forge) =>
+  forgeHealth(forge, {
+    reachable: false,
+    starting: true,
+    staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
+  });
+const limited = (forge: Forge) => ({
   ...up(forge),
   rateLimitREST: rateLimit(
     5000,
@@ -99,7 +98,7 @@ async function openWith(
   );
 }
 
-async function open(page: Page, forge: string, reachable: boolean) {
+async function open(page: Page, forge: Forge, reachable: boolean) {
   await openWith(
     page,
     [reachable ? up(forge) : down(forge)],
@@ -114,7 +113,7 @@ const PILLS = [
   '.attr-chip.auto-merge',
 ];
 
-for (const forge of ['forgejo', 'github']) {
+for (const forge of ['forgejo', 'github'] as const) {
   test(`${forge}: while the forge can't be asked every state pill says it is an earlier answer, since when`, async ({
     page,
   }) => {
@@ -168,7 +167,7 @@ async function expectEarlier(page: Page, since: RegExp) {
   }
 }
 
-for (const forge of ['forgejo', 'github']) {
+for (const forge of ['forgejo', 'github'] as const) {
   test(`${forge}: a host that has not been asked since the app started is an earlier answer too`, async ({
     page,
   }) => {

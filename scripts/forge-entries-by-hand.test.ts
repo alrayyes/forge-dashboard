@@ -9,11 +9,6 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
 const stillByHand = [
-  'conflict-not-confirmed-reason.spec.ts',
-  'issue-close.spec.ts',
-  'pull-request-renovate-rebase.spec.ts',
-  'rerun-count.spec.ts',
-  'row-claim-state-pills.spec.ts',
   'startup-banner.spec.ts',
   'startup-state.spec.ts',
   'stream-after-first-poll.spec.ts',

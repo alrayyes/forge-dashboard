@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The issue dialog closes its issue, with or without a comment, the way the
@@ -59,14 +60,7 @@ async function start(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          {
-            forge: 'github',
-            reachable,
-            repoCount: 1,
-            capabilities: { label: 'GitHub' },
-          },
-        ],
+        forges: [forgeHealth('github', { reachable })],
         pullRequests: [],
         issues: state.closed ? [] : [ISSUE],
       }),

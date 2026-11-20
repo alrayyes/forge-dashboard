@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 interface MockLabel {
@@ -10,7 +11,7 @@ interface MockLabel {
 
 interface MockPR {
   empty?: boolean;
-  forge: string;
+  forge: Forge;
   repo: string;
   number: number;
   title: string;
@@ -44,14 +45,14 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
   };
 }
 
-function mockDashboard(page: Page, forge: string, pr?: MockPR) {
+function mockDashboard(page: Page, forge: Forge, pr?: MockPR) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1 }],
+        forges: [forgeHealth(forge)],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),

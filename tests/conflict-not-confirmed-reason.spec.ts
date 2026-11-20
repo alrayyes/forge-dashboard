@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // "Conflict not confirmed" is said once, as the pill, and the reason it opens
@@ -73,7 +74,7 @@ async function open(
   page: Page,
   prs: unknown[],
   reachable = true,
-  forge = 'forgejo',
+  forge: Forge = 'forgejo',
 ) {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -85,15 +86,13 @@ async function open(
         generatedAt: new Date().toISOString(),
         forges: [
           reachable
-            ? { forge, reachable: true, repoCount: 1 }
-            : {
-                forge,
+            ? forgeHealth(forge)
+            : forgeHealth(forge, {
                 reachable: false,
-                repoCount: 1,
                 errorKind: 'unreachable',
                 error: 'timeout',
                 staleSince: new Date(Date.now() - 10 * 60_000).toISOString(),
-              },
+              }),
         ],
         pullRequests: prs,
         issues: [],
@@ -141,7 +140,7 @@ test('its Merge stays locked and its description says why', async ({
 
 // The rule reads the forge's health and never its name (#3968): both forges
 // get the same words.
-for (const forge of ['forgejo', 'github']) {
+for (const forge of ['forgejo', 'github'] as const) {
   test(`${forge}: a behind row with a live Update branch says to use it, once`, async ({
     page,
   }) => {
