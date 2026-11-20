@@ -287,6 +287,48 @@ for (const d of drivers) {
     });
 
     if (fullSet) {
+      // The Merged badge is the Passed pill's shape in its own purple (#4406):
+      // a merge glyph and the word. axe skips a glyph and files text on a tint
+      // as incomplete, so the painted pair is read here too.
+      for (const mode of ['light', 'dark', 'forced-colors'] as const) {
+        test(`already_merged: the badge wears the Merged pair with a glyph and passes axe in ${mode}`, async ({
+          page,
+        }) => {
+          if (mode === 'forced-colors') {
+            await page.emulateMedia({ forcedColors: 'active' });
+          } else {
+            await page.emulateMedia({ colorScheme: mode });
+          }
+          await start(page);
+          await refuse(page, d, 409, {
+            error: 'x',
+            code: 'already_merged',
+            message: 'This pull request was already merged.',
+          });
+          await page.goto(landing);
+          const row = page.locator('#pr-rows .row').first();
+          await d.act(row);
+
+          const badge = row.locator('.row-settled[data-state="merged"]');
+          await expect(badge).toHaveText('Merged');
+          await expect(badge.locator('svg.merged-glyph')).toHaveAttribute(
+            'aria-hidden',
+            'true',
+          );
+          if (mode !== 'forced-colors') {
+            await expect(badge).toHaveCSS(
+              'color',
+              mode === 'light' ? 'rgb(109, 63, 192)' : 'rgb(183, 155, 240)',
+            );
+            await expect(badge).toHaveCSS(
+              'background-color',
+              mode === 'light' ? 'rgb(241, 234, 253)' : 'rgb(36, 26, 58)',
+            );
+          }
+          await axeClean(page);
+        });
+      }
+
       test('already_closed: the row reads Closed', async ({ page }) => {
         await start(page);
         await refuse(page, d, 409, {
@@ -300,6 +342,12 @@ for (const d of drivers) {
         await d.act(row);
 
         await expect(row.locator('.row-settled')).toHaveText('Closed');
+        // Closed stays neutral, with no glyph (#4406).
+        await expect(row.locator('.row-settled svg')).toHaveCount(0);
+        await expect(row.locator('.row-settled')).not.toHaveCSS(
+          'color',
+          'rgb(109, 63, 192)',
+        );
         await expect(page.locator('#feedback-toasts')).toContainText(
           /already closed/i,
         );

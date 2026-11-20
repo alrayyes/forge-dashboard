@@ -1005,8 +1005,23 @@
                 aria-label={stateWord ? "Status" : undefined}
                 aria-hidden={stateWord ? undefined : true}
               >
-                <span class="attr-chip" class:held={!stateWord}
-                  >{stateWord || "Open"}</span
+                <span
+                  class="attr-chip"
+                  class:held={!stateWord}
+                  class:merged-pill={stateWord === STATE_WORDS.merged}
+                  >{#if stateWord === STATE_WORDS.merged}<svg
+                      class="merged-glyph"
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                      focusable="false"
+                      ><!-- The shapes of MERGE_GLYPH in check-glyphs.ts, drawn
+                        here as plain markup, so no raw HTML is rendered. -->
+                      <circle cx="8" cy="8" r="6.25" />
+                      <circle cx="6" cy="5.4" r="1" />
+                      <circle cx="6" cy="10.6" r="1" />
+                      <circle cx="10.2" cy="8.6" r="1" />
+                      <path d="M6 6.4v3.2M6 6.4c0 1.4 1.2 2.2 3.2 2.2" /></svg
+                    >{/if}{stateWord || "Open"}</span
                 >
               </div>
             </div>

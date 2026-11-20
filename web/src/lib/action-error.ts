@@ -5,6 +5,7 @@
 // action (Merge, Close, Update branch, Enable auto-merge, the Dependabot and
 // Renovate rebases) renders its failures through here.
 
+import { mergeGlyphElement } from './check-glyphs';
 import { failureDetails } from './failure-details';
 import type { ActionRef, FeedbackStore } from './feedback';
 
@@ -216,7 +217,10 @@ export function settledBadge(state: SettledState): HTMLElement {
   const badge = document.createElement('span');
   badge.className = 'row-settled';
   badge.dataset.state = state;
-  badge.textContent = SETTLED_LABELS[state];
+  // The merge glyph and the word both say Merged, so colour is not the only
+  // cue (#4406). Closed stays plain, neutral text.
+  if (state === 'merged') badge.append(mergeGlyphElement());
+  badge.append(SETTLED_LABELS[state]);
   return badge;
 }
 

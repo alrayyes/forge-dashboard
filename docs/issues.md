@@ -58,9 +58,11 @@ forge.
 
 A `#12` in a description or comment can be a pull request. The pop-up then
 becomes that pull request's, read only, with its real title, who opened it, and
-whether it is open, closed or merged, taken from the same answer. The status
-chip's row is held while the details load, so nothing below it moves when they
-arrive. If the read fails, the issue-style pop-up stays and says why.
+whether it is open, closed or merged, taken from the same answer. A merged
+pull request's chip is the Merged pill (a merge glyph and the word in purple);
+Open and Closed stay plain outlines. The status chip's row is held while the
+details load, so nothing below it moves when they arrive. If the read fails, the
+issue-style pop-up stays and says why.
 
 ## Closing an issue from its pop-up
 
@@ -264,7 +266,8 @@ rest, and the band shows six and a "+N more" toggle that folds back. Upright
 means the pull request closes the issue, italic means it only references it.
 In the pop-up's Related band every pull request pill says its state in words,
 "PR #N · Open", "· Merged" or "· Closed" ("· Draft" for an open draft), so a
-pill under "Closed by" doesn't read as if it closes something itself. The
+pill under "Closed by" doesn't read as if it closes something itself. The word
+"Merged" is drawn in the Merged purple; the text is unchanged. The
 accessible name says the same words. A closed issue's band reads each pull
 request from the issue's own details; a listed issue's reads the board's open
 ones. The pills on the row keep the shorter number.

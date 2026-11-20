@@ -91,6 +91,20 @@ export const withBoardState = (
 const nounOf = (pr: LinkedPullRequest) =>
   pr.kind === 'issue' ? 'Issue' : 'Pull request';
 
+// The rest of the pill's text after the number. A merged pull request's word
+// is its own node so it takes the Merged colour (#4406); the text is the same.
+const MERGED_WORD = 'Merged';
+function appendTail(link: HTMLElement, tail: string, pr: LinkedPullRequest) {
+  if (stated(pr) && pr.state === 'merged' && tail.endsWith(MERGED_WORD)) {
+    link.append(
+      tail.slice(0, -MERGED_WORD.length),
+      element('span', 'linked-pr-merged', MERGED_WORD),
+    );
+  } else {
+    link.append(tail);
+  }
+}
+
 /** The number and state as the pill reads them, with no pipeline. */
 const headOf = (pr: LinkedPullRequest, issueRepo: string) =>
   stated(pr)
@@ -325,7 +339,10 @@ export function linkedPills(
       const repoNode = element('span', 'linked-pr-repo', pr.repo);
       repoNode.title = pr.repo;
       refNode.append(repoNode, element('span', 'linked-pr-number', number));
-      link.append(text.slice(0, at), refNode, text.slice(at + ref.length));
+      link.append(text.slice(0, at), refNode);
+      appendTail(link, text.slice(at + ref.length), pr);
+    } else if (stated(pr) && pr.state === 'merged') {
+      appendTail(link, text, pr);
     } else {
       link.textContent = text;
     }

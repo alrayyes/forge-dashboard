@@ -214,7 +214,11 @@
     await expect(pill.querySelector(".linked-pr-number")?.textContent).toBe(
       "#12",
     );
-    await expect(pill.lastChild?.textContent).toBe(" · Merged");
+    // The word alone takes the Merged purple; the text reads as before (#4406).
+    await expect(pill.lastChild?.textContent).toBe("Merged");
+    await expect((pill.lastChild as HTMLElement).className).toBe(
+      "linked-pr-merged",
+    );
   }}
 />
 

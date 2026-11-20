@@ -145,7 +145,24 @@ describe('the cross-repo split in the pill', () => {
             { tag: 'span', class: 'linked-pr-number', kids: ['#12'] },
           ],
         },
-        ' · Merged',
+        ' · ',
+        { tag: 'span', class: 'linked-pr-merged', kids: ['Merged'] },
+      ],
+    });
+  });
+
+  test('only a merged state gets the purple word', () => {
+    for (const state of ['open', 'closed'] as const) {
+      const pill = pillOf(pr({ kind: 'pullRequest', state }));
+      expect(JSON.stringify(tree(pill))).not.toContain('linked-pr-merged');
+    }
+    const same = pillOf(pr({ kind: 'pullRequest', state: 'merged' }));
+    expect(tree(same)).toEqual({
+      tag: 'a',
+      class: 'linked-pr',
+      kids: [
+        'PR #12 · ',
+        { tag: 'span', class: 'linked-pr-merged', kids: ['Merged'] },
       ],
     });
   });
