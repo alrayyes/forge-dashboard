@@ -701,6 +701,8 @@ function narrowHtmlBlock(md: Renderer): void {
     'html_block',
     (state: StateBlock, start: number, end: number, silent: boolean) => {
       const pos = state.bMarks[start] + state.tShift[start];
+      // The longest name is `</blockquote` (12 characters) and the lookahead
+      // reads one more, so 13 is the least that works; 16 leaves room.
       if (!BLOCK_START.test(state.src.slice(pos, pos + 16))) return false;
       if (PRE_OPEN.test(state.src.slice(pos, pos + 5))) {
         if (!preCloses(state, start, end)) return false;
