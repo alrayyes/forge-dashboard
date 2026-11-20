@@ -281,22 +281,27 @@ for (const scheme of ['light', 'dark'] as const) {
             const s = getComputedStyle(el);
             return `${s.borderTopStyle}|${s.backgroundColor}|${s.color}`;
           });
-        const locked = await style(
-          row(page, 'Plain').getByRole('button', {
-            name: 'Merge',
-            exact: true,
-          }),
-        );
-        const enabled = await style(
-          row(page, 'Ready').getByRole('button', {
-            name: 'Merge',
-            exact: true,
-          }),
-        );
-        expect(locked).not.toBe(enabled);
-        // Forced colors drop background and text colour, so the border style
-        // has to carry the difference.
-        expect(locked.split('|')[0]).not.toBe(enabled.split('|')[0]);
+        const lockedMerge = row(page, 'Plain').getByRole('button', {
+          name: 'Merge',
+          exact: true,
+        });
+        const enabledMerge = row(page, 'Ready').getByRole('button', {
+          name: 'Merge',
+          exact: true,
+        });
+        // Two buttons that have not painted yet read the same, so read both
+        // again until they differ. Forced colors drop background and text
+        // colour, so the border style has to carry the difference.
+        await expect
+          .poll(async () => {
+            const locked = await style(lockedMerge);
+            const enabled = await style(enabledMerge);
+            return {
+              differ: locked !== enabled,
+              borderDiffers: locked.split('|')[0] !== enabled.split('|')[0],
+            };
+          })
+          .toEqual({ differ: true, borderDiffers: true });
         await axe(page);
       });
     });
