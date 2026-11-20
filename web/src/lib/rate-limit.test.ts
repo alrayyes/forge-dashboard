@@ -1,8 +1,6 @@
 /// <reference types="bun" />
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 
-// rate-limit.ts reaches the timezone store, which needs the Svelte compiler.
-mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
 const {
   isRateLimited,
   isRunningLow,

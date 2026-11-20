@@ -1,9 +1,7 @@
 /// <reference types="bun" />
 import { beforeEach, describe, expect, test } from 'bun:test';
 
-// The store is a .svelte.ts module, which needs the Svelte compiler for its
-// $state rune. A plain object has the same reads and writes for these checks.
-(globalThis as Record<string, unknown>).$state = <T>(value: T) => value;
+// The store is a .svelte.ts module; the preload stands in for its $state rune.
 const {
   dashboardRead,
   resetDashboardRead,

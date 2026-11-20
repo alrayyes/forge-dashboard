@@ -1,8 +1,6 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, test } from 'bun:test';
 import type { IssueActionsHost } from './issue-dialog-actions';
 
-// rate-limit.ts reads a rune-based module the test runner can't compile.
-mock.module('./time.svelte', () => ({ formatTime: (t: string) => t }));
 const { createIssueActions } = await import('./issue-dialog-actions');
 
 // The controller builds plain DOM nodes. This stand-in keeps just what it
