@@ -26,6 +26,8 @@ func TestPages_RequireASession(t *testing.T) {
 		"/pull-requests.html",
 		"/settings.html",
 		"/webhooks.html",
+		"/changelog.html",
+		"/changelog.json",
 	} {
 		t.Run(path, func(t *testing.T) {
 			t.Parallel()
@@ -36,6 +38,32 @@ func TestPages_RequireASession(t *testing.T) {
 
 			assert.Equal(t, http.StatusFound, resp.StatusCode)
 			assert.Equal(t, "/login.html", resp.Header.Get("Location"))
+		})
+	}
+}
+
+// The changelog's newest entry is the running version, so the page and its
+// data need a session too (#4426). A signed-in visitor is not bounced.
+func TestChangelog_WithASession_IsNotBounced(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	for _, path := range []string{"/changelog.html", "/changelog.json"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := http.NewRequestWithContext(t.Context(), http.MethodGet, srv.URL+path, nil)
+			require.NoError(t, err)
+			req.AddCookie(sessionCookie)
+			resp, err := client.Do(req)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.NotEqual(t, http.StatusFound, resp.StatusCode)
+			assert.Empty(t, resp.Header.Get("Location"))
 		})
 	}
 }
