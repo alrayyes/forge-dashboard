@@ -1,7 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { factsOf } from './check-facts';
-import { checkLinkName } from './check-link-name-helper';
 import { pushChecks, serveChecks } from './checks-feed-helper';
 import { pushStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
@@ -422,126 +421,6 @@ test.describe('a check run output in the pipeline dialog', () => {
     await expect(
       dialog.locator('.run-actions button.run-icon-btn:visible'),
     ).toHaveCount(0);
-  });
-
-  // Which control each state gets is proved by checkControl's unit test; this
-  // is the one journey that shows the dialog draws it.
-  test('a queued or running GitHub check has no Show output, only the link to the forge, and a finished one has it', async ({
-    page,
-  }) => {
-    await setup(page, { status: 200, body: { text: '', truncated: false } }, [
-      { name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 },
-      {
-        name: 'running-job',
-        status: 'in_progress',
-        url: `${runUrl}2`,
-        jobId: 8,
-      },
-      {
-        name: 'done-job',
-        status: 'completed',
-        conclusion: 'success',
-        url: `${runUrl}3`,
-        jobId: 9,
-      },
-    ]);
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await expect(
-      dialog.getByRole('button', { name: 'Show output: done-job' }),
-    ).toBeVisible();
-    // GitHub serves a job's log only once it has finished.
-    for (const [name, words] of [
-      ['queued-job', 'Open on GitHub'],
-      ['running-job', 'Watch on GitHub'],
-    ]) {
-      await expect(
-        dialog.getByRole('button', { name: `Show output: ${name}` }),
-      ).toHaveCount(0);
-      await expect(
-        dialog.getByRole('link', { name: checkLinkName(words, name) }),
-      ).toBeVisible();
-    }
-  });
-
-  test('a running Forgejo check keeps Show output, since Forgejo streams its log', async ({
-    page,
-  }) => {
-    await setup(
-      page,
-      { status: 200, body: { text: '', truncated: false } },
-      [{ name: 'running-job', status: 'in_progress', url: runUrl, jobId: 8 }],
-      'forgejo',
-    );
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await expect(
-      dialog.getByRole('button', { name: 'Show output: running-job' }),
-    ).toBeVisible();
-  });
-
-  test('a queued Forgejo check links to Forgejo, not GitHub', async ({
-    page,
-  }) => {
-    await setup(
-      page,
-      { status: 200, body: { text: '', truncated: false } },
-      [{ name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 }],
-      'forgejo',
-    );
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await expect(
-      dialog.getByRole('link', {
-        name: checkLinkName('Open on Forgejo', 'queued-job'),
-      }),
-    ).toBeVisible();
-  });
-
-  test('each link that leaves the dashboard says what it opens and shows an external-link icon', async ({
-    page,
-  }) => {
-    await setup(page, { status: 200, body: { text: '', truncated: false } }, [
-      { name: 'queued-job', status: 'queued', url: runUrl, jobId: 7 },
-      {
-        name: 'done-job',
-        status: 'completed',
-        conclusion: 'failure',
-        url: runUrl,
-        jobId: 9,
-      },
-      {
-        name: 'lint',
-        status: 'completed',
-        conclusion: 'success',
-        url: 'https://github.com/alrayyes/forge-dashboard/actions/runs/9/job/1',
-      },
-    ]);
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const names = [
-      checkLinkName('Open on GitHub', 'queued-job'),
-      checkLinkName('Open job on GitHub', 'done-job'),
-      checkLinkName('Open check page', 'lint'),
-      'Open run on GitHub (opens in a new tab)',
-    ];
-    for (const name of names) {
-      const link = dialog.getByRole('link', { name });
-      await expect(link).toBeVisible();
-      await expect(link.locator('svg[aria-hidden="true"]')).toHaveCount(1);
-    }
-    await expect(dialog.locator('a[target="_blank"]')).toHaveCount(
-      names.length,
-    );
-    await expect(dialog.locator('.pipeline-dialog-footer a')).toHaveText(
-      'Open run on GitHub',
-    );
-  });
-
-  test('a check with no job id keeps the plain link', async ({ page }) => {
-    await setup(page, { status: 200, body: { text: '', truncated: false } });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await expect(
-      dialog.getByRole('link', {
-        name: checkLinkName('Open check page', 'lint'),
-      }),
-    ).toBeVisible();
   });
 
   test('a failed check has a Copy output button beside its excerpt that copies the whole log', async ({

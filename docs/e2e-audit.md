@@ -285,6 +285,24 @@ One ticket per group, each doing moves with its own mutation proof:
   s each. Each assertion was proven red by breaking the component or its style
   rule (see the pull request for the list). The CSV row for
   `footer-consistency` is updated.
+- The tenth move, from `pipeline-run-output`: `PipelineDialog` already had
+  stories, so no component changed. Four new ones draw what a row offers
+  beside its name: "GitHub queued and running" (a queued or running GitHub job
+  has no Show output, only Open on GitHub or Watch on GitHub, and a finished
+  one has Show output), "Forgejo running" (Show output stays, since Forgejo
+  streams a log), "Forgejo queued" (Open on Forgejo, never GitHub) and "Links
+  that leave the dashboard" (each link's name with its new-tab warning, one
+  decorative icon, `target`, `rel`, a check with no job id keeping its plain
+  Open check page link, and the run link in the footer). The five e2e tests that
+  held these are gone. The remaining 50 tests read the page's copy flows and stay.
+  On one worker the spec took 26.9 s over 60 runs before and 24.4 s over 55
+  after, on a machine with a load of about 7, so the saving is indicative. The
+  CSV row takes 24.4 s and 50 tests, and its est. movable (24.4 times 24 of 50
+  tests, 11.7 s) is an upper bound, not a saving. Each assertion was proven red
+  by breaking the code: the Watch wording, the forge's name in the link, a
+  running GitHub job and a queued job getting Show output, Forgejo losing Show
+  output while running, the link's `target`, the new-tab warning on the run link
+  and the icon.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in

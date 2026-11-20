@@ -1,6 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { expect, userEvent, waitFor } from "storybook/test";
+  import { expect, userEvent, waitFor, within } from "storybook/test";
   import { mockFeed, type FeedAnswer } from "../../.storybook/mock-feed";
   import type { Check } from "./pipeline-checks.js";
   import type { PipelineTarget } from "./PipelineDialog.svelte";
@@ -94,6 +94,38 @@
       fullName: "alrayyes/forge-dashboard",
     },
     emptyText: "This branch has no checks.",
+  };
+
+  // The words a link that leaves the dashboard carries: visible text, then the
+  // new-tab warning, then the check, so the name still holds what is on screen.
+  const linkName = (text: string, check: string) =>
+    `${text} (opens in a new tab): ${check}`;
+
+  const dialogEl = () => document.querySelector("dialog[open]") as HTMLElement;
+
+  // The forge link a row draws in place of Show output: its name, where it
+  // goes, the new-tab mark and the one decorative icon.
+  const expectForgeLink = async (
+    text: string,
+    check: string,
+    href: string,
+  ): Promise<void> => {
+    const link = within(dialogEl()).getByRole("link", {
+      name: linkName(text, check),
+    });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", href);
+    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(link).toHaveAttribute("rel", "noopener");
+    await expect(link.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(
+      1,
+    );
+  };
+
+  const FORGEJO: PipelineTarget = {
+    ...PULL_REQUEST,
+    repo: { forge: "forgejo", fullName: "alrayyes/forge-dashboard" },
+    forgeName: "Forgejo",
   };
 
   const opened = async (canvasElement: HTMLElement) => {
@@ -259,4 +291,176 @@
     repo: { forge: "constructor", fullName: "alrayyes/forge-dashboard" },
     forgeName: undefined,
   })}
+</Story>
+
+<!-- GitHub serves a job's log only once it has finished, so a queued or running
+     job has no Show output, only the link to the forge, and a finished one
+     has it. -->
+<Story
+  asChild
+  name="GitHub queued and running"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({
+            name: "queued-job",
+            status: "queued",
+            conclusion: undefined,
+            startedAt: undefined,
+            completedAt: undefined,
+            url: RUN,
+            jobId: 7,
+          }),
+          check({
+            name: "running-job",
+            status: "in_progress",
+            conclusion: undefined,
+            completedAt: undefined,
+            url: `${RUN}2`,
+            jobId: 8,
+          }),
+          check({ name: "done-job", url: `${RUN}3`, jobId: 9 }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    const dialog = within(dialogEl());
+    await expect(
+      dialog.getByRole("button", { name: "Show output: done-job" }),
+    ).toBeVisible();
+    for (const name of ["queued-job", "running-job"]) {
+      await expect(
+        dialog.queryByRole("button", { name: `Show output: ${name}` }),
+      ).toBeNull();
+    }
+    await expectForgeLink("Open on GitHub", "queued-job", RUN);
+    await expectForgeLink("Watch on GitHub", "running-job", `${RUN}2`);
+  }}
+>
+  {@render opener(PULL_REQUEST)}
+</Story>
+
+<!-- Forgejo streams a running job's log, so it keeps Show output. -->
+<Story
+  asChild
+  name="Forgejo running"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({
+            name: "running-job",
+            status: "in_progress",
+            conclusion: undefined,
+            completedAt: undefined,
+            url: RUN,
+            jobId: 8,
+          }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    await expect(
+      within(dialogEl()).getByRole("button", {
+        name: "Show output: running-job",
+      }),
+    ).toBeVisible();
+  }}
+>
+  {@render opener(FORGEJO)}
+</Story>
+
+<!-- A queued Forgejo job links to Forgejo, not GitHub. -->
+<Story
+  asChild
+  name="Forgejo queued"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({
+            name: "queued-job",
+            status: "queued",
+            conclusion: undefined,
+            startedAt: undefined,
+            completedAt: undefined,
+            url: RUN,
+            jobId: 7,
+          }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    await expectForgeLink("Open on Forgejo", "queued-job", RUN);
+    await expect(
+      within(dialogEl()).queryByRole("link", {
+        name: /Open on GitHub/,
+      }),
+    ).toBeNull();
+  }}
+>
+  {@render opener(FORGEJO)}
+</Story>
+
+<!-- Every link that leaves the dashboard says what it opens, opens a new tab
+     and shows one external-link icon: a queued job, a finished job's own
+     link (beside its output), a check with no job id, and the run in the footer. -->
+<Story
+  asChild
+  name="Links that leave the dashboard"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({
+            name: "queued-job",
+            status: "queued",
+            conclusion: undefined,
+            startedAt: undefined,
+            completedAt: undefined,
+            url: RUN,
+            jobId: 7,
+          }),
+          check({
+            name: "done-job",
+            conclusion: "failure",
+            url: RUN,
+            jobId: 9,
+          }),
+          check({
+            name: "lint",
+            url: "https://github.com/alrayyes/forge-dashboard/actions/runs/9/job/1",
+          }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    const dialog = within(dialogEl());
+    const names = [
+      linkName("Open on GitHub", "queued-job"),
+      linkName("Open job on GitHub", "done-job"),
+      linkName("Open check page", "lint"),
+      "Open run on GitHub (opens in a new tab)",
+    ];
+    for (const name of names) {
+      const link = dialog.getByRole("link", { name });
+      await expect(link).toBeVisible();
+      await expect(
+        link.querySelectorAll('svg[aria-hidden="true"]'),
+      ).toHaveLength(1);
+    }
+    await expect(
+      dialogEl().querySelectorAll('a[target="_blank"]'),
+    ).toHaveLength(names.length);
+    await expect(
+      dialogEl().querySelector(".pipeline-dialog-footer a"),
+    ).toHaveTextContent(/^Open run on GitHub$/);
+  }}
+>
+  {@render opener(PULL_REQUEST)}
 </Story>
