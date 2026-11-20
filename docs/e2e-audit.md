@@ -294,7 +294,7 @@ One ticket per group, each doing moves with its own mutation proof:
   that leave the dashboard" (each link's name with its new-tab warning, one
   decorative icon, `target`, `rel`, a check with no job id keeping its plain
   Open check page link, and the run link in the footer). The five e2e tests that
-  held these are gone. The other 46 tests read the page's copy flows and stay.
+  held these are gone. The other 50 tests read the page's copy flows and stay.
   On one worker the spec took 26.9 s over 60 runs before and 24.4 s over 55
   after, on a machine with a load of about 7, so the saving is indicative. The
   CSV row takes 24.4 s and 46 tests, and its est. movable (24.4 times 20 of 46

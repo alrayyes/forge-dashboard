@@ -151,7 +151,7 @@ pipeline-check-states.spec.ts,7.207,9,5,A,,3.2
 pipeline-check-waiting.spec.ts,,2,1,A,,0.0
 pipeline-long-check-name.spec.ts,4.505,1,1,A,,0.0
 pipeline-panel-live.spec.ts,10.347,14,7,A,,5.2
-pipeline-run-output.spec.ts,24.4,46,26,C,CheckRunOutput.stories.svelte (proven);PipelineDialog.stories.svelte (proven),10.6
+pipeline-run-output.spec.ts,24.4,50,26,C,CheckRunOutput.stories.svelte (proven);PipelineDialog.stories.svelte (proven),11.7
 placeholder-contrast.spec.ts,1.051,2,2,A,web/src/lib/placeholder-contrast.test.ts,0.0
 pr-author-avatar.spec.ts,2.588,7,2,C,,1.8
 pr-auto-update.spec.ts,13.321,12,4,C,,8.9
