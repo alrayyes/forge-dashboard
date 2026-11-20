@@ -556,6 +556,10 @@ function balance(
   insideLink: boolean,
 ): Tok[] {
   const out: Tok[] = [];
+  // Levels in this stack never fall as you go up it, and none is above
+  // `level`: a container's close pops every entry at its level before
+  // lowering it. So the entries at the current level are a run at the top,
+  // and `=== level` and `>= level` select the same ones.
   const open: { name: string; level: number }[] = [];
   let level = 0;
   let links = insideLink ? 1 : 0;
