@@ -55,3 +55,27 @@ export const CHECK_GLYPHS: Record<string, CheckGlyph[]> = {
     },
   ],
 };
+
+// The glyph of a merged pull request (#4406): a ring with the two nodes of a
+// merge, a branch joined to the line it lands on. It is a pull request state,
+// not a check result, so it has no CHECK_GLYPHS key. Drawn in the ring-and-
+// stroke style above and always `aria-hidden`: the word "Merged" is the name.
+export const MERGE_GLYPH =
+  `${RING}<circle cx="6" cy="5.4" r="1"/><circle cx="6" cy="10.6" r="1"/>` +
+  '<circle cx="10.2" cy="8.6" r="1"/>' +
+  '<path d="M6 6.4v3.2M6 6.4c0 1.4 1.2 2.2 3.2 2.2"/>';
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+// The merge glyph as a node, for the row's badge. Static markup, never built
+// from forge data.
+export function mergeGlyphElement(): SVGElement {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('viewBox', '0 0 16 16');
+  svg.setAttribute('class', 'merged-glyph');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('focusable', 'false');
+  svg.innerHTML = MERGE_GLYPH;
+
+  return svg;
+}

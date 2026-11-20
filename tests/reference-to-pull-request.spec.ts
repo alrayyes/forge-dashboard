@@ -291,6 +291,57 @@ test.describe('a reference to a pull request the board does not list (#4196)', (
     await expect(dialog).not.toContainText('Pull request #4177');
   });
 
+  // The chip is the Passed pill's shape in a purple of its own (#4406). The
+  // painted pair is read here because axe files text on a tint as incomplete
+  // and never looks at a glyph.
+  for (const mode of ['light', 'dark', 'forced-colors'] as const) {
+    test(`the merged chip wears the Merged pair with a glyph and passes axe in ${mode}`, async ({
+      page,
+    }) => {
+      if (mode === 'forced-colors') {
+        await page.emulateMedia({ forcedColors: 'active' });
+      } else {
+        await page.emulateMedia({ colorScheme: mode });
+      }
+      await open(page, 'issues', 'Fixed by #4177');
+      await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+      const status = prDialog(page).getByRole('group', { name: 'Status' });
+      await expect(status).toHaveText('Merged');
+      const chip = status.locator('.attr-chip.merged-pill');
+      await expect(chip.locator('svg.merged-glyph')).toHaveAttribute(
+        'aria-hidden',
+        'true',
+      );
+      if (mode !== 'forced-colors') {
+        await expect(chip).toHaveCSS(
+          'color',
+          mode === 'light' ? 'rgb(109, 63, 192)' : 'rgb(183, 155, 240)',
+        );
+        await expect(chip).toHaveCSS(
+          'background-color',
+          mode === 'light' ? 'rgb(241, 234, 253)' : 'rgb(36, 26, 58)',
+        );
+      }
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+
+  test('an open or closed pull request keeps the plain chip', async ({
+    page,
+  }) => {
+    served = { state: 'closed', author };
+    await open(page, 'issues', 'Fixed by #4177');
+    await issueDialog(page).getByRole('link', { name: '#4177' }).click();
+
+    const status = prDialog(page).getByRole('group', { name: 'Status' });
+    await expect(status).toHaveText('Closed');
+    await expect(status.locator('.merged-pill, svg')).toHaveCount(0);
+  });
+
   test('a pull request in the list opens as the normal dialog with no extra request', async ({
     page,
   }) => {

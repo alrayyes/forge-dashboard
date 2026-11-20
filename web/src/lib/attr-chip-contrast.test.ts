@@ -99,6 +99,8 @@ function chipProblems(source: string): string[] {
     const selectors = m[1].replace(/\/\*[\s\S]*?\*\//g, '');
     if (!/\.attr-chip\b/.test(selectors) || selectors.trim() === '.attr-chip')
       continue;
+    // The Merged chip's pair is measured in merged-pill-contrast.test.ts.
+    if (selectors.trim() === '.attr-chip.merged-pill') continue;
     if (selectors.trim() === '.attr-chip.behind') {
       for (const prop of ['color', 'background', 'border-color']) {
         if (!declared(m[2], prop))

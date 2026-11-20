@@ -1,4 +1,5 @@
 <script module lang="ts">
+  import { MERGE_GLYPH } from "./check-glyphs";
   import type { ItemReference } from "./issue-references";
   import type { RelatedBandData } from "./related-band";
 
@@ -1005,8 +1006,16 @@
                 aria-label={stateWord ? "Status" : undefined}
                 aria-hidden={stateWord ? undefined : true}
               >
-                <span class="attr-chip" class:held={!stateWord}
-                  >{stateWord || "Open"}</span
+                <span
+                  class="attr-chip"
+                  class:held={!stateWord}
+                  class:merged-pill={stateWord === STATE_WORDS.merged}
+                  >{#if stateWord === STATE_WORDS.merged}<svg
+                      class="merged-glyph"
+                      viewBox="0 0 16 16"
+                      aria-hidden="true"
+                      focusable="false">{@html MERGE_GLYPH}</svg
+                    >{/if}{stateWord || "Open"}</span
                 >
               </div>
             </div>

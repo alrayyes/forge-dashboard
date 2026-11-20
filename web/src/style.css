@@ -46,6 +46,10 @@
   --neutral-bg: #eef1f5;
   --queued: #1d5fa8;
   --queued-bg: #e4eefa;
+  /* A merged pull request (#4406): the purple GitHub and Forgejo draw it in.
+     Word 5.74:1 on its fill, glyph and edge 6.73:1 on --surface. */
+  --merged: #6d3fc0;
+  --merged-bg: #f1eafd;
 
   /* The pipeline-checks drawer's own ::backdrop — its own token rather
      than reusing --shadow (a small, soft drop-shadow, not a whole-page
@@ -101,6 +105,8 @@
     --neutral-bg: #1a212b;
     --queued: #7db4f5;
     --queued-bg: #14263d;
+    --merged: #b79bf0;
+    --merged-bg: #241a3a;
 
     --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -138,6 +144,8 @@
   --neutral-bg: #1a212b;
   --queued: #7db4f5;
   --queued-bg: #14263d;
+  --merged: #b79bf0;
+  --merged-bg: #241a3a;
 
   --backdrop: rgba(0, 0, 0, 0.6);
 
@@ -2688,6 +2696,41 @@ a.ci-pill:hover {
   color: var(--ink);
   font-size: 0.75rem;
   font-weight: 600;
+}
+/* Merged is a pull request state in a purple of its own (#4406), drawn like
+   the Passed pill: a glyph and the word on a tinted capsule. The same pair
+   marks the dialog's status chip and the word in the Related band's pill;
+   web/src/lib/merged-pill-contrast.test.ts holds them to the ratios. */
+.row-settled[data-state="merged"] {
+  gap: 4px;
+  background: var(--merged-bg);
+  color: var(--merged);
+}
+.attr-chip.merged-pill {
+  background: var(--merged-bg);
+  color: var(--merged);
+  border-color: var(--merged);
+  border-radius: 999px;
+  font-weight: 600;
+}
+.merged-glyph {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.linked-pr-merged {
+  color: var(--merged);
+}
+@media (forced-colors: active) {
+  .row-settled[data-state="merged"],
+  .attr-chip.merged-pill {
+    border: 1px solid CanvasText;
+  }
 }
 /* mergeActionCell's locked Merge (#705): the reason is the content, so it
    sits beside the button as plain text instead of the hover bubble. Same

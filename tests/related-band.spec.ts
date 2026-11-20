@@ -375,6 +375,7 @@ async function openClosedIssue(page: Page, references: unknown[]) {
 test('a closed issue that is off the board shows what refers to it, with each state', async ({
   page,
 }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
   const dialog = await openClosedIssue(page, [
     reference(4100),
     reference(4150, {
@@ -396,6 +397,14 @@ test('a closed issue that is off the board shows what refers to it, with each st
   ).toHaveAccessibleName('Closed by: PR #4100 · Merged');
   await expect(row(dialog, 'Closed by').locator('.linked-pr')).toHaveText(
     'PR #4100 · Merged',
+  );
+  // Only the word is purple, and the pill's text is unchanged (#4406).
+  const merged = row(dialog, 'Closed by').locator('.linked-pr-merged');
+  await expect(merged).toHaveText('Merged');
+  await expect(merged).toHaveCSS('color', 'rgb(109, 63, 192)');
+  await expect(row(dialog, 'Closed by').locator('.linked-pr')).not.toHaveCSS(
+    'color',
+    'rgb(109, 63, 192)',
   );
   await expect(
     row(dialog, 'Mentioned by').locator('.linked-pr'),

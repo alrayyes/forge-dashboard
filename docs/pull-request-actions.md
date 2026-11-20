@@ -299,7 +299,8 @@ confirming. If the forge still refuses,
 the server re-reads the pull request and answers with a code and a short
 reason. A toast shows it, and the row's own line appears once you dismiss the
 toast. The reasons are: already merged or closed (the row
-switches to "Merged" or "Closed" and drops off the list on the next snapshot),
+switches to "Merged", a purple pill with a merge glyph, or to a plain "Closed",
+and drops off the list on the next snapshot),
 a conflict, behind the base branch, a check pending or failing, branch
 protection, a missing permission, or a rate limit with its reset time. The
 codes are in `api/openapi.yaml` (`ActionError`). A Merge or Close that succeeds

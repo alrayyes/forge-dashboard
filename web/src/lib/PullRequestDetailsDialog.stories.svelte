@@ -288,6 +288,51 @@
   })}
 </Story>
 
+<!-- A pull request found by number, already merged: the status chip wears the
+  Merged pair with its glyph (#4406). -->
+<Story
+  asChild
+  name="Merged pull request"
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: ROUTE,
+        body: {
+          ...DETAILS,
+          kind: "pullRequest",
+          pullRequest: {
+            title: "feat(web): add a Storybook component catalog",
+            state: "merged",
+            author: {
+              login: "alrayyes",
+              avatarUrl: "",
+              url: "https://github.com/alrayyes",
+            },
+          },
+        },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    await loaded(canvasElement);
+    const chip = document.querySelector(
+      '.details-state[aria-label="Status"] .attr-chip.merged-pill',
+    ) as HTMLElement;
+    await expect(chip.textContent?.trim()).toBe("Merged");
+    await expect(
+      chip.querySelector("svg.merged-glyph")?.getAttribute("aria-hidden"),
+    ).toBe("true");
+  }}
+>
+  {@render opener({
+    forge: "github",
+    repo: "alrayyes/forge-dashboard",
+    title: "feat(web): add a Storybook component catalog",
+    url: "https://github.com/alrayyes/forge-dashboard/issues/3240",
+    subject: "issue",
+    number: 3240,
+  })}
+</Story>
+
 <!-- A published release, found by its tag: notes only. -->
 <Story
   asChild
