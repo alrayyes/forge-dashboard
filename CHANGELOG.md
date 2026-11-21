@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.91.1](https://github.com/alrayyes/forge-dashboard/compare/v9.91.0...v9.91.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* **web:** keep the empty wait slot out of the phone card above its divider ([#4538](https://github.com/alrayyes/forge-dashboard/issues/4538)) ([4d721f1](https://github.com/alrayyes/forge-dashboard/commit/4d721f1a3f5781f1f0e9b1ce51725413dcd71b39)), closes [#4519](https://github.com/alrayyes/forge-dashboard/issues/4519)
+
 ## [9.91.0](https://github.com/alrayyes/forge-dashboard/compare/v9.90.9...v9.91.0) (2026-11-21)
 
 
