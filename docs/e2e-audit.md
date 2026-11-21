@@ -1,6 +1,6 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (307 files, 2,721 tests) against
+Read-only audit of every `tests/*.spec.ts` (308 files, 2,729 tests) against
 `main`. No spec was edited, moved, or deleted. The per-spec table is
 [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.
@@ -46,7 +46,7 @@ spec's file name and it appears in the `lower` column.
   with no browser-only token. Time is assumed proportional to test count. It is
   not a measured saving.
 - Most specs mock `/api/v1/dashboard` with `page.route`, so they check the UI
-  over canned state. `web/` has 151 unit test files, all in `web/src/lib` (pure
+  over canned state. `web/` has 152 unit test files, all in `web/src/lib` (pure
   functions or fake DOM; `bun run test:unit` fails when this count drifts), and
   no Svelte component harness. Class C is therefore blocked on one, tracked as
   its own ticket, except where a lib function already carries the logic.
