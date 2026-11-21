@@ -256,7 +256,11 @@ to finish") sit under the title, so a row that has one is taller and its pills
 stay centred on the title and the note together. Rarer lines (a close cue, a
 queued note, the waiting chip) take a line of their own under the slots, and
 the waiting chip's reserved room is only there while a chip is. A narrower list
-keeps the wrapping status cell, with the chips and the note in it. Rows with
+keeps the wrapping status cell, with the chips and the note in it, which is a
+stack of lines at 280px wide. The repo, the title and the arrow start at the top
+of the row, so the CI pill and the title's first line share a centre whatever is
+under them. Only the one-line row keeps the other pills and the action on that
+line. Rows with
 both Merge and Update branch stack the two buttons as one block, centred on the
 pill line; that is intended. Tab follows the layout: when the note
 under the title has a fix button in it, such as Update branch on a behind pull

@@ -1152,6 +1152,30 @@ section.board {
   }
 }
 
+/* #4517: on a list narrower than the one-line row (761px to 1190px, or any
+   width at a large root font size) the status cell is a stack: the CI pill, the
+   comment pill, the action and the note each on a line of their own, which is
+   as much as 280px holds. The title, repo and arrow were centred on the
+   whole stack, so the CI pill, the first thing in it, sat above them by half
+   the stack's height. They start at the top of the row instead, on a line the
+   height of a pill, so the CI pill and the title's first line share a centre
+   whatever is under the pill or the title. */
+@media (min-width: 761px) {
+  @container not (min-width: max(1191px, 74.5rem)) {
+    .row:not(.issue-row) {
+      align-items: start;
+    }
+    .row:not(.issue-row) .repo,
+    .row:not(.issue-row) .go {
+      min-height: 24px;
+      align-items: center;
+    }
+    .row:not(.issue-row) .title-cell {
+      padding-top: 3px;
+    }
+  }
+}
+
 .row:last-child {
   border-bottom: none;
 }
