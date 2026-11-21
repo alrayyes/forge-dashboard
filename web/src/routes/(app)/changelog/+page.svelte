@@ -5,6 +5,16 @@
     createPlainNotes,
   } from "#lib/changelog-notes.js";
   import { renderMarkdown } from "#lib/markdown.js";
+  import {
+    projectReferences,
+    type ProjectReferences,
+  } from "#lib/changelog-references.js";
+  import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
+  import { detailsCache, detailsKey } from "#lib/details-cache.js";
+  import { createDwell } from "#lib/reference-dwell.js";
+  import { referenceAt, referenceFromClick } from "#lib/reference-links.js";
+  import { createReferencePrefetcher } from "#lib/reference-prefetch.js";
+  import { probeReference } from "#lib/reference-probe.js";
 
   // One entry per release in CHANGELOG.md, written to /changelog.json at
   // build time by scripts/changelog-json.ts (#813). This page makes no
@@ -42,8 +52,21 @@
   // cards from the first paint and nothing moves. If the renderer's chunk is
   // slow or never loads, the cards show the notes as plain text and swap later.
   let rendered = $state<Record<string, string>>({});
+  // The project's own repository, read from the releases once they load. With
+  // it a `#12` or an item address in a note carries what a click needs to open
+  // the item's dialog (#3764); without it the links stay forge links.
+  let project: ProjectReferences | null = null;
   const requestNotes = createNoteRenderer(
-    (text) => renderMarkdown(text, { monoReferences: true }),
+    (text) =>
+      renderMarkdown(text, {
+        monoReferences: true,
+        ...(project
+          ? {
+              repoUrl: project.repoUrl,
+              references: { forge: project.forge, tracked: project.tracked },
+            }
+          : {}),
+      }),
     (version, html) => {
       if (html !== null) rendered[version] = html;
     },
@@ -55,6 +78,60 @@
   // A render that failed is asked for again a few seconds later, for as long
   // as the page is open.
   $effect(() => () => requestNotes.stop());
+
+  // A reference opens the item's read-only dialog once the forge has answered
+  // for it, the same lookup a mention in a description uses (#4269). The page
+  // tracks no repository, so every reference is asked of the forge: while the
+  // pointer or focus rests on a link, and a click opens the dialog only when
+  // that answer is in. Any other click, and every modified or middle click,
+  // follows the link to the forge in a new tab.
+  let dialog = $state<PullRequestDetailsDialog>();
+  let anchorCount = 0;
+  const items = createReferencePrefetcher({
+    probe: (r) => probeReference(r),
+    isKnown: (r) =>
+      detailsCache.get(detailsKey({ ...r, subject: "issue" })) !== undefined,
+    remember: (r, details) =>
+      detailsCache.set(detailsKey({ ...r, subject: "issue" }), {
+        details,
+        readAt: Date.now(),
+      }),
+  });
+  const wanted = (repo: string, number: number) =>
+    project ? { forge: project.forge, repo, number } : null;
+  const dwell = createDwell<{ forge: string; repo: string; number: number }>(
+    (r) => void items.warm(r),
+  );
+  $effect(() => () => dwell.cancel());
+
+  function warm(event: Event, wait: boolean) {
+    const found = referenceAt(event.target);
+    const ref = found && wanted(found.repo, found.number);
+    if (!found || !ref) return dwell.cancel();
+    if (wait) dwell.rest(found.anchor, ref);
+    else {
+      dwell.cancel();
+      void items.warm(ref);
+    }
+  }
+
+  function openReference(event: MouseEvent) {
+    const found = referenceFromClick(event);
+    const ref = found && wanted(found.repo, found.number);
+    if (!found || !ref || !items.isReady(ref)) return;
+    const anchor = found.anchor as HTMLElement;
+    if (!anchor.id) anchor.id = `release-ref-${++anchorCount}`;
+    event.preventDefault();
+    dialog?.open(
+      {
+        ...ref,
+        subject: "issue",
+        title: `Issue #${ref.number}`,
+        url: found.url,
+      },
+      anchor.id,
+    );
+  }
 
   // The plain-text fallback, stripped once per release.
   const plainNotes = createPlainNotes();
@@ -106,6 +183,9 @@
         loaded = true;
         return;
       }
+      project =
+        list.map((r) => projectReferences(r.url)).find((p) => p !== null) ??
+        null;
       // The JSON loaded. If the wait fails, the cards still show.
       await waitForNotes(list).catch(() => {});
       if (!mounted) return;
@@ -283,7 +363,15 @@
     {status}
   </p>
 
-  <ul class="release-list" id="release-list">
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <ul
+    class="release-list"
+    id="release-list"
+    onclick={openReference}
+    onpointerover={(e) => warm(e, true)}
+    onpointerdown={(e) => warm(e, false)}
+    onfocusin={(e) => warm(e, false)}
+  >
     {#each shown as r (r.version)}
       <li class="release">
         <div class="release-head">
@@ -328,3 +416,5 @@
     No releases published yet.
   </p>
 </div>
+
+<PullRequestDetailsDialog bind:this={dialog} />

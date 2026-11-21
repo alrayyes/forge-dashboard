@@ -199,28 +199,6 @@ test.describe('release history page', () => {
     expect(await page.locator('.release-notes [onmouseover]').count()).toBe(0);
   });
 
-  // #3764: the page has no dialog host (it works without a session, and the
-  // dialogs read the signed-in dashboard), so a reference is a forge link and
-  // says so.
-  test('a #N reference opens the forge in a new tab and says so', async ({
-    page,
-  }) => {
-    await serveNotes(
-      page,
-      '### Bug Fixes\n* fix it ([#12](https://github.com/o/r/issues/12)) ([6bf88c3](https://github.com/o/r/commit/6bf88c3))',
-    );
-    await page.goto('/changelog.html');
-    await waitForReleasesToSettle(page);
-    const link = page.getByRole('link', { name: /^#12/ });
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAccessibleName(
-      '#12 (opens on the forge in a new tab)',
-    );
-    await expect(
-      page.getByRole('link', { name: '6bf88c3', exact: true }),
-    ).toBeVisible();
-  });
-
   for (const width of [360, 390, 1280]) {
     test(`reference links have no axe violations at ${width}px`, async ({
       page,
