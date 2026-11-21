@@ -307,24 +307,6 @@ test.describe('the footer order', () => {
     expect(boxes[boxes.length - 1]).toBe(Math.max(...boxes));
   });
 
-  test('without a primary, the others keep their order and Close stays last', async ({
-    page,
-  }) => {
-    await start(page, [
-      makePR({
-        behind: true,
-        allowedActions: [
-          { action: 'close' },
-          { action: 'update_branch' },
-          { action: 'auto_merge' },
-        ],
-      }),
-    ]);
-    const dialog = await openActionsDialog(row(page));
-    const list = await names(footerButtons(dialog));
-    expect(list[list.length - 1]).toBe('Close pull request');
-  });
-
   test('"Open on GitHub" stays in the footer', async ({ page }) => {
     await start(page, [makePR()]);
     const dialog = await openActionsDialog(row(page));

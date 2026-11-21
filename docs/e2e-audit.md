@@ -378,6 +378,15 @@ One ticket per group, each doing moves with its own mutation proof:
   page, the poll timing, and the axe runs. Each case was proven red by breaking
   the code: a zero that draws, a current page that loses its link, an unknown
   count that draws and a snapshot with no counts that drops the known ones.
+- The fourteenth move, from `pr-dialog-actions`: the dialog footer is built by
+  the page's own row builders in an 11,000-line component, so a story can't hold
+  it. The order rule moved into `footerOrder` and a unit test holds it: the
+  primary action first, the others in their own order, the row's extras, and
+  Close last, with an action the row did not build leaving no gap. One test is
+  gone (no primary, the others keep their order). The rest stay, since they
+  check real buttons, requests, focus, live regions, the sticky footer and axe.
+  Each rule was proven red by breaking it: a primary that is not first, Close
+  ahead of the extras, a null cell kept, and the others reversed.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in

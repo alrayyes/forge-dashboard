@@ -265,6 +265,7 @@
   import type { LockInfo } from "#lib/lock-info.js";
   import { type RowClaim, rowClaim } from "#lib/row-claim.js";
   import { chromeIsCurrent } from "#lib/dialog-chrome.js";
+  import { footerOrder } from "#lib/footer-order.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
   import {
     DEPENDABOT_ACTION_LABELS,
@@ -2057,43 +2058,36 @@
         const badge = mergeActionCell(item);
         return badge ? [badge] : [];
       }
-      const named: [ActionName, () => HTMLElement | null][] = [
-        ["merge", () => mergeActionCell(item)],
-        ["update_branch", () => updateBranchActionCell(item)],
-        ["dependabot_rebase", () => dependabotRebaseCell(item)],
+      const named: [ActionName, HTMLElement | null][] = [
+        ["merge", mergeActionCell(item)],
+        ["update_branch", updateBranchActionCell(item)],
+        ["dependabot_rebase", dependabotRebaseCell(item)],
         [
           "dependabot_recreate",
-          () =>
-            findAction(item, "dependabot_recreate")
-              ? dependabotActionButton(item, "recreate")
-              : null,
+          findAction(item, "dependabot_recreate")
+            ? dependabotActionButton(item, "recreate")
+            : null,
         ],
-        ["renovate_rebase", () => renovateRebaseActionCell(item)],
-        ["cancel_renovate_rebase", () => cancelRenovateRebaseCell(item)],
-        ["auto_merge", () => autoMergeActionCell(item)],
-        ["cancel_auto_merge", () => cancelAutoMergeCell(item)],
-        ["rerun_checks", () => rerunChecksActionCell(item)],
+        ["renovate_rebase", renovateRebaseActionCell(item)],
+        ["cancel_renovate_rebase", cancelRenovateRebaseCell(item)],
+        ["auto_merge", autoMergeActionCell(item)],
+        ["cancel_auto_merge", cancelAutoMergeCell(item)],
+        ["rerun_checks", rerunChecksActionCell(item)],
       ];
       const primary = primaryAction(item)?.action;
-      const first: HTMLElement[] = [];
-      const rest: HTMLElement[] = [];
-      for (const [action, build] of named) {
-        const cell = build();
-        if (!cell) continue;
-        if (action === primary) {
-          cell.classList.add("details-action-primary");
-          first.push(cell);
-        } else rest.push(cell);
-      }
+      const extras: HTMLElement[] = [];
       const queueCell = queueActionCell(item);
-      if (queueCell) rest.push(queueCell);
-      rest.push(...hideActionCells(item));
+      if (queueCell) extras.push(queueCell);
+      extras.push(...hideActionCells(item));
       const close = closeActionCell(item);
       if (close) {
         close.classList.add("details-action-close");
         if (primary === "close") close.classList.add("details-action-primary");
       }
-      const cells = [...first, ...rest, ...(close ? [close] : [])];
+      const ordered = footerOrder(named, primary, extras, close);
+      for (const cell of ordered.primary)
+        cell.classList.add("details-action-primary");
+      const cells = ordered.cells;
       const holder = el("div");
       for (const cell of cells) holder.appendChild(cell);
       dedupeRetryButtons(holder);

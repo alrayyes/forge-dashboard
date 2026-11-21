@@ -23,5 +23,6 @@
     "PipelineDialog.stories.svelte (proven)"
   ],
   "nav-empty-links.spec.ts": ["web/src/lib/nav-link-shown.test.ts (proven)"],
+  "pr-dialog-actions.spec.ts": ["web/src/lib/footer-order.test.ts (proven)"],
   "related-band.spec.ts": ["RelatedBand.stories.svelte (proven)"]
 }
