@@ -1,6 +1,6 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (309 files, 2,742 tests) against
+Read-only audit of every `tests/*.spec.ts` (309 files, 2,738 tests) against
 `main`. No spec was edited, moved, or deleted. The per-spec table is
 [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.
@@ -352,6 +352,18 @@ One ticket per group, each doing moves with its own mutation proof:
   name, the Referenced by label, the "+N more" and "Show fewer" text, the fold
   limit, `aria-expanded`, the toggle's accessible name and a hint line added
   to a row. The CSV row for `related-band` is updated.
+- The twelfth move, from `pipeline-run-output` again: `CheckRunOutput` already
+  had stories for its notes and errors, so no component changed. Four new ones
+  hold what four tests checked: the status line after Copy output on a cut log
+  (which part was copied and where the rest is) and on an empty output
+  ("Nothing was copied."), the field to copy by hand when the browser refuses
+  every route (its text, its focus and the Ctrl+C line), and opening the output
+  with Enter, focusing it and hiding it again. The clipboard is faked per story
+  and put back afterwards. The four tests are gone. The copy flows that read the
+  page (the row's two Copy buttons, rerun, closing the dialog mid-read) stay, as
+  does the first test, which keeps the axe run of the dialog. Each assertion was
+  proven red by breaking the code: the three status wordings, and the output's
+  `tabindex`.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in

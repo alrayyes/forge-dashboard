@@ -187,65 +187,6 @@ test.describe('a check run output in the pipeline dialog', () => {
     expect(results.violations).toEqual([]);
   });
 
-  test('when every copy route is refused, Show output puts the output in a field to copy by hand', async ({
-    page,
-  }) => {
-    await refuseClipboard(page);
-    await setup(page, {
-      status: 200,
-      body: { text: 'step 1\nboom: exit 1\n', truncated: false },
-    });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog
-      .getByRole('button', { name: 'Show full output: build' })
-      .click();
-    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
-
-    const field = dialog.getByRole('textbox', {
-      name: 'Output to copy: build',
-    });
-    await expect(field).toHaveValue('step 1\nboom: exit 1\n');
-    await expect(field).toBeFocused();
-    await expect(dialog.locator('.run-output-status')).toContainText('Cmd+C');
-  });
-
-  test('Copy output on a cut log says it copied the last part of the output', async ({
-    page,
-    context,
-  }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await setup(page, {
-      status: 200,
-      body: { text: 'tail\n', truncated: true },
-    });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog
-      .getByRole('button', { name: 'Show full output: build' })
-      .click();
-    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
-
-    await expect(dialog.locator('.run-output-status')).toHaveText(
-      'Copied the last 256 KB of the output, which is all the dashboard keeps. Open the job on GitHub for the rest.',
-    );
-  });
-
-  test('Copy output on an empty output says nothing was copied', async ({
-    page,
-    context,
-  }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await setup(page, { status: 200, body: { text: '', truncated: false } });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    await dialog
-      .getByRole('button', { name: 'Show full output: build' })
-      .click();
-    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
-
-    await expect(dialog.locator('.run-output-status')).toHaveText(
-      'Nothing was copied.',
-    );
-  });
-
   test('opening the output and copying it leave the row controls where they were (#3866)', async ({
     page,
   }) => {
@@ -354,28 +295,6 @@ test.describe('a check run output in the pipeline dialog', () => {
       // Same line: the toggle's top is not below the name's bottom.
       expect(t?.y).toBeLessThan((n?.y ?? 0) + (n?.height ?? 0));
     }
-  });
-
-  test('the output is reachable from the keyboard and hides again', async ({
-    page,
-  }) => {
-    await setup(page, {
-      status: 200,
-      body: { text: 'line\n', truncated: false },
-    });
-    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
-    const toggle = dialog.getByRole('button', {
-      name: 'Show full output: build',
-    });
-    await toggle.focus();
-    await page.keyboard.press('Enter');
-    const output = dialog.getByRole('region', { name: 'Output: build' });
-    await expect(output).toBeVisible();
-    await output.focus();
-    await expect(output).toBeFocused();
-
-    await dialog.getByRole('button', { name: 'Hide output: build' }).click();
-    await expect(output).toHaveCount(0);
   });
 
   // The wording, the job link and the colours of each answer are stories
