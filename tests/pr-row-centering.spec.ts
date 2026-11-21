@@ -647,3 +647,82 @@ for (const width of [1280, 1000, 390]) {
     expect(results.violations).toEqual([]);
   });
 }
+
+// Every pill that can sit in the flags slot (the merge-state pills in
+// Dashboard.svelte's MERGE_STATUS_LABELS and unconfirmedConflictPill, and the
+// comment pill at its widest) has to fit its slot, or the action beside it
+// covers the end of it. The slot is narrower than the status track's old
+// middle slot to leave room for two buttons, so the longest label is the one
+// at risk (#4518).
+// https://github.com/alrayyes/forge-dashboard/issues/4518
+const FLAG_ROWS = [
+  pr(20, {
+    title: 'Conflicting',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: true,
+  }),
+  pr(21, { title: 'Blocked', mergeStatus: 'blocked' }),
+  pr(22, { title: 'Checking', mergeStatus: 'checking' }),
+  pr(23, {
+    title: 'Not confirmed',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: false,
+  }),
+  pr(24, {
+    title: 'Not confirmed and behind',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: false,
+    behind: true,
+    allowedActions: [
+      { action: 'merge', primary: true },
+      { action: 'update_branch' },
+      { action: 'close' },
+    ],
+  }),
+  pr(25, {
+    title: 'Widest comment pill',
+    reviewComments: 128,
+    conversationComments: 12,
+    unresolvedThreads: 44,
+  }),
+  pr(26, {
+    title: 'Conflicting with a comment pill',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: true,
+    reviewComments: 128,
+    unresolvedThreads: 44,
+  }),
+];
+for (const width of [1280, 1253]) {
+  test(`every pill in the flags slot stays clear of the action at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, FLAG_ROWS);
+    await expect
+      .poll(() =>
+        page.locator('#pr-rows > .row').evaluateAll((rows) =>
+          rows.flatMap((row) => {
+            const slot = row.querySelector('.status-flags');
+            const title = row.querySelector('.title')?.textContent ?? '';
+            if (!slot) return [];
+            const box = slot.getBoundingClientRect();
+            const actions = [...row.querySelectorAll('.row-action')].map((b) =>
+              b.getBoundingClientRect(),
+            );
+            return [...slot.querySelectorAll('.merge-pill, .review-pill')]
+              .map((pill) => ({ pill, r: pill.getBoundingClientRect() }))
+              .filter(
+                ({ r }) =>
+                  r.right > box.right + 0.5 ||
+                  actions.some((a) => r.right > a.left && r.left < a.right),
+              )
+              .map(
+                ({ pill, r }) =>
+                  `${title}: ${pill.textContent?.trim()} ends at ${Math.round(r.right)}, slot at ${Math.round(box.right)}`,
+              );
+          }),
+        ),
+      )
+      .toEqual([]);
+  });
+}

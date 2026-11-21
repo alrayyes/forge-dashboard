@@ -268,7 +268,9 @@ under them. Only the one-line row keeps the other pills and the action on that
 line. A row with
 both Merge and Update branch puts the two buttons side by side in the action
 slot, so it is as tall as a row with one. The slot is wide enough for the pair
-at 1191px. Tab follows the layout: when the note
+at 1191px. The slot before it is 7.5rem, so a long merge-state label such as
+"Conflict not confirmed" wraps to a second line there and the comment pill keeps
+its count inside it. Tab follows the layout: when the note
 under the title has a fix button in it, such as Update branch on a behind pull
 request, Tab reaches that button before the CI and comment pills. On a phone
 and on a narrower list the note stays in the status cell, and Tab visits the
