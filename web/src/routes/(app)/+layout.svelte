@@ -15,6 +15,7 @@
     dashboardReadFailureMessage,
   } from "#lib/dashboard-read-error.js";
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
+  import { navLinkShown } from "#lib/nav-link-shown.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranches } from "#lib/main-branches.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
@@ -112,17 +113,13 @@
   // nothing (#4318). The page you are on keeps its own link. Branches always
   // shows.
   const showPulls = $derived(
-    (pulls !== null && pulls.total !== 0) || isCurrentRoute("/pull-requests"),
+    navLinkShown(pulls, isCurrentRoute("/pull-requests")),
   );
-  const showIssues = $derived(
-    (issues !== null && issues.total !== 0) || isCurrentRoute("/issues"),
-  );
+  const showIssues = $derived(navLinkShown(issues, isCurrentRoute("/issues")));
   const showReleases = $derived(
-    (releases !== null && releases.total !== 0) || isCurrentRoute("/releases"),
+    navLinkShown(releases, isCurrentRoute("/releases")),
   );
-  const showBots = $derived(
-    (bots !== null && bots.total !== 0) || isCurrentRoute("/bots"),
-  );
+  const showBots = $derived(navLinkShown(bots, isCurrentRoute("/bots")));
 
   function signOut() {
     fetch("/api/v1/auth/logout", { method: "POST" }).finally(() => {

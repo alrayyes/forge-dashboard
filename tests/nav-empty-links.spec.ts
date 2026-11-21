@@ -8,7 +8,9 @@ import { test } from './server-fixture';
 // while they have something to show. A count of null (not loaded yet) is not
 // zero and the page you are on keeps its link. Pull requests follow the same
 // rule (#1415); Branches always shows. A link whose count is not known yet is
-// not drawn either (#4276), so the menu only grows as the counts arrive.
+// not drawn either (#4276), so the menu only grows as the counts arrive. The
+// rule itself and what a snapshot without navCounts does to it are unit tests
+// (nav-link-shown.test.ts); what stays is the page drawing the links.
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -347,28 +349,6 @@ test.describe('empty pages leave the navigation (#1228)', () => {
     await expect.poll(() => reads).toBe(2);
   });
 
-  test('a snapshot that never carries navCounts keeps the count links out (#4276)', async ({
-    page,
-  }) => {
-    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [forgeHealth('github')],
-          pullRequests: [makePR(1)],
-          issues: [],
-          openIssueCount: 1,
-        }),
-      }),
-    );
-    await page.goto('/settings.html');
-    await expect(header(page, '/insights.html')).toHaveCount(1);
-    await expect(header(page, PULLS)).toHaveCount(0);
-    await expect(header(page, '/issues.html')).toHaveCount(0);
-  });
-
   test('the page you are on keeps its link at zero, marked current, and loses it when you leave', async ({
     page,
   }) => {
@@ -401,35 +381,6 @@ test.describe('empty pages leave the navigation (#1228)', () => {
 
     await page.goto('/settings.html');
     await expect(header(page, PULLS)).toHaveCount(0);
-  });
-
-  test('a later snapshot without navCounts keeps the links already drawn (#4318)', async ({
-    page,
-  }) => {
-    await page.clock.install();
-    let reads = 0;
-    await page.route(/\/api\/v1\/dashboard(\?.*)?$/, (route: Route) => {
-      reads++;
-      return route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [forgeHealth('github')],
-          pullRequests: [makePR(1)],
-          issues: [],
-          openIssueCount: 0,
-          ...(reads === 1 ? { navCounts: navCountsFor([makePR(1)], 0) } : {}),
-        }),
-      });
-    });
-    await page.goto('/settings.html');
-    await expect(header(page, PULLS)).toHaveCount(1);
-
-    await page.clock.runFor(31_000);
-    await expect.poll(() => reads).toBeGreaterThan(1);
-    await expect(header(page, PULLS)).toHaveCount(1);
-    await expect(tab(page, PULLS)).toHaveCount(1);
   });
 
   test("the links stay out while the server's first refresh runs, even when the snapshot carries counts, and come in when it ends (#4318)", async ({

@@ -159,12 +159,12 @@ mono-figures.spec.ts,0.853,4,0,A,,0.9
 nav-branches-pill-matches-page.spec.ts,0.211,1,0,C,,0.2
 nav-branches-pills.spec.ts,1.209,3,2,A,NavPills.stories.svelte (proven),0.4
 nav-count-reads.spec.ts,2.539,5,2,C,,1.5
-nav-empty-links.spec.ts,5.752,17,4,C,,4.4
+nav-empty-links.spec.ts,5.752,15,4,C,web/src/lib/nav-link-shown.test.ts (proven),4.2
 nav-pill-single-count.spec.ts,3.422,4,4,A,,0.0
 nav-pills.spec.ts,4.614,20,7,C,,3.0
 nav-public-pages.spec.ts,2.161,3,1,C,,1.4
 nav-telemetry-pills.spec.ts,2.55,12,5,C,,1.5
-nav.spec.ts,3.496,10,5,A,web/src/lib/nav-counts-next.test.ts;web/src/lib/nav-labels.test.ts;web/src/lib/nav-pill-contrast.test.ts,1.7
+nav.spec.ts,3.496,10,5,A,web/src/lib/nav-counts-next.test.ts;web/src/lib/nav-labels.test.ts;web/src/lib/nav-link-shown.test.ts;web/src/lib/nav-pill-contrast.test.ts,1.7
 out-of-date-chip-fit.spec.ts,3.143,1,1,A,,0.0
 out-of-date-filter.spec.ts,5.387,10,3,C,,3.8
 overview-ci-filter-glyphs.spec.ts,,16,8,A,,0.0
