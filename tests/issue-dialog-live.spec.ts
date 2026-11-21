@@ -209,6 +209,28 @@ async function push(page: Page, world: World) {
   );
 }
 
+// Two frames on: the page has run every microtask, effect and focus move that
+// the last change set going. For a check that nothing further happens, where
+// no change of its own says the work is over.
+const settled = (page: Page) =>
+  page.evaluate(
+    () =>
+      new Promise<void>((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => done())),
+      ),
+  );
+
+// Lets a held lookup answer, and returns once the page has read the answer and
+// had two frames to act on it.
+async function releaseLookup(page: Page, release: () => void) {
+  const answered = page.waitForResponse((r) =>
+    r.url().includes('includeHidden=true'),
+  );
+  release();
+  await (await answered).finished();
+  await settled(page);
+}
+
 const issueDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Issue details/ });
 const pullDialog = (page: Page) =>
@@ -634,7 +656,7 @@ test('details read again with the same references leave the pills in place', asy
   world.issueText[1] = 'Issue one text, edited.';
   await push(page, world);
   await expect(dialog).toContainText('Issue one text, edited.');
-  await page.waitForTimeout(200);
+  await settled(page);
   expect(
     await page.evaluate(
       () => (window as unknown as { __writes: string[] }).__writes,
@@ -677,8 +699,13 @@ test('clicking a related pull request, then its related issue, while the open it
   world.pullText[10] = 'Pull ten text, edited.';
   world.issues[1] = { ...world.issues[1], updatedAt: ago(0) };
   world.issueText[1] = 'Issue one text, edited twice.';
+  world.issues[2] = { ...world.issues[2], title: 'Issue 2 after the push' };
   await push(page, world);
-  await page.waitForTimeout(300);
+  // Polls are handled in order, so a change to the board that shows up says
+  // the changes above have been handled, with no fixed wait.
+  await expect(
+    page.locator('#issue-rows .row', { hasText: 'Issue 2 after the push' }),
+  ).toHaveCount(1);
   await expect(pr).not.toContainText('Issue one text');
   expect(await survivors(pr), 'a push replaced the pull request nodes').toEqual(
     before,
@@ -728,8 +755,7 @@ test('a pull request looked up late does not open over what the reader chose sin
     .locator('button.title')
     .click();
   await expect(issueDialog(page)).toContainText('Issue two text.');
-  release();
-  await page.waitForTimeout(500);
+  await releaseLookup(page, release);
 
   await expect(pullDialog(page)).toHaveCount(0);
   await expect(issueDialog(page)).toContainText('Issue two text.');
@@ -765,8 +791,7 @@ test('a pull request looked up late does not open over a pull request the reader
   // The reader opens a pull request from the board before the answer comes.
   await row.click();
   await expect(pullDialog(page)).toContainText('Pull request 30');
-  release();
-  await page.waitForTimeout(500);
+  await releaseLookup(page, release);
 
   await expect(pullDialog(page)).toContainText('Pull request 30');
   await expect(pullDialog(page)).not.toContainText('Pull request 11');
@@ -809,8 +834,7 @@ test('a pull request looked up late does not open over a read-only pull request 
   await pills.nth(1).click();
   await expect(pullDialog(page)).toContainText('Pull request 11');
 
-  release();
-  await page.waitForTimeout(500);
+  await releaseLookup(page, release);
   await expect(pullDialog(page)).toContainText('Pull request 11');
   await expect(pullDialog(page)).not.toContainText('Pull request 10');
 });
@@ -892,7 +916,7 @@ test('focus stays on the pill the reader had when the same pull request is in tw
   };
   await push(page, world);
   await expect(pills.nth(1)).toHaveAccessibleName(/Passed/);
-  await page.waitForTimeout(200);
+  await settled(page);
   // The pill is the element it was: the band was patched, so focus never left
   // and nothing was put back.
   expect(
@@ -949,14 +973,19 @@ test('focus goes back to the same one of two pills for a pull request when the b
     ),
     'the pill the reader was on was kept, so nothing was put back',
   ).toBe(false);
-  await page.waitForTimeout(200);
 
-  const focused = await dialog.evaluate((el) =>
-    [...el.querySelectorAll('.related-band .linked-pr')].indexOf(
-      document.activeElement as Element,
-    ),
-  );
-  expect(focused, 'focus moved to another pill').toBe(1);
+  // Focus comes back a tick after the band is drawn again, so it is polled for.
+  await expect
+    .poll(
+      () =>
+        dialog.evaluate((el) =>
+          [...el.querySelectorAll('.related-band .linked-pr')].indexOf(
+            document.activeElement as Element,
+          ),
+        ),
+      { message: 'focus moved to another pill' },
+    )
+    .toBe(1);
 });
 
 const threePills = async (page: Page) => {
@@ -1001,9 +1030,11 @@ test('focus goes back to the middle one of three pills for a pull request when t
   };
   await push(page, world);
   await expect(pills).toHaveCount(4);
-  await page.waitForTimeout(200);
 
-  expect(await focused(), 'focus moved to another pill').toBe(1);
+  // Focus comes back a tick after the band is drawn again, so it is polled for.
+  await expect
+    .poll(focused, { message: 'focus moved to another pill' })
+    .toBe(1);
 });
 
 test('focus goes to the last pill for a pull request when the reader was on one that is gone', async ({
@@ -1017,9 +1048,11 @@ test('focus goes to the last pill for a pull request when the reader was on one 
   world.issues[1] = { ...world.issues[1], referencedByPullRequests: [] };
   await push(page, world);
   await expect(pills).toHaveCount(2);
-  await page.waitForTimeout(200);
 
-  expect(await focused(), 'focus was not kept on the pull request').toBe(1);
+  // Focus comes back a tick after the band is drawn again, so it is polled for.
+  await expect
+    .poll(focused, { message: 'focus was not kept on the pull request' })
+    .toBe(1);
 });
 
 test('the overview rows follow a linked pull request without a reload', async ({
