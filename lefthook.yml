@@ -330,6 +330,7 @@ pre-push:
               - "bunfig.toml"
               - "scripts/storybook-screenshots.ts"
               - "scripts/storybook-logo-route.ts"
+              - "scripts/storybook-shots.ts"
               - "lefthook.yml"
             run: bun run storybook:screenshots
 

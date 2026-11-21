@@ -12,10 +12,21 @@ bun run storybook:screenshots
 ```
 
 The script builds the catalogue, serves it, waits until `index.json` lists the
-stories, then opens each one in Chromium at 1280 by 800 with animations off. It
-saves one PNG per story to `docs/storybook/<story id>.png` (git ignored) and
-runs axe over the same page. A story that throws, or any axe violation, fails
-the run after every story has been tried.
+stories, then opens each one in Chromium with animations off. Each story is
+shot three ways, and the variant is in the filename in `docs/storybook/` (git
+ignored):
+
+| File                    | viewport | Theme |
+| ----------------------- | -------- | ----- |
+| `<story id>.png`        | 1280×800 | light |
+| `<story id>--phone.png` | 390×844  | light |
+| `<story id>--dark.png`  | 1280×800 | dark  |
+
+A shot is cropped to what the story drew, with a 16px margin. A story with an
+open dialog or another fixed layer keeps the whole page, so the backdrop stays
+in the picture. A story that draws nothing is listed as "renders nothing" at
+the end of the run and gets no PNG. axe runs over every variant. A story that
+throws, or any axe violation, fails the run after every story has been tried.
 
 It needs Playwright's Chromium. Run `bunx playwright install chromium` once.
 `--static-dir=<dir>` serves a build you already made instead of building one,
