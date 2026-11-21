@@ -366,6 +366,18 @@ One ticket per group, each doing moves with its own mutation proof:
   does the first test, which keeps the axe run of the dialog. Each assertion was
   proven red by breaking the code: the three status wordings, and the output's
   `tabindex`.
+- The thirteenth move, from `nav-empty-links`: the navigation lives in the app
+  layout, which has no stories, so the rule that decides whether a link is drawn
+  moved into `navLinkShown` and a unit test holds it. A link is drawn once its
+  count is known and above zero, and the page you are on keeps its own. The same
+  test runs a snapshot with no `navCounts` through `nextNavCounts` and the rule:
+  with none ever known no count link is drawn, and with counts known the links
+  stay, minus the ones at zero. Two tests are gone (a snapshot that never carries
+  `navCounts`, and a later one that drops them). The other tests stay, since
+  they check the page drawing the links, the first refresh gating them on a list
+  page, the poll timing, and the axe runs. Each case was proven red by breaking
+  the code: a zero that draws, a current page that loses its link, an unknown
+  count that draws and a snapshot with no counts that drops the known ones.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
