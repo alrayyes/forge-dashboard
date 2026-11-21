@@ -85,10 +85,15 @@ The row shows `status` in one place: a block with an icon and words ahead of its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
-A wait on CI is said once, below the CI pill, on every row. An unarmed pull
-request shows the block ("Waiting for CI to finish", "Merge unlocks
-automatically"). An armed one shows the waiting chip instead, and the locked
-Merge is described by the chip's hint. The pop-up shows the block either way.
+A wait that passes by itself, CI running or Forgejo checking for conflicts, is
+said once, in the slot where Merge goes: one line of text, "Merge after CI" or
+"Merge after check", and no locked button or second sentence. It is real text,
+so a keyboard, a touch screen and a screen reader get it with no control to stop
+on. When the forge allows the merge, Merge takes the slot back and the row keeps
+its height, and a screen reader hears "Merge is available." only if focus is in
+that row. An armed row shows the waiting chip instead and no line, since the
+chip already says it. The status block and the pop-up's footer follow the same
+rule. Reasons a person can act on keep their locked Merge and printed words.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row prints no wait, whatever the last refresh said, and Merge
 stays locked until the next refresh, with "Updating from the latest CI results".
@@ -223,7 +228,7 @@ Checking for conflicts stay as merge pills, since they say what the merge needs.
 Forgejo has one `mergeable` flag. It is false for a conflict and also while the
 forge rechecks after a base push, so a Forgejo pull request that is false with a
 moved base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
-seconds, two refresh intervals. Its Merge stays locked with the same words.
+seconds, two refresh intervals. Its Merge is the line "Merge after check".
 A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
 refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
 once, even inside the window, and names the files git reported ("In a.txt,
@@ -251,8 +256,8 @@ off) a pull request row is one vertically centred line. The status column
 holds three fixed slots: the CI pill, the merge-state and comment pills (a
 Conflicting pill takes the same slot as the comment pill, and both stack there
 when a row has both), and the action. A pill is at the same x on every row and
-at the row's centre. The attribute chips and the status note ("Waiting for CI
-to finish") sit under the title, so a row that has one is taller and its pills
+at the row's centre. The attribute chips and the status note ("Behind the base
+branch", say) sit under the title, so a row that has one is taller and its pills
 stay centred on the title and the note together. Rarer lines (a close cue, a
 queued note, the waiting chip) take a line of their own under the slots, and
 the waiting chip's reserved room is only there while a chip is. A narrower list
@@ -325,70 +330,65 @@ Four limits to know:
 
 Merge is clickable when the forge reports the merge is actually possible, and
 it's the row's button when it is the primary action. Otherwise it stays on the
-row, locked
-(`aria-disabled`, no click), with the reason printed beside it: "Waiting for CI
-to finish" (it unlocks on its own at the next refresh), "Checking for
-conflicts" on Forgejo, a merge conflict, a
-draft, a branch that's behind, or "Blocked by the forge" when the forge says no
-without saying why. A failing check is named only when CI itself reports
-failing. A token missing the right permission, or the forge being unreachable,
-locks it too. Merge asks for confirmation first: the button turns into Confirm
-and Cancel, and the step ends on Cancel, a click anywhere else (which still does
-what it would have done), Escape, or after 8 seconds, shown by a thin line that
-runs down and waits while the pointer or keyboard focus is in the pair. A line
-under the buttons reminds you that Escape or a click elsewhere cancels. Only one
-Merge or Close is armed at a time, and double-clicking Merge arms it without
-confirming. If the forge still refuses,
-the server re-reads the pull request and answers with a code and a short
-reason. A toast shows it, and the row's own line appears once you dismiss the
-toast. The reasons are: already merged or closed (the row
-switches to "Merged", a purple pill with a merge glyph, or to a plain "Closed",
-and drops off the list on the next snapshot),
-a conflict, behind the base branch, a check pending or failing, branch
-protection, a missing permission, or a rate limit with its reset time. The
-codes are in `api/openapi.yaml` (`ActionError`). A Merge or Close that succeeds
-takes the pull request off the board at once, even if the forge goes on listing
-it as open for a few seconds; the server holds it back for up to two minutes.
-Update branch appears when the
-forge reports it's possible; it doesn't ask, since a merge from the base branch
-is easy to reverse and a merge itself isn't. A GitHub pull request counts as
-behind whenever its base has commits it lacks, even in a repo that doesn't
-require branches to be up-to-date, and Merge stays allowed there. On a pull
-request that's behind but also conflicts with its base, Update branch is locked
-with a note that the conflicts need fixing by hand, since the forge would refuse
-the update. Close is in the pop-up's footer on every open pull request,
-regardless of mergeability, and on the row only when it is the primary action
-(a pull request whose branch is already on the base). It reads "Close pull
-request" and is a neutral button, never green or red: closing is reversible,
-since the pull request stays listed as closed and can be reopened, so the
-warning tone is kept for the confirm step ("Confirm close pull request?"). For
-one that turns out not to need merging at all (a duplicate, or one whose content
-already landed another way) it's the action that applies. It asks for
-confirmation the same way Merge does. Escape drops an unconfirmed Close. If the
-forge refuses a confirmed Close, the button reads locked and the reason is its
-description. The row says so too, in a short note under its status: "Close
-locked" and the reason, in words. That way you don't open every pop-up to find
-the refused one. The note goes when the lock does: a permission lock stands
-until you dismiss the failure line, and a rate-limit lock clears on the next
-refresh.
-A Close from the pop-up doesn't shut it. The pop-up stays on the pull request,
-the header says "Closed", and the footer offers "Reopen pull request" with focus
-on it, so a slip is one press from undone. There is no timer; Reopen stays until
-you close the pop-up, and a screen reader hears "Closed. Reopen it if that was a
-mistake." once. The confirm step before Close stays, because a closed pull
-request can leave a branch behind that a reopen can't bring back. Reopen puts
-the pull request back on the board with a refresh and returns the pop-up to its
-normal footer. Closing the pop-up without reopening leaves it off the board, as
-before. The dashboard can't know in advance whether the forge reopens a pull
-request, so it asks and reads the refusal: one that was merged says "It was
-merged in the meantime, so it can't be reopened.", and one the forge won't
-reopen, usually because its branch was deleted or rewritten, says so in words
-and drops Reopen, leaving the link to the forge.
-A permission or rate-limit refusal reads the same as for any other action, and a
-forge error keeps Reopen with Retry and Copy.
-A permission refusal is re-read too: if the pull request turns out to be
-merged or closed, that is what the row says, not "check your token". Only a
-rate limit skips the re-read, since it would be limited as well.
+row, locked (`aria-disabled`, no click), with the reason printed beside it: a
+merge conflict, a draft, a branch that's behind, or "Blocked by the forge" when
+the forge says no without saying why. While only CI is running, or Forgejo is
+checking for conflicts, Merge is a line of text instead. A failing check is
+named only when CI itself reports failing. A token missing the right permission,
+or the forge being unreachable, locks it too. Merge asks for confirmation first:
+the button turns into Confirm and Cancel, and the step ends on Cancel, a click
+anywhere else (which still does what it would have done), Escape, or after 8
+seconds, shown by a thin line that runs down and waits while the pointer or
+keyboard focus is in the pair. A line under the buttons reminds you that Escape
+or a click elsewhere cancels. Only one Merge or Close is armed at a time, and
+double-clicking Merge arms it without confirming. If the forge still refuses,
+the server re-reads the pull request and answers with a code and a short reason.
+A toast shows it, and the row's own line appears once you dismiss the toast. The
+reasons are: already merged or closed (the row switches to "Merged", a purple
+pill with a merge glyph, or to a plain "Closed", and drops off the list on the
+next snapshot), a conflict, behind the base branch, a check pending or failing,
+branch protection, a missing permission, or a rate limit with its reset time.
+The codes are in `api/openapi.yaml` (`ActionError`). A Merge or Close that
+succeeds takes the pull request off the board at once, even if the forge goes on
+listing it as open for a few seconds; the server holds it back for up to two
+minutes. Update branch appears when the forge reports it's possible; it doesn't
+ask, since a merge from the base branch is easy to reverse and a merge itself
+isn't. A GitHub pull request counts as behind whenever its base has commits it
+lacks, even in a repo that doesn't require branches to be up-to-date, and Merge
+stays allowed there. On a pull request that's behind but also conflicts with its
+base, Update branch is locked with a note that the conflicts need fixing by
+hand, since the forge would refuse the update. Close is in the pop-up's footer
+on every open pull request, regardless of mergeability, and on the row only when
+it is the primary action (a pull request whose branch is already on the base).
+It reads "Close pull request" and is a neutral button, never green or red:
+closing is reversible, since the pull request stays listed as closed and can be
+reopened, so the warning tone is kept for the confirm step ("Confirm close pull
+request?"). For one that turns out not to need merging at all (a duplicate, or
+one whose content already landed another way) it's the action that applies. It
+asks for confirmation the same way Merge does. Escape drops an unconfirmed
+Close. If the forge refuses a confirmed Close, the button reads locked and the
+reason is its description. The row says so too, in a short note under its
+status: "Close locked" and the reason, in words. That way you don't open every
+pop-up to find the refused one. The note goes when the lock does: a permission
+lock stands until you dismiss the failure line, and a rate-limit lock clears on
+the next refresh. A Close from the pop-up doesn't shut it. The pop-up stays on
+the pull request, the header says "Closed", and the footer offers "Reopen pull
+request" with focus on it, so a slip is one press from undone. There is no
+timer; Reopen stays until you close the pop-up, and a screen reader hears
+"Closed. Reopen it if that was a mistake." once. The confirm step before Close
+stays, because a closed pull request can leave a branch behind that a reopen
+can't bring back. Reopen puts the pull request back on the board with a refresh
+and returns the pop-up to its normal footer. Closing the pop-up without
+reopening leaves it off the board, as before. The dashboard can't know in
+advance whether the forge reopens a pull request, so it asks and reads the
+refusal: one that was merged says "It was merged in the meantime, so it can't be
+reopened.", and one the forge won't reopen, usually because its branch was
+deleted or rewritten, says so in words and drops Reopen, leaving the link to the
+forge. A permission or rate-limit refusal reads the same as for any other
+action, and a forge error keeps Reopen with Retry and Copy. A permission refusal
+is re-read too: if the pull request turns out to be merged or closed, that is
+what the row says, not "check your token". Only a rate limit skips the re-read,
+since it would be limited as well.
 
 An issue's pop-up closes the same way, with a confirm step, a Closed header and
 Reopen as the undo, and adds a comment that posts before the close. See

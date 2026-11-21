@@ -13,6 +13,9 @@ import { test } from './server-fixture';
 // "Passed" and "Waiting for CI".
 // https://github.com/alrayyes/forge-dashboard/issues/4408
 //
+// Merge's slot carries the wait as one line of text, not a locked button
+// (#4528); an armed row's chip is that one place.
+//
 // The edges (#4435): the armed chip follows the pill whatever the status says,
 // a stale armed row keeps a way to disarm, and every case says why Merge is
 // locked: live Running keeps the wait, `checking` is no wait on CI.
@@ -55,6 +58,7 @@ const ARMED_DRAFT = pr(4, 'Armed draft', {
   draft: true,
 });
 const CHECKING = pr(5, 'Checking', { mergeStatus: 'checking' });
+const BLOCKED = pr(8, 'Blocked', { ci: 'success' });
 const READY = pr(3, 'Ready', { ci: 'success', mergeStatus: 'mergeable' });
 
 async function open(
@@ -122,62 +126,34 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: 900 });
       });
 
-      test('the message sits on the same side of the pill on an armed and an unarmed row', async ({
+      test("an unarmed row says it in Merge's slot and an armed row in its chip, never both", async ({
         page,
       }) => {
-        // On the one-line row (#4502) the unarmed row's status note sits under
-        // the title and the armed row's chip in the action slot, a different
-        // place by design. Where the note stays in the status cell (a narrower
-        // list, the phone card) the two share a side.
-        test.skip(width >= 1191, 'the one-line row places the two differently');
         await open(page, [PLAIN, ARMED_PR]);
         const plain = row(page, 'Plain');
         const armed = row(page, 'Armed');
+        const merge = (r: Locator) =>
+          r.getByRole('button', { name: 'Merge', exact: true });
 
-        // Every element that says it, on both rows, on one side of the pill.
-        const sides = async (r: Locator) => {
-          const pill = await y(r.locator('.ci-pill'));
-          const found = await waitingWords(r).all();
-          expect(found.length).toBeGreaterThan(0);
-          return Promise.all(
-            found.map(async (e) => Math.sign((await y(e)) - pill)),
-          );
-        };
-        const [plainSide] = await sides(plain);
-        for (const side of [...(await sides(plain)), ...(await sides(armed))])
-          expect(side).toBe(plainSide);
-      });
-
-      test('an armed row says it once and keeps a locked Merge with a reason', async ({
-        page,
-      }) => {
-        await open(page, [PLAIN, ARMED_PR]);
-        const armed = row(page, 'Armed');
-        const merge = armed.getByRole('button', {
-          name: 'Merge',
-          exact: true,
-        });
+        await expect(plain.getByText('Merge after CI')).toHaveCount(1);
+        await expect(plain.locator('.wait-chip')).toHaveCount(0);
+        await expect(plain.locator('.status-area')).toHaveCount(0);
+        await expect(merge(plain)).toHaveCount(0);
 
         await expect(waitingWords(armed)).toHaveCount(1);
         await expect(armed.locator('.wait-chip')).toBeVisible();
+        await expect(armed.getByText('Merge after CI')).toHaveCount(0);
         await expect(armed.locator('.status-area')).toHaveCount(0);
-        await expect(merge).toHaveAttribute('aria-disabled', 'true');
-        await expect(merge).toHaveAccessibleDescription(/checks/i);
-
-        // The unarmed row keeps its line and its next step.
-        const plain = row(page, 'Plain');
-        await expect(plain.locator('.status-area')).toContainText(
-          'Waiting for CI to finish',
-        );
-        await expect(plain.locator('.status-area')).toContainText(
-          'Merge unlocks automatically',
-        );
+        await expect(merge(armed)).toHaveCount(0);
       });
 
       test('the pop-up says it once too', async ({ page }) => {
         await open(page, [ARMED_PR]);
         const dialog = await openActionsDialog(row(page, 'Armed'));
-        await expect(waitingWords(dialog)).toHaveCount(1);
+        // The pop-up has no chip, so the wait is Merge's one line there.
+        await expect(dialog.getByText(/after ci|waiting for ci/i)).toHaveCount(
+          1,
+        );
       });
 
       test('a pill that says Passed leaves no waiting words on the row', async ({
@@ -190,6 +166,7 @@ for (const scheme of ['light', 'dark'] as const) {
           await expect(waitingWords(r)).toHaveCount(0);
           await expect(r.locator('.status-area')).toHaveCount(0);
           await expect(r.locator('.wait-chip')).toHaveCount(0);
+          await expect(r.getByText('Merge after CI')).toHaveCount(0);
         }
       });
 
@@ -241,52 +218,49 @@ for (const scheme of ['light', 'dark'] as const) {
         );
       });
 
-      test('a live Running pill keeps the wait and Merge says it is waiting on checks', async ({
+      test('a live Running pill keeps the wait, in one place and with no locked Merge', async ({
         page,
       }) => {
         await open(page, [PLAIN, ARMED_PR], 'running');
         for (const title of ['Plain', 'Armed']) {
           const r = row(page, title);
           await expect(r.locator('.ci-pill')).toContainText(/running/i);
-          await expect(waitingWords(r)).toHaveCount(1);
-          const merge = r.getByRole('button', { name: 'Merge', exact: true });
-          await expect(merge).toHaveAttribute('aria-disabled', 'true');
-          await expect(merge).toHaveAccessibleDescription(
-            /checks|waiting for ci/i,
-          );
-          await expect(merge).not.toHaveAccessibleDescription(
-            /updating from the latest ci results/i,
-          );
+          await expect(
+            r.getByRole('button', { name: 'Merge', exact: true }),
+          ).toHaveCount(0);
         }
+        await expect(
+          row(page, 'Plain').getByText('Merge after CI'),
+        ).toHaveCount(1);
+        await expect(waitingWords(row(page, 'Armed'))).toHaveCount(1);
       });
 
-      test('a pull request still checking for conflicts is no CI wait, so Merge never says it is updating from CI', async ({
+      test('a pull request still checking for conflicts is no CI wait: it says so in one line and never claims to update from CI', async ({
         page,
       }) => {
         await open(page, [CHECKING], 'success');
         const r = row(page, 'Checking');
         // The live jobs have to arrive first, or the not-stale check is empty.
         await expect(r.locator('.ci-pill')).toContainText('Passed');
-        const merge = r.getByRole('button', { name: 'Merge', exact: true });
-        await expect(merge).toHaveAttribute('aria-disabled', 'true');
-        await expect(merge).toHaveAccessibleDescription(
-          /checking for conflicts/i,
-        );
-        await expect(merge).not.toHaveAccessibleDescription(
-          /updating from the latest ci results/i,
+        await expect(r.getByText('Merge after check')).toBeVisible();
+        await expect(
+          r.getByRole('button', { name: 'Merge', exact: true }),
+        ).toHaveCount(0);
+        await expect(r.getByText(/updating from the latest ci/i)).toHaveCount(
+          0,
         );
       });
 
       test('a locked Merge looks different from an enabled one and has no axe violations', async ({
         page,
       }) => {
-        await open(page, [PLAIN, ARMED_PR, READY]);
+        await open(page, [BLOCKED, READY]);
         const style = (b: Locator) =>
           b.evaluate((el) => {
             const s = getComputedStyle(el);
             return `${s.borderTopStyle}|${s.backgroundColor}|${s.color}`;
           });
-        const lockedMerge = row(page, 'Plain').getByRole('button', {
+        const lockedMerge = row(page, 'Blocked').getByRole('button', {
           name: 'Merge',
           exact: true,
         });

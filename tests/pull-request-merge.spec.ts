@@ -102,8 +102,8 @@ test.describe('pull request merge button', () => {
     await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
   });
 
-  // A Merge that can't be clicked yet stays on the row, locked, with its
-  // reason. Which states lock it, and the words for each, are the server's and
+  // A Merge that can't be clicked yet for a reason a person can act on stays
+  // on the row, locked, with its reason; a plain wait on CI is one line of text. Which states lock it, and the words for each, are the server's and
   // are pinned in Go (TestAllowedActions_BlockedMergeReasonPerState); how a
   // locked Merge renders is pull-request-merge-states.spec.ts.
   test('the Merge button unlocks once CI resolves, without a page reload', async ({
@@ -116,10 +116,11 @@ test.describe('pull request merge button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    );
+    // Only waiting on CI: one line of text in Merge's slot, no button (#4528).
+    await expect(
+      row.getByText('Merge after CI', { exact: true }),
+    ).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
 
     await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
@@ -138,7 +139,7 @@ test.describe('pull request merge button', () => {
     const unlocked = row.getByRole('button', { name: 'Merge' });
     await expect(unlocked).toBeEnabled();
     await expect(unlocked).not.toHaveAttribute('aria-disabled', 'true');
-    await expect(row).not.toContainText(/waiting for ci/i);
+    await expect(row).not.toContainText(/waiting for ci|merge after ci/i);
   });
 
   test('a mergeable pull request whose CI failed offers Merge in the pop-up, not on the row', async ({

@@ -70,9 +70,9 @@ test.describe('Merge states on a pull request row', () => {
     // Each test installs its dashboard mock, then loads the page once.
   });
 
-  // #1638: the wait chip already says what happens next, so the status area
-  // keeps its message and drops the "Merge unlocks automatically" line.
-  test('waiting on CI with auto-merge on drops the next-step line', async ({
+  // #4528: a row that only waits on CI has one line in Merge's slot, armed or
+  // not, and neither the status block nor a second sentence.
+  test("waiting on CI says it in one line in Merge's slot, armed or not", async ({
     page,
   }) => {
     await mockDashboard(
@@ -82,8 +82,12 @@ test.describe('Merge states on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
-    await expect(row.getByText('Waiting for CI to finish')).toBeVisible();
+    await expect(row.getByText('Merge after CI')).toBeVisible();
+    await expect(row.getByText('Waiting for CI to finish')).toHaveCount(0);
     await expect(row.getByText('Merge unlocks automatically')).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveCount(0);
   });
 
   // One journey for a blocked Merge. Which states block it, and the words for
@@ -93,7 +97,10 @@ test.describe('Merge states on a pull request row', () => {
   test('a blocked Merge is locked with the visible reason, described to assistive tech, focusable and inert', async ({
     page,
   }) => {
-    await mockDashboard(page, makePR({ ci: 'pending' }));
+    await mockDashboard(
+      page,
+      makePR({ mergeStatus: 'blocked', ci: 'success' }),
+    );
     let mergeCalled = false;
     await page.route('**/api/v1/pull-requests/merge', (route) => {
       mergeCalled = true;
@@ -104,9 +111,8 @@ test.describe('Merge states on a pull request row', () => {
     const row = rowOf(page);
     const merge = row.getByRole('button', { name: 'Merge', exact: true });
     await expect(merge).toHaveAttribute('aria-disabled', 'true');
-    await expect(row.getByText('Waiting for CI to finish')).toBeVisible();
-    await expect(row.getByText('Merge unlocks automatically')).toBeVisible();
-    await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
+    await expect(row.getByText('Blocked by the forge').first()).toBeVisible();
+    await expect(merge).toHaveAccessibleDescription(/Blocked by the forge/);
     await expect(row.getByRole('button', { name: 'Retry' })).toHaveCount(0);
 
     await merge.focus();
@@ -204,7 +210,7 @@ test.describe('Merge states on a pull request row', () => {
     ).toBeVisible();
   });
 
-  test('a Renovate pull request waiting on CI keeps its bot layout, with Merge locked and Close in the dialog', async ({
+  test('a Renovate pull request waiting on CI keeps its bot layout, with the wait line and Close in the dialog', async ({
     page,
   }) => {
     await mockDashboard(
@@ -219,9 +225,13 @@ test.describe('Merge states on a pull request row', () => {
     await page.goto('/bots.html');
 
     const row = rowOf(page);
+    // Only waiting on CI, so one line of text and no locked Merge (#4528).
+    await expect(
+      row.getByText('Merge after CI', { exact: true }),
+    ).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAttribute('aria-disabled', 'true');
+    ).toHaveCount(0);
     const dialog = await openActionsDialog(row);
     await expect(
       actionsFooter(dialog).getByRole('button', {
@@ -232,7 +242,7 @@ test.describe('Merge states on a pull request row', () => {
   });
 
   for (const [name, overrides] of [
-    ['blocked', { ci: 'pending' }],
+    ['blocked', { mergeStatus: 'blocked', ci: 'success' }],
     ['ready', {}],
   ] as const) {
     test(`${name}: no axe-core violations`, async ({ page }) => {

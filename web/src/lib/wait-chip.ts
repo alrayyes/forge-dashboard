@@ -1,7 +1,9 @@
 // The waiting chip (#1229): one status chip in a pull request row's action
 // area for every "something is happening, hold on" state: a bot rebase, an
 // Update branch, a merge or a close in flight, an armed Forgejo auto-merge,
-// and the two ends of a wait (Settled, Still waiting).
+// and the two ends of a wait (Settled, Still waiting). A row that only waits
+// on the forge (CI running, Forgejo checking) gets no chip but the one line
+// of mergeWaitLine(), in Merge's slot (#4528).
 //
 // All of the wording lives here, so the states read alike: an icon, a bold
 // label of at most three words, a lighter second line naming the actor or the
@@ -306,6 +308,21 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
         : words('Waiting for forge', 'Merges when it allows');
   }
 }
+
+// ---- the line that stands in for Merge while a row only waits ----
+// A pull request that waits on CI running, or on Forgejo checking for
+// conflicts, has nothing for a person to do. The row prints this one line in
+// Merge's slot instead of a locked button, and the button takes the slot back
+// when the forge allows the merge. Real text, so a keyboard, a touch screen
+// and a screen reader all get it with no control to stop on.
+export type MergeWait = 'ci' | 'conflict-check';
+
+export function mergeWaitLine(wait: MergeWait): string {
+  return wait === 'ci' ? 'Merge after CI' : 'Merge after check';
+}
+
+// Said once, politely, when the wait ends on the row the person is on.
+export const MERGE_AVAILABLE = 'Merge is available.';
 
 // ---- what a screen reader hears, once per change ----
 export function requestedAnnouncement(kind: WaitKind, bot?: string): string {

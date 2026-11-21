@@ -335,11 +335,13 @@ test.describe('the footer order', () => {
 });
 
 test.describe('a locked action', () => {
-  const reason = 'Waiting for CI to finish';
-  const next = 'Merge unlocks automatically';
+  // A reason a person can act on keeps its locked Merge. A plain wait for CI
+  // has none (#4528).
+  const reason = 'A required review is missing';
+  const next = 'Ask a reviewer to approve';
   const blockedMerge = {
     action: 'merge',
-    blocked: { code: 'checks_pending', message: reason, next },
+    blocked: { code: 'blocked_by_protection', message: reason, next },
   };
 
   test('Merge stays drawn greyed with its reason as text, described to screen readers', async ({
@@ -349,7 +351,7 @@ test.describe('a locked action', () => {
       makePR({
         ci: 'pending',
         allowedActions: [blockedMerge, { action: 'close' }],
-        status: { code: 'checks_pending', message: reason, next },
+        status: { code: 'blocked_by_protection', message: reason, next },
       }),
     ]);
     const dialog = await openActionsDialog(row(page));
@@ -545,13 +547,13 @@ test.describe('on a phone', () => {
         allowedActions: [
           {
             action: 'merge',
-            blocked: { code: 'checks_pending', message: long },
+            blocked: { code: 'blocked_by_protection', message: long },
           },
           { action: 'update_branch' },
           { action: 'auto_merge' },
           { action: 'close' },
         ],
-        status: { code: 'checks_pending', message: long },
+        status: { code: 'blocked_by_protection', message: long },
       }),
     ]);
     const dialog = await openActionsDialog(row(page));
@@ -796,7 +798,7 @@ for (const scheme of ['light', 'dark'] as const) {
         ci: 'pending',
         behind: true,
         status: {
-          code: 'checks_pending',
+          code: 'blocked_by_protection',
           message: 'Waiting for CI to finish',
           next,
         },
@@ -804,7 +806,7 @@ for (const scheme of ['light', 'dark'] as const) {
           {
             action: 'merge',
             blocked: {
-              code: 'checks_pending',
+              code: 'blocked_by_protection',
               message: 'Waiting for CI to finish',
               next,
             },
@@ -1078,7 +1080,7 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
               behind: true,
               ci: 'pending',
               status: {
-                code: 'checks_pending',
+                code: 'blocked_by_protection',
                 message: 'Waiting for CI to finish',
                 next: 'Merge unlocks automatically',
               },
@@ -1086,7 +1088,7 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
                 {
                   action: 'merge',
                   blocked: {
-                    code: 'checks_pending',
+                    code: 'blocked_by_protection',
                     message: 'Waiting for CI to finish',
                     next: 'Merge unlocks automatically',
                   },

@@ -7,7 +7,7 @@ advisories-dialog-cached-list.spec.ts,,8,4,A,web/src/lib/advisories-dialog.test.
 advisories-dialog-close-position.spec.ts,2.23,2,1,A,web/src/lib/advisories-dialog.test.ts,1.1
 advisory-chip-fit.spec.ts,5.46,2,2,A,,0.0
 advisory-detail-scroll-share.spec.ts,5.314,1,1,A,,0.0
-allowed-actions.spec.ts,2.646,14,0,C,web/src/lib/allowed-actions.test.ts,2.6
+allowed-actions.spec.ts,2.646,15,0,C,web/src/lib/allowed-actions.test.ts,2.6
 ambiguous-action-outcome.spec.ts,8.826,7,4,A,,3.8
 armed-behind-status.spec.ts,3.768,4,1,C,,2.8
 auth-single-user.spec.ts,7.612,13,1,C,,7.0
@@ -152,6 +152,7 @@ main-branches-refetch-on-flag.spec.ts,6.451,4,0,C,,6.5
 main-branches-server-copy.spec.ts,4.052,7,0,B,,4.1
 main-branches-stream.spec.ts,0.84,3,0,C,,0.8
 mentioned-tickets.spec.ts,7.167,16,9,A,,3.1
+merge-wait-line.spec.ts,,8,4,A,,0.0
 merged-pr-pill.spec.ts,,6,3,A,,0.0
 mobile-filters.spec.ts,6.974,13,9,A,,2.1
 mono-figures.spec.ts,0.853,4,0,A,,0.9
@@ -219,7 +220,7 @@ pull-request-number-filter.spec.ts,2.168,9,1,C,,1.9
 pull-request-renovate-rebase.spec.ts,2.89,9,1,C,,2.6
 pull-request-reopen.spec.ts,6.984,9,4,C,,3.9
 pull-request-rows-live.spec.ts,5.838,14,9,A,,2.1
-pull-request-status-area.spec.ts,2.848,5,1,C,,2.3
+pull-request-status-area.spec.ts,2.848,6,1,C,,2.4
 pull-request-update-branch.spec.ts,4.379,13,3,C,,3.4
 pulls-dialog-close-fallback.spec.ts,,2,2,A,,0.0
 queued-action-feedback.spec.ts,11.919,13,4,C,,8.3
@@ -294,7 +295,7 @@ update-branch-on-row.spec.ts,6.043,13,5,C,,3.7
 update-branch-request.spec.ts,8.081,8,0,C,,8.1
 upstream-error-banner.spec.ts,1.779,2,1,A,,0.9
 wait-chip.spec.ts,19.647,19,6,C,web/src/lib/wait-chip.test.ts,13.4
-waiting-for-ci-once.spec.ts,,14,2,C,,0.0
+waiting-for-ci-once.spec.ts,,12,2,C,,0.0
 webhooks-clear-filters.spec.ts,4.29,7,6,A,,0.6
 webhooks-failing-repo.spec.ts,2.099,3,1,C,,1.4
 webhooks-filter-choices.spec.ts,1.331,10,1,C,web/src/lib/webhooks-filter.test.ts,1.2
