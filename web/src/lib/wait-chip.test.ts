@@ -5,6 +5,7 @@ import {
   type AutoMergeInput,
   autoMergeChip,
   autoMergeWording,
+  mergeWaitLine,
   queuedChip,
   SETTLED_MS,
   STILL_WAITING_MS,
@@ -407,5 +408,12 @@ describe('autoMergeChip forge names', () => {
     expect(autoMergeChip(base)?.detail).toBe(
       `${forge} merges it as soon as it can`,
     );
+  });
+});
+
+describe('mergeWaitLine', () => {
+  test('is one short line that names what Merge waits for', () => {
+    expect(mergeWaitLine('ci')).toBe('Merge after CI');
+    expect(mergeWaitLine('conflict-check')).toBe('Merge after check');
   });
 });

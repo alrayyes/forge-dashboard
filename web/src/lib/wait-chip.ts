@@ -307,6 +307,21 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
   }
 }
 
+// ---- the line that stands in for Merge while a row only waits ----
+// A pull request that waits on CI running, or on Forgejo checking for
+// conflicts, has nothing for a person to do. The row prints this one line in
+// Merge's slot instead of a locked button, and the button takes the slot back
+// when the forge allows the merge. Real text, so a keyboard, a touch screen
+// and a screen reader all get it with no control to stop on.
+export type MergeWait = 'ci' | 'conflict-check';
+
+export function mergeWaitLine(wait: MergeWait): string {
+  return wait === 'ci' ? 'Merge after CI' : 'Merge after check';
+}
+
+// Said once, politely, when the wait ends on the row the person is on.
+export const MERGE_AVAILABLE = 'Merge is available.';
+
 // ---- what a screen reader hears, once per change ----
 export function requestedAnnouncement(kind: WaitKind, bot?: string): string {
   switch (kind) {
