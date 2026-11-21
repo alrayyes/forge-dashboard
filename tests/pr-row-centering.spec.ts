@@ -385,6 +385,46 @@ test.describe('the one-line row and the root font size', () => {
   });
 });
 
+// The status area, with its fix button, is the note under the title from
+// 1191px of list width, so Tab reaches Update branch before the pills that sit
+// in the status cell. At 200% root font and on a phone the note stays in the
+// status cell and the order is the old one (title, label, CI pill, comment
+// pill, Update branch). Pinned so a change to either is a decision.
+test.describe('keyboard order of a row with a fix button', () => {
+  const order = (page: Page) =>
+    page
+      .locator('#pr-rows > .row', { hasText: 'behind with a comment' })
+      .evaluate((r) =>
+        [...r.querySelectorAll('a, button')].map((e) =>
+          e.matches('.title')
+            ? 'title'
+            : e.matches('.ci-pill')
+              ? 'ci'
+              : e.matches('.review-pill')
+                ? 'comments'
+                : (e.textContent ?? '').trim(),
+        ),
+      );
+
+  test('at 1280px Update branch comes before the CI and comment pills', async ({
+    page,
+  }) => {
+    await open(page, 1280, [BEHIND]);
+    await expect
+      .poll(() => order(page))
+      .toEqual(['title', 'Update branch', 'ci', 'comments']);
+  });
+
+  test('at 390px the pills come first and Update branch last', async ({
+    page,
+  }) => {
+    await open(page, 390, [BEHIND]);
+    await expect
+      .poll(() => order(page))
+      .toEqual(['title', 'ci', 'comments', 'Update branch']);
+  });
+});
+
 for (const width of [1280, 390]) {
   test(`the rows have no axe violations at ${width}px`, async ({ page }) => {
     await open(page, width, [...PRS, BEHIND]);
