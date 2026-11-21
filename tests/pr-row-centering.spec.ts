@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
@@ -87,7 +88,23 @@ const PRS = [
   }),
 ];
 
-async function open(page: Page, width: number) {
+// Not in PRS: its fix button sits in the status area, not on the action
+// column the other rows share.
+const BEHIND = pr(9, {
+  title: 'Row behind with a comment pill',
+  behind: true,
+  mergeStatus: 'blocked',
+  reviewComments: 2,
+  unresolvedThreads: 1,
+  allowedActions: [{ action: 'update_branch' }, { action: 'close' }],
+  status: {
+    code: 'behind',
+    message: 'Behind the base branch',
+    next: 'Bring it up to date to unlock Merge',
+    action: 'update_branch',
+  },
+});
+async function open(page: Page, width: number, prs = PRS) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -99,7 +116,7 @@ async function open(page: Page, width: number) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -107,7 +124,7 @@ async function open(page: Page, width: number) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
 interface Measure {
@@ -367,3 +384,14 @@ test.describe('the one-line row and the root font size', () => {
     await expect.poll(async () => (await noteCell(page)).inTitle).toBe(true);
   });
 });
+
+for (const width of [1280, 390]) {
+  test(`the rows have no axe violations at ${width}px`, async ({ page }) => {
+    await open(page, width, [...PRS, BEHIND]);
+    const results = await new AxeBuilder({ page })
+      .include('#pr-rows')
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+}
