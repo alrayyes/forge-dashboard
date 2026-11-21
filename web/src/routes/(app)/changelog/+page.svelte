@@ -7,6 +7,7 @@
   import { renderMarkdown } from "#lib/markdown.js";
   import {
     projectReferences,
+    referenceTitle,
     type ProjectReferences,
   } from "#lib/changelog-references.js";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
@@ -126,7 +127,13 @@
       {
         ...ref,
         subject: "issue",
-        title: `Issue #${ref.number}`,
+        title: referenceTitle(
+          (
+            detailsCache.get(detailsKey({ ...ref, subject: "issue" }))
+              ?.details as { kind?: "issue" | "pullRequest" } | undefined
+          )?.kind,
+          ref.number,
+        ),
         url: found.url,
       },
       anchor.id,

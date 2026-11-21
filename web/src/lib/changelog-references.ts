@@ -23,3 +23,13 @@ export function projectReferences(
   if (!m) return null;
   return { repoUrl: m[1], forge: 'github', tracked: () => false };
 }
+
+// The title a reference's dialog shows until the forge's own title is drawn.
+// A forge shares one number space, so what was asked for as an issue can be a
+// pull request; the cached answer says which.
+export function referenceTitle(
+  kind: 'issue' | 'pullRequest' | undefined,
+  number: number,
+): string {
+  return `${kind === 'pullRequest' ? 'Pull request' : 'Issue'} #${number}`;
+}
