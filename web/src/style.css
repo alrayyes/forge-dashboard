@@ -1152,6 +1152,43 @@ section.board {
   }
 }
 
+/* #4517: on a list narrower than the one-line row (761px to 1190px, or any
+   width at a large root font size) the status cell is a stack: the CI pill, the
+   comment pill, the action and the note each on a line of their own, which is
+   as much as 280px holds. The title, repo and arrow were centred on the
+   whole stack, so the CI pill, the first thing in it, sat above them by half
+   the stack's height. They start at the top of the row instead, each on a line
+   as tall as the pill (24px, or 1.1rem once the root font size passes about
+   22px, which is about the height of a title line), and the CI pill takes
+   that height too, so it and the title's first line share a centre whatever
+   is under either, at a large root font size as well. The rem term is
+   tuned to the title's line height, not measured: tests/pr-row-centering.spec.ts
+   holds it within 2px at 100% and 200%. */
+@media (min-width: 761px) {
+  @container not (min-width: max(1191px, 74.5rem)) {
+    .row:not(.issue-row) {
+      --pill-line: max(24px, 1.1rem);
+      align-items: start;
+    }
+    .row:not(.issue-row) .repo,
+    .row:not(.issue-row) .go {
+      min-height: var(--pill-line);
+      align-items: center;
+    }
+    .row:not(.issue-row) .status-cell .ci-pill {
+      min-height: var(--pill-line);
+    }
+    .row:not(.issue-row) .title {
+      display: flex;
+      align-items: center;
+      min-height: var(--pill-line);
+    }
+    .row:not(.issue-row) .title-cell {
+      align-content: flex-start;
+    }
+  }
+}
+
 .row:last-child {
   border-bottom: none;
 }
