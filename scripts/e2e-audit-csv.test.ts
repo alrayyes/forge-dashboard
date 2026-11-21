@@ -3,7 +3,6 @@ import {
   copyFileSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -104,35 +103,20 @@ test('an annotation for a spec that exists is accepted', () => {
   }
 });
 
-// The Method section states how many unit test files web/ has. It was 107
-// while the tree held 150, so the number is checked here instead of trusted.
-// Fix: edit the count in docs/e2e-audit.md to what this reports.
-test('docs/e2e-audit.md states the number of web unit test files', () => {
-  const found = readdirSync(path.join(root, 'web/src/lib')).filter((f) =>
-    f.endsWith('.test.ts'),
-  ).length;
+// Counts typed into the doc were edited by every pull request that added a
+// spec, a test or a lib unit test, so any two of them conflicted on the line
+// and every merge to main turned the rest DIRTY. The doc states none: the
+// numbers are the rows of docs/e2e-audit/spec-classes.csv, which regenerates
+// with the one command above and conflicts only when two pull requests touch
+// the same spec.
+test('docs/e2e-audit.md states no counts that a spec or test change would edit', () => {
   const doc = readFileSync(path.join(root, 'docs/e2e-audit.md'), 'utf8');
-  const stated = doc.match(/`web\/` has (\d+) unit test files/);
-  expect(stated, 'the doc no longer states the unit test file count').not.toBe(
-    null,
-  );
-  expect(Number(stated?.[1]), `set it to ${found}`).toBe(found);
-});
-
-// The first paragraph states how many specs and tests the audit covers. It
-// said 303 files while the classifier counted 306. The CSV is checked against
-// the classifier above, so its rows are the classifier's numbers.
-// Fix: edit the counts in docs/e2e-audit.md to what this reports.
-test('docs/e2e-audit.md states the number of specs and tests', () => {
-  const rows = readFileSync(csv, 'utf8').trim().split('\n').slice(1);
-  const specs = rows.length;
-  const tests = rows.reduce((sum, r) => sum + Number(r.split(',')[2]), 0);
-  const doc = readFileSync(path.join(root, 'docs/e2e-audit.md'), 'utf8');
-  const stated = doc.match(/\(([\d,]+) files, ([\d,]+) tests\)/);
-  expect(stated, 'the doc no longer states the spec and test counts').not.toBe(
-    null,
-  );
-  const num = (s?: string) => Number((s ?? '').replace(/,/g, ''));
-  const want = `set it to ${specs.toLocaleString('en-US')} files, ${tests.toLocaleString('en-US')} tests`;
-  expect([num(stated?.[1]), num(stated?.[2])], want).toEqual([specs, tests]);
+  expect(
+    doc,
+    'put the spec and test counts back in the CSV, not here',
+  ).not.toMatch(/\(\d[\d,]* files, \d[\d,]* tests\)/);
+  expect(
+    doc,
+    'count web unit tests with ls, do not write the number here',
+  ).not.toMatch(/`web\/` has \d+ unit test files/);
 });
