@@ -1,6 +1,6 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (306 files, 2,706 tests) against
+Read-only audit of every `tests/*.spec.ts` (307 files, 2,720 tests) against
 `main`. No spec was edited, moved, or deleted. The per-spec table is
 [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.

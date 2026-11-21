@@ -208,9 +208,10 @@ something set on the pull request that holds until someone changes it:
 of its rows, since every row there is a bot's; the details pop-up still shows
 it.
 Attributes are quiet outlined chips with a small icon and no fill or motion,
-in a cluster beside the CI slot, never inside it. `Out of date` is the one
-exception: it is drawn for every pull request that is behind its base and has
-something left to merge, on the overview and the Bots page alike, except on a
+in a cluster under the title, with the labels, never inside the CI slot.
+`Out of date` is the one exception: it is drawn for every pull request that is
+behind its base and has something left to merge, on the overview and the Bots
+page alike, except on a
 row that already says it another way: a live Update branch button, a
 confirmed conflict's warning, or a requested bot rebase (the waiting chip says
 the fix is under way). The pop-up keeps the chip, and the Out of date
@@ -245,8 +246,29 @@ Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
-On a phone the CI slot sits at the top right and the attributes take a line of
-their own.
+On a list 1191px wide or more (74.5rem, so a large root font size turns it
+off) a pull request row is one vertically centred line. The status column
+holds three fixed slots: the CI pill, the merge-state and comment pills (a
+Conflicting pill takes the same slot as the comment pill, and both stack there
+when a row has both), and the action. A pill is at the same x on every row and
+at the row's centre. The attribute chips and the status note ("Waiting for CI
+to finish") sit under the title, so a row that has one is taller and its pills
+stay centred on the title and the note together. Rarer lines (a close cue, a
+queued note, the waiting chip) take a line of their own under the slots, and
+the waiting chip's reserved room is only there while a chip is. A narrower list
+keeps the wrapping status cell, with the chips and the note in it. Rows with
+both Merge and Update branch stack the two buttons as one block, centred on the
+pill line; that is intended. Tab follows the layout: when the note
+under the title has a fix button in it, such as Update branch on a behind pull
+request, Tab reaches that button before the CI and comment pills. On a phone
+and on a narrower list the note stays in the status cell, and Tab visits the
+pills first and the button last.
+On a phone (760px and narrower) the card is the title with its labels, chips
+and note, the author and times, one line of pills (the CI pill, then the
+merge-state and comment pills), a divider, and the action across the full width
+at 44px tall. The Passed and Failed pills keep their word beside the counts. A
+row with no action, such as one with failing checks, ends after the pills. The
+note is plain text with no hover or press state.
 
 What a row may claim while its forge can't be asked is decided in one place,
 `rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in

@@ -144,7 +144,11 @@ for (const [name, extra] of Object.entries(shapes)) {
       // The narrow rule applies at the breakpoint and not above it.
       const merge = m.buttons.find((b) => b.label === 'Merge');
       if (merge) {
-        if (width > BREAKPOINT) expect(merge.w, msg).toBeCloseTo(120, 0);
+        // A lone action fills the card's line (#4502); with Update branch
+        // beside it the narrow rule keeps both on one line (#3691).
+        if (m.buttons.length === 1) expect(merge.w, msg).toBeGreaterThan(200);
+        else if (width > BREAKPOINT)
+          expect(merge.w, msg).toBeGreaterThanOrEqual(119.5);
         else expect(merge.w, msg).toBeLessThanOrEqual(100.5);
       }
       if (m.buttons.length === 1 && m.barHeight > 0) {
@@ -154,7 +158,7 @@ for (const [name, extra] of Object.entries(shapes)) {
   }
 }
 
-test('a locked Merge keeps its size when Update branch goes away', async ({
+test('a locked Merge keeps its height and place when Update branch goes away', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
@@ -186,7 +190,8 @@ test('a locked Merge keeps its size when Update branch goes away', async ({
   await expect(page.locator('#pr-rows > .row').first()).toBeVisible();
   await expect.poll(async () => (await measure(page)).buttons.length).toBe(1);
   const alone = (await measure(page)).buttons[0];
-  expect(alone.w).toBeCloseTo(both.w, 0);
+  // A lone action now fills the card's line (#4502); height and left edge hold.
+  expect(alone.w).toBeGreaterThanOrEqual(both.w);
   expect(alone.h).toBeCloseTo(both.h, 0);
   expect(alone.x).toBeCloseTo(both.x, 0);
 });
@@ -244,10 +249,10 @@ for (const width of [320, 390]) {
   });
 }
 
-test('1280px: the desktop row bar is untouched', async ({ page }) => {
+test('1280px: the desktop row bar sits in its own slot', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const row = await open(page, pr(shapes['locked Merge + Update branch']));
-  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'contents');
+  await expect(row.locator('.row-action-bar')).toHaveCSS('display', 'flex');
   const m = await measure(page);
   expect(m.buttons.length).toBeGreaterThan(0);
   for (const b of m.buttons) expect(b.h).toBeLessThan(TAP);

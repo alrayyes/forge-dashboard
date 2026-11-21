@@ -3134,6 +3134,63 @@
       }, 0);
     };
 
+    // On a list wide enough for the one-line row (#4502) the attribute chips
+    // and the status note sit under the title, so the status cell is three
+    // fixed slots. Anywhere else they stay in the status cell, where the
+    // narrower layouts have always had room for them. The width is the one
+    // the stylesheet's container query measures, root font size included.
+    const notePlacements = new WeakMap<
+      HTMLElement,
+      {
+        cluster: HTMLElement;
+        area: HTMLElement | null;
+        ciSlot: HTMLElement;
+        waitSlot: HTMLElement;
+        titleCell: HTMLElement;
+      }
+    >();
+    function oneLineList(): boolean {
+      const list = document.getElementById("pr-rows");
+      if (!list) return false;
+      const rem =
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).fontSize,
+        ) || 16;
+      const style = getComputedStyle(list);
+      const inner =
+        list.clientWidth -
+        (Number.parseFloat(style.paddingLeft) || 0) -
+        (Number.parseFloat(style.paddingRight) || 0);
+      return inner >= Math.max(1191, 74.5 * rem);
+    }
+    // The chips are under the title on the one-line row and on the phone
+    // card; the status note only on the one-line row, since on a phone it
+    // stays below the pills, on the side of the pill the waiting chip is on.
+    function onPhone(): boolean {
+      return window.matchMedia("(max-width: 760px)").matches;
+    }
+    function placeNotes(statusCell: HTMLElement, oneLine: boolean) {
+      const parts = notePlacements.get(statusCell);
+      if (!parts) return;
+      if (oneLine || onPhone()) parts.titleCell.appendChild(parts.cluster);
+      else parts.ciSlot.after(parts.cluster);
+      if (!parts.area) return;
+      if (oneLine) parts.titleCell.appendChild(parts.area);
+      else statusCell.insertBefore(parts.area, parts.waitSlot);
+    }
+    // Building a row must not read layout: a read there lays the page out in
+    // the middle of a redraw and moves focus handoffs (filter-pick-panel-focus).
+    // New rows take the placement the last resize measured; the observer below
+    // measures once the list is laid out, before the next paint.
+    let oneLineKnown = false;
+    function placeAllNotes() {
+      const oneLine = oneLineKnown;
+      for (const cell of document.querySelectorAll<HTMLElement>(
+        "#pr-rows .row .status-cell",
+      ))
+        placeNotes(cell, oneLine);
+    }
+
     function buildRow(
       item: PullRequestItem | IssueItem,
       isPR: boolean,
@@ -3287,7 +3344,10 @@
         const ciSlot = el("div", "ci-slot");
         ciSlot.appendChild(ciPill(pr));
         stateGroup.appendChild(ciSlot);
-        stateGroup.appendChild(attributeCluster(pr, view !== "bots", true));
+        // Where the attribute chips go is placeNotes' call, once the row is
+        // built (#4502).
+        const clusterEl = attributeCluster(pr, view !== "bots", true);
+        stateGroup.appendChild(clusterEl);
         statusCell.appendChild(stateGroup);
         const approveLink = approveOnGithubLink(pr);
         if (approveLink) statusCell.appendChild(approveLink);
@@ -3297,11 +3357,17 @@
           conflictFacts(pr),
           pr.forge,
         );
-        if (conflictPill) statusCell.appendChild(conflictPill);
         const reviewActivity = reviewPill(pr, (triggerId) =>
           openDetailsDialog(pr, triggerId),
         );
-        if (reviewActivity) statusCell.appendChild(reviewActivity);
+        // One slot for the merge-state and comment pills, so the pill after
+        // the CI pill starts at the same x on every row (#4502).
+        if (conflictPill || reviewActivity) {
+          const flags = el("div", "status-flags");
+          if (conflictPill) flags.appendChild(conflictPill);
+          if (reviewActivity) flags.appendChild(reviewActivity);
+          statusCell.appendChild(flags);
+        }
         const mergeStatusLine = autoMergeStatusLine(pr);
         if (mergeStatusLine) statusCell.appendChild(mergeStatusLine);
 
@@ -3313,8 +3379,11 @@
         if (statusAreaEl) statusCell.appendChild(statusAreaEl);
         // The action area's reserved slot: the waiting chip lives here, so
         // it comes and goes without moving the row (#1229). It follows the
-        // status in the markup as it does on screen, so Tab only moves down
-        // (#3264).
+        // status in the markup, and on a phone and a narrow list that is the
+        // order on screen (#3264). On a list wide enough for the one-line row
+        // placeNotes moves the status area under the title, so a fix button
+        // in it (Update branch) takes Tab before the CI and comment pills.
+        // That matches the screen, and tests/pr-row-centering.spec.ts pins it.
         const waitSlot = el("div", "wait-slot");
         const autoMergeWait = autoMergeWaitChip(pr);
         // A stale wait hides the chip and Disarm with it, so Disarm stays on
@@ -3330,6 +3399,14 @@
           if (queuedWait) waitSlot.appendChild(queuedWait);
         }
         statusCell.appendChild(waitSlot);
+        notePlacements.set(statusCell, {
+          cluster: clusterEl,
+          area: statusAreaEl,
+          ciSlot,
+          waitSlot,
+          titleCell: titleCellEl,
+        });
+        placeNotes(statusCell, oneLineKnown);
         // The row draws one control: the action the server marked primary,
         // or, while Merge is locked, the greyed Merge with its reason. Every
         // other action is in the details pop-up's footer, built by the same
@@ -4727,6 +4804,17 @@
     // checked against the DOM afterwards: a pull request that left the board
     // (a filter, a page change) takes its armed state with it.
     const prRowsEl = document.getElementById("pr-rows");
+    if (prRowsEl && typeof ResizeObserver !== "undefined") {
+      let was = "";
+      new ResizeObserver(() => {
+        oneLineKnown = oneLineList();
+        const phoneNow = onPhone();
+        const now = `${oneLineKnown}${phoneNow}`;
+        if (now === was) return;
+        was = now;
+        placeAllNotes();
+      }).observe(prRowsEl);
+    }
     if (prRowsEl)
       new MutationObserver(() => {
         const armKey = confirmArm.armedKey();

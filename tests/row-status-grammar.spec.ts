@@ -101,7 +101,16 @@ async function boxes(page: Page) {
   const row = firstRow(page);
   const slot = await row.locator('.ci-slot').boundingBox();
   const pill = await row.locator('.ci-pill').boundingBox();
-  return { slot, pill };
+  // The pill is centred on its row (#4502), so its top follows the row's
+  // height when a result drops a line; measure it from the row's centre.
+  const rowBox = await row.boundingBox();
+  const centre = (b: typeof pill) =>
+    b && rowBox ? b.y + b.height / 2 - (rowBox.y + rowBox.height / 2) : null;
+  return {
+    slot: slot && { x: slot.x, width: slot.width, height: slot.height },
+    pill: pill && { x: pill.x, width: pill.width, height: pill.height },
+    fromRowCentre: Math.round(centre(pill) ?? 0),
+  };
 }
 
 // A bot's pull request carrying every attribute at once.
@@ -297,7 +306,7 @@ test.describe('row status grammar (#1563)', () => {
     await expect(firstRow(page).locator('.draft-badge')).toHaveCount(0);
   });
 
-  test('desktop order is the CI slot, then the attributes, then the open control', async ({
+  test('desktop order is the attributes under the title, then the CI slot, then the open control', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -307,15 +316,17 @@ test.describe('row status grammar (#1563)', () => {
     const cluster = await row.locator('.attr-cluster').boundingBox();
     const details = await row.locator('.go').boundingBox();
     expect(slot && cluster && details).toBeTruthy();
-    // The attributes come after the slot: beside it when the widest chip fits
-    // there, on a line below it when not, never squeezed (#3250).
-    const beside = (slot?.x ?? 0) + (slot?.width ?? 0) <= (cluster?.x ?? 0) + 1;
-    const below = (cluster?.y ?? 0) >= (slot?.y ?? 0) + (slot?.height ?? 0) - 1;
-    expect(beside || below).toBe(true);
-    expect(cluster?.x ?? 0).toBeLessThan(details?.x ?? 0);
+    // The attributes sit under the title, to the left of the CI slot, and the
+    // open control is last (#4502).
+    expect((cluster?.x ?? 0) + (cluster?.width ?? 0)).toBeLessThanOrEqual(
+      (slot?.x ?? 0) + 1,
+    );
+    expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeLessThanOrEqual(
+      (details?.x ?? 0) + 1,
+    );
   });
 
-  test('a 360px card has no overflow, the slot first and attributes on their own line', async ({
+  test('a 360px card has no overflow, the attributes above the slot line', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 800 });
@@ -329,12 +340,11 @@ test.describe('row status grammar (#1563)', () => {
     const cluster = await row.locator('.attr-cluster').boundingBox();
     const card = await row.boundingBox();
     expect(slot && cluster && card).toBeTruthy();
-    // The slot sits at the right, the attributes on a line below it.
-    expect((slot?.x ?? 0) + (slot?.width ?? 0)).toBeGreaterThan(
-      (card?.x ?? 0) + (card?.width ?? 0) - 40,
-    );
-    expect(cluster?.y ?? 0).toBeGreaterThanOrEqual(
-      (slot?.y ?? 0) + (slot?.height ?? 0) - 1,
+    // The attributes sit under the title, above the line the pill is on, and
+    // the slot starts at the card's left edge (#4502).
+    expect((slot?.x ?? 0) - (card?.x ?? 0)).toBeLessThan(40);
+    expect(slot?.y ?? 0).toBeGreaterThanOrEqual(
+      (cluster?.y ?? 0) + (cluster?.height ?? 0) - 1,
     );
     expect((cluster?.x ?? 0) + (cluster?.width ?? 0)).toBeLessThanOrEqual(
       (card?.x ?? 0) + (card?.width ?? 0) + 1,

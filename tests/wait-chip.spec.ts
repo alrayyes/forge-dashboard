@@ -9,6 +9,11 @@ import { test } from './server-fixture';
 // exists. These journeys play the server by mocking snapshots; the wording
 // itself is checked without a browser in web/src/lib/wait-chip.test.ts.
 
+// The reserved slot is a phone-card rule: on a wide list the row is one
+// centred line and the slot only takes room while a chip is in it (#4502), so
+// "the row does not move" is held where the slot is reserved.
+test.use({ viewport: { width: 390, height: 844 } });
+
 type MockPR = Record<string, unknown>;
 
 function makePR(overrides: MockPR = {}): MockPR {

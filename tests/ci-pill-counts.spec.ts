@@ -212,12 +212,16 @@ test.describe('Passed and Failed pill counts (#2074)', () => {
     await expect(pill(page, 'Plain fail')).toHaveText('Failed');
   });
 
-  test('on a phone the word goes, the counts stay', async ({ page }) => {
+  // The phone card's pill keeps its word, as the approved design shows it
+  // ("Passed", then the counts, #4502).
+  test('on a phone the word stays with the counts', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await open(page);
 
-    await expect(pill(page, 'Clean run').locator('.ci-seg-label')).toBeHidden();
-    await expect(pill(page, 'Mixed run').locator('.ci-word')).toBeHidden();
+    await expect(
+      pill(page, 'Clean run').locator('.ci-seg-label'),
+    ).toBeVisible();
+    await expect(pill(page, 'Mixed run').locator('.ci-word')).toBeVisible();
     await expect(segments(page, 'Mixed run')).toHaveText(['8', '1', '2', '3']);
   });
 

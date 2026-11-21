@@ -178,7 +178,7 @@ test('Pull requests: the 100% track widths at 1104px and 1280px are unchanged', 
   await open(page, '/pull-requests.html', PR, 100, 1280);
   await expect
     .poll(async () => (await measure(page, PR)).tracks)
-    .toBe('280px 268px 96px 82px 82px 280px 22px');
+    .toBe('184px 204px 96px 82px 82px 440px 22px');
   await open(page, '/pull-requests.html', PR, 100, 1104);
   await expect
     .poll(async () => {

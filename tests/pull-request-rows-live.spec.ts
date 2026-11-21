@@ -255,7 +255,17 @@ test.describe('pull request rows follow their jobs', () => {
     await feed.idle();
     // The scroll has come to rest, and the rows at the end are watched.
     await expect(rows.last()).toBeInViewport({ ratio: 1 });
-    await expect.poll(() => feed.posts.at(-1)).toBe(3);
+    // However many rows the viewport holds at this row height (#4502 made
+    // the rows shorter, so more fit than the three it used to hold).
+    const inView = await page.evaluate(
+      () =>
+        [...document.querySelectorAll('#pr-rows .row')].filter((r) => {
+          const b = r.getBoundingClientRect();
+          return b.bottom > 0 && b.top < window.innerHeight;
+        }).length,
+    );
+    expect(inView).toBeGreaterThanOrEqual(3);
+    await expect.poll(() => feed.posts.at(-1)).toBe(inView);
     await feed.idle();
     const posts = feed.posts.length;
 

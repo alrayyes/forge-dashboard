@@ -119,14 +119,14 @@ test.describe('Cancelled pill counts (#3395)', () => {
     expect(c.height).toBe(f.height);
   });
 
-  test('at 390px it drops the word like its neighbours and does not overflow', async ({
+  test('at 390px it drops the word, the Failed pill keeps its own (#4502), and nothing overflows', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 900 });
     await open(page);
 
     expect(await text(page, 'Some passed')).toBe('4 9');
-    expect(await text(page, 'Neighbour failed')).toBe('4 2');
+    expect(await text(page, 'Neighbour failed')).toBe('Failed 4 2');
     expect(await fitsWidth(page)).toBe(true);
   });
 
