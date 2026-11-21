@@ -538,7 +538,7 @@
   />
   <style>
     .mb-wrap {
-      max-width: 1220px;
+      max-width: var(--wrap-max);
       margin: 0 auto;
       padding: 24px 0 64px;
     }

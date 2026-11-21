@@ -209,8 +209,18 @@ a {
   outline-offset: 2px;
 }
 
+/* The page column: 1220px up to a 1356px window, then 90% of the window, capped
+   at 1800px (#4540). The cap is the line length a row can still be scanned
+   across; past it (2000px and up) a bigger screen only adds margin. The extra
+   width goes to the 1fr title track, since the other row columns are fixed.
+   The header, the Issues board and the Branches page read the same value so
+   the pages line up. */
+:root {
+  --wrap-max: max(1220px, min(90vw, 1800px));
+}
+
 .wrap {
-  max-width: 1220px;
+  max-width: var(--wrap-max);
   margin: 0 auto;
 }
 
