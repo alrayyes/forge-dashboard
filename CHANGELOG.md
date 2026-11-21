@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.9](https://github.com/alrayyes/forge-dashboard/compare/v9.90.8...v9.90.9) (2026-11-21)
+
+
+### Bug Fixes
+
+* **api:** require a session for the changelog page and data ([#4529](https://github.com/alrayyes/forge-dashboard/issues/4529)) ([89401c0](https://github.com/alrayyes/forge-dashboard/commit/89401c0c80f0b4713a9a055c312c02422ba0857d)), closes [#4426](https://github.com/alrayyes/forge-dashboard/issues/4426)
+
 ## [9.90.8](https://github.com/alrayyes/forge-dashboard/compare/v9.90.7...v9.90.8) (2026-11-21)
 
 
