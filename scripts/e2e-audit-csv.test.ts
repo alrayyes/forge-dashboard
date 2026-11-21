@@ -110,10 +110,11 @@ test('an annotation for a spec that exists is accepted', () => {
 // with the one command above and conflicts only when two pull requests touch
 // the same spec.
 // The old checks matched one phrasing each, so "(309 files and 2738 tests)" or
-// "has 152 test files" slipped through. Any number followed by files, tests or
-// test files is a count a spec change would edit.
+// "has 152 test files" slipped through. Any number followed by files or tests,
+// with up to two qualifier words between ("5 unit test files"), is a count a
+// spec change would edit.
 const handWrittenCount = (text: string): string | null =>
-  /\d[\d,]*\s+(?:test\s+)?(?:files|tests)\b/.exec(text)?.[0] ?? null;
+  /\d[\d,]*\s+(?:[\w-]+\s+){0,2}(?:files|tests)\b/.exec(text)?.[0] ?? null;
 
 for (const [name, text, found] of [
   ['files and tests', '(309 files and 2738 tests)', '309 files'],
@@ -121,6 +122,9 @@ for (const [name, text, found] of [
   ['files', 'across 12 files', '12 files'],
   ['tests', 'now 2,738 tests', '2,738 tests'],
   ['a count wrapped onto the next line', '49\ntests', '49\ntests'],
+  ['unit test files', '`web/` has 5 unit test files', '5 unit test files'],
+  ['e2e tests', 'about 309 e2e tests', '309 e2e tests'],
+  ['spec files', 'there are 3 spec files', '3 spec files'],
   ['the old phrasing', '(309 files, 2738 tests)', '309 files'],
 ] as const)
   test(`a hand-written count is caught: ${name}`, () => {
