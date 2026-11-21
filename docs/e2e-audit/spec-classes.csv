@@ -179,6 +179,7 @@ pick-row-click.spec.ts,,8,5,A,,0.0
 pick-row-mouse.spec.ts,,3,1,C,,0.0
 pill-counts-add-up.spec.ts,,3,1,C,,0.0
 pill-groups-combine.spec.ts,3.951,5,2,C,,2.4
+pill-titles.spec.ts,,8,4,A,,0.0
 pills-axe.spec.ts,12.749,4,4,A,,0.0
 pipeline-check-action-layout.spec.ts,,3,3,A,,0.0
 pipeline-check-states.spec.ts,6.553,9,5,A,,2.9

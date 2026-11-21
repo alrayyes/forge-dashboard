@@ -372,7 +372,7 @@ test('an issue on the board lists what it refers to, after what refers to it', a
   await expect(refsPill).toHaveAccessibleName('Refs: Issue #4297');
   await expect(refsPill).toHaveAttribute(
     'title',
-    'This issue references this, it does not close it',
+    'Item 4297\nThis issue references this, it does not close it',
   );
   await expect(
     row(dialog, 'Mentions').locator('.linked-pr'),
@@ -527,7 +527,7 @@ test('the tooltip of a Refs pill for what the issue refers to says the issue ref
   const tip = page.locator(`#${await pill.getAttribute('aria-describedby')}`);
   await expect(tip).toHaveAttribute('role', 'tooltip');
   await expect(tip).toHaveText(
-    'This issue references this, it does not close it',
+    'Item 4297 This issue references this, it does not close it',
   );
 });
 
@@ -540,8 +540,8 @@ test('the tooltip of an outgoing Closes or Mentions pill says what the issue doe
   ]);
 
   for (const [label, said] of [
-    ['Closes', 'This issue closes this'],
-    ['Mentions', 'This issue mentions this'],
+    ['Closes', 'Item 4297\nThis issue closes this'],
+    ['Mentions', 'Item 4300\nThis issue mentions this'],
   ] as const) {
     const pill = row(dialog, label).locator('.linked-pr');
     await expect(pill).toHaveAttribute('title', said);

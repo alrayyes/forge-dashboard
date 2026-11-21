@@ -309,14 +309,15 @@ pill under "Closed by" doesn't read as if it closes something itself. The word
 accessible name says the same words. A closed issue's band reads each pull
 request from the issue's own details; a listed issue's reads the board's open
 ones. The pills on the row keep the shorter number.
-A pill says so in its tooltip ("References this issue, does
-not close it") and in its accessible name. The same sentence shows under the
-pill when it has keyboard focus, since a tooltip needs hover; Escape hides it
-and the pill keeps focus. The pop-up's rows have no line of their own for it:
-the row's label and the pill's accessible name carry it. Settings repeats it
-under Behaviour, in the Issues card: upright means the pull request closes the
-issue, italic means it only references or mentions it and does not close it.
-How a mention is read is in [Tickets a pull request
+A pill says so in its tooltip ("References this issue, does not close it") and
+in its accessible name. When the pull request's title is known, the tooltip
+leads with it and the sentence follows on a second line. The same text shows
+under the pill when it has keyboard focus, since a tooltip needs hover; Escape
+hides it and the pill keeps focus. The pop-up's rows have no line of their own
+for it: the row's label and the pill's accessible name carry it. Settings
+repeats it under Behaviour, in the Issues card: upright means the pull request
+closes the issue, italic means it only references or mentions it and does not
+close it. How a mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
 ## Opening an issue from its address

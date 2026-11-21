@@ -269,6 +269,7 @@ const singleUserSpecs = [
   '**/closing-issues.spec.ts',
   '**/address-open-focus.spec.ts',
   '**/refs-pills.spec.ts',
+  '**/pill-titles.spec.ts',
   '**/related-band.spec.ts',
   '**/foreign-relation-pill.spec.ts',
   '**/dialog-patches-in-place.spec.ts',

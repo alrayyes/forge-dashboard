@@ -1951,7 +1951,7 @@ button.title {
   left: 0;
   z-index: 10;
   width: max-content;
-  max-width: 220px;
+  max-width: min(220px, calc(100vw - 32px));
   padding: 6px 10px;
   border-radius: 6px;
   background: var(--surface);
@@ -1960,7 +1960,8 @@ button.title {
   font-size: 0.6875rem;
   font-style: normal;
   color: var(--ink-2);
-  white-space: normal;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
   text-decoration: none;
   pointer-events: none;
 }

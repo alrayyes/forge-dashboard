@@ -1,4 +1,5 @@
-// A pill's explanation, shown when the pill has keyboard focus. The native
+// A pill's explanation (the item's title and what the pill does), shown when
+// the pill has keyboard focus. The native
 // title only shows on hover, so a keyboard reader never saw it. The tip is
 // the pill's sibling inside a host, hidden by the stylesheet until focus lands
 // on the pill by keyboard (:focus-visible at the moment of focus), and the
@@ -9,6 +10,20 @@
 // https://github.com/alrayyes/forge-dashboard/issues/3999
 
 let counter = 0;
+
+/** True when a pill has a title to show: not missing, and not only blanks. */
+export const hasPillTitle = (title: string | undefined) => !!title?.trim();
+
+/**
+ * What a pill says on hover and under focus: the item's title first, then the
+ * line saying what the pill does. A title that is missing or only blanks is
+ * left out, so the line stands alone with no empty row (#4326). The title is
+ * text: it is set with textContent and the title attribute, never as markup.
+ */
+export function pillHoverText(title: string | undefined, line: string) {
+  const clean = title?.replace(/\s+/g, ' ').trim();
+  return clean ? `${clean}\n${line}` : line;
+}
 
 /** The attribute the stylesheet reads to show the tip. */
 export const TIP_SHOWN = 'data-tip-shown';

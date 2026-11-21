@@ -76,6 +76,7 @@ function pill(ref: ItemReference): LinkedPullRequest {
     number: ref.number,
     draft: false,
     pageUrl: ref.pageUrl,
+    title: ref.title,
     ci: 'none',
     checks: none,
     awaitingWorkflowApproval: false,

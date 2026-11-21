@@ -5,6 +5,7 @@ import {
   mentionDialogName,
   mentionPillName,
   mentionPillText,
+  mentionPillTitle,
 } from './mentioned-issues';
 
 // The pill a pull request dialog draws for a ticket it mentions. The server
@@ -57,5 +58,18 @@ describe('mentionDialogName', () => {
         'alrayyes/app',
       ),
     ).toBe('Mentions: alrayyes/lib#12, opens on the forge');
+  });
+});
+
+describe('mentionPillTitle', () => {
+  test('is the title, then what the pill does', () => {
+    expect(mentionPillTitle(mention({ title: 'Show titles' }))).toBe(
+      'Show titles\nMentioned here, does not close it',
+    );
+  });
+
+  test('is nothing without a title, as before', () => {
+    expect(mentionPillTitle(mention())).toBeUndefined();
+    expect(mentionPillTitle(mention({ title: ' ' }))).toBeUndefined();
   });
 });

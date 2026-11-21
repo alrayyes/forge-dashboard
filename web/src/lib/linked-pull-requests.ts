@@ -9,7 +9,12 @@ import {
   pillName,
 } from './check-counts.js';
 import { isKnownForge } from './forges';
-import { addPillTip, focusPill } from './pill-tip.js';
+import {
+  addPillTip,
+  focusPill,
+  hasPillTitle,
+  pillHoverText,
+} from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 import {
   foldedPills,
@@ -27,6 +32,8 @@ export type LinkedPullRequest = {
   ci: string;
   checks: CheckCounts;
   awaitingWorkflowApproval: boolean;
+  /** The item's title when the server holds it, for the pill's hover text. */
+  title?: string;
   /**
    * Set only on an entry that came from an issue's own details (#4271), where
    * the item may be an issue, or a pull request that is closed or merged. The
@@ -190,11 +197,16 @@ export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
     .join(' ');
 }
 
-/** The pill's tooltip: what the pull request does to the issue, which the italic alone doesn't say. */
+/** The pill's tooltip: the item's title when known, then what it does to the issue, which the italic alone doesn't say. */
 export function linkedPillTitle(
   relation: Relation,
   side: RelatedSide = 'issue',
+  title?: string,
 ) {
+  return pillHoverText(title, linkedPillLine(relation, side));
+}
+
+function linkedPillLine(relation: Relation, side: RelatedSide) {
   if (side === 'issue-outgoing')
     return relation === 'refs'
       ? 'This issue references this, it does not close it'
@@ -372,9 +384,10 @@ export function linkedPills(
         ? linkedDialogName(pr, issueRepo, ci, relation, side, external)
         : linkedPillName(pr, issueRepo, ci, relation),
     );
-    link.title = linkedPillTitle(relation, side);
-    return relation === 'refs'
-      ? addPillTip(link, linkedPillTitle(relation, side))
+    const hover = linkedPillTitle(relation, side, pr.title);
+    link.title = hover;
+    return relation === 'refs' || hasPillTitle(pr.title)
+      ? addPillTip(link, hover)
       : link;
   };
   if (inDialog)
