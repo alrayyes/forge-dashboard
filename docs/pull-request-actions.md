@@ -258,7 +258,11 @@ queued note, the waiting chip) take a line of their own under the slots, and
 the waiting chip's reserved room is only there while a chip is. A narrower list
 keeps the wrapping status cell, with the chips and the note in it. Rows with
 both Merge and Update branch stack the two buttons as one block, centred on the
-pill line; that is intended.
+pill line; that is intended. Tab follows the layout: when the note
+under the title has a fix button in it, such as Update branch on a behind pull
+request, Tab reaches that button before the CI and comment pills. On a phone
+and on a narrower list the note stays in the status cell, and Tab visits the
+pills first and the button last.
 On a phone (760px and narrower) the card is the title with its labels, chips
 and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width

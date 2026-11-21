@@ -3379,8 +3379,11 @@
         if (statusAreaEl) statusCell.appendChild(statusAreaEl);
         // The action area's reserved slot: the waiting chip lives here, so
         // it comes and goes without moving the row (#1229). It follows the
-        // status in the markup as it does on screen, so Tab only moves down
-        // (#3264).
+        // status in the markup, and on a phone and a narrow list that is the
+        // order on screen (#3264). On a list wide enough for the one-line row
+        // placeNotes moves the status area under the title, so a fix button
+        // in it (Update branch) takes Tab before the CI and comment pills.
+        // That matches the screen, and tests/pr-row-centering.spec.ts pins it.
         const waitSlot = el("div", "wait-slot");
         const autoMergeWait = autoMergeWaitChip(pr);
         // A stale wait hides the chip and Disarm with it, so Disarm stays on
