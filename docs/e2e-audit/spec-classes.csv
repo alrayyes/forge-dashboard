@@ -61,6 +61,7 @@ dependabot-stale-actions-layout.spec.ts,,1,1,A,,0.0
 dialog-chain-close-focus.spec.ts,,18,18,A,,0.0
 dialog-patches-in-place.spec.ts,,4,1,C,,0.0
 error-pages.spec.ts,3.487,4,2,A,ErrorPage.stories.svelte (proven),1.7
+failed-pills-clear-comment.spec.ts,,4,2,A,,0.0
 failure-line-stays.spec.ts,2.712,8,3,C,,1.7
 filter-bar-one-control.spec.ts,5.468,6,5,A,,0.9
 filter-bar-overlap.spec.ts,1.853,1,1,A,,0.0
