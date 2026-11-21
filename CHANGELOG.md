@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.92.0](https://github.com/alrayyes/forge-dashboard/compare/v9.91.3...v9.92.0) (2026-11-21)
+
+
+### Features
+
+* **web:** open a release note's issue or pull request in its dialog ([#4537](https://github.com/alrayyes/forge-dashboard/issues/4537)) ([adc3f66](https://github.com/alrayyes/forge-dashboard/commit/adc3f66b3ff0e7cce61e087fc2ab5a8957d7f49a))
+
 ## [9.91.3](https://github.com/alrayyes/forge-dashboard/compare/v9.91.2...v9.91.3) (2026-11-21)
 
 
