@@ -1028,17 +1028,13 @@ test.describe('pull request details dialog', () => {
     await trigger(page).click();
     const status = dialog(page).locator('.details-status');
     const attributes = dialog(page).locator('.attr-cluster');
-    for (const text of [
-      'Draft',
-      'Out of date',
-      'Auto-merge',
-      'kind/chore',
-      'v1.2.0',
-    ]) {
+    for (const text of ['Draft', 'Auto-merge', 'kind/chore', 'v1.2.0']) {
       await expect(
         attributes.locator('.attr-chip', { hasText: text }),
       ).toBeVisible();
     }
+    // A confirmed conflict says the pull request is out of date already (#4531).
+    await expect(attributes.locator('.attr-chip.behind')).toHaveCount(0);
     // The words are the row's: Failed and Conflicting, never Failing/Conflicts.
     await expect(status.locator('.ci-pill')).toContainText('Failed');
     await expect(status.locator('.merge-pill.conflicting')).toHaveText(
