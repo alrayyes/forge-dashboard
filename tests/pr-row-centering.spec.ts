@@ -104,6 +104,22 @@ const BEHIND = pr(9, {
     action: 'update_branch',
   },
 });
+
+// A ready-to-merge row that is also behind: the server lists Merge as primary
+// and Update branch beside it (#4518).
+const BOTH = pr(10, {
+  title: 'Row with Merge and Update branch',
+  behind: true,
+  allowedActions: [
+    { action: 'merge', primary: true },
+    { action: 'update_branch' },
+    { action: 'close' },
+  ],
+});
+const ONE = pr(11, {
+  title: 'Row with Merge only',
+  allowedActions: [{ action: 'merge', primary: true }, { action: 'close' }],
+});
 async function open(page: Page, width: number, prs = PRS) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -265,6 +281,71 @@ test.describe('at 1280px', () => {
     expect(over).toBeLessThanOrEqual(0);
   });
 });
+
+// Merge and Update branch used to stack as one block inside the action slot,
+// which made that row taller than its neighbours (#4518). They now share the
+// one line, and the row is as tall as a row with a single button.
+// https://github.com/alrayyes/forge-dashboard/issues/4518
+// The list is 62px narrower than the window, so a 1253px window is the 1191px
+// list where the one-line row starts.
+for (const width of [1280, 1253]) {
+  test.describe(`a row with Merge and Update branch at ${width}px`, () => {
+    test.beforeEach(async ({ page }) => {
+      await open(page, width, [ONE, BOTH]);
+    });
+
+    test('the two buttons share one line and the row is as tall as one with a single button', async ({
+      page,
+    }) => {
+      await expect
+        .poll(() =>
+          page.locator('#pr-rows > .row').evaluateAll((rows) => {
+            const [one, both] = rows;
+            const btns = [...both.querySelectorAll('.row-action')].map((b) =>
+              b.getBoundingClientRect(),
+            );
+            return {
+              buttons: btns.length,
+              sameLine:
+                btns.length === 2 &&
+                Math.abs(btns[0].top - btns[1].top) <= 1 &&
+                btns[0].right <= btns[1].left,
+              // clientHeight leaves out the last row's missing bottom border.
+              heightDiff: Math.abs(both.clientHeight - one.clientHeight),
+            };
+          }),
+        )
+        .toEqual({ buttons: 2, sameLine: true, heightDiff: 0 });
+    });
+
+    test('the buttons stay inside the row and the page does not scroll sideways', async ({
+      page,
+    }) => {
+      await expect
+        .poll(() =>
+          page.locator('#pr-rows > .row').evaluateAll((rows) => {
+            const row = rows[1].getBoundingClientRect();
+            const cell = rows[1]
+              .querySelector('.status-cell')
+              ?.getBoundingClientRect() as DOMRect;
+            return [...rows[1].querySelectorAll('.row-action')]
+              .map((b) => b.getBoundingClientRect())
+              .filter(
+                (b) =>
+                  b.right > row.right + 0.5 ||
+                  b.left < cell.left - 0.5 ||
+                  b.right > cell.right + 0.5,
+              ).length;
+          }),
+        )
+        .toBe(0);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(over).toBeLessThanOrEqual(0);
+    });
+  });
+}
 
 // From 761px to 1190px of list width the status cell is still the wrapping
 // flex box, with the note on a line of its own. The pill line then sat above
@@ -558,7 +639,7 @@ test.describe('keyboard order of a row with a fix button', () => {
 
 for (const width of [1280, 1000, 390]) {
   test(`the rows have no axe violations at ${width}px`, async ({ page }) => {
-    await open(page, width, [...PRS, BEHIND]);
+    await open(page, width, [...PRS, BEHIND, BOTH]);
     const results = await new AxeBuilder({ page })
       .include('#pr-rows')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
