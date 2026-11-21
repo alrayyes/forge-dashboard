@@ -57,6 +57,42 @@
     );
     return canvasElement.querySelector(".run-output-error") as HTMLElement;
   };
+  // Stands in for the browser's clipboard for one story: `write` reads the item
+  // it is given, and the selection copy is refused or allowed as asked.
+  // The returned function puts the real ones back.
+  const fakeClipboard = (opts: {
+    clipboard: boolean;
+    selection: boolean;
+  }): (() => void) => {
+    const realExec = document.execCommand;
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: opts.clipboard
+        ? {
+            // Like the real one, a write fails when its item's text does.
+            write: async (items: ClipboardItem[]) => {
+              for (const item of items) {
+                await (await item.getType("text/plain")).text();
+              }
+            },
+            writeText: async () => {},
+          }
+        : undefined,
+    });
+    document.execCommand = () => opts.selection;
+    return () => {
+      Reflect.deleteProperty(navigator, "clipboard");
+      document.execCommand = realExec;
+    };
+  };
+
+  const copyButton = (canvasElement: HTMLElement): HTMLElement =>
+    within(canvasElement).getByRole("button", {
+      name: "Copy output: test / go",
+    });
+
+  const statusOf = (canvasElement: HTMLElement): HTMLElement =>
+    canvasElement.querySelector(".run-output-status") as HTMLElement;
 </script>
 
 <!-- Closed: Show output and the link to the forge. -->
@@ -235,6 +271,121 @@
     const error = await errorOf(canvasElement);
     await expect(error).toHaveTextContent("is limiting requests right now");
     await expect(within(error).queryByRole("link")).toBeNull();
+  }}
+/>
+
+<!-- Copy on a cut log says which part it copied, and where the rest is. -->
+<Story
+  name="Copy a cut output"
+  beforeEach={() => {
+    const restore = fakeClipboard({ clipboard: true, selection: true });
+    const undo = mockFetch([
+      {
+        match: /\/api\/v1\/checks\/log/,
+        body: { text: "tail\n", truncated: true },
+      },
+    ]);
+    return () => {
+      restore();
+      return undo?.();
+    };
+  }}
+  play={async ({ canvasElement }) => {
+    await view(canvasElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+    );
+    await userEvent.click(copyButton(canvasElement));
+    await waitFor(() =>
+      expect(statusOf(canvasElement)).toHaveTextContent(
+        "Copied the last 256 KB of the output, which is all the dashboard keeps. Open the job on GitHub for the rest.",
+      ),
+    );
+  }}
+/>
+
+<!-- Copy on an output the job never wrote says nothing was copied. -->
+<Story
+  name="Copy no output"
+  beforeEach={() => {
+    const restore = fakeClipboard({ clipboard: true, selection: true });
+    const undo = mockFetch([
+      { match: /\/api\/v1\/checks\/log/, body: { text: "", truncated: false } },
+    ]);
+    return () => {
+      restore();
+      return undo?.();
+    };
+  }}
+  play={async ({ canvasElement }) => {
+    await view(canvasElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+    );
+    await userEvent.click(copyButton(canvasElement));
+    await waitFor(() =>
+      expect(statusOf(canvasElement)).toHaveTextContent("Nothing was copied."),
+    );
+  }}
+/>
+
+<!-- When the browser refuses every way to copy, the output goes into a field
+     to copy by hand: it holds the text, has focus, and the line says how. -->
+<Story
+  name="Copy refused"
+  beforeEach={() => {
+    const restore = fakeClipboard({ clipboard: false, selection: false });
+    const undo = mockFetch([
+      {
+        match: /\/api\/v1\/checks\/log/,
+        body: { text: "step 1\nboom: exit 1\n", truncated: false },
+      },
+    ]);
+    return () => {
+      restore();
+      return undo?.();
+    };
+  }}
+  play={async ({ canvasElement }) => {
+    await view(canvasElement);
+    await waitFor(() =>
+      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+    );
+    await userEvent.click(copyButton(canvasElement));
+    const field = await within(canvasElement).findByRole("textbox", {
+      name: "Output to copy: test / go",
+    });
+    await expect(field).toHaveValue("step 1\nboom: exit 1\n");
+    await expect(field).toHaveFocus();
+    await expect(statusOf(canvasElement)).toHaveTextContent("Cmd+C");
+  }}
+/>
+
+<!-- The output opens from the keyboard, can take focus to scroll, and hides
+     again, which removes it. -->
+<Story
+  name="By keyboard"
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: /\/api\/v1\/checks\/log/,
+        body: { text: "line\n", truncated: false },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    canvas.getByRole("button", { name: "Show output: test / go" }).focus();
+    await userEvent.keyboard("{Enter}");
+    const output = await canvas.findByRole("region", {
+      name: "Output: test / go",
+    });
+    await expect(output).toBeVisible();
+    output.focus();
+    await expect(output).toHaveFocus();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Hide output: test / go" }),
+    );
+    await expect(canvas.queryByRole("region")).toBeNull();
   }}
 />
 
