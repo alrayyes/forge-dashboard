@@ -44,11 +44,7 @@ const pathOf = (label: string) => {
   return found.path;
 };
 
-const NO_SESSION_PAGES = [
-  '/changelog.html',
-  '/disclaimer.html',
-  '/privacy.html',
-];
+const NO_SESSION_PAGES = ['/disclaimer.html', '/privacy.html'];
 
 test.describe('persistent top nav', () => {
   for (const { path, label } of NAV_PAGES) {

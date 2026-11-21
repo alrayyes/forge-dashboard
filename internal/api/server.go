@@ -263,6 +263,10 @@ func NewMux(deps Deps) http.Handler {
 	// changelog's address until #1108, which redirected it; the redirect is
 	// gone now that the name means this page.
 	mux.Handle("GET /releases.html", requireAuthPage(deps.AuthStore, privateFiles))
+	// The changelog's newest entry is the running version, so the page and
+	// the data it reads need a session too (#4426).
+	mux.Handle("GET /changelog.html", requireAuthPage(deps.AuthStore, privateFiles))
+	mux.Handle("GET /changelog.json", requireAuthPage(deps.AuthStore, privateFiles))
 	// Dependabot and Renovate's pull requests, on their own page (#1192).
 	mux.Handle("GET /bots.html", requireAuthPage(deps.AuthStore, privateFiles))
 	// The pull request list was the index until the CI status of every default

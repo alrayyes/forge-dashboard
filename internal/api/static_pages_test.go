@@ -18,8 +18,8 @@ import (
 // about a file, not about how a browser draws it.
 
 var (
-	publicPages   = []string{"login.html", "changelog.html", "disclaimer.html", "privacy.html"}
-	signedInPages = []string{"index.html", "pull-requests.html", "issues.html", "insights.html", "webhooks.html", "settings.html"}
+	publicPages   = []string{"login.html", "disclaimer.html", "privacy.html"}
+	signedInPages = []string{"index.html", "pull-requests.html", "issues.html", "insights.html", "webhooks.html", "settings.html", "changelog.html"}
 
 	metaDescription = regexp.MustCompile(`<meta name="description" content="([^"]*)"`)
 	fontPreload     = regexp.MustCompile(`<link[^>]*rel="preload"[^>]*as="font"[^>]*>`)
