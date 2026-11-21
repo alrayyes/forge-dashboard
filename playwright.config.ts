@@ -145,6 +145,7 @@ const singleUserSpecs = [
   '**/pull-request-renovate-rebase.spec.ts',
   '**/pull-request-status-area.spec.ts',
   '**/waiting-for-ci-once.spec.ts',
+  '**/merge-wait-line.spec.ts',
   '**/pull-request-update-branch.spec.ts',
   '**/queued-action-feedback.spec.ts',
   '**/queued-for-reset.spec.ts',

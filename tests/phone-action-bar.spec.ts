@@ -33,10 +33,12 @@ function pr(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const WAITING_ON_CI = {
-  code: 'checks_pending',
-  message: 'Waiting for CI to finish',
-  next: 'Merge unlocks automatically',
+// A reason a person can act on, so Merge stays drawn locked. A plain wait for
+// CI draws one line of text instead (#4528).
+const LOCKED_MERGE = {
+  code: 'blocked_by_protection',
+  message: 'A required review is missing',
+  next: 'Ask a reviewer to approve',
 };
 
 const shapes = {
@@ -45,7 +47,7 @@ const shapes = {
     mergeStatus: 'blocked',
     behind: true,
     allowedActions: [
-      { action: 'merge', blocked: WAITING_ON_CI },
+      { action: 'merge', blocked: LOCKED_MERGE },
       { action: 'update_branch' },
     ],
   },
@@ -177,7 +179,7 @@ test('a locked Merge keeps its height and place when Update branch goes away', a
           pr({
             ci: 'pending',
             mergeStatus: 'blocked',
-            allowedActions: [{ action: 'merge', blocked: WAITING_ON_CI }],
+            allowedActions: [{ action: 'merge', blocked: LOCKED_MERGE }],
           }),
         ],
         issues: [],

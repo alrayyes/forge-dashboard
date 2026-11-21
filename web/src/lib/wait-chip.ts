@@ -1,7 +1,9 @@
 // The waiting chip (#1229): one status chip in a pull request row's action
 // area for every "something is happening, hold on" state: a bot rebase, an
 // Update branch, a merge or a close in flight, an armed Forgejo auto-merge,
-// and the two ends of a wait (Settled, Still waiting).
+// and the two ends of a wait (Settled, Still waiting). A row that only waits
+// on the forge (CI running, Forgejo checking) gets no chip but the one line
+// of mergeWaitLine(), in Merge's slot (#4528).
 //
 // All of the wording lives here, so the states read alike: an icon, a bold
 // label of at most three words, a lighter second line naming the actor or the

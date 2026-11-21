@@ -34,6 +34,7 @@ const WAITING = pr(2, {
   ci: 'pending',
   mergeStatus: 'blocked',
 });
+const BLOCKED = pr(4, { title: 'Blocked', mergeStatus: 'blocked' });
 const READY = pr(1, { title: 'Ready' });
 
 async function open(page: Page, pullRequests: unknown[]) {
@@ -91,33 +92,43 @@ test.describe('the status area on a pull request row (#1375)', () => {
     ).toBeVisible();
   });
 
-  test('a pull request waiting on CI keeps its reason in the status area, not beside the button', async ({
+  test('a pull request the forge blocks keeps its reason in the status area, not beside the button', async ({
+    page,
+  }) => {
+    await open(page, [EMPTY, BLOCKED, READY]);
+    const blocked = row(page, 'Blocked');
+    const merge = blocked.getByRole('button', { name: 'Merge', exact: true });
+
+    await expect(blocked.locator('.status-area')).toContainText(
+      'Blocked by the forge',
+    );
+    await expect(blocked.locator('.row-action-note')).toHaveCount(0);
+    await expect(
+      blocked.locator('.row-action-locked .status-area'),
+    ).toHaveCount(0);
+    await expect(merge).toHaveAttribute('aria-disabled', 'true');
+    // The reason is read without hovering: Merge is described by the area.
+    const areaId = await blocked
+      .locator('.status-area-text')
+      .getAttribute('id');
+    await expect(merge).toHaveAttribute('aria-describedby', areaId ?? '');
+    await expect(merge).toHaveAccessibleDescription(/Blocked by the forge/);
+  });
+
+  test('a pull request that only waits on CI has no status area and no locked Merge (#4528)', async ({
     page,
   }) => {
     await open(page, [EMPTY, WAITING, READY]);
     const waiting = row(page, 'Waiting');
-    const merge = waiting.getByRole('button', { name: 'Merge', exact: true });
 
-    await expect(waiting.locator('.status-area')).toContainText(
-      'Waiting for CI to finish',
-    );
-    await expect(waiting.locator('.status-area')).toContainText(
-      'Merge unlocks automatically',
-    );
-    await expect(waiting.locator('.row-action-note')).toHaveCount(0);
+    await expect(waiting.locator('.status-area')).toHaveCount(0);
+    await expect(waiting.getByText('Merge after CI')).toBeVisible();
     await expect(
-      waiting.locator('.row-action-locked .status-area'),
+      waiting.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
-    await expect(merge).toHaveAttribute('aria-disabled', 'true');
-    // The reason is read without hovering: Merge is described by the area.
-    const areaId = await waiting
-      .locator('.status-area-text')
-      .getAttribute('id');
-    await expect(merge).toHaveAttribute('aria-describedby', areaId ?? '');
-    await expect(merge).toHaveAccessibleDescription(/Waiting for CI to finish/);
   });
 
-  test('auto-merge on drops the next-step line and keeps the reason (#1638)', async ({
+  test('auto-merge on a waiting row leaves one place for the wait (#4528)', async ({
     page,
   }) => {
     await open(page, [
@@ -130,11 +141,9 @@ test.describe('the status area on a pull request row (#1375)', () => {
     ]);
     const waiting = row(page, 'Waiting');
 
-    await expect(waiting.locator('.status-area')).toContainText(
-      'Waiting for CI to finish',
-    );
-    await expect(waiting.locator('.status-area')).not.toContainText(
-      'Merge unlocks automatically',
+    await expect(waiting.locator('.status-area')).toHaveCount(0);
+    await expect(waiting.getByText('Merge unlocks automatically')).toHaveCount(
+      0,
     );
   });
 
@@ -159,9 +168,9 @@ test.describe('the status area on a pull request row (#1375)', () => {
       await test.step(`${label}`, async () => {
         await page.setViewportSize(size);
 
-        await open(page, [EMPTY, WAITING, READY]);
+        await open(page, [EMPTY, BLOCKED, READY]);
 
-        for (const title of ['Empty', 'Waiting']) {
+        for (const title of ['Empty', 'Blocked']) {
           const r = row(page, title);
           const area = await r.locator('.status-area').boundingBox();
           const box = await r.boundingBox();

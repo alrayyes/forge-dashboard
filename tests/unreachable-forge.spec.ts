@@ -305,7 +305,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     await expect(page.locator('#unreachable-banner')).toBeVisible();
   });
 
-  test('another forge is unaffected, and a reachable forge keeps the row’s own reason', async ({
+  test('another forge is unaffected, and a reachable forge keeps the row’s own state', async ({
     page,
   }) => {
     await mockDashboard(
@@ -331,10 +331,8 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
     await expect(
       gh.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
-    await expect(
-      fj.getByRole('button', { name: 'Merge', exact: true }),
-    ).toBeVisible();
-    await expect(fj).toContainText('Waiting for CI to finish');
+    // Its own state, a wait on CI, is not overwritten by the read-only mode.
+    await expect(fj).toContainText('Merge after CI');
     await expect(page.locator('#unreachable-banner')).not.toContainText(
       'Forgejo',
     );

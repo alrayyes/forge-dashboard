@@ -61,9 +61,9 @@ const PRS = [
       {
         action: 'merge',
         blocked: {
-          code: 'checks_pending',
-          message: 'Waiting for CI to finish',
-          next: 'Merge unlocks automatically',
+          code: 'blocked_by_protection',
+          message: 'A required review is missing',
+          next: 'Ask a reviewer to approve',
         },
       },
       { action: 'close' },

@@ -113,7 +113,31 @@ test.describe('the row draws one action (#943)', () => {
     expect(await rowActions(row)).toEqual(['Merge']);
   });
 
-  test('with no primary and Merge locked, the row shows the locked Merge and its reason', async ({
+  test('with no primary and Merge locked for a reason a person can act on, the row shows the locked Merge and its reason', async ({
+    page,
+  }) => {
+    const row = await open(
+      page,
+      withActions([
+        {
+          action: 'merge',
+          blocked: {
+            code: 'blocked_by_protection',
+            message: 'A required review is missing',
+          },
+        },
+        { action: 'auto_merge' },
+        { action: 'close' },
+      ]),
+    );
+    expect(await rowActions(row)).toEqual(['Merge']);
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveAttribute('aria-disabled', 'true');
+    await expect(row).toContainText('A required review is missing');
+  });
+
+  test('with no primary and Merge only waiting on CI, the row shows one line of text, not a locked Merge (#4528)', async ({
     page,
   }) => {
     const row = await open(
@@ -124,11 +148,11 @@ test.describe('the row draws one action (#943)', () => {
         { action: 'close' },
       ]),
     );
-    expect(await rowActions(row)).toEqual(['Merge']);
+    expect(await rowActions(row)).toEqual([]);
     await expect(
-      row.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await expect(row).toContainText('Waiting for CI to finish');
+      row.getByText('Merge after CI', { exact: true }),
+    ).toBeVisible();
+    await expect(row).not.toContainText('Waiting for CI to finish');
   });
 
   test('with no primary and Merge offered, the row draws nothing', async ({

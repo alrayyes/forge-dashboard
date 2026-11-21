@@ -241,6 +241,9 @@
   } from "#lib/hidden-pull-requests.js";
   import {
     autoMergeChip,
+    MERGE_AVAILABLE,
+    type MergeWait,
+    mergeWaitLine,
     autoMergeWording,
     buildWaitChip,
     queuedChip,
@@ -4058,6 +4061,18 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
+    // The only wait on this row is the forge's own, which passes by itself:
+    // CI running, or Forgejo checking for conflicts. Nothing is for a person
+    // to do, so Merge's slot says so in a line of text and holds no locked
+    // button (#4528). A pill that has moved on keeps the locked Merge and its
+    // pointer to the forge.
+    function mergeWaitOf(item: PullRequestItem): MergeWait | null {
+      if (findAction(item, "merge")?.blocked?.code !== "checks_pending")
+        return null;
+      if (ciWaitIsStale(item)) return null;
+      return item.mergeStatus === "checking" ? "conflict-check" : "ci";
+    }
+
     // The pop-up passes withFix false: its footer already lists every action,
     // and it keeps the behind message while a rebase is requested.
     function statusArea(
@@ -4067,6 +4082,8 @@
       const status = item.status;
       if (!status) return null;
       if (ciWaitIsStale(item)) return null;
+      // Merge's slot says it in one line (#4528).
+      if (status.code === "checks_pending" && mergeWaitOf(item)) return null;
       if (withFix && snapshotWaitsOnCi(item) && chipSaysCiWait(item))
         return null;
       // The requested rebase is the fix the message asks for (#4022).
@@ -4190,6 +4207,13 @@
       )
         return null;
       if (merge.blocked) {
+        const wait = mergeWaitOf(item);
+        if (wait) {
+          // An armed row's chip already says it: one place only.
+          if (wait === "ci" && idScope === "" && chipSaysCiWait(item))
+            return null;
+          return el("span", "merge-wait", mergeWaitLine(wait));
+        }
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
@@ -5778,6 +5802,27 @@
         10_000,
       );
     }
+    // The key of the row that holds focus and is waiting, or null. Read before
+    // the list is rebuilt, since a rebuild drops focus.
+    function rowWaitingUnderFocus(container: HTMLElement): string | null {
+      const active = document.activeElement;
+      if (!(active instanceof HTMLElement) || !container.contains(active))
+        return null;
+      const row = active.closest<HTMLElement>(".row");
+      return row?.querySelector(".merge-wait")
+        ? (row.dataset.prKey ?? null)
+        : null;
+    }
+
+    function announceIfUnlocked(container: HTMLElement, key: string) {
+      const row = Array.from(
+        container.querySelectorAll<HTMLElement>(".row"),
+      ).find((r) => r.dataset.prKey === key);
+      if (!row || row.querySelector(".merge-wait")) return;
+      if (row.querySelector('button[id^="merge-arm-"]'))
+        announceText(MERGE_AVAILABLE);
+    }
+
     function announceListUpdate(diff: {
       added: number;
       removed: number;
@@ -8847,6 +8892,9 @@
           Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
         );
 
+        // A person on a row whose Merge was a line of text and now is a
+        // button hears it once; a row nobody is on stays quiet (#4528).
+        const unlockWatch = isPR ? rowWaitingUnderFocus(container) : null;
         container.innerHTML = "";
         titleHover.prune();
 
@@ -8870,6 +8918,8 @@
           appendEntries(container, pages[state.page - 1] ?? []);
           renderPagination(totalPages);
         }
+
+        if (unlockWatch) announceIfUnlocked(container, unlockWatch);
 
         const emptyEl = document.getElementById(emptyId);
         if (emptyEl) emptyEl.hidden = state.items.length !== 0;

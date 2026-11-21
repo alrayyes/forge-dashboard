@@ -85,7 +85,7 @@ test.describe('Releases page (#1107)', () => {
     await expect(page).toHaveTitle(/Releases/);
   });
 
-  test('a release that can merge offers Merge; one that cannot is greyed out with the reason', async ({
+  test('a release that can merge offers Merge; one that only waits on CI says so in one line', async ({
     page,
   }) => {
     await mockDashboard(page, [
@@ -106,10 +106,11 @@ test.describe('Releases page (#1107)', () => {
     const waiting = page.locator('#pr-rows > .row', {
       hasText: 'acme/waiting',
     });
+    // Only waiting on CI: one line of text in Merge's slot (#4528).
     await expect(
       waiting.getByRole('button', { name: 'Merge', exact: true }),
-    ).toHaveAttribute('aria-disabled', 'true');
-    await expect(waiting).toContainText('Waiting for CI to finish');
+    ).toHaveCount(0);
+    await expect(waiting).toContainText('Merge after CI');
   });
 
   test('a release that is behind offers Update branch and says why nothing else will update it, and the page has no axe violations at desktop and phone width', async ({
