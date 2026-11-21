@@ -26,7 +26,8 @@
 />
 
 <!-- A forge with no logo: the repository's initial in the same 16px box, so a
-     row does not shift. -->
+     row does not shift. The screenshot is a small box holding "F", not blank:
+     the small size is intended. -->
 <Story
   name="No logo"
   args={{ forge: "forgejo", url: undefined, name: "alrayyes/forge-dashboard" }}
@@ -56,7 +57,8 @@
 />
 
 <!-- An http URL is refused, since the dashboard is served over https. The
-     initial is drawn instead. -->
+     initial is drawn instead, so the screenshot is a small box holding "F",
+     not blank. That is intended. -->
 <Story
   name="Insecure URL"
   args={{

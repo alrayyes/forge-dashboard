@@ -5,10 +5,12 @@
 // 1. `storybook build` writes the catalog to a temp directory.
 // 2. The build is served, and the script waits until index.json lists stories.
 // 3. Each `type: "story"` entry opens at iframe.html?id=<id>&viewMode=story,
-//    the play function runs to its end, and one PNG named for the story ID
-//    lands in docs/storybook/.
-// 4. axe scans the same DOM state. Any violation, and any story that throws,
-//    fails the run after every story has been tried.
+//    the play function runs to its end, and PNGs named for the story ID
+//    land in docs/storybook/: desktop, `--phone` (390px) and `--dark`. Each
+//    is cropped to what the story drew, or the whole page when a dialog is
+//    open. A story that draws nothing is listed, not saved (storybook-shots.ts).
+// 4. axe scans the same DOM state of every variant. Any violation, and any
+//    story that throws, fails the run after every story has been tried.
 //
 // The lefthook pre-push job and the CI job both call this script. It does not
 // use Storybook's test-runner (rules/storybook.md).
@@ -24,11 +26,11 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { AxeBuilder } from '@axe-core/playwright';
 import { chromium } from '@playwright/test';
 import { logoAnswer } from './storybook-logo-route';
+import { type Measure, planShot, shotName, VARIANTS } from './storybook-shots';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const WEB = path.join(ROOT, 'web');
 const OUT_DIR = path.join(ROOT, 'docs', 'storybook');
-const VIEWPORT = { width: 1280, height: 800 };
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const STORY_TIMEOUT_MS = 15_000;
 
@@ -166,6 +168,40 @@ const QUIET = `
   scroll-behavior: auto !important;
 }`;
 
+// Asks the page what the story drew: the box around everything visible in the
+// root, and whether a dialog or fixed layer is up, whose backdrop is part of
+// the picture.
+function measureStory(): Measure {
+  const root = document.querySelector('#storybook-root');
+  let left = Number.POSITIVE_INFINITY;
+  let top = Number.POSITIVE_INFINITY;
+  let right = Number.NEGATIVE_INFINITY;
+  let bottom = Number.NEGATIVE_INFINITY;
+  for (const el of root?.querySelectorAll('*') ?? []) {
+    const style = getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0) continue;
+    left = Math.min(left, r.left);
+    top = Math.min(top, r.top);
+    right = Math.max(right, r.right);
+    bottom = Math.max(bottom, r.bottom);
+  }
+  const overlay = [...document.body.querySelectorAll('*')].some(
+    (el) =>
+      (el instanceof HTMLDialogElement && el.open) ||
+      (el.tagName !== 'SCRIPT' &&
+        getComputedStyle(el).position === 'fixed' &&
+        el.getBoundingClientRect().width > 0 &&
+        el.getBoundingClientRect().height > 0),
+  );
+  const box =
+    right > left && bottom > top
+      ? { x: left, y: top, width: right - left, height: bottom - top }
+      : null;
+  return { box, overlay };
+}
+
 async function main() {
   // `--static-dir=<dir>` serves an existing build instead of making one, and
   // `--only=<text>` keeps the
@@ -186,69 +222,91 @@ async function main() {
   const browser = await chromium.launch();
   const failures: string[] = [];
   let shot = 0;
+  const blank: string[] = [];
   try {
     const stories = await waitForIndex(base);
-    const context = await browser.newContext({
-      viewport: VIEWPORT,
-      timezoneId: 'UTC',
-      locale: 'en-US',
-      reducedMotion: 'reduce',
-      deviceScaleFactor: 1,
-    });
-    await context.addInitScript(WATCH);
-    await context.route('**/*', (route) => {
-      const url = new URL(route.request().url());
-      // A logo is asked of the image proxy, which Storybook doesn't run: answer
-      // for the one address the stories use, keyed by the `url` it carries.
-      if (url.pathname === '/api/v1/images') {
-        return logoAnswer(url.pathname + url.search) === 'logo'
-          ? route.fulfill({ contentType: 'image/svg+xml', body: LOGO_SVG })
-          : route.abort();
-      }
-      if (url.hostname === 'localhost') return route.continue();
-      return route.abort();
-    });
-
-    for (const { id } of stories.filter((s) => !only || s.id.includes(only))) {
-      console.log(`- ${id}`);
-      const page = await context.newPage();
-      try {
-        await page.goto(`${base}/iframe.html?id=${id}&viewMode=story`);
-        await page.waitForSelector('#storybook-root', {
-          state: 'attached',
-          timeout: STORY_TIMEOUT_MS,
-        });
-        await page.waitForFunction(
-          // biome-ignore lint/suspicious/noExplicitAny: runs in the page
-          () => (window as any).__storyState?.done === true,
-          undefined,
-          { timeout: STORY_TIMEOUT_MS },
-        );
-        const error = await page.evaluate(
-          // biome-ignore lint/suspicious/noExplicitAny: runs in the page
-          () => (window as any).__storyState.error as string | null,
-        );
-        if (error) {
-          failures.push(`${id}: the story threw: ${error}`);
-          continue;
+    const chosen = stories.filter((s) => !only || s.id.includes(only));
+    for (const variant of VARIANTS) {
+      const context = await browser.newContext({
+        viewport: variant.viewport,
+        colorScheme: variant.colorScheme,
+        timezoneId: 'UTC',
+        locale: 'en-US',
+        reducedMotion: 'reduce',
+        deviceScaleFactor: 1,
+      });
+      await context.addInitScript(WATCH);
+      await context.route('**/*', (route) => {
+        const url = new URL(route.request().url());
+        // A logo is asked of the image proxy, which Storybook doesn't run: answer
+        // for the one address the stories use, keyed by the `url` it carries.
+        if (url.pathname === '/api/v1/images') {
+          return logoAnswer(url.pathname + url.search) === 'logo'
+            ? route.fulfill({ contentType: 'image/svg+xml', body: LOGO_SVG })
+            : route.abort();
         }
-        await page.addStyleTag({ content: QUIET });
-        await page.evaluate(() => document.fonts.ready);
-        await page.screenshot({ path: path.join(OUT_DIR, `${id}.png`) });
-        shot++;
+        if (url.hostname === 'localhost') return route.continue();
+        return route.abort();
+      });
 
-        const { violations } = await new AxeBuilder({ page })
-          .withTags(TAGS)
-          .analyze();
-        for (const v of violations)
-          failures.push(
-            `${id}: axe ${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(' ')).join('\n    ')}`,
+      for (const { id } of chosen) {
+        console.log(`- ${id}${variant.suffix}`);
+        const page = await context.newPage();
+        try {
+          await page.goto(`${base}/iframe.html?id=${id}&viewMode=story`);
+          await page.waitForSelector('#storybook-root', {
+            state: 'attached',
+            timeout: STORY_TIMEOUT_MS,
+          });
+          await page.waitForFunction(
+            // biome-ignore lint/suspicious/noExplicitAny: runs in the page
+            () => (window as any).__storyState?.done === true,
+            undefined,
+            { timeout: STORY_TIMEOUT_MS },
           );
-      } catch (err) {
-        failures.push(`${id}: ${err instanceof Error ? err.message : err}`);
-      } finally {
-        await page.close();
+          const error = await page.evaluate(
+            // biome-ignore lint/suspicious/noExplicitAny: runs in the page
+            () => (window as any).__storyState.error as string | null,
+          );
+          if (error) {
+            failures.push(`${id}${variant.suffix}: the story threw: ${error}`);
+            continue;
+          }
+          await page.addStyleTag({ content: QUIET });
+          await page.evaluate(() => document.fonts.ready);
+          const plan = planShot(
+            await page.evaluate(measureStory),
+            variant.viewport,
+          );
+          if (plan.kind === 'blank') {
+            // One line per story: the phone and dark runs say the same thing.
+            if (variant.name === 'desktop') blank.push(id);
+          } else {
+            const file = path.join(OUT_DIR, shotName(id, variant));
+            await page.screenshot(
+              plan.kind === 'clip'
+                ? { path: file, clip: plan.clip }
+                : { path: file },
+            );
+            shot++;
+          }
+
+          const { violations } = await new AxeBuilder({ page })
+            .withTags(TAGS)
+            .analyze();
+          for (const v of violations)
+            failures.push(
+              `${id}${variant.suffix}: axe ${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(' ')).join('\n    ')}`,
+            );
+        } catch (err) {
+          failures.push(
+            `${id}${variant.suffix}: ${err instanceof Error ? err.message : err}`,
+          );
+        } finally {
+          await page.close();
+        }
       }
+      await context.close();
     }
   } finally {
     await browser.close();
@@ -256,6 +314,8 @@ async function main() {
     if (!given) await rm(staticDir, { recursive: true, force: true });
   }
 
+  if (blank.length > 0)
+    console.log(`renders nothing, not saved: ${blank.join(', ')}`);
   console.log(`saved ${shot} screenshots to ${path.relative(ROOT, OUT_DIR)}`);
   if (failures.length > 0) {
     console.error(`\n${failures.length} problem(s):\n`);

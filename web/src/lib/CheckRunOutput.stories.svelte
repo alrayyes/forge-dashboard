@@ -197,7 +197,11 @@
     );
     // An error is red and as small as a note.
     await expect(getComputedStyle(error).fontSize).toBe("12px");
-    await expect(getComputedStyle(error).color).toBe("rgb(197, 47, 55)");
+    // The red is the danger ink of whichever theme the page is in.
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    await expect(getComputedStyle(error).color).toBe(
+      dark ? "rgb(255, 115, 118)" : "rgb(197, 47, 55)",
+    );
   }}
 />
 
