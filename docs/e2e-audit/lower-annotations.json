@@ -21,5 +21,6 @@
   "pipeline-run-output.spec.ts": [
     "CheckRunOutput.stories.svelte (proven)",
     "PipelineDialog.stories.svelte (proven)"
-  ]
+  ],
+  "related-band.spec.ts": ["RelatedBand.stories.svelte (proven)"]
 }

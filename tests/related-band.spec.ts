@@ -198,31 +198,6 @@ test('a pull request dialog has a Related band between the title and the descrip
   await expect(dialog.locator('.details-attributes .linked-pr')).toHaveCount(0);
 });
 
-test('every pill name leads with the relation and contains the visible text', async ({
-  page,
-}) => {
-  const dialog = await openPullRequest(
-    page,
-    pullRequest({
-      closesIssues: [ticket(138)],
-      refsIssues: [refs(7, { repo: OTHER })],
-      mentionsIssues: [ticket(9)],
-    }),
-  );
-  await expect(
-    row(dialog, 'Closes').locator('.linked-pr'),
-  ).toHaveAccessibleName('Closes: #138, opens the issue');
-  await expect(row(dialog, 'Refs').locator('.linked-pr')).toHaveAccessibleName(
-    // The repository is not tracked, so the pill goes to the forge (#4461).
-    'Refs: alrayyes/other#7, does not close, opens on the forge in a new tab',
-  );
-  await expect(
-    row(dialog, 'Mentions').locator('.linked-pr'),
-  ).toHaveAccessibleName('Mentions: #9, opens the issue');
-  // The label and the pill's name say it; no line of its own under a row.
-  await expect(dialog.locator('.related-hint')).toHaveCount(0);
-});
-
 test('an issue dialog pins the closing pull request name: relation, number, draft word and pipeline', async ({
   page,
 }) => {
@@ -255,83 +230,6 @@ test('an issue dialog pins the closing pull request name: relation, number, draf
   await expect(dialog.locator('.related-count')).toHaveText('6');
   // The row's label says it; no line of its own under Mentioned by (#4356).
   await expect(dialog.locator('.related-hint')).toHaveCount(0);
-});
-
-for (const count of [2, 3, 4, 6, 7]) {
-  test(`a Mentioned by row of ${count} pills has no hint line`, async ({
-    page,
-  }) => {
-    const dialog = await openIssue(
-      page,
-      issue({
-        mentionedByPullRequests: Array.from({ length: count }, (_, i) =>
-          linked(30 + i),
-        ),
-      }),
-    );
-    await expect(row(dialog, 'Mentioned by')).toBeVisible();
-    await expect(row(dialog, 'Mentioned by').locator('.linked-pr')).toHaveCount(
-      Math.min(count, 6),
-    );
-    await expect(dialog.locator('.related-hint')).toHaveCount(0);
-  });
-}
-
-test('an issue also referenced by pull requests has a Referenced by row and no hint line', async ({
-  page,
-}) => {
-  const dialog = await openIssue(
-    page,
-    issue({
-      linkedPullRequests: [linked(12)],
-      referencedByPullRequests: [linked(13)],
-    }),
-  );
-  await expect(dialog.locator('.related-label')).toHaveText([
-    'Closed by',
-    'Referenced by',
-  ]);
-  await expect(dialog.locator('.related-hint')).toHaveCount(0);
-});
-
-test('an issue referenced by a pull request pins the pill name: Referenced by, then the pull request', async ({
-  page,
-}) => {
-  const dialog = await openIssue(
-    page,
-    issue({ referencedByPullRequests: [linked(13)] }),
-  );
-  await expect(
-    row(dialog, 'Referenced by').locator('.linked-pr'),
-  ).toHaveAccessibleName('Referenced by: PR #13 · Open');
-});
-
-test('a row of more than six shows six, and the keyboard opens and folds the rest', async ({
-  page,
-}) => {
-  const dialog = await openPullRequest(
-    page,
-    pullRequest({
-      closesIssues: [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ticket(100 + n)),
-    }),
-  );
-  const pills = row(dialog, 'Closes').locator('.linked-pr');
-  const toggle = dialog.locator('.related-toggle');
-  await expect(pills).toHaveCount(6);
-  await expect(toggle).toHaveText('+2 more');
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-
-  await toggle.focus();
-  await page.keyboard.press('Enter');
-  await expect(pills).toHaveCount(8);
-  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(toggle).toHaveText('Show fewer');
-  await expect(toggle).toHaveAccessibleName(/^Show fewer/);
-
-  await toggle.focus();
-  await page.keyboard.press('Space');
-  await expect(pills).toHaveCount(6);
-  await expect(toggle).toHaveAttribute('aria-expanded', 'false');
 });
 
 test('a plain click on a closing pill swaps the dialog for the issue, with its title and filer', async ({

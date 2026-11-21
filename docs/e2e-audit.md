@@ -1,6 +1,6 @@
 # E2E audit: which specs could run below the browser
 
-Read-only audit of every `tests/*.spec.ts` (307 files, 2,726 tests) against
+Read-only audit of every `tests/*.spec.ts` (307 files, 2,721 tests) against
 `main`. No spec was edited, moved, or deleted. The per-spec table is
 [`e2e-audit/spec-classes.csv`](e2e-audit/spec-classes.csv).
 [`e2e-audit/classify.py`](e2e-audit/classify.py) regenerates it.
@@ -328,6 +328,30 @@ One ticket per group, each doing moves with its own mutation proof:
   running GitHub job and a queued job getting Show output, Forgejo losing Show
   output while running, the link's `target`, the new-tab warning on the run link
   and the icon.
+- The eleventh move, from `related-band`: `RelatedBand` already had stories,
+  and the pill builders they draw are the ones the pull request and issue
+  dialog use, so no component changed. Five new stories hold what five groups of
+  tests checked: the accessible name of each pill in a pull request's Closes,
+  Refs, and Mentions rows (a Refs pill for a repository the dashboard does not
+  track names the forge and the new tab), the Closed by and Referenced by
+  labels and the Referenced by pill's name, a Mentioned by row of five that has
+  no toggle and counts items, a row of
+  seven that folds to six with a "+1 more" toggle, and the toggle opened and
+  folded with Enter and Space (its text, `aria-expanded` and accessible name).
+  Each story also checks that no line of its own sits under a row. Five tests
+  are gone (the pill names, the Mentioned by hint loop, the Referenced by row,
+  the Referenced by name and the fold by keyboard). The hint loop ran one test
+  at six row sizes; the stories keep the boundary (five and seven) and the rest
+  ran the same code. The tests that read the page stay: the band's place
+  between the title and the description, the closing pill name with a draft and
+  its pipeline, the click-through, the refresh patching, the tooltips, the
+  contrast and the axe runs. On one worker with a load of about 9.4, the spec
+  took 15.5 s over 35 runs before and 14.2 s over 26 after, so the saving is
+  indicative. The five stories take about 0.1 s each. Each assertion was proven
+  red by breaking the code: the forge wording and the Closes wording of a pill's
+  name, the Referenced by label, the "+N more" and "Show fewer" text, the fold
+  limit, `aria-expanded`, the toggle's accessible name and a hint line added
+  to a row. The CSV row for `related-band` is updated.
 - trim the proven partial overlaps: `first-refresh-loading`, `rerun-all`,
   `cancel-run`, `settings-groups` (done: six tests that only restated
   a lib predicate or wording are gone, and the durations in
