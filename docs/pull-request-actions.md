@@ -256,7 +256,10 @@ off) a pull request row is one vertically centred line. The status column
 holds three fixed slots: the CI pill, the merge-state and comment pills (a
 Conflicting pill takes the same slot as the comment pill, and both stack there
 when a row has both), and the action. A pill is at the same x on every row and
-at the row's centre. The attribute chips and the status note ("Behind the base
+at the row's centre, unless a CI pill with so many counts that it outgrows its
+slot (a Failed pill with four, say) makes its own row's status column that much
+wider, taking the room from that row's title, so it never runs under the
+comment pill. The attribute chips and the status note ("Behind the base
 branch", say) sit under the title, so a row that has one is taller and its pills
 stay centred on the title and the note together. Rarer lines (a close cue, a
 queued note, the waiting chip) take a line of their own under the slots, and

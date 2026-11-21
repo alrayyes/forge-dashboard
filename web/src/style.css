@@ -1113,11 +1113,20 @@ section.board {
 @media (min-width: 761px) {
   @container (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
-      grid-template-columns: 184px minmax(0, 1fr) 96px var(--dt) var(--dt) 27.5rem 22px;
+      /* #4541: the status track is 27.5rem for a row whose CI pill fits its
+         slot, and grows to the slot's pill when it does not (min-content is
+         the three slots with the CI one as wide as its pill, since a pill
+         does not wrap), so a Failed pill with three or more counts is never
+         drawn under the comment pill. Only that row's title gives up the
+         difference. */
+      grid-template-columns: 184px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
+          27.5rem,
+          min-content
+        ) 22px;
     }
     .row:not(.issue-row) .status-cell {
       display: grid;
-      grid-template-columns: 10.25rem 7.5rem 9.25rem;
+      grid-template-columns: min-content 7.5rem 9.25rem;
       column-gap: 4px;
       row-gap: 4px;
       align-items: center;
@@ -1129,6 +1138,7 @@ section.board {
     .row:not(.issue-row) .status-cell > .state-group {
       grid-column: 1;
       grid-row: 1;
+      min-width: 10.25rem;
     }
     .row:not(.issue-row) .status-cell > .status-flags {
       grid-column: 2;
