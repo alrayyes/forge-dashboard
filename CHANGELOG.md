@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.91.3](https://github.com/alrayyes/forge-dashboard/compare/v9.91.2...v9.91.3) (2026-11-21)
+
+
+### Bug Fixes
+
+* **web:** grow a failed row's status column to its CI pill ([#4552](https://github.com/alrayyes/forge-dashboard/issues/4552)) ([cad0618](https://github.com/alrayyes/forge-dashboard/commit/cad06181daa0d07bf9c10f491c831b5a588173c5))
+
 ## [9.91.2](https://github.com/alrayyes/forge-dashboard/compare/v9.91.1...v9.91.2) (2026-11-21)
 
 
