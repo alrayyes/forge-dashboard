@@ -61,12 +61,22 @@
     closes: ReturnType<typeof ticket>[],
     refs: ReturnType<typeof ticket>[] = [],
     mentions: ReturnType<typeof ticket>[] = [],
+    // The repositories the dashboard does not track: their pills go to the forge.
+    untracked: (repo: string) => boolean = () => false,
   ) =>
     relatedBandData(
       "pull-request",
       { closes, refs: refs.map((r) => ({ ...r })), mentions },
       {
-        closes: closingPills("pr", REPO, closes, undefined, () => {}, true),
+        closes: closingPills(
+          "pr",
+          REPO,
+          closes,
+          undefined,
+          () => {},
+          true,
+          untracked,
+        ),
         refs: closingPills(
           "pr:refs",
           REPO,
@@ -74,6 +84,7 @@
           undefined,
           () => {},
           true,
+          untracked,
         ),
         mentions: mentionPills("pr", REPO, mentions, () => {}, true),
       },
@@ -238,6 +249,125 @@
     await expect(canvasElement.querySelectorAll(".linked-pr").length).toBe(8);
     await expect(toggle.getAttribute("aria-expanded")).toBe("true");
     await expect(toggle.textContent).toContain("Show fewer");
+  }}
+/>
+
+<!-- Each pill's name leads with the relation and holds the visible text; an untracked repository's pill goes to the forge. No line of its own under a row. -->
+<Story
+  name="Pull request, pill names"
+  args={{
+    band: pullRequestBand(
+      [ticket(138)],
+      [ticket(7, { tracked: false }, "alrayyes/other")],
+      [ticket(9)],
+      (repo) => repo === "alrayyes/other",
+    ),
+  }}
+  play={async ({ canvasElement }) => {
+    const name = (label: string) =>
+      canvasElement
+        .querySelector(`[role="group"][aria-label="${label}"] .linked-pr`)
+        ?.getAttribute("aria-label");
+    await expect(name("Closes")).toBe("Closes: #138, opens the issue");
+    await expect(name("Refs")).toBe(
+      "Refs: alrayyes/other#7, does not close, opens on the forge in a new tab",
+    );
+    await expect(name("Mentions")).toBe("Mentions: #9, opens the issue");
+    await expect(canvasElement.querySelector(".related-hint")).toBeNull();
+  }}
+/>
+
+<!-- An issue's rows are labelled Closed by and Referenced by, and a pill's name is the label, then the pull request. -->
+<Story
+  name="Issue, referenced by"
+  args={{ band: issueBand([pr(12)], [pr(13)]) }}
+  play={async ({ canvasElement }) => {
+    const labels = [...canvasElement.querySelectorAll(".related-label")].map(
+      (n) => n.textContent,
+    );
+    await expect(labels).toEqual(["Closed by", "Referenced by"]);
+    await expect(
+      canvasElement
+        .querySelector('[role="group"][aria-label="Referenced by"] .linked-pr')
+        ?.getAttribute("aria-label"),
+    ).toBe("Referenced by: PR #13 · Open");
+    await expect(canvasElement.querySelector(".related-hint")).toBeNull();
+  }}
+/>
+
+<!-- Six pull requests across the rows: no toggle, the count is the items, and no line of its own under Mentioned by. -->
+<Story
+  name="Mentioned by, under the fold"
+  args={{
+    band: issueBand(
+      [pr(142, { draft: true, ci: "pending" })],
+      [],
+      Array.from({ length: 5 }, (_, i) => pr(20 + i)),
+    ),
+  }}
+  play={async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelectorAll(
+        '[role="group"][aria-label="Mentioned by"] .linked-pr',
+      ).length,
+    ).toBe(5);
+    await expect(canvasElement.querySelector(".related-toggle")).toBeNull();
+    await expect(
+      canvasElement.querySelector(".related-count")?.textContent,
+    ).toBe("6");
+    await expect(canvasElement.querySelector(".related-hint")).toBeNull();
+  }}
+/>
+
+<!-- Seven mentions fold to six with a toggle, and still no line of its own. -->
+<Story
+  name="Mentioned by, seven"
+  args={{
+    band: issueBand(
+      [],
+      [],
+      Array.from({ length: 7 }, (_, i) => pr(30 + i)),
+    ),
+  }}
+  play={async ({ canvasElement }) => {
+    await expect(
+      canvasElement.querySelectorAll(
+        '[role="group"][aria-label="Mentioned by"] .linked-pr',
+      ).length,
+    ).toBe(6);
+    await expect(
+      canvasElement.querySelector(".related-toggle")?.textContent,
+    ).toBe("+1 more");
+    await expect(canvasElement.querySelector(".related-hint")).toBeNull();
+  }}
+/>
+
+<!-- The keyboard opens and folds the rest of a row of eight. -->
+<Story
+  name="Fold by keyboard"
+  args={{
+    band: pullRequestBand(Array.from({ length: 8 }, (_, i) => ticket(100 + i))),
+  }}
+  play={async ({ canvasElement }) => {
+    const toggle = canvasElement.querySelector(
+      ".related-toggle",
+    ) as HTMLButtonElement;
+    const pills = () => canvasElement.querySelectorAll(".linked-pr").length;
+    await expect(pills()).toBe(6);
+    await expect(toggle.textContent).toBe("+2 more");
+    await expect(toggle.getAttribute("aria-expanded")).toBe("false");
+
+    toggle.focus();
+    await userEvent.keyboard("{Enter}");
+    await expect(pills()).toBe(8);
+    await expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    await expect(toggle.textContent).toBe("Show fewer");
+    await expect(toggle.getAttribute("aria-label")).toMatch(/^Show fewer/);
+
+    toggle.focus();
+    await userEvent.keyboard(" ");
+    await expect(pills()).toBe(6);
+    await expect(toggle.getAttribute("aria-expanded")).toBe("false");
   }}
 />
 

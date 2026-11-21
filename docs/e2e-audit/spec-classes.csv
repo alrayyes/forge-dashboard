@@ -233,7 +233,7 @@ refresh-interval.spec.ts,0.884,3,1,C,,0.6
 refresh-queue-focus.spec.ts,3.304,2,2,A,,0.0
 refs-issues-filter.spec.ts,14.039,21,13,A,,5.3
 refs-pills.spec.ts,1.674,8,6,A,,0.4
-related-band.spec.ts,,27,10,C,web/src/lib/related-band.test.ts,0.0
+related-band.spec.ts,,22,9,C,web/src/lib/related-band.test.ts;RelatedBand.stories.svelte (proven),0.0
 release-pr-behind.spec.ts,0.745,1,1,A,,0.0
 releases-page.spec.ts,1.82,5,1,C,,1.5
 renovate-rebase-requested.spec.ts,6.201,18,4,C,,4.8
