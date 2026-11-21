@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.91.2](https://github.com/alrayyes/forge-dashboard/compare/v9.91.1...v9.91.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **ui:** put Merge and Update branch side by side on the one-line row ([#4527](https://github.com/alrayyes/forge-dashboard/issues/4527)) ([a4f5fc2](https://github.com/alrayyes/forge-dashboard/commit/a4f5fc25f48e4984f96d0a47e388d20312910d78))
+
 ## [9.91.1](https://github.com/alrayyes/forge-dashboard/compare/v9.91.0...v9.91.1) (2026-11-21)
 
 
