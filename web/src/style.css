@@ -3997,8 +3997,18 @@ footer a.mono:focus-visible {
   /* The slot (#1229) follows the pill and the lines under it in the markup,
      so the reserved room reads as space below the status, not a gap above
      it (#3264), and Tab never jumps back up. */
+  /* An empty slot is not drawn, so it leaves no band between the pills and
+     the divider (#4519). The 65px it reserved (59px and the flex gap) are the
+     cell's padding below the action instead; a chip takes them back, so the
+     row does not move when one arrives. */
   .wait-slot {
-    height: 52px;
+    height: 59px;
+  }
+  .status-cell > .wait-slot:empty {
+    display: none;
+  }
+  .status-cell:has(> .wait-slot:empty) {
+    padding-bottom: 65px;
   }
   /* One line of pills: the CI pill, then the merge-state and comment pills
      (#4502). The attribute chips are in the title cell, under the labels. */

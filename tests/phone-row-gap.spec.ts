@@ -81,7 +81,7 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  test(`at most ${MAX_GAP}px from meta to pill, slot still reserved below`, async ({
+  test(`at most ${MAX_GAP}px from meta to pill, room for a chip still reserved below`, async ({
     page,
   }) => {
     await mockDashboard(page, [BOT_PR]);
@@ -102,13 +102,11 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
             ),
           );
           const ci = box('.ci-slot');
-          const slot = box('.wait-slot');
-          if (!ci || !slot || ci.height <= 0 || metaBottom <= 0) return false;
-          return (
-            ci.top - metaBottom <= maxGap &&
-            slot.height >= 44 &&
-            slot.top >= ci.bottom
-          );
+          // An empty slot is not drawn (#4519); the cell keeps its room
+          // under the pill, as padding or as the action's tier.
+          const cell = box('.status-cell');
+          if (!ci || !cell || ci.height <= 0 || metaBottom <= 0) return false;
+          return ci.top - metaBottom <= maxGap && cell.bottom - ci.bottom >= 44;
         }, MAX_GAP),
       )
       .toBe(true);

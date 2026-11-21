@@ -277,7 +277,9 @@ and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width
 at 44px tall. The Passed and Failed pills keep their word beside the counts. A
 row with no action, such as one with failing checks, ends after the pills. The
-note is plain text with no hover or press state.
+note is plain text with no hover or press state. The room kept for the waiting
+chip is empty space under the action, never a band between the pills and the
+divider, and a chip arriving takes it back, so the card does not move.
 
 What a row may claim while its forge can't be asked is decided in one place,
 `rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in

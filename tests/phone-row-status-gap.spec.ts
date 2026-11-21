@@ -156,21 +156,62 @@ test.describe('phone row status gap (#3834)', () => {
   }
 
   for (const width of [320, 360, 390]) {
-    test(`${width}px: the wait chip appearing in the same row fills the slot it already reserved`, async ({
+    test(`${width}px: the wait chip appearing in the same row sits inside its slot`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
       const row = await open(page, pr(BEHIND));
       await expect(row.locator('.wait-chip')).toHaveCount(0);
-      const before = await settled(row);
 
       await push(page, pr({ ...BEHIND, ...WAITING }));
       await expect(row.locator('.wait-chip')).toBeVisible();
       const after = await settled(row);
 
-      expect(after.slot).toBe(before.slot);
-      expect(before.slot).toBeGreaterThan(0);
+      expect(after.slot).toBeGreaterThan(0);
       expect(after.chipInside).toBe(true);
+    });
+  }
+
+  // #4519: the slot's reserved room sat between the pill line and the divider,
+  // so a card with no chip read as having a blank band above its action. The
+  // room is still reserved, below the action, so the card does not move when
+  // the chip arrives.
+  const MAX_DIVIDER_GAP = 16;
+  for (const width of [360, 390]) {
+    test(`${width}px: with no wait chip the divider sits within ${MAX_DIVIDER_GAP}px of the pill line`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const row = await open(page, pr());
+      await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+      await expect
+        .poll(async () => {
+          const g = await gapOf(row);
+          return g?.total !== null && g !== null && g.total !== undefined
+            ? g.total <= MAX_DIVIDER_GAP
+            : false;
+        })
+        .toBe(true);
+    });
+
+    // The status cell, not the whole row: an armed auto-merge also adds an
+    // attribute chip under the title, which is content, not reserved room.
+    test(`${width}px: the status cell is no taller after the wait chip arrives`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const row = await open(page, pr(BEHIND));
+      await expect(row.locator('.wait-chip')).toHaveCount(0);
+      const height = () =>
+        row.evaluate(
+          (r) =>
+            r.querySelector('.status-cell')!.getBoundingClientRect().height,
+        );
+      const before = await height();
+
+      await push(page, pr({ ...BEHIND, ...WAITING }));
+      await expect(row.locator('.wait-chip')).toBeVisible();
+      expect(await height()).toBeLessThanOrEqual(before);
     });
   }
 
