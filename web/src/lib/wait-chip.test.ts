@@ -414,6 +414,6 @@ describe('autoMergeChip forge names', () => {
 describe('mergeWaitLine', () => {
   test('is one short line that names what Merge waits for', () => {
     expect(mergeWaitLine('ci')).toBe('Merge after CI');
-    expect(mergeWaitLine('conflict-check')).toBe('Merge after check');
+    expect(mergeWaitLine('conflict-check')).toBe('Merge after conflict check');
   });
 });

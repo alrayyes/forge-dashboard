@@ -132,9 +132,7 @@ for (const width of [360, 390, 1280]) {
       page,
     }) => {
       const r = row(page, 'Flag only conflict');
-      await expect(
-        r.getByRole('button', { name: 'Conflict not confirmed' }),
-      ).toBeVisible();
+      await expect(r.locator('.merge-pill.unconfirmed')).toBeVisible();
       const update = r.getByRole('button', { name: 'Update branch' });
       await expect(update).toHaveCount(1);
       await expect(update).not.toHaveAttribute('aria-disabled', 'true');
@@ -197,7 +195,9 @@ test('AC4: a conflicting pull request pop-up footer still lists Merge and Update
   const update = dialog.getByRole('button', { name: 'Update branch' });
   await expect(merge).toHaveAttribute('aria-disabled', 'true');
   await expect(update).toHaveAttribute('aria-disabled', 'true');
-  await expect(dialog).toContainText('Conflicts need fixing by hand');
+  // The reason is printed once, by the status block both buttons point to.
+  await expect(dialog).toContainText('Resolve it on the forge');
+  await expect(dialog).not.toContainText('Conflicts need fixing by hand');
   expect((await axe(page)).violations).toEqual([]);
 });
 

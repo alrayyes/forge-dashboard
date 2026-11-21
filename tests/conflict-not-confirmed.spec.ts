@@ -4,8 +4,8 @@ import { test } from './server-fixture';
 
 // A Forgejo pull request the forge refused with a conflict says Conflicting and
 // names the files. One whose flag stayed false past the check window, with no
-// refusal naming a conflict, says "Conflict not confirmed" and keeps the reason
-// one tap away (#3308). GitHub rows are unchanged.
+// refusal naming a conflict, says "Conflict not confirmed" and prints the reason
+// beside it (#3308, #4531). GitHub rows are unchanged.
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -80,26 +80,21 @@ for (const theme of ['light', 'dark'] as const) {
         );
       });
 
-      test('a flag-only conflict says Conflict not confirmed, reason one tap away', async ({
+      test('a flag-only conflict says Conflict not confirmed, with its reason printed beside it', async ({
         page,
       }) => {
         const r = row(page, 'Flag only');
-        const pill = r.getByRole('button', { name: 'Conflict not confirmed' });
-        await expect(pill).toBeVisible();
+        await expect(r.locator('.merge-pill.unconfirmed')).toHaveText(
+          'Conflict not confirmed',
+        );
         await expect(r).not.toContainText('Conflicting');
-        await expect(pill).toHaveAttribute('aria-expanded', 'false');
-        await expect(r.locator('.merge-where')).toBeHidden();
-
-        await pill.click();
-        await expect(pill).toHaveAttribute('aria-expanded', 'true');
+        // Real text from the first paint: no button to press, nothing hidden.
+        await expect(
+          r.getByRole('button', { name: 'Conflict not confirmed' }),
+        ).toHaveCount(0);
         await expect(r.locator('.merge-where')).toContainText(
           'No merge or update has been refused with a conflict yet',
         );
-        // The tap does not open the pull request.
-        await expect(page.locator('dialog[open]')).toHaveCount(0);
-
-        await pill.click();
-        await expect(r.locator('.merge-where')).toBeHidden();
       });
 
       test('a GitHub conflict is unchanged', async ({ page }) => {
@@ -113,7 +108,7 @@ for (const theme of ['light', 'dark'] as const) {
 
 // One test loops both themes and every width: the page is the same code in
 // each, so six separate tests only paid for six fixtures and six loads.
-test('has no axe violations, collapsed and open, in light and dark at 390, 820 and 1280px', async ({
+test('has no axe violations in light and dark at 390, 820 and 1280px', async ({
   page,
 }) => {
   const scan = () =>
@@ -126,12 +121,7 @@ test('has no axe violations, collapsed and open, in light and dark at 390, 820 a
       await page.emulateMedia({ colorScheme: theme });
       await page.setViewportSize({ width, height: 900 });
       await open(page);
-      expect((await scan()).violations, `${where}, collapsed`).toEqual([]);
-
-      await row(page, 'Flag only')
-        .getByRole('button', { name: 'Conflict not confirmed' })
-        .click();
-      expect((await scan()).violations, `${where}, open`).toEqual([]);
+      expect((await scan()).violations, where).toEqual([]);
     }
   }
 });

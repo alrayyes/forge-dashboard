@@ -4,9 +4,9 @@ import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A Forgejo pull request whose mergeable flag is false on a moved base may
-// only be rechecking after a base push, so its row says "Checking for
-// conflicts" in words and not "Conflicting". It must not change the row's
-// height next to a confirmed conflict.
+// only be rechecking after a base push, so its row says so in words and not
+// "Conflicting". Merge's slot already prints "Merge after conflict check", so
+// the "Checking for conflicts" pill stays out: one place says it (#4531).
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
   return {
@@ -63,41 +63,19 @@ for (const theme of ['light', 'dark'] as const) {
         await open(page);
       });
 
-      test('says Checking for conflicts in words, not Conflicting', async ({
+      test('says the check is running once, in words, not Conflicting', async ({
         page,
       }) => {
         const checking = row(page, 'check running');
-        await expect(checking.locator('.merge-pill')).toHaveText(
-          'Checking for conflicts',
-        );
+        await expect(
+          checking.getByText('Merge after conflict check'),
+        ).toBeVisible();
+        await expect(checking.locator('.merge-pill')).toHaveCount(0);
+        await expect(checking).not.toContainText('Checking for conflicts');
         await expect(checking).not.toContainText('Conflicting');
         await expect(row(page, 'Base moved, conflict')).toContainText(
           'Conflicting',
         );
-      });
-
-      test('draws the pill as tall as the conflict pill, on one line', async ({
-        page,
-      }) => {
-        // The conflict row no longer draws a locked Merge (#3770), so the rows
-        // differ in height; what matters is that the longer words don't wrap, except
-        // in the one-line row's narrow slot.
-        const a = await row(page, 'check running')
-          .locator('.merge-pill')
-          .boundingBox();
-        const b = await row(page, 'Base moved, conflict')
-          .locator('.merge-pill')
-          .boundingBox();
-        // The one-line row (1280px) has a 120px slot for the pill, which
-        // "Checking for conflicts" can't fit on one line beside Merge and
-        // Update branch (#4518). There it wraps to two lines, and no more.
-        if (width === 1280) {
-          expect(a?.height ?? 0).toBeLessThanOrEqual((b?.height ?? 0) * 2);
-        } else {
-          expect(
-            Math.abs((a?.height ?? 0) - (b?.height ?? 0)),
-          ).toBeLessThanOrEqual(1);
-        }
       });
     });
   }

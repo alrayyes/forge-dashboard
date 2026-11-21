@@ -1159,8 +1159,8 @@ section.board {
     /* The flags slot is 120px, so the pills in it fit it instead of the other
        way round: a merge-state label wraps to a second line (the row is
        already as tall as two stacked pills), and the comment pill gives up a
-       little padding. Without this "Checking for conflicts" and "Conflict not
-       confirmed" ran 30px past the slot under the buttons (#4518). */
+       little padding. Without this "Conflict not confirmed" ran 30px past the
+       slot under the buttons (#4518). */
     .row:not(.issue-row) .status-flags .merge-pill {
       max-width: 100%;
       min-width: 0;
@@ -2644,23 +2644,15 @@ a.ci-pill:hover {
   background: var(--warning);
 }
 /* Conflicting by the forge's flag alone: warning, not critical, since it may
-   be a check that has not finished. A button, so the reason is a tap away. */
+   be a check that has not finished. Plain text beside its reason (#4531). */
 .merge-pill.unconfirmed {
-  position: relative;
-  z-index: 1;
   background: var(--warning-bg);
   color: var(--warning);
-  border: none;
-  font-family: inherit;
-  cursor: pointer;
   /* The row no longer prints a status block beside it to stretch it (#3965). */
   min-height: 24px;
 }
 .merge-pill.unconfirmed .dot {
   background: var(--warning);
-}
-.merge-pill.unconfirmed > * {
-  pointer-events: none;
 }
 /* A pill with a note: the note takes the line below on a narrow screen. */
 .merge-state {
@@ -4877,11 +4869,6 @@ button.pipeline-check-link:disabled {
 @media (max-width: 760px) {
   /* A tap target on a phone (#1139). */
   button.ci-pill {
-    min-height: 44px;
-  }
-  /* Conflict not confirmed (#3308, #3965): a tap target on a phone, as the CI
-     pill is. A pseudo-element can't reach 44px between its neighbours. */
-  .merge-pill.unconfirmed {
     min-height: 44px;
   }
 }

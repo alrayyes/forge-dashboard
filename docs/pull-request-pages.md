@@ -69,7 +69,7 @@ again and swaps them in place, without the loading skeleton. It shows the
 first 50 comments and says so when there are more. The header draws the row's
 three tiers as they were when it opened: the CI
 slot first (Running, Failed or Passed, the row's glyphs and words) with a
-Conflicting, Checking for conflicts, Conflict not confirmed, or Blocked pill
+Conflicting, Conflict not confirmed, or Blocked pill
 beside it when the row has one, then the title, then the attributes as quiet
 outlined chips (auto-merge, draft, bot, out of date, labels, and the version on
 the Releases page). Each comment carries the

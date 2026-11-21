@@ -140,7 +140,9 @@ test.describe('pull request update-branch button', () => {
     await expect(button).toBeVisible();
     await expect(footer.getByRole('button', { name: 'Retry' })).toHaveCount(0);
     await expect(button).toHaveAttribute('aria-disabled', 'true');
-    await expect(footer).toContainText('Conflicts need fixing by hand');
+    // The reason is printed once, by the status block the button points to.
+    await expect(dialog).toContainText('Resolve it on the forge');
+    await expect(footer).not.toContainText('Conflicts need fixing by hand');
 
     let requested = false;
     await page.route(

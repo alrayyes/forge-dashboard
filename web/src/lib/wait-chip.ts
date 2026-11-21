@@ -318,7 +318,7 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
 export type MergeWait = 'ci' | 'conflict-check';
 
 export function mergeWaitLine(wait: MergeWait): string {
-  return wait === 'ci' ? 'Merge after CI' : 'Merge after check';
+  return wait === 'ci' ? 'Merge after CI' : 'Merge after conflict check';
 }
 
 // Said once, politely, when the wait ends on the row the person is on.

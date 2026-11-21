@@ -738,7 +738,9 @@ test.describe('pull request pipeline checks panel', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
 
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
     expect(posted).toEqual({
       forge: 'github',
       fullName: 'alrayyes/forge-dashboard',
@@ -918,7 +920,9 @@ test.describe('pull request pipeline checks panel', () => {
     await open();
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
 
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
@@ -1098,7 +1102,9 @@ test.describe('pull request pipeline checks panel', () => {
 
     answer = 204;
     await rerun.click();
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
     expect(posted).toEqual({
       forge: 'forgejo',
       fullName: 'alrayyes/dotfiles',
@@ -1546,7 +1552,9 @@ test.describe('the held rerun: release, expiry and shared state (#1941)', () => 
   const queueFromPanel = async (page: Page) => {
     const dialog = await openPanel(page);
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
   };

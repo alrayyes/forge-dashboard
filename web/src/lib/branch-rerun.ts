@@ -166,7 +166,7 @@ export function createBranchRerun() {
       // The lock adds to what the status already says; it never replaces it.
       const text = [
         isHeld
-          ? 'Rerun queued. The new results show here after the next refresh.'
+          ? 'The new results show here after the next refresh.'
           : sending
             ? 'Queuing the rerun…'
             : '',

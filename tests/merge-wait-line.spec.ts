@@ -192,7 +192,7 @@ for (const scheme of ['light', 'dark'] as const) {
       }) => {
         await open(page, [checking]);
         const r = row(page, 'Checking');
-        await expect(r.getByText('Merge after check')).toBeVisible();
+        await expect(r.getByText('Merge after conflict check')).toBeVisible();
         await expect(mergeButton(r)).toHaveCount(0);
       });
 

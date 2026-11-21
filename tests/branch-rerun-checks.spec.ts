@@ -203,7 +203,9 @@ test.describe('main branches rerun failed checks', () => {
 
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
 
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
     expect(posted).toEqual({ forge: 'github', fullName: 'acme/auth-service' });
     await expect(
       dialog.getByRole('button', { name: 'Rerun queued' }),
@@ -463,13 +465,17 @@ test.describe('main branches rerun failed checks', () => {
       forges,
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
 
     forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
     await poll(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
-    await expect(dialog.getByRole('status')).toContainText('Rerun queued');
+    await expect(dialog.getByRole('status')).toContainText(
+      'The new results show here',
+    );
     await expect(dialog.getByRole('status')).toContainText(
       "This forge can't be reached right now.",
     );

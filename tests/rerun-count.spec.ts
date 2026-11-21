@@ -200,7 +200,7 @@ test.describe('rerun failed checks says how many it reruns', () => {
     ).toHaveCount(0);
   });
 
-  test('a queued rerun reads "Rerun queued" with the status text unchanged', async ({
+  test('a queued rerun says "Rerun queued" on the button and only what follows in the status (#4531)', async ({
     page,
   }) => {
     await page.route('**/api/v1/pull-requests/rerun-checks', (route) =>
@@ -214,7 +214,7 @@ test.describe('rerun failed checks says how many it reruns', () => {
       dialog.getByRole('button', { name: 'Rerun queued' }),
     ).toBeVisible();
     await expect(dialog.getByRole('status')).toHaveText(
-      'Rerun queued. The new results show here after the next refresh.',
+      'The new results show here after the next refresh.',
     );
   });
 

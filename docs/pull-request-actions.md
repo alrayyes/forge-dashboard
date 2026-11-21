@@ -87,25 +87,25 @@ hovering. A pull request with no status has no block.
 
 A wait that passes by itself, CI running or Forgejo checking for conflicts, is
 said once, in the slot where Merge goes: one line of text, "Merge after CI" or
-"Merge after check", and no locked button or second sentence. It is real text,
-so a keyboard, a touch screen and a screen reader get it with no control to stop
-on. When the forge allows the merge, Merge takes the slot back and the row keeps
-its height, and a screen reader hears "Merge is available." only if focus is in
-that row. An armed row shows the waiting chip instead and no line, since the
-chip already says it. The status block and the pop-up's footer follow the same
-rule. Reasons a person can act on keep their locked Merge and printed words.
-The words follow the CI pill: while the pill reads the live jobs and says they
-have finished, the row prints no wait, whatever the last refresh said, and Merge
-stays locked until the next refresh, with "Updating from the latest CI results".
-If it is still locked after one, the forge is counting a check the jobs don't
-show, such as a status from an external CI. On Forgejo the pipeline list shows
-those statuses beside the jobs, so the pill waits with them; the note beside the
-locked Merge points at the pull request on the forge for the rest. A locked
-Merge has a dashed edge, so it reads as locked in forced colours too.
-An armed row follows the pill the same way, whatever its status says, when the
-last refresh read CI as pending: the chip goes, and a Cancel auto-merge button
-takes its place on the row until the next refresh. The reason beside the locked
-Merge is printed, so a tap reads it without a hover.
+"Merge after conflict check", and no locked button or second sentence. It is
+real text, so a keyboard, a touch screen and a screen reader get it with no
+control to stop on. When the forge allows the merge, Merge takes the slot back
+and the row keeps its height, and a screen reader hears "Merge is available."
+only if focus is in that row. An armed row shows the waiting chip instead and no
+line, since the chip already says it. The status block and the pop-up's footer
+follow the same rule. Reasons a person can act on keep their locked Merge and
+printed words. The words follow the CI pill: while the pill reads the live jobs
+and says they have finished, the row prints no wait, whatever the last refresh
+said, and Merge stays locked until the next refresh, with "Updating from the
+latest CI results". If it is still locked after one, the forge is counting a
+check the jobs don't show, such as a status from an external CI. On Forgejo the
+pipeline list shows those statuses beside the jobs, so the pill waits with them;
+the note beside the locked Merge points at the pull request on the forge for the
+rest. A locked Merge has a dashed edge, so it reads as locked in forced colours
+too. An armed row follows the pill the same way, whatever its status says, when
+the last refresh read CI as pending: the chip goes, and a Cancel auto-merge
+button takes its place on the row until the next refresh. The reason beside the
+locked Merge is printed, so a tap reads it without a hover.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).
@@ -219,26 +219,34 @@ behind its base and has something left to merge, on the overview and the Bots
 page alike, except on a
 row that already says it another way: a live Update branch button, a
 confirmed conflict's warning, or a requested bot rebase (the waiting chip says
-the fix is under way). The pop-up keeps the chip, and the Out of date
+the fix is under way). The pop-up keeps the chip, except beside a confirmed
+conflict, where the pill and the status block already say it, and an Update
+branch locked by that conflict is described by the block rather than printing
+its reason again. The Out of date
 quick filter and the Update all count still read `behind`. It is drawn in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
-3:1 for the outline). Conflicts, Blocked and
-Checking for conflicts stay as merge pills, since they say what the merge needs.
+3:1 for the outline). Conflicts and Blocked stay as merge pills, since they say
+what the merge needs.
+Checking for conflicts is the line "Merge after conflict check" instead, once
+the slot where Merge goes shows it.
 Forgejo has one `mergeable` flag. It is false for a conflict and also while the
 forge rechecks after a base push, so a Forgejo pull request that is false with a
 moved base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
-seconds, two refresh intervals. Its Merge is the line "Merge after check".
+seconds, two refresh intervals. The row prints no "Checking for conflicts" pill
+beside it: its Merge is the line
+"Merge after conflict check", which says the same once.
 A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
 refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
 once, even inside the window, and names the files git reported ("In a.txt,
 docs/b.md"). If the flag is still false for the same head and base after the
 window and no refusal named a conflict, the row says "Conflict not confirmed",
-since the flag is false for a stuck check too. That pill is a button: a tap
-shows the reason, and Update branch stays available on it when the row offers
+since the flag is false for a stuck check too. The reason is real text beside the
+pill, with no tap to open it and no hover hint, and Update branch stays
+available on it when the row offers
 one (a behind pull request), because a refused update is how it gets confirmed.
 The words are said once: the pill carries them, the row's status block stays
-out, and the locked Merge is described by the pill's reason. The reason names
+out, and the locked Merge is described by the printed reason. The reason names
 only what the row can do: "Use Update branch to find out" when the row has the
 button, otherwise "Wait for the forge to finish checking, or open the pull
 request on the forge". While the forge is unreachable or its budget is spent the
@@ -1186,9 +1194,9 @@ workflow run on the head commit, and a job that passed isn't started again. On
 Forgejo 17 and later that takes one extra read per failed run to list its jobs,
 then one request per failed job. Forgejo restarts the jobs that need a rerun
 job along with it, so a job that passed but waits on a failed one goes again
-too. It answers when the forge has queued them: the panel says "Rerun queued"
-and the new results show after the next refresh. The button stays pending and
-reads "Rerun queued" in the panel and in
+too. It answers when the forge has queued them: the button says "Rerun queued" and
+the status line says only that the new results show after the next refresh. The
+button stays pending and reads "Rerun queued" in the panel and in
 the pull request's detail view, until the pull request stops reading failed, is
 updated, or ten minutes pass, so the same rerun can't be queued twice. A
 refused rerun isn't held and leaves its failure line in the detail view. It
