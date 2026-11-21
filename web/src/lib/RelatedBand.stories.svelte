@@ -371,6 +371,40 @@
   }}
 />
 
+<!-- A pill's hover text leads with the item's title, then what the pill does; an unknown title leaves today's line (#4326). -->
+<Story
+  name="Pill titles"
+  args={{
+    band: pullRequestBand(
+      [ticket(138, { title: "Show the title on hover" }), ticket(131)],
+      [ticket(7, { title: "<b>Not markup</b>" })],
+      [ticket(9, { title: "Earlier idea" })],
+    ),
+  }}
+  play={async ({ canvasElement }) => {
+    const pills = [
+      ...canvasElement.querySelectorAll<HTMLElement>(".linked-pr"),
+    ];
+    await expect(pills[0].title).toBe(
+      "Show the title on hover\nCloses the issue when it merges",
+    );
+    await expect(pills[1].title).toBe("Closes the issue when it merges");
+    await expect(pills[2].title).toBe(
+      "<b>Not markup</b>\nReferences the issue, does not close it",
+    );
+    await expect(pills[3].title).toBe(
+      "Earlier idea\nMentioned here, does not close it",
+    );
+    // The title is text: the tip holds no element.
+    const tip = canvasElement.querySelector('[role="tooltip"]') as HTMLElement;
+    await expect(tip.children.length).toBe(0);
+    // The name still starts with the visible text.
+    await expect(pills[0].getAttribute("aria-label")).toBe(
+      "Closes: #138, opens the issue",
+    );
+  }}
+/>
+
 <!-- Nothing related: no band at all. -->
 <Story
   name="None"
