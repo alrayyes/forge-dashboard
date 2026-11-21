@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.93.0](https://github.com/alrayyes/forge-dashboard/compare/v9.92.0...v9.93.0) (2026-11-21)
+
+
+### Features
+
+* print the conflict, checking and held-rerun reasons once ([#4545](https://github.com/alrayyes/forge-dashboard/issues/4545)) ([58f716e](https://github.com/alrayyes/forge-dashboard/commit/58f716e11bdd53a926765d4e45029ab9d5d0a918))
+
+
+### Bug Fixes
+
+* **web:** grow the page column on wide screens so the title gets the room ([#4561](https://github.com/alrayyes/forge-dashboard/issues/4561)) ([6c625a9](https://github.com/alrayyes/forge-dashboard/commit/6c625a938545689c6b2d656321471369f0ad1de8)), closes [#4540](https://github.com/alrayyes/forge-dashboard/issues/4540)
+
 ## [9.92.0](https://github.com/alrayyes/forge-dashboard/compare/v9.91.3...v9.92.0) (2026-11-21)
 
 
