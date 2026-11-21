@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.7](https://github.com/alrayyes/forge-dashboard/compare/v9.90.6...v9.90.7) (2026-11-21)
+
+
+### Bug Fixes
+
+* **web:** centre the pull request row on one line, stack the phone card ([#4514](https://github.com/alrayyes/forge-dashboard/issues/4514)) ([9797957](https://github.com/alrayyes/forge-dashboard/commit/979795782875e19b83a83dfb467a0456da1d9477)), closes [#4502](https://github.com/alrayyes/forge-dashboard/issues/4502)
+
 ## [9.90.6](https://github.com/alrayyes/forge-dashboard/compare/v9.90.5...v9.90.6) (2026-11-20)
 
 
