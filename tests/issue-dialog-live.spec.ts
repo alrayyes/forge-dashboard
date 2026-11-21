@@ -693,6 +693,14 @@ test('clicking a related pull request, then its related issue, while the open it
   await expect(issueDialog(page)).toHaveCount(0);
   await tag(pr);
   const before = await survivors(pr);
+  // On the Issues page a pull request opens read-only, and the dialog follows
+  // pushes only for an issue (followIssueDialog) or for the Pull requests
+  // page's own dialog (settlePRs). So this one is not read again, and its
+  // text stays as it was. Count the reads to check that.
+  let pullReads = 0;
+  page.on('request', (r) => {
+    if (r.url().includes('/api/v1/pull-requests/details')) pullReads++;
+  });
 
   // The pull request merges, and the issue it left changes again.
   world.pulls[10] = { ...world.pulls[10], ci: 'success', updatedAt: ago(1) };
@@ -706,6 +714,12 @@ test('clicking a related pull request, then its related issue, while the open it
   await expect(
     page.locator('#issue-rows .row', { hasText: 'Issue 2 after the push' }),
   ).toHaveCount(1);
+  // The marker says the push was handled; two frames let a read it started
+  // reach the page.
+  await settled(page);
+  expect(pullReads, 'a push read the read-only pull request again').toBe(0);
+  await expect(pr).toContainText('Pull ten text.');
+  await expect(pr).not.toContainText('Pull ten text, edited.');
   await expect(pr).not.toContainText('Issue one text');
   expect(await survivors(pr), 'a push replaced the pull request nodes').toEqual(
     before,
