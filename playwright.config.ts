@@ -191,6 +191,7 @@ const singleUserSpecs = [
   '**/focus-ring-consistent.spec.ts',
   '**/placeholder-contrast.spec.ts',
   '**/changelog.spec.ts',
+  '**/changelog-reference-dialogs.spec.ts',
   '**/ci-pill-actions.spec.ts',
   '**/close-neutral.spec.ts',
   '**/copy-failure.spec.ts',
