@@ -155,6 +155,26 @@ test('a row whose pill fits keeps the status track it had at 1280px', async ({
   expect(widths[2]).toBe(440);
 });
 
+// The trade: a wide pill widens its own row's status column, so that row's
+// title is narrower and its Created column sits further left than a row that
+// fits. #4540 is the follow-up that gives the title width back.
+test('a wide pill costs its own row title width and column alignment', async ({
+  page,
+}) => {
+  await open(page, 1280, Object.values(ROWS));
+  const rows = await page.locator('#pr-rows > .row').evaluateAll((els) =>
+    els.map((r) => ({
+      title: r.querySelector('.title-cell')?.getBoundingClientRect().width ?? 0,
+      created: r.querySelector('.created')?.getBoundingClientRect().left ?? 0,
+    })),
+  );
+  const [four, five, fits] = rows;
+  expect(four.title).toBeLessThan(fits.title);
+  expect(five.title).toBeLessThan(four.title);
+  expect(four.created).toBeLessThan(fits.created);
+  expect(four.title).toBeGreaterThan(100);
+});
+
 for (const scheme of ['light', 'dark'] as const) {
   test(`failed rows have no axe violations in ${scheme} at 1280px`, async ({
     page,
