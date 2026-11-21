@@ -71,6 +71,21 @@ describe('the refs relation', () => {
     expect(closingPillTitle(issue())).toBe('Closes the issue when it merges');
   });
 
+  test('a known title leads the tooltip, then what the pill does', () => {
+    expect(closingPillTitle(ref({ title: 'Show titles' }))).toBe(
+      'Show titles\nReferences the issue, does not close it',
+    );
+    expect(closingPillTitle(issue({ title: 'Show titles' }))).toBe(
+      'Show titles\nCloses the issue when it merges',
+    );
+  });
+
+  test('an unknown title leaves the tooltip as it was', () => {
+    expect(closingPillTitle(issue({ title: '' }))).toBe(
+      'Closes the issue when it merges',
+    );
+  });
+
   test('a pill id differs from the closing one for the same number', () => {
     expect(closingPillId('github:a/b#1', ref())).not.toBe(
       closingPillId('github:a/b#1', issue()),

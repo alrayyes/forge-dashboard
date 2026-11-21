@@ -425,6 +425,37 @@ describe('the attributes and wiring of a pill', () => {
     expect(pillOf(pr()).className).toBe('linked-pr');
   });
 
+  test('a closes pill with a known title sits in a tip host with the title first', () => {
+    const host = asNode(
+      wrapOf(
+        [pr({ title: 'Show titles' })],
+        undefined,
+        undefined,
+        undefined,
+        'closes',
+      ).children[0],
+    );
+    const said = 'Show titles\nCloses this issue when it merges';
+    expect(host.className).toBe('pill-tip-host');
+    expect(asNode(host.children[0]).title).toBe(said);
+    expect(asNode(host.children[1]).children).toEqual([said]);
+  });
+
+  test('a title is text on the pill and in the tip, never markup', () => {
+    const host = asNode(
+      wrapOf(
+        [pr({ title: '<b>bold</b>' })],
+        undefined,
+        undefined,
+        undefined,
+        'closes',
+      ).children[0],
+    );
+    expect(asNode(host.children[1]).children).toEqual([
+      '<b>bold</b>\nCloses this issue when it merges',
+    ]);
+  });
+
   test('a ref pill on the outgoing side says so in its title and its tip', () => {
     const host = asNode(
       wrapOf(

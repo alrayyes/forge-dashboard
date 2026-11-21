@@ -219,6 +219,25 @@ request's pop-up lists them among the attributes too. The pop-up's Related band
 has no line of its own under the Refs or Mentions row: the row's label and the
 pill's name say it.
 
+### What a pill points at
+
+Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` can carry a
+`title`: the title of the issue or pull request it names, when the board holds
+it. The server fills it from the issues and pull requests it already has, so it
+costs the forge no request, and leaves it out for anything the board doesn't
+hold (a closed issue, a repo it doesn't track). A client words the pill without
+it then, so an unknown title never shows as an empty line. An issue's
+`linkedPullRequests`, `referencedByPullRequests` and `mentionedByPullRequests`
+carry the pull request's `title` the same way.
+
+Resting the pointer on a Closes, Refs or Mentions pill, on a row or in the
+pop-up's Related band, shows the title first and the line saying what the pill
+does under it. That is the same native hover text a row's title has. The same
+two lines show under the pill on keyboard focus, and Escape hides them with
+focus kept. The title is added to the pill's description, not its accessible
+name, so the name still starts with the text on the pill. A long title wraps
+inside the viewport. The title is shown as text, never as markup.
+
 ## Tickets a pull request mentions
 
 Besides the issues it closes, a pull request can mention others: `Refs #12` in

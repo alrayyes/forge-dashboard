@@ -1,5 +1,10 @@
 import { isKnownForge } from './forges';
-import { addPillTip, focusPill } from './pill-tip.js';
+import {
+  addPillTip,
+  focusPill,
+  hasPillTitle,
+  pillHoverText,
+} from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 import { appendRepoRef, foldedPills } from './related-band.js';
 
@@ -17,6 +22,8 @@ export type ClosingIssue = {
   pageUrl: string;
   /** How the pull request relates to the issue; closes when the server sent none. */
   relation?: 'closes' | 'refs' | 'mentions';
+  /** The issue's title when the dashboard holds it, for the pill's hover text. */
+  title?: string;
 };
 
 /** How many pills a row shows before the rest wait behind a count. */
@@ -69,11 +76,14 @@ export function closingPillName(issue: ClosingIssue, prRepo: string) {
     : `${text}, opens the issue`;
 }
 
-/** The pill's tooltip: what it does to the issue, which the italic alone doesn't say. */
+/** The pill's tooltip: the issue's title when known, then what the pill does to it, which the italic alone doesn't say. */
 export const closingPillTitle = (issue: ClosingIssue) =>
-  issue.relation === 'refs'
-    ? 'References the issue, does not close it'
-    : 'Closes the issue when it merges';
+  pillHoverText(
+    issue.title,
+    issue.relation === 'refs'
+      ? 'References the issue, does not close it'
+      : 'Closes the issue when it merges',
+  );
 
 /** The pills a row shows, and the ones kept behind the count. */
 export function splitClosing<T extends ClosingIssue>(list: T[]) {
@@ -212,7 +222,7 @@ export function closingPills(
       link.setAttribute('aria-label', closingPillName(issue, prRepo));
     }
     link.title = closingPillTitle(issue);
-    return issue.relation === 'refs'
+    return issue.relation === 'refs' || hasPillTitle(issue.title)
       ? addPillTip(link, closingPillTitle(issue))
       : link;
   };

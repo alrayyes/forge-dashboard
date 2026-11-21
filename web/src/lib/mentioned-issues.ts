@@ -10,6 +10,12 @@ import {
   issueNumber,
   splitClosing,
 } from './closing-issues.js';
+import {
+  addPillTip,
+  focusPill,
+  hasPillTitle,
+  pillHoverText,
+} from './pill-tip.js';
 import { isPlainClick } from './plain-click.js';
 import { createDwell } from './reference-dwell.js';
 import { appendRepoRef, foldedPills } from './related-band.js';
@@ -36,6 +42,12 @@ export type UntrackedMention = {
 export function mentionPillText(issue: MentionedIssue, prRepo: string) {
   return `Mentions ${issueNumber(issue, prRepo)}`;
 }
+
+/** The pill's tooltip: the item's title and what the pull request does to it. Nothing without a title, as before. */
+export const mentionPillTitle = (issue: MentionedIssue) =>
+  hasPillTitle(issue.title)
+    ? pillHoverText(issue.title, 'Mentioned here, does not close it')
+    : undefined;
 
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
 export function mentionPillName(issue: MentionedIssue, prRepo: string) {
@@ -94,7 +106,10 @@ export function mentionPills(
       link.textContent = mentionPillText(issue, prRepo);
       link.setAttribute('aria-label', mentionPillName(issue, prRepo));
     }
-    return link;
+    const hover = mentionPillTitle(issue);
+    if (hover === undefined) return link;
+    link.title = hover;
+    return addPillTip(link, hover);
   };
   if (inDialog)
     return foldedPills(
@@ -121,7 +136,7 @@ export function mentionPills(
     expanded.add(prKey);
     return extra;
   };
-  more.addEventListener('click', () => reveal()[0]?.focus());
+  more.addEventListener('click', () => focusPill(reveal()[0]));
   wrap.append(more);
   if (expanded.has(prKey)) reveal();
   return wrap;

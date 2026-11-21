@@ -115,6 +115,18 @@ describe('linkedPillName', () => {
     );
   });
 
+  test('a known title leads the tooltip, an unknown one leaves it as it was', () => {
+    expect(linkedPillTitle('closes', 'issue', 'Show titles')).toBe(
+      'Show titles\nCloses this issue when it merges',
+    );
+    expect(linkedPillTitle('closes', 'issue', undefined)).toBe(
+      'Closes this issue when it merges',
+    );
+    expect(linkedPillTitle('mentions', 'issue-outgoing', 'Show titles')).toBe(
+      'Show titles\nThis issue mentions this',
+    );
+  });
+
   test('says in its tooltip what the issue does to what it refers to', () => {
     expect(linkedPillTitle('refs', 'issue-outgoing')).toBe(
       'This issue references this, it does not close it',
