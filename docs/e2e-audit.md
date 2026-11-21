@@ -265,11 +265,11 @@ One ticket per group, each doing moves with its own mutation proof:
   size and colour. The rate-limit test and the missing-output test are gone.
   The cut and refused tests shrank to their axe runs and the refused row's
   Copy output button and absent icon buttons, since those read the dialog. The
-  other 49 tests are untouched. About 22.0 s of e2e test time (60 runs)
+  other tests are untouched. About 22.0 s of e2e test time (60 runs)
   became about 20.6 s (58). Both are measured here, summing the per-test
   durations on one worker with the machine idle, so they are not comparable
   with the CI figures in `tests/e2e-durations.json`. At the time of that move
-  the est. movable was 10.1 s (20.6 times 25 of 51 tests), an upper bound and
+  the est. movable was 10.1 s (20.6 times the movable share), an upper bound and
   not a saving. The
   new stories take about 0.1 s. Each assertion was proven red by breaking
   the component, `run-log.ts` or the style sheet (see the pull request for the
@@ -290,8 +290,8 @@ One ticket per group, each doing moves with its own mutation proof:
   idle (load under 5), the spec took 12.7 s over 28 runs before and 13.1 s over
   27 runs after, which is noise. The removed test took about 0.17 s, the
   rewritten card tests changed by less than 0.03 s each. At the time of that
-  move the row read 13.148 s with 12 tests and 4 browser-only, so its est.
-  movable was 8.8 s (13.148 times 8 of 12 tests), an upper bound and not a
+  move the row read 13.148 s with some tests browser-only, so its est.
+  movable was 8.8 s (13.148 times the movable share), an upper bound and not a
   saving. The row had no duration before, so it read 0.0. Each assertion was
   proven red by breaking the component or `live-control.ts` on a scratch copy
   (see the pull request for the list).
@@ -320,12 +320,12 @@ One ticket per group, each doing moves with its own mutation proof:
   that leave the dashboard" (each link's name with its new-tab warning, one
   decorative icon, `target`, `rel`, a check with no job id keeping its plain
   Open check page link, and the run link in the footer). The five e2e tests that
-  held these are gone. The remaining 50 tests read the page's copy flows and stay.
+  held these are gone. The remaining tests read the page's copy flows and stay.
   On one worker the spec took 26.9 s over 60 runs before and 24.4 s over 55
   after, on a machine with a load of about 7, so the saving is indicative. At the
-  time of that move the est. movable was 11.7 s (24.4 times 24 of 50 tests), an
-  upper bound and not a saving. The regenerated CSV reads the CI durations and
-  the current test count instead. Each assertion was proven red
+  time of that move the est. movable was 11.7 s (24.4 times the movable
+  share), an upper bound and not a saving. The regenerated CSV reads the CI
+  durations and the current test count instead. Each assertion was proven red
   by breaking the code: the Watch wording, the forge's name in the link, a
   running GitHub job and a queued job getting Show output, Forgejo losing Show
   output while running, the link's `target`, the new-tab warning on the run link

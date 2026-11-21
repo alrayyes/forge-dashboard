@@ -109,14 +109,32 @@ test('an annotation for a spec that exists is accepted', () => {
 // numbers are the rows of docs/e2e-audit/spec-classes.csv, which regenerates
 // with the one command above and conflicts only when two pull requests touch
 // the same spec.
+// The old checks matched one phrasing each, so "(309 files and 2738 tests)" or
+// "has 152 test files" slipped through. Any number followed by files, tests or
+// test files is a count a spec change would edit.
+const handWrittenCount = (text: string): string | null =>
+  /\d[\d,]*\s+(?:test\s+)?(?:files|tests)\b/.exec(text)?.[0] ?? null;
+
+for (const [name, text, found] of [
+  ['files and tests', '(309 files and 2738 tests)', '309 files'],
+  ['test files', 'it has 152 test files', '152 test files'],
+  ['files', 'across 12 files', '12 files'],
+  ['tests', 'now 2,738 tests', '2,738 tests'],
+  ['a count wrapped onto the next line', '49\ntests', '49\ntests'],
+  ['the old phrasing', '(309 files, 2738 tests)', '309 files'],
+] as const)
+  test(`a hand-written count is caught: ${name}`, () => {
+    expect(handWrittenCount(text)).toBe(found);
+  });
+
+test('prose with no count is not caught', () => {
+  expect(handWrittenCount('the tests and files in the CSV')).toBeNull();
+});
+
 test('docs/e2e-audit.md states no counts that a spec or test change would edit', () => {
   const doc = readFileSync(path.join(root, 'docs/e2e-audit.md'), 'utf8');
   expect(
-    doc,
-    'put the spec and test counts back in the CSV, not here',
-  ).not.toMatch(/\(\d[\d,]* files, \d[\d,]* tests\)/);
-  expect(
-    doc,
-    'count web unit tests with ls, do not write the number here',
-  ).not.toMatch(/`web\/` has \d+ unit test files/);
+    handWrittenCount(doc),
+    'put the spec and test counts back in the CSV, not here; regenerate it: python3 docs/e2e-audit/classify.py . docs/e2e-audit/spec-classes.csv',
+  ).toBeNull();
 });
