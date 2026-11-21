@@ -100,7 +100,9 @@ async function skew(page: Page, ms: number) {
 
 const firstRow = (page: Page) => page.locator('#pr-rows .row').first();
 const chipOf = (page: Page) => firstRow(page).locator('.wait-chip');
-const slotOf = (page: Page) => firstRow(page).locator('.wait-slot');
+// The room the chip is reserved is the status cell's: an empty slot is not
+// drawn on a phone (#4519), the action or padding holds its place.
+const slotOf = (page: Page) => firstRow(page).locator('.status-cell');
 
 async function size(locator: Locator) {
   // A snapshot can rebuild the row between finding it and measuring it, so
@@ -121,7 +123,10 @@ async function size(locator: Locator) {
 async function layout(page: Page) {
   return {
     row: await size(firstRow(page)),
-    slot: await size(slotOf(page)),
+    // Width only: the action bar a chip replaces can be taller than the
+    // chip (Merge and Rebase wrap), so the cell may only get shorter, which
+    // the row's own height check covers (#4519).
+    slot: { width: (await size(slotOf(page))).width },
   };
 }
 
@@ -571,14 +576,16 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await expect(firstRow(page)).not.toContainText('Waiting:');
   });
 
-  test('the action area is the same size armed and not', async ({ page }) => {
+  test('the action area is no taller armed than not', async ({ page }) => {
     await open(page, makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles' }));
     await expect(slotOf(page)).toBeVisible();
     const plain = await size(slotOf(page));
     await page.unroute('**/api/v1/dashboard*');
     await open(page, armed());
     await expect(chipOf(page)).toBeVisible();
-    expect(await size(slotOf(page))).toEqual(plain);
+    // The chip takes the room the action had (and the reserve), so the
+    // area is never taller armed (#4519).
+    expect((await size(slotOf(page))).height).toBeLessThanOrEqual(plain.height);
   });
 
   test('Disarm posts for that pull request', async ({ page }) => {
