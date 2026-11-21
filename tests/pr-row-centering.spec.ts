@@ -166,58 +166,70 @@ test.describe('at 1280px', () => {
   });
 
   test('every pill and action shares the row centre', async ({ page }) => {
-    const rows = await measure(page);
-    for (const m of rows) {
-      for (const [name, centre] of Object.entries(m.centres)) {
-        expect(
-          Math.abs(centre - m.rowCentre),
-          `${m.title}: ${name} centre ${centre} vs row ${m.rowCentre}`,
-        ).toBeLessThanOrEqual(TOLERANCE);
-      }
-      expect(
-        m.centres['.ci-pill'],
-        `${m.title} has a CI pill`,
-      ).not.toBeUndefined();
-    }
+    await expect
+      .poll(async () =>
+        (await measure(page)).flatMap((m) => [
+          ...Object.entries(m.centres)
+            .filter(([, c]) => Math.abs(c - m.rowCentre) > TOLERANCE)
+            .map(
+              ([n, c]) => `${m.title}: ${n} centre ${c} vs row ${m.rowCentre}`,
+            ),
+          ...(m.centres['.ci-pill'] === undefined
+            ? [`${m.title}: no CI pill`]
+            : []),
+        ]),
+      )
+      .toEqual([]);
   });
 
   test('on a row with nothing under the title, the pill is at the first line of the title', async ({
     page,
   }) => {
-    const rows = await measure(page);
-    for (const m of rows.filter((r) =>
-      /Clean|comment pill|failed/.test(r.title),
-    )) {
-      expect(
-        Math.abs(m.centres['.ci-pill'] - m.firstLineCentre),
-        m.title,
-      ).toBeLessThanOrEqual(TOLERANCE);
-    }
+    await expect
+      .poll(async () =>
+        (await measure(page))
+          .filter((r) => /Clean|comment pill|failed/.test(r.title))
+          .filter(
+            (m) =>
+              !(
+                Math.abs(m.centres['.ci-pill'] - m.firstLineCentre) <= TOLERANCE
+              ),
+          )
+          .map((m) => m.title),
+      )
+      .toEqual([]);
   });
 
   test('the comment pill sits on the CI pill line, and the CI pills line up down the list', async ({
     page,
   }) => {
-    const info = await page.locator('#pr-rows > .row').evaluateAll((rows) =>
-      rows.map((r) => {
-        const ci = r.querySelector('.ci-pill')?.getBoundingClientRect();
-        const rv = r.querySelector('.review-pill')?.getBoundingClientRect();
-        return {
-          ciLeft: ci?.left ?? 0,
-          reviewTop: rv?.top ?? null,
-          ciTop: ci?.top ?? 0,
-          reviewLeft: rv?.left ?? null,
-          ciRight: ci?.right ?? 0,
-        };
-      }),
-    );
-    for (const i of info) {
-      expect(Math.abs(i.ciLeft - info[0].ciLeft)).toBeLessThanOrEqual(1);
-      if (i.reviewTop !== null) {
-        expect(Math.abs(i.reviewTop - i.ciTop)).toBeLessThanOrEqual(6);
-        expect(i.reviewLeft as number).toBeGreaterThan(i.ciRight);
-      }
-    }
+    await expect
+      .poll(async () => {
+        const info = await page.locator('#pr-rows > .row').evaluateAll((rows) =>
+          rows.map((r) => {
+            const ci = r.querySelector('.ci-pill')?.getBoundingClientRect();
+            const rv = r.querySelector('.review-pill')?.getBoundingClientRect();
+            return {
+              ciLeft: ci?.left ?? 0,
+              reviewTop: rv?.top ?? null,
+              ciTop: ci?.top ?? 0,
+              reviewLeft: rv?.left ?? null,
+              ciRight: ci?.right ?? 0,
+            };
+          }),
+        );
+        return info.flatMap((i, n) => [
+          ...(Math.abs(i.ciLeft - info[0].ciLeft) > 1
+            ? [`row ${n}: CI pill is not in the column`]
+            : []),
+          ...(i.reviewTop !== null &&
+          (Math.abs(i.reviewTop - i.ciTop) > 6 ||
+            (i.reviewLeft as number) <= i.ciRight)
+            ? [`row ${n}: comment pill is not on the CI pill line, after it`]
+            : []),
+        ]);
+      })
+      .toEqual([]);
   });
 
   test('the action buttons share one column and the page does not scroll sideways', async ({
@@ -323,7 +335,9 @@ test.describe('the one-line row and the root font size', () => {
 
   test('at 1280px the note is under the title', async ({ page }) => {
     await open(page, 1280);
-    expect(await noteCell(page)).toEqual({ inTitle: true, inStatus: false });
+    await expect
+      .poll(() => noteCell(page))
+      .toEqual({ inTitle: true, inStatus: false });
   });
 
   test('at 1280px and 200% root font the note stays in the status cell', async ({
@@ -337,14 +351,16 @@ test.describe('the one-line row and the root font size', () => {
       );
     });
     await open(page, 1280);
-    expect(await noteCell(page)).toEqual({ inTitle: false, inStatus: true });
+    await expect
+      .poll(() => noteCell(page))
+      .toEqual({ inTitle: false, inStatus: true });
   });
 
   test('the note follows the list when it is resized across the breakpoint', async ({
     page,
   }) => {
     await open(page, 1280);
-    expect((await noteCell(page)).inTitle).toBe(true);
+    await expect.poll(async () => (await noteCell(page)).inTitle).toBe(true);
     await page.setViewportSize({ width: 1000, height: 900 });
     await expect.poll(async () => (await noteCell(page)).inStatus).toBe(true);
     await page.setViewportSize({ width: 1280, height: 900 });
