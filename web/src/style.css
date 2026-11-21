@@ -1159,8 +1159,8 @@ section.board {
     /* The flags slot is 120px, so the pills in it fit it instead of the other
        way round: a merge-state label wraps to a second line (the row is
        already as tall as two stacked pills), and the comment pill gives up a
-       little padding. Without this "Checking for conflicts" and "Conflict not
-       confirmed" ran 30px past the slot under the buttons (#4518). */
+       little padding. Without this "Conflict not confirmed" ran 30px past the
+       slot under the buttons (#4518). */
     .row:not(.issue-row) .status-flags .merge-pill {
       max-width: 100%;
       min-width: 0;
