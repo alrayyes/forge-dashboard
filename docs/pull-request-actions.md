@@ -265,9 +265,12 @@ keeps the wrapping status cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is
 under them. Only the one-line row keeps the other pills and the action on that
-line. Rows with
-both Merge and Update branch stack the two buttons as one block, centred on the
-pill line; that is intended. Tab follows the layout: when the note
+line. A row with
+both Merge and Update branch puts the two buttons side by side in the action
+slot, so it is as tall as a row with one. The slot is wide enough for the pair
+at 1191px. The slot before it is 7.5rem, so a long merge-state label such as
+"Conflict not confirmed" wraps to a second line there and the comment pill keeps
+its count inside it. Tab follows the layout: when the note
 under the title has a fix button in it, such as Update branch on a behind pull
 request, Tab reaches that button before the CI and comment pills. On a phone
 and on a narrower list the note stays in the status cell, and Tab visits the

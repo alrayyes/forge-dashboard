@@ -80,16 +80,24 @@ for (const theme of ['light', 'dark'] as const) {
         page,
       }) => {
         // The conflict row no longer draws a locked Merge (#3770), so the rows
-        // differ in height; what matters is that the longer words don't wrap.
+        // differ in height; what matters is that the longer words don't wrap, except
+        // in the one-line row's narrow slot.
         const a = await row(page, 'check running')
           .locator('.merge-pill')
           .boundingBox();
         const b = await row(page, 'Base moved, conflict')
           .locator('.merge-pill')
           .boundingBox();
-        expect(
-          Math.abs((a?.height ?? 0) - (b?.height ?? 0)),
-        ).toBeLessThanOrEqual(1);
+        // The one-line row (1280px) has a 120px slot for the pill, which
+        // "Checking for conflicts" can't fit on one line beside Merge and
+        // Update branch (#4518). There it wraps to two lines, and no more.
+        if (width === 1280) {
+          expect(a?.height ?? 0).toBeLessThanOrEqual((b?.height ?? 0) * 2);
+        } else {
+          expect(
+            Math.abs((a?.height ?? 0) - (b?.height ?? 0)),
+          ).toBeLessThanOrEqual(1);
+        }
       });
     });
   }

@@ -104,6 +104,22 @@ const BEHIND = pr(9, {
     action: 'update_branch',
   },
 });
+
+// A ready-to-merge row that is also behind: the server lists Merge as primary
+// and Update branch beside it (#4518).
+const BOTH = pr(10, {
+  title: 'Row with Merge and Update branch',
+  behind: true,
+  allowedActions: [
+    { action: 'merge', primary: true },
+    { action: 'update_branch' },
+    { action: 'close' },
+  ],
+});
+const ONE = pr(11, {
+  title: 'Row with Merge only',
+  allowedActions: [{ action: 'merge', primary: true }, { action: 'close' }],
+});
 async function open(page: Page, width: number, prs = PRS) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -265,6 +281,71 @@ test.describe('at 1280px', () => {
     expect(over).toBeLessThanOrEqual(0);
   });
 });
+
+// Merge and Update branch used to stack as one block inside the action slot,
+// which made that row taller than its neighbours (#4518). They now share the
+// one line, and the row is as tall as a row with a single button.
+// https://github.com/alrayyes/forge-dashboard/issues/4518
+// The list is 62px narrower than the window, so a 1253px window is the 1191px
+// list where the one-line row starts.
+for (const width of [1280, 1253]) {
+  test.describe(`a row with Merge and Update branch at ${width}px`, () => {
+    test.beforeEach(async ({ page }) => {
+      await open(page, width, [ONE, BOTH]);
+    });
+
+    test('the two buttons share one line and the row is as tall as one with a single button', async ({
+      page,
+    }) => {
+      await expect
+        .poll(() =>
+          page.locator('#pr-rows > .row').evaluateAll((rows) => {
+            const [one, both] = rows;
+            const btns = [...both.querySelectorAll('.row-action')].map((b) =>
+              b.getBoundingClientRect(),
+            );
+            return {
+              buttons: btns.length,
+              sameLine:
+                btns.length === 2 &&
+                Math.abs(btns[0].top - btns[1].top) <= 1 &&
+                btns[0].right <= btns[1].left,
+              // clientHeight leaves out the last row's missing bottom border.
+              heightDiff: Math.abs(both.clientHeight - one.clientHeight),
+            };
+          }),
+        )
+        .toEqual({ buttons: 2, sameLine: true, heightDiff: 0 });
+    });
+
+    test('the buttons stay inside the row and the page does not scroll sideways', async ({
+      page,
+    }) => {
+      await expect
+        .poll(() =>
+          page.locator('#pr-rows > .row').evaluateAll((rows) => {
+            const row = rows[1].getBoundingClientRect();
+            const cell = rows[1]
+              .querySelector('.status-cell')
+              ?.getBoundingClientRect() as DOMRect;
+            return [...rows[1].querySelectorAll('.row-action')]
+              .map((b) => b.getBoundingClientRect())
+              .filter(
+                (b) =>
+                  b.right > row.right + 0.5 ||
+                  b.left < cell.left - 0.5 ||
+                  b.right > cell.right + 0.5,
+              ).length;
+          }),
+        )
+        .toBe(0);
+      const over = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(over).toBeLessThanOrEqual(0);
+    });
+  });
+}
 
 // From 761px to 1190px of list width the status cell is still the wrapping
 // flex box, with the note on a line of its own. The pill line then sat above
@@ -558,11 +639,90 @@ test.describe('keyboard order of a row with a fix button', () => {
 
 for (const width of [1280, 1000, 390]) {
   test(`the rows have no axe violations at ${width}px`, async ({ page }) => {
-    await open(page, width, [...PRS, BEHIND]);
+    await open(page, width, [...PRS, BEHIND, BOTH]);
     const results = await new AxeBuilder({ page })
       .include('#pr-rows')
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+}
+
+// Every pill that can sit in the flags slot (the merge-state pills in
+// Dashboard.svelte's MERGE_STATUS_LABELS and unconfirmedConflictPill, and the
+// comment pill at its widest) has to fit its slot, or the action beside it
+// covers the end of it. The slot is narrower than the status track's old
+// middle slot to leave room for two buttons, so the longest label is the one
+// at risk (#4518).
+// https://github.com/alrayyes/forge-dashboard/issues/4518
+const FLAG_ROWS = [
+  pr(20, {
+    title: 'Conflicting',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: true,
+  }),
+  pr(21, { title: 'Blocked', mergeStatus: 'blocked' }),
+  pr(22, { title: 'Checking', mergeStatus: 'checking' }),
+  pr(23, {
+    title: 'Not confirmed',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: false,
+  }),
+  pr(24, {
+    title: 'Not confirmed and behind',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: false,
+    behind: true,
+    allowedActions: [
+      { action: 'merge', primary: true },
+      { action: 'update_branch' },
+      { action: 'close' },
+    ],
+  }),
+  pr(25, {
+    title: 'Widest comment pill',
+    reviewComments: 128,
+    conversationComments: 12,
+    unresolvedThreads: 44,
+  }),
+  pr(26, {
+    title: 'Conflicting with a comment pill',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: true,
+    reviewComments: 128,
+    unresolvedThreads: 44,
+  }),
+];
+for (const width of [1280, 1253]) {
+  test(`every pill in the flags slot stays clear of the action at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, FLAG_ROWS);
+    await expect
+      .poll(() =>
+        page.locator('#pr-rows > .row').evaluateAll((rows) =>
+          rows.flatMap((row) => {
+            const slot = row.querySelector('.status-flags');
+            const title = row.querySelector('.title')?.textContent ?? '';
+            if (!slot) return [];
+            const box = slot.getBoundingClientRect();
+            const actions = [...row.querySelectorAll('.row-action')].map((b) =>
+              b.getBoundingClientRect(),
+            );
+            return [...slot.querySelectorAll('.merge-pill, .review-pill')]
+              .map((pill) => ({ pill, r: pill.getBoundingClientRect() }))
+              .filter(
+                ({ r }) =>
+                  r.right > box.right + 0.5 ||
+                  actions.some((a) => r.right > a.left && r.left < a.right),
+              )
+              .map(
+                ({ pill, r }) =>
+                  `${title}: ${pill.textContent?.trim()} ends at ${Math.round(r.right)}, slot at ${Math.round(box.right)}`,
+              );
+          }),
+        ),
+      )
+      .toEqual([]);
   });
 }
