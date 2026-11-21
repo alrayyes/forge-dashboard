@@ -23,7 +23,7 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 	now := time.Now().UTC()
 	pr := func(forge dashboard.Forge, repo string, n int, mod func(*dashboard.PullRequest)) dashboard.PullRequest {
 		p := dashboard.PullRequest{
-			Forge: forge, Repo: repo, Number: n, Title: "pr", CI: dashboard.CISuccess, MergeStatus: dashboard.MergeMergeable,
+			Forge: forge, Repo: repo, Number: n, Title: "pr " + strconv.Itoa(n), CI: dashboard.CISuccess, MergeStatus: dashboard.MergeMergeable,
 			Labels: []dashboard.Label{}, RequestedReviewerLogins: []string{}, CreatedAt: now, UpdatedAt: now,
 		}
 		if mod != nil {
@@ -33,7 +33,7 @@ func mentionsServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 		return p
 	}
 	issue := func(forge dashboard.Forge, repo string, n int) dashboard.Issue {
-		return dashboard.Issue{Forge: forge, Repo: repo, Number: n, Title: "issue", Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now}
+		return dashboard.Issue{Forge: forge, Repo: repo, Number: n, Title: "issue " + strconv.Itoa(n), Labels: []dashboard.Label{}, CreatedAt: now, UpdatedAt: now}
 	}
 	ref := func(repo string, n int) dashboard.IssueRef {
 		return dashboard.IssueRef{Repo: repo, Number: n, URL: "https://example.com/" + repo + "/issues/" + strconv.Itoa(n)}

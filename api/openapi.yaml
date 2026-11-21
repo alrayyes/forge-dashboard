@@ -5586,6 +5586,13 @@ components:
             no pop-up and shows a plain note over the list. The note has no
             forge link, since the dashboard knows nothing else about the issue.
           examples: ["/issues.html?issue=github/alrayyes/hush-hush/12"]
+        title:
+          type: string
+          description: |
+            The issue's title as the board holds it, so a client can show it
+            on hover. Left out when the dashboard does not hold the issue
+            (closed, in a repo it does not track), and a client then words
+            the pill without it. Text, never markup.
 
     MentionedIssue:
       type: object
@@ -5621,6 +5628,13 @@ components:
             `pageUrl` opens its pop-up. False for a pull request, a closed
             issue, an issue the user's settings hide and anything in a repo
             the dashboard does not track; a client then links to `url`.
+        title:
+          type: string
+          description: |
+            The title of the issue or pull request as the board holds it, so
+            a client can show it on hover. Left out when the dashboard does
+            not hold it, and a client then words the pill without it. Text,
+            never markup.
 
     LinkedPullRequest:
       type: object
@@ -5648,6 +5662,11 @@ components:
         draft:
           type: boolean
           description: True while the pull request is a draft. Otherwise it is open.
+        title:
+          type: string
+          description: |
+            The pull request's title, so a client can show it on hover. Text,
+            never markup. Left out when empty.
         pageUrl:
           type: string
           description: |

@@ -199,6 +199,8 @@ type linkedPullRequest struct {
 	CI                       dashboard.CIStatus    `json:"ci"`
 	Checks                   dashboard.CheckCounts `json:"checks"`
 	AwaitingWorkflowApproval bool                  `json:"awaitingWorkflowApproval"`
+	// Title is the pull request's title, for the pill's hover text (#4326).
+	Title string `json:"title,omitempty"`
 }
 
 // pullRequestPage is the dashboard page that lists a pull request of kind.
@@ -231,6 +233,7 @@ func (b boardSettings) pullRequestPills(prs []dashboard.PullRequest) []linkedPul
 			Draft:  pr.Draft,
 			CI:     pr.CI,
 			Checks: pr.Checks,
+			Title:  pr.Title,
 
 			AwaitingWorkflowApproval: pr.AwaitingWorkflowApproval,
 			PageURL:                  pullRequestPage(dashboard.KindOf(pr, b.renovateAuthors)) + "?pr=" + string(pr.Forge) + "/" + pr.Repo + "/" + strconv.Itoa(pr.Number),
@@ -248,6 +251,9 @@ type closingIssue struct {
 	// Relation is how the pull request relates to the issue: closes, refs or
 	// mentions. One shape for all three, so a client words them from it.
 	Relation string `json:"relation"`
+	// Title is the issue's or pull request's title when the board holds it,
+	// for the pill's hover text (#4326). Left out otherwise.
+	Title string `json:"title,omitempty"`
 }
 
 // The relations a pull request has to an issue.
@@ -318,6 +324,34 @@ func resolveMentions(prs []pullRequestView, issues []issueView) {
 		for _, list := range [][]mentionedIssue{prs[i].MentionsIssues, prs[i].RefsIssues} {
 			for j, m := range list {
 				_, list[j].Tracked = held[dashboard.IssueKey(prs[i].Forge, m.Repo, m.Number)]
+			}
+		}
+	}
+}
+
+// resolveTitles gives each closing, referencing and mentioning entry the title
+// of the issue or pull request it names, when the board holds it, so a client
+// can show it on hover (#4326). What the board does not hold keeps no title.
+// A repo name is compared without regard to case, as in resolveMentions.
+func resolveTitles(prs []pullRequestView, issues []dashboard.Issue, held []dashboard.PullRequest) {
+	titles := map[string]string{}
+	for _, pr := range held {
+		titles[dashboard.IssueKey(pr.Forge, pr.Repo, pr.Number)] = pr.Title
+	}
+	// An issue and a pull request never share a number in one repo, so the
+	// order of the two loops does not matter.
+	for _, issue := range issues {
+		titles[dashboard.IssueKey(issue.Forge, issue.Repo, issue.Number)] = issue.Title
+	}
+	for _, pr := range prs {
+		for j := range pr.ClosesIssues {
+			c := &pr.ClosesIssues[j]
+			c.Title = titles[dashboard.IssueKey(pr.Forge, c.Repo, c.Number)]
+		}
+		for _, list := range [][]mentionedIssue{pr.MentionsIssues, pr.RefsIssues} {
+			for j := range list {
+				m := &list[j]
+				m.Title = titles[dashboard.IssueKey(pr.Forge, m.Repo, m.Number)]
 			}
 		}
 	}
@@ -486,6 +520,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
 	issues, openIssues, settingsHidden := board.issueViews(snap.Issues, snap.PullRequests, filter)
 	resolveMentions(pullRequests, issues)
+	resolveTitles(pullRequests, snap.Issues, snap.PullRequests)
 
 	branches := board.mainBranchRows(snap.MainBranches)
 
