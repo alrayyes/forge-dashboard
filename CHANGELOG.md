@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.91.0](https://github.com/alrayyes/forge-dashboard/compare/v9.90.9...v9.91.0) (2026-11-21)
+
+
+### Features
+
+* **web:** drop the locked Merge button while a row only waits for CI ([#4535](https://github.com/alrayyes/forge-dashboard/issues/4535)) ([63cb981](https://github.com/alrayyes/forge-dashboard/commit/63cb98101e3643de748c29d2527885b5a0510486))
+* **web:** show the item's title when a pill is hovered or focused ([#4542](https://github.com/alrayyes/forge-dashboard/issues/4542)) ([9cbabcd](https://github.com/alrayyes/forge-dashboard/commit/9cbabcd182069114d29446b11094970a5dcad5d2)), closes [#4326](https://github.com/alrayyes/forge-dashboard/issues/4326)
+
 ## [9.90.9](https://github.com/alrayyes/forge-dashboard/compare/v9.90.8...v9.90.9) (2026-11-21)
 
 
