@@ -28,6 +28,12 @@ describe('showsBehindPill', () => {
     ).toBe(true);
   });
 
+  test('the pop-up drops the pill beside a confirmed conflict (#4531)', () => {
+    expect(
+      showsBehindPill({ ...behindRow, onRow: false, conflictShown: true }),
+    ).toBe(false);
+  });
+
   test('a rebase that timed out brings the pill back', () => {
     expect(showsBehindPill({ ...behindRow, rebaseRequested: false })).toBe(
       true,

@@ -242,7 +242,7 @@ for (const scheme of ['light', 'dark'] as const) {
         const r = row(page, 'Checking');
         // The live jobs have to arrive first, or the not-stale check is empty.
         await expect(r.locator('.ci-pill')).toContainText('Passed');
-        await expect(r.getByText('Merge after check')).toBeVisible();
+        await expect(r.getByText('Merge after conflict check')).toBeVisible();
         await expect(
           r.getByRole('button', { name: 'Merge', exact: true }),
         ).toHaveCount(0);

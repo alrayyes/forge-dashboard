@@ -16,15 +16,13 @@ export type BehindPillInput = {
 // The Out of date chip. On a row it stays out while the row already says it
 // another way: a live Update branch, a confirmed conflict's warning (#3770),
 // or a requested rebase, whose wait chip says the fix is under way. The
-// pop-up keeps it.
+// pop-up keeps it, except beside a confirmed conflict: the pill and the block
+// already say it there (#4531).
 export function showsBehindPill(input: BehindPillInput): boolean {
   if (!input.behind || input.empty) return false;
+  if (input.conflictShown) return false;
   if (!input.onRow) return true;
-  return !(
-    input.conflictShown ||
-    input.liveUpdateBranch ||
-    input.rebaseRequested
-  );
+  return !(input.liveUpdateBranch || input.rebaseRequested);
 }
 
 // The "Behind the base branch" status block. A requested rebase on a row

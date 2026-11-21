@@ -3,7 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// "Conflict not confirmed" is said once, as the pill, and the reason it opens
+// "Conflict not confirmed" is said once, as the pill, and the reason printed beside it
 // names only what the row can do: Update branch when the row has the button,
 // otherwise waiting or opening the pull request on the forge. While the forge
 // can't be reached the rows may be earlier data and no action runs, so the reason
@@ -116,7 +116,6 @@ test('a row that is not behind says Conflict not confirmed once and never names 
   await expect(r.getByText(TITLE)).toHaveCount(1);
   await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(0);
 
-  await r.getByRole('button', { name: TITLE }).click();
   const reason = r.locator('.merge-where');
   await expect(reason).toContainText('open the pull request on the forge');
   await expect(reason).not.toContainText('Update');
@@ -150,7 +149,6 @@ for (const forge of ['forgejo', 'github'] as const) {
     await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(
       1,
     );
-    await r.getByRole('button', { name: TITLE }).click();
     await expect(r.locator('.merge-where')).toContainText('Use Update branch');
   });
 
@@ -163,7 +161,6 @@ for (const forge of ['forgejo', 'github'] as const) {
     await expect(r.getByRole('button', { name: 'Update branch' })).toHaveCount(
       0,
     );
-    await r.getByRole('button', { name: TITLE }).click();
     const reason = r.locator('.merge-where');
     await expect(reason).toContainText("isn't answering");
     await expect(reason).toContainText('earlier');

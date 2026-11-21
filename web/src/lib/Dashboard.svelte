@@ -1199,9 +1199,12 @@
       ci: string,
       conflict: ConflictFacts,
       forge: string,
+      // Merge's slot already says "Merge after conflict check" (#4531).
+      lineSaysChecking = false,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
+      if (status === "checking" && lineSaysChecking) return null;
       // Forgejo's flag stayed false and no refusal named a conflict (#3308).
       if (
         status === "conflicting" &&
@@ -1259,6 +1262,16 @@
       );
     }
 
+    // The id of the printed words that say why a conflict locks a button: the
+    // unconfirmed pill's reason, or the status block's. Undefined when the
+    // locked button has to print its own.
+    function conflictReasonOf(item: PullRequestItem): string | undefined {
+      if (item.status?.code !== "conflict") return undefined;
+      return unconfirmedConflict(item)
+        ? conflictReasonId(item)
+        : statusAreaId(item);
+    }
+
     function conflictReasonId(item: PullRequestItem): string {
       return `${idScope}conflict-reason-${domSafeId(prKey(item))}`;
     }
@@ -1272,27 +1285,19 @@
       return more > 0 ? `In ${shown} and ${more} more` : `In ${shown}`;
     }
 
-    // "Conflict not confirmed" and the reason one tap away. The server leaves
-    // it at that: the forge's flag has been false past the check window, which
-    // it is for a conflict and also for a check that never finishes.
+    // "Conflict not confirmed" and its reason, printed beside it. The server
+    // leaves it at that: the forge's flag has been false past the check
+    // window, which it is for a conflict and also for a check that never
+    // finishes. The reason is text, never behind a tap or a hover (#4531).
     function unconfirmedConflictPill(
       reasonText: string,
       id: string,
     ): HTMLElement {
-      const pill = el("button", "merge-pill unconfirmed") as HTMLButtonElement;
-      pill.type = "button";
-      pill.setAttribute("aria-expanded", "false");
-      pill.setAttribute("aria-controls", id);
+      const pill = el("span", "merge-pill unconfirmed");
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode("Conflict not confirmed"));
       const reason = el("span", "merge-where", reasonText);
       reason.id = id;
-      reason.hidden = true;
-      pill.addEventListener("click", (event) => {
-        event.stopPropagation();
-        reason.hidden = !reason.hidden;
-        pill.setAttribute("aria-expanded", String(!reason.hidden));
-      });
       const group = el("span", "merge-state");
       group.appendChild(pill);
       group.appendChild(reason);
@@ -1308,7 +1313,7 @@
     // row already says it another way: a live Update branch button is the
     // signal, a confirmed conflict shows its warning alone (#3770), and a
     // requested rebase shows its wait chip alone (#4022). The pop-up keeps
-    // the chip.
+    // the chip, except beside a confirmed conflict (#4531).
     function behindPill(
       item: PullRequestItem,
       onRow = false,
@@ -1758,19 +1763,33 @@
       slot.appendChild(ciPill(item, false));
       state.appendChild(slot);
       // Mergeable draws nothing, as on the row.
-      const merge = mergeStatusPill(
-        item.mergeStatus,
-        item.ci,
-        conflictFacts(item),
-        item.forge,
-      );
+      // Built in the dialog's scope, so the unconfirmed reason's id is the
+      // one the footer's buttons are described by (#4531).
+      idScope = DIALOG_ID_SCOPE;
+      let merge: HTMLElement | null;
+      try {
+        merge = mergeStatusPill(
+          item.mergeStatus,
+          item.ci,
+          conflictFacts(item),
+          item.forge,
+          checkingLineShown(item),
+        );
+      } finally {
+        idScope = "";
+      }
       if (merge) state.appendChild(merge);
       const attributes = attributeCluster(item);
       attributes.setAttribute("role", "group");
       attributes.setAttribute("aria-label", "Attributes when opened");
       // The dialog keeps saying a pull request is out of date even when it
-      // is empty, which the row's badge leaves out.
-      if (item.behind && !attributes.querySelector(".behind"))
+      // is empty, which the row's badge leaves out. A confirmed conflict says
+      // it already, here as on the row (#4531).
+      if (
+        item.behind &&
+        !conflictShown(item) &&
+        !attributes.querySelector(".behind")
+      )
         attributes.appendChild(
           claimed(attrChip("behind", "Out of date"), item),
         );
@@ -3353,6 +3372,7 @@
           pr.ci,
           conflictFacts(pr),
           pr.forge,
+          checkingLineShown(pr),
         );
         const reviewActivity = reviewPill(pr, (triggerId) =>
           openDetailsDialog(pr, triggerId),
@@ -4065,6 +4085,18 @@
         return null;
       if (ciWaitIsStale(item)) return null;
       return item.mergeStatus === "checking" ? "conflict-check" : "ci";
+    }
+
+    // Merge's slot prints "Merge after conflict check", so the pill that says
+    // "Checking for conflicts" stays out: one place says it (#4531). Not while
+    // Merge is hidden for a spent rate limit, when nothing else would.
+    function checkingLineShown(item: PullRequestItem): boolean {
+      if (mergeWaitOf(item) !== "conflict-check") return false;
+      if (isSettled(item)) return false;
+      return !(
+        (mergeState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
+      );
     }
 
     // The pop-up passes withFix false: its footer already lists every action,
@@ -5182,11 +5214,18 @@
       const updateBranch = findAction(item, "update_branch");
       if (!updateBranch) return null;
       if (updateBranchHidden(item)) return null;
-      if (updateBranch.blocked)
+      if (updateBranch.blocked) {
+        // A conflict's words are printed once, by the block or the pill that
+        // already says them; this button is described by them (#4531).
+        const described = conflictReasonOf(item);
         return lockedActionButton(
           "Update branch",
           updateBranch.blocked.message,
+          undefined,
+          undefined,
+          described,
         );
+      }
 
       const key = prKey(item);
       const entry = updateBranchState[key] || { phase: "idle" };
@@ -8088,7 +8127,7 @@
         button.textContent = held ? "Rerun queued" : label;
         markPending(button, held || sending);
         status.textContent = held
-          ? "Rerun queued. The new results show here after the next refresh."
+          ? "The new results show here after the next refresh."
           : sending
             ? "Queuing the rerun…"
             : "";

@@ -118,6 +118,7 @@ const singleUserSpecs = [
   '**/checking-for-conflicts.spec.ts',
   '**/conflict-not-confirmed.spec.ts',
   '**/conflict-not-confirmed-reason.spec.ts',
+  '**/print-reason-once.spec.ts',
   '**/row-claim-state-pills.spec.ts',
   '**/conflict-row-warning-only.spec.ts',
   '**/rebase-requested-behind.spec.ts',

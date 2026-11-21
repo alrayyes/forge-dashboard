@@ -208,6 +208,7 @@ pr-dialog-actions.spec.ts,15.684,29,14,C,web/src/lib/footer-order.test.ts (prove
 pr-row-centering.spec.ts,,21,8,C,,0.0
 pr-title-root-font-size-band.spec.ts,,6,2,C,,0.0
 presence-hidden-tab.spec.ts,0.158,1,0,C,web/src/lib/presence.test.ts,0.2
+print-reason-once.spec.ts,,3,3,A,,0.0
 profile-links.spec.ts,11.291,20,6,C,,7.9
 pull-request-action-refusals.spec.ts,13.041,11,6,A,,5.9
 pull-request-auto-merge.spec.ts,3.865,4,1,C,,2.9
