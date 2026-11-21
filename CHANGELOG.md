@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.90.8](https://github.com/alrayyes/forge-dashboard/compare/v9.90.7...v9.90.8) (2026-11-21)
+
+
+### Bug Fixes
+
+* **web:** align the CI pill with the title on mid-width pull request rows ([#4524](https://github.com/alrayyes/forge-dashboard/issues/4524)) ([1521732](https://github.com/alrayyes/forge-dashboard/commit/15217328a3d68e81cdf250d2bcc141477aa03145)), closes [#4517](https://github.com/alrayyes/forge-dashboard/issues/4517)
+
 ## [9.90.7](https://github.com/alrayyes/forge-dashboard/compare/v9.90.6...v9.90.7) (2026-11-21)
 
 
