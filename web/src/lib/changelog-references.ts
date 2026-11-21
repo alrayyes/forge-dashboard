@@ -5,6 +5,8 @@
 // the forge, and a click opens the read-only dialog once that answer is in, or
 // follows the forge link (see reference-prefetch.ts).
 
+import type { DetailsEntry } from './details-cache';
+
 export type ProjectReferences = {
   repoUrl: string;
   forge: string;
@@ -32,4 +34,12 @@ export function referenceTitle(
   number: number,
 ): string {
   return `${kind === 'pullRequest' ? 'Pull request' : 'Issue'} #${number}`;
+}
+
+// The kind a cached issue read carries, when it has one. The cache holds the
+// payload untyped, so this is the one place that says what shape to expect.
+export function cachedKind(
+  entry: DetailsEntry<unknown> | undefined,
+): 'issue' | 'pullRequest' | undefined {
+  return (entry?.details as { kind?: 'issue' | 'pullRequest' } | null)?.kind;
 }

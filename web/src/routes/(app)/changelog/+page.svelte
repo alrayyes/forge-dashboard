@@ -6,6 +6,7 @@
   } from "#lib/changelog-notes.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import {
+    cachedKind,
     projectReferences,
     referenceTitle,
     type ProjectReferences,
@@ -128,10 +129,9 @@
         ...ref,
         subject: "issue",
         title: referenceTitle(
-          (
-            detailsCache.get(detailsKey({ ...ref, subject: "issue" }))
-              ?.details as { kind?: "issue" | "pullRequest" } | undefined
-          )?.kind,
+          cachedKind(
+            detailsCache.get(detailsKey({ ...ref, subject: "issue" })),
+          ),
           ref.number,
         ),
         url: found.url,
