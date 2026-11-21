@@ -269,8 +269,9 @@ test.describe('at 1280px', () => {
 // From 761px to 1190px of list width the status cell is still the wrapping
 // flex box, with the note on a line of its own. The pill line then sat above
 // the row's centre by half the note's height, while the title was centred
-// (#4517). The pill line is centred on the row at every width, with or without
-// a note.
+// (#4517). The repo, title and arrow now start at the top of the row, so the
+// CI pill and the title's first line share a centre at every width, with or
+// without a note. The other pills and the action stay in the stack below.
 // https://github.com/alrayyes/forge-dashboard/issues/4517
 for (const width of [761, 1000, 1190]) {
   test.describe(`at ${width}px`, () => {
@@ -334,45 +335,66 @@ for (const width of [761, 1000, 1190]) {
   });
 }
 
-test('at 1000px and 200% root font nothing overflows or clips', async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    const style = document.createElement('style');
-    style.textContent = 'html { font-size: 200% !important; }';
-    document.addEventListener('DOMContentLoaded', () =>
-      document.head.appendChild(style),
-    );
+test.describe('at 1000px and 200% root font', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const style = document.createElement('style');
+      style.textContent = 'html { font-size: 200% !important; }';
+      document.addEventListener('DOMContentLoaded', () =>
+        document.head.appendChild(style),
+      );
+    });
+    await open(page, 1000);
   });
-  await open(page, 1000);
-  await expect
-    .poll(() =>
-      page.locator('#pr-rows > .row').evaluateAll((rows) =>
-        rows.flatMap((r) => {
-          const rb = r.getBoundingClientRect();
-          return [
-            ...r.querySelectorAll(
-              '.ci-pill, .review-pill, .row-action, .title-text',
-            ),
-          ]
-            .filter((e) => {
-              const b = e.getBoundingClientRect();
-              return (
-                b.width > 0 && (b.right > rb.right + 1 || b.left < rb.left - 1)
+
+  test('the CI pill is on the title centre line', async ({ page }) => {
+    await expect
+      .poll(async () =>
+        (await measure(page))
+          .filter((m) => /Clean|comment pill|waiting on CI/.test(m.title))
+          .filter(
+            (m) =>
+              Math.abs(m.centres['.ci-pill'] - m.firstLineCentre) > TOLERANCE,
+          )
+          .map(
+            (m) =>
+              `${m.title}: CI pill ${m.centres['.ci-pill']} vs title ${m.firstLineCentre}`,
+          ),
+      )
+      .toEqual([]);
+  });
+
+  test('nothing overflows or clips', async ({ page }) => {
+    await expect
+      .poll(() =>
+        page.locator('#pr-rows > .row').evaluateAll((rows) =>
+          rows.flatMap((r) => {
+            const rb = r.getBoundingClientRect();
+            return [
+              ...r.querySelectorAll(
+                '.ci-pill, .review-pill, .row-action, .title-text',
+              ),
+            ]
+              .filter((e) => {
+                const b = e.getBoundingClientRect();
+                return (
+                  b.width > 0 &&
+                  (b.right > rb.right + 1 || b.left < rb.left - 1)
+                );
+              })
+              .map(
+                (e) =>
+                  `${r.querySelector('.title-text')?.textContent}: ${e.className}`,
               );
-            })
-            .map(
-              (e) =>
-                `${r.querySelector('.title-text')?.textContent}: ${e.className}`,
-            );
-        }),
-      ),
-    )
-    .toEqual([]);
-  const over = await page.evaluate(
-    () => document.documentElement.scrollWidth - window.innerWidth,
-  );
-  expect(over).toBeLessThanOrEqual(0);
+          }),
+        ),
+      )
+      .toEqual([]);
+    const over = await page.evaluate(
+      () => document.documentElement.scrollWidth - window.innerWidth,
+    );
+    expect(over).toBeLessThanOrEqual(0);
+  });
 });
 
 test.describe('at 390px', () => {
