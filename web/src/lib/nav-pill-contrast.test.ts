@@ -92,9 +92,17 @@ function ratio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const KNOWN = ['total', 'failed', 'running', 'passed', 'cancelled', 'awaiting'];
+const KNOWN = [
+  'total',
+  'failed',
+  'running',
+  'passed',
+  'behind',
+  'cancelled',
+  'awaiting',
+];
 const PILL_SELECTOR =
-  /\.nav-(?:pills|total|failed|running|passed|cancelled|awaiting|none)\b/;
+  /\.nav-(?:pills|total|failed|running|passed|behind|cancelled|awaiting|none)\b/;
 
 type Rule = { selectors: string[]; body: string };
 
@@ -197,6 +205,7 @@ describe('pillColours on a synthetic stylesheet', () => {
 .nav-failed { color: var(--critical); }
 .nav-running { color: var(--warning); }
 .nav-passed { color: var(--good); }
+.nav-behind { color: var(--warning); }
 .nav-cancelled { color: var(--ink-2); }
 .nav-awaiting { color: var(--warning); }`;
 

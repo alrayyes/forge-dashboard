@@ -23,6 +23,7 @@ type Page = {
   passed: number;
   cancelled: number;
   noChecks: number;
+  behind: number;
 };
 
 const states = [
@@ -40,6 +41,7 @@ const empty = (): Page => ({
   passed: 0,
   cancelled: 0,
   noChecks: 0,
+  behind: 0,
 });
 
 export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {

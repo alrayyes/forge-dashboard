@@ -18,6 +18,11 @@ type pageCount struct {
 	// NoChecks counts the pull requests with no checks, so they show beside
 	// the other states and not only in Total (#3241).
 	NoChecks int `json:"noChecks"`
+	// Behind counts the green bot pull requests whose base has moved on, so
+	// a stale one doesn't sit unnoticed (#4282). It sits beside Passed, not
+	// in place of it, so it is the one number that is not a part of Total.
+	// Only the Bots page counts it.
+	Behind int `json:"behind"`
 }
 
 // issueCount is the Issues item's number. Issues have no failing state, so it
@@ -72,6 +77,11 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 			}
 		case dashboard.CISuccess:
 			page.Passed++
+			// The reading the row's Out of date badge uses: behind with
+			// something left to merge.
+			if pr.Kind == dashboard.KindDependency && pr.Behind && !pr.Empty {
+				page.Behind++
+			}
 		case dashboard.CICancelled:
 			page.Cancelled++
 		case dashboard.CINone:

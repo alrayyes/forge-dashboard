@@ -49,7 +49,8 @@ func contributionOf(t *testing.T, counts navCounts) (page, state string) {
 		}
 		page, state = name, "none"
 		for key, n := range numbers {
-			if key != "total" && n == 1 {
+			// Behind sits beside the CI state, not instead of it.
+			if key != "total" && key != "behind" && n == 1 {
 				state = key
 			}
 		}

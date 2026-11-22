@@ -590,6 +590,12 @@ header,
 .nav-passed {
   color: var(--good);
 }
+/* Passing bot pull requests that are behind their base (#4282): the warning
+   ink, like the Out of date chip on a row. The bare up arrow carries it, not
+   the colour. */
+.nav-behind {
+  color: var(--warning);
+}
 /* Cancelled (#3958): nothing broke, so the neutral ink, like the cancelled
    pill on a row. The stop glyph carries it, not the colour. */
 .nav-cancelled {

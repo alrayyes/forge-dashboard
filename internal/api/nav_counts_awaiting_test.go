@@ -45,3 +45,39 @@ func TestBuildNavCounts_CancelledOnlyIsItsOwnPart(t *testing.T) {
 	assert.Equal(t, 0, counts.PullRequests.Passed)
 	assert.Equal(t, 0, counts.PullRequests.NoChecks)
 }
+
+// A green bot pull request whose base has moved on is counted as behind, beside
+// the passed count and never instead of it (#4282). Only the Bots page counts
+// it: a person's pull request is the author's to bring up to date. A failing
+// one, a draft and an empty one (nothing left to merge) are left out, the same
+// reading the row's Out of date badge uses.
+func TestBuildNavCounts_GreenBotPullRequestsBehindAreCounted(t *testing.T) {
+	t.Parallel()
+
+	bot := func(ci dashboard.CIStatus, behind, empty bool) pullRequestView {
+		var v pullRequestView
+		v.Kind, v.CI, v.Behind, v.Empty = dashboard.KindDependency, ci, behind, empty
+
+		return v
+	}
+	person := bot(dashboard.CISuccess, true, false)
+	person.Kind = dashboard.KindRegular
+	draft := bot(dashboard.CISuccess, true, false)
+	draft.Draft = true
+
+	counts := buildNavCounts([]pullRequestView{
+		bot(dashboard.CISuccess, true, false),
+		bot(dashboard.CISuccess, true, false),
+		bot(dashboard.CISuccess, false, false),
+		bot(dashboard.CISuccess, true, true),
+		bot(dashboard.CIFailure, true, false),
+		bot(dashboard.CIPending, true, false),
+		person,
+		draft,
+	}, 0)
+
+	assert.Equal(t, 2, counts.Bots.Behind)
+	assert.Equal(t, 4, counts.Bots.Passed, "behind is beside passed, not taken out of it")
+	assert.Equal(t, 0, counts.PullRequests.Behind)
+	assert.Equal(t, 0, counts.Releases.Behind)
+}

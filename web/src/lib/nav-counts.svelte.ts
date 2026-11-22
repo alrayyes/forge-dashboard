@@ -27,6 +27,9 @@ export type NavCount = {
   noChecks?: number;
   awaitingApproval?: number;
   unknown?: number;
+  // The green bot pull requests whose base has moved on (#4282), beside
+  // passed and never inside the other parts. The Bots page only.
+  behind?: number;
 };
 
 export type NavCounts = {

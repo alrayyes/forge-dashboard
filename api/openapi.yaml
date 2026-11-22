@@ -7771,13 +7771,14 @@ components:
 
     NavPullRequestCount:
       type: object
-      required: [total, running, failed, passed, cancelled, noChecks]
+      required: [total, running, failed, passed, cancelled, noChecks, behind]
       description: |
         A pull request page's numbers. `running`, `failed`, `passed` and
         `cancelled` count the pull requests whose CI is pending, failing,
         succeeded and cancelled, and `noChecks` those with no checks at all.
         One held for workflow approval is in `total` only, so the numbers
-        need not add up. All six are always present.
+        need not add up. `behind` is not a part of `total` at all: it is a note
+        on `passed`. All seven are always present.
       properties:
         total:
           type: integer
@@ -7813,6 +7814,13 @@ components:
             How many of them have no checks (CI `none`). Not counted as
             running: nothing is pending, so there is nothing to wait for
             that the pull request itself can show.
+        behind:
+          type: integer
+          minimum: 0
+          description: |
+            How many of the `passed` ones are behind their base branch, with
+            something left to merge. Counted on the Bots page only, so
+            `0` on the others. Beside `passed`, not part of the sum.
 
     NavIssueCount:
       type: object
