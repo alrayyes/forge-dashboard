@@ -4746,6 +4746,187 @@ button.pipeline-check-link:disabled {
   }
 }
 
+/* The wide log dialog (#4281). A modal over the pipeline panel, as wide as the
+   screen allows up to 960px. The log is its one scroll area: the head, the
+   switches and the footer stay put. */
+.run-expand {
+  margin-left: auto;
+  min-height: var(--tap);
+  padding: 0 8px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent);
+  cursor: pointer;
+}
+.run-expand:hover,
+.run-expand:focus-visible {
+  text-decoration: underline;
+}
+.run-wide-dialog {
+  box-sizing: border-box;
+  width: min(
+    960px,
+    calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))
+  );
+  max-width: none;
+  max-height: calc(
+    100dvh -
+    32px -
+    env(safe-area-inset-top) -
+    env(safe-area-inset-bottom)
+  );
+  margin: auto;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.run-wide-dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.run-wide-dialog::backdrop {
+  background: var(--backdrop);
+}
+.run-wide-head,
+.run-wide-bar,
+.run-wide-foot {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 10px 16px;
+}
+.run-wide-head {
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.run-wide-title {
+  margin: 0;
+  min-width: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.run-wide-x {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.run-wide-x:hover {
+  color: var(--ink);
+}
+.run-wide-bar {
+  justify-content: space-between;
+  background: var(--surface-sunken);
+  border-bottom: 1px solid var(--border);
+}
+.run-wide-bar .run-log-bar {
+  column-gap: 16px;
+}
+.run-wide-status,
+.run-wide-note,
+.run-wide-manual {
+  flex: none;
+  margin-inline: 16px;
+}
+.run-wide-dialog .run-log {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 8px 16px;
+}
+.run-wide-dialog .run-output-text {
+  flex: 1 1 auto;
+  min-height: 8rem;
+  max-height: none;
+  margin: 0;
+}
+.run-wide-foot {
+  justify-content: flex-end;
+  border-top: 1px solid var(--border);
+}
+.run-wide-btn {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: var(--tap);
+  padding: 0 14px;
+  border: 1px solid var(--control-border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.run-wide-btn:hover {
+  background: var(--surface-sunken);
+}
+.run-wide-btn[aria-disabled="true"] {
+  opacity: 0.6;
+  cursor: progress;
+}
+.run-wide-primary {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.run-wide-dialog .external-icon {
+  margin: 0;
+  width: 14px;
+  height: 14px;
+}
+.run-wide-x:focus-visible,
+.run-wide-btn:focus-visible,
+.run-expand:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+/* Short screens (a phone on its side, text at 400%): the log can't have a
+   usable height beside the rest, so the dialog scrolls as one and the log
+   takes its natural height. Still one scroll area at a time. */
+@media (max-height: 480px) {
+  .run-wide-dialog {
+    overflow: auto;
+  }
+  .run-wide-dialog .run-log,
+  .run-wide-dialog .run-output-text {
+    flex: none;
+  }
+  .run-wide-dialog .run-output-text {
+    overflow-y: visible;
+  }
+}
+@media (forced-colors: active) {
+  .run-wide-dialog {
+    border: 2px solid CanvasText;
+  }
+  .run-wide-primary {
+    border-color: LinkText;
+    color: LinkText;
+  }
+}
+
 /* The pull request pages' pill groups (#678, #3734) are FilterGroups drawing
    FilterPills (#4279, #4611). `quick-pills`, `sheet-pills` and `quick-pill`
    are only the hooks the filter script finds them by; the look is the shared

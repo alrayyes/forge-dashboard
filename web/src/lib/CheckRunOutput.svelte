@@ -4,6 +4,9 @@
   // when the output is cut or can't be read. Text only: the output is never
   // parsed as markup. Each line's number is a button that copies that line
   // (#4280): one tab stop for the whole log, the arrow keys move between lines.
+  // Expand opens the same log in a wide modal dialog (#4281). The panel stays
+  // drawn behind it, so it keeps its width and scroll position, and the
+  // switches are the one setting for both.
   import { onDestroy, tick } from "svelte";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import type { Check } from "#lib/pipeline-checks.js";
@@ -100,7 +103,19 @@
   });
   let panel = $state<HTMLDivElement>();
   let ask = 0;
+  // The wide dialog is always in the markup, closed; its contents are drawn
+  // only while it is open, so a long log is not kept in the page twice.
+  let wideOpen = $state(false);
+  let wideDialog = $state<HTMLDialogElement>();
   let output = $state<HTMLDivElement>();
+  let wideOutput = $state<HTMLDivElement>();
+  let panelCopy = $state<HTMLButtonElement>();
+  let wideCopy = $state<HTMLButtonElement>();
+  let expandButton = $state<HTMLButtonElement>();
+  // A selection copy runs inside the open modal: the page behind it is inert.
+  $effect(() => {
+    flow.button = wideOpen ? wideCopy : panelCopy;
+  });
   const panelId = `run-output-${Math.random().toString(36).slice(2, 9)}`;
 
   function endLineCopy() {
@@ -143,8 +158,73 @@
     if (next === null) return;
     e.preventDefault();
     active = next;
+    // The event's target is gone once the tick has passed.
+    const log = (e.currentTarget as HTMLElement).closest(".run-output-text");
     await tick();
-    output?.querySelector<HTMLButtonElement>(`[data-line="${next}"]`)?.focus();
+    log?.querySelector<HTMLButtonElement>(`[data-line="${next}"]`)?.focus();
+  }
+
+  async function expand() {
+    wideOpen = true;
+    await tick();
+    wideDialog?.showModal();
+    // The end of a log is where it failed, here as in the panel.
+    if (wideOutput) wideOutput.scrollTop = wideOutput.scrollHeight;
+  }
+
+  // Fires for every way the dialog closes: Escape, either Close and a click on
+  // the backdrop. Focus goes back to the button that opened it.
+  function wideClosed() {
+    wideOpen = false;
+    endLineCopy();
+    expandButton?.focus();
+  }
+
+  // A modal dialog lets Tab walk out of its last control to the browser's own
+  // chrome. Keep the walk in a ring: past the last control is the first, and
+  // back from the first is the last.
+  function wideKeys(event: KeyboardEvent) {
+    if (event.key !== "Tab" || !wideDialog) return;
+    const stops = [
+      ...wideDialog.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), textarea:not([disabled]), [tabindex="0"]',
+      ),
+    ].filter((el) => el.tabIndex >= 0 && el.getClientRects().length > 0);
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    if (!first || !last) return;
+    const at = document.activeElement;
+    if (event.shiftKey && at === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && at === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  // The backdrop is the dialog element itself, but so are the margins around
+  // the log. A click is outside only when it started and ended past the
+  // dialog's box, so a click in a gutter, or a selection drag released there,
+  // keeps it open.
+  let pressedOutside = false;
+  function outsideBox(event: MouseEvent) {
+    if (event.target !== wideDialog || !wideDialog) return false;
+    const r = wideDialog.getBoundingClientRect();
+    return (
+      event.clientX < r.left ||
+      event.clientX > r.right ||
+      event.clientY < r.top ||
+      event.clientY > r.bottom
+    );
+  }
+  function wideDown(event: MouseEvent) {
+    pressedOutside = outsideBox(event);
+  }
+  function wideOutside(event: MouseEvent) {
+    const started = pressedOutside;
+    pressedOutside = false;
+    if (started && outsideBox(event)) wideDialog?.close();
   }
 
   async function toggle() {
@@ -202,6 +282,83 @@
   }
 </script>
 
+{#snippet switches()}
+  {#if hasTimes}
+    <label class="run-log-switch">
+      <input type="checkbox" bind:checked={timestamps} />Timestamps
+    </label>
+  {/if}
+  <label class="run-log-switch">
+    <input type="checkbox" bind:checked={wrap} />Wrap lines
+  </label>
+{/snippet}
+{#snippet logView(wide: boolean)}
+  <!-- The line buttons are focusable, so the scroll region is reachable
+       from the keyboard without a tab stop of its own. -->
+  <div class="run-log">
+    <div
+      class="run-output-text"
+      class:run-output-stamped={timestamps && hasTimes}
+      class:run-output-nowrap={!wrap}
+      {@attach (el) => {
+        if (wide) wideOutput = el as HTMLDivElement;
+        else output = el as HTMLDivElement;
+      }}
+      role="region"
+      aria-label="Output: {name}"
+    >
+      {#if text}
+        {#each lines as line, i (i)}
+          <div
+            class="run-line run-line-{line.kind}"
+            class:run-line-copied={copiedLine === i}
+          >
+            <button
+              type="button"
+              class="run-line-no"
+              data-line={i}
+              tabindex={i === stop ? 0 : -1}
+              aria-label={copyLineLabel(i + 1)}
+              onclick={(e) => copyLine(i, e.currentTarget)}
+              onfocus={() => (active = i)}
+              onkeydown={(e) => moveLine(e, i)}
+              >{#if copiedLine === i}<svg
+                  class="run-line-check"
+                  viewBox="0 0 16 16"
+                  width="11"
+                  height="11"
+                  aria-hidden="true"
+                  focusable="false"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 5" /></svg
+                >{/if}{i + 1}</button
+            >{#if timestamps && line.time}<span class="run-line-time"
+                >{line.time}</span
+              >{/if}<span class="run-line-text"
+              >{#if line.kind === "error"}<span class="run-line-tag">Error</span
+                >{:else if line.kind === "warning"}<span class="run-line-tag"
+                  >Warning</span
+                >{/if}{line.text}</span
+            >
+          </div>
+        {/each}
+      {:else}
+        <p class="run-output-empty">This job wrote no output.</p>
+      {/if}
+    </div>
+    <p
+      class="run-line-toast"
+      class:run-line-toast-on={toastOn}
+      role={wide || !wideOpen ? "status" : undefined}
+      aria-live={wide || !wideOpen ? "polite" : undefined}
+    >
+      {lineStatus}
+    </p>
+  </div>
+{/snippet}
 {#snippet jobLink(label: string)}
   <a
     href={runUrl}
@@ -239,7 +396,7 @@
        out of the tab order. -->
   {#if url}
     <button
-      bind:this={flow.button}
+      bind:this={panelCopy}
       type="button"
       class="run-icon-btn"
       class:run-icon-btn-idle={!(shown && phase === "ready")}
@@ -277,7 +434,8 @@
 </div>
 <div id={panelId} class="run-output" hidden={!shown} bind:this={panel}>
   {#if shown}
-    <p class="run-output-status" aria-live="polite">
+    <!-- While the wide dialog is open its own line is the one that speaks. -->
+    <p class="run-output-status" aria-live={wideOpen ? "off" : "polite"}>
       {statusLine}
     </p>
     {#if phase === "error"}
@@ -293,81 +451,19 @@
         </p>
       {/if}
       <div class="run-log-bar">
-        {#if hasTimes}
-          <label class="run-log-switch">
-            <input type="checkbox" bind:checked={timestamps} />Timestamps
-          </label>
-        {/if}
-        <label class="run-log-switch">
-          <input type="checkbox" bind:checked={wrap} />Wrap lines
-        </label>
-      </div>
-      <!-- The line buttons are focusable, so the scroll region is reachable
-           from the keyboard without a tab stop of its own. -->
-      <div class="run-log">
-        <div
-          class="run-output-text"
-          class:run-output-stamped={timestamps && hasTimes}
-          class:run-output-nowrap={!wrap}
-          bind:this={output}
-          role="region"
-          aria-label="Output: {name}"
+        {@render switches()}
+        <button
+          bind:this={expandButton}
+          type="button"
+          class="run-expand"
+          aria-label="Expand log: {name}"
+          aria-haspopup="dialog"
+          onclick={expand}>Expand</button
         >
-          {#if text}
-            {#each lines as line, i (i)}
-              <div
-                class="run-line run-line-{line.kind}"
-                class:run-line-copied={copiedLine === i}
-              >
-                <button
-                  type="button"
-                  class="run-line-no"
-                  data-line={i}
-                  tabindex={i === stop ? 0 : -1}
-                  aria-label={copyLineLabel(i + 1)}
-                  onclick={(e) => copyLine(i, e.currentTarget)}
-                  onfocus={() => (active = i)}
-                  onkeydown={(e) => moveLine(e, i)}
-                  >{#if copiedLine === i}<svg
-                      class="run-line-check"
-                      viewBox="0 0 16 16"
-                      width="11"
-                      height="11"
-                      aria-hidden="true"
-                      focusable="false"
-                      fill="none"
-                      stroke="currentColor"
-                      stroke-width="2"
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      ><path d="M3 8.5l3.5 3.5L13 5" /></svg
-                    >{/if}{i + 1}</button
-                >{#if timestamps && line.time}<span class="run-line-time"
-                    >{line.time}</span
-                  >{/if}<span class="run-line-text"
-                  >{#if line.kind === "error"}<span class="run-line-tag"
-                      >Error</span
-                    >{:else if line.kind === "warning"}<span
-                      class="run-line-tag">Warning</span
-                    >{/if}{line.text}</span
-                >
-              </div>
-            {/each}
-          {:else}
-            <p class="run-output-empty">This job wrote no output.</p>
-          {/if}
-        </div>
-        <p
-          class="run-line-toast"
-          class:run-line-toast-on={toastOn}
-          role="status"
-          aria-live="polite"
-        >
-          {lineStatus}
-        </p>
       </div>
+      {@render logView(false)}
     {/if}
-    {#if flow.manual}
+    {#if flow.manual && !wideOpen}
       <textarea
         bind:this={flow.field}
         class="pipeline-check-manual"
@@ -378,3 +474,84 @@
     {/if}
   {/if}
 </div>
+<!-- The wide log (#4281). One scroll area, the log; Close and the run link sit
+     under it, out of the scroll. -->
+<dialog
+  bind:this={wideDialog}
+  class="run-wide-dialog"
+  aria-label="Log: {name}"
+  onclose={wideClosed}
+  onmousedown={wideDown}
+  onclick={wideOutside}
+  onkeydown={wideKeys}
+>
+  {#if wideOpen}
+    <div class="run-wide-head">
+      <h2 class="run-wide-title">{name}</h2>
+      <button
+        type="button"
+        class="run-wide-x"
+        aria-label="Close log dialog"
+        onclick={() => wideDialog?.close()}
+        ><svg
+          viewBox="0 0 24 24"
+          width="18"
+          height="18"
+          aria-hidden="true"
+          focusable="false"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
+        ></button
+      >
+    </div>
+    <div class="run-wide-bar">
+      <div class="run-log-bar">{@render switches()}</div>
+      <button
+        bind:this={wideCopy}
+        type="button"
+        class="run-wide-btn"
+        aria-disabled={flow.busy ? "true" : undefined}
+        aria-busy={flow.busy ? "true" : undefined}
+        onclick={copy}>Copy log</button
+      >
+    </div>
+    <p class="run-output-status run-wide-status" aria-live="polite">
+      {statusLine}
+    </p>
+    {#if truncated}
+      <p class="run-output-note run-wide-note">
+        {notePlaces()}
+        {@render jobLink("Open job on " + forgeName + " for the rest")}
+      </p>
+    {/if}
+    {@render logView(true)}
+    {#if flow.manual}
+      <textarea
+        bind:this={flow.field}
+        class="pipeline-check-manual run-wide-manual"
+        readonly
+        rows="6"
+        aria-label="Output to copy: {name}">{flow.manual}</textarea
+      >
+    {/if}
+    <div class="run-wide-foot">
+      <button
+        type="button"
+        class="run-wide-btn"
+        onclick={() => wideDialog?.close()}>Close</button
+      >
+      <a
+        class="run-wide-btn run-wide-primary"
+        href={runUrl}
+        target="_blank"
+        rel="noopener"
+        aria-label={checkLinkLabel(`Open run on ${forgeName}`, name)}
+        >Open run on {forgeName}<ExternalLinkIcon /></a
+      >
+    </div>
+  {/if}
+</dialog>
