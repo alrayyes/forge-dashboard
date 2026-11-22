@@ -229,10 +229,9 @@ test.describe('phone row status gap (#3834)', () => {
         document.body.style.minHeight = '4000px';
         window.scrollTo(0, 40);
       });
-      // Offsets are read from the row's own top: the first action also
-      // reveals the Activity control above the list, which is not the chip's
-      // doing. What the chip must not do is move the card's own content or
-      // the page's scroll position.
+      // Offsets are read from the row's own top, so the check holds even if
+      // something above the card moves. The Activity control no longer does
+      // (#4591), and phone-activity-no-push.spec.ts pins that.
       const marks = () =>
         row.evaluate((r) => {
           const top = r.getBoundingClientRect().top;

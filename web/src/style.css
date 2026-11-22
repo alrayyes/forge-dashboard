@@ -3260,6 +3260,34 @@ a.ci-pill:hover {
   pointer-events: auto;
 }
 
+/* #4591: on a phone the control takes no room of its own. It is a zero-height
+   sticky slot just above the toolbar, and the 44px control hangs from it, its
+   bottom edge on the toolbar's, so the 20px it is taller than the toolbar go
+   up into the gap under the header, not down over the first card. As a block
+   above the list it pushed every card down by its height the first time an
+   action revealed it, under the user's thumb. The slot stays a plain block,
+   not a grid cell, so it keeps pinning for the whole page and the stuck
+   banners keep their own containing block. The toolbar keeps its height and
+   leaves the control's width clear at its end, in px so a larger text size
+   doesn't widen it. The short-landscape layout below has its own. */
+@media (max-width: 760px) and (
+    not ((max-height: 440px) and (orientation: landscape))
+  ) {
+  .activity-bar {
+    /* 8px from the top when stuck, once the control's overhang is taken up. */
+    top: 28px;
+    height: 0;
+    margin: 0;
+  }
+  .activity-bar > .activity-toggle {
+    min-height: var(--tap);
+    margin-top: -20px;
+  }
+  .dashboard-toolbar {
+    padding-inline-end: calc(var(--tap) * 2.5);
+  }
+}
+
 .activity-toggle {
   font-family: inherit;
   font-size: 0.78125rem;
