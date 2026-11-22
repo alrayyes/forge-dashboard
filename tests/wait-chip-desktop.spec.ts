@@ -19,7 +19,7 @@ const BEFORE_TITLE = { 1000: 344, 1280: 204, 1600: 424 } as const;
 // How much wider the title is now at each width: the wide row's repo track is
 // 16px narrower. The narrow list's tracks hold the stacked status cell, so
 // its title does not change.
-const TITLE_GAIN = { 1000: 0, 1280: 0, 1600: 0 } as const;
+const TITLE_GAIN = { 1000: 0, 1280: 16, 1600: 16 } as const;
 const WIDTHS = [1000, 1280, 1600] as const;
 const CHIP_HEIGHT = 36;
 const ROW_GAP = 6;

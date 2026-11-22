@@ -1127,6 +1127,10 @@ section.board {
 @media (min-width: 761px) {
   @container (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
+      /* #4596: the repo track is 168px, 16px narrower than the 184px it was,
+         and the title takes the 16px (204px to 220px at 1280px). A repo name
+         shortens with an ellipsis, as it already does, and has its full name
+         in its hover text. */
       /* #4541: the status track is 27.5rem for a row whose CI pill fits its
          slot, and grows to the slot's pill when it does not (min-content is
          the three slots with the CI one as wide as its pill, since a pill
@@ -1134,7 +1138,7 @@ section.board {
          drawn under the comment pill. Only that row's title gives up the
          difference. */
       grid-template-columns:
-        184px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
+        168px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
           27.5rem,
           min-content
         )
