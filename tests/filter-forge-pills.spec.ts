@@ -66,7 +66,12 @@ test.describe('a forge the server reports gets a pill (#3978)', () => {
     const pills = page.locator(
       '.filter-bar .quick-pills[data-group="forge"] .quick-pill',
     );
-    await expect(pills).toHaveText(['All', 'GitHub', 'Forgejo', 'Gitea']);
+    await expect(pills).toHaveText([
+      /^All \d+$/,
+      /^GitHub \d+$/,
+      /^Forgejo \d+$/,
+      /^Gitea \d+$/,
+    ]);
 
     await quickPill(page, 'Gitea', 'forge').click();
     await expect(quickPill(page, 'Gitea', 'forge')).toHaveAttribute(

@@ -2,10 +2,11 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 
-// The overview's pressed pill draws a tick so the pick never rests on colour
-// alone. A CI filter pill carries its pick in the glyph and the ring instead,
-// so the tick rule leaves it out by its own selector, not by a second rule that
-// cancels it (#4300).
+// The overview's pressed pill once drew a tick so the pick never rested on
+// colour alone; a CI filter pill carried its pick in the glyph and the ring, so
+// the tick rule left it out by its own selector (#4300). The shared filter pill
+// replaced both: no pressed pill draws a tick now (#4611), and a stylesheet rule
+// that brings one back has to say why here.
 
 const css = readFileSync(new URL('../style.css', import.meta.url), 'utf8');
 
@@ -278,24 +279,10 @@ describe('The pressed pill tick', () => {
     expect(tickSelectors(`${selector} { x: y; }`)).toEqual([selector]);
   });
 
-  test('is drawn only on the quick pill', () => {
-    const others = tickSelectors(css).filter((s) => !s.includes('.quick-pill'));
-    expect(others).toEqual([]);
-  });
-
-  test('is scoped away from the CI filter pill by its own selector', () => {
-    const ticks = tickSelectors(css).filter((s) => s.includes('.quick-pill'));
-    expect(ticks.length).toBeGreaterThan(0);
-    for (const selector of ticks) {
-      expect(selector).toContain(':not(.ci-filter-pill)');
-    }
-  });
-
-  test('leaves no rule that cancels the tick on a CI filter pill', () => {
-    const cancels = tickSelectors(css).filter(
-      (s) =>
-        s.includes('.ci-filter-pill') && !s.includes(':not(.ci-filter-pill)'),
-    );
-    expect(cancels).toEqual([]);
+  // The pull request pills left their check mark for the shared pill's fill,
+  // which is the one pressed mark every page now draws (#4611); a CI pill's
+  // glyph and ring carry its own.
+  test('is drawn on no pill: the fill and the forced-colours border mark a press', () => {
+    expect(tickSelectors(css)).toEqual([]);
   });
 });

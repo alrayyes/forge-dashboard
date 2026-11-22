@@ -37,7 +37,7 @@ function forgeRadio(page: Page, value: string) {
   const name = { '': 'All', github: 'GitHub', forgejo: 'Forgejo' }[value];
   return page
     .locator('.quick-pills[data-group="forge"]')
-    .getByRole('button', { name, exact: true });
+    .getByRole('button', { name: new RegExp(`^${name}( \\d+)?$`) });
 }
 
 async function selectForge(page: Page, value: string) {
@@ -3191,20 +3191,21 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
   }) => {
     const groups = page.locator('.filter-bar .quick-pills');
     // A pill is offered only when clicking it would show something (#1427);
-    // none of these pull requests asks the signed-in user for a review.
+    // none of these pull requests asks the signed-in user for a review. Each
+    // pill's count follows its word (#4611).
     await expect(groups.getByRole('button')).toHaveText([
-      'All',
-      'GitHub',
-      'Forgejo',
-      'All',
-      'Failing',
-      'Running',
-      'Passing',
-      'All',
-      'Conflicting',
-      'All',
-      'Ready',
-      'Needs review',
+      /^All \d+$/,
+      /^GitHub \d+$/,
+      /^Forgejo \d+$/,
+      /^All \d+$/,
+      /^Failing \d+$/,
+      /^Running \d+$/,
+      /^Passing \d+$/,
+      /^All \d+$/,
+      /^Conflicting \d+$/,
+      /^All \d+$/,
+      /^Ready \d+$/,
+      /^Needs review \d+$/,
     ]);
     // Each group is a labelled group (#3734) with exactly its All active.
     for (const name of ['Forge', 'CI', 'Merge', 'Review'])

@@ -319,7 +319,8 @@ issue page, the closing-pull-request choice), so an author with nothing in the
 list on screen isn't offered and picking a choice never leaves an empty list.
 The quick pills do too: a pill is offered only when clicking it would show
 something and not when it matches the whole pool, and the one that is active
-stays so it can be cleared.
+stays so it can be cleared. The count on each pill is worked out from the same
+pool, so it moves with every filter that changes what the pill would show.
 
 ## The Label filter
 
@@ -479,7 +480,8 @@ Show drafts. Each active filter also shows as a chip you
 can tap to remove without opening anything.
 
 **Filters** opens a bottom sheet with the rest of the controls: the pill
-groups, Show drafts, sort, group, repo, author, label, created, and updated.
+groups, Show drafts, sort, group, repo, author, label, created, and updated,
+with the repo, author and label dropdowns each named above it.
 Filters apply as you change them, and the sheet's **Show N results** button,
 which closes it, says what you would see, so a refresh can't change something
 you are editing. A screen reader announces the count as it changes.

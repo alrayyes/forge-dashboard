@@ -6,9 +6,10 @@
   import FilterPill from "./FilterPill.svelte";
 
   // The one pill every filter group draws (#4279): a labelled group of
-  // `aria-pressed` buttons, each 32px high with a count, the CI states wearing
-  // their glyph. The 44px phone hit area needs a real viewport, so the e2e
-  // spec checks it; the phone story is its screenshot.
+  // `aria-pressed` buttons, 32px high with a count, the CI states wearing
+  // their glyph. The Main branches and pull request pages and its phone
+  // Filters sheet draw these. The 44px phone hit area needs a real viewport,
+  // so the e2e spec checks it; the phone story is its screenshot.
   const { Story } = defineMeta({
     title: "FilterPill",
     component: FilterPill,

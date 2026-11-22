@@ -90,7 +90,7 @@ test.describe('the Review requested from me pill (#695)', () => {
 
     await page
       .locator('.filter-bar .quick-pills[data-group="review"]')
-      .getByRole('button', { name: 'All', exact: true })
+      .getByRole('button', { name: /^All( \d+)?$/ })
       .click();
     await expect(titles(page)).toHaveCount(PRS.length);
     await expect(pill(page)).toHaveAttribute('aria-pressed', 'false');

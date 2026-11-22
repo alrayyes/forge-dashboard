@@ -279,13 +279,15 @@ const EXPECTED: Record<
     header: 82,
     toolbar: 24,
     // One row shorter since the page offers no Show drafts when no draft
-    // exists (#3680): the mock holds none.
-    filterBar: 96,
+    // exists (#3680): the mock holds none. A row taller again, since the
+    // pills are 32px, carry a count and wrap sooner (#4611).
+    filterBar: 138,
   },
   '1280x800': {
     activityPosition: 'sticky',
     header: 82,
     toolbar: 24,
-    filterBar: 96,
+    // Two pixels taller: the pills are 32px high (#4611).
+    filterBar: 98,
   },
 };

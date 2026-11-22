@@ -127,7 +127,7 @@ const CASES = [
   {
     name: 'quick pills',
     path: '/pull-requests.html',
-    pill: '.quick-pill',
+    pill: '.filter-pill',
     seed: seedPulls,
   },
   {

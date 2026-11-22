@@ -107,7 +107,7 @@ async function open(
 const visible = (page: Page, label: string) =>
   page
     .locator('.quick-pills[data-group="ci"], .sheet-pills[data-group="ci"]')
-    .getByRole('button', { name: label, exact: true })
+    .getByRole('button', { name: new RegExp(`^${label}( \\d+)?$`) })
     .and(page.locator(':visible'));
 
 test('each CI filter pill shows its glyph before the word, and All does not', async ({
@@ -135,13 +135,15 @@ test('each CI filter pill shows its glyph before the word, and All does not', as
   ).toHaveCount(0);
 });
 
-test('the pill is still named by its word alone', async ({ page }) => {
+test('the pill is named by its word and its count, not its glyph', async ({
+  page,
+}) => {
   await open(page);
   for (const { label } of STATES) {
     await expect(
       page
         .locator('.filter-bar .quick-pills[data-group="ci"]')
-        .getByRole('button', { name: label, exact: true }),
+        .getByRole('button', { name: new RegExp(`^${label}( \\d+)?$`) }),
     ).toBeVisible();
   }
 });
@@ -238,22 +240,22 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
-test('All keeps the accent fill and its tickless look when pressed', async ({
+test("All keeps the shared pill's accent fill and its tickless look when pressed", async ({
   page,
 }) => {
   await open(page);
   await visible(page, 'Failing').click();
   await page
     .locator('.filter-bar .quick-pills[data-group="ci"]')
-    .getByRole('button', { name: 'All', exact: true })
+    .getByRole('button', { name: /^All( \d+)?$/ })
     .click();
   const all = page
     .locator('.filter-bar .quick-pills[data-group="ci"]')
-    .getByRole('button', { name: 'All', exact: true });
+    .getByRole('button', { name: /^All( \d+)?$/ });
   await expect(all).toHaveAttribute('aria-pressed', 'true');
   const accent = await page.evaluate(() => {
     const probe = document.createElement('i');
-    probe.style.color = 'var(--accent)';
+    probe.style.color = 'var(--pill-active)';
     document.body.append(probe);
     const c = getComputedStyle(probe).color;
     probe.remove();
@@ -345,7 +347,15 @@ async function expectAxeClean(page: Page) {
     const el = document.documentElement;
     const heights = [...document.querySelectorAll('.ci-filter-pill')]
       .filter((p) => (p as HTMLElement).offsetParent !== null)
-      .map((p) => p.getBoundingClientRect().height);
+      // The drawn pill is 32px; its ::after reaches 7px past each edge, so
+      // the target is the drawn height and both reaches (#4611).
+      .map((p) => {
+        const reach = Math.abs(
+          Number.parseFloat(getComputedStyle(p, '::after').top),
+        );
+
+        return p.getBoundingClientRect().height + 2 * reach;
+      });
 
     return { scrolls: el.scrollWidth > el.clientWidth, heights };
   });
@@ -379,7 +389,7 @@ test('a state with no pull request is not offered, and its glyph is not either',
   await page.goto('/pull-requests.html');
   const group = page.locator('.filter-bar .quick-pills[data-group="ci"]');
   await expect(
-    group.getByRole('button', { name: 'Failing', exact: true }),
+    group.getByRole('button', { name: /^Failing( \d+)?$/ }),
   ).toBeVisible();
   await expect(group.locator('[data-pill="no-checks"]')).toBeHidden();
   await expect(group.locator('svg[data-glyph="slash"]')).toBeHidden();
@@ -443,7 +453,7 @@ test('the Cancelled pill combines with a pill of another group', async ({
   await visible(page, 'Cancelled').click();
   await page
     .locator('.quick-pills[data-group="merge"]')
-    .getByRole('button', { name: 'Conflicting', exact: true })
+    .getByRole('button', { name: /^Conflicting( \d+)?$/ })
     .and(page.locator(':visible'))
     .click();
   await expect(page.locator('#pr-rows > .row')).toHaveCount(1);

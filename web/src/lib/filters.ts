@@ -1821,21 +1821,36 @@ export function offerForges(
 // The groups combine (#3734), so each counts the items the other groups leave:
 // `pools` has one list per group, built with that group's own pick left out
 // since choosing a pill replaces it. The forge pool also leaves out the repo,
-// author, label and age picks, which choosing a forge clears. The bar and the
+// author, label and age picks, which choosing a forge clears. `counts` is the
+// pool each pill counts, which defaults to `pools`: the forge pills are offered
+// over that wider scope but count what the list would show, as every group does.
+// The bar and the
 // Filters sheet each hold a copy of every group; `active` is each group's pick.
 export function offerPills(
   pills: Iterable<HTMLElement>,
   pools: Record<PillGroup, FilterableItem[]>,
   active: Record<PillGroup, string>,
+  counts: Record<PillGroup, FilterableItem[]> = pools,
 ): void {
   const groups = new Map<HTMLElement, boolean>();
   for (const button of pills) {
     const pill = button.dataset.pill ?? '';
-    const parent = button.parentElement;
+    // The group is the labelled element that holds the pills, so hiding it
+    // takes its label too.
+    const parent = (button.closest?.('[data-group]') ??
+      button.parentElement) as HTMLElement | null;
     if (parent && !groups.has(parent)) groups.set(parent, false);
-    if (!pill || pill === 'all') continue;
+    if (!pill) continue;
+    const pool =
+      pools[pill === 'all' ? groupOfPill(button) : pillGroupOf(pill)];
+    const count = button.querySelector?.('.filter-pill-count');
+    if (count) {
+      const countPool =
+        counts[pill === 'all' ? groupOfPill(button) : pillGroupOf(pill)];
+      count.textContent = String(pillCount(countPool, pill));
+    }
+    if (pill === 'all') continue;
     const group = pillGroupOf(pill);
-    const pool = pools[group];
     const matches = (item: FilterableItem) =>
       group === 'forge' ? item.forge === pill : matchesQuickFilter(item, pill);
     button.hidden = !(
@@ -1845,6 +1860,22 @@ export function offerPills(
     if (parent && !button.hidden) groups.set(parent, true);
   }
   for (const [parent, anyOffered] of groups) parent.hidden = !anyOffered;
+}
+
+// The group an All pill sits in, read from the group element around it.
+function groupOfPill(button: HTMLElement): PillGroup {
+  return (button.closest?.('[data-group]')?.getAttribute('data-group') ??
+    'forge') as PillGroup;
+}
+
+// The number on a pill: what choosing it would list out of the pool its group
+// counts. All is the whole pool.
+export function pillCount(pool: FilterableItem[], pill: string): number {
+  if (pill === 'all') return pool.length;
+  const group = pillGroupOf(pill);
+  return pool.filter((item) =>
+    group === 'forge' ? item.forge === pill : matchesQuickFilter(item, pill),
+  ).length;
 }
 
 // Which page's refs pick counts: a pull request's `refs` or an issue's

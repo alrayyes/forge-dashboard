@@ -81,8 +81,9 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { labelChipColor, labelTextColor } from "#lib/label-color.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
-  import CiFilterPill from "#lib/CiFilterPill.svelte";
-  import type { CiFilterStatus } from "#lib/ci-filter-glyph.js";
+  import FilterGroup from "#lib/FilterGroup.svelte";
+  import FilterPill from "#lib/FilterPill.svelte";
+  import type { CiFilterStatus } from "#lib/FilterPill.svelte";
   import LiveControl from "#lib/LiveControl.svelte";
   import {
     checkFeed,
@@ -8536,6 +8537,12 @@
           review: sharedPoolExcluding("", "apply", "review"),
         },
         pillPicks(),
+        {
+          forge: sharedPoolExcluding("forge", "apply", "forge"),
+          ci: sharedPoolExcluding("", "apply", "ci"),
+          merge: sharedPoolExcluding("", "apply", "merge"),
+          review: sharedPoolExcluding("", "apply", "review"),
+        },
       );
       keepFocusInBar(focused);
       syncFilterBar();
@@ -11177,59 +11184,56 @@
 {#snippet pillGroups(sheet: boolean)}
   {#each Filters.PILL_GROUP_NAMES as group (group)}
     {#if group === "forge" || pullsView}
-      <div
+      <FilterGroup
         class={sheet ? "sheet-pills sheet-only" : "quick-pills"}
-        role="group"
-        aria-labelledby="pill-label-{sheet ? 'sheet' : 'bar'}-{group}"
+        label={Filters.PILL_GROUP_LABELS[group]}
+        id="pill-{sheet ? 'sheet' : 'bar'}-{group}"
         data-group={group}
         hidden
       >
-        <span
-          class="pill-group-label"
-          id="pill-label-{sheet ? 'sheet' : 'bar'}-{group}"
-          >{Filters.PILL_GROUP_LABELS[group]}</span
-        >
-        <button
-          type="button"
+        <FilterPill
           class="quick-pill"
           data-pill="all"
-          aria-pressed="true"
-          onclick={(e) => pillClick(e.currentTarget)}>All</button
+          pressed={true}
+          count={0}
+          onclick={(e) => pillClick(e.currentTarget)}>All</FilterPill
         >
         {#if group === "forge"}
           {#each forgePills as pill (pill.id)}
-            <button
-              type="button"
+            <FilterPill
               class="quick-pill"
               data-pill={pill.id}
-              aria-pressed="false"
-              onclick={(e) => pillClick(e.currentTarget)}>{pill.label}</button
+              pressed={false}
+              count={0}
+              onclick={(e) => pillClick(e.currentTarget)}
+              >{pill.label}</FilterPill
             >
           {/each}
         {:else if group === "ci"}
           {#each Filters.PILL_GROUPS.ci as pill (pill)}
-            <CiFilterPill
+            <FilterPill
               status={CI_PILL_STATUS[pill]}
               class="quick-pill"
               data-pill={pill}
-              aria-pressed="false"
+              pressed={false}
+              count={0}
               onclick={(e) => pillClick(e.currentTarget)}
-              >{Filters.pillLabel(pill)}</CiFilterPill
+              >{Filters.pillLabel(pill)}</FilterPill
             >
           {/each}
         {:else}
           {#each Filters.PILL_GROUPS[group] as pill (pill)}
-            <button
-              type="button"
+            <FilterPill
               class="quick-pill"
               data-pill={pill}
-              aria-pressed="false"
+              pressed={false}
+              count={0}
               onclick={(e) => pillClick(e.currentTarget)}
-              >{Filters.pillLabel(pill)}</button
+              >{Filters.pillLabel(pill)}</FilterPill
             >
           {/each}
         {/if}
-      </div>
+      </FilterGroup>
     {/if}
   {/each}
 {/snippet}
@@ -11489,9 +11493,22 @@
       <span class="list-controls-note" id="list-controls-note" hidden
         >Sorting and grouping need two or more rows.</span
       >
-      <div id="shared-repo-filter"></div>
-      <div id="shared-author-filter"></div>
-      <div id="shared-label-filter"></div>
+      <!-- The sheet names each dropdown above it (#4611); in the bar the
+           button's own text does, so the wrapper and its label are not drawn
+           there. The label is hidden from assistive technology because the
+           button's own name ("Filter by repo: ...") already says it. -->
+      <div class="sheet-field">
+        <span class="sheet-field-label" aria-hidden="true">Repository</span>
+        <div id="shared-repo-filter"></div>
+      </div>
+      <div class="sheet-field">
+        <span class="sheet-field-label" aria-hidden="true">Author</span>
+        <div id="shared-author-filter"></div>
+      </div>
+      <div class="sheet-field">
+        <span class="sheet-field-label" aria-hidden="true">Label</span>
+        <div id="shared-label-filter"></div>
+      </div>
       <select
         class="col-filter"
         id="created-filter"

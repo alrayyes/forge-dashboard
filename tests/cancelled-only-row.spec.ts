@@ -129,7 +129,7 @@ test.describe('a cancelled-only pull request (3301)', () => {
 
     await page
       .locator('.filter-bar .quick-pills')
-      .getByRole('button', { name: 'Failing', exact: true })
+      .getByRole('button', { name: /^Failing( \d+)?$/ })
       .click();
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     await expect(row(page, 'Really failed')).toBeVisible();

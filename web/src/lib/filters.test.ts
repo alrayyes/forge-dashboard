@@ -25,6 +25,7 @@ import {
   offerRefs,
   optionPool,
   PILL_GROUPS,
+  pillCount,
   pillGroupOf,
   pillLabel,
   QUICK_FILTERS,
@@ -421,6 +422,38 @@ const actives = (pick: string) => ({
 // A pill that matches the whole pool shows what no filter shows, so it is
 // hidden unless active, and a pill group with only "All" left is hidden
 // (#3669).
+// The number on a pill can come from a narrower pool than the one that
+// decides whether the pill is offered (#4611): the forge pills are offered over
+// a scope that ignores the author pick, but count what the list would show.
+describe('offerPills counts', () => {
+  const gh = choiceItem({ forge: 'github', ci: 'success' });
+  const fj = choiceItem({ forge: 'forgejo', ci: 'success' });
+  function pillWithCount(pill: string) {
+    const count = { textContent: '' };
+    const button = {
+      dataset: { pill },
+      hidden: false,
+      parentElement: { hidden: false, dataset: {} },
+      querySelector: () => count,
+    };
+    return { button: button as unknown as HTMLElement, count };
+  }
+
+  test('writes the count from the counts pool while the offer reads the pool', () => {
+    const all = pillWithCount('all');
+    const github = pillWithCount('github');
+    offerPills(
+      [all.button, github.button],
+      pools([gh, fj, gh], []),
+      actives('all'),
+      pools([gh], []),
+    );
+    expect(all.count.textContent).toBe('1');
+    expect(github.count.textContent).toBe('1');
+    expect(github.button.hidden).toBe(false);
+  });
+});
+
 describe('offerPills when a pill would change nothing', () => {
   function fakePills(names: string[]) {
     const group = {
@@ -981,5 +1014,27 @@ describe('the Forge filter follows the repos in scope (#4273)', () => {
 
   test('an empty scope clears nothing, since nothing has loaded to judge by', () => {
     expect(staleForgePick([], 'github', 'github:a/app')).toBe(false);
+  });
+});
+
+// The number on a pill is what choosing it would list, from the pool the group
+// counts (#4611).
+describe('pillCount', () => {
+  const pool = [
+    choiceItem({ forge: 'github', ci: 'success' }),
+    choiceItem({ forge: 'github', ci: 'failure' }),
+    choiceItem({ forge: 'forgejo', ci: 'success' }),
+  ];
+  test('All counts the whole pool', () => {
+    expect(pillCount(pool, 'all')).toBe(3);
+  });
+  test('a forge pill counts the items on that forge', () => {
+    expect(pillCount(pool, 'github')).toBe(2);
+    expect(pillCount(pool, 'forgejo')).toBe(1);
+  });
+  test('a quick pill counts the items it matches', () => {
+    expect(pillCount(pool, 'passing')).toBe(2);
+    expect(pillCount(pool, 'failing')).toBe(1);
+    expect(pillCount(pool, 'running')).toBe(0);
   });
 });

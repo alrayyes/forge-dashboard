@@ -33,5 +33,10 @@ export function quickPill(
   name: string,
   group: PillGroup | undefined = GROUP_OF[name],
 ): Locator {
-  return groupBar(page, group).getByRole('button', { name, exact: true });
+  // A pill's name is its word and its count ("Passing 3", #4611).
+  return groupBar(page, group).getByRole('button', {
+    name: new RegExp(
+      `^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( \\d+)?$`,
+    ),
+  });
 }
