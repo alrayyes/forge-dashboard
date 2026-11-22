@@ -75,6 +75,10 @@ type Credentials struct {
 	// are set and the server has an App configured — see
 	// cmd/forge-dashboard's buildSources.
 	GitHubAppInstallationID int64
+	// Instances holds the own-instance address and token of self-hosted forges
+	// other than Forgejo, keyed by forge name. Read it through InstanceFor.
+	// Nothing saves it yet: a forge that needs it adds its own storage (#4574).
+	Instances map[string]Instance
 }
 
 // renovateRebaseLabelDefault is Renovate's own documented default for its

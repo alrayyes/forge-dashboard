@@ -37,15 +37,16 @@ func imageProxyForCapabilities(deps Deps, forge string, caps dashboard.ForgeCapa
 
 		return imageproxy.New(imageproxy.Config{Hosts: hosts, Scheme: "https"}), nil
 	}
-	u, err := url.Parse(creds.ForgejoURL)
-	if err != nil || creds.ForgejoURL == "" || u.Host == "" {
+	inst, _ := creds.InstanceFor(forge)
+	u, err := url.Parse(inst.URL)
+	if err != nil || inst.URL == "" || u.Host == "" {
 		return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
 	}
 
 	return imageproxy.New(imageproxy.Config{
 		Hosts:      []string{u.Host},
 		Scheme:     u.Scheme,
-		Token:      creds.ForgejoToken,
+		Token:      inst.Token,
 		TokenHost:  u.Host,
 		AllowLocal: true,
 	}), nil
