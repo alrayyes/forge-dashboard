@@ -71,14 +71,19 @@ the main control on the row. The "No pipeline" note is plain, not a button,
 since there is no pipeline to open. The page orders the rows, latest commit
 first, whatever order the server sends them in.
 
-The pills (All, Failing, Passing, Running, Cancelled, Waiting for approval,
-Unknown, No pipeline) keep their filter names, like the quick pills on the
-pull request board, and carry a count the page works out from the rows it lists.
+The filter groups (Status, Forge and Advisories) are drawn with the shared
+filter pill: 32 pixels high, outlined, the accent fill when pressed, a visible
+group label and a count in every pill. On a phone the drawn pill stays 32 pixels
+and the 12 pixels around it count toward the tap, 44 in all. In forced-colours
+mode a pressed pill gets a thick border. The status pills (All, Failing,
+Passing, Running, Cancelled, Waiting for approval, Unknown, No pipeline) keep
+their filter names, like the quick pills on the pull request board, and carry a
+count the page works out from the rows it lists.
 The Branches item in the navigation draws the same counts, the unknown ones with
 the question-mark glyph and an "unknown" in its spoken name. A pill, and
-each forge in the toggle, is offered only when a row would show under it, given
+each forge in its group, is offered only when a row would show under it, given
 the search and the other pill, so none leads to an empty list; the one that is
-active always stays, so it can be cleared. A forge toggle and a search box
+active always stays, so it can be cleared. The forge group and a search box
 narrow the list further; search matches the repo, branch, commit, author, and
 failing job names. Once the box holds text, a **Clear search** button appears
 inside it, and Escape with focus in the box does the same: both empty the
@@ -87,9 +92,9 @@ On a phone the button is a 44px target. The filter is saved with the other
 pages' filters, in the shared filter cookie and in the copy on the server, so it
 is still set after a reload and in another browser.
 
-An advisories group (Any, Has advisories, No advisories) sits beside the forge
-toggle once some row has an answer, and follows the same rule: a choice is
-offered only when a row would show under it. **Has** keeps rows with at least
+An advisories group (Any, Has advisories, No advisories) has its own row under
+the forge group once some row has an answer, and follows the same rule: a choice
+is offered only when a row would show under it. **Has** keeps rows with at least
 one open advisory and **No** keeps rows known to have none. A row whose answer
 is unknown, or that no source reads, is under neither, because unknown is never
 zero. The group says how many rows are left out for that reason, so a missing
