@@ -36,7 +36,6 @@ export const DEFAULT_GROUP: SettingsGroupId = 'display';
 // Card and field ids that existing links use, and the group each lives in.
 const ANCHOR_GROUPS: Record<string, SettingsGroupId> = {
   'issue-settings': 'behaviour',
-  'forgejo-auto-merge': 'behaviour',
   webhooks: 'integrations',
   passkeys: 'integrations',
   'api-tokens': 'integrations',
@@ -59,7 +58,10 @@ export function groupFromHash(hash: string): {
   }
   const direct = SETTINGS_GROUPS.find((g) => g.id === id);
   if (direct) return { group: direct.id };
-  const group = ANCHOR_GROUPS[id];
+  // One auto-merge card per forge that holds the merge: `<forge>-auto-merge`.
+  const group = /^[\w-]+-auto-merge$/.test(id)
+    ? 'behaviour'
+    : ANCHOR_GROUPS[id];
   if (group) return { group, anchor: id };
   return { group: DEFAULT_GROUP };
 }

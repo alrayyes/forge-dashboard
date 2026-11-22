@@ -3610,7 +3610,7 @@
       if (!appHoldsAutoMerge(forgeName)) return null;
       const note = el("p", "group-callout", autoMergeGroupNote(forgeName));
       const link = el("a", "", "Settings") as HTMLAnchorElement;
-      link.href = "/settings.html#forgejo-auto-merge";
+      link.href = `/settings.html#${forgeName}-auto-merge`;
       note.appendChild(link);
       note.appendChild(document.createTextNode("."));
       return note;

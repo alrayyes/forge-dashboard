@@ -86,7 +86,8 @@ export function connectionsCaption(): string {
 // The Settings page's meta description.
 export function settingsDescription(): string {
   const forges = forgeNameList(Object.values(FORGE_LABELS));
-  return `Your appearance, ${forges} connections, pull request behavior, webhooks, passkeys and API tokens.`;
+  const connections = forges ? `${forges} connections` : 'connections';
+  return `Your appearance, ${connections}, pull request behavior, webhooks, passkeys and API tokens.`;
 }
 
 // The Settings card for a forge whose auto-merge this app holds and performs.

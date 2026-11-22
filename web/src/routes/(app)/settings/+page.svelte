@@ -1010,6 +1010,13 @@
     }
   }
 
+  // The forge registry is plain module state, so read it through the first
+  // dashboard read, which registers capabilities before it sets the data.
+  const metaDescription = $derived.by(() => {
+    void dashboardRead.data;
+    return settingsDescription();
+  });
+
   onMount(() => {
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
@@ -1115,7 +1122,7 @@
 
 <svelte:head>
   <title>Settings — Forge Board</title>
-  <meta name="description" content={settingsDescription()} />
+  <meta name="description" content={metaDescription} />
   <style>
     .settings-wrap {
       max-width: 720px;
@@ -2300,7 +2307,8 @@
         id="group-behaviour-more"
         hidden={group !== "behaviour"}
       >
-        {#each forgesWhere("autoMergeHeldByApp") as forge (forge)}
+        <!-- Capabilities arrive with the first read, after first paint. -->
+        {#each (dashboardRead.data, forgesWhere("autoMergeHeldByApp")) as forge (forge)}
           {@const copy = appHeldAutoMergeCopy(forge)}
           <div class="card" id="{forge}-auto-merge">
             <h2>{copy.heading}</h2>
