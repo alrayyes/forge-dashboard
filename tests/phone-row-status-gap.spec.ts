@@ -353,11 +353,12 @@ test.describe('phone row, wait chip to divider (#4099)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const row = await open(page, pr({ ...BEHIND, ...WAITING, ci: 'pending' }));
     await expect(row.locator('.wait-chip')).toBeVisible();
+    // No bar, so no divider under the chip.
+    await expect(row.locator('.row-action-bar')).toHaveCount(0);
     const m = await row.evaluate((r) => {
       const chip = r.querySelector('.wait-chip')!.getBoundingClientRect();
       const cell = r.querySelector('.status-cell')!.getBoundingClientRect();
-      const bar = r.querySelector('.row-action-bar')?.getBoundingClientRect();
-      return { below: (bar ? bar.top : cell.bottom) - chip.bottom };
+      return { below: cell.bottom - chip.bottom };
     });
     expect(m.below, JSON.stringify(m)).toBeLessThanOrEqual(MAX_CHIP_TO_DIVIDER);
   });

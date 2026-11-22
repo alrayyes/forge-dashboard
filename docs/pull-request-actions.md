@@ -725,7 +725,7 @@ Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
 On a phone card the room the chip reserves is accounted for, not left as a gap.
 With a chip showing, the chip fills its slot and the divider sits 10px
-under it, so nothing but the bar's own padding separates them. With no chip the
+under it (the flex gap and the bar's top margin). With no chip the
 empty slot is not drawn and the same room is padding below the action, so the
 divider sits within 16px of the pill line and the card is no taller when a chip
 arrives. The cost of keeping that guarantee is blank room under the
