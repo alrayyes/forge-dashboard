@@ -26,6 +26,7 @@ const singleUserSpecs = [
   '**/status-pill-glyphs.spec.ts',
   '**/filter-pill-shared.spec.ts',
   '**/main-branches-clear-filters.spec.ts',
+  '**/main-branches-empty-400.spec.ts',
   '**/pr-filter-pill.spec.ts',
   '**/overview-ci-filter-glyphs.spec.ts',
   '**/result-count.spec.ts',

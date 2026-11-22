@@ -117,7 +117,10 @@ offers no write at all: there is no Re-run, because the only re-run endpoint
 works on a pull request's checks, not on a default-branch run, so the pipeline
 panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
-points at **Clear filters**. A repo with no pipeline says no run was found.
+points at **Clear filters**. Both empty states (no repository tracked, no match
+for the filters) wrap their words at any text size, so at 400% text on a phone
+they stay inside the screen and the page doesn't scroll sideways. A repo with no
+pipeline says no run was found.
 
 ## Advisories dialog
 

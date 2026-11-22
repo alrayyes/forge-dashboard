@@ -895,6 +895,9 @@
     }
     .mb-empty p {
       margin: 0 0 12px;
+      /* At 400% text one word is wider than a phone; break it rather than
+         let the block scroll sideways (#4638). */
+      overflow-wrap: anywhere;
     }
     /* The CI slot (#1563) sits top right; its look comes from style.css. */
     .mb-row .ci-slot {
