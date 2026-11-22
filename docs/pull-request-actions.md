@@ -702,7 +702,9 @@ opens a panel of in-flight and recent actions per pull request, with "Show row"
 and "Clear finished", so a dismissed toast isn't lost. The control is hidden
 while there is nothing to list (no recent, in-flight or queued action). On a
 phone it stays pinned 8px from the top and is held in the toolbar's line at the
-right, so showing it for the first time doesn't move the list. Clearing the last
+right, so showing it for the first time doesn't move the list. Its offsets follow
+from the control's tap size and the toolbar's padding, so changing either keeps
+that true. Clearing the last
 entry closes the panel and moves focus to Refresh. A reload keeps the finished
 entries for as long as the tab stays open, up to 40, until you use "Clear
 finished" (they live in the tab's `sessionStorage`; with storage blocked the

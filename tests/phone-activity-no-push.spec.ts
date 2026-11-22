@@ -370,6 +370,55 @@ test.describe('the Activity control appearing (#4591)', () => {
     expect(m.toggleOut).toBe(false);
   });
 
+  // #4619: the control's sticky offset and overlap are derived from --tap and
+  // the toolbar's padding, so changing either leaves the control hanging from
+  // the toolbar's bottom edge, 8px from the top when stuck.
+  for (const [name, css] of [
+    ['a taller --tap', ':root { --tap: 56px; }'],
+    [
+      'a shallower toolbar bottom padding',
+      ':root { --toolbar-pad-bottom: 12px; }',
+    ],
+  ]) {
+    test(`320px, ${name}: the control still hangs from the toolbar's bottom edge and pins 8px from the top`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: 320, height: 844 });
+      const row = await open(page);
+      await page.addStyleTag({ content: css });
+      const before = await top(row);
+      await row.getByRole('button', { name: 'Update branch' }).click();
+      await expect(page.locator('#activity-toggle')).toBeVisible();
+      expect(await top(row)).toBe(before);
+      const rest = await page.evaluate(() => {
+        const t = document
+          .getElementById('activity-toggle')!
+          .getBoundingClientRect();
+        const bar = document
+          .querySelector('.dashboard-toolbar')!
+          .getBoundingClientRect();
+        return Math.round((bar.bottom - t.bottom) * 10) / 10;
+      });
+      expect(rest).toBe(0);
+      await page.evaluate(() => {
+        document.querySelector('.activity-bar')!
+          .parentElement!.style.minHeight = '4000px';
+        window.scrollTo(0, 600);
+      });
+      await expect
+        .poll(() =>
+          page.evaluate(() =>
+            Math.round(
+              document
+                .getElementById('activity-toggle')!
+                .getBoundingClientRect().top,
+            ),
+          ),
+        )
+        .toBe(8);
+    });
+  }
+
   // #4619: phone width but landscape (a tall enough viewport that the short
   // landscape layout does not apply), and forced colors, which repaints the
   // control and drops its shadow.
