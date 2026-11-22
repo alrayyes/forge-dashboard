@@ -103,11 +103,13 @@ export async function fillExcerpts(
       // the others are still asked for theirs.
       const url = check.jobId ? excerptUrl(repo, check.jobId) : null;
       if (!url) continue;
+      // Check `stopped` before spending: after the hand-off the budget is the
+      // dialog's, and a read taken here would never be made.
+      if (stopped()) return;
       if (round > 0) {
         if (reads.left <= 0) return;
         reads.left--;
       }
-      if (stopped()) return;
       try {
         const res = await fetchImpl(url, {
           headers: { Accept: 'application/json' },

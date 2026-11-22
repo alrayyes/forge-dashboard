@@ -234,7 +234,8 @@ describe('warmChecks handoff of reads still out', () => {
     const taken = warm.handoff();
     finish();
     await flush();
-    // Both reads were out at the handoff; their answers are dropped.
+    // Reads run one at a time: one was out at the handoff, the other queued
+    // behind it. The answer is dropped and the queued read is never sent.
     expect(taken.excerpts).toEqual({});
     expect(taken.reads.left).toBe(3);
     const again = pickExcerptJobs([failed(1), failed(2)], taken.reads);
