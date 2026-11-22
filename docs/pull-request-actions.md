@@ -723,6 +723,15 @@ and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
 merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
 Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
+On a phone card the room the chip reserves is accounted for, not left as a gap.
+With a chip showing, the chip fills its slot and the divider sits 10px
+under it (the flex gap and the bar's top margin). With no chip the
+empty slot is not drawn and the same room is padding below the action, so the
+divider sits within 16px of the pill line and the card is no taller when a chip
+arrives. The cost of keeping that guarantee is blank room under the
+action on a card that will never get a chip. `tests/phone-row-status-gap.spec.ts`
+measures both.
+
 The server's auto-merge sentences never name a forge. Where one would, it says
 "the forge" and the page swaps in the forge's capability label (GitHub,
 Forgejo), in the chip's tooltip and in the stopped line. The server sends the

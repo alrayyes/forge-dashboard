@@ -303,3 +303,63 @@ test.describe('phone row status gap (#3834)', () => {
     }
   }
 });
+
+// #4099 criterion 2: with a chip showing, the chip is the slot's content, so
+// nothing is left between it and the divider but the status cell's 6px gap and
+// the bar's 4px top margin (10px).
+const QUEUED = {
+  ...BEHIND,
+  queued: {
+    id: 'q1',
+    action: 'update_branch',
+    forge: 'github',
+    fullName: 'alrayyes/app',
+    number: 7,
+    status: 'queued',
+    runAt: new Date(Date.now() + 8 * 60_000).toISOString(),
+    createdAt: new Date().toISOString(),
+  },
+};
+
+test.describe('phone row, wait chip to divider (#4099)', () => {
+  const MAX_CHIP_TO_DIVIDER = 16;
+  for (const width of [320, 360, 390]) {
+    test(`${width}px: a queued chip sits within ${MAX_CHIP_TO_DIVIDER}px of the divider and fills its slot`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      const row = await open(page, pr(QUEUED));
+      await expect(row.locator('.wait-chip')).toBeVisible();
+      await expect(row.locator('.row-action-bar')).toBeVisible();
+      const m = await row.evaluate((r) => {
+        const chip = r.querySelector('.wait-chip')!.getBoundingClientRect();
+        const slot = r.querySelector('.wait-slot')!.getBoundingClientRect();
+        const bar = r.querySelector('.row-action-bar')!.getBoundingClientRect();
+        return {
+          chipToDivider: bar.top - chip.bottom,
+          slotMinusChip: slot.height - chip.height,
+        };
+      });
+      expect(m.chipToDivider, JSON.stringify(m)).toBeLessThanOrEqual(
+        MAX_CHIP_TO_DIVIDER,
+      );
+      expect(m.slotMinusChip, JSON.stringify(m)).toBeLessThanOrEqual(0.5);
+    });
+  }
+
+  test('390px: an armed auto-merge chip leaves no band under it', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const row = await open(page, pr({ ...BEHIND, ...WAITING, ci: 'pending' }));
+    await expect(row.locator('.wait-chip')).toBeVisible();
+    // No bar, so no divider under the chip.
+    await expect(row.locator('.row-action-bar')).toHaveCount(0);
+    const m = await row.evaluate((r) => {
+      const chip = r.querySelector('.wait-chip')!.getBoundingClientRect();
+      const cell = r.querySelector('.status-cell')!.getBoundingClientRect();
+      return { below: cell.bottom - chip.bottom };
+    });
+    expect(m.below, JSON.stringify(m)).toBeLessThanOrEqual(MAX_CHIP_TO_DIVIDER);
+  });
+});

@@ -177,7 +177,7 @@ pagination-focus.spec.ts,3.449,5,5,A,,0.0
 phone-action-bar.spec.ts,,5,5,A,,0.0
 phone-card-action-row.spec.ts,2.545,5,5,A,,0.0
 phone-row-gap.spec.ts,1.298,3,3,A,,0.0
-phone-row-status-gap.spec.ts,,6,6,A,,0.0
+phone-row-status-gap.spec.ts,,8,8,A,,0.0
 pick-row-click.spec.ts,,8,5,A,,0.0
 pick-row-mouse.spec.ts,,3,1,C,,0.0
 pill-counts-add-up.spec.ts,,3,1,C,,0.0
