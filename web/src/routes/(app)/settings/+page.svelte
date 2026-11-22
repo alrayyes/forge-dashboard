@@ -3,6 +3,11 @@
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import Disclosure from "#lib/Disclosure.svelte";
   import { installationIdPayload } from "#lib/installation-id.js";
+  import {
+    appHeldAutoMergeCopy,
+    settingsDescription,
+  } from "#lib/forge-copy.js";
+  import { forgesWhere } from "#lib/forges.js";
   import SettingsNav from "#lib/SettingsNav.svelte";
   import {
     DEFAULT_GROUP,
@@ -1110,10 +1115,7 @@
 
 <svelte:head>
   <title>Settings — Forge Board</title>
-  <meta
-    name="description"
-    content="Your appearance, GitHub and Forgejo connections, pull request behavior, webhooks, passkeys and API tokens."
-  />
+  <meta name="description" content={settingsDescription()} />
   <style>
     .settings-wrap {
       max-width: 720px;
@@ -2298,38 +2300,18 @@
         id="group-behaviour-more"
         hidden={group !== "behaviour"}
       >
-        <div class="card" id="forgejo-auto-merge">
-          <h2>Forgejo auto-merge</h2>
-          <p class="field-hint">
-            Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo
-            itself. Forgejo's own scheduled merge can't be read back, so this
-            app keeps the intent and does the merging.
-          </p>
-          <ul class="field-hint">
-            <li>
-              It's off for every pull request until you choose "Enable
-              auto-merge" in a Forgejo pull request's pop-up. Nothing is merged
-              that you didn't arm.
-            </li>
-            <li>
-              An armed pull request shows "Auto-merge on" and "Managed by Forge
-              Dashboard". It merges after a refresh once its checks have passed
-              and Forgejo says it can merge, with the repo's own merge method.
-            </li>
-            <li>
-              While it waits or stops, the row says why in words: checks still
-              running, a failed check, a conflict, or a merge Forgejo refused.
-            </li>
-            <li>
-              "Cancel auto-merge" on the row removes the intent. Closing or
-              merging the pull request elsewhere removes it too.
-            </li>
-            <li>
-              The merge uses your Forgejo token, so it needs permission to
-              merge.
-            </li>
-          </ul>
-        </div>
+        {#each forgesWhere("autoMergeHeldByApp") as forge (forge)}
+          {@const copy = appHeldAutoMergeCopy(forge)}
+          <div class="card" id="{forge}-auto-merge">
+            <h2>{copy.heading}</h2>
+            <p class="field-hint">{copy.intro}</p>
+            <ul class="field-hint">
+              {#each copy.items as item (item)}
+                <li>{item}</li>
+              {/each}
+            </ul>
+          </div>
+        {/each}
       </div>
 
       <div class="group" id="integrations" hidden={group !== "integrations"}>

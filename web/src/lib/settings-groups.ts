@@ -3,6 +3,8 @@
 // ("#api-tokens"); the second opens the card's group and names the card so
 // the page can scroll it into view.
 
+import { connectionsCaption } from './forge-copy';
+
 export type SettingsGroupId =
   | 'display'
   | 'connections'
@@ -12,19 +14,20 @@ export type SettingsGroupId =
 export const SETTINGS_GROUPS: {
   id: SettingsGroupId;
   label: string;
-  caption: string;
+  // A function so a caption naming the forges reads the labels at render time.
+  caption: () => string;
 }[] = [
-  { id: 'display', label: 'Display', caption: 'Theme, time zone' },
-  { id: 'connections', label: 'Connections', caption: 'GitHub, Forgejo' },
+  { id: 'display', label: 'Display', caption: () => 'Theme, time zone' },
+  { id: 'connections', label: 'Connections', caption: connectionsCaption },
   {
     id: 'behaviour',
     label: 'Behaviour',
-    caption: 'Pull requests, issues, auto-merge',
+    caption: () => 'Pull requests, issues, auto-merge',
   },
   {
     id: 'integrations',
     label: 'Integrations and security',
-    caption: 'Webhooks, passkeys, API tokens',
+    caption: () => 'Webhooks, passkeys, API tokens',
   },
 ];
 

@@ -14,7 +14,7 @@
           class:current={current === g.id}
         >
           <span class="label">{g.label}</span>
-          <span class="caption">{g.caption}</span>
+          <span class="caption">{g.caption()}</span>
         </a>
       </li>
     {/each}

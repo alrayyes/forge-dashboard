@@ -1,15 +1,22 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   appConnectionCopy,
+  appHeldAutoMergeCopy,
   approveLinkCopy,
   autoMergeGroupNote,
+  connectionsCaption,
   forgeNameList,
   noReposCopy,
   pageDescription,
   permissionsNotReportedCopy,
   scheduledOnCopy,
+  settingsDescription,
 } from './forge-copy';
-import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
+import {
+  forgesWhere,
+  registerForgeCapabilities,
+  resetForgeCapabilities,
+} from './forges';
 
 afterEach(resetForgeCapabilities);
 
@@ -129,5 +136,39 @@ describe('appConnectionCopy', () => {
       'when a Gitea App is connected',
     );
     expect(JSON.stringify(copy)).not.toContain('GitHub');
+  });
+});
+
+describe('settings copy comes from the label', () => {
+  test('the Connections caption and page description list every forge', () => {
+    expect(connectionsCaption()).toBe('GitHub, Forgejo');
+    expect(settingsDescription()).toContain('GitHub and Forgejo connections');
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+    expect(connectionsCaption()).toBe('GitHub, Forgejo, Gitea');
+    expect(settingsDescription()).toContain(
+      'GitHub, Forgejo and Gitea connections',
+    );
+  });
+
+  test('the auto-merge card names the forge that holds the merge', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const c = appHeldAutoMergeCopy('forgejo');
+
+    expect(c.heading).toBe('Codeberg auto-merge');
+    expect(c.intro).toBe(
+      "Auto-merge on Codeberg is handled by Forge Dashboard, not Codeberg itself. Codeberg's own scheduled merge can't be read back, so this app keeps the intent and does the merging.",
+    );
+    expect(c.items.join(' ')).not.toContain('Forgejo');
+    expect(c.items.join(' ')).toContain('Codeberg');
+  });
+});
+
+describe('forgesWhere', () => {
+  test('lists the forges that hold auto-merge in the app', () => {
+    expect(forgesWhere('autoMergeHeldByApp')).toEqual(['forgejo']);
   });
 });

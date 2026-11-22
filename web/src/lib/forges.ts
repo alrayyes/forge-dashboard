@@ -127,6 +127,11 @@ export function rateLimitDocsUrlOf(forge: string | undefined): string {
   return (forge && ownOf(RATE_LIMIT_DOCS, forge)) || '';
 }
 
+// The forges, in display order, that can do what flag names.
+export function forgesWhere(flag: ForgeFlag): string[] {
+  return FORGE_IDS.filter((f) => forgeCan(f, flag));
+}
+
 // What a forge said about a flag: undefined when it never did, so a caller can
 // keep a safe default for a forge nobody described.
 export function forgeFlag(
