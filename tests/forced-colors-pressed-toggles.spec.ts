@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3377 gave the filter pills a pressed mark that forced colors keep. The other
@@ -40,7 +41,7 @@ async function seedPulls(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [true, false].map((on, i) => ({
           forge: 'github',
           repo: 'acme/app',

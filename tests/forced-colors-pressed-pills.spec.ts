@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Forced-colors mode remaps colours, so a pressed filter pill can't rely on
@@ -38,7 +39,7 @@ async function seedPulls(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         // Two repos and authors, so those filters stay in the bar. One pull
         // request fails and one passes, so the Failing CI pill changes the
         // list and the quick pills are offered (#3669).
@@ -75,7 +76,7 @@ async function seedBranches(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         repos: [{ forge: 'github', fullName: 'acme/a', hasWebhook: true }],

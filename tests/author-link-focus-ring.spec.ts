@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
@@ -60,7 +61,7 @@ async function open(page: Page, width: number, scheme: 'light' | 'dark') {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: PRS,
         issues: [],
         openIssueCount: 0,

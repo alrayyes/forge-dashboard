@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A confirmed conflict draws its warning and nothing it contradicts: no locked
@@ -46,7 +47,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('forgejo')],
         pullRequests: prs,
         issues: [],
         repos: [],
@@ -254,7 +255,7 @@ test.describe('a Merge in progress when a conflict appears', () => {
       served = true;
       const snapshot = {
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('forgejo')],
         pullRequests: [conflicted()],
         issues: [],
         repos: [],

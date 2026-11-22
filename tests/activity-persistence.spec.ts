@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #724: the Activity list outlives a reload, for the life of the tab. A
@@ -45,7 +46,7 @@ async function setup(page: Page) {
   const body = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      forges: [forgeHealth('github')],
       pullRequests: served(),
       issues: [],
     });

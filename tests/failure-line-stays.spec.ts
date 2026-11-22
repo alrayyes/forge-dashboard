@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { dismissToasts } from './toast-helper';
 
@@ -30,7 +31,7 @@ function pr(number: number, over: Record<string, unknown> = {}) {
 function snapshot(prs: Record<string, unknown>[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: prs,
     issues: [],
     repos: [],
