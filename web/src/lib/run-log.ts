@@ -499,3 +499,57 @@ export function parseLogLines(text: string): LogLine[] {
     return out;
   });
 }
+
+// What a line's copy button puts on the clipboard: the line's own text. Not its
+// number, its timestamp or its Error/Warning tag, which the dialog draws
+// beside the text and which a pasted line doesn't want.
+export function lineCopyText(line: LogLine): string {
+  return line.text;
+}
+
+// The line button's accessible name. It holds the visible number, so voice
+// control and screen readers agree with the screen (WCAG 2.5.3).
+export function copyLineLabel(n: number): string {
+  return `Copy line ${n}`;
+}
+
+// The sentence a line copy earns, for the live region and the toast alike.
+export function copyLineStatus(n: number, outcome: CopyOutcome): string {
+  if (outcome === 'copied') return `Line ${n} copied`;
+  if (outcome === 'selected') {
+    return `Couldn't copy line ${n} automatically. Press Ctrl+C (Cmd+C on a Mac) to copy the selected text.`;
+  }
+
+  return `Couldn't copy line ${n}.`;
+}
+
+const PAGE_LINES = 10;
+
+// Roving tabindex: the line button to focus after `key`, or null when the key
+// isn't one that moves. The arrows step one line, Page keys ten, Home and End
+// go to the ends; all stop at the ends rather than wrapping.
+export function rovingLine(
+  current: number,
+  key: string,
+  count: number,
+): number | null {
+  if (count <= 0) return null;
+  const last = count - 1;
+  const to = (i: number) => Math.min(last, Math.max(0, i));
+  switch (key) {
+    case 'ArrowDown':
+      return to(current + 1);
+    case 'ArrowUp':
+      return to(current - 1);
+    case 'PageDown':
+      return to(current + PAGE_LINES);
+    case 'PageUp':
+      return to(current - PAGE_LINES);
+    case 'Home':
+      return 0;
+    case 'End':
+      return last;
+    default:
+      return null;
+  }
+}
