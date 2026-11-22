@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.98.0](https://github.com/alrayyes/forge-dashboard/compare/v9.97.1...v9.98.0) (2026-11-22)
+
+
+### Features
+
+* **web:** draw the pull request pill groups with the shared filter pill ([#4622](https://github.com/alrayyes/forge-dashboard/issues/4622)) ([99216af](https://github.com/alrayyes/forge-dashboard/commit/99216af708c8ff4985e4c8a6a1f66cd93c1193d2)), closes [#4611](https://github.com/alrayyes/forge-dashboard/issues/4611) [#4279](https://github.com/alrayyes/forge-dashboard/issues/4279)
+
 ## [9.97.1](https://github.com/alrayyes/forge-dashboard/compare/v9.97.0...v9.97.1) (2026-11-22)
 
 
