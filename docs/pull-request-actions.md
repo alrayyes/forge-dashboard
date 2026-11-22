@@ -700,16 +700,18 @@ and a finger held on a toast pauses its timer. The dismiss button still works,
 and a mouse doesn't drag. The sticky "Activity" control keeps a count and
 opens a panel of in-flight and recent actions per pull request, with "Show row"
 and "Clear finished", so a dismissed toast isn't lost. The control is hidden
-while there is nothing to list (no recent, in-flight or queued action), and
-clearing the last entry closes the panel and moves focus to Refresh. A reload
-keeps the finished entries for as long as the tab stays open, up to 40, until
-you use "Clear finished" (they live in the tab's `sessionStorage`; with storage
-blocked the list starts empty). A restored failure has no Retry. A request still
-queued comes back from the server, which holds it on the pull request until a
-refresh shows it landed or the wait runs out. One polite live region announces
-each event once and never reads out the countdown, and with reduced motion on,
-toasts appear without animation. The banner at the top is left for global
-conditions such as a rate limit or an unreachable forge.
+while there is nothing to list (no recent, in-flight or queued action). On a
+phone it stays pinned 8px from the top and is held in the toolbar's line at the
+right, so showing it for the first time doesn't move the list. Clearing the last
+entry closes the panel and moves focus to Refresh. A reload keeps the finished
+entries for as long as the tab stays open, up to 40, until you use "Clear
+finished" (they live in the tab's `sessionStorage`; with storage blocked the
+list starts empty). A restored failure has no Retry. A request still queued
+comes back from the server, which holds it on the pull request until a refresh
+shows it landed or the wait runs out. One polite live region announces each
+event once and never reads out the countdown, and with reduced motion on, toasts
+appear without animation. The banner at the top is left for global conditions
+such as a rate limit or an unreachable forge.
 
 The waiting chip is how a row says "something is happening, hold on". It is one
 chip in a slot in the row's action area. The slot takes room only while a chip

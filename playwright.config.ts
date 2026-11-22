@@ -271,6 +271,7 @@ const singleUserSpecs = [
   '**/issue-dialog-closing-pr.spec.ts',
   '**/phone-card-action-row.spec.ts',
   '**/phone-action-bar.spec.ts',
+  '**/phone-activity-no-push.spec.ts',
   '**/profile-links.spec.ts',
   '**/pr-auto-update.spec.ts',
   '**/skipped-pill-counts.spec.ts',
