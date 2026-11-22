@@ -9,9 +9,9 @@ import { test } from './server-fixture';
 // exists. These journeys play the server by mocking snapshots; the wording
 // itself is checked without a browser in web/src/lib/wait-chip.test.ts.
 
-// The reserved slot is a phone-card rule: on a wide list the row is one
-// centred line and the slot only takes room while a chip is in it (#4502), so
-// "the row does not move" is held where the slot is reserved.
+// The slot takes room only while a chip is in it (#4502, #4590): a phone card
+// with no chip is no taller than its content, and grows by at most the chip's
+// room (CHIP_ROOM) when the user's own tap makes one appear.
 test.use({ viewport: { width: 390, height: 844 } });
 
 type MockPR = Record<string, unknown>;
@@ -100,9 +100,12 @@ async function skew(page: Page, ms: number) {
 
 const firstRow = (page: Page) => page.locator('#pr-rows .row').first();
 const chipOf = (page: Page) => firstRow(page).locator('.wait-chip');
-// The room the chip is reserved is the status cell's: an empty slot is not
-// drawn on a phone (#4519), the action or padding holds its place.
+// The chip's room is the status cell's: an empty slot is not drawn and holds
+// no place (#4590).
 const slotOf = (page: Page) => firstRow(page).locator('.status-cell');
+
+// The chip's 59px slot and the flex gap above it.
+const CHIP_ROOM = 65;
 
 async function size(locator: Locator) {
   // A snapshot can rebuild the row between finding it and measuring it, so
@@ -123,9 +126,8 @@ async function size(locator: Locator) {
 async function layout(page: Page) {
   return {
     row: await size(firstRow(page)),
-    // Width only: the action bar a chip replaces can be taller than the
-    // chip (Merge and Rebase wrap), so the cell may only get shorter, which
-    // the row's own height check covers (#4519).
+    // Width only: the cell grows by the chip's room when one arrives and
+    // shrinks again when it goes (#4590).
     slot: { width: (await size(slotOf(page))).width },
   };
 }
@@ -190,7 +192,7 @@ test.describe('the waiting chip on a bot rebase', () => {
     );
   }
 
-  test('a requested rebase is one chip with the bot and its age, and the row does not move', async ({
+  test('a requested rebase is one chip with the bot and its age, and the card grows by at most the chip', async ({
     page,
   }) => {
     await expect(slotOf(page)).toBeVisible();
@@ -210,18 +212,18 @@ test.describe('the waiting chip on a bot rebase', () => {
     await skew(page, 7_000);
     await expect(ago).toHaveText('7s ago');
 
-    // The chip fills its reserved slot. The row only gets shorter: the
-    // "Behind the base branch" block it replaced is gone (#4022).
+    // The chip takes its own room and no more: the card grows by at most
+    // that, downwards (#4590).
     const after = await layout(page);
     expect(after.slot).toEqual(before.slot);
-    expect(after.row.height).toBeLessThanOrEqual(before.row.height);
+    expect(after.row.height).toBeLessThanOrEqual(before.row.height + CHIP_ROOM);
     // No way out is offered, so no button.
     await expect(chip.getByRole('button')).toHaveCount(0);
     await expect(firstRow(page)).not.toContainText(OLD_TEXT);
     await expect(firstRow(page).locator('.row-feedback')).toHaveCount(0);
   });
 
-  test('picked up, then settled, then gone: each change is announced once, the clearing is silent, and nothing moves', async ({
+  test('picked up, then settled, then gone: each change is announced once, the clearing is silent, and the card shrinks back', async ({
     page,
   }) => {
     const before = await layout(page);
@@ -256,8 +258,11 @@ test.describe('the waiting chip on a bot rebase', () => {
     // The chip clears by itself, and says nothing as it goes.
     await expect(chipOf(page)).toHaveCount(0, { timeout: 10_000 });
     expect(await live.textContent()).toBe(spoken);
-    // Same snapshot before and after the chip goes: nothing moves.
-    expect(await layout(page)).toEqual(settled);
+    // The chip goes and takes its room with it: the card is as wide and no
+    // taller.
+    const gone = await layout(page);
+    expect(gone.slot).toEqual(settled.slot);
+    expect(gone.row.height).toBeLessThan(settled.row.height);
   });
 
   test('two minutes with no change reads Still waiting, announced once, and Check again refetches the row', async ({
@@ -470,7 +475,7 @@ test.describe('the waiting chip on a merge and a close', () => {
       confirm: 'Confirm close pull request?',
     },
   ]) {
-    test(`${s.name} in progress is a ${s.label} chip, and the row does not move`, async ({
+    test(`${s.name} in progress is a ${s.label} chip, and the card grows by at most the chip`, async ({
       page,
     }) => {
       const answer = (route: Route) =>
@@ -511,14 +516,14 @@ test.describe('the waiting chip on a merge and a close', () => {
       );
       await expect(chipOf(page).getByRole('button')).toHaveCount(0);
       const after = await layout(page);
-      // The chip's own slot is fixed, and the row is as wide as before and
-      // no taller. The row may be shorter for Merge, whose confirm group
-      // (a longer "Confirm close pull request?" wraps) leaves the row. For
-      // Close the confirm group sits in the dialog footer, so only the slot
-      // and width checks can bite there.
+      // The row is as wide as before and grows by at most the chip's room
+      // (#4590). It may grow less for Merge, whose confirm group (a longer
+      // "Confirm close pull request?" wraps) leaves the row.
       expect(after.slot).toEqual(before.slot);
       expect(after.row.width).toBe(before.row.width);
-      expect(after.row.height).toBeLessThanOrEqual(before.row.height);
+      expect(after.row.height).toBeLessThanOrEqual(
+        before.row.height + CHIP_ROOM,
+      );
       release();
     });
   }
@@ -576,16 +581,20 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await expect(firstRow(page)).not.toContainText('Waiting:');
   });
 
-  test('the action area is no taller armed than not', async ({ page }) => {
+  test('the action area is at most one chip taller armed than not', async ({
+    page,
+  }) => {
     await open(page, makePR({ forge: 'forgejo', repo: 'alrayyes/dotfiles' }));
     await expect(slotOf(page)).toBeVisible();
     const plain = await size(slotOf(page));
     await page.unroute('**/api/v1/dashboard*');
     await open(page, armed());
     await expect(chipOf(page)).toBeVisible();
-    // The chip takes the room the action had (and the reserve), so the
-    // area is never taller armed (#4519).
-    expect((await size(slotOf(page))).height).toBeLessThanOrEqual(plain.height);
+    // The chip takes the room the action had, so the area grows by at most
+    // the chip's room (#4590).
+    expect((await size(slotOf(page))).height).toBeLessThanOrEqual(
+      plain.height + CHIP_ROOM,
+    );
   });
 
   test('Disarm posts for that pull request', async ({ page }) => {
@@ -667,7 +676,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
     createdAt: new Date().toISOString(),
   });
 
-  test('is one Queued chip with the reset time, Cancel inside, and the same slot size', async ({
+  test('is one Queued chip with the reset time, Cancel inside, and the chip fills the status cell width', async ({
     page,
   }) => {
     const pr = makePR({ behind: true, mergeStatus: 'blocked' });
@@ -701,7 +710,9 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
     const resets = chip.locator('.wait-chip-detail');
     await expect(resets).toContainText(/Resets in [78]m/);
     await expect(resets.locator('[aria-hidden="true"]')).toHaveCount(1);
-    expect(await size(slotOf(page))).toEqual(plain);
+    const withChip = await size(slotOf(page));
+    expect(withChip.width).toEqual(plain.width);
+    expect(withChip.height).toBeLessThanOrEqual(plain.height + CHIP_ROOM);
 
     await chip
       .getByRole('button', {

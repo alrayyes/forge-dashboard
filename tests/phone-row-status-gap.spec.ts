@@ -6,7 +6,8 @@ import { test } from './server-fixture';
 // #3834: on a phone a plain pull request row showed about 170px of blank
 // space between the CI pill and the Merge button. The waiting chip's slot
 // (#1229) is meant to take 52px of it; nothing else in the status cell may.
-// The slot stays reserved so the chip can appear without moving the row.
+// With no chip the slot takes no room at all (#4590): the card grows once,
+// downwards, when the user's own tap makes a chip appear.
 const MAX_GAP = 16;
 
 function pr(overrides: Record<string, unknown> = {}) {
@@ -100,7 +101,8 @@ async function push(page: Page, pullRequest: unknown) {
 }
 
 // Distance from the CI pill's bottom to the top of the action bar's divider,
-// the slot the cell reserves on purpose, and where the slot ends.
+// where the slot's room sits between the pill and the action. Nothing is
+// reserved below the action (#4590).
 const gapOf = (row: Locator) =>
   row.evaluate((r) => {
     const ci = r.querySelector('.ci-slot')?.getBoundingClientRect();
@@ -172,12 +174,10 @@ test.describe('phone row status gap (#3834)', () => {
     });
   }
 
-  // #4519: the slot's reserved room sat between the pill line and the divider,
-  // so a card with no chip read as having a blank band above its action. The
-  // room is still reserved, below the action, so the card does not move when
-  // the chip arrives.
+  // #4590: a card with no chip is no taller than its content. The room the
+  // slot used to reserve under the action (#4519) is gone.
   const MAX_DIVIDER_GAP = 16;
-  for (const width of [360, 390]) {
+  for (const width of [320, 360, 390]) {
     test(`${width}px: with no wait chip the divider sits within ${MAX_DIVIDER_GAP}px of the pill line`, async ({
       page,
     }) => {
@@ -194,26 +194,123 @@ test.describe('phone row status gap (#3834)', () => {
         .toBe(true);
     });
 
-    // The status cell, not the whole row: an armed auto-merge also adds an
-    // attribute chip under the title, which is content, not reserved room.
-    test(`${width}px: the status cell is no taller after the wait chip arrives`, async ({
+    test(`${width}px: no band under the action either, the cell ends within ${MAX_DIVIDER_GAP}px of it`, async ({
       page,
     }) => {
       await page.setViewportSize({ width, height: 844 });
-      const row = await open(page, pr(BEHIND));
-      await expect(row.locator('.wait-chip')).toHaveCount(0);
-      const height = () =>
-        row.evaluate(
-          (r) =>
-            r.querySelector('.status-cell')!.getBoundingClientRect().height,
-        );
-      const before = await height();
+      const row = await open(page, pr());
+      await expect(row.getByRole('button', { name: 'Merge' })).toBeVisible();
+      await expect(row.locator('.wait-slot')).toBeHidden();
+      await expect
+        .poll(() =>
+          row.evaluate((r) => {
+            const cell = r.querySelector('.status-cell')!;
+            const bar = r.querySelector('.row-action-bar')!;
+            return (
+              cell.getBoundingClientRect().bottom -
+              bar.getBoundingClientRect().bottom
+            );
+          }),
+        )
+        .toBeLessThanOrEqual(MAX_DIVIDER_GAP);
+    });
 
-      await push(page, pr({ ...BEHIND, ...WAITING }));
+    // The user's own tap makes the chip appear. The card grows, downwards:
+    // nothing above it moves and the page keeps its scroll position.
+    test(`${width}px: a tap that shows a chip grows the card downwards only`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.route('**/api/v1/pull-requests/update-branch', (route) =>
+        route.fulfill({ status: 202 }),
+      );
+      const row = await open(page, pr(BEHIND));
+      await page.evaluate(() => {
+        document.body.style.minHeight = '4000px';
+        window.scrollTo(0, 40);
+      });
+      // Offsets are read from the row's own top: the first action also
+      // reveals the Activity control above the list, which is not the chip's
+      // doing. What the chip must not do is move the card's own content or
+      // the page's scroll position.
+      const marks = () =>
+        row.evaluate((r) => {
+          const top = r.getBoundingClientRect().top;
+          const at = (s: string) =>
+            Math.round(r.querySelector(s)!.getBoundingClientRect().top - top);
+          return {
+            scrollY: Math.round(window.scrollY),
+            title: at('.title-cell'),
+            pill: at('.ci-slot'),
+            height: Math.round(r.getBoundingClientRect().height),
+          };
+        });
+      const before = await marks();
+
+      await row.getByRole('button', { name: 'Update branch' }).click();
       await expect(row.locator('.wait-chip')).toBeVisible();
-      expect(await height()).toBeLessThanOrEqual(before);
+      const after = await marks();
+
+      expect({ ...after, height: 0 }).toEqual({ ...before, height: 0 });
+      expect(after.height).toBeGreaterThanOrEqual(before.height);
     });
   }
+
+  test('reduced motion: the card changes size with no transition or animation', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
+      route.fulfill({ status: 202 }),
+    );
+    const row = await open(page, pr(BEHIND));
+    await row.getByRole('button', { name: 'Update branch' }).click();
+    await expect(row.locator('.wait-chip')).toBeVisible();
+    const motion = await row.evaluate((r) =>
+      ['.status-cell', '.wait-slot', '.wait-chip'].map((s) => {
+        const cs = getComputedStyle(r.querySelector(s)!);
+        return `${s} ${cs.transitionDuration} ${cs.animationName}`;
+      }),
+    );
+    for (const m of motion) {
+      expect(m, JSON.stringify(motion)).toMatch(/ 0s none$/);
+    }
+  });
+
+  test('390px: the chip is announced once by the live region', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
+      route.fulfill({ status: 202 }),
+    );
+    const row = await open(page, pr(BEHIND));
+    // The live region is cleared after it speaks, so count what it was told.
+    await page.evaluate(() => {
+      const w = window as unknown as { __spoken: string[] };
+      w.__spoken = [];
+      new MutationObserver(() => {
+        const t = document.getElementById('feedback-live')?.textContent ?? '';
+        if (t.trim()) w.__spoken.push(t);
+      }).observe(document.getElementById('feedback-live')!, {
+        childList: true,
+        characterData: true,
+        subtree: true,
+      });
+    });
+    await row.getByRole('button', { name: 'Update branch' }).click();
+    await expect(row.locator('.wait-chip')).toBeVisible();
+    await push(page, pr(BEHIND));
+    const spoken = () =>
+      page.evaluate(
+        () => (window as unknown as { __spoken: string[] }).__spoken,
+      );
+    await expect.poll(async () => (await spoken()).length).toBeGreaterThan(0);
+    expect(await spoken()).toEqual([
+      'alrayyes/app#7: Branch update requested.',
+    ]);
+  });
 
   // The empty-cluster rule must stay on a phone: on desktop the empty box is
   // part of the grid and the title column is sized around it.

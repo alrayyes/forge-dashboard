@@ -521,9 +521,10 @@ export function mountFeedbackUI(
     decorateChip(row, key);
   }
 
-  // The chip goes in the status cell's reserved slot, so it never moves the
-  // row. An armed auto-merge's own chip is in the slot already; an action in
-  // flight on the row outranks it while it lasts.
+  // The chip goes in the status cell's slot, which takes room only while a
+  // chip is in it, so the card grows once. An armed auto-merge's own chip is
+  // in the slot already; an action in flight on the row outranks it while it
+  // lasts.
   function decorateChip(row: HTMLElement, key: string) {
     const slot = row.querySelector<HTMLElement>('.status-cell > .wait-slot');
     if (!slot) return;

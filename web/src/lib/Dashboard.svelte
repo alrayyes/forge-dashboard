@@ -3394,8 +3394,8 @@
         // What it is waiting on, in its own place above the actions (#1375).
         const statusAreaEl = settledRow ? null : statusArea(pr);
         if (statusAreaEl) statusCell.appendChild(statusAreaEl);
-        // The action area's reserved slot: the waiting chip lives here, so
-        // it comes and goes without moving the row (#1229). It follows the
+        // The action area's slot: the waiting chip lives here. The slot
+        // takes room only while a chip is in it (#4590). It follows the
         // status in the markup, and on a phone and a narrow list that is the
         // order on screen (#3264). On a list wide enough for the one-line row
         // placeNotes moves the status area under the title, so a fix button

@@ -3,10 +3,11 @@ import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
-// #3264: on a phone the waiting chip's reserved slot (#1229) sat between the
-// meta line and the status pill, so every Bots and Releases row read as having
-// about 90px of blank space above the pill. The slot is still reserved, but
-// below the pill. The gap to measure is meta line to pill.
+// #3264: on a phone the waiting chip's slot (#1229) sat between the meta
+// line and the status pill, so every Bots and Releases row read as having
+// about 90px of blank space above the pill. The slot is below the pill, and
+// takes room only while it holds a chip (#4590). The gap to measure is meta
+// line to pill.
 const MAX_GAP = 16;
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
@@ -36,7 +37,7 @@ const BOT_PR = makePR(20, {
 });
 
 // The same row with auto-merge armed: the waiting chip and its Disarm button
-// are in the reserved slot.
+// are in the slot.
 const ARMED_PR = makePR(21, {
   title: 'Bump package-21 from 1.0.0 to 1.0.1',
   author: 'dependabot',
@@ -81,7 +82,7 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
   });
 
-  test(`at most ${MAX_GAP}px from meta to pill, room for a chip still reserved below`, async ({
+  test(`at most ${MAX_GAP}px from meta to pill, and the cell keeps room below the pill`, async ({
     page,
   }) => {
     await mockDashboard(page, [BOT_PR]);
