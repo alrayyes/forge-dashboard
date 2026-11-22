@@ -1194,6 +1194,9 @@ line copies nothing and says "Line N is empty", with no check. A toast never
 shows empty, and a copy that hangs still lets it go after two seconds. In
 forced colours the copied row gets an outline in the system highlight.
 
+Beside `Timestamps`, a `Wrap lines` switch (on by default) lets a long line
+keep its length: off, the one log area scrolls sideways.
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up

@@ -6063,6 +6063,13 @@ footer a[aria-current="page"] {
   margin: 0;
   padding: 8px 10px;
 }
+/* The log's switches share one row and wrap onto a second at a narrow width. */
+.run-log-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 16px;
+}
 .run-log-switch {
   display: inline-flex;
   align-items: center;
@@ -6168,6 +6175,17 @@ footer a[aria-current="page"] {
   min-height: 1.45em;
   white-space: pre-wrap;
   overflow-wrap: break-word;
+}
+/* Wrap lines off: a line keeps its length and the log scrolls sideways. The
+   one grid column is as wide as the longest line (and never narrower than the
+   log), so every row's rule and tint run the full width. */
+.run-output-nowrap {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
+}
+.run-output-nowrap .run-line-text {
+  white-space: pre;
+  overflow-wrap: normal;
 }
 .run-line-time {
   color: var(--ink-2);

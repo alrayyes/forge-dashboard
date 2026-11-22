@@ -2155,3 +2155,44 @@ test.describe('numbered output lines, second pass', () => {
     await expect(copied.locator('.run-line-check')).toBeVisible();
   });
 });
+
+test.describe('the Wrap lines switch (#4281)', () => {
+  const log = {
+    status: 200,
+    body: { text: `${'word '.repeat(80)}\nshort`, truncated: false },
+  };
+
+  async function open(page: Page) {
+    await setup(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output.locator('.run-line').first()).toBeVisible();
+
+    return { dialog, output };
+  }
+
+  test('lines wrap to start with, and turning it off lets a long line scroll sideways', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { dialog, output } = await open(page);
+    const wrap = dialog.getByRole('checkbox', { name: 'Wrap lines' });
+    await expect(wrap).toBeChecked();
+    const over = () => output.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(await over()).toBeLessThanOrEqual(0);
+
+    await wrap.uncheck();
+    await expect.poll(over).toBeGreaterThan(0);
+    // Still one scroll area: the line did not grow a scrollbar of its own.
+    const text = output.locator('.run-line-text').first();
+    expect(
+      await text.evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(0);
+
+    await wrap.check();
+    await expect.poll(over).toBeLessThanOrEqual(0);
+  });
+});

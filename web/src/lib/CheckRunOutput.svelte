@@ -90,6 +90,8 @@
     typeof window === "undefined" ||
       !window.matchMedia("(max-width: 600px)").matches,
   );
+  // Lines wrap by default; off, a long line scrolls the one log area sideways.
+  let wrap = $state(true);
   const hasTimes = $derived(lines.some((l) => l.time));
   onDestroy(() => {
     clearTimeout(lineTimer);
@@ -290,17 +292,23 @@
           {@render jobLink("Open job on " + forgeName + " for the rest")}
         </p>
       {/if}
-      {#if hasTimes}
+      <div class="run-log-bar">
+        {#if hasTimes}
+          <label class="run-log-switch">
+            <input type="checkbox" bind:checked={timestamps} />Timestamps
+          </label>
+        {/if}
         <label class="run-log-switch">
-          <input type="checkbox" bind:checked={timestamps} />Timestamps
+          <input type="checkbox" bind:checked={wrap} />Wrap lines
         </label>
-      {/if}
+      </div>
       <!-- The line buttons are focusable, so the scroll region is reachable
            from the keyboard without a tab stop of its own. -->
       <div class="run-log">
         <div
           class="run-output-text"
           class:run-output-stamped={timestamps && hasTimes}
+          class:run-output-nowrap={!wrap}
           bind:this={output}
           role="region"
           aria-label="Output: {name}"
