@@ -71,6 +71,20 @@ func newFakeGitHubHost(t *testing.T) *fakeGitHubHost {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]string{"login": "octocat"})
 	})
+	mux.HandleFunc("/user/installations", func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer "+ghAccessTok {
+			http.Error(w, "no", http.StatusUnauthorized)
+
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"total_count": 2,
+			"installations": []map[string]any{
+				{"id": 100, "account": map[string]string{"login": "octocat"}},
+				{"id": 200, "account": map[string]string{"login": "acme-org"}},
+			},
+		})
+	})
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
 

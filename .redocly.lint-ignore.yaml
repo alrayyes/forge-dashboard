@@ -5,3 +5,4 @@ api/openapi.yaml:
   operation-2xx-response:
     - "#/paths/~1api~1v1~1connections~1forgejo~1callback/get/responses"
     - "#/paths/~1api~1v1~1connections~1github~1callback/get/responses"
+    - "#/paths/~1api~1v1~1connections~1github~1installed/get/responses"
