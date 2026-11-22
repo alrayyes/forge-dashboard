@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Does anything that listens for focus leaving react to a press on a
@@ -47,7 +48,7 @@ function pr(number: number, over: Record<string, unknown> = {}) {
 
 const snapshot = (prs: Record<string, unknown>[]) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  forges: [forgeHealth('github')],
   pullRequests: prs,
   issues: [],
   repos: [],

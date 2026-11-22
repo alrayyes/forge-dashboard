@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #805: a row renders the actions the server lists, and holds no copy of the
@@ -49,7 +50,7 @@ async function open(page: Page, pr: Record<string, unknown>) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pr],
         issues: [],
         repos: [],

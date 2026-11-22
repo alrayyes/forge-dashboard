@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import {
   offeredValues,
   pickButton,
@@ -52,8 +53,8 @@ async function open(page: Page, prs = PRS) {
       body: JSON.stringify({
         generatedAt: NOW,
         forges: [
-          { forge: 'github', reachable: true, repoCount: 2 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
+          forgeHealth('github', { repoCount: 2 }),
+          forgeHealth('forgejo'),
         ],
         pullRequests: prs,
         issues: [],

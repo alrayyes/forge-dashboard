@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The error banner on the list pages says what went wrong (an HTTP error is
@@ -10,7 +11,7 @@ const isRead = (url: string) => new URL(url).pathname === '/api/v1/dashboard';
 const GOOD = {
   readIntervalSeconds: 600,
   firstRefreshDone: true,
-  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  forges: [forgeHealth('github')],
   repos: [{ forge: 'github', fullName: 'acme/web', hasWebhook: true }],
   pullRequests: [],
   issues: [],

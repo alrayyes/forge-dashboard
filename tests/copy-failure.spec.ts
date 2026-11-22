@@ -2,6 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { dismissToasts } from './toast-helper';
 
@@ -48,7 +49,7 @@ async function open(page: Page, pr = makePR()) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('forgejo')],
         pullRequests: [pr],
         issues: [],
       }),
