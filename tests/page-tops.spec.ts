@@ -266,7 +266,8 @@ test.describe('the Branches page drops its summary line (#1325)', () => {
     );
     await expect(page.locator('#mb-summary')).toHaveCount(0);
     await expect(page.getByText(/\d+ tracked/)).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^All 2$/ })).toBeVisible();
+    // Status and Forge each have an All pill with the total.
+    await expect(page.getByRole('button', { name: /^All 2$/ })).toHaveCount(2);
     await expect(
       page.getByRole('button', { name: /^Failing 1$/ }),
     ).toBeVisible();

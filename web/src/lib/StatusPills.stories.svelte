@@ -57,7 +57,7 @@
   }
 
   const pills = (el: HTMLElement) => [
-    ...el.querySelectorAll<HTMLElement>(".mb-pill"),
+    ...el.querySelectorAll<HTMLElement>(".filter-pill"),
   ];
 
   // Every row: the glyphs, the pressed ring for the row's status, and axe.

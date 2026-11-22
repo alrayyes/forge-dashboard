@@ -133,7 +133,7 @@ const CASES = [
   {
     name: 'Branches pills',
     path: '/',
-    pill: '.mb-pill',
+    pill: '.filter-pill',
     seed: seedBranches,
   },
 ];
@@ -192,4 +192,46 @@ for (const width of [390, 1280]) {
       }
     });
   }
+}
+
+// A pressed CI pill sets its own border-color from the state's tone, which
+// forced colours would remap to the UA's colour rather than Highlight. The 3px
+// width alone told it apart; the colour has to match too, on the Branches
+// Status group and on the pull request page's CI filter.
+const CI_CASES = [
+  {
+    name: 'Branches Status',
+    path: '/',
+    seed: seedBranches,
+    pill: '.filter-pill.ci-filter-pill',
+  },
+  {
+    name: 'pull request CI filter',
+    path: '/pull-requests.html',
+    seed: seedPulls,
+    pill: '.quick-pill.ci-filter-pill',
+  },
+];
+
+for (const c of CI_CASES) {
+  test(`a pressed ${c.name} pill draws its border in Highlight under forced colors`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await c.seed(page);
+    await page.goto(c.path);
+    const failing = page.locator(c.pill, { hasText: 'Failing' }).first();
+    await failing.click();
+    await expect(failing).toHaveAttribute('aria-pressed', 'true');
+    const [border, highlight] = await failing.evaluate((el) => {
+      const probe = document.createElement('span');
+      probe.style.color = 'Highlight';
+      document.body.append(probe);
+      const colour = getComputedStyle(probe).color;
+      probe.remove();
+      return [getComputedStyle(el).borderTopColor, colour];
+    });
+    expect(border).toBe(highlight);
+  });
 }

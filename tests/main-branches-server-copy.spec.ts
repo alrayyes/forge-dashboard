@@ -54,7 +54,7 @@ async function mock(page: Page) {
 
 const rows = (page: Page) => page.locator('[data-testid="main-branch-row"]');
 const status = (page: Page, name: string) =>
-  page.getByRole('group', { name: 'Filter by status' }).getByRole('button', {
+  page.getByRole('group', { name: 'Status', exact: true }).getByRole('button', {
     name: new RegExp(`^${name}`),
   });
 const serverCopy = async (page: Page) =>
@@ -75,7 +75,7 @@ test.describe('the Branches filter follows the account (#1620)', () => {
   }) => {
     await status(page, 'Failing').click();
     await page
-      .getByRole('group', { name: 'Filter by forge' })
+      .getByRole('group', { name: 'Forge', exact: true })
       .getByRole('button', { name: /Forgejo/ })
       .click();
     await page.getByRole('searchbox').fill('Homelab');
@@ -91,7 +91,7 @@ test.describe('the Branches filter follows the account (#1620)', () => {
     await expect(rows(page)).toHaveCount(1);
     await expect(
       page
-        .getByRole('group', { name: 'Filter by forge' })
+        .getByRole('group', { name: 'Forge', exact: true })
         .getByRole('button', { name: /Forgejo/ }),
     ).toHaveAttribute('aria-pressed', 'true');
   });

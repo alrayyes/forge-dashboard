@@ -110,9 +110,9 @@ const pill = (page: Page) =>
   page.locator('header nav a[href="/"]').locator('.nav-pills');
 const chip = (page: Page, name: string) =>
   page
-    .getByRole('group', { name: 'Filter by status' })
+    .getByRole('group', { name: 'Status', exact: true })
     .getByRole('button', { name })
-    .locator('.mb-count');
+    .locator('.filter-pill-count');
 
 test.describe('the Branches nav pill matches the page chips (#2579)', () => {
   test('failing, running, passing and no pipeline read the same in both', async ({

@@ -81,7 +81,8 @@
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { labelChipColor, labelTextColor } from "#lib/label-color.js";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
-  import CiFilterPill, { type CiFilterStatus } from "#lib/CiFilterPill.svelte";
+  import CiFilterPill from "#lib/CiFilterPill.svelte";
+  import type { CiFilterStatus } from "#lib/ci-filter-glyph.js";
   import LiveControl from "#lib/LiveControl.svelte";
   import {
     checkFeed,

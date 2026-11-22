@@ -195,7 +195,9 @@ test.describe('main branches pipeline panel updates live', () => {
 
     await expect(row).toHaveAttribute('data-status', 'passed');
     await expect(
-      page.locator('.mb-pill', { hasText: 'Passing' }).locator('.mb-count'),
+      page
+        .locator('.filter-pill', { hasText: 'Passing' })
+        .locator('.filter-pill-count'),
     ).toHaveText('1');
   });
 

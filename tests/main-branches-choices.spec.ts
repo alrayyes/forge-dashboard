@@ -85,6 +85,11 @@ async function serve(page: Page) {
 const pill = (page: Page, name: RegExp) =>
   page.locator('.mb-bar').getByRole('button', { name });
 
+const forgePill = (page: Page, name: RegExp) =>
+  page
+    .getByRole('group', { name: 'Forge', exact: true })
+    .getByRole('button', { name });
+
 const MIXED = [
   row('acme/ingress', 'failed'),
   row('infra/homelab', 'failed', 'forgejo'),
@@ -103,9 +108,11 @@ test.describe('Branches pills offer only what would show something (#1427)', () 
     await page.goto('/');
     await expect(page.getByTestId('main-branch-row')).toHaveCount(2);
 
-    for (const name of [/^All \d+$/, /^Passing/, /^All forges/, /^GitHub/]) {
+    for (const name of [/^Passing/, /^GitHub/]) {
       await expect(pill(page, name)).toBeVisible();
     }
+    await expect(pill(page, /^All \d+$/)).toHaveCount(2);
+    await expect(forgePill(page, /^All \d+$/)).toBeVisible();
     for (const name of [/^Failing/, /^Running/, /^No pipeline/, /^Forgejo/]) {
       await expect(pill(page, name)).toBeHidden();
     }
@@ -151,10 +158,10 @@ test.describe('Branches pills offer only what would show something (#1427)', () 
 
     await expect(pill(page, /^Gitea 2$/)).toBeVisible();
     const pills = page.locator(
-      '.mb-bar [aria-label="Filter by forge"] .mb-pill',
+      '.mb-bar .filter-group:has(> [id="mb-forge-label"]) .filter-pill',
     );
     await expect(pills).toHaveText([
-      /^All forges/,
+      /^All \d+$/,
       /^GitHub/,
       /^Forgejo/,
       /^Gitea 2$/,
@@ -179,7 +186,7 @@ test.describe('Branches pills offer only what would show something (#1427)', () 
     await expect(pill(page, /^Running/)).toBeHidden();
     await expect(pill(page, /^Passing/)).toBeHidden();
 
-    await pill(page, /^All forges/).click();
+    await forgePill(page, /^All \d+$/).click();
     await page.getByRole('searchbox').fill('billing');
     await expect(pill(page, /^Passing/)).toBeVisible();
     await expect(pill(page, /^Failing/)).toBeHidden();

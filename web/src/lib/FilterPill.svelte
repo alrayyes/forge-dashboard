@@ -1,0 +1,38 @@
+<script lang="ts">
+  import type { Snippet } from "svelte";
+  import type { HTMLButtonAttributes } from "svelte/elements";
+  import { type CiFilterStatus, ciFilterGlyph } from "#lib/ci-filter-glyph.js";
+
+  // The one pill every filter group draws (#4279): 32px high, outlined, filled
+  // with the accent when pressed, and a count in it. A group of these sits in a
+  // FilterGroup, which labels it. `status` gives the pill the CI pill's glyph
+  // and tone (#4221, #4246); without it the pill is plain. `pressed` is the
+  // aria-pressed the group's single choice reads from.
+  let {
+    pressed,
+    count,
+    status,
+    class: className = "",
+    children,
+    ...rest
+  }: {
+    pressed: boolean;
+    count?: number;
+    status?: CiFilterStatus;
+    children: Snippet;
+  } & Omit<HTMLButtonAttributes, "aria-pressed"> = $props();
+</script>
+
+<button
+  type="button"
+  {...rest}
+  class="filter-pill {status ? 'ci-filter-pill' : ''} {className}"
+  aria-pressed={pressed}
+  data-status={status}
+  use:ciFilterGlyph={status}
+>
+  {@render children()}
+  {#if count !== undefined}
+    <span class="filter-pill-count">{count}</span>
+  {/if}
+</button>
