@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.94.0](https://github.com/alrayyes/forge-dashboard/compare/v9.93.0...v9.94.0) (2026-11-22)
+
+
+### Features
+
+* **oauth:** connect and disconnect a GitHub account over OAuth ([#4577](https://github.com/alrayyes/forge-dashboard/issues/4577)) ([c840f73](https://github.com/alrayyes/forge-dashboard/commit/c840f7347088fffed132c2f2a2a2adad44e82978)), closes [#3951](https://github.com/alrayyes/forge-dashboard/issues/3951)
+
 ## [9.93.0](https://github.com/alrayyes/forge-dashboard/compare/v9.92.0...v9.93.0) (2026-11-21)
 
 
