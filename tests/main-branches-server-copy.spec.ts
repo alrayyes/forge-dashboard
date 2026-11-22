@@ -133,12 +133,12 @@ test.describe('the Branches filter follows the account (#1620)', () => {
       .toContain('zqxjk');
   });
 
-  test('Reset filters clears the server copy too', async ({
+  test('Clear filters clears the server copy too', async ({
     page,
     context,
   }) => {
     await page.getByRole('searchbox').fill('nomatch');
-    await page.getByRole('button', { name: 'Reset filters' }).click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(rows(page)).toHaveCount(4);
     await expect
       .poll(() => serverCopy(page), { timeout: 5000 })

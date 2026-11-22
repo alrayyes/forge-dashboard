@@ -158,7 +158,7 @@ test.describe('Branches advisories filter (#2588)', () => {
     await expect(page.getByTestId('no-match')).toContainText(
       'Nothing matches these filters.',
     );
-    await page.getByRole('button', { name: 'Reset filters' }).click();
+    await page.getByRole('button', { name: 'Clear filters' }).click();
     await expect(page.getByTestId('main-branch-row')).toHaveCount(5);
     await expect(choice(page, /^Any \d+$/)).toHaveAttribute(
       'aria-pressed',

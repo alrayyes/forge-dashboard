@@ -71,6 +71,16 @@ the main control on the row. The "No pipeline" note is plain, not a button,
 since there is no pipeline to open. The page orders the rows, latest commit
 first, whatever order the server sends them in.
 
+The filter bar is laid out like the pull request page's: each group (Status,
+Forge and Advisories) on a row of its own, then a last row with the search box
+and a **Clear filters** button at its end. The button is always there. It is
+disabled, and a screen reader says so, while every group is at its default and
+the search is empty. Once anything is set it turns on, and pressing it returns
+every group and the search to their defaults and puts focus on the first pill
+of the bar, since the button turns itself off again. On a phone the button is a
+44px target, and on a narrow screen or at large text it wraps under the search
+box instead of squeezing it, so the bar never scrolls sideways at 320px.
+
 The filter groups (Status, Forge and Advisories) are drawn with the shared
 filter pill: 32 pixels high, outlined, the accent fill when pressed, a visible
 group label and a count in every pill. On a phone the drawn pill stays 32 pixels
@@ -98,7 +108,8 @@ is offered only when a row would show under it. **Has** keeps rows with at least
 one open advisory and **No** keeps rows known to have none. A row whose answer
 is unknown, or that no source reads, is under neither, because unknown is never
 zero. The group says how many rows are left out for that reason, so a missing
-row is not read as clean. **Reset filters** sets it back to Any.
+row is not read as clean. Pressing **Clear filters** sets it back to Any, along
+with the other groups.
 
 Rows from a forge that can't be read, or whose rate limit is spent, keep their
 last known status, are marked **stale**, and sit under one banner. The page
@@ -106,7 +117,7 @@ offers no write at all: there is no Re-run, because the only re-run endpoint
 works on a pull request's checks, not on a default-branch run, so the pipeline
 panel here only reads. With every
 default branch passing the page says so, and a filter that matches nothing
-offers **Reset filters**. A repo with no pipeline says no run was found.
+points at **Clear filters**. A repo with no pipeline says no run was found.
 
 ## Advisories dialog
 

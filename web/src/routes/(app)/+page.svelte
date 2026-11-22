@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, untrack } from "svelte";
+  import { onDestroy, onMount, tick, untrack } from "svelte";
   import {
     forgeClassOf,
     forgeLabelOf,
@@ -532,9 +532,13 @@
     filter.query = (event.currentTarget as HTMLInputElement).value;
     save(["query"], true);
   }
-  function reset() {
+  // Back to the defaults. The button turns itself off once nothing is set, so
+  // focus moves to the first pill of the bar rather than falling to the page.
+  async function clearFilters() {
     filter = { ...DEFAULT_FILTER };
     save(["status", "forge", "advisories", "query"]);
+    await tick();
+    document.querySelector<HTMLElement>(".mb-bar .filter-pill")?.focus();
   }
 
   function listed(b: MainBranch): string {
@@ -624,22 +628,38 @@
       color: var(--ink-2);
       margin: 0 0 16px;
     }
+    /* The pull request page's bar: the same padding, edge and shadow, a row
+       per group, then one controls row (#4612). */
     .mb-bar {
       display: flex;
       flex-wrap: wrap;
       gap: 10px 16px;
       align-items: center;
-      padding: 10px 12px;
+      padding: 12px 18px;
       margin-bottom: 14px;
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+    /* The search box and Clear filters share the last row, the button at the
+       end. On a narrow screen or at large text they wrap rather than squeeze
+       each other. */
+    .mb-controls {
+      display: flex;
+      flex: 1 1 100%;
+      flex-wrap: wrap;
+      gap: 10px 16px;
+      align-items: center;
+      min-width: 0;
+    }
+    .mb-controls .clear-filters {
+      margin-left: auto;
     }
     /* Each filter group is a row of its own, as the design draws it (#4279). */
     .mb-bar .filter-group {
       flex: 1 1 100%;
     }
-    .mb-toggle:focus-visible,
     .mb-search:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
@@ -865,22 +885,6 @@
     .mb-failing {
       color: var(--critical);
     }
-    .mb-toggle {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
-      min-height: 36px;
-      padding: 0 12px;
-      font: inherit;
-      font-size: 0.8125rem;
-      color: var(--ink);
-      background: var(--surface-sunken);
-      border: 1px solid var(--border-strong);
-      border-radius: var(--radius);
-      text-decoration: none;
-      cursor: pointer;
-    }
     .mb-empty {
       padding: 28px 16px;
       text-align: center;
@@ -950,8 +954,7 @@
       .mb-wrap {
         padding-top: 16px;
       }
-      .mb-search,
-      .mb-toggle {
+      .mb-search {
         min-height: 44px;
       }
       .mb-bar {
@@ -1138,45 +1141,55 @@
             {/if}
           </FilterGroup>
         {/if}
-        <span class="search-wrap mb-search-wrap">
-          <input
-            type="search"
-            id="mb-search"
-            class="mb-search"
-            aria-label="Search repositories, commits, authors and failing jobs"
-            placeholder="Search repos, authors, jobs"
-            value={filter.query}
-            oninput={setQuery}
-            bind:this={searchBox}
-          />
+        <div class="mb-controls">
+          <span class="search-wrap mb-search-wrap">
+            <input
+              type="search"
+              id="mb-search"
+              class="mb-search"
+              aria-label="Search repositories, commits, authors and failing jobs"
+              placeholder="Search repos, authors, jobs"
+              value={filter.query}
+              oninput={setQuery}
+              bind:this={searchBox}
+            />
+            <button
+              type="button"
+              class="search-clear"
+              aria-label="Clear search"
+              aria-controls="mb-search"
+              bind:this={searchClear}
+            >
+              <svg
+                viewBox="0 0 16 16"
+                width="14"
+                height="14"
+                aria-hidden="true"
+              >
+                <path
+                  d="M4 4l8 8M12 4l-8 8"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.75"
+                  stroke-linecap="round"
+                />
+              </svg>
+            </button>
+          </span>
           <button
             type="button"
-            class="search-clear"
-            aria-label="Clear search"
-            aria-controls="mb-search"
-            bind:this={searchClear}
+            class="clear-filters"
+            disabled={!isFiltered(filter)}
+            onclick={clearFilters}>Clear filters</button
           >
-            <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">
-              <path
-                d="M4 4l8 8M12 4l-8 8"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.75"
-                stroke-linecap="round"
-              />
-            </svg>
-          </button>
-        </span>
+        </div>
       </div>
 
       {#if visible.length === 0}
         <div class="mb-empty" data-testid="no-match">
-          <p>Nothing matches these filters.</p>
-          {#if isFiltered(filter)}
-            <button type="button" class="mb-toggle" onclick={reset}
-              >Reset filters</button
-            >
-          {/if}
+          <p>
+            Nothing matches these filters. Clear filters to see every branch.
+          </p>
         </div>
       {:else}
         <ul class="mb-list" aria-label="Default branches">

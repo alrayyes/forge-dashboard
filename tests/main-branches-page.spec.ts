@@ -945,7 +945,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(rows(page)).toHaveCount(2);
   });
 
-  test('says nothing matches, and offers to reset the filters', async ({
+  test('says nothing matches, and points at Clear filters', async ({
     page,
   }) => {
     await mock(page, snapshot(MIXED));
@@ -955,7 +955,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await expect(page.locator('[data-testid="no-match"]')).toContainText(
       /nothing matches/i,
     );
-    await page.getByRole('button', { name: /reset filters/i }).click();
+    await page.getByRole('button', { name: /clear filters/i }).click();
     await expect(rows(page)).toHaveCount(6);
     await expect(page.getByRole('searchbox', { name: /search/i })).toHaveValue(
       '',
