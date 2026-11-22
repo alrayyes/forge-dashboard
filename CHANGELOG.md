@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.96.0](https://github.com/alrayyes/forge-dashboard/compare/v9.95.1...v9.96.0) (2026-11-22)
+
+
+### Features
+
+* **web:** numbered log lines with a copy button on each line ([#4597](https://github.com/alrayyes/forge-dashboard/issues/4597)) ([7974a9f](https://github.com/alrayyes/forge-dashboard/commit/7974a9fe263c5a5463a0637892b2d1dbb68159be))
+
 ## [9.95.1](https://github.com/alrayyes/forge-dashboard/compare/v9.95.0...v9.95.1) (2026-11-22)
 
 
