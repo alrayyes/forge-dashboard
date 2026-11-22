@@ -155,7 +155,7 @@ main-branches-server-copy.spec.ts,4.052,7,0,B,,4.1
 main-branches-stream.spec.ts,0.84,3,0,C,,0.8
 mentioned-tickets.spec.ts,7.167,16,9,A,,3.1
 merge-wait-line.spec.ts,,8,4,A,,0.0
-merged-pr-pill.spec.ts,,6,3,A,,0.0
+merged-pr-pill.spec.ts,,8,5,A,,0.0
 mobile-filters.spec.ts,6.974,13,9,A,,2.1
 mono-figures.spec.ts,0.853,4,0,A,,0.9
 nav-branches-pill-matches-page.spec.ts,0.211,1,0,C,,0.2
