@@ -62,7 +62,7 @@ const labels = (page: Page) =>
 const pill = (page: Page, name: string) =>
   page
     .locator('.filter-bar')
-    .getByRole('button', { name, exact: true })
+    .getByRole('button', { name: new RegExp(`^${name}( \\d+)?$`) })
     .first();
 const axe = (page: Page) =>
   new AxeBuilder({ page })
@@ -341,7 +341,7 @@ test.describe('filter bar over one row on a phone (#3886)', () => {
     await open(page);
     await page.getByRole('button', { name: /^Filters/ }).click();
     const sheet = page.locator('dialog#filter-sheet');
-    await sheet.getByRole('button', { name: 'Forgejo', exact: true }).click();
+    await sheet.getByRole('button', { name: /^Forgejo( \d+)?$/ }).click();
     await expect(sheet.locator('#pr-sort-select')).toBeDisabled();
     await expect(sheet.locator('#shared-group-select')).toBeDisabled();
     await expect(sheet.locator('#shared-label-filter-button')).toBeHidden();

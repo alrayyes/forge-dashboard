@@ -4740,35 +4740,10 @@ button.pipeline-check-link:disabled {
   }
 }
 
-/* Quick filter pills (#678): toggle buttons with aria-pressed. Four labelled
-   groups (Forge, CI, Merge, Review), one active per group and combined (#3734).
-   Same pill look as .forge-segmented, which the other pages still use for
-   their own forge radio group. */
-.quick-pills {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  flex: 0 1 auto;
-  max-width: 100%;
-}
-.pill-group-label {
-  font-size: 0.6875rem;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--ink-2);
-  margin-inline-end: 2px;
-}
-.quick-pill {
-  font-family: inherit;
-  font-size: 0.75rem;
-  padding: 5px 12px;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--ink-2);
-  cursor: pointer;
-}
+/* The pull request pages' pill groups (#678, #3734) are FilterGroups drawing
+   FilterPills (#4279, #4611). `quick-pills`, `sheet-pills` and `quick-pill`
+   are only the hooks the filter script finds them by; the look is the shared
+   pill's, defined once below. */
 /* The segmented filters (#1455), auto-merge and refs: Any plus its
    choices, on the trailing edge of the quick pill row, and as a sheet-only
    copy in the Filters sheet on a phone. */
@@ -4811,33 +4786,6 @@ button.pipeline-check-link:disabled {
   .segment button[aria-pressed="true"] {
     border: 3px solid Highlight;
     padding: 1px 8px;
-  }
-}
-
-.quick-pill[aria-pressed="true"] {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
-}
-/* A check mark with the fill, so the pick never rests on colour alone
-   (WCAG 1.4.1). Not on All, where the fill is enough, and not on a CI filter
-   pill, whose glyph and ring carry the pick (#4246). */
-.quick-pill[aria-pressed="true"]:not([data-pill="all"]):not(
-  .ci-filter-pill
-)::before {
-  content: "\2713" / "";
-  margin-inline-end: 5px;
-}
-
-/* Forced colors drops the accent fill and border of a pressed pill, which
-   leaves aria-pressed as the only difference (#3377). A 3px system-colour
-   border marks it, with the padding cut by the 2px it gained so nothing
-   moves. It's a border, not an outline, so the focus ring keeps its own
-   offset and a focused pressed pill still differs from a focused open one. */
-@media (forced-colors: active) {
-  .quick-pill[aria-pressed="true"] {
-    border: 3px solid Highlight;
-    padding: 3px 10px;
   }
 }
 
@@ -4969,6 +4917,12 @@ button.pipeline-check-link:disabled {
 .sheet-only {
   display: none;
 }
+.sheet-field {
+  display: contents;
+}
+.sheet-field-label {
+  display: none;
+}
 .filter-sheet:not([open]) {
   display: none;
 }
@@ -5047,7 +5001,7 @@ button.pipeline-check-link:disabled {
   }
   /* Every pill group is in the Filters sheet on a phone; the bar keeps the
      search, the Filters button with its count, and the chips (#3734). */
-  .quick-pills,
+  .filter-bar > .quick-pills,
   .filter-bar > .segment {
     display: none;
   }
@@ -5171,17 +5125,36 @@ button.pipeline-check-link:disabled {
     flex-wrap: wrap;
     gap: 8px;
   }
-  .filter-sheet .quick-pill {
-    min-height: 44px;
-  }
-  .filter-sheet .pill-group-label {
-    flex: 0 0 100%;
-    margin: 4px 0 0;
+  /* A pill group in the sheet stacks its label over its pills, as it does at
+     every phone width; the sheet-only flow above would lay it out in a row. */
+  .filter-sheet .filter-group.sheet-only {
+    display: flex;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    gap: 4px;
   }
   /* The sheet-only rule above ties with .segment[hidden] on specificity
      and comes later, so say hidden again here (#1455). */
   .filter-sheet .segment[hidden] {
     display: none;
+  }
+  /* Each pick dropdown has its name above it in the sheet (#4611). Outside
+     it the wrapper takes no box, so the dropdown sits in the bar as before,
+     and a dropdown that is hidden takes its label with it. */
+  .filter-sheet .sheet-field {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .filter-sheet .sheet-field:has(> [hidden]) {
+    display: none;
+  }
+  .filter-sheet .sheet-field-label {
+    display: block;
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--ink-2);
   }
   /* The Refs segment is one row of short choices that share the width (#3693). */
   .filter-sheet .segment.refs-group:not([hidden]) {
@@ -5826,7 +5799,6 @@ footer a[aria-current="page"] {
       .activity-toggle,
       .live-pause,
       .live-refresh,
-      .quick-pill,
       .segment button,
       .clear-filters,
       .col-filter,
@@ -5860,7 +5832,6 @@ footer a[aria-current="page"] {
       .theme-toggle,
       .live-pause,
       .live-refresh,
-      .quick-pill,
       .token-toggle,
       .copy-button,
       .token-copy-button,
@@ -6688,8 +6659,8 @@ footer a[aria-current="page"] {
 
 /* The shared filter pill (#4279), drawn by FilterPill inside a FilterGroup.
    32px high, outlined with the control edge so it reads as a control, and the
-   accent fill when pressed. The Main branches page uses it; the pull request
-   pages' quick pills move onto it next. */
+   accent fill when pressed. The Main branches page uses it, and the pull
+   request page's groups draw it too (#4611). */
 .filter-group {
   display: flex;
   flex-wrap: wrap;
@@ -6697,6 +6668,12 @@ footer a[aria-current="page"] {
   gap: 6px 10px;
   min-width: 0;
   max-width: 100%;
+}
+/* The group's own display would beat the [hidden] attribute and the
+   sheet-only copy's none above, so say both again (#4611). */
+.filter-group[hidden],
+.filter-group.sheet-only {
+  display: none;
 }
 .filter-group-label {
   min-width: 56px;
@@ -6727,6 +6704,11 @@ footer a[aria-current="page"] {
   border: 1px solid var(--control-border);
   border-radius: 999px;
   cursor: pointer;
+}
+/* display above would beat the hidden attribute a filter sets on a pill that
+   would show nothing (#1427). */
+.filter-pill[hidden] {
+  display: none;
 }
 .filter-pill:hover {
   border-color: var(--ink-3);
@@ -6832,8 +6814,8 @@ footer a[aria-current="page"] {
   box-shadow: inset 0 0 0 1px currentColor;
 }
 /* A pressed CI pill sets its border from the tone above, at a higher
-   specificity than the forced-colours rule for .filter-pill and the quick
-   pill's, so the system colour is stated here too: Highlight, not whatever
+   specificity than the forced-colours rule for .filter-pill, so the system
+   colour is stated here too: Highlight, not whatever
    the browser forces a tone to. The ring is a shadow forced colours drop. */
 @media (forced-colors: active) {
   .ci-filter-pill[data-status][aria-pressed="true"] {

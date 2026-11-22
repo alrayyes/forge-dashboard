@@ -1,17 +1,9 @@
 import { checkGlyphElements } from '#lib/ci-pill.js';
 
-// What the two CI-flavoured filter pills share: the status vocabulary, the CI
-// pill glyph each status wears, and the action that draws it ahead of the word.
-// `status` is the Main branches vocabulary and sets the tone; a page maps its
-// own states onto it.
-export type CiFilterStatus =
-  | 'failed'
-  | 'passed'
-  | 'running'
-  | 'cancelled'
-  | 'awaiting_approval'
-  | 'unknown'
-  | 'none';
+// The CI pill glyph each status wears, and the action that draws it ahead of
+// the word on the shared filter pill. The status vocabulary itself is the
+// pill's (FilterPill.svelte).
+import type { CiFilterStatus } from '#lib/FilterPill.svelte';
 
 // The CI pill's glyph state for each status. No pipeline takes the skipped
 // slash.

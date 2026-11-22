@@ -67,13 +67,13 @@ async function pickForgejo(page: Page, phone: boolean) {
   if (!phone) {
     await page
       .locator('.filter-bar')
-      .getByRole('button', { name: 'Forgejo', exact: true })
+      .getByRole('button', { name: /^Forgejo( \d+)?$/ })
       .click();
     return;
   }
   await page.getByRole('button', { name: /^Filters/ }).click();
   const sheet = page.locator('dialog#filter-sheet');
-  await sheet.getByRole('button', { name: 'Forgejo', exact: true }).click();
+  await sheet.getByRole('button', { name: /^Forgejo( \d+)?$/ }).click();
   await page.keyboard.press('Escape');
   await expect(sheet).toBeHidden();
 }

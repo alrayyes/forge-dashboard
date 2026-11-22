@@ -359,7 +359,14 @@ The pills ahead of the list are four labelled groups, **Forge** (GitHub,
 Forgejo), **CI** (Failing, Running, Passing, Cancelled, No checks), **Merge**
 (Conflicting, Out of date) and **Review** (Ready, Needs review, Review
 requested). Each group is single choice with its own **All**, and the groups
-combine: Forgejo with Failing shows the failing Forgejo pull requests. A chip
+combine: Forgejo with Failing shows the failing Forgejo pull requests. Each pill
+is the same 32px outlined pill the Main branches filters use, filled with the
+accent when pressed, and carries a count: the pull requests choosing it would
+list, with the other groups' picks applied and its own group's left out, so
+**All** is what the other groups leave. On a phone each pill keeps its 32px
+drawing inside a 44px tap area. In the phone Filters sheet the same pills sit
+above the Repository, Author and Label dropdowns, each with its name written
+above it, and the footer button reads **Show N results**. A chip
 removes one value, and **Clear filters** resets every group. A pill is offered
 only when it would show something and not when it matches every pull request. A
 single pill saved before the groups existed (`pr.quick`) moves, by its name,

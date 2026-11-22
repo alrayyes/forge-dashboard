@@ -148,13 +148,13 @@ for (const vp of VIEWPORTS) {
         await page.getByRole('button', { name: /^Filters/ }).click();
         await page
           .locator('dialog#filter-sheet')
-          .getByRole('button', { name: 'Forgejo', exact: true })
+          .getByRole('button', { name: /^Forgejo( \d+)?$/ })
           .click();
         await page.keyboard.press('Escape');
       } else {
         await page
           .locator('.filter-bar')
-          .getByRole('button', { name: 'Forgejo', exact: true })
+          .getByRole('button', { name: /^Forgejo( \d+)?$/ })
           .click();
       }
       await expect(rows(page)).toHaveCount(2);

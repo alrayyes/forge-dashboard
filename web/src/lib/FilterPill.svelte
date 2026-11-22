@@ -1,7 +1,20 @@
+<script module lang="ts">
+  // The CI states a pill can wear, in the Main branches vocabulary that sets
+  // the tone. A page maps its own states onto it.
+  export type CiFilterStatus =
+    | "failed"
+    | "passed"
+    | "running"
+    | "cancelled"
+    | "awaiting_approval"
+    | "unknown"
+    | "none";
+</script>
+
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLButtonAttributes } from "svelte/elements";
-  import { type CiFilterStatus, ciFilterGlyph } from "#lib/ci-filter-glyph.js";
+  import { ciFilterGlyph } from "#lib/ci-filter-glyph.js";
 
   // The one pill every filter group draws (#4279): 32px high, outlined, filled
   // with the accent when pressed, and a count in it. A group of these sits in a
