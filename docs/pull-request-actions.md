@@ -271,7 +271,7 @@ comment pill. The attribute chips and the status note ("Behind the base
 branch", say) sit under the title, so a row that has one is taller and its pills
 stay centred on the title and the note together. Rarer lines (a close cue, a
 queued note, the waiting chip) take a line of their own under the slots, and
-the waiting chip's reserved room is only there while a chip is. A narrower list
+the waiting chip's room is only there while a chip is. A narrower list
 keeps the wrapping status cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is
@@ -291,9 +291,9 @@ and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width
 at 44px tall. The Passed and Failed pills keep their word beside the counts. A
 row with no action, such as one with failing checks, ends after the pills. The
-note is plain text with no hover or press state. The room kept for the waiting
-chip is empty space under the action, never a band between the pills and the
-divider, and a chip arriving takes it back, so the card does not move.
+note is plain text with no hover or press state. A card with no waiting
+chip keeps no room for one, so it ends at the action; a chip arriving grows it
+once, downwards.
 
 What a row may claim while its forge can't be asked is decided in one place,
 `rowClaim` in `web/src/lib/row-claim.ts`, mirrored by `ClaimOf` in
@@ -706,31 +706,33 @@ toasts appear without animation. The banner at the top is left for global
 conditions such as a rate limit or an unreachable forge.
 
 The waiting chip is how a row says "something is happening, hold on". It is one
-chip in a slot at the top of the row's action area, which every pull request row
-always reserves, so a chip coming or going never moves the row. It has an icon,
-a bold label of at most three words and a lighter line naming the actor or the
-reason. The fuller explanation is a hint that opens on hover and on keyboard
-focus (the chip takes focus), and a button shows only where one exists. The
-states: `Rebase requested` and then `Rebasing` for a Dependabot or Renovate
-`rebase`, `Recreating` for a Dependabot recreate, `Updating branch`, `Merging`
-and `Closing` while the forge answers, `Arming` and `Disarming` for auto-merge,
-and `Waiting for CI` (or `Waiting for parent`, `Rate limited`, `Waiting for
-ready`, `Waiting for forge`) for an armed auto-merge on either forge, with `Disarm`.
-Once nothing is left to wait for, Forgejo's reads `Merging next` (this app
-merges it on its next refresh, also when the holder is unknown), `Merging` when
-the server says Forgejo itself holds the merge (it merges when checks pass),
-and GitHub's reads `Merging` (GitHub merges it as soon as it can). Cancel on a
-merge Forgejo holds says it cancels the merge scheduled on Forgejo. On GitHub,
-Disarm turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
+chip in a slot in the row's action area. The slot takes room only while a chip
+is in it. It has an icon, a bold label of at most three words and a lighter line
+naming the actor or the reason. The fuller explanation is a hint that opens on
+hover and on keyboard focus (the chip takes focus), and a button shows only
+where one exists. The states: `Rebase requested` and then `Rebasing` for a
+Dependabot or Renovate `rebase`, `Recreating` for a Dependabot recreate,
+`Updating branch`, `Merging` and `Closing` while the forge answers, `Arming` and
+`Disarming` for auto-merge, and `Waiting for CI` (or `Waiting for parent`, `Rate
+limited`, `Waiting for ready`, `Waiting for forge`) for an armed auto-merge on
+either forge, with `Disarm`. Once nothing is left to wait for, Forgejo's reads
+`Merging next` (this app merges it on its next refresh, also when the holder is
+unknown), `Merging` when the server says Forgejo itself holds the merge (it
+merges when checks pass), and GitHub's reads `Merging` (GitHub merges it as soon
+as it can). Cancel on a merge Forgejo holds says it cancels the merge scheduled
+on Forgejo. On GitHub, Disarm turns GitHub's own auto-merge off with
+`disablePullRequestAutoMerge`.
 
-On a phone card the room the chip reserves is accounted for, not left as a gap.
-With a chip showing, the chip fills its slot and the divider sits 10px
-under it (the flex gap and the bar's top margin). With no chip the
-empty slot is not drawn and the same room is padding below the action, so the
-divider sits within 16px of the pill line and the card is no taller when a chip
-arrives. The cost of keeping that guarantee is blank room under the
-action on a card that will never get a chip. `tests/phone-row-status-gap.spec.ts`
-measures both.
+On a phone card the slot reserves nothing. With no chip the slot is not drawn,
+so the card is no taller than its content and the divider sits within 16px of
+the pill line, with no band under the action either. A chip takes its own room,
+59px plus the 6px flex gap, and the divider then sits 10px under it (the flex
+gap and the bar's top margin). The trade-off: when your own tap makes a chip
+appear, the card grows once, downwards, by about that much. Nothing above the
+chip in the card moves and the page keeps its scroll position, the change is
+announced once by the live region, and with reduced motion on there is no
+animation (the card has none to turn off). Clearing the chip shrinks the card
+the same way. `tests/phone-row-status-gap.spec.ts` measures all of it.
 
 The server's auto-merge sentences never name a forge. Where one would, it says
 "the forge" and the page swaps in the forge's capability label (GitHub,
