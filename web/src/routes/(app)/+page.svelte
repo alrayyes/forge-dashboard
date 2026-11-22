@@ -92,6 +92,13 @@
   } from "#lib/main-branches.js";
   import { followMainBranchPage } from "#lib/main-branch-stream.js";
   import { checkFeed } from "#lib/check-feed.js";
+  import { createWarmer, intentOn } from "#lib/prefetch.js";
+  import {
+    advisoriesReadInFlight,
+    type WarmedChecks,
+    warmAdvisories,
+    warmChecks,
+  } from "#lib/pill-prefetch.js";
   import { createRowWatcher } from "#lib/row-watcher.js";
 
   let data = $state<MainBranches | null>(null);
@@ -252,6 +259,9 @@
     }
     // The first draw: the fresh button stays, and opens its own row.
     pillRows.set(fresh, b);
+    // The button lives as long as the page; the page's own teardown clears the
+    // warmer, so the cleanup intentOn returns has nothing more to do here.
+    intentOn(fresh, checkWarmer, () => rowKey(pillRows.get(fresh) ?? b));
     host.replaceChildren(fresh);
   }
 
@@ -269,8 +279,50 @@
   const branchSignature = (b: MainBranch) =>
     [b.commit?.sha ?? "", b.runUrl ?? "", runSignature(dialogChecks)].join("|");
 
+  // A pill the pointer rests on or the keyboard reaches reads its dialog's
+  // data early (#4192). The key names the row; the newest copy is read when
+  // the intent holds.
+  const rowOfKey = (key: string) =>
+    data?.branches.find((x) => rowKey(x) === key);
+  // Nothing is read while the page is paused (#3699).
+  const advisoryWarmer = createWarmer({
+    enabled: () => !paused,
+    start: (key) => {
+      const row = rowOfKey(key);
+      if (row) warmAdvisories(row);
+      return undefined;
+    },
+  });
+  // One hold at a time: the stream takes eight subjects, the page's watched
+  // rows and the open dialog use all of them. A row the page watches adds none.
+  const warmed = new Map<string, WarmedChecks>();
+  const checkWarmer = createWarmer({
+    enabled: () => !paused,
+    exclusive: true,
+    start: (key) => {
+      const row = rowOfKey(key);
+      if (!row) return undefined;
+      const repo = { forge: row.forge, fullName: row.fullName };
+      const warm = warmChecks(
+        { kind: "main_branch", ...repo },
+        repo,
+        checkFeed,
+      );
+      warmed.set(key, warm);
+      return () => {
+        warmed.delete(key);
+        warm.release();
+      };
+    },
+  });
+
   function openPipeline(b: MainBranch, opener: HTMLElement) {
     openRow = b;
+    // Any other hold goes before the dialog watches; this row's own hold hands
+    // over what it read and goes once the dialog has its watch.
+    const key = rowKey(b);
+    checkWarmer.releaseExcept(key);
+    const warm = warmed.get(key)?.handoff();
     pipeline?.open({
       ...pipelineTarget({
         forge: b.forge,
@@ -305,6 +357,7 @@
         );
         return wrap;
       },
+      warm,
       opener,
       onClose: () => {
         openRow = null;
@@ -312,6 +365,8 @@
         liveChecks = null;
       },
     });
+    // The dialog watches the row now, so the hold from the hover can go.
+    checkWarmer.opened(key);
   }
 
   // The same dialog the Releases page uses, here fed a published release: it
@@ -410,6 +465,10 @@
 
   function togglePause() {
     paused = !paused;
+    if (paused) {
+      checkWarmer.releaseAll();
+      advisoryWarmer.releaseAll();
+    }
     pauseNote = paused ? "Live updates paused" : "Live updates resumed";
     if (!paused && held) apply(held);
   }
@@ -425,6 +484,8 @@
   // free text, so it takes the debounced path the other pages' title boxes use.
   let page = -1;
   onDestroy(() => {
+    checkWarmer.destroy();
+    advisoryWarmer.destroy();
     rowWatcher.stop();
     leavePage(page);
     setBranchNavCount(null);
@@ -1226,18 +1287,23 @@
                         data-tone={adv.tone}
                         data-testid="main-branch-advisories"
                         title={adv.hint}
+                        {@attach (el) =>
+                          intentOn(el, advisoryWarmer, () => rowKey(b))}
                         aria-haspopup="dialog"
                         aria-label="{adv.text} (opens the advisories){adv.hint
                           ? `. ${adv.hint}`
                           : ''}"
-                        onclick={(e) =>
+                        onclick={(e) => {
                           advisories?.open({
                             forge: b.forge,
                             fullName: b.fullName,
                             branch: b.branch,
                             advisories: b.advisories,
+                            warm: advisoriesReadInFlight(b),
                             opener: e.currentTarget,
-                          })}>{adv.text}</button
+                          });
+                          advisoryWarmer.opened(rowKey(b));
+                        }}>{adv.text}</button
                       >
                     {:else if adv.href}
                       <a
