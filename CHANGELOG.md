@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.99.0](https://github.com/alrayyes/forge-dashboard/compare/v9.98.0...v9.99.0) (2026-11-22)
+
+
+### Features
+
+* **web:** count bot pull requests behind their base in the Bots pill ([#4623](https://github.com/alrayyes/forge-dashboard/issues/4623)) ([d747d14](https://github.com/alrayyes/forge-dashboard/commit/d747d1407bc863306de679b58784d1291cf64be7)), closes [#4282](https://github.com/alrayyes/forge-dashboard/issues/4282)
+
 ## [9.98.0](https://github.com/alrayyes/forge-dashboard/compare/v9.97.1...v9.98.0) (2026-11-22)
 
 
