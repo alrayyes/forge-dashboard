@@ -221,6 +221,10 @@ a {
    the pages line up. */
 :root {
   --wrap-max: max(1220px, min(90vw, 1800px));
+  /* The toolbar's padding. The phone Activity control's offsets follow from
+     these and --tap (#4591, #4619). */
+  --toolbar-pad-top: 4px;
+  --toolbar-pad-bottom: 20px;
 }
 
 .wrap {
@@ -235,7 +239,7 @@ header,
   justify-content: space-between;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 28px 0 20px;
+  padding: 28px 0 var(--toolbar-pad-bottom);
 }
 
 /* The dashboard page's own toolbar (the owner-select, forge
@@ -247,7 +251,7 @@ header,
    padding is trimmed well below 28px — the real <header> above it already
    paid that cost. */
 .dashboard-toolbar {
-  padding-top: 4px;
+  padding-top: var(--toolbar-pad-top);
 }
 
 .brand {
@@ -3273,21 +3277,30 @@ a.ci-pill:hover {
    above the list it pushed every card down by its height the first time an
    action revealed it, under the user's thumb. The slot stays a plain block,
    not a grid cell, so it keeps pinning for the whole page and the stuck
-   banners keep their own containing block. The toolbar keeps its height and
+   banners keep their own containing block. The control's overhang is how much
+   taller it is than the empty toolbar, whose height is its two paddings
+   (4px and 20px, 24px): --tap less those. The slot's top is that overhang
+   plus the 8px the control keeps from the top, so a change to --tap or the
+   paddings moves both together. The toolbar keeps its height and
    leaves the control's width clear at its end, in px so a larger text size
    doesn't widen it. The short-landscape layout below has its own. */
 @media (max-width: 760px) and (
     not ((max-height: 440px) and (orientation: landscape))
   ) {
   .activity-bar {
+    --activity-overhang: calc(
+      var(--tap) -
+      var(--toolbar-pad-top) -
+      var(--toolbar-pad-bottom)
+    );
     /* 8px from the top when stuck, once the control's overhang is taken up. */
-    top: 28px;
+    top: calc(8px + var(--activity-overhang));
     height: 0;
     margin: 0;
   }
   .activity-bar > .activity-toggle {
     min-height: var(--tap);
-    margin-top: -20px;
+    margin-top: calc(-1 * var(--activity-overhang));
   }
   .dashboard-toolbar {
     padding-inline-end: calc(var(--tap) * 2.5);
