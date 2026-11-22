@@ -619,9 +619,16 @@
     .mb-header-controls {
       max-width: 100%;
     }
+    /* At 400% text on a 320px phone the time alone is wider than the screen
+       (#4631), so it may wrap here; elsewhere it stays on one line. */
+    .mb-header-controls .live-updated {
+      white-space: normal;
+    }
     .mb-header h1 {
       font-size: 1.375rem;
       margin: 0 0 4px;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .mb-loading {
       font-size: 0.84375rem;
