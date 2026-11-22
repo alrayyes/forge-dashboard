@@ -16,6 +16,7 @@ test('a pull request without checks raises noChecks, not a number that is missin
     passed: 0,
     cancelled: 0,
     noChecks: 1,
+    behind: 0,
   });
   expect(counts.bots.noChecks).toBe(0);
   expect(counts.releases.noChecks).toBe(0);
@@ -31,5 +32,6 @@ test('a cancelled pull request raises cancelled and sits in its own part (#3967)
     passed: 0,
     cancelled: 1,
     noChecks: 0,
+    behind: 0,
   });
 });
