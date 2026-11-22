@@ -810,6 +810,105 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+  /api/v1/connections/github:
+    post:
+      operationId: startGitHubConnection
+      x-mcp-excluded: "A browser consent flow: the owner approves on GitHub, which an MCP token cannot do."
+      summary: Start linking a GitHub account through the GitHub App
+      description: |
+        Begins the GitHub App's user authorization flow with PKCE (S256) and
+        returns GitHub's consent page URL. The browser goes there; GitHub sends
+        it back to `GET /api/v1/connections/github/callback`. The token is a
+        user-to-server token: it expires and its refresh token rotates, and its
+        reach is whatever the App and the account's installations allow. Fails
+        with 409 when an account is already connected. Needs
+        `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` on the server; see
+        `SettingsResponse.githubOAuthConfigured`.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Where to send the browser.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConnectionAuthorizeResponse"
+        "400":
+          description: GitHub OAuth isn't configured on this server.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "409":
+          description: A GitHub account is already connected. Disconnect first.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    delete:
+      operationId: disconnectGitHub
+      x-mcp-excluded: "Unlinking an account is the owner's own action in the browser."
+      summary: Unlink the GitHub account
+      description: |
+        Deletes the stored token pair. Nothing else changes: a saved personal
+        access token, the GitHub App installation and the other settings stay.
+        Passkey sign-in is unaffected.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204":
+          description: Disconnected, or there was nothing to disconnect.
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /api/v1/connections/github/callback:
+    get:
+      operationId: finishGitHubConnection
+      x-mcp-excluded: "The forge's redirect back to the browser, never called by a client."
+      summary: GitHub's redirect back after consent
+      description: |
+        Checks `state` (single use, ten minutes), exchanges `code` with the
+        PKCE verifier, reads the account's login, stores the token pair
+        encrypted, and redirects the browser to `/settings`. A missing, wrong,
+        used or expired `state` answers 400 and stores nothing. So does a
+        refused code, a bad PKCE verifier, or an error GitHub sent back in the
+        query. Nothing is stored when the account can't be read either (502).
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - { name: code, in: query, required: false, schema: { type: string } }
+        - { name: state, in: query, required: false, schema: { type: string } }
+        - { name: error, in: query, required: false, schema: { type: string } }
+      responses:
+        "303":
+          description: Linked. Redirects to `/settings`.
+        "400":
+          description: Unknown, used or expired state, or the code exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: No valid session cookie was presented.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "502":
+          description: The token was granted but GitHub wouldn't say whose account it is. Nothing is stored.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
   /api/v1/settings/filter-state:
     get:
       operationId: getFilterState
@@ -4496,6 +4595,8 @@ components:
           forgejoTokenSet,
           forgejoOAuthConfigured,
           forgejoOAuthConnected,
+          githubOAuthConfigured,
+          githubOAuthConnected,
           webhookToken,
           webhookSecret,
           renovateRebaseLabel,
@@ -4554,6 +4655,17 @@ components:
             Whether a Forgejo account is linked with OAuth. Like `forgejoTokenSet`
             it says only that one is on file; the access and refresh tokens are
             never returned. A linked account wins over a pasted token.
+        githubOAuthConfigured:
+          type: boolean
+          description: |
+            Whether this server has the GitHub App's OAuth client
+            (`GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET`), so
+            `POST /api/v1/connections/github` can work at all.
+        githubOAuthConnected:
+          type: boolean
+          description: |
+            Whether a GitHub account is linked through the GitHub App's user
+            sign-in. The access and refresh tokens are never returned.
         webhookToken:
           type: string
           description: |
@@ -4674,6 +4786,8 @@ components:
           forgejoTokenSet,
           forgejoOAuthConfigured,
           forgejoOAuthConnected,
+          githubOAuthConfigured,
+          githubOAuthConnected,
           webhookConfigured,
           renovateRebaseLabel,
           renovateAuthors,
@@ -4703,6 +4817,10 @@ components:
         forgejoOAuthConfigured:
           type: boolean
         forgejoOAuthConnected:
+          type: boolean
+        githubOAuthConfigured:
+          type: boolean
+        githubOAuthConnected:
           type: boolean
         webhookConfigured:
           type: boolean

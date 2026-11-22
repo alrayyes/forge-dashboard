@@ -35,6 +35,11 @@ type SettingsResponse struct {
 	// Never the tokens themselves.
 	ForgejoOAuthConfigured bool `json:"forgejoOAuthConfigured"`
 	ForgejoOAuthConnected  bool `json:"forgejoOAuthConnected"`
+
+	// GitHubOAuthConfigured and GitHubOAuthConnected (#3951) are the same two
+	// facts for the GitHub App's user sign-in. Never the tokens themselves.
+	GitHubOAuthConfigured bool `json:"githubOAuthConfigured"`
+	GitHubOAuthConnected  bool `json:"githubOAuthConnected"`
 	// WebhookToken and WebhookSecret, unlike the forge tokens above, are
 	// ours to hand back in the clear — the user has to paste them into
 	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
@@ -674,6 +679,8 @@ type SettingsSummary struct {
 	ForgejoTokenSet           bool     `json:"forgejoTokenSet"`
 	ForgejoOAuthConfigured    bool     `json:"forgejoOAuthConfigured"`
 	ForgejoOAuthConnected     bool     `json:"forgejoOAuthConnected"`
+	GitHubOAuthConfigured     bool     `json:"githubOAuthConfigured"`
+	GitHubOAuthConnected      bool     `json:"githubOAuthConnected"`
 	WebhookConfigured         bool     `json:"webhookConfigured"`
 	RenovateRebaseLabel       string   `json:"renovateRebaseLabel"`
 	RenovateAuthors           []string `json:"renovateAuthors"`
@@ -703,6 +710,11 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 		return SettingsSummary{}, errCouldNotLoadSettings
 	}
 
+	githubConnected, err := deps.SettingsStore.HasOAuthToken(ctx, githubForge)
+	if err != nil {
+		return SettingsSummary{}, errCouldNotLoadSettings
+	}
+
 	return SettingsSummary{
 		GitHubUsername:            full.GitHubUsername,
 		GitHubTokenSet:            full.GitHubTokenSet,
@@ -713,6 +725,8 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 		ForgejoTokenSet:           full.ForgejoTokenSet,
 		ForgejoOAuthConfigured:    deps.ForgejoOAuth.Configured(),
 		ForgejoOAuthConnected:     connected,
+		GitHubOAuthConfigured:     deps.GitHubOAuth.Configured(),
+		GitHubOAuthConnected:      githubConnected,
 		WebhookConfigured:         creds.WebhookToken != "" && creds.WebhookSecret != "",
 		RenovateRebaseLabel:       full.RenovateRebaseLabel,
 		RenovateAuthors:           full.RenovateAuthors,

@@ -187,6 +187,13 @@ and puts focus on that input. The page holds no copy of those rules.
   rather than your account's shared one. Setup is in
   [GitHub App support](configuration.md#github-app-support), and
   [Rate limits](rate-limits.md) explains the budgets.
+- **Linked account** (operator opt-in): if this deployment has the GitHub
+  App's OAuth client configured, you can link your GitHub account
+  ([setup](configuration.md#github-account-sign-in)). The user token renews
+  itself and is stored encrypted. It is never in `GET /api/v1/settings`, which
+  only reports `githubOAuthConfigured` and `githubOAuthConnected`. Disconnect
+  removes the link and leaves a saved token and the installation alone. Nothing
+  reads through the linked account yet.
 
 ### Forgejo
 
