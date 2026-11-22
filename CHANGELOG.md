@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.95.0](https://github.com/alrayyes/forge-dashboard/compare/v9.94.0...v9.95.0) (2026-11-22)
+
+
+### Features
+
+* store GitHub App installations and accept them from the Setup URL ([#4589](https://github.com/alrayyes/forge-dashboard/issues/4589)) ([83de5f8](https://github.com/alrayyes/forge-dashboard/commit/83de5f853cfcaeb5bc528a207c5ac746fc291512)), closes [#4575](https://github.com/alrayyes/forge-dashboard/issues/4575)
+* **web:** read a pill's dialog data early on hover and focus ([#4583](https://github.com/alrayyes/forge-dashboard/issues/4583)) ([17a1a03](https://github.com/alrayyes/forge-dashboard/commit/17a1a03e1ded84ce653d573c6165655b95d8a1f5)), closes [#4192](https://github.com/alrayyes/forge-dashboard/issues/4192)
+
 ## [9.94.0](https://github.com/alrayyes/forge-dashboard/compare/v9.93.0...v9.94.0) (2026-11-22)
 
 
