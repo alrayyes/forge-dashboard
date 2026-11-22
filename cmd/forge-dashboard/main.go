@@ -786,7 +786,9 @@ func databasePath() string {
 // that added each. A step's position is its version number, so an entry is
 // only ever appended.
 func migrationSteps(log *slog.Logger) []dbmigrate.Step {
-	return append(settings.MigrationSteps(log), auth.MigrationSteps(log)...)
+	steps := append(settings.MigrationSteps(log), auth.MigrationSteps(log)...)
+
+	return append(steps, settings.InstallationMigrationSteps(log)...)
 }
 
 // openUpgradedDatabase opens the database and brings its schema up to date

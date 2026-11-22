@@ -68,6 +68,17 @@ func migrate(t *testing.T, db *sql.DB, path string) (dbmigrate.Result, error) {
 	return migrateLogged(t, db, path, quietLog)
 }
 
+// migrateAll runs every settings step as main does: the user-id step, then
+// the installations step appended after the auth steps' slot.
+func migrateAll(t *testing.T, db *sql.DB, path string) (dbmigrate.Result, error) {
+	t.Helper()
+
+	steps := append(settings.MigrationSteps(quietLog), auth.MigrationSteps(quietLog)...)
+	steps = append(steps, settings.InstallationMigrationSteps(quietLog)...)
+
+	return dbmigrate.Run(t.Context(), db, path, steps, quietLog) //nolint:wrapcheck // test helper
+}
+
 func migrateLogged(t *testing.T, db *sql.DB, path string, log *slog.Logger) (dbmigrate.Result, error) {
 	t.Helper()
 

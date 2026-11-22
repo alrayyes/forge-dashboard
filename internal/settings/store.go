@@ -168,7 +168,7 @@ func (s *Store) Init(ctx context.Context) error {
 		armed_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (forge, repo_full_name, number)
 	);
-	` + hiddenPullRequestsSchema + queuedActionsSchema + pullRequestAutoUpdateSchema + oauthTokensSchema
+	` + hiddenPullRequestsSchema + queuedActionsSchema + pullRequestAutoUpdateSchema + oauthTokensSchema + installationsSchema
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
@@ -193,7 +193,13 @@ func (s *Store) Set(ctx context.Context, c Credentials) error {
 		return fmt.Errorf("settings: encode ignored titles: %w", err)
 	}
 
-	_, err = s.db.ExecContext(ctx, `
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("settings: save credentials: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, `
 		INSERT INTO settings
 			(id, github_token, github_username, forgejo_url, forgejo_token, forgejo_username, renovate_rebase_label, renovate_authors, hide_dependency_dashboard, ignored_titles, theme, timezone, github_app_installation_id, updated_at)
 		VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -214,6 +220,14 @@ func (s *Store) Set(ctx context.Context, c Credentials) error {
 		encGitHubToken, c.GitHubUsername, c.ForgejoURL, encForgejoToken, c.ForgejoUsername, c.RenovateRebaseLabel, strings.Join(c.RenovateAuthors, ","), c.HideDependencyDashboard, titles, c.Theme, c.Timezone, c.GitHubAppInstallationID, time.Now().UTC(),
 	)
 	if err != nil {
+		return fmt.Errorf("settings: save credentials: %w", err)
+	}
+
+	if err := syncSavedInstallation(ctx, tx, c.GitHubAppInstallationID); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
 		return fmt.Errorf("settings: save credentials: %w", err)
 	}
 
@@ -246,6 +260,16 @@ func (s *Store) Get(ctx context.Context) (Credentials, error) {
 	}
 	if len(c.IgnoredTitles) == 0 {
 		c.IgnoredTitles = nil
+	}
+
+	// The installations table is the source; the saved column is only what an
+	// older release left, and still answers when the table has no enabled row.
+	first, err := firstEnabledInstallation(ctx, s.db)
+	if err != nil {
+		return Credentials{}, err
+	}
+	if first != 0 {
+		c.GitHubAppInstallationID = first
 	}
 
 	if c.GitHubToken, err = s.cipher.Decrypt(encGitHubToken); err != nil {

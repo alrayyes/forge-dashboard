@@ -222,6 +222,17 @@ process stops after a refresh but before the new pair is saved, the link is
 lost. Disconnect, then connect again. Disconnecting deletes the pair and
 changes nothing else: a saved token and the installation ID stay.
 
+**Installations.** Set the App's **Setup URL** to your `RP_ORIGIN` followed by
+`/api/v1/connections/github/installed` and turn on **Redirect on update**.
+After someone installs the App, GitHub sends the browser there with the new
+installation's ID. The dashboard doesn't trust that ID: it stores it, with the
+account it belongs to, only when it appears in the linked account's own
+installations (`GET /user/installations`). With no linked account, or an ID
+that isn't listed, nothing is stored. Each installation is one row, so you
+never paste an ID. Today reads still use the first one; reading with every
+installation, the "waiting for owner approval" state and webhook updates are
+not built yet, and neither is the Settings screen.
+
 This is the sign-in half only. The dashboard doesn't yet use the linked
 account to read your repositories, and the Settings screen for it is not built;
 the flow is available through the [API](api.md)
@@ -268,7 +279,8 @@ To use it:
 From there it's from Settings: install the App
 on your GitHub account (its own settings page → **Install App**)
 and paste the installation ID GitHub shows you into the new field
-next to their token. An installation always wins over a saved token
+next to their token (or, with a linked account, use the Setup URL above).
+An installation always wins over a saved token
 when both are set for polling and every other action — the token stays
 saved rather than being cleared, and is used for one thing only:
 sending `@dependabot` comments, which Dependabot refuses from a GitHub

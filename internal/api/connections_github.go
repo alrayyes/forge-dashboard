@@ -4,8 +4,10 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"strconv"
 
 	"github.com/alrayyes/forge-dashboard/internal/oauth"
+	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // githubForge is the key of GitHub's row in the OAuth token store.
@@ -115,4 +117,65 @@ func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+// handleGitHubInstalled answers GET /api/v1/connections/github/installed, the
+// App's Setup URL (#4575). GitHub sends the browser here after an install or a
+// change of repository access, with installation_id and setup_action. The
+// redirect is not trusted: the ID is stored only when it is in the connected
+// user's own installations.
+func handleGitHubInstalled(deps Deps) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+
+		if !deps.GitHubOAuth.Configured() {
+			writeJSON(w, http.StatusBadRequest, errorBody("this server has no GitHub App OAuth client configured"))
+
+			return
+		}
+
+		id, err := strconv.ParseInt(r.URL.Query().Get("installation_id"), 10, 64)
+		if err != nil || id <= 0 || id > maxInstallationID {
+			writeJSON(w, http.StatusBadRequest, errorBody("the redirect carries no valid installation_id"))
+
+			return
+		}
+
+		listed, err := deps.GitHubOAuth.UserInstallations(r.Context())
+		if err != nil {
+			writeGitHubInstalledError(w, err)
+
+			return
+		}
+
+		for _, in := range listed {
+			if in.ID != id {
+				continue
+			}
+
+			if err := deps.SettingsStore.SaveInstallation(r.Context(), settings.Installation{ID: id, AccountLogin: in.AccountLogin}); err != nil {
+				slog.Warn("github app: could not save the installation")
+				writeJSON(w, http.StatusInternalServerError, errorBody("could not save the installation"))
+
+				return
+			}
+
+			http.Redirect(w, r, settingsPath, http.StatusSeeOther)
+
+			return
+		}
+
+		writeJSON(w, http.StatusForbidden, errorBody("that installation is not one of the connected account's"))
+	}
+}
+
+func writeGitHubInstalledError(w http.ResponseWriter, err error) {
+	if errors.Is(err, oauth.ErrNotConnected) {
+		writeJSON(w, http.StatusConflict, errorBody("connect a GitHub account first"))
+
+		return
+	}
+
+	slog.Warn("github app: could not list the user's installations")
+	writeJSON(w, http.StatusBadGateway, errorBody("GitHub would not list the account's installations"))
 }

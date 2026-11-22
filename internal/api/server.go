@@ -186,6 +186,7 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/v1/connections/github", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionStart(deps)))
 	mux.Handle("DELETE /api/v1/connections/github", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionDelete(deps)))
 	mux.Handle("GET /api/v1/connections/github/callback", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionCallback(deps)))
+	mux.Handle("GET /api/v1/connections/github/installed", auth.RequireAuth(deps.AuthStore)(handleGitHubInstalled(deps)))
 	mux.Handle("GET /api/v1/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/v1/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/v1/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))
