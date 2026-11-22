@@ -154,7 +154,7 @@ func TestImageProxyForCapabilities_FollowsTheForgesFixedHosts(t *testing.T) {
 // is also the only place its token goes.
 func TestImageProxyForCapabilities_NoHostsMeansTheSavedInstance(t *testing.T) {
 	t.Parallel()
-	creds := settings.Credentials{ForgejoURL: "http://git.example:3000", ForgejoToken: "t"}
+	creds := settings.Credentials{Instances: map[string]settings.Instance{"third": {URL: "http://git.example:3000", Token: "t"}}}
 	proxy, serr := imageProxyForCapabilities(Deps{}, "third", dashboard.ForgeCapabilities{}, creds)
 	require.Nil(t, serr)
 	cfg := proxy.Config()
@@ -166,6 +166,10 @@ func TestImageProxyForCapabilities_NoHostsMeansTheSavedInstance(t *testing.T) {
 	_, serr = imageProxyForCapabilities(Deps{}, "third", dashboard.ForgeCapabilities{}, settings.Credentials{})
 	require.NotNil(t, serr)
 	assert.Equal(t, 400, serr.status)
+
+	// Another forge's saved instance is not borrowed.
+	_, serr = imageProxyForCapabilities(Deps{}, "third", dashboard.ForgeCapabilities{}, settings.Credentials{ForgejoURL: "https://git.example", ForgejoToken: "fj"})
+	require.NotNil(t, serr)
 }
 
 func TestImageProxyFor_RefusesAForgeNobodyDescribed(t *testing.T) {
