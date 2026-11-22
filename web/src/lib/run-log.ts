@@ -484,7 +484,8 @@ export function parseLogLines(text: string): LogLine[] {
     const stamp = STAMP.exec(rest);
     if (stamp) rest = rest.slice(stamp[0].length);
     const out: LogLine = { kind: hint, text: rest };
-    if (stamp) out.time = stamp[1];
+    // To the millisecond: a longer fraction would outgrow the column.
+    if (stamp) out.time = stamp[1].replace(/(\.\d{3})\d+/, '$1');
     if (STEP.test(rest)) {
       out.kind = 'step';
       out.text = rest.replace(/^(?:##\[group\]|---\s+|\+\+\+\s+)/, '');

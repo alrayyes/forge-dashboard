@@ -6011,7 +6011,7 @@ footer a[aria-current="page"] {
   align-items: start;
 }
 .run-output-stamped .run-line {
-  grid-template-columns: 44px 12ch minmax(0, 1fr);
+  grid-template-columns: 44px calc(12ch + 8px) minmax(0, 1fr);
 }
 .run-line + .run-line {
   border-top: 1px solid var(--border);
@@ -6036,7 +6036,9 @@ footer a[aria-current="page"] {
   cursor: pointer;
 }
 .run-line-no:hover {
-  color: var(--accent);
+  /* --ink, not --accent: the accent on this tint is 4.3:1, under the 4.5:1 an
+     11px number needs. */
+  color: var(--ink);
   background: var(--run-copied-bg);
 }
 .run-line-no:focus-visible {
@@ -6077,6 +6079,17 @@ footer a[aria-current="page"] {
 .run-line-time,
 .run-line-text {
   padding-block: 3px;
+}
+/* Forced colours drop the tint, so the copied row is outlined and its number
+   and check take the system highlight. */
+@media (forced-colors: active) {
+  .run-line-copied {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .run-line-copied .run-line-no {
+    color: Highlight;
+  }
 }
 .run-line-text {
   padding-inline: 8px 10px;

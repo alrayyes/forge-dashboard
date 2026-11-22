@@ -1168,7 +1168,11 @@ number stays on screen, with a check beside it, and a toast and a polite live
 region say "Line N copied", for about two seconds. The numbers are one tab stop;
 the arrow keys, Home, End and Page Up and Down move between them. A
 `Timestamps` switch shows or hides the times, off by default at 600px and
-narrower. Its focus ring covers the number cell, not the row.
+narrower. Its focus ring covers the number cell, not the row. A time shows to
+the millisecond, so a longer fraction is trimmed on screen (the copied text is
+the line's own, as shown, without `##[error]` or `##[group]` markers). An empty
+line copies nothing and says nothing. In forced colours the copied row gets an
+outline in the system highlight.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with

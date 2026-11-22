@@ -619,6 +619,15 @@ describe('parseLogLines', () => {
     });
   });
 
+  test('shows a stamp to the millisecond, however long its fraction is', () => {
+    const [a, b] = parseLogLines(
+      '2026-11-13T10:00:56.1234567Z long\n2026-11-13T10:00:57Z none',
+    );
+    expect(a.time).toBe('10:00:56.123');
+    expect(a.text).toBe('long');
+    expect(b.time).toBe('10:00:57');
+  });
+
   test('strips ANSI codes and uses red and yellow as level hints', () => {
     const lines = parseLogLines(
       '\u001b[31mfailed\u001b[0m\n\u001b[33mhmm\u001b[0m\n\u001b[32mfine\u001b[0m',

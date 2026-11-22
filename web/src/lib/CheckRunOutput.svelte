@@ -78,8 +78,12 @@
   // the sentence for the toast and the live region. All three are one number or
   // string, so a 5000-line log keeps no per-line state.
   let active = $state(0);
+  // A shorter log loaded after a late line had focus must still have a stop.
+  const stop = $derived(Math.min(active, Math.max(lines.length - 1, 0)));
   let copiedLine = $state(-1);
   let lineStatus = $state("");
+  // The toast's fade, apart from its words, so a repeat copy doesn't blink it.
+  let toastOn = $state(false);
   let lineTimer: ReturnType<typeof setTimeout> | undefined;
   // Timestamps start off on a phone, where they take a third of a line.
   let timestamps = $state(
@@ -101,12 +105,21 @@
     clearTimeout(lineTimer);
     copiedLine = -1;
     lineStatus = "";
+    toastOn = false;
   }
 
   async function copyLine(i: number, button: HTMLButtonElement) {
     const n = i + 1;
     const text = lineCopyText(lines[i]);
     clearTimeout(lineTimer);
+    // An empty line has nothing to put on the clipboard, and nothing to say.
+    if (!text) {
+      endLineCopy();
+      return;
+    }
+    // Clear first, so a repeat copy of the same line is a change the live
+    // region announces again while the clipboard write is in flight.
+    lineStatus = "";
     const outcome = await copyLog(text, {
       clipboard: navigator.clipboard,
       select: () => selectCopy(text, button.closest("dialog") ?? document.body),
@@ -114,6 +127,7 @@
     // The check and the toast go together after about two seconds.
     copiedLine = outcome === "copied" ? i : -1;
     lineStatus = copyLineStatus(n, outcome);
+    toastOn = true;
     lineTimer = setTimeout(endLineCopy, 2000);
   }
 
@@ -296,7 +310,7 @@
                   type="button"
                   class="run-line-no"
                   data-line={i}
-                  tabindex={i === active ? 0 : -1}
+                  tabindex={i === stop ? 0 : -1}
                   aria-label={copyLineLabel(i + 1)}
                   onclick={(e) => copyLine(i, e.currentTarget)}
                   onfocus={() => (active = i)}
@@ -332,7 +346,7 @@
         </div>
         <p
           class="run-line-toast"
-          class:run-line-toast-on={lineStatus}
+          class:run-line-toast-on={toastOn}
           role="status"
           aria-live="polite"
         >
