@@ -57,6 +57,11 @@ type Deps struct {
 	// no client id and secret, leaves the connection routes answering 400.
 	ForgejoOAuth *oauth.Forgejo
 
+	// GitHubOAuth links a GitHub account through the GitHub App's user flow
+	// (#3951). Nil, or one with no client id and secret, leaves the connection
+	// routes answering 400.
+	GitHubOAuth *oauth.GitHub
+
 	// ImageProxies replaces, by forge, the proxy built from a forge's fixed
 	// image hosts. Only tests set it, to reach a local server.
 	ImageProxies map[string]*imageproxy.Proxy
@@ -178,6 +183,9 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("POST /api/v1/connections/forgejo", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionStart(deps)))
 	mux.Handle("DELETE /api/v1/connections/forgejo", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionDelete(deps)))
 	mux.Handle("GET /api/v1/connections/forgejo/callback", auth.RequireAuth(deps.AuthStore)(handleForgejoConnectionCallback(deps)))
+	mux.Handle("POST /api/v1/connections/github", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionStart(deps)))
+	mux.Handle("DELETE /api/v1/connections/github", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionDelete(deps)))
+	mux.Handle("GET /api/v1/connections/github/callback", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionCallback(deps)))
 	mux.Handle("GET /api/v1/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/v1/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/v1/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))

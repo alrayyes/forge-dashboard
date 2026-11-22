@@ -155,8 +155,8 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
 - [Rate limits](docs/rate-limits.md): why a forge is rate limited, what the
   dashboard does meanwhile, and what to change.
 - [Accounts](docs/accounts.md): passkey login, API tokens
-  and the GitHub and Forgejo credentials, including linking a Forgejo account
-  over OAuth.
+  and the GitHub and Forgejo credentials, including linking a Forgejo or GitHub
+  account over OAuth.
 - [Configuration](docs/configuration.md): every environment variable, how repositories
   are discovered and the GitHub App option.
 - [Running it](docs/running.md): building and starting the app, and running the

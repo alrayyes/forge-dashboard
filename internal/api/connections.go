@@ -223,8 +223,17 @@ func addOAuthStatus(ctx context.Context, w http.ResponseWriter, deps Deps, resp 
 		return false
 	}
 
+	githubConnected, err := deps.SettingsStore.HasOAuthToken(ctx, githubForge)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, errorBody("could not read the connection"))
+
+		return false
+	}
+
 	resp.ForgejoOAuthConfigured = deps.ForgejoOAuth.Configured()
 	resp.ForgejoOAuthConnected = connected
+	resp.GitHubOAuthConfigured = deps.GitHubOAuth.Configured()
+	resp.GitHubOAuthConnected = githubConnected
 
 	return true
 }

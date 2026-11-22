@@ -424,6 +424,11 @@ func run() error {
 	deps.ForgejoOAuth = oauth.NewForgejo(ctx,
 		os.Getenv("FORGEJO_OAUTH_CLIENT_ID"), os.Getenv("FORGEJO_OAUTH_CLIENT_SECRET"),
 		strings.TrimSuffix(deps.PublicOrigin, "/")+"/api/v1/connections/forgejo/callback", settingsStore)
+	// The GitHub App's own OAuth client, for linking a GitHub account. Without
+	// both values the connection is simply not offered.
+	deps.GitHubOAuth = oauth.NewGitHub(ctx,
+		os.Getenv("GITHUB_APP_CLIENT_ID"), os.Getenv("GITHUB_APP_CLIENT_SECRET"),
+		strings.TrimSuffix(deps.PublicOrigin, "/")+"/api/v1/connections/github/callback", settingsStore)
 	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats, deps.ForgejoOAuth)
 
 	startDashboardAtBoot(ctx, settingsStore, deps.BuildSources, service)
