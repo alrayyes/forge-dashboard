@@ -3,6 +3,8 @@
 // ("#api-tokens"); the second opens the card's group and names the card so
 // the page can scroll it into view.
 
+import { connectionsCaption } from './forge-copy';
+
 export type SettingsGroupId =
   | 'display'
   | 'connections'
@@ -12,19 +14,20 @@ export type SettingsGroupId =
 export const SETTINGS_GROUPS: {
   id: SettingsGroupId;
   label: string;
-  caption: string;
+  // A function so a caption naming the forges reads the labels at render time.
+  caption: () => string;
 }[] = [
-  { id: 'display', label: 'Display', caption: 'Theme, time zone' },
-  { id: 'connections', label: 'Connections', caption: 'GitHub, Forgejo' },
+  { id: 'display', label: 'Display', caption: () => 'Theme, time zone' },
+  { id: 'connections', label: 'Connections', caption: connectionsCaption },
   {
     id: 'behaviour',
     label: 'Behaviour',
-    caption: 'Pull requests, issues, auto-merge',
+    caption: () => 'Pull requests, issues, auto-merge',
   },
   {
     id: 'integrations',
     label: 'Integrations and security',
-    caption: 'Webhooks, passkeys, API tokens',
+    caption: () => 'Webhooks, passkeys, API tokens',
   },
 ];
 
@@ -33,7 +36,6 @@ export const DEFAULT_GROUP: SettingsGroupId = 'display';
 // Card and field ids that existing links use, and the group each lives in.
 const ANCHOR_GROUPS: Record<string, SettingsGroupId> = {
   'issue-settings': 'behaviour',
-  'forgejo-auto-merge': 'behaviour',
   webhooks: 'integrations',
   passkeys: 'integrations',
   'api-tokens': 'integrations',
@@ -56,7 +58,10 @@ export function groupFromHash(hash: string): {
   }
   const direct = SETTINGS_GROUPS.find((g) => g.id === id);
   if (direct) return { group: direct.id };
-  const group = ANCHOR_GROUPS[id];
+  // One auto-merge card per forge that holds the merge: `<forge>-auto-merge`.
+  const group = /^[\w-]+-auto-merge$/.test(id)
+    ? 'behaviour'
+    : ANCHOR_GROUPS[id];
   if (group) return { group, anchor: id };
   return { group: DEFAULT_GROUP };
 }

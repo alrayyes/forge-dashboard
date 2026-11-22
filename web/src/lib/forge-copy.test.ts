@@ -1,15 +1,23 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import {
   appConnectionCopy,
+  appHeldAutoMergeCopy,
   approveLinkCopy,
   autoMergeGroupNote,
+  connectionsCaption,
   forgeNameList,
   noReposCopy,
   pageDescription,
   permissionsNotReportedCopy,
   scheduledOnCopy,
+  settingsDescription,
 } from './forge-copy';
-import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
+import {
+  FORGE_LABELS,
+  forgesWhere,
+  registerForgeCapabilities,
+  resetForgeCapabilities,
+} from './forges';
 
 afterEach(resetForgeCapabilities);
 
@@ -130,4 +138,84 @@ describe('appConnectionCopy', () => {
     );
     expect(JSON.stringify(copy)).not.toContain('GitHub');
   });
+});
+
+describe('settings copy comes from the label', () => {
+  test('the Connections caption and page description list every forge', () => {
+    expect(connectionsCaption()).toBe('GitHub, Forgejo');
+    expect(settingsDescription()).toContain('GitHub and Forgejo connections');
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { label: 'Gitea' } },
+    ]);
+    expect(connectionsCaption()).toBe('GitHub, Forgejo, Gitea');
+    expect(settingsDescription()).toContain(
+      'GitHub, Forgejo and Gitea connections',
+    );
+  });
+
+  test('the auto-merge card names the forge that holds the merge', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { label: 'Codeberg' } },
+    ]);
+    const c = appHeldAutoMergeCopy('forgejo');
+
+    expect(c.heading).toBe('Codeberg auto-merge');
+    expect(c.intro).toBe(
+      "Auto-merge on Codeberg is handled by Forge Dashboard, not Codeberg itself. Codeberg's own scheduled merge can't be read back, so this app keeps the intent and does the merging.",
+    );
+    expect(c.items.join(' ')).not.toContain('Forgejo');
+    expect(c.items.join(' ')).toContain('Codeberg');
+  });
+});
+
+describe('settings copy with fewer forges', () => {
+  test('one forge reads without a conjunction, none without a gap', () => {
+    for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];
+    expect(connectionsCaption()).toBe('');
+    expect(settingsDescription()).toBe(
+      'Your appearance, connections, pull request behavior, webhooks, passkeys and API tokens.',
+    );
+    FORGE_LABELS.github = 'GitHub';
+    expect(connectionsCaption()).toBe('GitHub');
+    expect(settingsDescription()).toContain(
+      'Your appearance, GitHub connections,',
+    );
+  });
+});
+
+describe('forgesWhere', () => {
+  test('is empty when no forge has the flag', () => {
+    registerForgeCapabilities([
+      { forge: 'forgejo', capabilities: { autoMergeHeldByApp: false } },
+    ]);
+    expect(forgesWhere('autoMergeHeldByApp')).toEqual([]);
+  });
+
+  test('lists several forges in registered order', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { autoMergeHeldByApp: true } },
+    ]);
+    expect(forgesWhere('autoMergeHeldByApp')).toEqual(['forgejo', 'gitea']);
+  });
+
+  test('an unknown forge never has a flag', () => {
+    expect(forgesWhere('autoMergeHeldByApp')).not.toContain('mystery');
+  });
+
+  test('lists the forges that hold auto-merge in the app', () => {
+    expect(forgesWhere('autoMergeHeldByApp')).toEqual(['forgejo']);
+  });
+});
+
+test('one auto-merge card per forge that holds the merge', () => {
+  registerForgeCapabilities([
+    {
+      forge: 'gitea',
+      capabilities: { label: 'Gitea', autoMergeHeldByApp: true },
+    },
+  ]);
+  const headings = forgesWhere('autoMergeHeldByApp').map(
+    (f) => appHeldAutoMergeCopy(f).heading,
+  );
+  expect(headings).toEqual(['Forgejo auto-merge', 'Gitea auto-merge']);
 });

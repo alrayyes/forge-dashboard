@@ -6,6 +6,13 @@ import {
 } from './settings-groups.js';
 
 describe('settings groups', () => {
+  test('a card id for any forge holding auto-merge opens Behaviour', () => {
+    expect(groupFromHash('#gitea-auto-merge')).toEqual({
+      group: 'behaviour',
+      anchor: 'gitea-auto-merge',
+    });
+  });
+
   test('four groups in the agreed order', () => {
     expect(SETTINGS_GROUPS.map((g) => g.label)).toEqual([
       'Display',

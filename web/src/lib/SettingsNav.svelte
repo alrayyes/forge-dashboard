@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { dashboardRead } from "./dashboard-read.svelte.js";
   import { SETTINGS_GROUPS, type SettingsGroupId } from "./settings-groups.js";
 
   let { current }: { current: SettingsGroupId } = $props();
@@ -14,7 +15,7 @@
           class:current={current === g.id}
         >
           <span class="label">{g.label}</span>
-          <span class="caption">{g.caption}</span>
+          <span class="caption">{(dashboardRead.data, g.caption())}</span>
         </a>
       </li>
     {/each}

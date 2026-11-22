@@ -77,3 +77,31 @@ export function appConnectionCopy(forge: string) {
     dependabotNeedsToken: `Dependabot needs a personal access token when a ${n} App is connected.`,
   };
 }
+
+// The Connections group's caption in Settings.
+export function connectionsCaption(): string {
+  return Object.values(FORGE_LABELS).join(', ');
+}
+
+// The Settings page's meta description.
+export function settingsDescription(): string {
+  const forges = forgeNameList(Object.values(FORGE_LABELS));
+  const connections = forges ? `${forges} connections` : 'connections';
+  return `Your appearance, ${connections}, pull request behavior, webhooks, passkeys and API tokens.`;
+}
+
+// The Settings card for a forge whose auto-merge this app holds and performs.
+export function appHeldAutoMergeCopy(forge: string) {
+  const n = name(forge);
+  return {
+    heading: `${n} auto-merge`,
+    intro: `Auto-merge on ${n} is handled by Forge Dashboard, not ${n} itself. ${n}'s own scheduled merge can't be read back, so this app keeps the intent and does the merging.`,
+    items: [
+      `It's off for every pull request until you choose "Enable auto-merge" in a ${n} pull request's pop-up. Nothing is merged that you didn't arm.`,
+      `An armed pull request shows "Auto-merge on" and "Managed by Forge Dashboard". It merges after a refresh once its checks have passed and ${n} says it can merge, with the repo's own merge method.`,
+      `While it waits or stops, the row says why in words: checks still running, a failed check, a conflict, or a merge ${n} refused.`,
+      `"Cancel auto-merge" on the row removes the intent. Closing or merging the pull request elsewhere removes it too.`,
+      `The merge uses your ${n} token, so it needs permission to merge.`,
+    ],
+  };
+}
