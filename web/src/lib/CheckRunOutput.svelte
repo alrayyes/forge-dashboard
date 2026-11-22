@@ -2,13 +2,18 @@
   // One check's "Show output": a button that opens the job's output under the
   // check, with a Copy button beside it, and a link to the job on the forge for
   // when the output is cut or can't be read. Text only: the output is never
-  // parsed as markup.
+  // parsed as markup. Each line's number is a button that copies that line
+  // (#4280): one tab stop for the whole log, the arrow keys move between lines.
   import { onDestroy, tick } from "svelte";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import type { Check } from "#lib/pipeline-checks.js";
-  import { CopyFlow } from "#lib/copy-flow.svelte.js";
+  import { CopyFlow, selectCopy } from "#lib/copy-flow.svelte.js";
   import {
     checkLinkLabel,
+    copyLineLabel,
+    copyLineStatus,
+    copyLog,
+    lineCopyText,
     loadRunLog,
     logUrl,
     notePlaces,
@@ -16,6 +21,7 @@
     outputToggleName,
     parseLogLines,
     type RepoRef,
+    rovingLine,
   } from "#lib/run-log.js";
 
   let {
@@ -68,18 +74,81 @@
       ? "Copying"
       : flow.status || (earlier?.busy ? "Copying" : (earlier?.status ?? "")),
   );
+  // The line whose button is the log's one tab stop, the line just copied, and
+  // the sentence for the toast and the live region. All three are one number or
+  // string, so a 5000-line log keeps no per-line state.
+  let active = $state(0);
+  // A shorter log loaded after a late line had focus must still have a stop.
+  const stop = $derived(Math.min(active, Math.max(lines.length - 1, 0)));
+  let copiedLine = $state(-1);
+  let lineStatus = $state("");
+  // The toast's fade, apart from its words, so a repeat copy doesn't blink it.
+  let toastOn = $state(false);
+  let lineTimer: ReturnType<typeof setTimeout> | undefined;
+  // Timestamps start off on a phone, where they take a third of a line.
+  let timestamps = $state(
+    typeof window === "undefined" ||
+      !window.matchMedia("(max-width: 600px)").matches,
+  );
+  const hasTimes = $derived(lines.some((l) => l.time));
   onDestroy(() => {
+    clearTimeout(lineTimer);
     flow.destroy();
     onloaded?.(false);
   });
   let panel = $state<HTMLDivElement>();
   let ask = 0;
-  let output = $state<HTMLPreElement>();
+  let output = $state<HTMLDivElement>();
   const panelId = `run-output-${Math.random().toString(36).slice(2, 9)}`;
+
+  function endLineCopy() {
+    clearTimeout(lineTimer);
+    copiedLine = -1;
+    lineStatus = "";
+    toastOn = false;
+  }
+
+  async function copyLine(i: number, button: HTMLButtonElement) {
+    const n = i + 1;
+    const text = lineCopyText(lines[i]);
+    // The hide timer runs from the press, so a write that hangs behind a
+    // permission prompt can't leave an old toast up. The toast keeps its words
+    // until the write lands: it is never an empty pill.
+    clearTimeout(lineTimer);
+    lineTimer = setTimeout(endLineCopy, 2000);
+    // An empty line has nothing to put on the clipboard: say so, claim no copy.
+    const outcome = text
+      ? await copyLog(text, {
+          clipboard: navigator.clipboard,
+          select: () =>
+            selectCopy(text, button.closest("dialog") ?? document.body),
+        })
+      : "nothing";
+    // The same words again are no change to a live region, so a trailing
+    // no-break space flips each time they repeat. The toast keeps its words,
+    // and never shows empty.
+    const base = copyLineStatus(n, outcome);
+    const said = lineStatus === base ? `${base}\u00a0` : base;
+    copiedLine = outcome === "copied" ? i : -1;
+    lineStatus = said;
+    toastOn = true;
+    clearTimeout(lineTimer);
+    lineTimer = setTimeout(endLineCopy, 2000);
+  }
+
+  async function moveLine(e: KeyboardEvent, i: number) {
+    const next = rovingLine(i, e.key, lines.length);
+    if (next === null) return;
+    e.preventDefault();
+    active = next;
+    await tick();
+    output?.querySelector<HTMLButtonElement>(`[data-line="${next}"]`)?.focus();
+  }
 
   async function toggle() {
     shown = !shown;
     flow.reset();
+    endLineCopy();
     // What the excerpt's copy said was heard once; hiding the panel ends it, so
     // showing the panel again doesn't announce it as new (#3360). Only the line
     // goes: the field to copy from stays, and a copy still running keeps going
@@ -221,22 +290,74 @@
           {@render jobLink("Open job on " + forgeName + " for the rest")}
         </p>
       {/if}
-      <!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-      <pre
-        class="run-output-text"
-        bind:this={output}
-        tabindex="0"
-        role="region"
-        aria-label="Output: {name}">{#if text}{#each lines as line}<span
-              class="run-line run-line-{line.kind}"
-              >{#if line.time}<span class="run-line-time">{line.time}</span
-                >{/if}{#if line.kind === "error"}<span class="run-line-tag"
-                  >Error</span
-                >{:else if line.kind === "warning"}<span class="run-line-tag"
-                  >Warning</span
-                >{/if}<span class="run-line-text">{line.text}</span></span
-            >{/each}{:else}This job wrote no output.{/if}</pre>
+      {#if hasTimes}
+        <label class="run-log-switch">
+          <input type="checkbox" bind:checked={timestamps} />Timestamps
+        </label>
+      {/if}
+      <!-- The line buttons are focusable, so the scroll region is reachable
+           from the keyboard without a tab stop of its own. -->
+      <div class="run-log">
+        <div
+          class="run-output-text"
+          class:run-output-stamped={timestamps && hasTimes}
+          bind:this={output}
+          role="region"
+          aria-label="Output: {name}"
+        >
+          {#if text}
+            {#each lines as line, i (i)}
+              <div
+                class="run-line run-line-{line.kind}"
+                class:run-line-copied={copiedLine === i}
+              >
+                <button
+                  type="button"
+                  class="run-line-no"
+                  data-line={i}
+                  tabindex={i === stop ? 0 : -1}
+                  aria-label={copyLineLabel(i + 1)}
+                  onclick={(e) => copyLine(i, e.currentTarget)}
+                  onfocus={() => (active = i)}
+                  onkeydown={(e) => moveLine(e, i)}
+                  >{#if copiedLine === i}<svg
+                      class="run-line-check"
+                      viewBox="0 0 16 16"
+                      width="11"
+                      height="11"
+                      aria-hidden="true"
+                      focusable="false"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="2"
+                      stroke-linecap="round"
+                      stroke-linejoin="round"
+                      ><path d="M3 8.5l3.5 3.5L13 5" /></svg
+                    >{/if}{i + 1}</button
+                >{#if timestamps && line.time}<span class="run-line-time"
+                    >{line.time}</span
+                  >{/if}<span class="run-line-text"
+                  >{#if line.kind === "error"}<span class="run-line-tag"
+                      >Error</span
+                    >{:else if line.kind === "warning"}<span
+                      class="run-line-tag">Warning</span
+                    >{/if}{line.text}</span
+                >
+              </div>
+            {/each}
+          {:else}
+            <p class="run-output-empty">This job wrote no output.</p>
+          {/if}
+        </div>
+        <p
+          class="run-line-toast"
+          class:run-line-toast-on={toastOn}
+          role="status"
+          aria-live="polite"
+        >
+          {lineStatus}
+        </p>
+      </div>
     {/if}
     {#if flow.manual}
       <textarea

@@ -2,6 +2,8 @@
   --bg: #eef1f6;
   --surface: #ffffff;
   --surface-sunken: #f4f7fa;
+  /* The row a line copy just landed on: one colour on phone and desktop. */
+  --run-copied-bg: #dff3f4;
   --border: #d9e0e8;
   --border-strong: #c3ccd6;
   --control-border: #7c8a9b;
@@ -84,6 +86,7 @@
     --bg: #0b0f14;
     --surface: #121821;
     --surface-sunken: #0e1319;
+    --run-copied-bg: #123238;
     --border: #232c37;
     --border-strong: #2e3947;
     --control-border: #5f6d82;
@@ -123,6 +126,7 @@
   --bg: #0b0f14;
   --surface: #121821;
   --surface-sunken: #0e1319;
+  --run-copied-bg: #123238;
   --border: #232c37;
   --border-strong: #2e3947;
   --control-border: #5f6d82;
@@ -1129,10 +1133,12 @@ section.board {
          does not wrap), so a Failed pill with three or more counts is never
          drawn under the comment pill. Only that row's title gives up the
          difference. */
-      grid-template-columns: 184px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
+      grid-template-columns:
+        184px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
           27.5rem,
           min-content
-        ) 22px;
+        )
+        22px;
     }
     .row:not(.issue-row) .status-cell {
       display: grid;
@@ -5964,9 +5970,11 @@ footer a[aria-current="page"] {
 .run-output-error {
   color: var(--critical);
 }
+.run-log {
+  position: relative;
+}
 .run-output-text {
   margin: 4px 0 0;
-  padding: 8px 10px;
   /* Never taller than half the viewport, so in phone landscape it fits the
      dialog body, and it passes the scroll on to the body at its edges (#3879). */
   max-height: min(320px, 50dvh);
@@ -5975,22 +5983,164 @@ footer a[aria-current="page"] {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 0.75rem;
   line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
   border-radius: var(--radius);
   background: var(--surface);
   border: 1px solid var(--border);
 }
-/* Four line classes. Each has a cue beside colour: a label, a border shape, a
-   rule. Timestamps stay --ink-2 (4.5:1 on the tints, checked by axe). */
+.run-output-empty {
+  margin: 0;
+  padding: 8px 10px;
+}
+.run-log-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--tap);
+  font-size: 0.75rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+/* Numbered lines. Each row is a grid: the number (the copy button), an
+   optional time, then the text. Number and time are aligned to the text's first
+   line, and a wrapped line hangs under its first character. The text wraps at a
+   word where it can and breaks a token that is longer than the row, so nothing
+   touches the edge (the 0 minimum in the track is what lets it). */
 .run-line {
-  display: block;
-  padding: 1px 0;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  align-items: start;
+}
+.run-output-stamped .run-line {
+  grid-template-columns: 44px calc(12ch + 8px) minmax(0, 1fr);
+}
+.run-line + .run-line {
+  border-top: 1px solid var(--border);
+}
+.run-line-no {
+  position: relative;
+  box-sizing: border-box;
+  width: 44px;
+  min-height: 24px;
+  padding: 3px 8px 3px 0;
+  border: 0;
+  border-right: 1px solid var(--border);
+  background: var(--surface-sunken);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  align-self: stretch;
+  cursor: pointer;
+}
+.run-line-no:hover {
+  /* --ink, not --accent: the accent on this tint is 4.3:1, under the 4.5:1 an
+     11px number needs. */
+  color: var(--ink);
+  background: var(--run-copied-bg);
+}
+.run-line-no:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+/* The copy glyph, drawn on hover and focus only: a mask, so a long log doesn't
+   carry an inline image per line. */
+.run-line-no:hover::before,
+.run-line-no:focus-visible::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 5px;
+  width: 11px;
+  height: 11px;
+  background: currentColor;
+  -webkit-mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5'%3E%3Crect x='5' y='5' width='9' height='9' rx='1.5'/%3E%3Cpath d='M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='black' stroke-width='1.5'%3E%3Crect x='5' y='5' width='9' height='9' rx='1.5'/%3E%3Cpath d='M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+/* The copied state keeps the number and puts a check beside it. */
+.run-line-check {
+  position: absolute;
+  left: 4px;
+  top: 5px;
+}
+.run-line-copied {
+  background: var(--run-copied-bg);
+}
+.run-line-copied .run-line-no {
+  color: var(--accent);
+  font-weight: 700;
+}
+.run-line-time,
+.run-line-text {
+  padding-block: 3px;
+}
+/* Forced colours drop the tint, so the copied row is outlined and its number
+   and check take the system highlight. */
+@media (forced-colors: active) {
+  .run-line-copied {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  .run-line-copied .run-line-no {
+    color: Highlight;
+  }
+}
+.run-line-text {
+  padding-inline: 8px 10px;
+  min-height: 1.45em;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
 }
 .run-line-time {
-  margin-right: 8px;
   color: var(--ink-2);
+  padding-inline: 8px 0;
 }
+/* Up to 760px a line is a 44px touch target, as in the phone drawing: the
+   number cell is 44 tall and the text is padded so its first line still sits
+   level with the number. */
+@media (max-width: 760px) {
+  .run-line-no {
+    min-height: 44px;
+    padding-top: 14px;
+  }
+  .run-line-no:hover::before,
+  .run-line-no:focus-visible::before,
+  .run-line-check {
+    top: 16px;
+  }
+  .run-line-time,
+  .run-line-text {
+    padding-block: 14px;
+  }
+}
+/* The toast sits over the bottom of the log, clear of the dialog's footer. It
+   is also the polite live region, so it is always there and only fades. */
+.run-line-toast {
+  position: absolute;
+  left: 50%;
+  bottom: 12px;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 0.8125rem;
+  pointer-events: none;
+  opacity: 0;
+}
+.run-line-toast-on {
+  opacity: 1;
+}
+/* Four line classes. Each has a cue beside colour: a label, a border shape, a
+   rule. Timestamps stay --ink-2 (4.5:1 on the tints, checked by axe). */
 .run-line-tag {
   display: inline-block;
   margin-right: 8px;
@@ -6004,7 +6154,6 @@ footer a[aria-current="page"] {
 }
 .run-line-error,
 .run-line-warning {
-  padding: 4px 8px;
   border-left: 3px solid;
 }
 .run-line-error {
@@ -6017,9 +6166,16 @@ footer a[aria-current="page"] {
   color: var(--warning);
   background: var(--warning-bg);
 }
+.run-line-error .run-line-time,
+.run-line-warning .run-line-time {
+  color: inherit;
+}
+.run-line-error.run-line-copied,
+.run-line-warning.run-line-copied {
+  background: var(--run-copied-bg);
+}
 .run-line-step {
   margin-top: 6px;
-  padding-bottom: 4px;
   border-bottom: 1px solid var(--border-strong);
   font-weight: 700;
   text-transform: uppercase;

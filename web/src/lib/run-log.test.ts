@@ -4,10 +4,13 @@ import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   canCopyLog,
   checkControl,
+  copyLineLabel,
+  copyLineStatus,
   copyLog,
   copyPending,
   copyStatus,
   type LogResult,
+  lineCopyText,
   loadRunLog,
   logSource,
   logToCopy,
@@ -16,6 +19,7 @@ import {
   outputToggleLabel,
   outputToggleName,
   parseLogLines,
+  rovingLine,
 } from './run-log';
 
 afterEach(resetForgeCapabilities);
@@ -615,6 +619,15 @@ describe('parseLogLines', () => {
     });
   });
 
+  test('shows a stamp to the millisecond, however long its fraction is', () => {
+    const [a, b] = parseLogLines(
+      '2026-11-13T10:00:56.1234567Z long\n2026-11-13T10:00:57Z none',
+    );
+    expect(a.time).toBe('10:00:56.123');
+    expect(a.text).toBe('long');
+    expect(b.time).toBe('10:00:57');
+  });
+
   test('strips ANSI codes and uses red and yellow as level hints', () => {
     const lines = parseLogLines(
       '\u001b[31mfailed\u001b[0m\n\u001b[33mhmm\u001b[0m\n\u001b[32mfine\u001b[0m',
@@ -695,5 +708,59 @@ describe('outputToggleLabel', () => {
       expect(outputToggleLabel(true, excerpt)).toBe('Hide output');
       expect(outputToggleName(true, excerpt)).toBe('Hide output');
     }
+  });
+});
+
+// Each line's number is its copy button (#4280). Copying takes only the line's
+// text: no number, no timestamp, no Error tag.
+describe('line copy', () => {
+  test('copies a line’s own text and nothing else', () => {
+    const [warn, err, plain] = parseLogLines(
+      [
+        '2026-11-13T10:00:02.000Z ##[warning]slow test',
+        '2026-11-13T10:00:03.000Z ##[error]boom: exit 1',
+        '  indented  text ',
+      ].join('\n'),
+    );
+    expect(lineCopyText(warn)).toBe('slow test');
+    expect(lineCopyText(err)).toBe('boom: exit 1');
+    expect(lineCopyText(plain)).toBe('  indented  text ');
+  });
+
+  test('the name carries the visible number (WCAG 2.5.3)', () => {
+    expect(copyLineLabel(7)).toBe('Copy line 7');
+  });
+
+  test('the announcement names the line', () => {
+    expect(copyLineStatus(7, 'copied')).toBe('Line 7 copied');
+    expect(copyLineStatus(7, 'selected')).toBe("Couldn't copy line 7.");
+    expect(copyLineStatus(7, 'nothing')).toBe('Line 7 is empty');
+  });
+});
+
+// One tab stop; the arrow keys move between the line buttons (roving tabindex).
+describe('rovingLine', () => {
+  test('arrows step by one and stop at the ends', () => {
+    expect(rovingLine(3, 'ArrowDown', 10)).toBe(4);
+    expect(rovingLine(3, 'ArrowUp', 10)).toBe(2);
+    expect(rovingLine(0, 'ArrowUp', 10)).toBe(0);
+    expect(rovingLine(9, 'ArrowDown', 10)).toBe(9);
+  });
+
+  test('Home and End jump to the first and last line', () => {
+    expect(rovingLine(3, 'Home', 10)).toBe(0);
+    expect(rovingLine(3, 'End', 10)).toBe(9);
+  });
+
+  test('PageUp and PageDown jump ten lines, clamped', () => {
+    expect(rovingLine(3, 'PageDown', 100)).toBe(13);
+    expect(rovingLine(95, 'PageDown', 100)).toBe(99);
+    expect(rovingLine(5, 'PageUp', 100)).toBe(0);
+  });
+
+  test('other keys, and an empty log, move nothing', () => {
+    expect(rovingLine(3, 'a', 10)).toBeNull();
+    expect(rovingLine(3, 'Enter', 10)).toBeNull();
+    expect(rovingLine(0, 'ArrowDown', 0)).toBeNull();
   });
 });

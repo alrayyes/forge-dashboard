@@ -9,7 +9,7 @@ import { copyPending, copyStatus, type Prepared } from '#lib/run-log.js';
 // whole text lands whatever is on screen. `host` is the modal
 // dialog the button sat in when it was clicked: the page outside it is
 // inert, and an inert field can't be copied from.
-function selectCopy(text: string, host: HTMLElement): boolean {
+export function selectCopy(text: string, host: HTMLElement): boolean {
   // A dialog closed while the log loaded has nobody to copy for.
   if (host instanceof HTMLDialogElement && !host.open) return false;
   const field = document.createElement('textarea');
