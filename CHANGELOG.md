@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.100.0](https://github.com/alrayyes/forge-dashboard/compare/v9.99.0...v9.100.0) (2026-11-22)
+
+
+### Features
+
+* **web:** lay out the Branches filter bar like the pull request page's ([#4633](https://github.com/alrayyes/forge-dashboard/issues/4633)) ([d0333a6](https://github.com/alrayyes/forge-dashboard/commit/d0333a6482d0df18654f1a39a314357aaae7560b)), closes [#4612](https://github.com/alrayyes/forge-dashboard/issues/4612) [#4279](https://github.com/alrayyes/forge-dashboard/issues/4279)
+
 ## [9.99.0](https://github.com/alrayyes/forge-dashboard/compare/v9.98.0...v9.99.0) (2026-11-22)
 
 
