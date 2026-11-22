@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.101.0](https://github.com/alrayyes/forge-dashboard/compare/v9.100.1...v9.101.0) (2026-11-22)
+
+
+### Features
+
+* **web:** open a job's log in a wide dialog ([#4626](https://github.com/alrayyes/forge-dashboard/issues/4626)) ([1b2ec5f](https://github.com/alrayyes/forge-dashboard/commit/1b2ec5fb531fd9eda484e15667cc3cffb1313b51)), closes [#4281](https://github.com/alrayyes/forge-dashboard/issues/4281)
+
 ## [9.100.1](https://github.com/alrayyes/forge-dashboard/compare/v9.100.0...v9.100.1) (2026-11-22)
 
 
