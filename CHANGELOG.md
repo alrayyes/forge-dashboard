@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.95.1](https://github.com/alrayyes/forge-dashboard/compare/v9.95.0...v9.95.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **web:** collapse the phone card's chip slot when no chip is showing ([#4593](https://github.com/alrayyes/forge-dashboard/issues/4593)) ([ea18dd5](https://github.com/alrayyes/forge-dashboard/commit/ea18dd5d489ce0a592b4c7c06de2bde9a754477f)), closes [#4590](https://github.com/alrayyes/forge-dashboard/issues/4590)
+
 ## [9.95.0](https://github.com/alrayyes/forge-dashboard/compare/v9.94.0...v9.95.0) (2026-11-22)
 
 
