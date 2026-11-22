@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.96.1](https://github.com/alrayyes/forge-dashboard/compare/v9.96.0...v9.96.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **web:** make the desktop waiting chip compact and give the title more width ([#4603](https://github.com/alrayyes/forge-dashboard/issues/4603)) ([940b9f9](https://github.com/alrayyes/forge-dashboard/commit/940b9f96cb4cb2f1779dd32bfbaac2cdc97426a5))
+
 ## [9.96.0](https://github.com/alrayyes/forge-dashboard/compare/v9.95.1...v9.96.0) (2026-11-22)
 
 
