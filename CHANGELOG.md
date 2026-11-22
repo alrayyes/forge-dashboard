@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.97.0](https://github.com/alrayyes/forge-dashboard/compare/v9.96.1...v9.97.0) (2026-11-22)
+
+
+### Features
+
+* **web:** add a shared filter pill and group, adopt them on Branches ([#4616](https://github.com/alrayyes/forge-dashboard/issues/4616)) ([71e2111](https://github.com/alrayyes/forge-dashboard/commit/71e2111faade7275941d502b1984cae7c191b2c6)), closes [#4279](https://github.com/alrayyes/forge-dashboard/issues/4279)
+
 ## [9.96.1](https://github.com/alrayyes/forge-dashboard/compare/v9.96.0...v9.96.1) (2026-11-22)
 
 
