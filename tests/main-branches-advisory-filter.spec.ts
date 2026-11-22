@@ -79,7 +79,7 @@ async function open(page: Page, branches: object[] = BRANCHES) {
 }
 
 const group = (page: Page) =>
-  page.getByRole('group', { name: 'Filter by advisories' });
+  page.getByRole('group', { name: 'Advisories', exact: true });
 const choice = (page: Page, name: RegExp) =>
   group(page).getByRole('button', { name });
 const names = async (page: Page) =>
@@ -93,7 +93,7 @@ test.describe('Branches advisories filter (#2588)', () => {
   }) => {
     await open(page);
 
-    await expect(choice(page, /^Any advisories/)).toHaveAttribute(
+    await expect(choice(page, /^Any \d+$/)).toHaveAttribute(
       'aria-pressed',
       'true',
     );
@@ -160,7 +160,7 @@ test.describe('Branches advisories filter (#2588)', () => {
     );
     await page.getByRole('button', { name: 'Reset filters' }).click();
     await expect(page.getByTestId('main-branch-row')).toHaveCount(5);
-    await expect(choice(page, /^Any advisories/)).toHaveAttribute(
+    await expect(choice(page, /^Any \d+$/)).toHaveAttribute(
       'aria-pressed',
       'true',
     );

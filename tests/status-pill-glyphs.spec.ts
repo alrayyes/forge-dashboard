@@ -70,7 +70,7 @@ async function seed(page: Page) {
 }
 
 const statusGroup = (page: Page) =>
-  page.getByRole('group', { name: 'Filter by status' });
+  page.getByRole('group', { name: 'Status', exact: true });
 const pill = (page: Page, label: string) =>
   statusGroup(page).getByRole('button', { name: new RegExp(`^${label} \\d`) });
 
@@ -90,7 +90,7 @@ test('each status pill shows its glyph before the word, and nothing else does', 
   page,
 }) => {
   await open(page);
-  await expect(statusGroup(page).locator('.mb-pill')).toHaveCount(8);
+  await expect(statusGroup(page).locator('.filter-pill')).toHaveCount(8);
   for (const { label, glyph } of STATUSES) {
     const button = pill(page, label);
     const svgs = button.locator('svg.check-glyph');
@@ -105,7 +105,7 @@ test('each status pill shows its glyph before the word, and nothing else does', 
   }
   await expect(pill(page, 'All').locator('svg')).toHaveCount(0);
   await expect(
-    page.getByRole('group', { name: 'Filter by forge' }).locator('svg'),
+    page.getByRole('group', { name: 'Forge', exact: true }).locator('svg'),
   ).toHaveCount(0);
 });
 
@@ -124,7 +124,7 @@ test('only the glyph is coloured until the pill is pressed', async ({
   await open(page);
   const readColours = () =>
     statusGroup(page)
-      .locator('.mb-pill[data-status]')
+      .locator('.filter-pill[data-status]')
       .evaluateAll((pills) =>
         pills.map((p) => ({
           status: p.getAttribute('data-status'),
@@ -171,7 +171,7 @@ for (const scheme of ['light', 'dark'] as const) {
     await expect(pill(page, 'Failing')).toHaveAttribute('aria-pressed', 'true');
     const read = () =>
       statusGroup(page)
-        .locator('.mb-pill[data-status]')
+        .locator('.filter-pill[data-status]')
         .evaluateAll((pills) => {
           const probe = document.createElement('i');
           document.body.append(probe);
@@ -304,14 +304,14 @@ for (const scheme of ['light', 'dark'] as const) {
       const layout = () =>
         page.evaluate(() => {
           const bar = document.querySelector('.mb-bar') as HTMLElement;
-          const group = document.querySelector('.mb-group') as HTMLElement;
+          const group = document.querySelector('.filter-group') as HTMLElement;
           const el = document.documentElement;
 
           return {
             scrolls: el.scrollWidth > el.clientWidth,
             barDirection: getComputedStyle(bar).flexDirection,
             groupWrap: getComputedStyle(group).flexWrap,
-            heights: [...document.querySelectorAll('.mb-pill')].map(
+            heights: [...document.querySelectorAll('.filter-pill')].map(
               (p) => p.getBoundingClientRect().height,
             ),
           };
@@ -324,7 +324,7 @@ for (const scheme of ['light', 'dark'] as const) {
             scrolls: now.scrolls,
             groupWrap: now.groupWrap,
             barDirection: now.barDirection,
-            tall: Math.min(...now.heights) >= (width <= 760 ? 44 : 24),
+            tall: Math.min(...now.heights) === 32,
           };
         })
         .toEqual({
@@ -337,19 +337,40 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
-test('pills are 44px tall at 760px and 420px wide', async ({ page }) => {
+test('pills are 32px with a 44px hit area at 760px and 420px wide', async ({
+  page,
+}) => {
   for (const width of [760, 421, 420]) {
     await open(page, 'light', width);
-    const heights = await page
-      .locator('.mb-pill')
-      .evaluateAll((ps) => ps.map((p) => p.getBoundingClientRect().height));
-    expect(Math.min(...heights), `${width}px`).toBeGreaterThanOrEqual(44);
+    // Five pixels past the drawn edge is the pill's; seven and a
+    // half is not.
+    const reach = await page.locator('.filter-pill').evaluateAll((ps) =>
+      ps.map((p) => {
+        p.scrollIntoView({ block: 'center' });
+        const r = p.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const owns = (y: number) => {
+          const e = document.elementFromPoint(x, y);
+          return e === p || p.contains(e);
+        };
+        return [
+          owns(r.top - 5),
+          owns(r.bottom + 5),
+          owns(r.top - 7.5),
+          owns(r.bottom + 7.5),
+          r.height,
+        ];
+      }),
+    );
+    for (const row of reach) {
+      expect(row, `${width}px`).toEqual([true, true, false, false, 32]);
+    }
   }
 });
 
 test('pressing a pill does not change its width', async ({ page }) => {
   await open(page);
-  const pills = statusGroup(page).locator('.mb-pill');
+  const pills = statusGroup(page).locator('.filter-pill');
   const before = await laidOutWidths(pills);
   for (const { label } of STATUSES) {
     const jumps = await widthJumpsWhile(pills, before, async () => {
@@ -367,9 +388,9 @@ test('a pill that animates its padding while pressed is caught', async ({
   // The mutant: a press plays a 0.4 s padding animation that ends where it began.
   await page.addStyleTag({
     content: `@keyframes jump { 50% { padding-inline: 40px; } }
-      .mb-pill[aria-pressed="true"] { animation: jump 0.4s; }`,
+      .filter-pill[aria-pressed="true"] { animation: jump 0.4s; }`,
   });
-  const pills = statusGroup(page).locator('.mb-pill');
+  const pills = statusGroup(page).locator('.filter-pill');
   const before = await laidOutWidths(pills);
   const { label } = STATUSES[0];
   const jumps = await widthJumpsWhile(pills, before, async () => {

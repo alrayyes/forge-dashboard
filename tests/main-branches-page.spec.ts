@@ -276,7 +276,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     ]);
     // The nav and the pills carry the counts; no summary line repeats them.
     await expect(page.locator('#mb-summary')).toHaveCount(0);
-    await expect(pill(page, /^All 6$/)).toBeVisible();
+    await expect(pill(page, /^All 6$/).first()).toBeVisible();
     await expect(pill(page, /^Failing 2$/)).toBeVisible();
     await expect(pill(page, /^Passing 2$/)).toBeVisible();
     await expect(pill(page, /^Running 1$/)).toBeVisible();
@@ -406,8 +406,12 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await pill(page, /^Failing \d/).click();
     await expect(rows(page)).toHaveCount(1);
     await expect(rows(page).first()).toContainText('infra/homelab');
-    await pill(page, /^All 6$/).click();
-    await pill(page, /^All forges/).click();
+    await pill(page, /^All 6$/)
+      .first()
+      .click();
+    await pill(page, /^All 6$/)
+      .last()
+      .click();
     await page.getByRole('searchbox', { name: /search/i }).fill('billing');
     await expect(rows(page)).toHaveCount(1);
     // The search reaches the server 500 ms after the last key. A reload before
@@ -1026,17 +1030,26 @@ test.describe('Main branches page (#1224, #1279)', () => {
     await page.goto('/');
     const failed = rows(page).first();
     await expect(failed).toBeVisible();
-    for (const control of [
-      failed.locator('.ci-slot .ci-pill'),
-      pill(page, /^Failing \d/),
-      pill(page, /^All 6$/),
-    ]) {
-      await expect
-        .poll(async () => (await control.boundingBox())?.height ?? 0, {
-          message: 'phone control is at least 44px tall',
-        })
-        .toBeGreaterThanOrEqual(44);
-    }
+    const control = failed.locator('.ci-slot .ci-pill');
+    await expect
+      .poll(async () => (await control.boundingBox())?.height ?? 0, {
+        message: 'phone control is at least 44px tall',
+      })
+      .toBeGreaterThanOrEqual(44);
+    // A filter pill is drawn 32px high with a 44px hit area (#4279).
+    const filter = pill(page, /^Failing \d/);
+    await expect
+      .poll(async () => (await filter.boundingBox())?.height ?? 0)
+      .toBe(32);
+    expect(
+      await filter.evaluate((p) => {
+        const r = p.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        return [r.top - 5, r.bottom + 5].every(
+          (y) => document.elementFromPoint(x, y) === p,
+        );
+      }),
+    ).toBe(true);
   });
 
   // #1563 slice 4: the row's CI status is a state (running) or an outcome

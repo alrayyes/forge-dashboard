@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from "svelte";
   import type { HTMLButtonAttributes } from "svelte/elements";
-  import { checkGlyphElements } from "#lib/ci-pill.js";
+  import { type CiFilterStatus, ciFilterGlyph } from "#lib/ci-filter-glyph.js";
 
   // A filter pill that wears a CI state: the glyph the row's CI pill draws,
   // before the word, tinted until pressed, then the state's own pair and a
@@ -9,32 +9,6 @@
   // overview's CI filter both draw it, so one shape means one state on every
   // page. `status` is the Main branches vocabulary and sets the tone; a page
   // maps its own states onto it.
-  export type CiFilterStatus =
-    | "failed"
-    | "passed"
-    | "running"
-    | "cancelled"
-    | "awaiting_approval"
-    | "unknown"
-    | "none";
-
-  // The CI pill's glyph state for each status. No pipeline takes the skipped
-  // slash.
-  const GLYPH_STATE: Record<CiFilterStatus, string> = {
-    failed: "failure",
-    passed: "success",
-    running: "running",
-    cancelled: "cancelled",
-    awaiting_approval: "awaiting_approval",
-    unknown: "unknown",
-    none: "skipped",
-  };
-
-  // Draws the glyphs ahead of the word. They are aria-hidden SVG, so the
-  // button's name stays the word and count.
-  function glyph(node: HTMLElement, status: CiFilterStatus) {
-    node.prepend(...checkGlyphElements(GLYPH_STATE[status]));
-  }
 
   let {
     status,
@@ -52,7 +26,7 @@
   {...rest}
   class="ci-filter-pill {className}"
   data-status={status}
-  use:glyph={status}
+  use:ciFilterGlyph={status}
 >
   {@render children()}
 </button>

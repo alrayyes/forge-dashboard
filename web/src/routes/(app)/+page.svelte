@@ -27,6 +27,8 @@
   import AdvisoriesDialog from "#lib/AdvisoriesDialog.svelte";
   import AdvisoriesNotice from "#lib/AdvisoriesNotice.svelte";
   import PipelineDialog from "#lib/PipelineDialog.svelte";
+  import FilterGroup from "#lib/FilterGroup.svelte";
+  import FilterPill from "#lib/FilterPill.svelte";
   import StatusPills from "#lib/StatusPills.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -633,6 +635,10 @@
       border: 1px solid var(--border);
       border-radius: var(--radius);
     }
+    /* Each filter group is a row of its own, as the design draws it (#4279). */
+    .mb-bar .filter-group {
+      flex: 1 1 100%;
+    }
     .mb-toggle:focus-visible,
     .mb-search:focus-visible {
       outline: 2px solid var(--accent);
@@ -1092,41 +1098,33 @@
           status={filter.status}
           onselect={setStatus}
         />
-        <div class="mb-group" role="group" aria-label="Filter by forge">
-          <button
-            type="button"
-            class="mb-pill"
-            aria-pressed={filter.forge === "all"}
-            onclick={() => setForge("all")}>All forges</button
+        <FilterGroup label="Forge" id="mb-forge">
+          <FilterPill
+            pressed={filter.forge === "all"}
+            count={counts.total}
+            onclick={() => setForge("all")}>All</FilterPill
           >
           {#each forgeIds().filter((f) => forgeOffered.has(f)) as forge (forge)}
-            <button
-              type="button"
-              class="mb-pill"
-              aria-pressed={filter.forge === forge}
-              onclick={() => setForge(forge)}
-              >{forgeLabelOf(forge)}
-              <span class="mb-count">{perForge[forge]}</span></button
+            <FilterPill
+              pressed={filter.forge === forge}
+              count={perForge[forge]}
+              onclick={() => setForge(forge)}>{forgeLabelOf(forge)}</FilterPill
             >
           {/each}
-        </div>
+        </FilterGroup>
         {#if advisoryOffered.size > 1}
-          <div class="mb-group" role="group" aria-label="Filter by advisories">
-            <button
-              type="button"
-              class="mb-pill"
-              aria-pressed={filter.advisories === "all"}
-              onclick={() => setAdvisories("all")}>Any advisories</button
+          <FilterGroup label="Advisories" id="mb-advisories">
+            <FilterPill
+              pressed={filter.advisories === "all"}
+              count={counts.total}
+              onclick={() => setAdvisories("all")}>Any</FilterPill
             >
             {#each [["has", "Has advisories"], ["none", "No advisories"]] as const as [key, label] (key)}
               {#if advisoryOffered.has(key)}
-                <button
-                  type="button"
-                  class="mb-pill"
-                  aria-pressed={filter.advisories === key}
-                  onclick={() => setAdvisories(key)}
-                  >{label}
-                  <span class="mb-count">{advisoryTally[key]}</span></button
+                <FilterPill
+                  pressed={filter.advisories === key}
+                  count={advisoryTally[key]}
+                  onclick={() => setAdvisories(key)}>{label}</FilterPill
                 >
               {/if}
             {/each}
@@ -1138,7 +1136,7 @@
                   : "branches with unknown advisories are"} in neither choice</span
               >
             {/if}
-          </div>
+          </FilterGroup>
         {/if}
         <span class="search-wrap mb-search-wrap">
           <input

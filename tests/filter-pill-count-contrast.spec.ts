@@ -64,40 +64,42 @@ async function seed(page: Page) {
 
 // Each count's contrast against its pill, with the count's opacity blended in.
 async function countContrasts(page: Page) {
-  return page.locator('.mb-bar .mb-pill .mb-count').evaluateAll((counts) => {
-    type Rgb = [number, number, number];
-    const parse = (v: string) => {
-      const m = v.match(/rgba?\(([^)]+)\)/);
-      if (!m) throw new Error(`not a colour: ${v}`);
-      const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).map(Number);
-      return { rgb: [r, g, b] as Rgb, a };
-    };
-    const lum = ([r, g, b]: Rgb) => {
-      const [x, y, z] = [r, g, b].map((v) => {
-        const s = v / 255;
-        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-      });
-      return 0.2126 * x + 0.7152 * y + 0.0722 * z;
-    };
-    return counts.map((count) => {
-      const pill = count.closest('.mb-pill') as HTMLElement;
-      const bg = parse(getComputedStyle(pill).backgroundColor);
-      const fg = parse(getComputedStyle(count).color);
-      let opacity = 1;
-      for (let el: Element | null = count; el; el = el.parentElement) {
-        opacity *= Number(getComputedStyle(el).opacity);
-      }
-      const alpha = fg.a * opacity;
-      const blended = fg.rgb.map(
-        (c, i) => c * alpha + bg.rgb[i] * (1 - alpha),
-      ) as Rgb;
-      const [hi, lo] = [lum(blended), lum(bg.rgb)].sort((a, b) => b - a);
-      return {
-        pressed: pill.getAttribute('aria-pressed') === 'true',
-        ratio: (hi + 0.05) / (lo + 0.05),
+  return page
+    .locator('.mb-bar .filter-pill .filter-pill-count')
+    .evaluateAll((counts) => {
+      type Rgb = [number, number, number];
+      const parse = (v: string) => {
+        const m = v.match(/rgba?\(([^)]+)\)/);
+        if (!m) throw new Error(`not a colour: ${v}`);
+        const [r, g, b, a = 1] = m[1].split(/[ ,/]+/).map(Number);
+        return { rgb: [r, g, b] as Rgb, a };
       };
+      const lum = ([r, g, b]: Rgb) => {
+        const [x, y, z] = [r, g, b].map((v) => {
+          const s = v / 255;
+          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+        });
+        return 0.2126 * x + 0.7152 * y + 0.0722 * z;
+      };
+      return counts.map((count) => {
+        const pill = count.closest('.filter-pill') as HTMLElement;
+        const bg = parse(getComputedStyle(pill).backgroundColor);
+        const fg = parse(getComputedStyle(count).color);
+        let opacity = 1;
+        for (let el: Element | null = count; el; el = el.parentElement) {
+          opacity *= Number(getComputedStyle(el).opacity);
+        }
+        const alpha = fg.a * opacity;
+        const blended = fg.rgb.map(
+          (c, i) => c * alpha + bg.rgb[i] * (1 - alpha),
+        ) as Rgb;
+        const [hi, lo] = [lum(blended), lum(bg.rgb)].sort((a, b) => b - a);
+        return {
+          pressed: pill.getAttribute('aria-pressed') === 'true',
+          ratio: (hi + 0.05) / (lo + 0.05),
+        };
+      });
     });
-  });
 }
 
 for (const scheme of ['light', 'dark'] as const) {
@@ -109,7 +111,7 @@ for (const scheme of ['light', 'dark'] as const) {
       await page.setViewportSize({ width, height: 800 });
       await seed(page);
       await page.goto('/');
-      await expect(page.locator('.mb-bar .mb-pill').first()).toBeVisible();
+      await expect(page.locator('.mb-bar .filter-pill').first()).toBeVisible();
 
       await expect
         .poll(async () => {
