@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.97.1](https://github.com/alrayyes/forge-dashboard/compare/v9.97.0...v9.97.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **web:** keep the phone list still when the Activity control first appears ([#4610](https://github.com/alrayyes/forge-dashboard/issues/4610)) ([d7e1964](https://github.com/alrayyes/forge-dashboard/commit/d7e1964ac1707fcfa8bae58704d4ec788e6d8c22)), closes [#4591](https://github.com/alrayyes/forge-dashboard/issues/4591)
+
 ## [9.97.0](https://github.com/alrayyes/forge-dashboard/compare/v9.96.1...v9.97.0) (2026-11-22)
 
 
