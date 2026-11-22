@@ -167,7 +167,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
   }}
 />
@@ -182,7 +182,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
     const note = canvasElement.querySelector(".run-output-note") as HTMLElement;
     await expect(note).toHaveTextContent(
@@ -205,7 +205,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
   }}
 />
@@ -293,7 +293,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
     await userEvent.click(copyButton(canvasElement));
     await waitFor(() =>
@@ -320,7 +320,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
     await userEvent.click(copyButton(canvasElement));
     await waitFor(() =>
@@ -349,7 +349,7 @@
   play={async ({ canvasElement }) => {
     await view(canvasElement);
     await waitFor(() =>
-      expect(canvasElement.querySelector("pre")).not.toBeNull(),
+      expect(canvasElement.querySelector(".run-output-text")).not.toBeNull(),
     );
     await userEvent.click(copyButton(canvasElement));
     const field = await within(canvasElement).findByRole("textbox", {
@@ -361,8 +361,9 @@
   }}
 />
 
-<!-- The output opens from the keyboard, can take focus to scroll, and hides
-     again, which removes it. -->
+<!-- The output opens from the keyboard, its line buttons take focus (which is
+     what makes it scrollable from the keyboard), and it hides again, which
+     removes it. -->
 <Story
   name="By keyboard"
   beforeEach={() =>
@@ -380,8 +381,9 @@
       name: "Output: test / go",
     });
     await expect(output).toBeVisible();
-    output.focus();
-    await expect(output).toHaveFocus();
+    const first = within(output).getByRole("button", { name: "Copy line 1" });
+    first.focus();
+    await expect(first).toHaveFocus();
     await userEvent.click(
       canvas.getByRole("button", { name: "Hide output: test / go" }),
     );

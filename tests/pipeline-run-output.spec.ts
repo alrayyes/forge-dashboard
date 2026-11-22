@@ -1489,13 +1489,19 @@ test.describe('a copy pressed while the output loads', () => {
         await show.click();
 
         const output = dialog.getByRole('region', { name: 'Output: build' });
-        await expect(output.locator('.run-line-step')).toHaveText('Run tests');
+        await expect(
+          output.locator('.run-line-step .run-line-text'),
+        ).toHaveText('Run tests');
         await expect(output.locator('.run-line-warning')).toContainText(
           'Warning',
         );
         await expect(output.locator('.run-line-error').first()).toContainText(
           'Error',
         );
+        // Off by default on a phone (#4280), so switch them on to read one.
+        await dialog
+          .getByRole('checkbox', { name: 'Timestamps' })
+          .setChecked(true);
         await expect(output.locator('.run-line-time').first()).toHaveText(
           '10:00:01.123',
         );
@@ -1557,7 +1563,10 @@ test.describe('a long check output in phone landscape', () => {
 
     const output = dialog.getByRole('region', { name: 'Output: build' });
     await expect(output).toContainText('line 1');
-    await expect(output).toHaveAttribute('tabindex', '0');
+    // The log's lines are the focusable content that makes it scrollable by keyboard.
+    await expect(
+      output.getByRole('button', { name: 'Copy line 1', exact: true }),
+    ).toHaveAttribute('tabindex', '0');
 
     const body = dialog.locator('.pipeline-dialog-body');
     const outputBox = await output.boundingBox();
@@ -1589,4 +1598,250 @@ test.describe('a long check output in phone landscape', () => {
       .analyze();
     expect(results.violations).toEqual([]);
   });
+});
+
+// Numbered lines with a copy button on each (#4280). The number is the button.
+test.describe('numbered output lines', () => {
+  const log = {
+    status: 200,
+    body: {
+      text: [
+        '##[group]Run tests',
+        '2026-11-13T10:00:01.123Z ok all fine',
+        '2026-11-13T10:00:02.000Z ##[error]boom: exit 1',
+        'a'.repeat(300),
+        'last line',
+      ].join('\n'),
+      truncated: false,
+    },
+  };
+
+  async function open(page: Page) {
+    await setup(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output).toContainText('last line');
+
+    return { dialog, output };
+  }
+
+  test('every line has a visible number, and the buttons name it', async ({
+    page,
+  }) => {
+    const { output } = await open(page);
+    const buttons = output.getByRole('button', { name: /^Copy line \d+$/ });
+    await expect(buttons).toHaveCount(5);
+    for (const n of [1, 2, 3, 4, 5]) {
+      const b = output.getByRole('button', { name: `Copy line ${n}` });
+      // The accessible name holds the visible number (WCAG 2.5.3).
+      await expect(b).toContainText(String(n));
+    }
+  });
+
+  test('a press copies exactly that line, shows a check beside the number for about two seconds and toasts', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { dialog, output } = await open(page);
+    const line3 = output.getByRole('button', { name: 'Copy line 3' });
+    await line3.click();
+
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'boom: exit 1',
+    );
+    const toast = dialog
+      .getByRole('status')
+      .filter({ hasText: 'Line 3 copied' });
+    await expect(toast).toBeVisible();
+    // The polite live region is the one that says it.
+    await expect(toast).toHaveAttribute('aria-live', 'polite');
+    const row = output.locator('.run-line').nth(2);
+    await expect(row).toHaveClass(/run-line-copied/);
+    // The number stays on screen in the copied state.
+    await expect(line3).toContainText('3');
+    await expect(line3.locator('.run-line-check')).toBeVisible();
+    await expect(row).not.toHaveClass(/run-line-copied/, { timeout: 4000 });
+    await expect(toast).toBeHidden();
+  });
+
+  test('copying a long line puts the whole line on the clipboard', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { output } = await open(page);
+    await output.getByRole('button', { name: 'Copy line 4' }).click();
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'a'.repeat(300),
+    );
+  });
+
+  test('the line buttons are one tab stop and the arrows move between them', async ({
+    page,
+  }) => {
+    const { output } = await open(page);
+    const buttons = output.getByRole('button', { name: /^Copy line \d+$/ });
+    const tabbable = await buttons.evaluateAll(
+      (els) => els.filter((e) => e.tabIndex === 0).length,
+    );
+    expect(tabbable).toBe(1);
+
+    await output.getByRole('button', { name: 'Copy line 1' }).focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 2' }),
+    ).toBeFocused();
+    await page.keyboard.press('End');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 5' }),
+    ).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 4' }),
+    ).toBeFocused();
+    await expect(
+      output.getByRole('button', { name: 'Copy line 4' }),
+    ).toHaveAttribute('tabindex', '0');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 1' }),
+    ).toHaveAttribute('tabindex', '-1');
+
+    // Tab leaves the log: the next stop is not another line button.
+    await page.keyboard.press('Tab');
+    expect(
+      await page.evaluate(
+        () =>
+          document.activeElement
+            ?.getAttribute('aria-label')
+            ?.startsWith('Copy line') ?? false,
+      ),
+    ).toBe(false);
+  });
+
+  test('Enter and Space on a line button copy it', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { output } = await open(page);
+    await output.getByRole('button', { name: 'Copy line 5' }).focus();
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'last line',
+    );
+    await output.getByRole('button', { name: 'Copy line 2' }).focus();
+    await page.keyboard.press('Space');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'ok all fine',
+    );
+  });
+
+  test('timestamps show on a wide screen and can be switched off', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { dialog, output } = await open(page);
+    const toggle = dialog.getByRole('checkbox', { name: 'Timestamps' });
+    await expect(toggle).toBeChecked();
+    await expect(output.locator('.run-line-time').first()).toBeVisible();
+    await toggle.uncheck();
+    await expect(output.locator('.run-line-time')).toHaveCount(0);
+    // The numbers and the text stay.
+    await expect(
+      output.getByRole('button', { name: 'Copy line 2' }),
+    ).toBeVisible();
+    await expect(output).toContainText('ok all fine');
+  });
+
+  test('on a phone the timestamps start off and the number gutter is 44px', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const { dialog, output } = await open(page);
+    await expect(
+      dialog.getByRole('checkbox', { name: 'Timestamps' }),
+    ).not.toBeChecked();
+    await expect(output.locator('.run-line-time')).toHaveCount(0);
+    const box = await output
+      .getByRole('button', { name: 'Copy line 2' })
+      .boundingBox();
+    expect(box?.width).toBeGreaterThanOrEqual(44);
+    expect(box?.width).toBeLessThanOrEqual(44.5);
+    await dialog.getByRole('checkbox', { name: 'Timestamps' }).check();
+    await expect(output.locator('.run-line-time').first()).toBeVisible();
+  });
+
+  test('a long unbroken token wraps inside the output instead of touching the edge', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const { output } = await open(page);
+    const overflow = await output.evaluate(
+      (el) => el.scrollWidth - el.clientWidth,
+    );
+    expect(overflow).toBeLessThanOrEqual(0);
+  });
+
+  test('number and timestamp sit on the first text line of a wrapped row', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const { dialog, output } = await open(page);
+    await dialog.getByRole('checkbox', { name: 'Timestamps' }).check();
+    const row = output.locator('.run-line').nth(3);
+    // The number's glyph and the text's first line, not the stretched gutter.
+    const tops = await row.evaluate((el) => {
+      const range = document.createRange();
+      const digits = el.querySelector('.run-line-no')?.lastChild as Text;
+      range.selectNodeContents(digits);
+      const text = el.querySelector('.run-line-text') as HTMLElement;
+      const first = document.createRange();
+      first.setStart(text.lastChild as Text, 0);
+      first.setEnd(text.lastChild as Text, 1);
+      return {
+        number: range.getBoundingClientRect().top,
+        text: first.getBoundingClientRect().top,
+        lines: text.getClientRects()[0].height,
+      };
+    });
+    expect(tops.lines).toBeGreaterThan(40);
+    expect(Math.abs(tops.number - tops.text)).toBeLessThanOrEqual(3);
+  });
+
+  test('a copy that fails says so and leaves no copied state', async ({
+    page,
+  }) => {
+    await refuseClipboard(page);
+    const { dialog, output } = await open(page);
+    await output.getByRole('button', { name: 'Copy line 2' }).click();
+    await expect(
+      dialog.getByRole('status').filter({ hasText: /line 2/i }),
+    ).toContainText("Couldn't copy line 2");
+    await expect(output.locator('.run-line-copied')).toHaveCount(0);
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [390, 1280]) {
+      test(`the copied state passes axe at ${width}px (${scheme})`, async ({
+        page,
+        context,
+      }) => {
+        await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 900 });
+        const { dialog, output } = await open(page);
+        await dialog.getByRole('checkbox', { name: 'Timestamps' }).check();
+        await output.getByRole('button', { name: 'Copy line 3' }).click();
+        await expect(output.locator('.run-line-copied')).toHaveCount(1);
+        const results = await new AxeBuilder({ page })
+          .include('#pipeline-dialog')
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
 });

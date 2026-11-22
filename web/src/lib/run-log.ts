@@ -513,14 +513,10 @@ export function copyLineLabel(n: number): string {
   return `Copy line ${n}`;
 }
 
-// The sentence a line copy earns, for the live region and the toast alike.
+// The sentence a line copy earns, for the live region and the toast alike. A
+// copy the browser refused leaves nothing selected, so it only says so.
 export function copyLineStatus(n: number, outcome: CopyOutcome): string {
-  if (outcome === 'copied') return `Line ${n} copied`;
-  if (outcome === 'selected') {
-    return `Couldn't copy line ${n} automatically. Press Ctrl+C (Cmd+C on a Mac) to copy the selected text.`;
-  }
-
-  return `Couldn't copy line ${n}.`;
+  return outcome === 'copied' ? `Line ${n} copied` : `Couldn't copy line ${n}.`;
 }
 
 const PAGE_LINES = 10;

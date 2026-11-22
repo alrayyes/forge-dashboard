@@ -1160,6 +1160,16 @@ label with a solid or dashed left border, a rule under a step header
 ISO timestamp. Colour escape codes are removed. Copy still copies the log as
 the forge sent it.
 
+Every line is numbered, with a hairline between lines, and a wrapped line hangs
+under its first character (a token longer than the row breaks instead of
+touching the edge). The number is a button named "Copy line N" that puts just
+that line's text on the clipboard: no number, no time, no `Error` label. The
+number stays on screen, with a check beside it, and a toast and a polite live
+region say "Line N copied", for about two seconds. The numbers are one tab stop;
+the arrow keys, Home, End and Page Up and Down move between them. A
+`Timestamps` switch shows or hides the times, off by default at 600px and
+narrower. Its focus ring covers the number cell, not the row.
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
