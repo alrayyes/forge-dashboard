@@ -2155,3 +2155,358 @@ test.describe('numbered output lines, second pass', () => {
     await expect(copied.locator('.run-line-check')).toBeVisible();
   });
 });
+
+test.describe('the Wrap lines switch (#4281)', () => {
+  const log = {
+    status: 200,
+    body: { text: `${'word '.repeat(80)}\nshort`, truncated: false },
+  };
+
+  async function open(page: Page) {
+    await setup(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output.locator('.run-line').first()).toBeVisible();
+
+    return { dialog, output };
+  }
+
+  test('lines wrap to start with, and turning it off lets a long line scroll sideways', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { dialog, output } = await open(page);
+    const wrap = dialog.getByRole('checkbox', { name: 'Wrap lines' });
+    await expect(wrap).toBeChecked();
+    const over = () => output.evaluate((el) => el.scrollWidth - el.clientWidth);
+    expect(await over()).toBeLessThanOrEqual(0);
+
+    await wrap.uncheck();
+    await expect.poll(over).toBeGreaterThan(0);
+    // Still one scroll area: the line did not grow a scrollbar of its own.
+    const text = output.locator('.run-line-text').first();
+    expect(
+      await text.evaluate((el) => el.scrollWidth - el.clientWidth),
+    ).toBeLessThanOrEqual(0);
+
+    await wrap.check();
+    await expect.poll(over).toBeLessThanOrEqual(0);
+  });
+});
+
+test.describe('the wide log dialog (#4281)', () => {
+  const lines = Array.from(
+    { length: 120 },
+    (_, i) =>
+      `2026-11-13T10:00:${String(i % 60).padStart(2, '0')}.100Z step ${i + 1} ${'x'.repeat(i === 3 ? 200 : 10)}`,
+  );
+  const log = {
+    status: 200,
+    body: { text: lines.join('\n'), truncated: false },
+  };
+
+  async function open(page: Page) {
+    await setup(page, log);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const panel = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(panel).toContainText('step 120');
+    const expand = dialog.getByRole('button', { name: 'Expand log: build' });
+    const wide = page.getByRole('dialog', { name: 'Log: build' });
+
+    return { dialog, panel, expand, wide };
+  }
+
+  test('Expand opens a modal with the same log, the switches, Copy log, Close and the run link', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { expand, wide } = await open(page);
+    await expect(wide).toBeHidden();
+    await expand.click();
+
+    await expect(wide).toBeVisible();
+    expect(await wide.evaluate((el) => el.matches(':modal'))).toBe(true);
+    await expect(
+      wide.getByRole('region', { name: 'Output: build' }),
+    ).toContainText('step 120');
+    await expect(
+      wide.getByRole('region', { name: 'Output: build' }).locator('.run-line'),
+    ).toHaveCount(120);
+    await expect(
+      wide.getByRole('checkbox', { name: 'Timestamps' }),
+    ).toBeChecked();
+    await expect(
+      wide.getByRole('checkbox', { name: 'Wrap lines' }),
+    ).toBeChecked();
+    await expect(wide.getByRole('button', { name: 'Copy log' })).toBeVisible();
+    await expect(
+      wide.getByRole('button', { name: 'Close', exact: true }),
+    ).toBeVisible();
+    await expect(
+      wide.getByRole('link', { name: /^Open run on GitHub/ }),
+    ).toHaveAttribute('href', runUrl);
+    // It is much wider than the 420px panel.
+    expect((await wide.boundingBox())?.width).toBeGreaterThan(800);
+  });
+
+  test('a click in the dialog gutter, or a drag that ends there, keeps it open; a click on the backdrop closes it', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await expect(wide).toBeVisible();
+    const box = (await wide.boundingBox())!;
+    const midY = box.y + box.height / 2;
+
+    // The 16px margin beside the log is inside the dialog.
+    await page.mouse.click(box.x + 8, midY);
+    await expect(wide).toBeVisible();
+
+    // A selection drag from the log out into that gutter.
+    const line = wide.locator('.run-line').nth(3);
+    const lb = (await line.boundingBox())!;
+    await page.mouse.move(lb.x + 40, lb.y + lb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + 8, lb.y + lb.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(wide).toBeVisible();
+
+    // A drag released over the backdrop does not close it either.
+    await page.mouse.move(lb.x + 40, lb.y + lb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 20, lb.y + lb.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await expect(wide).toBeVisible();
+
+    // A click that starts and ends on the backdrop does.
+    await page.mouse.click(box.x - 20, midY);
+    await expect(wide).toBeHidden();
+  });
+
+  test('Escape, Close and the header X each close it and give focus back to Expand', async ({
+    page,
+  }) => {
+    const { expand, wide } = await open(page);
+    for (const how of ['escape', 'close', 'x'] as const) {
+      await expand.click();
+      await expect(wide).toBeVisible();
+      if (how === 'escape') await page.keyboard.press('Escape');
+      else if (how === 'close')
+        await wide.getByRole('button', { name: 'Close', exact: true }).click();
+      else await wide.getByRole('button', { name: 'Close log dialog' }).click();
+      await expect(wide).toBeHidden();
+      await expect(expand).toBeFocused();
+    }
+    // The pipeline dialog itself is still open: Escape closed only the log.
+    await expect(
+      page.getByRole('dialog', { name: 'Pipeline checks' }),
+    ).toBeVisible();
+  });
+
+  test('focus starts inside, Tab and Shift+Tab never leave it, and the page behind is inert', async ({
+    page,
+  }) => {
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await expect(wide).toBeVisible();
+    const inside = () =>
+      page.evaluate(
+        () => !!document.activeElement?.closest('dialog.run-wide-dialog'),
+      );
+    expect(await inside()).toBe(true);
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Tab');
+      expect(await inside()).toBe(true);
+    }
+    for (let i = 0; i < 12; i++) {
+      await page.keyboard.press('Shift+Tab');
+      expect(await inside()).toBe(true);
+    }
+    // Nothing outside the dialog can be reached: the pipeline dialog is inert.
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('#pipeline-dialog')?.matches(':modal'),
+      ),
+    ).toBe(true);
+    expect(
+      await page.evaluate(() =>
+        document.querySelector('main, body')?.matches(':modal'),
+      ),
+    ).toBe(false);
+    await expect(expand).not.toBeFocused();
+  });
+
+  test('the switches changed in the dialog are what the panel shows afterwards', async ({
+    page,
+  }) => {
+    const { dialog, panel, expand, wide } = await open(page);
+    await expand.click();
+    await wide.getByRole('checkbox', { name: 'Timestamps' }).uncheck();
+    await wide.getByRole('checkbox', { name: 'Wrap lines' }).uncheck();
+    await page.keyboard.press('Escape');
+    await expect(wide).toBeHidden();
+
+    await expect(
+      dialog.getByRole('checkbox', { name: 'Timestamps' }),
+    ).not.toBeChecked();
+    await expect(
+      dialog.getByRole('checkbox', { name: 'Wrap lines' }),
+    ).not.toBeChecked();
+    await expect(panel.locator('.run-line-time')).toHaveCount(0);
+    // And the dialog opens with them as they were left.
+    await expand.click();
+    await expect(
+      wide.getByRole('checkbox', { name: 'Timestamps' }),
+    ).not.toBeChecked();
+  });
+
+  test('closing it leaves the panel 420px wide with its scroll position', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const { dialog, panel, expand, wide } = await open(page);
+    await panel.evaluate((el) => {
+      el.scrollTop = 200;
+    });
+    const before = {
+      dialog: (await dialog.boundingBox())?.width,
+      top: await panel.evaluate((el) => el.scrollTop),
+    };
+    expect(before.dialog).toBe(420);
+    expect(before.top).toBe(200);
+    await expand.click();
+    await expect(wide).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(wide).toBeHidden();
+    expect((await dialog.boundingBox())?.width).toBe(420);
+    expect(await panel.evaluate((el) => el.scrollTop)).toBe(before.top);
+  });
+
+  test('it has one scroll area, the log, and no horizontal page scroll', async ({
+    page,
+  }) => {
+    for (const width of [320, 390, 1280]) {
+      await page.setViewportSize({ width, height: 700 });
+      const { expand, wide } = await open(page);
+      await expand.click();
+      await expect(wide).toBeVisible();
+      const scrollers = await wide.evaluate((root) =>
+        [root, ...root.querySelectorAll<HTMLElement>('*')]
+          .filter((el) => {
+            const o = getComputedStyle(el).overflowY;
+            return (
+              (o === 'auto' || o === 'scroll') &&
+              el.scrollHeight > el.clientHeight
+            );
+          })
+          .map((el) => el.getAttribute('role') ?? el.tagName),
+      );
+      expect(scrollers).toEqual(['region']);
+      const box = await wide.boundingBox();
+      expect(
+        (box?.x ?? -1) >= 0 && (box?.x ?? 0) + (box?.width ?? 0) <= width,
+      ).toBe(true);
+      await page.keyboard.press('Escape');
+      await page.goto('/pull-requests.html');
+    }
+  });
+
+  test('Copy log copies the whole log and says so inside the dialog', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await wide.getByRole('button', { name: 'Copy log' }).click();
+    await expect(wide.locator('.run-output-status')).toHaveText('Copied');
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      lines.join('\n'),
+    );
+  });
+
+  test('copying a line in the dialog toasts inside the dialog', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await wide
+      .getByRole('button', { name: 'Copy line 2', exact: true })
+      .click();
+    await expect(
+      wide.getByRole('status').filter({ hasText: 'Line 2 copied' }),
+    ).toBeVisible();
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [320, 390, 1280]) {
+      test(`it passes axe at ${width}px (${scheme})`, async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 800 });
+        const { expand, wide } = await open(page);
+        await expand.click();
+        await expect(wide).toBeVisible();
+        const results = await new AxeBuilder({ page })
+          .include('dialog.run-wide-dialog')
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  }
+
+  test('at 400% text every control stays on screen and the log keeps a usable height', async ({
+    page,
+  }) => {
+    // 1280px at 400% zoom is a 320 x 225 viewport.
+    await page.setViewportSize({ width: 320, height: 225 });
+    await page.addStyleTag({ content: 'html { font-size: 400% !important; }' });
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await expect(wide).toBeVisible();
+    const box = await wide.boundingBox();
+    expect(
+      (box?.y ?? -1) >= 0 && (box?.y ?? 0) + (box?.height ?? 0) <= 225,
+    ).toBe(true);
+    const over = await page.evaluate(
+      () =>
+        document.documentElement.scrollWidth -
+        document.documentElement.clientWidth,
+    );
+    expect(over).toBeLessThanOrEqual(0);
+    // The body of the dialog scrolls rather than clipping its controls.
+    for (const name of ['Close log dialog']) {
+      await wide.getByRole('button', { name }).scrollIntoViewIfNeeded();
+      await expect(wide.getByRole('button', { name })).toBeInViewport();
+    }
+    await wide
+      .getByRole('link', { name: /^Open run on GitHub/ })
+      .scrollIntoViewIfNeeded();
+    await expect(
+      wide.getByRole('link', { name: /^Open run on GitHub/ }),
+    ).toBeInViewport();
+  });
+
+  test('forced colours keep the dialog edge and its controls visible', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    const { expand, wide } = await open(page);
+    await expand.click();
+    await expect(wide).toBeVisible();
+    const edge = await wide.evaluate((el) => {
+      const cs = getComputedStyle(el);
+      return parseFloat(cs.borderTopWidth);
+    });
+    expect(edge).toBeGreaterThanOrEqual(1);
+    await expect(wide.getByRole('button', { name: 'Copy log' })).toBeVisible();
+  });
+});

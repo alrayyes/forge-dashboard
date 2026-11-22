@@ -1194,6 +1194,19 @@ line copies nothing and says "Line N is empty", with no check. A toast never
 shows empty, and a copy that hangs still lets it go after two seconds. In
 forced colours the copied row gets an outline in the system highlight.
 
+Beside `Timestamps`, a `Wrap lines` switch (on by default) lets a long line keep
+its length: off, the one log area scrolls sideways. The `Expand` button in the
+same row opens the log in a wide modal dialog, up to 960px, titled with the
+check name. It shows the same log with both switches, `Copy log`, `Close` and
+`Open run on {forge}`. Escape, `Close` and the header's close button shut it and
+give focus back to `Expand`, and so does a click in the backdrop. A click in the
+margins around the log, or a text selection released there, does not. Tab
+stays inside it and the page behind is inert. The panel stays 420px wide with
+its scroll position, and the two switches are one setting for both, so a change
+in the dialog is still there in the panel. The log is the only scroll area in
+the dialog, except on a screen under 480px tall (a phone on its side, text at
+400%), where the dialog scrolls as one.
+
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with
 timestamps and colour codes removed, capped at 2,000 characters. Those cost up
