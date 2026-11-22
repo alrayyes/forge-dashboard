@@ -6088,6 +6088,24 @@ footer a[aria-current="page"] {
   color: var(--ink-2);
   padding-inline: 8px 0;
 }
+/* Up to 760px a line is a 44px touch target, as in the phone drawing: the
+   number cell is 44 tall and the text is padded so its first line still sits
+   level with the number. */
+@media (max-width: 760px) {
+  .run-line-no {
+    min-height: 44px;
+    padding-top: 14px;
+  }
+  .run-line-no:hover::before,
+  .run-line-no:focus-visible::before,
+  .run-line-check {
+    top: 16px;
+  }
+  .run-line-time,
+  .run-line-text {
+    padding-block: 14px;
+  }
+}
 /* The toast sits over the bottom of the log, clear of the dialog's footer. It
    is also the polite live region, so it is always there and only fades. */
 .run-line-toast {
