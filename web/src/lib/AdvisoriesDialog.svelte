@@ -8,6 +8,9 @@
     // The row's own count and severity, shown in the header before any list
     // arrives, and whether the server keeps the list (listReadAt).
     advisories?: Advisories;
+    // A read of the list already out, started when the pill was hovered: the
+    // dialog waits on it rather than make a second.
+    warm?: Promise<AdvisoryRead>;
     // The control to give focus back to when the dialog closes.
     opener?: HTMLElement | null;
   };
@@ -38,6 +41,7 @@
     summaryOf,
     unreadableText,
     readAdvisoryList,
+    type AdvisoryRead,
     referenceLinks,
     severityCounts,
   } from "#lib/advisories-dialog.js";
@@ -98,14 +102,17 @@
     older = "";
     refreshing = false;
     cold = !next.advisories?.listReadAt;
-    void load(next);
+    void load(next, true);
     dialog.showModal();
   }
 
-  async function load(row: AdvisoriesTarget) {
+  // `warm` is the read a hover started; it serves the first load only, so Try
+  // again asks afresh.
+  async function load(row: AdvisoriesTarget, useWarm = false) {
     const mine = ++request;
     phase = "loading";
-    const result = await readAdvisoryList(row.forge, row.fullName);
+    const result = await ((useWarm ? row.warm : undefined) ??
+      readAdvisoryList(row.forge, row.fullName));
     if (mine !== request) return;
     if (result.kind === "signed-out") {
       window.location.href = "/login.html";

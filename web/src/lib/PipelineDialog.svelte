@@ -20,6 +20,8 @@
     forgeName?: string;
     // Live updates are paused: a new list waits until they are back.
     paused?: () => boolean;
+    // The log excerpts a hover already read, and the reads left of the five.
+    warm?: { excerpts: Record<string, string>; reads: ExcerptReads };
     // The control to give focus back to when the dialog closes.
     opener?: HTMLElement | null;
     // Runs after the dialog closed, whichever way it closed.
@@ -108,6 +110,7 @@
     excerptKey,
     fillExcerpts,
     newExcerptReads,
+    type ExcerptReads,
     pickExcerptJobs,
   } from "#lib/pipeline-excerpts.js";
   import { announceChange, checkKeys, keepOrder } from "#lib/pipeline-live.js";
@@ -400,8 +403,8 @@
     target = next;
     staleNote = "";
     excerptRun++;
-    excerpts = {};
-    reads = newExcerptReads();
+    excerpts = { ...next.warm?.excerpts };
+    reads = next.warm?.reads ?? newExcerptReads();
     runStates = {};
     clearTimeout(settleTimer);
     clearTimeout(lockTimer);

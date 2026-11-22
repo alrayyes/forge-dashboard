@@ -146,6 +146,20 @@ a line above it says it could not refresh and when that list was read. The room
 for that line is always there, so nothing moves when it appears. Once the list
 arrives, the header's count and severity follow it.
 
+Resting a pointer on the advisories pill, or tabbing to it, starts that read
+early for a repo with nothing kept, so a first open is usually ready; the dialog
+waits on a read still out rather than make a second. A pointer that only passes
+over, a tap, focus the page gives back after a dialog closes, and a repo whose
+list is already kept read nothing, and nothing is read while live updates are
+paused.
+
+The same hover or keyboard focus on a row's pipeline pill watches that row's
+jobs and reads the log excerpts of its newest failed jobs on a forge that serves
+them, so the panel opens with them. One row is held at a time: moving to another
+pill lets go of the first, and the hold ends a few seconds after the pointer
+leaves or once the panel opens. A row the page already watches adds nothing to
+the stream, which takes eight rows at most.
+
 The kept GitHub list is keyed by the repository and the credential that read
 it (a token, or an App installation), as the Forgejo list is by the instance. A
 list one credential read is never served to another, so changing the token or
