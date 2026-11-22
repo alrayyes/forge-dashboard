@@ -219,6 +219,37 @@ describe('fillExcerpts', () => {
     expect(reads.left).toBe(0);
   });
 
+  test('a retry round that was handed off takes no read from the shared budget (#4595)', async () => {
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      // The first pass finds both logs empty; the first retry finds text.
+      return new Response(
+        JSON.stringify({ text: calls <= 2 ? '' : 'late', truncated: false }),
+      );
+    }) as unknown as typeof fetch;
+    const reads = newExcerptReads();
+    reads.left = 5;
+    let handedOff = false;
+
+    await fillExcerpts(
+      [failed(1), failed(2)],
+      FORGEJO,
+      () => {
+        // The dialog takes over while the retry round is still going.
+        handedOff = true;
+      },
+      fetchImpl,
+      () => handedOff,
+      async () => {},
+      reads,
+    );
+
+    // Only the first retry read was made and paid for; the second job's was not.
+    expect(calls).toBe(3);
+    expect(reads.left).toBe(4);
+  });
+
   test('shows nothing for a job whose log is gone or empty', async () => {
     const got: string[] = [];
     await fillExcerpts(
