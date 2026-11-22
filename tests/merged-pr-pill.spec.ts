@@ -8,11 +8,16 @@ import { test } from './server-fixture';
 // pop-up, as a pill for an open one does. The dialog never closes with
 // nothing shown. Mocks /api/v1/dashboard and the details endpoints only and
 // writes no saved state.
+//
+// #4492: the same holds from a pill in a pull request pop-up's own Related
+// band, and for a merged pull request in a repository the dashboard doesn't
+// track, which is reached by a reference in the text instead of a pill.
 
 const NOW = new Date();
 const ago = (minutes: number) =>
   new Date(NOW.getTime() - minutes * 60_000).toISOString();
 const REPO = 'alrayyes/forge-dashboard';
+const FOREIGN = 'alrayyes/elsewhere';
 
 const issue = {
   forge: 'github',
@@ -122,7 +127,7 @@ async function open(page: Page, unreadable = false) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          ...thread('The ticket.'),
+          ...thread(`The ticket. See ${FOREIGN}#50.`),
           kind: 'issue',
           state: 'open',
           references: [
@@ -169,6 +174,13 @@ async function open(page: Page, unreadable = false) {
                 reference(20, issueRef('closes')),
                 reference(21, issueRef('refs')),
                 reference(30, { relation: 'mentions' }),
+                // Pull requests it refers to, one merged and one closed.
+                reference(31, { direction: 'outgoing', relation: 'mentions' }),
+                reference(8, {
+                  direction: 'outgoing',
+                  relation: 'refs',
+                  state: 'closed',
+                }),
               ]
             : [],
         pullRequest: {
@@ -192,6 +204,8 @@ const prDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Pull request details/ });
 const issueDialog = (page: Page) =>
   page.getByRole('dialog', { name: /^Issue details/ });
+const originRow = (page: Page) =>
+  page.locator('#issue-rows .row').first().locator('button.title');
 const pill = (page: Page, group: string, number: number) =>
   issueDialog(page)
     .getByRole('group', { name: group })
@@ -275,6 +289,86 @@ for (const width of [1280, 390]) {
     ).toBeFocused();
   });
 }
+
+async function expectAxeClean(page: Page) {
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme });
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations, scheme).toEqual([]);
+  }
+}
+
+// A pill in the Related band of a merged pull request's own pop-up names
+// another pull request the board doesn't list. It reaches the same retarget
+// through the pop-up's callers, not the issue's.
+for (const [group, number] of [
+  ['Mentions', 31],
+  ['Refs', 8],
+] as const) {
+  test(`a ${group} pill in a merged pull request's pop-up opens pull request ${number}`, async ({
+    page,
+  }) => {
+    await open(page);
+    await pill(page, 'Mentioned by', 7).click();
+    await expect(prDialog(page)).toContainText('read from the forge');
+
+    await prDialog(page)
+      .getByRole('group', { name: group })
+      .locator('.linked-pr', { hasText: `#${number}` })
+      .click();
+
+    await expect(
+      prDialog(page).getByRole('heading', { name: `Merged change ${number}` }),
+    ).toBeVisible();
+    await expect(prDialog(page)).toContainText(
+      `Pull request ${number}, read from the forge`,
+    );
+    await expect(page.locator('dialog[open]')).toHaveCount(1);
+    await expectAxeClean(page);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('dialog[open]')).toHaveCount(0);
+    await expect(originRow(page)).toBeFocused();
+  });
+}
+
+// A reference to a merged pull request in a repository the dashboard doesn't
+// track is a forge link until the forge has answered for it (#4269). Once it
+// has, a click opens the pull request's pop-up rather than a new tab.
+test('a reference to a merged pull request in an untracked repository opens its pop-up', async ({
+  page,
+}) => {
+  await open(page);
+  const reference = issueDialog(page).locator(
+    `a[data-ref-repo="${FOREIGN}"][data-ref-number="50"]`,
+  );
+  const answered = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/v1/issues/details') &&
+      response.url().includes('number=50'),
+  );
+  await reference.hover();
+  await answered;
+  const opened = page
+    .waitForEvent('popup', { timeout: 1000 })
+    .then(() => true)
+    .catch(() => false);
+
+  await reference.click();
+
+  await expect(
+    prDialog(page).getByRole('heading', { name: 'Merged change 50' }),
+  ).toBeVisible();
+  await expect(page.locator('dialog[open]')).toHaveCount(1);
+  expect(await opened).toBe(false);
+  await expectAxeClean(page);
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('dialog[open]')).toHaveCount(0);
+  await expect(originRow(page)).toBeFocused();
+});
 
 test('a pull request that cannot be read leaves a pop-up that says why', async ({
   page,
