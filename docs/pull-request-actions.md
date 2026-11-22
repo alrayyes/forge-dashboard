@@ -270,8 +270,14 @@ wider, taking the room from that row's title, so it never runs under the
 comment pill. The attribute chips and the status note ("Behind the base
 branch", say) sit under the title, so a row that has one is taller and its pills
 stay centred on the title and the note together. Rarer lines (a close cue, a
-queued note, the waiting chip) take a line of their own under the slots, and
-the waiting chip's room is only there while a chip is. A narrower list
+queued note) take a line of their own under the slots. The waiting chip is as
+wide as its content, up to the room there is, and one line tall. On a row with no
+action and no merge-state or comment pill it sits after the CI pill on the
+pill's own line, in the rest of the cell (the cell is the CI pill and that
+remainder, so the pill's slot gives up its minimum width), and the row is no
+taller than one without a chip. Otherwise
+it has a line at the cell's right edge, 36px more than the row would be without
+it. Its room is only there while a chip is. A narrower list
 keeps the wrapping status cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is
@@ -722,6 +728,17 @@ merges when checks pass), and GitHub's reads `Merging` (GitHub merges it as soon
 as it can). Cancel on a merge Forgejo holds says it cancels the merge scheduled
 on Forgejo. On GitHub, Disarm turns GitHub's own auto-merge off with
 `disablePullRequestAutoMerge`.
+
+On a desktop the chip is a compact status, not a banner. It is as wide as
+its icon, its bold label, its lighter line and its button, 30px tall, up to the
+room in the status cell. The lighter line shows whole in the common case (about
+310px of the 440px cell at the default font size) and shortens with an ellipsis
+only when the cell cannot hold it, on a line with an action or a pill beside it,
+at a large root font size or at 200% zoom; the hint always has the whole
+sentence. The slot is not drawn while it is empty, at any
+width. On a list narrower than the one-line row (761px to 1190px of list width)
+the status cell stacks, so the chip takes a line of its own at the cell's right
+edge, 30px tall.
 
 On a phone card the slot reserves nothing. With no chip the slot is not drawn,
 so the card is no taller than its content and the divider sits within 16px of

@@ -51,6 +51,7 @@ const singleUserSpecs = [
   '**/pr-row-centering.spec.ts',
   '**/failed-pills-clear-comment.spec.ts',
   '**/wide-screen-title.spec.ts',
+  '**/wait-chip-desktop.spec.ts',
   '**/filter-bar-widths.spec.ts',
   '**/filter-bar-overlap.spec.ts',
   '**/filter-bar-one-control.spec.ts',
