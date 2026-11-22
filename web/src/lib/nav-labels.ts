@@ -12,11 +12,13 @@ type Count = {
   noChecks?: number;
   awaitingApproval?: number;
   unknown?: number;
+  behind?: number;
 } | null;
 
 export type PillKind =
   | 'failed'
   | 'passed'
+  | 'behind'
   | 'cancelled'
   | 'running'
   | 'awaiting'
@@ -25,7 +27,8 @@ export type PillKind =
   | 'noChecks';
 
 // The counts after the total, in the order the pill draws them (#1563): the
-// outcomes (failing, passing, then cancelled, #3958), then the running state,
+// outcomes (failing, passing, then the passing ones behind their base,
+// #4282, then cancelled, #3958), then the running state,
 // then the branches held for approval (#2024), then the branches without a
 // pipeline. Zero is never drawn or spoken (#1439). The pill
 // (NavPills.svelte) and both names below build from this one list, so the
@@ -36,6 +39,11 @@ export function pillParts(
   return [
     { kind: 'failed' as const, n: count.failed, words: 'failing' },
     { kind: 'passed' as const, n: count.passed ?? 0, words: 'passing' },
+    {
+      kind: 'behind' as const,
+      n: count.behind ?? 0,
+      words: 'behind the base branch',
+    },
     { kind: 'cancelled' as const, n: count.cancelled ?? 0, words: 'cancelled' },
     { kind: 'running' as const, n: count.running ?? 0, words: 'running' },
     {
@@ -63,7 +71,9 @@ export function pillParts(
 // rest sit in no category), the total says something the counts don't. The
 // pill and both names ask here, so what is drawn and what is spoken agree.
 export function showTotal(count: NonNullable<Count>): boolean {
-  const parts = pillParts(count);
+  // Behind is a note on the passing ones, not a category of its own, so it
+  // doesn't count as a second part (#4282).
+  const parts = pillParts(count).filter((p) => p.kind !== 'behind');
   return !(parts.length === 1 && parts[0].n === count.total);
 }
 

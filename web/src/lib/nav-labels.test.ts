@@ -288,4 +288,37 @@ describe('pillParts', () => {
       '9 2 3 2 1 1 PRs, 2 failing, 3 passing, 2 cancelled, 1 running, 1 without checks',
     );
   });
+
+  test('draws the pull requests behind their base after the passing ones, and says so in words (#4282)', () => {
+    const count = { total: 12, failed: 2, passed: 7, behind: 3 };
+    expect(pillParts(count)).toEqual([
+      { kind: 'failed', n: 2, words: 'failing' },
+      { kind: 'passed', n: 7, words: 'passing' },
+      { kind: 'behind', n: 3, words: 'behind the base branch' },
+    ]);
+    expect(headerLabel('Bots', count)).toBe(
+      '12 2 7 3, Bots, 12 total, 2 failing, 7 passing, 3 behind the base branch',
+    );
+    expect(tabLabel('Bots', count)).toBe(
+      '12 2 7 3 Bots, 2 failing, 7 passing, 3 behind the base branch',
+    );
+  });
+
+  test('says nothing about behind when none are (#4282)', () => {
+    expect(
+      pillParts({ total: 4, failed: 0, passed: 4, behind: 0 }).map(
+        (p) => p.kind,
+      ),
+    ).toEqual(['passed']);
+  });
+
+  test('behind sits beside the outcome, so it never earns the total back (#4282)', () => {
+    // Four passing, two of them behind: the total would only repeat the one
+    // outcome, and behind is a note on those, not a second category.
+    const count = { total: 4, failed: 0, passed: 4, behind: 2 };
+    expect(showTotal(count)).toBe(false);
+    expect(headerLabel('Bots', count)).toBe(
+      '4 2, Bots, 4 passing, 2 behind the base branch',
+    );
+  });
 });

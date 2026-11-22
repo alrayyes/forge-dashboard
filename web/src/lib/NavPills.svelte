@@ -75,6 +75,23 @@
             ><circle cx="12" cy="12" r="10" /><path d="m9 12 2 2 4-4" /></svg
           >{part.n}</span
         >
+      {:else if part.kind === "behind"}
+        <!-- Green bot pull requests whose base has moved on (#4282): a bare
+           up arrow, the one glyph here with no circle round it, so it reads
+           apart from the failed and passed counts without the colour. -->
+        <span class="nav-count nav-behind"
+          ><svg
+            width="11"
+            height="11"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7" /></svg
+          >{part.n}</span
+        >
       {:else if part.kind === "cancelled"}
         <!-- The stop glyph the row and the pipeline panel use for a cancelled
            run, in neutral ink: nothing broke (#3958). -->

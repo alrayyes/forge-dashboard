@@ -15,6 +15,7 @@ type Counts = {
   failed: number;
   passed: number;
   noChecks?: number;
+  behind?: number;
 };
 
 const MIXED: Counts = { total: 15, running: 3, failed: 2, passed: 10 };
@@ -324,4 +325,77 @@ test.describe('the nav pill shows failing, running and passing (#1439)', () => {
       }
     });
   }
+});
+
+// The green bot pull requests behind their base branch: an amber up arrow and
+// the number after the failed and passed counts, and the words in the link's
+// name. The pill stays aria-hidden. Design: docs/design/stitch-2026-11-19.
+// https://github.com/alrayyes/forge-dashboard/issues/4282
+test.describe('the Bots pill counts the pull requests behind their base (#4282)', () => {
+  const BEHIND: Counts = {
+    total: 12,
+    running: 0,
+    failed: 2,
+    passed: 7,
+    behind: 3,
+  };
+  const BOTS = '/bots.html';
+
+  test('draws an up arrow and the count, and the link says it in words', async ({
+    page,
+  }) => {
+    await open(page, { bots: BEHIND });
+    const link = header(page, BOTS);
+    const pill = link.locator('.nav-pills');
+
+    await expect(pill).toHaveAttribute('aria-hidden', 'true');
+    await expect(pill.locator('.nav-behind')).toHaveText('3');
+    await expect(pill.locator('.nav-behind svg')).toBeAttached();
+    await expect(pill.locator('.nav-count')).toHaveText(['2', '7', '3']);
+    await expect(link).toHaveAccessibleName(
+      '12 2 7 3, Bots, 12 total, 2 failing, 7 passing, 3 behind the base branch',
+    );
+  });
+
+  test('draws nothing for none behind', async ({ page }) => {
+    await open(page, { bots: { ...BEHIND, behind: 0 } });
+
+    await expect(header(page, BOTS).locator('.nav-total')).toHaveText('12');
+    await expect(header(page, BOTS).locator('.nav-behind')).toHaveCount(0);
+  });
+
+  test('on a 360px phone the fourth count adds one row and no width', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 740 });
+    const measure = async (counts: Counts) => {
+      await open(page, { bots: counts });
+      await expect(
+        page.locator('.bottom-nav .nav-pills').first(),
+      ).toBeVisible();
+
+      return tab(page, BOTS).evaluate((el) => {
+        const pill = el.querySelector('.nav-pills')?.getBoundingClientRect();
+        const link = el.getBoundingClientRect();
+
+        return {
+          pillWidth: pill?.width ?? 0,
+          pillHeight: pill?.height ?? 0,
+          linkWidth: link.width,
+          clipped:
+            (el.querySelector('.nav-pills')?.scrollWidth ?? 0) >
+            (el.querySelector('.nav-pills')?.clientWidth ?? 0),
+        };
+      });
+    };
+
+    const without = await measure({ ...BEHIND, behind: 0 });
+    const withBehind = await measure(BEHIND);
+
+    expect(withBehind.pillWidth).toBeLessThanOrEqual(without.pillWidth + 1);
+    expect(withBehind.linkWidth).toBeLessThanOrEqual(without.linkWidth + 1);
+    expect(withBehind.clipped).toBe(false);
+    // One 15px row, no more.
+    expect(withBehind.pillHeight - without.pillHeight).toBeLessThanOrEqual(16);
+  });
 });
