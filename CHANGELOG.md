@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.100.1](https://github.com/alrayyes/forge-dashboard/compare/v9.100.0...v9.100.1) (2026-11-22)
+
+
+### Bug Fixes
+
+* **web:** stop a handed-off excerpt retry before it spends a read ([#4636](https://github.com/alrayyes/forge-dashboard/issues/4636)) ([ac9d184](https://github.com/alrayyes/forge-dashboard/commit/ac9d18429d23ce060e81a2dc5159c3bf44e77ccc)), closes [#4595](https://github.com/alrayyes/forge-dashboard/issues/4595)
+
 ## [9.100.0](https://github.com/alrayyes/forge-dashboard/compare/v9.99.0...v9.100.0) (2026-11-22)
 
 
