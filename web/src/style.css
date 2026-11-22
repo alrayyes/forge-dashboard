@@ -1127,6 +1127,10 @@ section.board {
 @media (min-width: 761px) {
   @container (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
+      /* #4596: the repo track is 168px, 16px narrower than the 184px it was,
+         and the title takes the 16px (204px to 220px at 1280px). A repo name
+         shortens with an ellipsis, as it already does, and has its full name
+         in its hover text. */
       /* #4541: the status track is 27.5rem for a row whose CI pill fits its
          slot, and grows to the slot's pill when it does not (min-content is
          the three slots with the CI one as wide as its pill, since a pill
@@ -1134,7 +1138,7 @@ section.board {
          drawn under the comment pill. Only that row's title gives up the
          difference. */
       grid-template-columns:
-        184px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
+        168px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
           27.5rem,
           min-content
         )
@@ -1190,6 +1194,32 @@ section.board {
     }
     .row:not(.issue-row) .status-cell > .wait-slot:empty {
       display: none;
+    }
+    /* #4596: the chip is as wide as its content, up to the room there is.
+       With no action and no flags pill in the cell the cell is two tracks,
+       the CI pill and the rest of the cell, and the chip sits in the second,
+       on the pill's own line, so an armed row is as tall as a chipless one.
+       The detail shows whole there; it gives way (an ellipsis, with the
+       tooltip) only when the cell is too narrow for it. Otherwise the chip
+       keeps a line of its own, at the cell's right edge. */
+    .row:not(.issue-row) .status-cell > .wait-slot {
+      justify-self: end;
+    }
+    .row:not(.issue-row)
+      .status-cell:not(:has(> .row-action-bar, > .status-flags)) {
+      grid-template-columns: min-content minmax(0, 1fr);
+    }
+    .row:not(.issue-row)
+      .status-cell:not(:has(> .row-action-bar, > .status-flags))
+      > .state-group {
+      min-width: 0;
+    }
+    .row:not(.issue-row)
+      .status-cell:not(:has(> .row-action-bar, > .status-flags))
+      > .wait-slot {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: start;
     }
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
@@ -3466,6 +3496,43 @@ a.ci-pill:hover {
 .wait-chip:hover .wait-chip-tip,
 .wait-chip:focus-within .wait-chip-tip {
   opacity: 1;
+}
+
+/* #4596: on a desktop the chip is a compact status, not a banner. It is as
+   wide as its icon, label, detail and button, one line (the button's 30px)
+   tall, and the slot takes no room while it is empty at any width. The detail
+   gives way first (an ellipsis; the tooltip has the full sentence). The phone
+   card, 760px and narrower, keeps the full-width 59px slot above (#4590). */
+@media (min-width: 761px) {
+  .wait-slot {
+    flex: 0 1 auto;
+    max-width: 100%;
+    height: auto;
+  }
+  .wait-slot:empty {
+    display: none;
+  }
+  .wait-chip {
+    width: auto;
+    height: auto;
+    min-height: 30px;
+    gap: 6px;
+    padding: 0 3px 0 8px;
+    border-radius: 15px;
+  }
+  .wait-chip-text {
+    flex: 0 1 auto;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .wait-chip-label {
+    flex: none;
+  }
+  .wait-chip-detail {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
 }
 
 .row-feedback {

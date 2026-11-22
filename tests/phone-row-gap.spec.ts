@@ -152,9 +152,10 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
   });
 });
 
-// The slot is below the pill at every width, so an armed row and a plain one
-// say what they wait on on the same side of it.
-test.describe('wider rows draw the wait slot below the pill while it holds a chip', () => {
+// A slot with no chip takes no room at any width (#4502, #4596). With one it
+// is content-sized: after the pill on a wide list (#4596), below it on a
+// narrow one.
+test.describe('wider rows draw the wait slot only while it holds a chip', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   });
@@ -164,7 +165,7 @@ test.describe('wider rows draw the wait slot below the pill while it holds a chi
       ['plain', BOT_PR],
       ['armed', ARMED_PR],
     ] as const) {
-      test(`${width}px: ${name} row has the slot after the pill`, async ({
+      test(`${width}px: ${name} row has the slot ${name === 'plain' ? 'empty' : 'with the chip'}`, async ({
         page,
       }) => {
         await page.setViewportSize({ width, height: 900 });
@@ -174,10 +175,15 @@ test.describe('wider rows draw the wait slot below the pill while it holds a chi
         await expect(row.locator('.ci-slot')).toBeVisible();
         const ci = await row.locator('.ci-slot').boundingBox();
         const slot = await row.locator('.wait-slot').boundingBox();
-        // From 1191px of list width an empty slot takes no room (#4502): the
-        // row is one centred line, so there is nothing to reserve below.
-        if (width === 1280 && name === 'plain') {
+        if (name === 'plain') {
           expect(slot).toBeNull();
+          return;
+        }
+        if (width === 1280) {
+          // On the pill's line, after it.
+          expect(slot?.x ?? 0).toBeGreaterThanOrEqual(
+            (ci?.x ?? Number.POSITIVE_INFINITY) + (ci?.width ?? 0),
+          );
           return;
         }
         expect(slot?.y ?? 0).toBeGreaterThanOrEqual(

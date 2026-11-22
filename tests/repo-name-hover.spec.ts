@@ -12,7 +12,7 @@ const ago = (minutes: number) =>
   new Date(NOW.getTime() - minutes * 60_000).toISOString();
 
 const LONG = 'alrayyes/an-unusually-long-repository-name-that-gets-truncated';
-// Short enough to fit beside the forge badge in the 184px repo column (#4502).
+// Short enough to fit beside the forge badge in the 168px repo column (#4502).
 const SHORT = 'a/dots';
 
 function makePR(number: number, repo: string) {
