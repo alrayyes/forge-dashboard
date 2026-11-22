@@ -734,7 +734,7 @@ describe('line copy', () => {
   test('the announcement names the line', () => {
     expect(copyLineStatus(7, 'copied')).toBe('Line 7 copied');
     expect(copyLineStatus(7, 'selected')).toBe("Couldn't copy line 7.");
-    expect(copyLineStatus(7, 'nothing')).toContain("Couldn't copy line 7");
+    expect(copyLineStatus(7, 'nothing')).toBe('Line 7 is empty');
   });
 });
 

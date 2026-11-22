@@ -517,6 +517,8 @@ export function copyLineLabel(n: number): string {
 // The sentence a line copy earns, for the live region and the toast alike. A
 // copy the browser refused leaves nothing selected, so it only says so.
 export function copyLineStatus(n: number, outcome: CopyOutcome): string {
+  if (outcome === 'nothing') return `Line ${n} is empty`;
+
   return outcome === 'copied' ? `Line ${n} copied` : `Couldn't copy line ${n}.`;
 }
 

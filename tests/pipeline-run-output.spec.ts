@@ -2000,7 +2000,7 @@ test.describe('numbered output lines, second pass', () => {
     });
   });
 
-  test('an empty line writes nothing to the clipboard and says nothing', async ({
+  test('an empty line writes nothing to the clipboard and says it is empty, not copied', async ({
     page,
     context,
   }) => {
@@ -2012,8 +2012,47 @@ test.describe('numbered output lines, second pass', () => {
       'before',
     );
     await expect(output.locator('.run-line-copied')).toHaveCount(0);
-    await expect(dialog.locator('.run-line-toast-on')).toHaveCount(0);
-    await expect(dialog.locator('.run-line-toast')).toHaveText('');
+    await expect(output.locator('.run-line-check')).toHaveCount(0);
+    const toast = dialog.getByRole('status').filter({ hasText: 'Line 2' });
+    await expect(toast).toHaveText('Line 2 is empty');
+    await expect(toast).toHaveAttribute('aria-live', 'polite');
+    await expect(dialog.locator('.run-line-toast-on')).toHaveCount(0, {
+      timeout: 4000,
+    });
+  });
+
+  test('a repeat copy whose write hangs never shows an empty toast, and the toast still goes', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    const { dialog, output } = await openLog(page, ok('one\ntwo'));
+    const toast = dialog.locator('.run-line-toast');
+    const b = output.getByRole('button', { name: 'Copy line 1' });
+    await b.click();
+    await expect(toast).toHaveText('Line 1 copied');
+    await page.evaluate(() => {
+      const w = window as unknown as { __empty: number };
+      w.__empty = 0;
+      // A permission prompt: the write never settles.
+      navigator.clipboard.writeText = () => new Promise(() => {});
+      const sample = () => {
+        const el = document.querySelector('.run-line-toast');
+        if (el?.classList.contains('run-line-toast-on') && !el.textContent)
+          w.__empty++;
+        requestAnimationFrame(sample);
+      };
+      sample();
+    });
+    await b.click();
+    await expect(dialog.locator('.run-line-toast-on')).toHaveCount(0, {
+      timeout: 4000,
+    });
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __empty: number }).__empty,
+      ),
+    ).toBe(0);
   });
 
   test('copying the same line again within two seconds is announced again', async ({
@@ -2023,24 +2062,37 @@ test.describe('numbered output lines, second pass', () => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     const { dialog, output } = await openLog(page, ok('one\ntwo'));
     const toast = dialog.locator('.run-line-toast');
-    await toast.evaluate((el) => {
-      const w = window as unknown as { __said: string[] };
-      w.__said = [];
-      new MutationObserver(() => w.__said.push(el.textContent ?? '')).observe(
-        el,
-        { childList: true, characterData: true, subtree: true },
-      );
-    });
     const b = output.getByRole('button', { name: 'Copy line 1' });
     await b.click();
     await expect(toast).toHaveText('Line 1 copied');
+    await toast.evaluate((el) => {
+      const w = window as unknown as { __was: (string | null)[] };
+      w.__was = [];
+      new MutationObserver((records) => {
+        for (const r of records) w.__was.push(r.oldValue ?? r.type);
+      }).observe(el, {
+        characterData: true,
+        characterDataOldValue: true,
+        childList: true,
+        subtree: true,
+      });
+    });
     await b.click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __was: unknown[] }).__was.length,
+        ),
+      )
+      .toBeGreaterThan(0);
     await expect(toast).toHaveText('Line 1 copied');
-    const said = await page.evaluate(
-      () => (window as unknown as { __said: string[] }).__said,
+    const was = await page.evaluate(
+      () => (window as unknown as { __was: (string | null)[] }).__was,
     );
-    // Cleared between the two, so a live region speaks it twice.
-    expect(said.filter((s) => s === '').length).toBeGreaterThanOrEqual(1);
+    // The text node changed with the same words, so a live region speaks
+    // again, and it was never emptied.
+    expect(was.length).toBeGreaterThan(0);
+    expect(was).not.toContain('');
   });
 
   for (const [label, width, stamped] of [

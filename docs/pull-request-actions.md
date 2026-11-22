@@ -1171,8 +1171,9 @@ the arrow keys, Home, End and Page Up and Down move between them. A
 narrower. Its focus ring covers the number cell, not the row. A time shows to
 the millisecond, so a longer fraction is trimmed on screen (the copied text is
 the line's own, as shown, without `##[error]` or `##[group]` markers). An empty
-line copies nothing and says nothing. In forced colours the copied row gets an
-outline in the system highlight.
+line copies nothing and says "Line N is empty", with no check. A toast never
+shows empty, and a copy that hangs still lets it go after two seconds. In
+forced colours the copied row gets an outline in the system highlight.
 
 On GitHub, each failed Actions job also carries how long it ran, the step that
 failed and an excerpt: the last lines of its log as plain text, with

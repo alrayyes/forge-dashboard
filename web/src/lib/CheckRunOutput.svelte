@@ -111,23 +111,28 @@
   async function copyLine(i: number, button: HTMLButtonElement) {
     const n = i + 1;
     const text = lineCopyText(lines[i]);
+    // The hide timer runs from the press, so a write that hangs behind a
+    // permission prompt can't leave an old toast up. The toast keeps its words
+    // until the write lands: it is never an empty pill.
     clearTimeout(lineTimer);
-    // An empty line has nothing to put on the clipboard, and nothing to say.
-    if (!text) {
-      endLineCopy();
-      return;
-    }
-    // Clear first, so a repeat copy of the same line is a change the live
-    // region announces again while the clipboard write is in flight.
-    lineStatus = "";
-    const outcome = await copyLog(text, {
-      clipboard: navigator.clipboard,
-      select: () => selectCopy(text, button.closest("dialog") ?? document.body),
-    });
-    // The check and the toast go together after about two seconds.
+    lineTimer = setTimeout(endLineCopy, 2000);
+    // An empty line has nothing to put on the clipboard: say so, claim no copy.
+    const outcome = text
+      ? await copyLog(text, {
+          clipboard: navigator.clipboard,
+          select: () =>
+            selectCopy(text, button.closest("dialog") ?? document.body),
+        })
+      : "nothing";
+    // The same words again are no change to a live region, so a trailing
+    // no-break space flips each time they repeat. The toast keeps its words,
+    // and never shows empty.
+    const base = copyLineStatus(n, outcome);
+    const said = lineStatus === base ? `${base}\u00a0` : base;
     copiedLine = outcome === "copied" ? i : -1;
-    lineStatus = copyLineStatus(n, outcome);
+    lineStatus = said;
     toastOn = true;
+    clearTimeout(lineTimer);
     lineTimer = setTimeout(endLineCopy, 2000);
   }
 
