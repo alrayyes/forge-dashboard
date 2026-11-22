@@ -301,12 +301,31 @@ test.describe('phone row status gap (#3834)', () => {
     });
     await row.getByRole('button', { name: 'Update branch' }).click();
     await expect(row.locator('.wait-chip')).toBeVisible();
-    await push(page, pr(BEHIND));
+    // The server still holds the request, as it does until the branch moves.
+    // A snapshot without it would end the wait and say "Branch updated.",
+    // which is a second announcement for a different event.
+    const held = pr({
+      ...BEHIND,
+      updateRequest: {
+        phase: 'queued',
+        requestedAt: new Date().toISOString(),
+        expiresAt: new Date(Date.now() + 5 * 60_000).toISOString(),
+      },
+    });
+    await push(page, held);
     const spoken = () =>
       page.evaluate(
         () => (window as unknown as { __spoken: string[] }).__spoken,
       );
-    await expect.poll(async () => (await spoken()).length).toBeGreaterThan(0);
+    // Wait for the sentence itself, not for the first one: a slow page can
+    // coalesce what the region was told.
+    await expect
+      .poll(spoken)
+      .toEqual(['alrayyes/app#7: Branch update requested.']);
+    // Let the region's own delay pass, with the snapshot drawn again, so a
+    // second announcement would have landed by now.
+    await push(page, held);
+    await page.evaluate(() => new Promise((r) => setTimeout(r, 250)));
     expect(await spoken()).toEqual([
       'alrayyes/app#7: Branch update requested.',
     ]);
