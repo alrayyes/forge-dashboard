@@ -55,6 +55,22 @@ describe('a pill that carries a pipeline', () => {
     expect(name).toContain(linkedPillText(pr(), 'alrayyes/app', ci));
   });
 
+  test('an incomplete check list says so in the name, as the row does (#4299)', () => {
+    const counting = {
+      badge: ci.badge,
+      label: 'Counting checks…',
+      segments: [{ kind: 'passed' as const, n: 1 }],
+    };
+    expect(linkedPillName(pr(), 'alrayyes/app', counting)).toBe(
+      'Pull request #12 Counting checks… 1: 1 passed. The list of checks is not complete yet., closes this issue',
+    );
+    expect(
+      linkedDialogName(pr(), 'alrayyes/app', counting).endsWith(
+        'The list of checks is not complete yet.',
+      ),
+    ).toBe(true);
+  });
+
   test('a held run is the word alone', () => {
     const held = {
       badge: ci.badge,

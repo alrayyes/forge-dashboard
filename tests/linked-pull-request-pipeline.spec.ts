@@ -81,6 +81,28 @@ test.describe('the pipeline on an issue row pill', () => {
     );
   });
 
+  // The forge's fact rides on the entry, so the pill words it as the row does
+  // (#4299, following #4253).
+  test('says Counting checks while the check list is incomplete', async ({
+    page,
+  }) => {
+    await mockBoard(page, [
+      issue(1, [
+        linked(12, {
+          ci: 'pending',
+          checks: { passed: 1, running: 1, waiting: 2, failed: 0 },
+          checksIncomplete: true,
+        }),
+      ]),
+    ]);
+    await page.goto('/issues.html');
+
+    await expect(pill(page, 1)).toHaveText('#12 Counting checks… 1 1 2');
+    await expect(pill(page, 1)).toHaveAccessibleName(
+      /^Pull request #12 Counting checks… 1 1 2: 1 passed, 1 running, 2 waiting\. The list of checks is not complete yet\., closes this issue$/,
+    );
+  });
+
   test('a passed and a failed pipeline read in their own words', async ({
     page,
   }) => {
