@@ -42,6 +42,10 @@ type ForgeCapabilities struct {
 	RateLimitDocsURL string `json:"rateLimitDocsUrl"`
 	// IssueRefSyntax names the forms the forge's text uses to reference an issue.
 	IssueRefSyntax string `json:"issueRefSyntax"`
+	// PullRequestPathSegment is the path segment the forge's web UI puts
+	// between a repository and a pull request's number ("pull" on GitHub,
+	// "pulls" on Forgejo), so an issue's address becomes the pull request's.
+	PullRequestPathSegment string `json:"pullRequestPathSegment"`
 	// Label is the forge's name as a person reads it.
 	Label string `json:"label"`
 	// ImageHosts are the fixed public hosts an image embedded in the forge's
@@ -95,6 +99,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		RateLimitModel:             RateLimitGraphQLAndREST,
 		RateLimitDocsURL:           "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
 		IssueRefSyntax:             IssueRefHashOrGHPref,
+		PullRequestPathSegment:     "pull",
 		Label:                      "GitHub",
 		// An image in a pull request, issue or release comes from GitHub's
 		// attachment route and the user-content hosts it redirects to. A public
@@ -135,6 +140,7 @@ var capabilitiesByForge = map[Forge]ForgeCapabilities{
 		RateLimitModel:             RateLimitRESTOnly,
 		RateLimitDocsURL:           "",
 		IssueRefSyntax:             IssueRefHash,
+		PullRequestPathSegment:     "pulls",
 		Label:                      "Forgejo",
 		// No fixed hosts: its images come from the saved instance.
 		ImageHosts:  []string{},
