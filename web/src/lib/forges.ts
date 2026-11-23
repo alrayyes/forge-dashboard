@@ -27,6 +27,9 @@ export type ForgeCapabilities = {
   rateLimitModel: string;
   // The forge's published rules for its request budget, empty when it has none.
   rateLimitDocsUrl: string;
+  // The path segment before a pull request's number in the forge's web
+  // addresses: 'pull' on GitHub, 'pulls' on Forgejo.
+  pullRequestPathSegment: string;
   // The fixed hosts an image in the forge's text may come from; empty means
   // the item's own instance. And the prefix of an attachment link the server
   // must look up signed, empty when there is none (#4156).
@@ -125,6 +128,31 @@ let RATE_LIMIT_DOCS: Record<string, string> = { ...SEED_RATE_LIMIT_DOCS };
 // Where to read a forge's rules for its request budget, or '' when it has none.
 export function rateLimitDocsUrlOf(forge: string | undefined): string {
   return (forge && ownOf(RATE_LIMIT_DOCS, forge)) || '';
+}
+
+// Each forge's path segment before a pull request's number, seeded and
+// overridden like the docs links. A forge nobody described has no entry.
+const SEED_PULL_REQUEST_SEGMENTS: Record<string, string> = {
+  github: 'pull',
+  forgejo: 'pulls',
+};
+
+let PULL_REQUEST_SEGMENTS: Record<string, string> = {
+  ...SEED_PULL_REQUEST_SEGMENTS,
+};
+
+// The pull request's address for an issue's, which differ only by the segment
+// before the number. Unchanged for a forge nobody described, or an address
+// that is not an issue's.
+export function pullRequestUrlOf(
+  forge: string | undefined,
+  issueUrl: string,
+): string {
+  const segment = forge && ownOf(PULL_REQUEST_SEGMENTS, forge);
+
+  return segment
+    ? issueUrl.replace(/\/issues\/(\d+)$/, `/${segment}/$1`)
+    : issueUrl;
 }
 
 // The forges, in display order, that can do what flag names.
@@ -282,6 +310,8 @@ export function registerForgeCapabilities(
     if (model) setOwn(RATE_LIMIT_MODELS, f.forge, model);
     const docs = f.capabilities?.rateLimitDocsUrl;
     if (typeof docs === 'string') setOwn(RATE_LIMIT_DOCS, f.forge, docs);
+    const segment = f.capabilities?.pullRequestPathSegment;
+    if (segment) setOwn(PULL_REQUEST_SEGMENTS, f.forge, segment);
     const hosts = f.capabilities?.imageHosts;
     if (Array.isArray(hosts)) {
       const prefix = f.capabilities?.signedAttachmentPrefix;
@@ -313,6 +343,7 @@ export function resetForgeCapabilities() {
   FORGE_FLAGS = structuredClone(SEED_FLAGS);
   RATE_LIMIT_MODELS = { ...SEED_RATE_LIMIT_MODELS };
   RATE_LIMIT_DOCS = { ...SEED_RATE_LIMIT_DOCS };
+  PULL_REQUEST_SEGMENTS = { ...SEED_PULL_REQUEST_SEGMENTS };
   for (const k of Object.keys(ADVISORY_FACTS)) delete ADVISORY_FACTS[k];
   Object.assign(ADVISORY_FACTS, structuredClone(SEED_ADVISORY_FACTS));
   for (const k of Object.keys(FORGE_LABELS)) delete FORGE_LABELS[k];

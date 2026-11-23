@@ -8,6 +8,7 @@ import {
   forgeFlag,
   forgeLabelOf,
   imagePolicyOf,
+  pullRequestUrlOf,
   rateLimitDocsUrlOf,
   rateLimitModelOf,
   registerForgeCapabilities,
@@ -32,6 +33,9 @@ describe.each(PROTOTYPE_KEYS)('a forge named %s', (forge) => {
     expect(rateLimitModelOf(forge)).toBe('');
     expect(statusPageUrlOf(forge)).toBe('');
     expect(rateLimitDocsUrlOf(forge)).toBe('');
+    expect(pullRequestUrlOf(forge, 'https://x.example/o/r/issues/1')).toBe(
+      'https://x.example/o/r/issues/1',
+    );
   });
 
   test('has no flags', () => {
@@ -94,6 +98,7 @@ describe.each(PROTOTYPE_KEYS)('registering a forge named %s', (forge) => {
           statusPageUrl: 'https://status.example/',
           rateLimitModel: 'budget',
           rateLimitDocsUrl: 'https://docs.example/',
+          pullRequestPathSegment: 'merge',
           advisorySource: 'osv',
           reportsRepoPermissions: true,
         },
@@ -105,6 +110,9 @@ describe.each(PROTOTYPE_KEYS)('registering a forge named %s', (forge) => {
     expect(statusPageUrlOf(forge)).toBe('https://status.example/');
     expect(rateLimitModelOf(forge)).toBe('budget');
     expect(rateLimitDocsUrlOf(forge)).toBe('https://docs.example/');
+    expect(pullRequestUrlOf(forge, 'https://x.example/o/r/issues/1')).toBe(
+      'https://x.example/o/r/merge/1',
+    );
     expect(advisoryFactsOf(forge)?.source).toBe('osv');
     expect(forgeCan(forge, 'reportsRepoPermissions')).toBe(true);
     expect(imagePolicyOf(forge)).toEqual({ hosts: ['img.example'] });

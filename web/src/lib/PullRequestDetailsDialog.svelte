@@ -79,7 +79,7 @@
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { avatarSrc } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
-  import { forgeClassOf, forgeLabelOf } from "#lib/forges.js";
+  import { forgeClassOf, forgeLabelOf, pullRequestUrlOf } from "#lib/forges.js";
   import { imageFallback } from "#lib/image-fallback.js";
   import { patchHtml } from "#lib/patch-html.js";
   import { imageSourceFor } from "#lib/image-source.js";
@@ -492,10 +492,7 @@
       ...current,
       subject: "pull-request",
       title: `Pull request #${current.number}`,
-      url: current.url.replace(
-        /\/issues\/(\d+)$/,
-        current.forge === "github" ? "/pull/$1" : "/pulls/$1",
-      ),
+      url: pullRequestUrlOf(current.forge, current.url),
       status: undefined,
     };
   }

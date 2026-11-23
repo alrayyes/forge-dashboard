@@ -10,6 +10,7 @@ import {
   forgeListText,
   imagePolicyOf,
   isKnownForge,
+  pullRequestUrlOf,
   rateLimitDocsUrlOf,
   rateLimitModelOf,
   registerForgeCapabilities,
@@ -114,6 +115,9 @@ describe('forgeCan', () => {
       expect(rateLimitModelOf(forge)).toBe(caps.rateLimitModel as string);
       expect(statusPageUrlOf(forge)).toBe(caps.statusPageUrl as string);
       expect(rateLimitDocsUrlOf(forge)).toBe(caps.rateLimitDocsUrl as string);
+      expect(pullRequestUrlOf(forge, 'https://x.example/o/r/issues/7')).toBe(
+        `https://x.example/o/r/${caps.pullRequestPathSegment as string}/7`,
+      );
       expect(advisoryFactsOf(forge)).toEqual({
         source: caps.advisorySource as string,
         unknownNeedsReason: caps.advisoryUnknownNeedsReason as boolean,
@@ -217,6 +221,51 @@ describe('rateLimitDocsUrlOf', () => {
     resetForgeCapabilities();
 
     expect(rateLimitDocsUrlOf('github')).toContain('docs.github.com');
+  });
+});
+
+describe('pullRequestUrlOf', () => {
+  const issue = 'https://git.example/o/r/issues/12';
+
+  test('GitHub and Forgejo put a different segment before the number', () => {
+    expect(pullRequestUrlOf('github', issue)).toBe(
+      'https://git.example/o/r/pull/12',
+    );
+    expect(pullRequestUrlOf('forgejo', issue)).toBe(
+      'https://git.example/o/r/pulls/12',
+    );
+  });
+
+  test('a forge learns its segment from the capabilities the API sent', () => {
+    registerForgeCapabilities([
+      { forge: 'gitea', capabilities: { pullRequestPathSegment: 'merge' } },
+    ]);
+
+    expect(pullRequestUrlOf('gitea', issue)).toBe(
+      'https://git.example/o/r/merge/12',
+    );
+  });
+
+  test('a forge nobody described leaves the address as it was', () => {
+    expect(pullRequestUrlOf('nowhere', issue)).toBe(issue);
+    expect(pullRequestUrlOf(undefined, issue)).toBe(issue);
+  });
+
+  test('an address that is not an issue address is left alone', () => {
+    const other = 'https://git.example/o/r/pull/12';
+
+    expect(pullRequestUrlOf('github', other)).toBe(other);
+  });
+
+  test('reset puts the seeded segments back', () => {
+    registerForgeCapabilities([
+      { forge: 'github', capabilities: { pullRequestPathSegment: 'x' } },
+    ]);
+    resetForgeCapabilities();
+
+    expect(pullRequestUrlOf('github', issue)).toBe(
+      'https://git.example/o/r/pull/12',
+    );
   });
 });
 
