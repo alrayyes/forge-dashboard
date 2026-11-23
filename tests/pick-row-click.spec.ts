@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A click anywhere on a choice in a multi-select filter ticks its box, not
@@ -26,7 +27,7 @@ function pr(repo: string, n: number): Record<string, unknown> {
 
 const snapshot = (prs: Record<string, unknown>[]) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: prs.length }],
+  forges: [forgeHealth('github', { repoCount: prs.length })],
   pullRequests: prs,
   issues: [],
   repos: [],

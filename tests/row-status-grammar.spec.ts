@@ -5,6 +5,7 @@ import {
   kindFor,
   statusFor,
 } from './allowed-actions-stand-in';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1563 slice 1: a row draws three kinds of thing as three tiers. State
@@ -44,7 +45,7 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
 function snapshot(prs: MockPR[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: prs.map((pr) => ({
       allowedActions: allowedActionsFor(pr as never),
       status: statusFor(pr as never),
