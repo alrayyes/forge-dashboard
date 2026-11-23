@@ -188,6 +188,24 @@ for (const scheme of ['light', 'dark'] as const) {
         );
       });
 
+      test('the chip names the check the server says the forge waits on', async ({
+        page,
+      }) => {
+        // The server names the check no job shows (#4442).
+        await open(
+          page,
+          [pr(6, 'Named', { pendingChecks: ['deploy/gate', 'external/scan'] })],
+          'success',
+        );
+        const r = row(page, 'Named');
+        await expect(r.locator('.ci-pill')).toContainText('Passed');
+
+        await expect(r.locator('.wait-chip')).toHaveAccessibleDescription(
+          /waiting on deploy\/gate and external\/scan/i,
+        );
+        await axe(page);
+      });
+
       test('an armed row whose status is not a CI wait shows the refresh chip beside a Passed pill', async ({
         page,
       }) => {

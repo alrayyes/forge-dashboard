@@ -246,6 +246,7 @@
     MERGE_AVAILABLE,
     type MergeWait,
     mergeWaitChip,
+    joinNames,
     autoMergeWording,
     buildWaitChip,
     queuedChip,
@@ -394,6 +395,8 @@
     awaitingWorkflowApproval?: boolean;
     // The server's fact that the forge hasn't listed every check yet (#4253).
     checksIncomplete?: boolean;
+    // Checks the forge waits on that the pipeline doesn't list (#4442).
+    pendingChecks?: string[];
     autoMergeEnabled: boolean | null;
     // Who holds an enabled auto-merge. Omitted means the server doesn't
     // know, and the page doesn't guess (#1596).
@@ -1666,7 +1669,7 @@
       const stale =
         pr.autoMerge.state === "waiting" && autoMergeCiWaitIsStale(pr);
       const chip = stale
-        ? mergeWaitChip("refresh", true)
+        ? mergeWaitChip("refresh", true, true, pr.pendingChecks)
         : autoMergeChip({
             state: pr.autoMerge.state,
             code: pr.autoMerge.code,
@@ -1714,12 +1717,15 @@
       if (!wait) return null;
       // The tooltip only suggests Auto-merge where the chip has the button.
       const button = autoMergeActionCell(pr, true) ?? undefined;
-      return buildWaitChip(mergeWaitChip(wait, false, button !== undefined), {
-        source: "auto-merge",
-        subject: `${pr.repo}#${pr.number}`,
-        button,
-        tipId: waitChipTipId(pr),
-      });
+      return buildWaitChip(
+        mergeWaitChip(wait, false, button !== undefined, pr.pendingChecks),
+        {
+          source: "auto-merge",
+          subject: `${pr.repo}#${pr.number}`,
+          button,
+          tipId: waitChipTipId(pr),
+        },
+      );
     }
 
     // ---- stacked pull requests (#861) ----
@@ -4321,7 +4327,9 @@
             undefined,
             // The forge can count a check the job list never shows, so the
             // lock can outlast a refresh (#4433): say where to look.
-            "Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+            item.pendingChecks?.length
+              ? `The forge is waiting on ${joinNames(item.pendingChecks)}, which the pipeline doesn't list.`
+              : "Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
           );
         const described =
           idScope === "" && snapshotWaitsOnCi(item) && chipSaysCiWait(item)
