@@ -262,10 +262,11 @@ with admin on the repo.
   refresh, pointed at this dashboard with the current event list. A hook of
   this dashboard's that already exists is edited, never duplicated.
 - **A hook that is switched off or lacks an event** the dashboard now subscribes
-  to is edited in place after the first refresh that finds it. The dashboard
-  lists the repo's hooks once per process start for this. It can't read a
-  hook's secret back from the forge, so a changed secret is fixed by the
-  "Add a webhook" button.
+  to is edited in place on the first refresh after it is found. The dashboard
+  lists each hooked repo's hooks for this at most once an hour, so a hook
+  switched off later is switched back on within the hour, with no restart. It
+  can't read a hook's secret back from the forge, so a changed secret is fixed
+  by the "Add a webhook" button.
 - **A repo the token can't administer**, a forge that is unreachable or out of
   REST budget, and a repo the forge refuses are skipped without failing the
   refresh. The dashboard asks a refused repo again after an hour, with no

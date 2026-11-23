@@ -35,7 +35,6 @@ type WebhookCredentialSource interface {
 // builds, so saving credentials, which rebuilds one, doesn't repeat the work.
 type WebhookUpgrades struct {
 	mu         sync.Mutex
-	tried      map[string]struct{}
 	next       map[string]time.Time
 	jitter     time.Duration
 	retryAfter time.Duration
@@ -51,7 +50,6 @@ const DefaultWebhookRetryAfter = time.Hour
 // pause before each repo's listing; zero turns it off.
 func NewWebhookUpgrades(jitter time.Duration) *WebhookUpgrades {
 	return &WebhookUpgrades{
-		tried:      make(map[string]struct{}),
 		next:       make(map[string]time.Time),
 		jitter:     jitter,
 		retryAfter: DefaultWebhookRetryAfter,
@@ -81,21 +79,9 @@ func (w *WebhookUpgrades) claimRetry(key string) bool {
 	return true
 }
 
-func (w *WebhookUpgrades) claim(key string) bool {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-	if _, ok := w.tried[key]; ok {
-		return false
-	}
-	w.tried[key] = struct{}{}
-
-	return true
-}
-
 func (w *WebhookUpgrades) release(key string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	delete(w.tried, key)
 	delete(w.next, key)
 }
 
@@ -194,7 +180,7 @@ func upgradeJobs(src Source, snap Snapshot) []repoJob {
 	var jobs []repoJob
 	for _, fullName := range coveredRepos(snap, forge) {
 		jobs = append(jobs, repoJob{
-			key: string(forge) + "|" + fullName, fullName: fullName, once: true,
+			key: string(forge) + "|" + fullName, fullName: fullName,
 			run: func(ctx context.Context, owner, name, targetURL, secret string) error {
 				updated, err := upgrader.UpgradeWebhook(ctx, owner, name, targetURL, secret)
 				if err != nil {
@@ -272,12 +258,10 @@ func unhookedRepos(snap Snapshot, forge Forge) []string {
 	return repos
 }
 
-// repoJob is one repo's hook work. once jobs run a single time per process
-// start; the rest repeat after the retry wait.
+// repoJob is one repo's hook work, repeated after the retry wait.
 type repoJob struct {
 	key      string
 	fullName string
-	once     bool
 	run      func(ctx context.Context, owner, name, targetURL, secret string) error
 }
 
@@ -308,11 +292,7 @@ func runJobs(cfg *webhookUpgradeConfig, forge Forge, jobs []repoJob, targetURL, 
 // claimAndRun runs job once its key is claimed and the jitter has passed. It
 // reports false when the forge could not be asked right now.
 func claimAndRun(cfg *webhookUpgradeConfig, forge Forge, job repoJob, targetURL, secret string, stopped *atomic.Bool) bool {
-	claim := cfg.state.claimRetry
-	if job.once {
-		claim = cfg.state.claim
-	}
-	if !claim(job.key) {
+	if !cfg.state.claimRetry(job.key) {
 		return true
 	}
 	if !pauseForJitter(cfg.ctx, cfg.state.jitter) || stopped.Load() {

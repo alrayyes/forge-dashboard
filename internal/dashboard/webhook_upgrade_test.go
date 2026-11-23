@@ -189,6 +189,27 @@ func TestWebhookUpgrade_NoAdminRight_IsTriedOnceAndNotAgain(t *testing.T) {
 	assert.ElementsMatch(t, []string{"me/a", "me/b"}, src.called(), "one listing each; the refusal does not stop the other repo")
 }
 
+func TestWebhookUpgrade_CoveredRepo_IsCheckedAgainAfterTheRetryWait(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, covered(dashboard.ForgeGitHub, "me/a")...)
+	var offset atomic.Int64
+	clock := func() time.Time {
+		return time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC).Add(time.Duration(offset.Load()))
+	}
+	agg := upgradingAggregator(t, dashboard.NewWebhookUpgrades(0).WithRetry(time.Hour, clock), src)
+
+	refreshAndWait(t, agg)
+	refreshAndWait(t, agg)
+	assert.Equal(t, []string{"me/a"}, src.called(), "not listed again inside the wait")
+
+	// A hook switched off since the first pass is found and repaired on the
+	// next pass after the wait, with no restart.
+	offset.Store(int64(2 * time.Hour))
+	refreshAndWait(t, agg)
+	assert.Equal(t, []string{"me/a", "me/a"}, src.called())
+}
+
 func TestWebhookUpgrade_NotEnabled_DoesNothing(t *testing.T) {
 	t.Parallel()
 
