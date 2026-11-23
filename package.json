@@ -63,7 +63,7 @@
     "typescript": "6.0.3",
     "wait-on": "9.5.1"
   },
-  "packageManager": "bun@1.4.4",
+  "packageManager": "bun@1.4.5",
   "trustedDependencies": [
     "lefthook"
   ]
