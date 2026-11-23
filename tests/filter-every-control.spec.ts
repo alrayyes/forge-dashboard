@@ -384,8 +384,8 @@ function combined(board: Board): Control[] {
     // below can leave one row, and sort, group and the date selects are not drawn over one (#4680).
     {
       // The later repo pick leaves one repo, so the select is not drawn (#4680)
-      // while the choice is still saved: the stored copies are what is read
-      // back, and filter-bar-single-row.spec.ts shows it returning.
+      // while the choice is still saved: the read-back is that the choice is
+      // still saved while the list renders flat.
       ...select(
         'group-by select',
         '#shared-group-select',
@@ -393,7 +393,12 @@ function combined(board: Board): Control[] {
         'shared',
         'groupBy',
       ),
-      show: async () => {},
+      show: async (page) => {
+        await expect(page.locator('.group-heading')).toHaveCount(0);
+        await expect
+          .poll(async () => (await serverCopy(page)).shared?.groupBy)
+          .toBe('repo');
+      },
     },
     select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
     select(
