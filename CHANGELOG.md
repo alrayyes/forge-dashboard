@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.107.0](https://github.com/alrayyes/forge-dashboard/compare/v9.106.0...v9.107.0) (2026-11-23)
+
+
+### Features
+
+* **web:** carry checksIncomplete to the pills on issue rows and the related band ([#4713](https://github.com/alrayyes/forge-dashboard/issues/4713)) ([5ae1b56](https://github.com/alrayyes/forge-dashboard/commit/5ae1b5605303e392618f52ed8d6648c7b8e4a93d))
+
 ## [9.106.0](https://github.com/alrayyes/forge-dashboard/compare/v9.105.0...v9.106.0) (2026-11-23)
 
 
