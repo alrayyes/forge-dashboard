@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { closeActionsDialog, openActionsDialog } from './actions-dialog-helper';
+import { type Forge as ForgeName, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1199: a forge that can't be reached is treated like a spent rate limit
@@ -27,16 +28,15 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-const down = (extra: Record<string, unknown> = {}) => ({
-  forge: 'github',
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp 140.82.121.6:443: i/o timeout',
-  staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
-  ...extra,
-});
-const up = (forge = 'github') => ({ forge, reachable: true, repoCount: 1 });
+const down = (extra: Record<string, unknown> = {}) =>
+  forgeHealth((extra.forge ?? 'github') as ForgeName, {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp 140.82.121.6:443: i/o timeout',
+    staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
+    ...extra,
+  });
+const up = (forge: ForgeName = 'github') => forgeHealth(forge);
 
 function mockDashboard(
   page: Page,

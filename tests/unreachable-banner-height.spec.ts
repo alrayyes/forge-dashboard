@@ -1,18 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3802: on a phone the banner is as tall as its message plus its two
 // controls, with no empty block between them.
 
-const down = {
-  forge: 'github',
+const down = forgeHealth('github', {
   reachable: false,
-  repoCount: 1,
   errorKind: 'unreachable',
   error: 'dial tcp: i/o timeout',
   staleSince: new Date(Date.now() - 26 * 60_000).toISOString(),
-};
+});
 
 for (const scheme of ['dark', 'light'] as const) {
   for (const width of [360, 390, 1280]) {
