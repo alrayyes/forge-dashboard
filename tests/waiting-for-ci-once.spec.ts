@@ -206,6 +206,56 @@ for (const scheme of ['light', 'dark'] as const) {
         await axe(page);
       });
 
+      test('the pop-up names the check in its locked Merge line', async ({
+        page,
+      }) => {
+        await open(
+          page,
+          [pr(6, 'Named', { pendingChecks: ['deploy/gate', 'external/scan'] })],
+          'success',
+        );
+        const dialog = await openActionsDialog(row(page, 'Named'));
+
+        await expect(
+          dialog.getByText(
+            "The forge is waiting on deploy/gate and external/scan, which the pipeline doesn't list.",
+          ),
+        ).toHaveCount(1);
+      });
+
+      test('a long check name with markup stays text, wraps inside the row and stays readable in full', async ({
+        page,
+      }) => {
+        const name = `<img src=x onerror="window.__pwned=1">/${'very-long-check-name-'.repeat(8)}end`;
+        await open(
+          page,
+          [pr(6, 'Named', { pendingChecks: [name] })],
+          'success',
+        );
+        const r = row(page, 'Named');
+
+        // The chip's description carries the whole name, as text.
+        await expect(r.locator('.wait-chip')).toHaveAccessibleDescription(
+          new RegExp(
+            `waiting on ${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`,
+            'i',
+          ),
+        );
+        await expect(r.locator('img[src="x"]')).toHaveCount(0);
+        expect(
+          await page.evaluate(() => (window as any).__pwned),
+        ).toBeUndefined();
+        // The row doesn't grow a horizontal scrollbar.
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(true);
+        await axe(page);
+      });
+
       test('an armed row whose status is not a CI wait shows the refresh chip beside a Passed pill', async ({
         page,
       }) => {
