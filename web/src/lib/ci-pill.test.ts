@@ -314,6 +314,49 @@ const fakeDocument = {
   },
 };
 
+describe('tips on the model (#4422)', () => {
+  test('each tip is built from its segment, in order, and matches its n', () => {
+    const m = ciPillModel({
+      cls: 'failure',
+      glyph: 'failure',
+      word: 'Failed',
+      counts: { passed: 7, running: 1, waiting: 0, failed: 3 },
+    });
+
+    expect(m.tips).toEqual([
+      '7 checks passed',
+      '1 check running',
+      '3 checks failed',
+    ]);
+  });
+
+  test('a waiting count gets its own tip, worded as the check says', () => {
+    const m = ciPillModel({
+      cls: 'running',
+      glyph: 'running',
+      word: 'Running',
+      counts: { passed: 5, running: 2, waiting: 3, failed: 0 },
+    });
+
+    expect(m.tips).toEqual([
+      '5 checks passed',
+      '2 checks running',
+      '3 checks waiting',
+    ]);
+  });
+
+  test('a Cancelled pill has its passed and cancelled tips', () => {
+    const m = ciPillModel({
+      cls: 'cancelled',
+      glyph: 'cancelled',
+      word: 'Cancelled',
+      counts: { passed: 4, running: 0, waiting: 0, failed: 0, cancelled: 9 },
+    });
+
+    expect(m.tips).toEqual(['4 checks passed', '9 checks cancelled']);
+  });
+});
+
 describe('renderCiPill', () => {
   const globals = globalThis as Record<string, unknown>;
   let render: typeof import('./ci-pill').renderCiPill;
@@ -359,7 +402,9 @@ describe('renderCiPill', () => {
     expect(pill.attrs.get('aria-label')).toBe(
       `${failed().name}. Open pipeline`,
     );
-    expect(pill.listeners).toEqual(['click']);
+    expect(pill.listeners.at(-1)).toBe('click');
+    // The segment tips listen first, so a tap on a segment can stop the click.
+    expect(pill.listeners).toContain('pointermove');
     expect(pill.find('sr-only')).toBeUndefined();
   });
 
@@ -434,7 +479,10 @@ describe('renderCiPill', () => {
     expect(passed.attrs.get('aria-hidden')).toBe('true');
     expect(stopped.children[0].attrs.get('data-glyph')).toBe('stop');
     expect(stopped.children.at(-1)?.textContent).toBe('9');
-    expect(pill.title).toBe(cancelled.name);
+    // One tooltip pattern everywhere (#4422): no native title.
+    expect(pill.title).toBe('');
+    expect(passed.attrs.get('data-tip')).toBe('4 checks passed');
+    expect(stopped.attrs.get('data-tip')).toBe('9 checks cancelled');
     expect(pill.attrs.get('aria-label')).toBe(
       `${cancelled.name} Open pipeline`,
     );

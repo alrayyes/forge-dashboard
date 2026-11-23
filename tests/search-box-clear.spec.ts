@@ -130,16 +130,19 @@ const BOXES = [
     other: async (page: Page) => {
       // The Forge group is drawn once the snapshot shows two forges (#4273).
       await expect(
-        page.getByRole('group', { name: 'Filter by forge' }),
+        page.getByRole('group', { name: 'Forge', exact: true }),
       ).toBeVisible();
-      await page.locator('input[data-col="forge"][value="forgejo"]').check({
-        force: true,
-      });
+      await page
+        .getByRole('group', { name: 'Forge', exact: true })
+        .getByRole('button', { name: 'Forgejo', exact: true })
+        .click();
     },
     otherKept: async (page: Page) => {
       await expect(
-        page.locator('input[data-col="forge"][value="forgejo"]'),
-      ).toBeChecked();
+        page
+          .getByRole('group', { name: 'Forge', exact: true })
+          .getByRole('button', { name: 'Forgejo', exact: true }),
+      ).toHaveAttribute('aria-pressed', 'true');
     },
   },
   {

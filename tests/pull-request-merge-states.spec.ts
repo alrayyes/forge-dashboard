@@ -82,7 +82,7 @@ test.describe('Merge states on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
-    await expect(row.getByText('Merge after CI')).toBeVisible();
+    await expect(row.getByText('Waiting for CI')).toBeVisible();
     await expect(row.getByText('Waiting for CI to finish')).toHaveCount(0);
     await expect(row.getByText('Merge unlocks automatically')).toHaveCount(0);
     await expect(
@@ -227,7 +227,7 @@ test.describe('Merge states on a pull request row', () => {
     const row = rowOf(page);
     // Only waiting on CI, so one line of text and no locked Merge (#4528).
     await expect(
-      row.getByText('Merge after CI', { exact: true }),
+      row.getByText('Waiting for CI', { exact: true }),
     ).toBeVisible();
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),

@@ -116,11 +116,13 @@ test.describe('pull request merge button', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    // Only waiting on CI: one line of text in Merge's slot, no button (#4528).
+    // Only waiting on CI: the chip, and no Merge button (#4528, #4663).
     await expect(
-      row.getByText('Merge after CI', { exact: true }),
+      row.getByText('Waiting for CI', { exact: true }),
     ).toBeVisible();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+    await expect(
+      row.getByRole('button', { name: 'Merge', exact: true }),
+    ).toHaveCount(0);
 
     await page.route('**/api/v1/dashboard/refresh', (route) =>
       route.fulfill({
@@ -136,7 +138,7 @@ test.describe('pull request merge button', () => {
     );
     await page.click('#force-refresh-button');
 
-    const unlocked = row.getByRole('button', { name: 'Merge' });
+    const unlocked = row.getByRole('button', { name: 'Merge', exact: true });
     await expect(unlocked).toBeEnabled();
     await expect(unlocked).not.toHaveAttribute('aria-disabled', 'true');
     await expect(row).not.toContainText(/waiting for ci|merge after ci/i);

@@ -1785,30 +1785,17 @@ export function staleForgePick(
   );
 }
 
-// Shows a forge button only when some result is on that forge, or it is the
-// one picked, so it can be seen and cleared (#1427). "All" always stays, and
-// the whole group goes when the forges present are fewer than two, unless one
-// is picked (#4273). The pick comes from the saved filter state, not from which
-// radio is checked: on a page load the radios are restored after the choices
-// are built.
+// Which forge pills to draw: one only when some result is on that forge, or it
+// is the one picked, so it can be seen and cleared (#1427). "All" always stays,
+// and the whole group goes when the forges present are fewer than two, unless
+// one is picked (#4273). The pick comes from the saved filter state.
 export function offerForges(
-  scope: ParentNode,
   present: Set<string>,
   picked: string,
-): void {
-  const inputs = scope.querySelectorAll<HTMLInputElement>(
-    'input[type="radio"][data-col="forge"]',
-  );
-  for (const input of inputs) {
-    const label = input.closest('label');
-    if (!label || !input.value) continue;
-    label.hidden = !(present.has(input.value) || input.value === picked);
-  }
-  const hide = present.size < 2 && !picked;
-  for (const input of inputs) {
-    const group = input.closest('fieldset');
-    if (group) group.hidden = hide;
-  }
+): { hidden: boolean; forges: Set<string> } {
+  const forges = new Set(present);
+  if (picked) forges.add(picked);
+  return { hidden: present.size < 2 && !picked, forges };
 }
 
 // Shows a pill only when clicking it would change the list, or it is the

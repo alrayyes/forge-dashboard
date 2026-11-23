@@ -45,6 +45,7 @@ checking-for-conflicts.spec.ts,7.653,2,1,A,,3.8
 checks-incomplete-pill.spec.ts,,3,1,C,,0.0
 ci-pill-actions.spec.ts,2.958,4,4,A,web/src/lib/ci-pill.test.ts,0.0
 ci-pill-counts.spec.ts,1.777,9,5,A,web/src/lib/ci-pill.test.ts,0.8
+ci-pill-segment-tips.spec.ts,,14,13,A,web/src/lib/ci-pill.test.ts,0.0
 ci-status-pulldown-gone.spec.ts,0.558,3,0,C,,0.6
 close-neutral.spec.ts,2.746,6,5,A,,0.5
 closing-issues.spec.ts,6.631,12,6,A,web/src/lib/closing-issues.test.ts,3.3
@@ -73,7 +74,7 @@ filter-choices-board.spec.ts,5.783,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.301,4,2,A,,0.7
 filter-choices-held.spec.ts,4.079,7,7,A,,0.0
 filter-choices-pills.spec.ts,2.78,7,2,C,,2.0
-filter-choices-static.spec.ts,1.926,8,1,C,,1.7
+filter-choices-static.spec.ts,1.926,9,2,C,,1.5
 filter-control-border.spec.ts,3.063,2,2,A,,0.0
 filter-cookie-trimmed.spec.ts,1.723,3,3,A,,0.0
 filter-dropped-pick-notice.spec.ts,0.653,2,1,A,,0.3
@@ -158,7 +159,7 @@ main-branches-refetch-on-flag.spec.ts,6.451,4,0,C,,6.5
 main-branches-server-copy.spec.ts,4.052,7,0,B,,4.1
 main-branches-stream.spec.ts,0.84,3,0,C,,0.8
 mentioned-tickets.spec.ts,7.167,16,9,A,,3.1
-merge-wait-line.spec.ts,,8,4,A,,0.0
+merge-wait-chip.spec.ts,,17,7,C,,0.0
 merged-pr-pill.spec.ts,,12,7,A,,0.0
 mobile-filters.spec.ts,6.974,13,9,A,,2.1
 mono-figures.spec.ts,0.853,4,0,A,,0.9
@@ -308,7 +309,7 @@ update-branch-request.spec.ts,8.081,8,0,C,,8.1
 upstream-error-banner.spec.ts,1.779,2,1,A,,0.9
 wait-chip-desktop.spec.ts,,9,6,A,web/src/lib/wait-chip.test.ts,0.0
 wait-chip.spec.ts,19.647,19,6,C,web/src/lib/wait-chip.test.ts,13.4
-waiting-for-ci-once.spec.ts,,12,2,C,,0.0
+waiting-for-ci-once.spec.ts,,12,3,C,,0.0
 webhooks-clear-filters.spec.ts,4.29,7,6,A,,0.6
 webhooks-failing-repo.spec.ts,2.099,3,1,C,,1.4
 webhooks-filter-choices.spec.ts,1.331,10,1,C,web/src/lib/webhooks-filter.test.ts,1.2
@@ -317,6 +318,7 @@ webhooks-page-size-stays.spec.ts,1.696,4,2,A,,0.8
 webhooks-page.spec.ts,17.391,58,8,C,,15.0
 webhooks-pager-focus.spec.ts,0.841,3,3,A,,0.0
 webhooks-phone-sort.spec.ts,5.355,8,7,A,,0.7
+webhooks-reasons.spec.ts,,2,2,A,,0.0
 webhooks-rebase-bots.spec.ts,1.999,4,0,C,,2.0
 webhooks-status-line.spec.ts,1.041,3,0,C,,1.0
 webhooks-table-tablet.spec.ts,1.917,6,4,A,,0.6
