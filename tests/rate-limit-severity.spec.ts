@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -22,7 +23,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1, ...health }],
+        forges: [forgeHealth('github', health)],
         pullRequests: prs,
         issues: [],
         repos: [],
@@ -112,16 +113,13 @@ test.describe('a low rate limit banner stays put while the count moves (#1791)',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
-              reachable: true,
-              repoCount: 1,
+            forgeHealth('github', {
               rateLimitREST: rateLimit(
                 5000,
                 state.exhausted ? 0 : state.remaining,
                 resetsAt,
               ),
-            },
+            }),
           ],
           pullRequests: [],
           issues: [],
