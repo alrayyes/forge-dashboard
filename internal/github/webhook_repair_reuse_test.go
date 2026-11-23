@@ -54,10 +54,10 @@ func (f *fakeHooks) patchedIDs() []int64 {
 	return append([]int64(nil), f.patched...)
 }
 
-func newFakeHooks(t *testing.T, id int64, active bool, events []string) *fakeHooks {
+func newFakeHooks(t *testing.T, active bool, events []string) *fakeHooks {
 	t.Helper()
 
-	f := &fakeHooks{id: id, active: active, events: events}
+	f := &fakeHooks{id: 7, active: active, events: events}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, map[string]any{
@@ -125,7 +125,7 @@ func (f *fakeHooks) probedClient(t *testing.T) *github.Client {
 func TestUpgradeWebhook_AfterAProbeSawAnActiveHook_ReadsNoHooksAgain(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, true, allHookEvents)
+	f := newFakeHooks(t, true, allHookEvents)
 	client := f.probedClient(t)
 
 	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
@@ -137,7 +137,7 @@ func TestUpgradeWebhook_AfterAProbeSawAnActiveHook_ReadsNoHooksAgain(t *testing.
 func TestUpgradeWebhook_AfterAProbeSawAnInactiveHook_PatchesOnceWithoutReading(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, allHookEvents)
+	f := newFakeHooks(t, false, allHookEvents)
 	client := f.probedClient(t)
 
 	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
@@ -151,7 +151,7 @@ func TestUpgradeWebhook_AfterAProbeSawAnInactiveHook_PatchesOnceWithoutReading(t
 func TestUpgradeWebhook_NoProbeYet_ListsOnceAndRepairs(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, allHookEvents)
+	f := newFakeHooks(t, false, allHookEvents)
 	client := github.NewClient("test-token", "", f.srv.URL)
 	client.SetWebhookPath(repairPath)
 
@@ -165,7 +165,7 @@ func TestUpgradeWebhook_NoProbeYet_ListsOnceAndRepairs(t *testing.T) {
 func TestUpgradeWebhook_TargetPathDiffersFromTheProbes_ListsInstead(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, true, allHookEvents)
+	f := newFakeHooks(t, true, allHookEvents)
 	client := f.probedClient(t)
 
 	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/other", "sekret")
@@ -177,7 +177,7 @@ func TestUpgradeWebhook_TargetPathDiffersFromTheProbes_ListsInstead(t *testing.T
 func TestUpgradeWebhook_HookRecreatedSinceTheProbe_RepairsTheNewOne(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, allHookEvents)
+	f := newFakeHooks(t, false, allHookEvents)
 	client := f.probedClient(t)
 	f.serve(9, false, allHookEvents)
 
@@ -191,7 +191,7 @@ func TestUpgradeWebhook_HookRecreatedSinceTheProbe_RepairsTheNewOne(t *testing.T
 func TestUpgradeWebhook_HookDeletedSinceTheProbe_DoesNothingAndForgetsIt(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, allHookEvents)
+	f := newFakeHooks(t, false, allHookEvents)
 	client := f.probedClient(t)
 	f.serve(0, false, nil)
 
@@ -205,7 +205,7 @@ func TestUpgradeWebhook_HookDeletedSinceTheProbe_DoesNothingAndForgetsIt(t *test
 func TestUpgradeWebhook_PatchAnswersWithAMissingEvent_RepairsItAgainWithoutReading(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, allHookEvents)
+	f := newFakeHooks(t, false, allHookEvents)
 	f.reply = []string{"push"}
 	client := f.probedClient(t)
 	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
@@ -221,7 +221,7 @@ func TestUpgradeWebhook_PatchAnswersWithAMissingEvent_RepairsItAgainWithoutReadi
 func TestUpgradeWebhook_ProbeOlderThanTheLimit_ListsInstead(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, true, allHookEvents)
+	f := newFakeHooks(t, true, allHookEvents)
 	client := f.probedClient(t)
 	client.SetSeenHookMaxAge(time.Millisecond)
 	time.Sleep(20 * time.Millisecond)
@@ -235,7 +235,7 @@ func TestUpgradeWebhook_ProbeOlderThanTheLimit_ListsInstead(t *testing.T) {
 func TestUpgradeWebhook_AfterARepair_TheSavedCheckFollows(t *testing.T) {
 	t.Parallel()
 
-	f := newFakeHooks(t, 7, false, []string{"push"})
+	f := newFakeHooks(t, false, []string{"push"})
 	store := &memHookChecks{}
 	client := newCheckingClient(f.srv.URL, store, "token:ab12")
 	client.Fetch(t.Context())
