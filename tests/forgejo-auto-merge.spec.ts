@@ -160,9 +160,14 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await expect(
-      row.getByText('A check failed. Fix it and auto-merge carries on.'),
-    ).toBeVisible();
+    // On a desktop the words are a chip, its sentence the tooltip (#4601).
+    const chip = row.locator('.wait-chip');
+    await expect(chip.locator('.wait-chip-label')).toHaveText(
+      'Auto-merge stopped',
+    );
+    await expect(chip.locator('.wait-chip-tip')).toHaveText(
+      'A check failed. Fix it and auto-merge carries on.',
+    );
     await expect(row.locator('.auto-merge-status')).toContainText('Stopped');
   });
 

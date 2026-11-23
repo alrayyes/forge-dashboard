@@ -1587,12 +1587,19 @@
     }
 
     // An armed pull request that has stopped needs a person, so it reads as a
-    // line led by the state, never by colour alone. One that is only waiting
-    // is the row's waiting chip instead (#1229). Both forges send the status
+    // line led by the state, never by colour alone. On a phone the card keeps
+    // this text line. From 761px the same words are the wait chip's stopped
+    // state instead (#4601), and CSS shows one of the two. One that is only
+    // waiting is the row's waiting chip (#1229). Both forges send the status
     // (GitHub since #1293).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMerge?.state !== "stopped") return null;
-      const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
+      // A stopped row with a queued action keeps this line at every width:
+      // the queued chip takes the slot, so the sentence has no chip (#4601).
+      const line = el(
+        "span",
+        `auto-merge-status ${pr.autoMerge.state}${pr.queued ? " no-chip" : ""}`,
+      );
       line.appendChild(el("strong", "", "Stopped: "));
       line.appendChild(
         document.createTextNode(
@@ -1669,7 +1676,10 @@
             heldBy: pr.autoMergeHeldBy,
           });
       if (!chip) return null;
-      const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
+      const disarm =
+        isSettled(pr) || chip.action !== "disarm"
+          ? null
+          : cancelAutoMergeCell(pr, true);
       return buildWaitChip(chip, {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
@@ -3462,8 +3472,14 @@
         // A queued action (Update branch at the rate-limit reset) keeps its
         // chip and its Cancel over the unarmed wait: it is the one thing the
         // person asked for and can undo.
-        const rowWait =
-          autoMergeWaitChip(pr) ?? queuedWaitChip(pr) ?? unarmedWaitChip(pr);
+        // A stopped auto-merge yields to it: its sentence stays as the text
+        // line (#4601), so the Cancel is never hidden behind the stopped chip.
+        const stoppedYields = pr.autoMerge?.state === "stopped" && !!pr.queued;
+        const rowWait = stoppedYields
+          ? queuedWaitChip(pr)
+          : (autoMergeWaitChip(pr) ??
+            queuedWaitChip(pr) ??
+            unarmedWaitChip(pr));
         if (rowWait) waitSlot.appendChild(rowWait);
         statusCell.appendChild(waitSlot);
         notePlacements.set(statusCell, {
@@ -5909,7 +5925,9 @@
       if (!(active instanceof HTMLElement) || !container.contains(active))
         return null;
       const row = active.closest<HTMLElement>(".row");
-      return row?.querySelector(".merge-wait, .wait-chip")
+      return row?.querySelector(
+        ".merge-wait, .wait-chip:not([data-state=stopped])",
+      )
         ? (row.dataset.prKey ?? null)
         : null;
     }
@@ -5918,7 +5936,11 @@
       const row = Array.from(
         container.querySelectorAll<HTMLElement>(".row"),
       ).find((r) => r.dataset.prKey === key);
-      if (!row || row.querySelector(".merge-wait, .wait-chip")) return;
+      if (
+        !row ||
+        row.querySelector(".merge-wait, .wait-chip:not([data-state=stopped])")
+      )
+        return;
       if (row.querySelector('button[id^="merge-arm-"]'))
         announceText(MERGE_AVAILABLE);
     }
