@@ -195,6 +195,24 @@ since that would hide a failed check; only the release screenshots job does,
 on purpose. The guard reads `image:` and `options:` only from the job's own
 `container:` block. It doesn't check that a digest belongs to its tag; that
 takes a registry call.
+
+On a Dependabot pull request that moves `@playwright/test`, the
+`pin-playwright-image` workflow updates the image pin for you. It runs
+`scripts/pin-playwright-image.ts` on the bot's branch, which looks up the
+digest of `ci-playwright:<version>` and rewrites every image line in `ci.yml`
+and `release.yml`. It pushes one commit as `github-actions[bot]`, using the
+`RELEASE_TOKEN` Dependabot secret so the new head gets CI, and comments on the
+pull request. A Dependabot rebase drops that commit, and the workflow adds it
+back. Two things stay manual:
+
+- If the image repo hasn't built that Playwright version yet, the job fails
+  and says so. Re-run it once the tag exists.
+- The workflow doesn't touch `packageManager`. The image's bun is whatever the
+  image repo built, so when it differs from `packageManager` the bun check
+  fails, and someone bumps `packageManager` to match.
+
+For a bump that doesn't come from Dependabot, run
+`bun scripts/pin-playwright-image.ts` and commit the result.
 The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
