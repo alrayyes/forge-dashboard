@@ -21,7 +21,14 @@ const GAP = 6;
 
 let tip: HTMLElement | null = null;
 let owner: HTMLElement | null = null;
+let active: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
+let watcher: ReturnType<typeof setInterval> | undefined;
+// A touch press this recent on a pill makes the next click a real tap. A
+// screen reader's double-tap sends a click with no press before it, and that
+// must still open the pipeline.
+const TAP_MS = 1000;
+const attached = new WeakSet<HTMLElement>();
 
 function segments(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>('.ci-seg[data-tip]'));
@@ -50,13 +57,35 @@ function hide() {
   if (tip?.matches(':popover-open')) tip.hidePopover();
   owner?.removeAttribute('aria-describedby');
   owner = null;
+  active = null;
+  clearInterval(watcher);
+  watcher = undefined;
   document.removeEventListener('keydown', onEscape, true);
   document.removeEventListener('pointerdown', onOutside, true);
+  document.removeEventListener('scroll', hide, true);
+}
+
+// A poll or the stream redraws a pill under an open tip: the old node fires no
+// leave or blur, so this follows the segment to its new node, or closes.
+function follow() {
+  if (!owner?.isConnected) return hide();
+  if (active?.isConnected) return;
+  const kind = [...(active?.classList ?? [])].find((c) =>
+    c.startsWith('ci-seg-'),
+  );
+  const next = segments(owner).find((seg) =>
+    seg.classList.contains(kind ?? ''),
+  );
+  if (next) show(owner, next);
+  else hide();
 }
 
 function onEscape(e: KeyboardEvent) {
-  // Dismissed without moving focus.
-  if (e.key === 'Escape') hide();
+  // Dismissed without moving focus. One Escape does one thing: it stops here
+  // rather than also closing a dialog or filter behind the tip.
+  if (e.key !== 'Escape') return;
+  e.stopPropagation();
+  hide();
 }
 
 function onOutside(e: Event) {
@@ -105,20 +134,27 @@ function show(root: HTMLElement, seg: HTMLElement) {
     owner = root;
   }
   root.setAttribute('aria-describedby', TIP_ID);
+  active = seg;
+  watcher ??= setInterval(follow, 200);
   document.addEventListener('keydown', onEscape, true);
   document.addEventListener('pointerdown', onOutside, true);
+  // The tip is fixed, so it would float away from its segment on a scroll.
+  document.addEventListener('scroll', hide, { capture: true, passive: true });
 }
 
 // The segment the tip is on, for the arrow keys.
 function activeIndex(root: HTMLElement): number {
-  const text = tip?.textContent;
-
-  return owner === root
-    ? segments(root).findIndex((s) => s.dataset.tip === text)
-    : -1;
+  return owner === root && active ? segments(root).indexOf(active) : -1;
 }
 
+// Idempotent: the Main branches page keeps one button and redraws its contents.
 export function attachSegmentTips(root: HTMLElement) {
+  if (attached.has(root)) return;
+  attached.add(root);
+  let touchedAt = -Infinity;
+  root.addEventListener('pointerdown', (e: PointerEvent) => {
+    if (e.pointerType === 'touch') touchedAt = Date.now();
+  });
   root.addEventListener('pointermove', (e: PointerEvent) => {
     if (e.pointerType === 'touch') return;
     const seg = segmentAt(root, e.clientX, e.clientY);
@@ -150,7 +186,9 @@ export function attachSegmentTips(root: HTMLElement) {
   // Registered before the click that opens the pipeline, so a tap on a
   // segment shows its text instead. The word and the pill's body still open it.
   root.addEventListener('click', (e: MouseEvent) => {
-    const touch = (e as PointerEvent).pointerType === 'touch';
+    const touch =
+      (e as PointerEvent).pointerType === 'touch' &&
+      Date.now() - touchedAt < TAP_MS;
     const seg = touch ? segmentAt(root, e.clientX, e.clientY) : undefined;
     if (seg) {
       e.preventDefault();

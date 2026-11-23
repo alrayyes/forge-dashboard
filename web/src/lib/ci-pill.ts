@@ -226,8 +226,10 @@ export function renderCiPill(
   }
 
   // Before the click that opens the pipeline, so a tap on a segment can show
-  // its tip instead of opening it.
-  if (segmented) attachSegmentTips(root);
+  // its tip instead of opening it. Always, not only when segmented: the Main
+  // branches page keeps one button and redraws its children, so a pill that
+  // gains counts later must already listen. It finds segments as it goes.
+  attachSegmentTips(root);
 
   if (onOpen) {
     if (id) root.id = id;

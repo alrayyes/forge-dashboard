@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { installFakeStream, pushStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -54,6 +55,9 @@ async function open(page: Page) {
   await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
 }
 
+// The pill's children take no pointer events (a redraw must not eat a press),
+// so Playwright's actionability check sees the button on top. `force` skips it
+// and hovers or taps the coordinates, which is what the tip reads.
 const pill = (page: Page, title: string) =>
   page.locator('#pr-rows > .row', { hasText: title }).locator('.ci-pill');
 const tip = (page: Page) => page.locator('[role="tooltip"].ci-pill-tip');
@@ -102,6 +106,7 @@ test.describe('CI pill segment tooltips (#4422)', () => {
     await page.keyboard.press('Escape');
     await expect(tip(page)).toBeHidden();
     await expect(p).toBeFocused();
+    await expect(p).not.toHaveAttribute('aria-describedby');
     await expect(p).toHaveAccessibleName(/Open pipeline$/);
   });
 
@@ -125,7 +130,7 @@ test.describe('CI pill segment tooltips (#4422)', () => {
     await open(page);
     const p = pill(page, 'Stopped run');
 
-    await expect(p).not.toHaveAttribute('title', /.*/);
+    await expect(p).not.toHaveAttribute('title');
     await p.locator('.ci-seg-cancelled').hover({ force: true });
     await expect(tip(page)).toHaveText('9 checks cancelled');
     await p.locator('.ci-seg-passed').hover({ force: true });
@@ -142,6 +147,57 @@ test.describe('CI pill segment tooltips (#4422)', () => {
       await expect(tip(page)).toBeVisible();
       expect(await inViewport(page)).toBe(true);
     }
+  });
+
+  test('the tooltip flips below a pill at the top and stays in the viewport at the edges', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 375, height: 700 });
+    await open(page);
+    const p = pill(page, 'Mixed run');
+
+    await p.scrollIntoViewIfNeeded();
+    const seg = p.locator('.ci-seg-passed');
+    await seg.hover({ force: true });
+    const segBox = await seg.boundingBox();
+    const tipBox = await tip(page).boundingBox();
+    expect(tipBox).not.toBeNull();
+    // Above the segment when there is room, otherwise below it.
+    const above = (tipBox?.y ?? 0) + (tipBox?.height ?? 0) <= (segBox?.y ?? 0);
+    const below = (tipBox?.y ?? 0) >= (segBox?.y ?? 0) + (segBox?.height ?? 0);
+    expect(above || below).toBe(true);
+    expect(await inViewport(page)).toBe(true);
+  });
+
+  test('scrolling closes the tooltip so it never floats off its segment', async ({
+    page,
+  }) => {
+    await open(page);
+    await pill(page, 'Mixed run')
+      .locator('.ci-seg-passed')
+      .hover({ force: true });
+    await expect(tip(page)).toBeVisible();
+    await page.evaluate(() => window.dispatchEvent(new Event('scroll')));
+    await page.evaluate(() => document.dispatchEvent(new Event('scroll')));
+    await expect(tip(page)).toBeHidden();
+  });
+
+  test('Escape closes the tooltip and nothing behind it', async ({ page }) => {
+    await open(page);
+    const p = pill(page, 'Mixed run');
+    let behind = 0;
+    await page.exposeFunction('behindEscape', () => behind++);
+    await page.evaluate(() =>
+      window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape')
+          (window as unknown as { behindEscape(): void }).behindEscape();
+      }),
+    );
+    await p.focus();
+    await expect(tip(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(tip(page)).toBeHidden();
+    expect(behind).toBe(0);
   });
 
   test('has no axe violations with the tooltip open, light and dark', async ({
@@ -180,5 +236,116 @@ test.describe('on a touch screen', () => {
 
     await p.locator('.ci-word').tap({ force: true });
     await expect(dialog).toBeVisible();
+  });
+
+  test('a tap on the body of the pill, between the parts, opens the dialog', async ({
+    page,
+  }) => {
+    await open(page);
+    const p = pill(page, 'Mixed run');
+    const box = await p.boundingBox();
+
+    await p.tap({ position: { x: 2, y: (box?.height ?? 4) / 2 }, force: true });
+    await expect(
+      page.getByRole('dialog', { name: 'Pipeline checks' }),
+    ).toBeVisible();
+  });
+
+  test('a click with no touch press, as a screen reader sends, opens the dialog', async ({
+    page,
+  }) => {
+    await open(page);
+    const p = pill(page, 'Mixed run');
+
+    await p.evaluate((el) => (el as HTMLElement).click());
+    await expect(
+      page.getByRole('dialog', { name: 'Pipeline checks' }),
+    ).toBeVisible();
+  });
+});
+
+test.describe('on the Main branches page', () => {
+  function branches(passed: number, failed: number) {
+    return {
+      generatedAt: new Date().toISOString(),
+      counts: {
+        failed: 1,
+        passed: 0,
+        running: 0,
+        cancelled: 0,
+        awaitingApproval: 0,
+        none: 0,
+        total: 1,
+      },
+      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      branches: [
+        {
+          forge: 'github',
+          fullName: 'acme/auth-service',
+          url: 'https://example.com/acme/auth-service',
+          branch: 'main',
+          status: 'failed',
+          commit: {
+            sha: 'd98f3c2',
+            subject: 'fix: tip',
+            author: 'sre-dev',
+            committedAt: new Date(Date.now() - 1800_000).toISOString(),
+          },
+          failingJobs: ['test'],
+          finishedAt: null,
+          durationSeconds: null,
+          runUrl: 'https://example.com/acme/auth-service/actions/runs/1',
+          checks: { passed, running: 0, waiting: 0, failed },
+          staleSince: null,
+        },
+      ],
+    };
+  }
+
+  async function openMain(page: Page, first: ReturnType<typeof branches>) {
+    await installFakeStream(page);
+    await page.route('**/api/v1/main-branches', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(first),
+      }),
+    );
+    await page.goto('/');
+    await expect(page.locator('[data-testid="main-branch-row"]')).toHaveCount(
+      1,
+    );
+  }
+
+  const mainPill = (page: Page) =>
+    page.locator('[data-testid="main-branch-row"] .ci-pill');
+
+  test('a segment names its count, and the pill that redraws keeps doing it', async ({
+    page,
+  }) => {
+    await openMain(page, branches(8, 3));
+    await mainPill(page).locator('.ci-seg-passed').hover({ force: true });
+    await expect(tip(page)).toHaveText('8 checks passed');
+
+    // The stream redraws the same button with new children while the tip is
+    // open; the tip follows the segment and says the new count.
+    await pushStream(page, { mainBranchPage: branches(9, 3) });
+    await expect(tip(page)).toHaveText('9 checks passed');
+
+    await mainPill(page).locator('.ci-seg-failed').hover({ force: true });
+    await expect(tip(page)).toHaveText('3 checks failed');
+  });
+
+  test('a redraw that drops the segment closes the tip instead of orphaning it', async ({
+    page,
+  }) => {
+    await openMain(page, branches(8, 3));
+    await mainPill(page).locator('.ci-seg-failed').hover({ force: true });
+    await expect(tip(page)).toHaveText('3 checks failed');
+
+    await pushStream(page, { mainBranchPage: branches(8, 0) });
+    await expect(mainPill(page).locator('.ci-seg-failed')).toHaveCount(0);
+    await expect(tip(page)).toBeHidden();
+    await expect(mainPill(page)).not.toHaveAttribute('aria-describedby');
   });
 });

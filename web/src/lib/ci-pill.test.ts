@@ -328,11 +328,21 @@ describe('tips on the model (#4422)', () => {
       '1 check running',
       '3 checks failed',
     ]);
-    expect(m.tips).toEqual(
-      m.segments.map(
-        (s) => `${s.n} ${s.n === 1 ? 'check' : 'checks'} ${s.kind}`,
-      ),
-    );
+  });
+
+  test('a waiting count gets its own tip, worded as the check says', () => {
+    const m = ciPillModel({
+      cls: 'running',
+      glyph: 'running',
+      word: 'Running',
+      counts: { passed: 5, running: 2, waiting: 3, failed: 0 },
+    });
+
+    expect(m.tips).toEqual([
+      '5 checks passed',
+      '2 checks running',
+      '3 checks waiting',
+    ]);
   });
 
   test('a Cancelled pill has its passed and cancelled tips', () => {
