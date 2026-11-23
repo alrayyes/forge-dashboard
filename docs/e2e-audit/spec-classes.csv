@@ -106,7 +106,7 @@ forge-filter-single-forge.spec.ts,,7,3,C,,0.0
 forge-health-budgets.spec.ts,2.87,5,2,C,ForgeHealth.stories.svelte (proven),1.7
 forge-health-live-region.spec.ts,4.725,8,0,C,,4.7
 forge-odd-ids.spec.ts,,7,0,C,,0.0
-forgejo-auto-merge.spec.ts,10.268,14,4,C,,7.3
+forgejo-auto-merge.spec.ts,10.268,13,3,C,,7.9
 forgejo-token-saved-hint.spec.ts,11.42,1,1,A,,0.0
 github-token-saved-hint.spec.ts,4.995,6,2,C,,3.3
 hide-pull-request.spec.ts,5.325,14,3,C,,4.2
@@ -159,7 +159,7 @@ main-branches-refetch-on-flag.spec.ts,6.451,4,0,C,,6.5
 main-branches-server-copy.spec.ts,4.052,7,0,B,,4.1
 main-branches-stream.spec.ts,0.84,3,0,C,,0.8
 mentioned-tickets.spec.ts,7.167,16,9,A,,3.1
-merge-wait-chip.spec.ts,,17,7,C,,0.0
+merge-wait-chip.spec.ts,,17,6,C,,0.0
 merged-pr-pill.spec.ts,,12,7,A,,0.0
 mobile-filters.spec.ts,6.974,13,9,A,,2.1
 mono-figures.spec.ts,0.853,4,0,A,,0.9
