@@ -30,6 +30,8 @@ export type DashboardReadData = {
   settingsHiddenIssueCount?: number;
   hideDependencyDashboard?: boolean;
   firstRefreshDone?: boolean;
+  // Why no hook can be created while the public address stays as it is (#4682).
+  webhookOriginProblem?: string;
 };
 
 export const dashboardRead = $state<{
