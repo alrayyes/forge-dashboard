@@ -112,7 +112,14 @@ type Client struct {
 	// ownHookSeen is what the last probe read of that hook, enough for the
 	// hourly repair to act without listing the hooks again (#4687). Memory
 	// only: after a restart the first repair lists once. Guarded by hooksMu.
+	//
+	// Two trade-offs, both bounded. A probe whose listing failed leaves the old
+	// entry, so the repair can skip a hook that lost an event meanwhile; the
+	// entry stops counting after seenHookMaxAge, and the old code read fresh
+	// every hour. A probe that read before a PATCH can't overwrite the PATCH's
+	// answer: noteOwnHook compares the times the reads were taken.
 	ownHookSeen     map[string]seenHook
+	seenHookMaxAge  time.Duration
 	hooksDeniedRepo map[string]time.Time
 	// refusedRepo is the last real refusal verdict per repo, so a poll
 	// whose hooks call failed for an unrelated reason doesn't flip it.
@@ -473,6 +480,19 @@ func (c *Client) SetWebhookDenialTTL(d time.Duration) {
 	c.hooksDenialTTL = d
 }
 
+// defaultSeenHookMaxAge is how long what a probe read is trusted by the hourly
+// repair: two of its own intervals, so one missed pass doesn't force a listing
+// but a probe that keeps failing does.
+const defaultSeenHookMaxAge = 2 * time.Hour
+
+// SetSeenHookMaxAge changes how old a probe's read can be before the repair
+// lists the hooks itself (#4687). The default is two hours.
+func (c *Client) SetSeenHookMaxAge(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.seenHookMaxAge = d
+}
+
 func (c *Client) hooksTTL() time.Duration {
 	if c.hooksDenialTTL > 0 {
 		return c.hooksDenialTTL
@@ -629,7 +649,9 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 
 	hook := ownHook(targetURL, secret)
 	if existing != nil {
-		return c.editHook(ctx, owner, name, existing.GetID(), hook)
+		_, err = c.editHook(ctx, owner, name, existing.GetID(), hook)
+
+		return err
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
@@ -672,17 +694,17 @@ func ownHook(targetURL, secret string) *ghsdk.Hook {
 	}
 }
 
-// editHook PATCHes hook id with hook.
-func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hook *ghsdk.Hook) error {
+// editHook PATCHes hook id with hook and returns the hook GitHub answers with.
+func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hook *ghsdk.Hook) (*ghsdk.Hook, error) {
 	path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, id)
 	slog.Debug("github request", "method", http.MethodPatch, "url", path)
-	_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
+	edited, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
 	if err != nil {
-		return c.appAware(asClientError(c.restError(ctx, http.MethodPatch, path, err)))
+		return nil, c.appAware(asClientError(c.restError(ctx, http.MethodPatch, path, err)))
 	}
 	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
 
-	return nil
+	return edited, nil
 }
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: a PATCH only when this
@@ -702,7 +724,7 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 		}
 		// The hook was deleted, or recreated under a new id, since the probe.
 		// Forget it and look once, as the repair did before it reused the probe.
-		c.noteOwnHook(fullName, nil)
+		c.noteOwnHook(fullName, nil, time.Now())
 	}
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
 	if err != nil {
@@ -722,10 +744,14 @@ func (c *Client) repairHook(ctx context.Context, owner, name string, seen seenHo
 	if seen.active && dashboard.WebhookCoversEvents(seen.events, githubWebhookEvents) {
 		return false, nil
 	}
-	if err := c.editHook(ctx, owner, name, seen.id, ownHook(targetURL, secret)); err != nil {
+	edited, err := c.editHook(ctx, owner, name, seen.id, ownHook(targetURL, secret))
+	if err != nil {
 		return false, err
 	}
-	c.noteOwnHook(owner+"/"+name, &hookProbe{has: true, id: seen.id, active: true, events: githubWebhookEvents})
+	fullName := owner + "/" + name
+	probe := hookProbe{has: true, id: seen.id, active: edited.GetActive(), events: edited.Events, refused: c.lastRefused(fullName)}
+	c.noteOwnHook(fullName, &probe, time.Now())
+	c.saveHookCheck(fullName, probe)
 
 	return true, nil
 }
@@ -747,8 +773,9 @@ func (c *Client) probedHook(fullName, wantPath string) (seenHook, bool) {
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
 	seen, ok := c.ownHookSeen[fullName]
+	maxAge := cmp.Or(c.seenHookMaxAge, defaultSeenHookMaxAge)
 
-	return seen, ok
+	return seen, ok && time.Since(seen.at) < maxAge
 }
 
 // MergePullRequest implements dashboard.PullRequestMerger: merges
@@ -2973,6 +3000,8 @@ type seenHook struct {
 	id     int64
 	active bool
 	events []string
+	// at is when the hook was read, or for a PATCH when it answered.
+	at time.Time
 }
 
 // WebhookEvents returns the events the app's own hook on fullName subscribes
@@ -2989,9 +3018,13 @@ func (c *Client) WebhookEvents(fullName string) ([]string, bool) {
 }
 
 // noteOwnHook remembers what a successful hooks listing found for fullName.
-func (c *Client) noteOwnHook(fullName string, hook *hookProbe) {
+func (c *Client) noteOwnHook(fullName string, hook *hookProbe, readAt time.Time) {
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
+
+	if cur, ok := c.ownHookSeen[fullName]; ok && cur.at.After(readAt) {
+		return
+	}
 
 	if hook == nil || !hook.has {
 		delete(c.ownHookEvents, fullName)
@@ -3002,7 +3035,7 @@ func (c *Client) noteOwnHook(fullName string, hook *hookProbe) {
 	if c.ownHookSeen == nil {
 		c.ownHookSeen = make(map[string]seenHook)
 	}
-	c.ownHookSeen[fullName] = seenHook{id: hook.id, active: hook.active, events: hook.events}
+	c.ownHookSeen[fullName] = seenHook{id: hook.id, active: hook.active, events: hook.events, at: readAt}
 	if c.ownHookEvents == nil {
 		c.ownHookEvents = make(map[string][]string)
 	}
@@ -3256,6 +3289,7 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 // the events, since it says nothing about them.
 func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe {
 	fullName := owner + "/" + name
+	readAt := time.Now()
 	hook, err := c.findOwnHook(ctx, owner, name, c.webhookPath)
 	if err != nil {
 		c.logHooksFailure(fullName, err)
@@ -3275,7 +3309,7 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 		probe.events = hook.Events
 		probe.active = hook.GetActive()
 	}
-	c.noteOwnHook(fullName, &probe)
+	c.noteOwnHook(fullName, &probe, readAt)
 	c.saveHookCheck(fullName, probe)
 
 	return probe

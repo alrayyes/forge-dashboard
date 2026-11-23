@@ -7,7 +7,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -35,6 +37,8 @@ type fakeHooks struct {
 	active  bool
 	events  []string
 	patched []int64 // ids a PATCH reached, in order
+	// reply is the event list a PATCH answers with; nil means every event.
+	reply []string
 }
 
 func (f *fakeHooks) serve(id int64, active bool, events []string) {
@@ -92,9 +96,13 @@ func newFakeHooks(t *testing.T, id int64, active bool, events []string) *fakeHoo
 
 			return
 		}
-		f.active, f.events = true, allHookEvents
+		reply := f.reply
+		if reply == nil {
+			reply = allHookEvents
+		}
+		f.active, f.events = true, reply
 		writeJSON(t, w, map[string]any{
-			"id": id, "events": allHookEvents, "active": true, "config": map[string]any{"url": repairTarget},
+			"id": id, "events": reply, "active": true, "config": map[string]any{"url": repairTarget},
 		})
 	})
 	f.srv = httptest.NewServer(mux)
@@ -192,4 +200,51 @@ func TestUpgradeWebhook_HookDeletedSinceTheProbe_DoesNothingAndForgetsIt(t *test
 	require.NoError(t, err)
 	assert.False(t, updated)
 	assert.EqualValues(t, 2, f.lists.Load())
+}
+
+func TestUpgradeWebhook_PatchAnswersWithAMissingEvent_RepairsItAgainWithoutReading(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeHooks(t, 7, false, allHookEvents)
+	f.reply = []string{"push"}
+	client := f.probedClient(t)
+	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
+	require.NoError(t, err)
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
+
+	require.NoError(t, err)
+	assert.True(t, updated, "what GitHub applied is remembered, not what was sent")
+	assert.EqualValues(t, 1, f.lists.Load())
+}
+
+func TestUpgradeWebhook_ProbeOlderThanTheLimit_ListsInstead(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeHooks(t, 7, true, allHookEvents)
+	client := f.probedClient(t)
+	client.SetSeenHookMaxAge(time.Millisecond)
+	time.Sleep(20 * time.Millisecond)
+
+	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
+
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, f.lists.Load())
+}
+
+func TestUpgradeWebhook_AfterARepair_TheSavedCheckFollows(t *testing.T) {
+	t.Parallel()
+
+	f := newFakeHooks(t, 7, false, []string{"push"})
+	store := &memHookChecks{}
+	client := newCheckingClient(f.srv.URL, store, "token:ab12")
+	client.Fetch(t.Context())
+
+	_, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", repairTarget, "sekret")
+	require.NoError(t, err)
+
+	checks, err := store.LoadHookChecks(t.Context(), dashboard.ForgeGitHub, "token:ab12")
+	require.NoError(t, err)
+	require.Len(t, checks, 1)
+	assert.ElementsMatch(t, allHookEvents, checks[0].Events)
 }
