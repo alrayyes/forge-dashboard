@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #791: draft pull requests are left out by the API unless asked for. The
@@ -58,7 +59,7 @@ function answer(route: Route) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: READY,
         issues: [],
         repos: [],
@@ -72,7 +73,7 @@ function answer(route: Route) {
     contentType: 'application/json',
     body: JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      forges: [forgeHealth('github')],
       pullRequests: include ? [...READY, ...DRAFTS] : READY,
       issues: [],
       repos: [],
