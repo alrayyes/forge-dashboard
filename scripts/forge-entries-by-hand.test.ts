@@ -16,7 +16,6 @@ const stillByHand = [
   'unreachable-once.spec.ts',
   'armed-behind-status.spec.ts',
   'branch-rerun-checks.spec.ts',
-  'cancel-run.spec.ts',
   'dashboard.spec.ts',
   'forge-health-budgets.spec.ts',
   'forge-health-live-region.spec.ts',
