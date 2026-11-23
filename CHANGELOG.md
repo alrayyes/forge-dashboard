@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.102.0](https://github.com/alrayyes/forge-dashboard/compare/v9.101.3...v9.102.0) (2026-11-23)
+
+
+### Features
+
+* **web:** say when the latest comment was written in the comment pill's tip ([#4664](https://github.com/alrayyes/forge-dashboard/issues/4664)) ([4906890](https://github.com/alrayyes/forge-dashboard/commit/4906890fcab15d47406287507f921b197bed9571))
+
 ## [9.101.3](https://github.com/alrayyes/forge-dashboard/compare/v9.101.2...v9.101.3) (2026-11-23)
 
 
