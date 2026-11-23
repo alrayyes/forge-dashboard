@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.104.2](https://github.com/alrayyes/forge-dashboard/compare/v9.104.1...v9.104.2) (2026-11-23)
+
+
+### Performance Improvements
+
+* **github:** repair a hook from the probe's read, not a second listing ([#4699](https://github.com/alrayyes/forge-dashboard/issues/4699)) ([1a22203](https://github.com/alrayyes/forge-dashboard/commit/1a22203fa31498ecaf39fac90de379fc4f479505))
+
 ## [9.104.1](https://github.com/alrayyes/forge-dashboard/compare/v9.104.0...v9.104.1) (2026-11-23)
 
 
