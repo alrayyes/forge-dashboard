@@ -48,6 +48,13 @@ test('a repo with no webhook says why, and a bad origin is said once', async ({
         webhookReasonDetail: 'Resource not accessible by integration',
         webhookNextAttemptAt: new Date(Date.now() + 3_600_000).toISOString(),
       },
+      {
+        forge: 'github',
+        fullName: 'o/locked',
+        hasWebhook: false,
+        canManageWebhooks: false,
+        webhookReason: 'no_permission',
+      },
     ],
   });
   await page.goto('/webhooks.html');
@@ -69,9 +76,61 @@ test('a repo with no webhook says why, and a bad origin is said once', async ({
   await expect(page.locator('#webhooks-origin-problem')).toContainText(
     'localhost',
   );
+  // The origin is said once for the page, never repeated on a row.
+  await expect(page.locator('tbody')).not.toContainText('localhost');
+
+  // A repo the token can't administer keeps its lock text and gets no note.
+  const locked = page.locator('tr', { hasText: 'o/locked' });
+  await expect(locked).toBeVisible();
+  await expect(locked.locator('.webhook-note')).toHaveCount(0);
+
+  // Focus reveals the detail as a popover: nothing below it moves, and Esc
+  // hides it while focus stays put (WCAG 1.4.13).
+  const detail = page.locator(`[id="${detailId}"]`);
+  const before = await locked.boundingBox();
+  await note.focus();
+  await expect(detail).toBeVisible();
+  const box = await detail.boundingBox();
+  expect(box?.width).toBeGreaterThan(100);
+  expect((await locked.boundingBox())?.y).toBe(before?.y);
+  await page.keyboard.press('Escape');
+  await expect(detail).not.toBeInViewport();
+  await expect(note).toBeFocused();
 
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   expect(results.violations).toEqual([]);
+});
+
+test('on a phone the reason stays reachable and the page does not scroll sideways', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await mockDashboard(page, {
+    repos: [
+      {
+        forge: 'github',
+        fullName: 'o/refused',
+        hasWebhook: false,
+        canManageWebhooks: true,
+        webhookReason: 'forge_refused',
+        webhookReasonDetail: 'Resource not accessible by integration',
+      },
+    ],
+  });
+  await page.goto('/webhooks.html');
+
+  const note = page.locator('.webhook-note');
+  await note.focus();
+  await expect(
+    page.locator(`[id="${await note.getAttribute('aria-describedby')}"]`),
+  ).toBeVisible();
+
+  const overflow = await page.evaluate(
+    () =>
+      document.documentElement.scrollWidth -
+      document.documentElement.clientWidth,
+  );
+  expect(overflow).toBeLessThanOrEqual(0);
 });
