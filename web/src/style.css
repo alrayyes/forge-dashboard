@@ -6386,6 +6386,39 @@ footer a[aria-current="page"] {
   white-space: pre;
   overflow-wrap: normal;
 }
+/* A JSON entry (#4685): collapsed it is its compact form on one line with an
+   ellipsis; open it is the dump with its indentation, wrapped or not. */
+.run-line-json {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+}
+.run-json-toggle {
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  padding: 0;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.run-json-compact {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.run-json-full {
+  max-width: 100%;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.run-output-nowrap .run-json-full {
+  white-space: pre;
+  overflow-wrap: normal;
+}
 .run-line-time {
   color: var(--ink-2);
   padding-inline: 8px 0;

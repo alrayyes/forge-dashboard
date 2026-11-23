@@ -297,6 +297,58 @@ test.describe('a check run output in the pipeline dialog', () => {
     }
   });
 
+  test('a JSON dump in the output is one entry that opens to its indented text (#4685)', async ({
+    page,
+  }) => {
+    const dump = [
+      '{',
+      '  "result": "success",',
+      '  "needs": [',
+      '    1',
+      '  ]',
+      '}',
+    ];
+    await setup(page, {
+      status: 200,
+      body: {
+        text: ['before', ...dump, 'after', ''].join('\n'),
+        truncated: false,
+      },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output.locator('.run-line')).toHaveCount(3);
+    // The number is the raw range, so "line 8" still means line 8.
+    await expect(
+      output.getByRole('button', { name: 'Copy lines 2-7' }),
+    ).toHaveText('2-7');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 8' }),
+    ).toHaveText('8');
+    await expect(output.locator('.run-json-compact')).toHaveText(
+      '{"result":"success","needs":[1]}',
+    );
+
+    await output
+      .getByRole('button', { name: 'Expand JSON, lines 2-7' })
+      .click();
+    await expect(output.locator('.run-json-full')).toHaveText(dump.join('\n'));
+    // Indentation survives with Wrap lines off too.
+    await dialog.getByLabel('Wrap lines').uncheck();
+    await expect(output.locator('.run-json-full')).toHaveCSS(
+      'white-space',
+      'pre',
+    );
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
   // The wording, the job link and the colours of each answer are stories
   // (CheckRunOutput.stories.svelte); what stays is the dialog around them. The
   // refused read's axe run covers the error's colours, as every error shares them.

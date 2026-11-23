@@ -454,6 +454,12 @@ export type LogLine = {
   text: string;
   // The time of day of an ISO timestamp the line started with.
   time?: string;
+  // The raw log lines this entry covers, 1-based. Set by groupJsonBlocks, so a
+  // number in the view still names the forge's own line (#4685).
+  from?: number;
+  to?: number;
+  // Set on an entry that holds a multi-line JSON value: its compact form.
+  json?: string;
 };
 
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching ESC is the point
@@ -499,6 +505,91 @@ export function parseLogLines(text: string): LogLine[] {
 
     return out;
   });
+}
+
+// The most raw lines one JSON entry may span. A longer dump stays as lines.
+const JSON_MAX_LINES = 500;
+
+// Where a JSON value that opens on line `start` ends: the index of the line on
+// which its braces balance, or -1 when they never do within the limit, or the
+// span holds a line that isn't plain. Strings are skipped so a brace in one
+// doesn't count.
+function jsonEnd(lines: LogLine[], start: number): number {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  const stop = Math.min(lines.length, start + JSON_MAX_LINES);
+  for (let i = start; i < stop; i++) {
+    if (lines[i].kind !== 'plain') return -1;
+    for (const ch of lines[i].text) {
+      if (inString) {
+        if (escaped) escaped = false;
+        else if (ch === '\\') escaped = true;
+        else if (ch === '"') inString = false;
+      } else if (ch === '"') inString = true;
+      else if (ch === '{' || ch === '[') depth++;
+      else if (ch === '}' || ch === ']') depth--;
+    }
+    // A JSON string can't run over a line end.
+    if (inString || depth < 0) return -1;
+    if (depth === 0) return i;
+  }
+
+  return -1;
+}
+
+// Gathers consecutive lines that together are one JSON object or array (it
+// opens at the start of a line and parses) into one entry: the text keeps its
+// indentation, the time is the first line's, and from/to name the raw lines.
+// Every other line passes through with its own number. Raw text is untouched,
+// so Copy and Download still give the log as the runner wrote it.
+export function groupJsonBlocks(lines: LogLine[]): LogLine[] {
+  const out: LogLine[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    const opens = line.kind === 'plain' && /^[{[]/.test(line.text);
+    const end = opens ? jsonEnd(lines, i) : -1;
+    if (end > i) {
+      const text = lines
+        .slice(i, end + 1)
+        .map((l) => l.text)
+        .join('\n');
+      let json: string | undefined;
+      try {
+        json = JSON.stringify(JSON.parse(text));
+      } catch {
+        json = undefined;
+      }
+      if (json !== undefined) {
+        const block: LogLine = {
+          kind: 'plain',
+          text,
+          from: i + 1,
+          to: end + 1,
+          json,
+        };
+        if (line.time) block.time = line.time;
+        out.push(block);
+        i = end + 1;
+        continue;
+      }
+    }
+    out.push({ ...line, from: i + 1, to: i + 1 });
+    i++;
+  }
+
+  return out;
+}
+
+// The text on a line's number button: its number, or the range an entry covers.
+export function lineNumberText(line: { from: number; to: number }): string {
+  return line.from === line.to ? `${line.from}` : `${line.from}-${line.to}`;
+}
+
+// The name of that button, which holds the visible text (WCAG 2.5.3).
+export function copyLinesLabel(from: number, to: number): string {
+  return from === to ? copyLineLabel(from) : `Copy lines ${from}-${to}`;
 }
 
 // What a line's copy button puts on the clipboard: the line's own text. Not its
