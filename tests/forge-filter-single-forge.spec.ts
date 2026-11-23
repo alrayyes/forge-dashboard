@@ -120,7 +120,7 @@ test.describe('the Forge filter follows the repos in scope (#4273)', () => {
     page,
   }) => {
     await open(page, '/insights.html');
-    const forge = page.getByRole('group', { name: 'Filter by forge' });
+    const forge = page.getByRole('group', { name: 'Forge', exact: true });
     await expect(forge).toBeVisible();
     expect((await axe(page)).violations).toEqual([]);
 
@@ -174,9 +174,9 @@ test.describe('the Forge filter follows the repos in scope (#4273)', () => {
       release = resolve;
     });
     await open(page, '/insights.html', { gate });
-    const forge = page.getByRole('group', { name: 'Filter by forge' });
+    const forge = page.getByRole('group', { name: 'Forge', exact: true });
     await expect(forge).toBeHidden();
-    await expect(page.locator('.forge-segmented')).toHaveAttribute(
+    await expect(page.locator('.filter-bar .filter-group')).toHaveAttribute(
       'hidden',
       '',
     );
@@ -196,7 +196,7 @@ test.describe('the Forge filter follows the repos in scope (#4273)', () => {
       gate,
       rows: [pr(1, 'github', 'alrayyes/app'), pr(2, 'github', 'alrayyes/lib')],
     });
-    const forge = page.getByRole('group', { name: 'Filter by forge' });
+    const forge = page.getByRole('group', { name: 'Forge', exact: true });
     await expect(forge).toBeHidden();
     release();
     await expect(page.locator('input[data-col="title"]')).toBeVisible();
