@@ -141,8 +141,10 @@
     onclick={(e) => {
       const target = { ...REPO, forge, opener: e.currentTarget };
       (forge === "github" ? github : forgejo)?.open(target);
-    }}>Show advisories</button
+    }}
   >
+    Show advisories
+  </button>
   {#if forge === "github"}
     <AdvisoriesDialog bind:this={github} />
   {:else}

@@ -33,17 +33,19 @@
 </script>
 
 <div class="live-control" class:paused role="group" aria-label="Live updates">
-  <span class="live-status"
-    ><span class="live-dot" aria-hidden="true"></span>{liveStatus(paused)}</span
-  >
+  <span class="live-status">
+    <span class="live-dot" aria-hidden="true"></span>{liveStatus(paused)}
+  </span>
   {#if updated}<span class="live-updated">{updated}</span>{/if}
   <button
     type="button"
     class="live-pause"
     id="pause-updates-button"
     aria-label={pause.name}
-    onclick={onpause}>{pause.text}</button
+    onclick={onpause}
   >
+    {pause.text}
+  </button>
   <button
     type="button"
     class="live-refresh"
@@ -66,7 +68,8 @@
       stroke-linecap="round"
       stroke-linejoin="round"
       aria-hidden="true"
-      ><path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" /></svg
     >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" /><path d="M21 3v6h-6" />
+    </svg>
   </button>
 </div>

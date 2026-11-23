@@ -977,9 +977,9 @@
     <div class="details-header">
       <div class="details-heading">
         <p class="details-ref">
-          <span class="forge-badge {forgeClassOf(target.forge)}"
-            ><span class="dot"></span>{forgeLabel}</span
-          >
+          <span class="forge-badge {forgeClassOf(target.forge)}">
+            <span class="dot"></span>{forgeLabel}
+          </span>
           <!-- The repository is a link to it on the forge, named by its own
             text. A pull request's or issue's number is plain text (#3744): the dialog is already
             this item's, and "Open on <forge>" in the footer is the way to
@@ -992,20 +992,22 @@
                 href={repoUrlOf(target.url) ?? undefined}
                 target="_blank"
                 rel="noopener noreferrer"
-                >{target.repo}<span class="visually-hidden">
-                  (opens in a new tab)</span
-                ></a
               >
+                {target.repo}<span class="visually-hidden">
+                  (opens in a new tab)
+                </span>
+              </a>
               {#if releaseTarget}
                 <a
                   class="ref-link"
                   href={target.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  >{refText}<span class="visually-hidden">
-                    (opens in a new tab)</span
-                  ></a
                 >
+                  {refText}<span class="visually-hidden">
+                    (opens in a new tab)
+                  </span>
+                </a>
               {:else}
                 {refText}
               {/if}
@@ -1017,8 +1019,10 @@
         </p>
         <h2 class="details-title">
           {#each titleSegments(facts?.title ?? target.title) as seg}{#if seg.code}<code
-                class="title-code">{seg.text}</code
-              >{:else}{seg.text}{/if}{/each}
+                class="title-code"
+              >
+                {seg.text}
+              </code>{:else}{seg.text}{/if}{/each}
         </h2>
         <!-- The status describes the title, so it follows it in the DOM and not
           only on screen (#4405). The filer shares its line when there is room. -->
@@ -1040,20 +1044,22 @@
                   class="attr-chip"
                   class:held={!stateWord}
                   class:merged-pill={stateWord === STATE_WORDS.merged}
-                  >{#if stateWord === STATE_WORDS.merged}<svg
+                >
+                  {#if stateWord === STATE_WORDS.merged}<svg
                       class="merged-glyph"
                       viewBox="0 0 16 16"
                       aria-hidden="true"
                       focusable="false"
-                      ><!-- The shapes of MERGE_GLYPH in check-glyphs.ts, drawn
+                    >
+                      <!-- The shapes of MERGE_GLYPH in check-glyphs.ts, drawn
                         here as plain markup, so no raw HTML is rendered. -->
                       <circle cx="8" cy="8" r="6.25" />
                       <circle cx="6" cy="5.4" r="1" />
                       <circle cx="6" cy="10.6" r="1" />
                       <circle cx="10.2" cy="8.6" r="1" />
-                      <path d="M6 6.4v3.2M6 6.4c0 1.4 1.2 2.2 3.2 2.2" /></svg
-                    >{/if}{stateWord || "Open"}</span
-                >
+                      <path d="M6 6.4v3.2M6 6.4c0 1.4 1.2 2.2 3.2 2.2" />
+                    </svg>{/if}{stateWord || "Open"}
+                </span>
               </div>
             </div>
           {/if}
@@ -1115,8 +1121,10 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          aria-hidden="true"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
+          aria-hidden="true"
         >
+          <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+        </svg>
       </button>
     </div>
   {/if}
@@ -1151,9 +1159,9 @@
       {:else if phase === "error"}
         <div class="details-error" role="alert">
           <p>{errorMessage}</p>
-          <button type="button" class="details-retry" onclick={() => load()}
-            >Try again</button
-          >
+          <button type="button" class="details-retry" onclick={() => load()}>
+            Try again
+          </button>
         </div>
       {:else if details}
         {#if releaseNotes}
@@ -1236,11 +1244,9 @@
                             onerror={() => (brokenAvatars[c.id] = true)}
                           />
                         {:else}
-                          <span class="avatar" aria-hidden="true"
-                            >{c.author
-                              ? login.charAt(0).toUpperCase()
-                              : "?"}</span
-                          >
+                          <span class="avatar" aria-hidden="true">
+                            {c.author ? login.charAt(0).toUpperCase() : "?"}
+                          </span>
                         {/if}
                         <span class="comment-login">{login}</span>
                       {/snippet}
@@ -1260,11 +1266,12 @@
                       {:else}
                         {@render person()}
                       {/if}
-                      <span class="comment-time"
-                        >{relativeTime(c.createdAt)}</span
-                      >
-                      {#if c.edited}<span class="comment-edited">edited</span
-                        >{/if}
+                      <span class="comment-time">
+                        {relativeTime(c.createdAt)}
+                      </span>
+                      {#if c.edited}<span class="comment-edited">
+                          edited
+                        </span>{/if}
                     </div>
                     <!-- nosemgrep: svelte-at-html -- patchHtml sets only renderMarkdown() output: markdown-it with raw HTML narrowed to an allow-list and rebuilt as tokens (no attribute but a checked href survives), images only through the server proxy and non-http(s)/mailto links turned to text, never raw forge text -->
                     <div
@@ -1283,11 +1290,15 @@
                 <p class="details-note">
                   Showing the first {details.comments.length} of {details.commentCount}
                   comments.
-                  <a href={target.url} target="_blank" rel="noopener noreferrer"
-                    >Read the rest on {forgeLabel}<span class="visually-hidden">
-                      (opens in a new tab)</span
-                    ></a
+                  <a
+                    href={target.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
+                    Read the rest on {forgeLabel}<span class="visually-hidden">
+                      (opens in a new tab)
+                    </span>
+                  </a>
                 </p>
               {/if}
             {/if}
@@ -1313,10 +1324,11 @@
         href={target.url}
         target="_blank"
         rel="noopener noreferrer"
-        >Open on {forgeLabel}<span class="visually-hidden">
-          (opens in a new tab)</span
-        ></a
       >
+        Open on {forgeLabel}<span class="visually-hidden">
+          (opens in a new tab)
+        </span>
+      </a>
     {/if}
     <div class="details-actions" bind:this={actionsHost}></div>
   </div>
@@ -1339,13 +1351,16 @@
       href={lightbox.src}
       target="_blank"
       rel="noopener noreferrer"
-      >Open original in new tab<span aria-hidden="true"> &#8599;</span></a
     >
+      Open original in new tab<span aria-hidden="true"> &#8599;</span>
+    </a>
     <button
       type="button"
       class="lightbox-close"
-      onclick={() => lightboxEl?.close()}>Close</button
+      onclick={() => lightboxEl?.close()}
     >
+      Close
+    </button>
     <div class="lightbox-stage">
       <img
         src={lightbox.src}

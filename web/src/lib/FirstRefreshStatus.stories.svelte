@@ -82,8 +82,8 @@
     await expect(status(canvasElement)).toBe(before);
   }}
 >
-  <button type="button" id="start-loading" onclick={() => (pending = true)}
-    >Start loading</button
-  >
+  <button type="button" id="start-loading" onclick={() => (pending = true)}>
+    Start loading
+  </button>
   <FirstRefreshStatus {pending} subject="pull requests" />
 </Story>

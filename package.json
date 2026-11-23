@@ -57,7 +57,7 @@
     "lefthook": "2.2.2",
     "markdownlint-cli2": "0.24.1",
     "prettier": "3.10.1",
-    "prettier-plugin-svelte": "4.1.1",
+    "prettier-plugin-svelte": "4.2.0",
     "sort-package-json": "4.1.0",
     "tsx": "4.23.15",
     "typescript": "6.0.3",

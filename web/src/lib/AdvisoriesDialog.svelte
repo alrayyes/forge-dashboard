@@ -248,8 +248,10 @@
             stroke-linecap="round"
             stroke-linejoin="round"
             aria-hidden="true"
-            focusable="false"><path d="M15 18l-6-6 6-6" /></svg
-          >Back to advisories
+            focusable="false"
+          >
+            <path d="M15 18l-6-6 6-6" />
+          </svg>Back to advisories
         </button>
       {/if}
       {#if !current}
@@ -281,8 +283,10 @@
           stroke-linecap="round"
           stroke-linejoin="round"
           aria-hidden="true"
-          focusable="false"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
+          focusable="false"
         >
+          <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+        </svg>
       </button>
     </div>
   </div>
@@ -307,8 +311,10 @@
         type="button"
         class="adv-ghost"
         data-testid="advisories-retry"
-        onclick={() => target && load(target)}>Try again</button
+        onclick={() => target && load(target)}
       >
+        Try again
+      </button>
     {:else if list?.state === "unknown"}
       <p class="adv-status" data-testid="advisories-unknown" role="status">
         The advisories could not be read. {unreadableText(
@@ -337,8 +343,9 @@
               data-testid="advisory-filter-{f.key}"
               aria-pressed={filter === f.key}
               onclick={() => pick(f.key)}
-              >{f.label} <span class="adv-count">{countOf(f.key)}</span></button
             >
+              {f.label} <span class="adv-count">{countOf(f.key)}</span>
+            </button>
           {/if}
         {/each}
         <span class="adv-sorted">Sorted by severity, then age</span>
@@ -363,9 +370,9 @@
                 <span class="adv-row-title">{item.summary}</span>
                 <span class="adv-chips">
                   {#each chipsOf(item) as chip (chip.kind)}
-                    <span class="adv-chip adv-chip-{chip.kind}"
-                      >{chip.text}{chip.detail ? ` · ${chip.detail}` : ""}</span
-                    >
+                    <span class="adv-chip adv-chip-{chip.kind}">
+                      {chip.text}{chip.detail ? ` · ${chip.detail}` : ""}
+                    </span>
                     {" "}
                   {/each}
                 </span>
@@ -388,9 +395,9 @@
        repeating them (#3390). -->
   {#if !current}
     <div class="adv-footer">
-      <button type="button" class="adv-ghost" onclick={() => dialog.close()}
-        >Close</button
-      >
+      <button type="button" class="adv-ghost" onclick={() => dialog.close()}>
+        Close
+      </button>
     </div>
   {/if}
 </dialog>
@@ -406,27 +413,30 @@
       class:adv-held={phase !== "ready" || list?.state !== "known"}
       data-testid="advisories-refresh"
       aria-busy={refreshing}
-      onclick={refresh}>Refresh</button
+      onclick={refresh}
     >
+      Refresh
+    </button>
   </div>
 {/snippet}
 
 {#snippet sev(severity: string | undefined)}
-  <span class="adv-sev" data-severity={severity ?? "none"}
-    ><svg
+  <span class="adv-sev" data-severity={severity ?? "none"}>
+    <svg
       viewBox="0 0 16 16"
       width="12"
       height="12"
       fill="currentColor"
       aria-hidden="true"
       focusable="false"
-      >{#if severity === "critical" || severity === "high"}<path
+    >
+      {#if severity === "critical" || severity === "high"}<path
           d="M8 1.5 15 14H1z"
         />{:else if severity === "medium"}<path
           d="M8 1.5 14.5 8 8 14.5 1.5 8z"
-        />{:else}<circle cx="8" cy="8" r="5.5" />{/if}</svg
-    >{sevLabel(severity)}</span
-  >
+        />{:else}<circle cx="8" cy="8" r="5.5" />{/if}
+    </svg>{sevLabel(severity)}
+  </span>
 {/snippet}
 
 {#snippet openLink(href: string)}
@@ -437,8 +447,9 @@
     target="_blank"
     rel="noopener noreferrer"
     aria-label="Open on {words.linkName} (opens in a new tab)"
-    >Open on {words.linkName}</a
   >
+    Open on {words.linkName}
+  </a>
 {/snippet}
 
 {#snippet detail(item: AdvisoryItem)}
@@ -455,8 +466,10 @@
     <span class="adv-chip">{item.state === "open" ? "Open" : item.state}</span>
     {@render sev(item.severity)}
     {#if item.id && item.id !== item.ghsaId && item.id !== item.cveId}<span
-        class="adv-chip adv-id">{item.id}</span
-      >{/if}
+        class="adv-chip adv-id"
+      >
+        {item.id}
+      </span>{/if}
     {#if item.ghsaId}<span class="adv-chip adv-id">{item.ghsaId}</span>{/if}
     {#if item.cveId}<span class="adv-chip adv-id">{item.cveId}</span>{/if}
   </div>
@@ -540,9 +553,9 @@
     <ul class="adv-refs">
       {#each referenceLinks(item.references) as ref (ref.url)}
         <li>
-          <a href={ref.url} target="_blank" rel="noopener noreferrer"
-            >{ref.url}<span class="sr-only"> (opens in a new tab)</span></a
-          >
+          <a href={ref.url} target="_blank" rel="noopener noreferrer">
+            {ref.url}<span class="sr-only"> (opens in a new tab)</span>
+          </a>
           <span class="adv-host">{ref.host}</span>
         </li>
       {/each}
