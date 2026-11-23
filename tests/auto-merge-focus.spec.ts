@@ -352,3 +352,74 @@ for (const kind of ['merge', 'close'] as const) {
     for (const s of [f0, f1, f3]) expect(s.tag, trace).not.toBe('BODY');
   });
 }
+
+// #4735: an earlier finished action on the row must not make a later failed
+// Cancel read as a success. Focus goes back to the restored chip's button.
+test('a failed Cancel after an earlier finished one returns focus to the chip', async ({
+  page,
+}) => {
+  const current = makePR(ARMED);
+  const replies = [429];
+  await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+  for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
+    await page.route(glob, (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('forgejo')],
+          pullRequests: [current],
+          issues: [],
+          openIssueCount: 0,
+          navCounts: navCountsFor([current], 0),
+        }),
+      }),
+    );
+  await page.route(
+    '**/api/v1/pull-requests/auto-merge/cancel',
+    (route: Route) => {
+      replies.shift();
+      return route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'rate limit exceeded',
+          code: 'rate_limited',
+          message: "The forge's API rate limit is reached. Try again later.",
+        }),
+      });
+    },
+  );
+  await page.goto('/pull-requests.html');
+  const row = page.locator('#pr-rows .row').first();
+  await expect(row).toBeVisible();
+  const cancel = row.getByRole('button', { name: /^Cancel auto-merge$/ });
+
+  // An earlier close on the row finished and left a done entry behind.
+  let closed = false;
+  await page.route('**/api/v1/pull-requests/close', (route: Route) => {
+    closed = true;
+    return route.fulfill({ status: 204 });
+  });
+  const footer = actionsFooter(await openActionsDialog(row));
+  await footer
+    .getByRole('button', { name: 'Close pull request', exact: true })
+    .click();
+  const confirm = footer.getByRole('button', {
+    name: 'Confirm close pull request?',
+  });
+  await expect(confirm).toBeVisible();
+  await page.waitForTimeout(500);
+  await confirm.click();
+  await expect.poll(() => closed).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(cancel).toBeVisible();
+
+  // Second Cancel fails: focus belongs on the restored chip's button.
+  await cancel.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => replies.length).toBe(0);
+  await expect(cancel).toBeVisible();
+  await expect(cancel).toBeFocused();
+});
