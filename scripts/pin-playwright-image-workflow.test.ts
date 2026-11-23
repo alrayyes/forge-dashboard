@@ -137,6 +137,13 @@ const line = (image: string, tail = '') => `      image: ${image}${tail}\n`;
 const ciWith = (lines: string[]) =>
   `jobs:\n  t:\n    container:\n${lines.join('')}`;
 
+// A git hook exports GIT_DIR and friends, which would point the temp repo's
+// commands at the real repository. Drop them so the test only touches its own.
+const cleanEnv = (): Record<string, string | undefined> =>
+  Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith('GIT_')),
+  );
+
 type Repo = Record<string, string>;
 const defaults = (): Repo => ({
   'package.json': JSON.stringify({
@@ -152,7 +159,7 @@ function runRewrite(
 ) {
   const dir = mkdtempSync(path.join(tmpdir(), 'pin-wf-'));
   const git = (...args: string[]) =>
-    spawnSync('git', args, { cwd: dir, encoding: 'utf8' });
+    spawnSync('git', args, { cwd: dir, encoding: 'utf8', env: cleanEnv() });
   git('init', '-q');
   git('config', 'user.email', 'test@example.com');
   git('config', 'user.name', 'test');
@@ -180,7 +187,7 @@ function runRewrite(
     cwd: dir,
     encoding: 'utf8',
     env: {
-      ...process.env,
+      ...cleanEnv(),
       PATH: `${bin}:${process.env.PATH}`,
       GITHUB_OUTPUT: output,
     },
