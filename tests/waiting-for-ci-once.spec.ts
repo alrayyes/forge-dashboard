@@ -126,7 +126,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: 900 });
       });
 
-      test("an unarmed row says it in Merge's slot and an armed row in its chip, never both", async ({
+      test('an unarmed and an armed row both say it once, in the same chip', async ({
         page,
       }) => {
         await open(page, [PLAIN, ARMED_PR]);
@@ -135,14 +135,13 @@ for (const scheme of ['light', 'dark'] as const) {
         const merge = (r: Locator) =>
           r.getByRole('button', { name: 'Merge', exact: true });
 
-        await expect(plain.getByText('Merge after CI')).toHaveCount(1);
-        await expect(plain.locator('.wait-chip')).toHaveCount(0);
+        await expect(plain.getByText('Waiting for CI')).toHaveCount(1);
+        await expect(plain.locator('.wait-chip')).toHaveCount(1);
         await expect(plain.locator('.status-area')).toHaveCount(0);
         await expect(merge(plain)).toHaveCount(0);
 
         await expect(waitingWords(armed)).toHaveCount(1);
         await expect(armed.locator('.wait-chip')).toBeVisible();
-        await expect(armed.getByText('Merge after CI')).toHaveCount(0);
         await expect(armed.locator('.status-area')).toHaveCount(0);
         await expect(merge(armed)).toHaveCount(0);
       });
@@ -156,7 +155,7 @@ for (const scheme of ['light', 'dark'] as const) {
         );
       });
 
-      test('a pill that says Passed leaves no waiting words on the row', async ({
+      test('a pill that says Passed leaves no CI wait on the row, only the forge refresh chip', async ({
         page,
       }) => {
         await open(page, [PLAIN, ARMED_PR], 'success');
@@ -165,12 +164,13 @@ for (const scheme of ['light', 'dark'] as const) {
           await expect(r.locator('.ci-pill')).toContainText('Passed');
           await expect(waitingWords(r)).toHaveCount(0);
           await expect(r.locator('.status-area')).toHaveCount(0);
-          await expect(r.locator('.wait-chip')).toHaveCount(0);
-          await expect(r.getByText('Merge after CI')).toHaveCount(0);
+          await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
+            'Waiting for the forge',
+          );
         }
       });
 
-      test('a locked Merge beside a Passed pill says where to look, not only that it is updating', async ({
+      test('the chip beside a Passed pill says where to look, not only that it is updating', async ({
         page,
       }) => {
         // The snapshot still waits on a check that the job list never shows
@@ -178,42 +178,39 @@ for (const scheme of ['light', 'dark'] as const) {
         await open(page, [PLAIN], 'success');
         const r = row(page, 'Plain');
         await expect(r.locator('.ci-pill')).toContainText('Passed');
-        const merge = r.getByRole('button', { name: 'Merge', exact: true });
+        const chip = r.locator('.wait-chip');
 
-        await expect(merge).toHaveAttribute('aria-disabled', 'true');
-        await expect(merge).toHaveAccessibleDescription(
+        await expect(chip).toHaveAccessibleDescription(
           /updating from the latest ci results/i,
         );
-        await expect(merge).toHaveAccessibleDescription(
+        await expect(chip).toHaveAccessibleDescription(
           /open the pull request on the forge/i,
         );
       });
 
-      test('an armed row whose status is not a CI wait still drops the chip beside a Passed pill', async ({
+      test('an armed row whose status is not a CI wait shows the refresh chip beside a Passed pill', async ({
         page,
       }) => {
         await open(page, [ARMED_DRAFT], 'success');
         const r = row(page, 'Armed draft');
         await expect(r.locator('.ci-pill')).toContainText('Passed');
         await expect(waitingWords(r)).toHaveCount(0);
-        await expect(r.locator('.wait-chip')).toHaveCount(0);
-        const merge = r.getByRole('button', { name: 'Merge', exact: true });
-        await expect(merge).toHaveAttribute('aria-disabled', 'true');
-        await expect(merge).toHaveAccessibleDescription(/draft pull request/i);
+        await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
+          'Waiting for the forge',
+        );
       });
 
-      test('a stale armed row keeps Disarm on the row, and Merge keeps its reason', async ({
+      test('a stale armed row keeps Cancel auto-merge in the chip, which says why', async ({
         page,
       }) => {
         await open(page, [ARMED_PR], 'success');
         const r = row(page, 'Armed');
-        await expect(r.locator('.wait-chip')).toHaveCount(0);
+        const chip = r.locator('.wait-chip');
+        await expect(chip).toHaveCount(1);
         await expect(
-          r.getByRole('button', { name: /disarm|cancel auto-merge/i }),
+          chip.getByRole('button', { name: 'Cancel auto-merge' }),
         ).toBeVisible();
-        const merge = r.getByRole('button', { name: 'Merge', exact: true });
-        await expect(merge).toHaveAttribute('aria-disabled', 'true');
-        await expect(merge).toHaveAccessibleDescription(
+        await expect(chip).toHaveAccessibleDescription(
           /updating from the latest ci results/i,
         );
       });
@@ -230,7 +227,7 @@ for (const scheme of ['light', 'dark'] as const) {
           ).toHaveCount(0);
         }
         await expect(
-          row(page, 'Plain').getByText('Merge after CI'),
+          row(page, 'Plain').getByText('Waiting for CI'),
         ).toHaveCount(1);
         await expect(waitingWords(row(page, 'Armed'))).toHaveCount(1);
       });
@@ -242,7 +239,7 @@ for (const scheme of ['light', 'dark'] as const) {
         const r = row(page, 'Checking');
         // The live jobs have to arrive first, or the not-stale check is empty.
         await expect(r.locator('.ci-pill')).toContainText('Passed');
-        await expect(r.getByText('Merge after conflict check')).toBeVisible();
+        await expect(r.getByText('Checking for conflicts')).toBeVisible();
         await expect(
           r.getByRole('button', { name: 'Merge', exact: true }),
         ).toHaveCount(0);
@@ -302,7 +299,7 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
     ['stacked', 'Waiting for parent'],
     ['behind', 'Waiting for update'],
   ] as const) {
-    test(`a ${code} wait keeps its chip beside a Passed pill, with no stale Disarm in its place`, async ({
+    test(`a ${code} wait keeps its chip beside a Passed pill, with no stale Cancel auto-merge in its place`, async ({
       page,
     }) => {
       await open(page, [armedWith('Armed', code)], 'success');
@@ -311,7 +308,7 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
 
       const chip = r.locator('.wait-chip');
       await expect(chip.locator('.wait-chip-label')).toHaveText(label);
-      // The chip carries the one Disarm; a stale rule would add one beside it.
+      // The chip carries the one Cancel auto-merge; a stale rule would add one beside it.
       const disarm = r.getByRole('button', {
         name: /disarm|cancel auto-merge/i,
       });
@@ -341,14 +338,13 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true, viewport: { width: 390, height: 900 } });
 
-  test('tapping the locked Merge on a stale row shows the reason without a hover', async ({
+  test('focusing the chip on a stale row shows the reason without a hover', async ({
     page,
   }) => {
     await open(page, [PLAIN], 'success');
     const r = row(page, 'Plain');
     await expect(r.locator('.ci-pill')).toContainText('Passed');
-    const merge = r.getByRole('button', { name: 'Merge', exact: true });
-    await merge.tap({ force: true });
+    await r.locator('.wait-chip').focus();
     await expect(
       r.getByText('Updating from the latest CI results'),
     ).toBeVisible();

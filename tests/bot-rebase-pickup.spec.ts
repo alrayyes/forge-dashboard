@@ -441,7 +441,8 @@ for (const b of bots) {
         // normal actions. The skew moves Date.now past that, so the next tick
         // removes it, instead of the test waiting the real four seconds (#1378).
         await skew(page, 5_000);
-        await expect(chip(page)).toHaveCount(0);
+        await expect(chip(page)).toHaveCount(1);
+        await expect(label(page)).toHaveText('Waiting for CI');
       });
     }
 

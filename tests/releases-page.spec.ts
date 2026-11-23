@@ -110,7 +110,7 @@ test.describe('Releases page (#1107)', () => {
     await expect(
       waiting.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
-    await expect(waiting).toContainText('Merge after CI');
+    await expect(waiting).toContainText('Waiting for CI');
   });
 
   test('a release that is behind offers Update branch and says why nothing else will update it, and the page has no axe violations at desktop and phone width', async ({

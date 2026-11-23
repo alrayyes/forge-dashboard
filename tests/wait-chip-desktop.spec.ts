@@ -184,7 +184,7 @@ test.describe('the other chip states', () => {
   ];
 
   for (const [name, pr, extra, label] of states) {
-    test(`${name} keeps its icon and words, and its button is 30px tall`, async ({
+    test(`${name} keeps its icon and words, in a 30px chip with a 28px button`, async ({
       page,
     }) => {
       await open(page, 1280, pr(), extra);
@@ -192,10 +192,12 @@ test.describe('the other chip states', () => {
       await expect(chip.locator('.wait-chip-label')).toContainText(label);
       await expect(chip.locator('svg').first()).toBeVisible();
       const b = await box(chip);
-      expect(b.height).toBeLessThanOrEqual(CHIP_HEIGHT);
+      expect(b.height).toBe(30);
       const button = chip.getByRole('button');
       if ((await button.count()) > 0) {
-        expect((await box(button)).height).toBeGreaterThanOrEqual(30);
+        // The button sits inside the chip's 1px border, so 28px keeps the
+        // chip at 30px.
+        expect((await box(button)).height).toBe(28);
       }
     });
   }

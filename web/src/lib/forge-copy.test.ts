@@ -47,7 +47,7 @@ describe('forge copy comes from the label', () => {
       note: 'Scheduled on Codeberg',
       cancelled: 'Merge scheduled on Codeberg cancelled.',
       cancelling: 'Cancelling the merge scheduled on Codeberg…',
-      disarmLabel: 'Disarm the merge scheduled on Codeberg',
+      cancelLabel: 'Cancel auto-merge scheduled on Codeberg',
       cancelTitle: 'Cancels the merge scheduled on Codeberg.',
     });
   });

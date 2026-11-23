@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // A Forgejo pull request whose mergeable flag is false on a moved base may
 // only be rechecking after a base push, so its row says so in words and not
-// "Conflicting". Merge's slot already prints "Merge after conflict check", so
+// "Conflicting". The waiting chip already says "Checking for conflicts", so
 // the "Checking for conflicts" pill stays out: one place says it (#4531).
 
 function makePR(number: number, overrides: Record<string, unknown> = {}) {
@@ -68,10 +68,13 @@ for (const theme of ['light', 'dark'] as const) {
       }) => {
         const checking = row(page, 'check running');
         await expect(
-          checking.getByText('Merge after conflict check'),
+          checking.getByText('Checking for conflicts'),
         ).toBeVisible();
         await expect(checking.locator('.merge-pill')).toHaveCount(0);
-        await expect(checking).not.toContainText('Checking for conflicts');
+        // The chip says it once, so the pill must not say it again.
+        await expect(checking.getByText('Checking for conflicts')).toHaveCount(
+          1,
+        );
         await expect(checking).not.toContainText('Conflicting');
         await expect(row(page, 'Base moved, conflict')).toContainText(
           'Conflicting',

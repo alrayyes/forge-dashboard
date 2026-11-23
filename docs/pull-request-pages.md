@@ -4,7 +4,13 @@
 
 Clicking a pull request row, anywhere on it, opens a pop-up. The row's title is
 the button that does it, stretched over the row; the CI pill, the labels, and
-the row's own buttons stay clickable on top of it. On a phone the row's buttons
+the row's own buttons stay clickable on top of it. Pointing at a part of the CI
+pill, or focusing the pill with the keyboard, shows what that part counts, such
+as "7 checks passed". The arrow keys move between the parts, Escape closes the
+text, and scrolling closes it too. On a touch screen a tap on a count shows its
+text, and a tap on the word or the pill's body opens the pipeline. The Main
+branches page and the issue and bot rows show the same text. On a phone the
+row's buttons
 (Merge, and Update branch when the pull request is behind) are the last tier of
 the card: after a divider, in a row that wraps, each as wide as its label and 44
 pixels tall. A locked Merge stays there greyed, except on a confirmed conflict,
