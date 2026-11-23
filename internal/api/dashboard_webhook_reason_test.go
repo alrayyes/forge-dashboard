@@ -72,7 +72,11 @@ func firstRepo(body map[string]any) map[string]any {
 func githubSource(health dashboard.ForgeHealth, ensureErr error, repos ...dashboard.Repo) *hookSource {
 	health.Forge = dashboard.ForgeGitHub
 
-	return &hookSource{fakeConfiguredSource: fakeConfiguredSource{health: health, repos: repos}, ensureErr: ensureErr}
+	src := &hookSource{ensureErr: ensureErr}
+	src.health = health
+	src.repos = repos
+
+	return src
 }
 
 func always(map[string]any) bool { return true }
