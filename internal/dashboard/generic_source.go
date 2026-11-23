@@ -270,6 +270,21 @@ func (s *GenericSource) UpgradeWebhook(ctx context.Context, owner, name, targetU
 	return updated, nil
 }
 
+// RewriteWebhookSecret implements WebhookSecretRewriter at the Source level by
+// delegating to the underlying client.
+func (s *GenericSource) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	rewriter, ok := s.client.(WebhookSecretRewriter)
+	if !ok {
+		return false, fmt.Errorf("dashboard: %s's client can't rewrite webhook secrets: %w", s.forge, errUnsupportedByClient)
+	}
+	rewritten, err := rewriter.RewriteWebhookSecret(ctx, owner, name, targetURL, secret)
+	if err != nil {
+		return false, fmt.Errorf("dashboard: rewrite webhook secret: %w", err)
+	}
+
+	return rewritten, nil
+}
+
 // MergePullRequest implements PullRequestMerger at the Source level by
 // delegating to the underlying client, the same "Source unwraps to its
 // ForgeClient" shape EnsureWebhook already uses.
