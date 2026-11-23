@@ -16,7 +16,7 @@ func TestPullRequestSelections_AllAskForTheConversationCommentCount(t *testing.T
 
 	// A pull request's own comments sit right before reviewThreads; the
 	// thread comments inside it are a different count.
-	prComments := regexp.MustCompile(`(?s)comments\s*\{\s*totalCount\s*\}\s*reviewThreads`)
+	prComments := regexp.MustCompile(`(?s)comments\s*\{\s*totalCount\s*\}\s*newestConversation[^{]*\{[^}]*\{[^}]*\}\s*\}\s*reviewThreads`)
 	for name, selection := range github.PullRequestSelections() {
 		assert.Regexp(t, prComments, selection, name)
 	}

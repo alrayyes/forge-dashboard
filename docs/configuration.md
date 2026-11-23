@@ -82,6 +82,16 @@ comments from the reviews call that already feeds `review`, so a draft
 reports 0. Forgejo gives no resolved state without a request per review, so its
 `unresolvedThreads` is `null`: unknown, not zero.
 
+`lastCommentAt` says when the newest comment, conversation or review, was
+written: its creation time, so an edit doesn't move it. GitHub reads it from the
+same query, the newest conversation comment and the newest comment of each of
+the first 30 review threads, so it costs no request. Forgejo's pull request
+payload has only a count, so a timestamp would cost a request per pull request:
+the field is left out there, and so in GitHub's unauthenticated fallback.
+GitHub returns the oldest 30 review threads, so on a pull request with more than
+30 a newer comment in a later thread is missed and the time can read older than
+the truth.
+
 Each row shows that as a pill beside the other status pills: the number of
 comments, review and conversation together, and `7 · 2 open` in amber, with a
 dot, when threads are still unresolved. A pull request with no comments shows
@@ -91,6 +101,11 @@ files-and-review view on the forge, or to the pull request itself when it has
 only conversation comments, opened in a new tab. Its accessible name is the full
 sentence, such as "7 review comments, 2 unresolved threads", or "3 comments"
 once a conversation comment is in the count.
+Hovering the pill, or focusing it by keyboard, shows a tip with the same
+sentence and, where the server sent `lastCommentAt`, when the newest comment
+was written: "3 comments, 1 open thread. Last comment 2 hours ago." The tip
+holds no comment text. Escape hides it and focus stays on the pill. Where the
+time is unknown, the tip leaves that sentence out.
 
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
