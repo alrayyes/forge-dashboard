@@ -1,5 +1,6 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The helper the specs use to reach a row's actions in its dialog. Mocks
@@ -40,14 +41,7 @@ async function mock(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
-            capabilities: { label: 'GitHub' },
-          },
-        ],
+        forges: [forgeHealth('github')],
         pullRequests: [makePR(42), makePR(43)],
         issues: [],
       }),
