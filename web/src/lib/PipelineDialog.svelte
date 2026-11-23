@@ -702,15 +702,15 @@
           {CHECK_STATE_LABELS[state] || state}
         </span>
         {#if word}
-          <code class="pipeline-check-word" data-testid="check-forge-word"
-            >{word}</code
-          >
+          <code class="pipeline-check-word" data-testid="check-forge-word">
+            {word}
+          </code>
         {/if}
         <span class="pipeline-check-name">{check.name}</span>
         {#if secs !== undefined}
-          <span class="pipeline-check-duration"
-            >{formatCheckDuration(secs)}</span
-          >
+          <span class="pipeline-check-duration">
+            {formatCheckDuration(secs)}
+          </span>
         {/if}
         {#if isBlocking(check)}
           <span class="pipeline-check-flag">Blocking</span>
@@ -744,8 +744,9 @@
               rel="noopener"
               title={linkText}
               aria-label={checkLinkLabel(linkText, check.name)}
-              ><ExternalLinkIcon /></a
             >
+              <ExternalLinkIcon />
+            </a>
           </div>
         {/if}
         {#if hint}
@@ -795,13 +796,17 @@
           type="button"
           class="row-action confirm"
           data-cancel-confirm={run.runId}
-          onclick={() => confirmCancel(run)}>Yes, cancel run</button
+          onclick={() => confirmCancel(run)}
         >
+          Yes, cancel run
+        </button>
         <button
           type="button"
           class="row-action"
-          onclick={() => keepRunning(run)}>Keep running</button
+          onclick={() => keepRunning(run)}
         >
+          Keep running
+        </button>
       </div>
     {:else if state?.phase === "cancelling"}
       <p class="pipeline-rerun-status" role="status">
@@ -815,8 +820,10 @@
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>{cancelText(run)}</button
+        onclick={() => startCancel(run)}
       >
+        {cancelText(run)}
+      </button>
     {:else if state?.phase === "cancelled"}
       <p class="pipeline-rerun-status" role="status">
         {runLabel(run)} was cancelled.
@@ -834,8 +841,10 @@
         type="button"
         class="row-action"
         data-cancel-run={run.runId}
-        onclick={() => startCancel(run)}>{cancelText(run)}</button
+        onclick={() => startCancel(run)}
       >
+        {cancelText(run)}
+      </button>
     {/if}
   </div>
 {/snippet}
@@ -871,8 +880,10 @@
         stroke-linecap="round"
         stroke-linejoin="round"
         aria-hidden="true"
-        focusable="false"><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
+        focusable="false"
       >
+        <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+      </svg>
     </button>
   </div>
   <p class="pipeline-paused-note" aria-live="polite" hidden={!staleNote}>
@@ -888,8 +899,10 @@
         <button
           type="button"
           class="row-action"
-          onclick={() => target && retry(target)}>Retry</button
+          onclick={() => target && retry(target)}
         >
+          Retry
+        </button>
       </div>
     {:else if checks.length === 0}
       <p class="pipeline-status">{target?.emptyText ?? ""}</p>
@@ -934,8 +947,9 @@
         target="_blank"
         rel="noopener noreferrer"
         aria-label="{runLinkText} (opens in a new tab)"
-        >{runLinkText}<ExternalLinkIcon /></a
       >
+        {runLinkText}<ExternalLinkIcon />
+      </a>
     </div>
   {/if}
 </dialog>

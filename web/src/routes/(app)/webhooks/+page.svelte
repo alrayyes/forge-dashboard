@@ -1284,15 +1284,18 @@
           <option value="forge:asc">Sort: Forge, A to Z</option>
           <option value="forge:desc">Sort: Forge, Z to A</option>
           <option value="hasWebhook:asc">Sort: Webhook, not yet first</option>
-          <option value="hasWebhook:desc">Sort: Webhook, confirmed first</option
-          >
+          <option value="hasWebhook:desc">
+            Sort: Webhook, confirmed first
+          </option>
         </select>
         <button
           type="button"
           class="clear-filters"
           disabled={filtersAreDefault}
-          onclick={clearFilters}>Clear filters</button
+          onclick={clearFilters}
         >
+          Clear filters
+        </button>
       </div>
 
       {#if sortedRepos.length === 0}
@@ -1327,14 +1330,15 @@
                   tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="forge"
                   onclick={() => setSort("forge")}
-                  >Forge<span class="sort-arrow"
-                    >{sortKey === "forge"
+                >
+                  Forge<span class="sort-arrow">
+                    {sortKey === "forge"
                       ? sortDir === "desc"
                         ? "▼"
                         : "▲"
-                      : ""}</span
-                  ></button
-                >
+                      : ""}
+                  </span>
+                </button>
               </th>
               <th
                 scope="col"
@@ -1351,14 +1355,15 @@
                   tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="fullName"
                   onclick={() => setSort("fullName")}
-                  >Repo<span class="sort-arrow"
-                    >{sortKey === "fullName"
+                >
+                  Repo<span class="sort-arrow">
+                    {sortKey === "fullName"
                       ? sortDir === "desc"
                         ? "▼"
                         : "▲"
-                      : ""}</span
-                  ></button
-                >
+                      : ""}
+                  </span>
+                </button>
               </th>
               <th
                 scope="col"
@@ -1375,26 +1380,28 @@
                   tabindex={cardLayout ? -1 : undefined}
                   data-sort-key="hasWebhook"
                   onclick={() => setSort("hasWebhook")}
-                  >Webhook<span class="sort-arrow"
-                    >{sortKey === "hasWebhook"
+                >
+                  Webhook<span class="sort-arrow">
+                    {sortKey === "hasWebhook"
                       ? sortDir === "desc"
                         ? "▼"
                         : "▲"
-                      : ""}</span
-                  ></button
-                >
+                      : ""}
+                  </span>
+                </button>
               </th>
               <th scope="col" role="columnheader">Auto-update</th>
-              <th scope="col" role="columnheader"
-                >Rebase bots
+              <th scope="col" role="columnheader">
+                Rebase bots
                 <span
                   class="info-hint"
                   role="img"
                   aria-label="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
                   title="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
-                  >ⓘ</span
-                ></th
-              >
+                >
+                  ⓘ
+                </span>
+              </th>
               <th scope="col" role="columnheader">Ignore</th>
             </tr>
           </thead>
@@ -1411,8 +1418,8 @@
                     </span>
                   </span>
                 </td>
-                <td role="cell" data-label="Repo"
-                  ><RepoLogo
+                <td role="cell" data-label="Repo">
+                  <RepoLogo
                     forge={repo.forge}
                     url={repo.logoUrl}
                     name={repo.fullName}
@@ -1421,23 +1428,26 @@
                       href={repo.url}
                       title={repo.fullName}
                       target="_blank"
-                      rel="noopener noreferrer">{repo.fullName}</a
-                    >{:else}{repo.fullName}{/if}{#if repo.failingSince}
-                    <span class="failing-live" role="status"
-                      ><span
+                      rel="noopener noreferrer"
+                    >
+                      {repo.fullName}
+                    </a>{:else}{repo.fullName}{/if}{#if repo.failingSince}
+                    <span class="failing-live" role="status">
+                      <span
                         class="failing-badge"
                         class:failing-for-good={repo.failingForGood}
-                        >{repo.failingForGood ? "Still failing" : "Failing"} since
-                        {formatTime(repo.failingSince)}</span
-                      ><span class="failing-note"
-                        >{#if repo.failingForGood}Retrying hasn't helped. Its
+                      >
+                        {repo.failingForGood ? "Still failing" : "Failing"} since
+                        {formatTime(repo.failingSince)}
+                      </span><span class="failing-note">
+                        {#if repo.failingForGood}Retrying hasn't helped. Its
                           pull requests and issues are the last ones it could
                           read.{:else}The dashboard can't fetch this repo, so
                           its pull requests and issues are the last ones it
-                          could read.{/if}</span
-                      ></span
-                    >{/if}</td
-                >
+                          could read.{/if}
+                      </span>
+                    </span>{/if}
+                </td>
                 <td
                   role="cell"
                   data-label="Webhook"
@@ -1445,13 +1455,15 @@
                     ? "action status-confirmed"
                     : "action status-pending"}
                 >
-                  <span class="status-word"
-                    >{#if !repo.hasWebhook}<span
+                  <span class="status-word">
+                    {#if !repo.hasWebhook}<span
                         class="status-icon"
-                        aria-hidden="true">&#9888;&#xFE0E;</span
+                        aria-hidden="true"
                       >
-                    {/if}{repo.hasWebhook ? "Confirmed" : "Not yet"}</span
-                  >
+                        &#9888;&#xFE0E;
+                      </span>
+                    {/if}{repo.hasWebhook ? "Confirmed" : "Not yet"}
+                  </span>
                   {#if !repo.hasWebhook}
                     {#if !repo.canManageWebhooks}
                       <span class="webhook-locked">
@@ -1459,29 +1471,32 @@
                           {#if repo.webhookNeedsToken}
                             Managing webhooks needs a saved token. <a
                               href="/settings.html"
-                              >Save a token with webhook scope in Settings</a
-                            >, or
-                            <a href="/settings.html#webhooks"
-                              >set it up manually</a
-                            >.
+                            >
+                              Save a token with webhook scope in Settings
+                            </a>, or
+                            <a href="/settings.html#webhooks">
+                              set it up manually
+                            </a>.
                           {:else if repo.webhookLockedByConnection && forgeCan(repo.forge, "reportsRepoPermissions")}
                             {permissionsNotReportedCopy(repo.forge)}
-                            <a href="/settings.html#webhooks"
-                              >Set it up manually</a
-                            >.
+                            <a href="/settings.html#webhooks">
+                              Set it up manually
+                            </a>.
                           {:else if repo.webhookLockedByConnection}
                             This connection can't manage webhooks on this repo.
                             {appConnectionCopy(repo.forge)
                               .missingWebhookPermission}<a
                               href="/settings.html#webhooks"
-                              >set it up manually</a
-                            >.
+                            >
+                              set it up manually
+                            </a>.
                           {:else}
                             Needs admin access on this repo. Check your token's
                             scope, ask an owner, or <a
                               href="/settings.html#webhooks"
-                              >set it up manually</a
-                            >.
+                            >
+                              set it up manually
+                            </a>.
                           {/if}
                         </span>
                       </span>
@@ -1491,23 +1506,26 @@
                           type="button"
                           aria-disabled="true"
                           aria-describedby={`webhook-locked-reason-${rowKey(repo)}`}
-                          >Add a webhook</button
                         >
+                          Add a webhook
+                        </button>
                         <span
                           class="webhook-locked-reason"
                           id={`webhook-locked-reason-${rowKey(repo)}`}
-                          >{lockReasonFor(repo)}</span
                         >
+                          {lockReasonFor(repo)}
+                        </span>
                       </span>
                     {:else}
                       <button
                         type="button"
                         disabled={rowState[rowKey(repo)]?.adding}
                         onclick={() => addWebhook(repo)}
-                        >{rowState[rowKey(repo)]?.adding
-                          ? "Adding…"
-                          : "Add a webhook"}</button
                       >
+                        {rowState[rowKey(repo)]?.adding
+                          ? "Adding…"
+                          : "Add a webhook"}
+                      </button>
                     {/if}
                   {/if}
                 </td>
@@ -1520,14 +1538,15 @@
                       : `${repo.autoUpdateBranch ? "Disable" : "Enable"} auto-update on ${repo.fullName}`}
                     onclick={() =>
                       setAutoUpdateBranch(repo, !repo.autoUpdateBranch)}
-                    >{autoUpdateBusy[rowKey(repo)]
+                  >
+                    {autoUpdateBusy[rowKey(repo)]
                       ? repo.autoUpdateBranch
                         ? "Disabling…"
                         : "Enabling…"
                       : repo.autoUpdateBranch
                         ? "Disable auto-update"
-                        : "Enable auto-update"}</button
-                  >
+                        : "Enable auto-update"}
+                  </button>
                 </td>
                 <td class="action" role="cell">
                   {#if rebaseBotsLock(repo) && !repo.rebaseBots}
@@ -1535,13 +1554,15 @@
                       type="button"
                       disabled
                       aria-describedby={`rebase-bots-lock-${rowKey(repo)}`}
-                      >Rebase bots</button
                     >
+                      Rebase bots
+                    </button>
                     <span
                       class="row-action-note"
                       id={`rebase-bots-lock-${rowKey(repo)}`}
-                      >{rebaseBotsLock(repo)}</span
                     >
+                      {rebaseBotsLock(repo)}
+                    </span>
                   {:else}
                     <button
                       type="button"
@@ -1551,14 +1572,15 @@
                         : `Rebase bots: ${repo.rebaseBots ? "on" : "off"} for ${repo.fullName}`}
                       disabled={rebaseBotsBusy[rowKey(repo)]}
                       onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
-                      >{rebaseBotsBusy[rowKey(repo)]
+                    >
+                      {rebaseBotsBusy[rowKey(repo)]
                         ? repo.rebaseBots
                           ? "Turning off…"
                           : "Turning on…"
                         : repo.rebaseBots
                           ? "Rebase bots: on"
-                          : "Rebase bots: off"}</button
-                    >
+                          : "Rebase bots: off"}
+                    </button>
                   {/if}
                 </td>
                 <td class="action" role="cell">
@@ -1595,31 +1617,37 @@
                   class="pagination-nav"
                   disabled={clampedPage <= 1}
                   bind:this={prevButton}
-                  onclick={() => goToPage(clampedPage - 1)}>Previous</button
+                  onclick={() => goToPage(clampedPage - 1)}
                 >
-                <span class="pagination-status"
-                  >Page {clampedPage} of {totalPages}</span
-                >
+                  Previous
+                </button>
+                <span class="pagination-status">
+                  Page {clampedPage} of {totalPages}
+                </span>
                 {#each pageNumbers as n (n)}
                   <button
                     type="button"
                     class="pagination-page"
                     class:active={n === clampedPage}
                     aria-current={n === clampedPage ? "page" : undefined}
-                    onclick={() => goToPage(n)}>{n}</button
+                    onclick={() => goToPage(n)}
                   >
+                    {n}
+                  </button>
                 {/each}
                 <button
                   type="button"
                   class="pagination-nav"
                   disabled={clampedPage >= totalPages}
                   bind:this={nextButton}
-                  onclick={() => goToPage(clampedPage + 1)}>Next</button
+                  onclick={() => goToPage(clampedPage + 1)}
                 >
+                  Next
+                </button>
               </div>
-              <span class="sr-only" role="status" aria-live="polite"
-                >{announcement}</span
-              >
+              <span class="sr-only" role="status" aria-live="polite">
+                {announcement}
+              </span>
             {/if}
             <label class="pagination-size">
               Per page
@@ -1663,8 +1691,10 @@
                     href={repo.url}
                     title={repo.fullName}
                     target="_blank"
-                    rel="noopener noreferrer">{repo.fullName}</a
+                    rel="noopener noreferrer"
                   >
+                    {repo.fullName}
+                  </a>
                 {:else}
                   {repo.fullName}
                 {/if}
@@ -1679,10 +1709,9 @@
                   type="button"
                   disabled={ignoreBusy[rowKey(repo)]}
                   onclick={() => unignoreRepo(repo)}
-                  >{ignoreBusy[rowKey(repo)]
-                    ? "Un-ignoring…"
-                    : "Un-ignore"}</button
                 >
+                  {ignoreBusy[rowKey(repo)] ? "Un-ignoring…" : "Un-ignore"}
+                </button>
               </li>
             {/each}
           </ul>

@@ -90,8 +90,10 @@
       <a
         href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md"
         target="_blank"
-        rel="noopener noreferrer">docs/webhooks.md</a
+        rel="noopener noreferrer"
       >
+        docs/webhooks.md
+      </a>
       for what they're for.
     </p>
 

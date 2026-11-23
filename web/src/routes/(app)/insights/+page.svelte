@@ -850,8 +850,10 @@
             type="button"
             class="held-pick-clear"
             aria-label={Filters.heldPickClearLabel(pick)}
-            onclick={() => releaseHeldPick(pick)}>Clear</button
+            onclick={() => releaseHeldPick(pick)}
           >
+            Clear
+          </button>
         </p>
       {/each}
     </div>
@@ -909,9 +911,9 @@
 
       <div class="sr-only">
         <table id="ci-status-table">
-          <caption class="sr-only"
-            >CI status counts across open pull requests</caption
-          >
+          <caption class="sr-only">
+            CI status counts across open pull requests
+          </caption>
           <thead>
             <tr>
               <th scope="col">Status</th>
@@ -1135,9 +1137,9 @@
         >
           <div class="rate-limit-head">
             <span class="rate-limit-forge">{kind}</span>
-            <span class="rate-limit-count"
-              >{rl.remaining.toLocaleString()} / {rl.limit.toLocaleString()} requests</span
-            >
+            <span class="rate-limit-count">
+              {rl.remaining.toLocaleString()} / {rl.limit.toLocaleString()} requests
+            </span>
           </div>
           <div class="rate-limit-bar">
             <div

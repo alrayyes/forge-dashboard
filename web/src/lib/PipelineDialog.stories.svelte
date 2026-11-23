@@ -158,8 +158,9 @@
     type="button"
     id="open-pipeline"
     onclick={(e) => dialog?.open({ ...target, opener: e.currentTarget })}
-    >Show checks</button
   >
+    Show checks
+  </button>
   <PipelineDialog bind:this={dialog} />
 {/snippet}
 
