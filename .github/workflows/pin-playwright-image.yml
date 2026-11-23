@@ -5,22 +5,37 @@
 # line of ci.yml and release.yml. Ported from movie-planner-web's workflow of
 # the same name (its PR #989, hardened in #993).
 #
+# Two jobs, so code from the pull request never shares a job with the token.
+# `repin` runs scripts/pin-playwright-image.ts from the pull request's own
+# checkout, with no secret and a read-only GITHUB_TOKEN, and hands its diff to
+# `push` as an artifact. `push` holds RELEASE_TOKEN and runs nothing from the
+# pull request: it checks the diff touches only ci-playwright `image:` lines in
+# .github/workflows/*.yml, applies it to a fresh checkout and pushes. What that
+# guarantees: a commit on Dependabot's branch can't use this workflow to move
+# the token or to write anything but an image pin. What it doesn't: this file
+# itself comes from the pull request, as for any pull_request workflow.
+#
 # pull_request, not pull_request_target: Dependabot's pull requests come from a
 # branch on this repo, never a fork. Dependabot-triggered runs read Dependabot
 # secrets, not Actions secrets, so RELEASE_TOKEN has to exist in both stores.
 #
 # RELEASE_TOKEN, not GITHUB_TOKEN: GitHub starts no workflow run for a push made
-# with GITHUB_TOKEN, so the repinned head would sit with no CI at all. The push
-# comes from RELEASE_TOKEN, handed to the push step alone: the checkout keeps no
-# credentials, so the script run from Dependabot's branch never sees the token.
+# with GITHUB_TOKEN, so the repinned head would sit with no CI at all.
 #
-# The checkout is the head SHA, not the branch name, so a push between the
+# Both checkouts are the head SHA, not the branch name, so a push between the
 # trigger and the checkout can't swap in a commit this run wasn't started for.
 # The push then fails as non-fast-forward if the branch has moved on.
 #
-# No loop: the run the push triggers has the token's owner as actor, so this
-# job skips it. A run that finds the pin already right commits nothing. A
-# Dependabot rebase drops the repin commit and starts this job again.
+# No loop: the run the push triggers has the token's owner as actor, so both
+# jobs skip it. The actor is in the concurrency group so that run can't cancel
+# this one before it comments. A run that finds the pin already right commits
+# nothing.
+#
+# After this workflow pushes, the branch carries a commit Dependabot didn't
+# make, and Dependabot stops rebasing it by itself. A pull request that falls
+# behind main then needs `@dependabot recreate`, which makes a fresh branch
+# and runs this workflow again. `@dependabot rebase` refuses a branch with
+# someone else's commits.
 name: pin-playwright-image
 
 on:
@@ -31,31 +46,23 @@ permissions:
   contents: read
 
 concurrency:
-  group: pin-playwright-image-${{ github.event.pull_request.number }}
+  group: pin-playwright-image-${{ github.event.pull_request.number }}-${{ github.actor }}
   cancel-in-progress: true
 
 env:
   LEFTHOOK: "0"
 
 jobs:
-  pin:
+  repin:
     if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
-    # Dependabot's pull_request runs get a read-only default token unless the
-    # workflow asks, as dependabot-auto-merge.yml does. Only the comment uses it.
     permissions:
       contents: read
-      pull-requests: write
+    outputs:
+      patched: ${{ steps.diff.outputs.patched }}
+      version: ${{ steps.diff.outputs.version }}
     steps:
-      - name: Check RELEASE_TOKEN reaches Dependabot runs
-        run: |
-          if [ -z "$RELEASE_TOKEN" ]; then
-            echo "::error::RELEASE_TOKEN is empty. Add it as a Dependabot secret: gh secret set RELEASE_TOKEN --app dependabot"
-            exit 1
-          fi
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -84,30 +91,101 @@ jobs:
       - name: Repin the image
         if: steps.version.outputs.changed == 'true'
         run: bun scripts/pin-playwright-image.ts
-      - name: Commit the new pin
-        id: commit
+      - name: Write the patch
+        id: diff
         if: steps.version.outputs.changed == 'true'
         run: |
-          if git diff --quiet; then
+          git diff > "$RUNNER_TEMP/pin.patch"
+          if [ -s "$RUNNER_TEMP/pin.patch" ]; then
+            echo "patched=true" >> "$GITHUB_OUTPUT"
+            version=$(grep -oE '"@playwright/test": "[0-9.]+"' package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          else
             echo "nothing to commit"
-            exit 0
+            echo "patched=false" >> "$GITHUB_OUTPUT"
           fi
-          version=$(grep -oE '"@playwright/test": "[0-9.]+"' package.json | grep -oE '[0-9]+\.[0-9]+\.[0-9]+')
+      - if: steps.diff.outputs.patched == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: pin-patch
+          path: ${{ runner.temp }}/pin.patch
+          if-no-files-found: error
+          retention-days: 1
+
+  push:
+    needs: repin
+    if: github.actor == 'dependabot[bot]' && needs.repin.outputs.patched == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Dependabot's pull_request runs get a read-only default token unless the
+    # workflow asks, as dependabot-auto-merge.yml does. Only the comment uses it.
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - name: Check RELEASE_TOKEN reaches Dependabot runs
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::RELEASE_TOKEN is empty. Add it as a Dependabot secret: gh secret set RELEASE_TOKEN --app dependabot"
+            exit 1
+          fi
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: pin-patch
+          path: ${{ runner.temp }}
+      # The patch was made by code from the pull request, so it is data until it
+      # passes this: workflow files only, and only changed lines that are a
+      # pinned ci-playwright image.
+      - name: Check the patch
+        run: |
+          patch="$RUNNER_TEMP/pin.patch"
+          image='image: ghcr\.io/alrayyes/ci-playwright:[0-9]+\.[0-9]+\.[0-9]+@sha256:[0-9a-f]{64}([ \t]+#.*)?'
+          file='\.github/workflows/[A-Za-z0-9_.-]+\.yml'
+          fail=0
+          if grep -Ev "^( |\+|-|@@|diff --git |index )" "$patch" | grep -q .; then
+            echo "::error::the patch has a header other than a plain edit"
+            fail=1
+          fi
+          if grep -E '^diff --git ' "$patch" | grep -Ev "^diff --git a/$file b/$file\$" | grep -q .; then
+            echo "::error::the patch touches a file other than a workflow"
+            fail=1
+          fi
+          if grep -E '^(---|\+\+\+) ' "$patch" | grep -Ev "^(--- a|\+\+\+ b)/$file\$" | grep -q .; then
+            echo "::error::the patch names a path other than a workflow"
+            fail=1
+          fi
+          if grep -E '^[+-]' "$patch" | grep -Ev '^(---|\+\+\+) ' | grep -Ev "^[+-][ \t]+$image\$" | grep -q .; then
+            echo "::error::the patch changes a line that isn't a ci-playwright image pin"
+            fail=1
+          fi
+          exit "$fail"
+      - name: Commit the new pin
+        id: commit
+        run: |
+          git apply "$RUNNER_TEMP/pin.patch"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git commit -am "build(deps): pin the ci-playwright image for ${version}"
+          git commit -am "build(deps): pin the ci-playwright image for ${VERSION}"
           auth=$(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
           git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
             push origin "HEAD:refs/heads/$HEAD_REF"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
         env:
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
           HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          VERSION: ${{ needs.repin.outputs.version }}
       - name: Comment on the pull request
-        if: steps.commit.outputs.version != ''
+        if: steps.commit.outputs.pushed == 'true'
         run: |
-          gh pr comment "$PR_URL" --body "Repinned the ci-playwright image to ${VERSION} in \`ci.yml\` and \`release.yml\` (tag and digest). Pushed by the pin-playwright-image workflow, so this head is the one CI runs on. If the image's Bun differs from \`packageManager\`, the Bun check still needs a person."
+          gh pr comment "$PR_URL" --body "Repinned the ci-playwright image to ${VERSION} in \`ci.yml\` and \`release.yml\` (tag and digest). Pushed by the pin-playwright-image workflow, so this head is the one CI runs on. If the image's bun differs from \`packageManager\`, the bun check still needs a person. If this branch falls behind main, comment \`@dependabot recreate\`: Dependabot won't rebase a branch with a commit it didn't make."
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
-          VERSION: ${{ steps.commit.outputs.version }}
+          VERSION: ${{ needs.repin.outputs.version }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
