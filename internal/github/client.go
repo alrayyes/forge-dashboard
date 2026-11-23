@@ -39,6 +39,10 @@ import (
 // errRepositoryNotFound is what a GraphQL answer with no repository gives.
 var errRepositoryNotFound = errors.New("repository missing from the answer")
 
+// errInvalidTargetURL stands in for url.Parse's error, which quotes the URL and
+// so the webhook token.
+var errInvalidTargetURL = errors.New("github: invalid webhook target URL")
+
 const defaultBaseURL = "https://api.github.com"
 
 // perPage is the page size used for the REST fallback's paginated list
@@ -799,7 +803,7 @@ func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetUR
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		// The parse error quotes the URL, which carries the webhook token.
-		return false, errors.New("github: invalid webhook target URL")
+		return false, errInvalidTargetURL
 	}
 	fullName := owner + "/" + name
 	if seen, known := c.probedHook(fullName, u.Path); known {
