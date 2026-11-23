@@ -6,12 +6,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -404,6 +406,38 @@ func TestGetIssueDetails_ACancelledContextIsAnError(t *testing.T) {
 	_, err := forgejo.NewClient(srv.URL, "test-token", "").GetIssueDetails(ctx, "alrayyes", "a", 5)
 
 	require.ErrorIs(t, err, context.Canceled)
+}
+
+// The same when the answer wins the race: the last read finished fine and the
+// caller gave up right after it, so there is no failed request to carry the
+// error. Cancelling from the recorder, which runs once the response has been
+// read, makes that order certain (#4689).
+func TestGetIssueDetails_ACancelAfterTheLastReadIsStillAnError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	srv := issueWithTimeline(t, func(w http.ResponseWriter, _ *http.Request) { writeJSON(t, w, []any{}) })
+	recorder := cancelOnRecord{endpointContains: "/timeline", cancel: cancel}
+
+	_, err := forgejo.NewClient(srv.URL, "test-token", "", recorder).GetIssueDetails(ctx, "alrayyes", "a", 5)
+
+	require.ErrorIs(t, err, context.Canceled)
+}
+
+// cancelOnRecord cancels a context when a request to an endpoint containing
+// endpointContains has been read and logged.
+type cancelOnRecord struct {
+	endpointContains string
+	cancel           context.CancelFunc
+}
+
+func (r cancelOnRecord) Record(_ context.Context, e requestlog.Entry) error {
+	if strings.Contains(e.Endpoint, r.endpointContains) {
+		r.cancel()
+	}
+
+	return nil
 }
 
 // The pages read before a failure all count, not just the last of them.
