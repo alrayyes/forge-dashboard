@@ -16,7 +16,7 @@ author-choices-per-forge.spec.ts,3.105,8,2,C,,2.3
 author-link-focus-ring.spec.ts,2.36,2,1,A,,1.2
 author-name-ellipsis.spec.ts,1.711,4,0,C,,1.7
 auto-merge-filter.spec.ts,5.903,9,4,C,,3.3
-auto-merge-focus.spec.ts,2.049,2,2,A,,0.0
+auto-merge-focus.spec.ts,2.049,3,3,A,,0.0
 awaiting-approval.spec.ts,3.029,5,3,A,,1.2
 behind-fix-button.spec.ts,2.993,6,2,C,,2.0
 board-title-width.spec.ts,0.848,4,4,A,,0.0
