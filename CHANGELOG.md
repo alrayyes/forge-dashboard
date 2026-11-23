@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.104.0](https://github.com/alrayyes/forge-dashboard/compare/v9.103.1...v9.104.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** create hooks on every repo the token can administer ([#4684](https://github.com/alrayyes/forge-dashboard/issues/4684)) ([1e5d2a8](https://github.com/alrayyes/forge-dashboard/commit/1e5d2a8e2dff14d8d1e4023f4d89d859d5697731))
+
 ## [9.103.1](https://github.com/alrayyes/forge-dashboard/compare/v9.103.0...v9.103.1) (2026-11-23)
 
 
