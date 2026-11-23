@@ -96,6 +96,38 @@ describe('pin-playwright-image.yml shape', () => {
     );
   });
 
+  test('only asks for the token once a Playwright bump needs it', () => {
+    const names = pin.steps.map((s) => s.name);
+    const check = step('Check RELEASE_TOKEN reaches Dependabot runs');
+    expect(names.indexOf(check.name)).toBeGreaterThan(
+      names.indexOf('Check whether @playwright/test changed'),
+    );
+    expect(check.if).toBe("steps.version.outputs.changed == 'true'");
+    // Nothing before it reads the secret, so another package.json bump never
+    // touches the token.
+    const before = pin.steps.slice(0, names.indexOf(check.name));
+    for (const s of before) {
+      expect(JSON.stringify(s)).not.toContain('secrets.');
+    }
+  });
+
+  test('the token check fails with the Dependabot secret hint when empty', () => {
+    const run = step('Check RELEASE_TOKEN reaches Dependabot runs').run ?? '';
+    const empty = spawnSync('bash', ['-e', '-c', run], {
+      encoding: 'utf8',
+      env: { ...cleanEnv(), RELEASE_TOKEN: '' },
+    });
+    expect(empty.status).not.toBe(0);
+    expect(empty.stdout).toContain(
+      'gh secret set RELEASE_TOKEN --app dependabot',
+    );
+    const set = spawnSync('bash', ['-e', '-c', run], {
+      encoding: 'utf8',
+      env: { ...cleanEnv(), RELEASE_TOKEN: 'x' },
+    });
+    expect(set.status).toBe(0);
+  });
+
   test('masks the derived credential before the push', () => {
     const run = step('Commit the new pin').run ?? '';
     expect(run.indexOf('::add-mask::$auth')).toBeGreaterThan(-1);

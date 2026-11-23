@@ -65,14 +65,6 @@ jobs:
       contents: read
       pull-requests: write
     steps:
-      - name: Check RELEASE_TOKEN reaches Dependabot runs
-        run: |
-          if [ -z "$RELEASE_TOKEN" ]; then
-            echo "::error::RELEASE_TOKEN is empty. Add it as a Dependabot secret: gh secret set RELEASE_TOKEN --app dependabot"
-            exit 1
-          fi
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ github.event.pull_request.head.sha }}
@@ -92,6 +84,17 @@ jobs:
           fi
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      # Only a real Playwright bump needs the token, so until the Dependabot
+      # secret exists every other package.json pull request stays green.
+      - name: Check RELEASE_TOKEN reaches Dependabot runs
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::RELEASE_TOKEN is empty. Add it as a Dependabot secret: gh secret set RELEASE_TOKEN --app dependabot"
+            exit 1
+          fi
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
       # Fails, and so fails the pull request, when ci-playwright hasn't built
       # this Playwright version yet. Re-run the job once it has. The test for
       # this step runs this exact script (scripts/pin-playwright-image-workflow.test.ts).
