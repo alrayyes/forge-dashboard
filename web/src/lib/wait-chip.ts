@@ -495,5 +495,28 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   tip.id = tipId;
   tip.setAttribute('role', 'tooltip');
   root.appendChild(tip);
+  armTipDismiss(root);
   return root;
+}
+
+// WCAG 1.4.13: Escape closes an open tooltip without moving the pointer or
+// focus. It stays closed until the pointer and focus have both left the chip.
+let tipEscapeBound = false;
+function armTipDismiss(root: HTMLElement): void {
+  const reopen = () => {
+    if (!root.matches(':hover, :focus-within'))
+      delete root.dataset.tipDismissed;
+  };
+  root.addEventListener('pointerleave', reopen);
+  root.addEventListener('focusout', () => queueMicrotask(reopen));
+  if (tipEscapeBound || typeof document === 'undefined') return;
+  tipEscapeBound = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    for (const chip of document.querySelectorAll<HTMLElement>(
+      '.wait-chip:hover, .wait-chip:focus-within',
+    )) {
+      chip.dataset.tipDismissed = '';
+    }
+  });
 }

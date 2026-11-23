@@ -1594,7 +1594,12 @@
     // (GitHub since #1293).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMerge?.state !== "stopped") return null;
-      const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
+      // A stopped row with a queued action keeps this line at every width:
+      // the queued chip takes the slot, so the sentence has no chip (#4601).
+      const line = el(
+        "span",
+        `auto-merge-status ${pr.autoMerge.state}${pr.queued ? " no-chip" : ""}`,
+      );
       line.appendChild(el("strong", "", "Stopped: "));
       line.appendChild(
         document.createTextNode(
@@ -3466,8 +3471,14 @@
         // A queued action (Update branch at the rate-limit reset) keeps its
         // chip and its Cancel over the unarmed wait: it is the one thing the
         // person asked for and can undo.
-        const rowWait =
-          autoMergeWaitChip(pr) ?? queuedWaitChip(pr) ?? unarmedWaitChip(pr);
+        // A stopped auto-merge yields to it: its sentence stays as the text
+        // line (#4601), so the Cancel is never hidden behind the stopped chip.
+        const stoppedYields = pr.autoMerge?.state === "stopped" && !!pr.queued;
+        const rowWait = stoppedYields
+          ? queuedWaitChip(pr)
+          : (autoMergeWaitChip(pr) ??
+            queuedWaitChip(pr) ??
+            unarmedWaitChip(pr));
         if (rowWait) waitSlot.appendChild(rowWait);
         statusCell.appendChild(waitSlot);
         notePlacements.set(statusCell, {

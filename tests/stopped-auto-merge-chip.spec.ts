@@ -58,7 +58,7 @@ const stopped = (message = CHECK_FAILED, code = 'checks_failing') =>
     ],
   });
 
-async function open(page: Page, width: number, pr: MockPR) {
+async function open(page: Page, width: number, pr: MockPR, extra: MockPR = {}) {
   await page.setViewportSize({ width, height: 900 });
   await page.unroute('**/api/v1/dashboard*').catch(() => {});
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -75,6 +75,7 @@ async function open(page: Page, width: number, pr: MockPR) {
         issues: [],
         repos: [],
         hiddenDrafts: 0,
+        ...extra,
       }),
     }),
   );
@@ -195,4 +196,80 @@ test('the phone card keeps its text line and draws no chip', async ({
   await expect(row(page).locator('.wait-chip')).toBeHidden();
   const slot = await row(page).locator('.wait-slot').boundingBox();
   expect(slot === null || slot.height === 0).toBe(true);
+});
+
+const queuedItem = () => ({
+  id: 'q1',
+  action: 'update_branch',
+  forge: 'github',
+  fullName: 'alrayyes/forge-dashboard',
+  number: 42,
+  status: 'queued',
+  runAt: new Date(Date.now() + 8 * 60_000).toISOString(),
+  createdAt: new Date().toISOString(),
+});
+
+// The chip must not shadow another chip with a control: a queued Update
+// branch keeps its Cancel, and the stopped sentence stays on the row as text.
+for (const width of [390, 1280]) {
+  test(`a stopped row with a queued action keeps the queued chip and its Cancel at ${width}px`, async ({
+    page,
+  }) => {
+    await open(
+      page,
+      width,
+      { ...stopped(), behind: true, queued: queuedItem() },
+      { queuedActions: [queuedItem()] },
+    );
+    const chip = row(page).locator('.wait-chip');
+    await expect(chip).toHaveCount(1);
+    await expect(chip).toContainText('Queued');
+    await expect(chip.getByRole('button', { name: /Cancel/ })).toBeVisible();
+    await expect(row(page).locator('.auto-merge-status')).toBeVisible();
+  });
+}
+
+test.describe('the tooltip (WCAG 1.4.13)', () => {
+  test.use({ viewport: { width: 1280, height: 900 } });
+
+  test('is hoverable, persistent while hovered, and dismissed by Escape', async ({
+    page,
+  }) => {
+    await open(page, 1280, stopped(REFUSED, 'conflict'));
+    const chip = row(page).locator('.wait-chip');
+    const tip = chip.locator('.wait-chip-tip');
+    await chip.hover();
+    await expect(tip).toHaveCSS('opacity', '1');
+    // The pointer crosses the gap to the tooltip without it going away.
+    const t = await box(tip);
+    await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2, { steps: 8 });
+    await expect(tip).toHaveCSS('opacity', '1');
+    await page.keyboard.press('Escape');
+    await expect(tip).toHaveCSS('opacity', '0');
+    // Leaving and coming back opens it again.
+    await page.mouse.move(5, 5);
+    await chip.hover();
+    await expect(tip).toHaveCSS('opacity', '1');
+  });
+
+  test('keyboard focus opens it and Escape closes it', async ({ page }) => {
+    await open(page, 1280, stopped());
+    const chip = row(page).locator('.wait-chip');
+    const tip = chip.locator('.wait-chip-tip');
+    await chip.focus();
+    await expect(tip).toHaveCSS('opacity', '1');
+    await page.keyboard.press('Escape');
+    await expect(tip).toHaveCSS('opacity', '0');
+  });
+});
+
+test('from 861px a narrow list widens the status column for the chip', async ({
+  page,
+}) => {
+  await open(page, 1000, makePR({ autoMergeEnabled: true }));
+  const plain = (await box(row(page).locator('.status-cell'))).width;
+  await open(page, 1000, stopped());
+  const withChip = (await box(row(page).locator('.status-cell'))).width;
+  expect(plain).toBe(280);
+  expect(withChip).toBe(400);
 });

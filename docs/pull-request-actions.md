@@ -640,12 +640,16 @@ which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
 limited` and so on. One that has stopped (a failed check, a conflict, or a
 refused merge, including a token without merge permission) is the same kind of
 chip, `Auto-merge stopped`, with an alert icon and no button, on the status
-pill's line from 761px up. On a phone it stays the text line it was. The chip is
-as wide as its words, so a long refusal never cuts it: the server's whole
-sentence is the chip's tooltip, which opens on hover and on keyboard focus and
-is the chip's accessible description. On a list narrower than 1191px, from
-861px, the status column widens to make room for it, as it does for a chip with
-a button. When the server merges one it tells the page, which shows
+pill's line from 761px up. On a phone it stays the text line it was, and so
+does a stopped row that has a queued action (an Update branch waiting for a
+rate-limit reset): that row keeps its queued chip and its Cancel, with the
+sentence as text beside it. The chip is as wide as its words, so a long refusal
+never cuts it: the server's whole sentence is the chip's tooltip, which opens
+on hover and on keyboard focus and is the chip's accessible description. You
+can move the pointer onto the tooltip without it closing, and Escape closes it
+until the pointer and focus have left the chip. On a list narrower than
+1191px, from 861px, the status column widens to make room for it, as it does
+for a chip with a button. When the server merges one it tells the page, which shows
 "Auto-merged owner/repo#N after checks passed" for the next few minutes. If
 Forgejo refuses the merge, the server doesn't ask again until the pull request
 changes (a rate limit or an unreachable forge is retried after five minutes),

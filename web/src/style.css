@@ -2862,7 +2862,7 @@ a.ci-pill:hover {
    is content-sized and sits on the status pill's line. The phone card keeps
    the text line, and draws neither the chip nor its slot. */
 @media (min-width: 761px) {
-  .auto-merge-status {
+  .auto-merge-status:not(.no-chip) {
     display: none;
   }
 }
@@ -3664,9 +3664,26 @@ a.ci-pill:hover {
   opacity: 0;
   pointer-events: none;
 }
+/* Hoverable (WCAG 1.4.13): the tip takes the pointer only while it is open,
+   and a transparent bridge fills the 6px gap so moving from the chip onto it
+   never closes it. It is a descendant, so the chip stays :hover over it. */
+.wait-chip-tip::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  height: 6px;
+}
 .wait-chip:hover .wait-chip-tip,
 .wait-chip:focus-within .wait-chip-tip {
   opacity: 1;
+  pointer-events: auto;
+}
+/* Dismissed with Escape until the pointer or focus leaves the chip. */
+.wait-chip[data-tip-dismissed] .wait-chip-tip {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* #4596: on a desktop the chip is a compact status, not a banner. It is as
