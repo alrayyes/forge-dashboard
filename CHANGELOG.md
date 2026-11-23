@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.110.1](https://github.com/alrayyes/forge-dashboard/compare/v9.110.0...v9.110.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** drop the Auto-merge chip from an armed row so it keeps its height ([#4736](https://github.com/alrayyes/forge-dashboard/issues/4736)) ([634811d](https://github.com/alrayyes/forge-dashboard/commit/634811dbf78fe23d1ec81ddac2062f97b630fbc0)), closes [#4686](https://github.com/alrayyes/forge-dashboard/issues/4686)
+
 ## [9.110.0](https://github.com/alrayyes/forge-dashboard/compare/v9.109.0...v9.110.0) (2026-11-23)
 
 
