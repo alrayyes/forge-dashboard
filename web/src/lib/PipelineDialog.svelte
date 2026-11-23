@@ -567,6 +567,10 @@
   // an excerpt, or a job whose full log the board's checks url can name. Only
   // those two states carry an excerpt from the server, and a cancelled run is
   // not a failure to debug (Show output still opens its output).
+  function excerptOf(check: Check): string {
+    return check.excerpt ?? excerpts[excerptKey(check)] ?? "";
+  }
+
   function copyableLog(check: Check): boolean {
     return canCopyLog(check, target?.repo);
   }
@@ -680,6 +684,19 @@
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
       {@const word = checkUnknownWord(check)}
+      {@const withOutput =
+        control === "output" && !!target && check.jobId != null}
+      {@const withView = withOutput || !!excerptOf(check)}
+      <!-- The hint and the failed step come before the log they describe, in
+           the page's order as well as the eye's. -->
+      {#snippet contextRows()}
+        {#if hint}
+          <p class="pipeline-check-hint">{hint}</p>
+        {/if}
+        {#if check.failedStep}
+          <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
+        {/if}
+      {/snippet}
       <li class="pipeline-check">
         <span
           class="pipeline-check-status {state}"
@@ -715,19 +732,20 @@
         {#if isBlocking(check)}
           <span class="pipeline-check-flag">Blocking</span>
         {/if}
-        {#if control === "output" && target && check.jobId}
+        {#if withOutput}
+          <!-- The excerpt and the full output are one log view (#4652). -->
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
-            repo={target.repo}
+            repo={target?.repo}
             run={check}
             runUrl={check.url}
             forgeName={forge}
             onloaded={(loaded) =>
               (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
             earlier={excerptFlows[keyOf.get(check) ?? ""]}
-            excerptVisible={!!(check.excerpt ?? excerpts[excerptKey(check)]) &&
-              !outputLoaded[keyOf.get(check) ?? ""]}
+            excerpt={excerptOf(check)}
+            context={contextRows}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -749,17 +767,26 @@
             </a>
           </div>
         {/if}
-        {#if hint}
-          <p class="pipeline-check-hint">{hint}</p>
+        {#if excerptOf(check) && !withOutput}
+          <!-- No output control, so the view shows the excerpt alone. -->
+          <CheckRunOutput
+            name={check.name}
+            repo={target?.repo}
+            runUrl={check.url}
+            forgeName={forge}
+            earlier={excerptFlows[keyOf.get(check) ?? ""]}
+            excerpt={excerptOf(check)}
+            context={contextRows}
+          />
         {/if}
-        {#if check.failedStep}
-          <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
+        {#if !withView}
+          {@render contextRows()}
         {/if}
         <CopyCheckLog
           name={check.name}
           jobId={check.jobId}
           repo={target?.repo}
-          excerpt={check.excerpt ?? excerpts[excerptKey(check)] ?? ""}
+          excerpt={excerptOf(check)}
           forgeName={forge}
           {copyable}
           runKey={checkRunKey(check)}

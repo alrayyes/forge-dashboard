@@ -7,7 +7,7 @@
   // Expand opens the same log in a wide modal dialog (#4281). The panel stays
   // drawn behind it, so it keeps its width and scroll position, and the
   // switches are the one setting for both.
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, type Snippet } from "svelte";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import type { Check } from "#lib/pipeline-checks.js";
   import { CopyFlow, selectCopy } from "#lib/copy-flow.svelte.js";
@@ -29,17 +29,20 @@
 
   let {
     name,
-    jobId,
+    jobId = undefined,
     repo,
     run,
     runUrl,
     forgeName,
     onloaded,
     earlier,
-    excerptVisible = false,
+    excerpt = "",
+    context,
   }: {
     name: string;
-    jobId: number;
+    // None for a check with no job to read: the view then shows only its
+    // excerpt, with no toggle or buttons.
+    jobId?: number;
     repo: RepoRef | undefined;
     // The job's attempt and finish time, which let the server keep a finished
     // log and read a rerun afresh.
@@ -52,18 +55,25 @@
     // The excerpt's copy flow. Its button leaves when this panel loads, so a
     // copy pressed meanwhile reports here instead of into nothing (#3343).
     earlier?: CopyFlow;
-    // Whether the row is showing a failure excerpt. Closed, the toggle then
-    // says it opens the full output (#4236).
-    excerptVisible?: boolean;
+    // A failed check's log excerpt. It is drawn by this same view until the
+    // full output is loaded, which then takes its place (#4652). Closed, the
+    // toggle says it opens the full output (#4236).
+    excerpt?: string;
+    // The row's hint and failed step. They are drawn between the buttons and
+    // the log, so the page reads in the order the eye does.
+    context?: Snippet;
   } = $props();
 
-  const url = $derived(logUrl(repo, jobId, run));
+  const url = $derived(jobId !== undefined ? logUrl(repo, jobId, run) : null);
   let shown = $state(false);
+  let phase = $state<"loading" | "ready" | "error">("loading");
+  // The view holds the full log once it is open and loaded, else the excerpt.
+  const full = $derived(shown && phase === "ready");
+  const excerptVisible = $derived(!!excerpt && !full);
   const toggleLabel = $derived(outputToggleLabel(shown, excerptVisible));
   const toggleName = $derived(outputToggleName(shown, excerptVisible));
-  let phase = $state<"loading" | "ready" | "error">("loading");
   let text = $state("");
-  const lines = $derived(parseLogLines(text));
+  const lines = $derived(parseLogLines(full ? text : excerpt));
   let truncated = $state(false);
   let message = $state("");
   // Whether the failure gets a link to the job beside its sentence.
@@ -102,6 +112,7 @@
     onloaded?.(false);
   });
   let panel = $state<HTMLDivElement>();
+  let toggleButton = $state<HTMLButtonElement>();
   let ask = 0;
   // The wide dialog is always in the markup, closed; its contents are drawn
   // only while it is open, so a long log is not kept in the page twice.
@@ -254,6 +265,12 @@
         ?.closest("li")
         ?.querySelector(".pipeline-check-copy");
       const hadFocus = !!copyArea?.contains(document.activeElement);
+      // The excerpt's own controls go when the full log lands: focus moves to
+      // the toggle, which stays, so it isn't dropped to the page.
+      const inExcerpt = !!panel
+        ?.closest("li")
+        ?.querySelector(".run-excerpt")
+        ?.contains(document.activeElement);
       text = got.text;
       truncated = got.truncated;
       phase = "ready";
@@ -262,6 +279,7 @@
       // The end of a log is where it failed.
       await tick();
       if (hadFocus) flow.button?.focus();
+      else if (inExcerpt) toggleButton?.focus();
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
@@ -273,11 +291,15 @@
 
   function copy() {
     return flow.copy(() =>
-      Promise.resolve({
-        text,
-        kind: truncated ? ("cut" as const) : ("whole" as const),
-        why: "",
-      }),
+      Promise.resolve(
+        excerptVisible
+          ? { text: excerpt, kind: "excerpt" as const, why: "" }
+          : {
+              text,
+              kind: truncated ? ("cut" as const) : ("whole" as const),
+              why: "",
+            },
+      ),
     );
   }
 </script>
@@ -305,9 +327,11 @@
         else output = el as HTMLDivElement;
       }}
       role="region"
-      aria-label="Output: {name}"
+      aria-label={excerptVisible
+        ? `Output excerpt: ${name}`
+        : `Output: ${name}`}
     >
-      {#if text}
+      {#if lines.length}
         {#each lines as line, i (i)}
           <div
             class="run-line run-line-{line.kind}"
@@ -365,6 +389,21 @@
     </p>
   </div>
 {/snippet}
+{#snippet logBar()}
+  <div class="run-log-bar">
+    {@render switches()}
+    <button
+      bind:this={expandButton}
+      type="button"
+      class="run-expand"
+      aria-label="Expand log: {name}"
+      aria-haspopup="dialog"
+      onclick={expand}
+    >
+      Expand
+    </button>
+  </div>
+{/snippet}
 {#snippet jobLink(label: string)}
   <a
     href={runUrl}
@@ -375,51 +414,23 @@
     {label}<ExternalLinkIcon />
   </a>
 {/snippet}
-<div class="run-actions">
-  <button
-    type="button"
-    class="run-toggle"
-    aria-expanded={shown}
-    aria-controls={panelId}
-    disabled={!url}
-    onclick={toggle}
-    aria-label="{toggleName}: {name}"
-  >
-    {toggleLabel}<svg
-      class="run-chevron"
-      viewBox="0 0 16 16"
-      width="12"
-      height="12"
-      aria-hidden="true"
-      focusable="false"
-      fill="none"
-      stroke="currentColor"
-      stroke-width="1.5"
-      stroke-linecap="round"
-      stroke-linejoin="round"
-    >
-      <path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} />
-    </svg>
-  </button>
-  <!-- The slot is always there, so the toggle and the job link don't move when
-       the output loads (#3866). Until the text is ready it is out of sight and
-       out of the tab order. -->
-  {#if url}
+{#if jobId !== undefined}
+  <div class="run-actions">
     <button
-      bind:this={panelCopy}
+      bind:this={toggleButton}
       type="button"
-      class="run-icon-btn"
-      class:run-icon-btn-idle={!(shown && phase === "ready")}
-      aria-disabled={flow.busy ? "true" : undefined}
-      aria-busy={flow.busy ? "true" : undefined}
-      onclick={copy}
-      title="Copy output"
-      aria-label="Copy output: {name}"
+      class="run-toggle"
+      aria-expanded={shown}
+      aria-controls={panelId}
+      disabled={!url}
+      onclick={toggle}
+      aria-label="{toggleName}: {name}"
     >
-      <svg
+      {toggleLabel}<svg
+        class="run-chevron"
         viewBox="0 0 16 16"
-        width="16"
-        height="16"
+        width="12"
+        height="12"
         aria-hidden="true"
         focusable="false"
         fill="none"
@@ -428,23 +439,55 @@
         stroke-linecap="round"
         stroke-linejoin="round"
       >
-        <rect x="5" y="5" width="9" height="9" rx="1.5" /><path
-          d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
-        />
+        <path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} />
       </svg>
     </button>
-  {/if}
-  <a
-    class="run-icon-btn"
-    href={runUrl}
-    target="_blank"
-    rel="noopener"
-    title="Open job on {forgeName}"
-    aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
-  >
-    <ExternalLinkIcon />
-  </a>
-</div>
+    <!-- The slot is always there, so the toggle and the job link don't move when
+       the output loads (#3866). Until the text is ready it is out of sight and
+       out of the tab order. -->
+    {#if url}
+      <button
+        bind:this={panelCopy}
+        type="button"
+        class="run-icon-btn"
+        class:run-icon-btn-idle={!(shown && phase === "ready")}
+        aria-disabled={flow.busy ? "true" : undefined}
+        aria-busy={flow.busy ? "true" : undefined}
+        onclick={copy}
+        title="Copy output"
+        aria-label="Copy output: {name}"
+      >
+        <svg
+          viewBox="0 0 16 16"
+          width="16"
+          height="16"
+          aria-hidden="true"
+          focusable="false"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <rect x="5" y="5" width="9" height="9" rx="1.5" /><path
+            d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
+          />
+        </svg>
+      </button>
+    {/if}
+    <a
+      class="run-icon-btn"
+      href={runUrl}
+      target="_blank"
+      rel="noopener"
+      title="Open job on {forgeName}"
+      aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
+    >
+      <ExternalLinkIcon />
+    </a>
+  </div>
+{/if}
+{@render context?.()}
 <div id={panelId} class="run-output" hidden={!shown} bind:this={panel}>
   {#if shown}
     <!-- While the wide dialog is open its own line is the one that speaks. -->
@@ -463,19 +506,7 @@
           {@render jobLink("Open job on " + forgeName + " for the rest")}
         </p>
       {/if}
-      <div class="run-log-bar">
-        {@render switches()}
-        <button
-          bind:this={expandButton}
-          type="button"
-          class="run-expand"
-          aria-label="Expand log: {name}"
-          aria-haspopup="dialog"
-          onclick={expand}
-        >
-          Expand
-        </button>
-      </div>
+      {@render logBar()}
       {@render logView(false)}
     {/if}
     {#if flow.manual && !wideOpen}
@@ -489,6 +520,13 @@
     {/if}
   {/if}
 </div>
+{#if excerptVisible}
+  <!-- Until the full output is open and loaded, the excerpt is the log. -->
+  <div class="run-excerpt">
+    {@render logBar()}
+    {@render logView(false)}
+  </div>
+{/if}
 <!-- The wide log (#4281). One scroll area, the log; Close and the run link sit
      under it, out of the scroll. -->
 <dialog

@@ -4735,19 +4735,10 @@ footer a.mono:focus-visible {
   resize: vertical;
 }
 
-.pipeline-check-excerpt {
+/* The excerpt is drawn by the run log view (#4652). */
+.run-excerpt {
   flex: 1 1 100%;
-  margin: 0;
-  padding: 8px 10px;
-  max-height: 220px;
-  overflow: auto;
-  font-size: 0.75rem;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  border-radius: var(--radius);
-  background: var(--surface);
-  border: 1px solid var(--border);
+  min-width: 0;
 }
 /* Text badge, so a blocking failure doesn't rely on colour alone. */
 .pipeline-check-flag {
