@@ -21,16 +21,7 @@ interface MockPR {
   [key: string]: unknown;
 }
 
-interface MockForge {
-  forge: string;
-  reachable: boolean;
-  repoCount: number;
-  rateLimitREST?: {
-    limit: number;
-    remaining: number;
-    resetsAt: string;
-  };
-}
+type MockForge = ReturnType<typeof forgeHealth>;
 
 function makePR(overrides?: Partial<MockPR>): MockPR {
   return {
@@ -675,7 +666,7 @@ test.describe('pull request merge button', () => {
     }) => {
       await mockDashboardCustom(
         page,
-        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [forgeHealth('github', { reachable: false, repoCount: 0 })],
         [makePR()],
       );
       await page.goto('/pull-requests.html');
@@ -697,7 +688,7 @@ test.describe('pull request merge button', () => {
     }) => {
       await mockDashboardCustom(
         page,
-        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [forgeHealth('github', { reachable: false, repoCount: 0 })],
         [makePR({ behind: true })],
       );
       await page.goto('/pull-requests.html');
@@ -719,12 +710,9 @@ test.describe('pull request merge button', () => {
       await mockDashboardCustom(
         page,
         [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
+          forgeHealth('github', {
             rateLimitREST: rateLimit(5000, 0, resetsAt),
-          },
+          }),
         ],
         [makePR()],
       );

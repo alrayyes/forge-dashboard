@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Pull requests header updates every listed pull request the server says
@@ -42,7 +43,7 @@ async function open(
   const snapshot = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [{ forge: 'github', reachable: true, repoCount: 1, ...forge }],
+      forges: [forgeHealth('github', forge)],
       pullRequests,
       issues: [],
       repos: [],
