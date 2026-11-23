@@ -261,16 +261,12 @@ for (const scheme of ['light', 'dark'] as const) {
         ]);
         const normal = await heightOf(page, 'Ready');
         expect(await heightOf(page, 'Pending')).toBeLessThanOrEqual(normal + 1);
-        // An armed row also prints the "Auto-merge" attribute chip under its
-        // title, which is older than the chip and not what this ticket moves,
-        // so the armed row is held to its status cell: the chip adds no line.
-        const cell = (title: string) =>
-          row(page, title)
-            .locator('.status-cell')
-            .evaluate((c) => c.getBoundingClientRect().height);
-        expect(await cell('Armed')).toBeLessThanOrEqual(
-          (await cell('Ready')) + 1,
-        );
+        // The armed row says it once, in the wait chip: no attribute chip
+        // under the title, so the whole row keeps a normal row's height.
+        expect(await heightOf(page, 'Armed')).toBeLessThanOrEqual(normal + 1);
+        await expect(
+          row(page, 'Armed').locator('.attr-chip.auto-merge'),
+        ).toHaveCount(0);
       });
 
       test('Forgejo checking for conflicts is the same chip', async ({

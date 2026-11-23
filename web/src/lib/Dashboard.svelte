@@ -1575,8 +1575,11 @@
       onRow = false,
     ): HTMLElement {
       const cluster = el("div", "attr-cluster");
+      // A row whose wait chip already says "armed" leaves the chip out, so
+      // the state is announced once and the row keeps a normal row's height
+      // (#4686). The dialog has no wait chip and keeps it.
       const chips = [
-        autoMergePill(pr),
+        onRow && pr.autoMerge ? null : autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
         showBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
         behindPill(pr, onRow),
