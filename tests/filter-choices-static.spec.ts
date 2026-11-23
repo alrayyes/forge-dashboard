@@ -112,10 +112,10 @@ test.describe('age choices on the pull request page (#1427)', () => {
 });
 
 test.describe('forge buttons on Insights (#1427)', () => {
-  const forgeLabel = (page: Page, value: string) =>
-    page.locator(
-      `.filter-bar label:has(input[data-col="forge"][value="${value}"])`,
-    );
+  const forgeGroup = (page: Page) =>
+    page.getByRole('group', { name: 'Forge', exact: true });
+  const forgePill = (page: Page, value: string) =>
+    page.locator(`.filter-bar [data-forge-pill="${value}"]`);
 
   test('the buttons are the forges the API reports, named by its labels (#3976)', async ({
     page,
@@ -148,25 +148,59 @@ test.describe('forge buttons on Insights (#1427)', () => {
         },
       ],
     );
-    await expect(forgeLabel(page, 'gitea')).toBeVisible();
-    await expect(page.locator('.filter-bar .forge-segmented label')).toHaveText(
-      ['All', 'GitHub', 'Codeberg', 'Gitea'],
+    await expect(forgePill(page, 'gitea')).toBeVisible();
+    await expect(forgeGroup(page).getByRole('button')).toHaveText([
+      'All',
+      'GitHub',
+      'Codeberg',
+      'Gitea',
+    ]);
+    await forgePill(page, 'gitea').click();
+    await expect(forgePill(page, 'gitea')).toHaveAttribute(
+      'aria-pressed',
+      'true',
     );
-    await page.locator('input[data-col="forge"][value="gitea"]').check({
-      force: true,
+  });
+
+  test('the Forge group is labelled, one pill is pressed, and a pill is a 44px target on a phone (#4615)', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 800 });
+    await open(
+      page,
+      '/insights.html',
+      [pr(1), pr(2, { forge: 'forgejo', repo: 'ryan/infra' })],
+      [forgeHealth('github'), forgeHealth('forgejo')],
+    );
+    const group = forgeGroup(page);
+    await expect(group.locator('.filter-group-label')).toBeVisible();
+    await expect(group.locator('[aria-pressed="true"]')).toHaveCount(1);
+    await expect(forgePill(page, '')).toHaveAttribute('aria-pressed', 'true');
+    const pill = forgePill(page, 'forgejo');
+    await expect(pill).toBeVisible();
+    const owns = await pill.evaluate((p) => {
+      const r = p.getBoundingClientRect();
+      const x = r.left + r.width / 2;
+      const hit = (y: number) => {
+        const e = document.elementFromPoint(x, y);
+        return e === p || p.contains(e);
+      };
+      return [hit(r.top - 5), hit(r.bottom + 5)];
     });
-    await expect(
-      page.locator('input[data-col="forge"][value="gitea"]'),
-    ).toBeChecked();
+    expect(owns).toEqual([true, true]);
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('a forge with nothing to chart is not offered', async ({ page }) => {
     // One forge is all there is, so the whole Forge filter is left out (#4273).
     await open(page, '/insights.html', [pr(1)]);
     await expect(page.locator('input[data-col="title"]')).toBeVisible();
-    await expect(page.locator('.filter-bar .forge-segmented')).toBeHidden();
-    await expect(forgeLabel(page, 'github')).toBeHidden();
-    await expect(forgeLabel(page, 'forgejo')).toBeHidden();
+    await expect(forgeGroup(page)).toBeHidden();
+    await expect(forgePill(page, 'github')).toBeHidden();
+    await expect(forgePill(page, 'forgejo')).toBeHidden();
   });
 
   test('picking a repo that leaves one forge hides the forge buttons', async ({
@@ -176,14 +210,14 @@ test.describe('forge buttons on Insights (#1427)', () => {
       pr(1),
       pr(2, { forge: 'forgejo', repo: 'ryan/infra' }),
     ]);
-    await expect(forgeLabel(page, 'forgejo')).toBeVisible();
+    await expect(forgePill(page, 'forgejo')).toBeVisible();
 
     await pickOnly(page, 'repo', 'github:alrayyes/app');
 
     // One forge is left, so the Forge filter goes whole (#4273).
-    await expect(page.locator('.filter-bar .forge-segmented')).toBeHidden();
-    await expect(forgeLabel(page, 'github')).toBeHidden();
-    await expect(forgeLabel(page, 'forgejo')).toBeHidden();
+    await expect(forgeGroup(page)).toBeHidden();
+    await expect(forgePill(page, 'github')).toBeHidden();
+    await expect(forgePill(page, 'forgejo')).toBeHidden();
   });
 
   test('a forge you picked stays offered after a reload that finds nothing on it', async ({
@@ -199,10 +233,11 @@ test.describe('forge buttons on Insights (#1427)', () => {
         r.url().includes('/api/v1/settings/filter-state') &&
         r.request().method() !== 'GET',
     );
-    await forgeLabel(page, 'forgejo').click();
-    await expect(
-      page.locator('.filter-bar input[value="forgejo"]'),
-    ).toBeChecked();
+    await forgePill(page, 'forgejo').click();
+    await expect(forgePill(page, 'forgejo')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
     await saved;
     await page.unroute('**/api/v1/dashboard*');
     await page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -222,11 +257,12 @@ test.describe('forge buttons on Insights (#1427)', () => {
     );
     await page.reload();
 
-    await expect(forgeLabel(page, 'github')).toBeVisible();
-    await expect(forgeLabel(page, 'forgejo')).toBeVisible();
-    await expect(
-      page.locator('.filter-bar input[value="forgejo"]'),
-    ).toBeChecked();
+    await expect(forgePill(page, 'github')).toBeVisible();
+    await expect(forgePill(page, 'forgejo')).toBeVisible();
+    await expect(forgePill(page, 'forgejo')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
   test('both are offered when both forges have pull requests', async ({
@@ -236,7 +272,7 @@ test.describe('forge buttons on Insights (#1427)', () => {
       pr(1),
       pr(2, { forge: 'forgejo', repo: 'ryan/infra' }),
     ]);
-    await expect(forgeLabel(page, 'github')).toBeVisible();
-    await expect(forgeLabel(page, 'forgejo')).toBeVisible();
+    await expect(forgePill(page, 'github')).toBeVisible();
+    await expect(forgePill(page, 'forgejo')).toBeVisible();
   });
 });
