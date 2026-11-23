@@ -9039,11 +9039,31 @@
           : "";
       }
 
+      // A saved Repository sort over rows from one repo is not on offer, so
+      // the list falls back to the server's order, the one the select shows.
+      // The saved choice waits for more repos (#4680).
+      function orderFor<
+        T extends { forge: string; repo: string; number: number },
+      >(rows: T[]): T[] {
+        if (sharedState.view.sort !== "repo") return rows;
+        if (Filters.groupChoices(rows).repo) return rows;
+        const served = new Map(
+          (isPR ? rawPRs : rawIssues).map((item, i) => [
+            Filters.itemKey(item),
+            i,
+          ]),
+        );
+        const at = (item: T) => served.get(Filters.itemKey(item)) ?? 0;
+        return [...rows].sort((x, y) => at(x) - at(y));
+      }
+
       function render() {
         const container = document.getElementById(containerId);
         if (!container) return;
-        const visible = state.items.filter((item) =>
-          Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
+        const visible = orderFor(
+          state.items.filter((item) =>
+            Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
+          ),
         );
 
         // A person on a row whose Merge was a line of text and now is a

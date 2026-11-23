@@ -1,11 +1,17 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type Route } from '@playwright/test';
+import {
+  type BrowserContext,
+  expect,
+  type Page,
+  type Route,
+} from '@playwright/test';
 import {
   allowedActionsFor,
   kindFor,
   statusFor,
 } from './allowed-actions-stand-in';
 import { forgeHealth } from './forge-health-helper';
+import { togglePicks } from './label-filter-helper';
 import { test } from './server-fixture';
 
 // Live updates land by themselves. A snapshot (poll or SSE push) that adds,
@@ -111,7 +117,7 @@ async function stubStream(page: Page) {
   });
 }
 
-async function openInitial(page: Page, initial: MockPR[]) {
+async function openInitial(page: Page, initial: MockPR[], count = 2) {
   await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -120,7 +126,7 @@ async function openInitial(page: Page, initial: MockPR[]) {
     }),
   );
   await page.goto('/pull-requests.html');
-  await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+  await expect(page.locator('#pr-rows .row')).toHaveCount(count);
 }
 
 test.describe('stable rows', () => {
@@ -646,5 +652,61 @@ test.describe('stable rows: choices the server saves', () => {
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
     expect(results.violations).toEqual([]);
+  });
+});
+
+// A saved Repository sort that does not apply over the rows in view is kept
+// but not used: the list keeps the server's order and the select reads the
+// default (#4680).
+test.describe('a saved Repository sort over one repo', () => {
+  const rows = [makePR(3), makePR(1), makePR(2, { repo: 'alrayyes/other' })];
+  const saveSort = (context: BrowserContext, baseURL: string | undefined) =>
+    context.addCookies([
+      {
+        name: 'forge-board-filters',
+        value: encodeURIComponent(
+          JSON.stringify({ rev: 2_000_000_000, view: { sort: 'repo' } }),
+        ),
+        url: baseURL ?? '',
+      },
+    ]);
+
+  test.beforeEach(async ({ page }) => {
+    await stubStream(page);
+  });
+
+  test('keeps the server order and a default select, and applies again over two repos', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await saveSort(context, baseURL);
+    await openInitial(page, rows, 3);
+    await expect
+      .poll(() => titles(page))
+      .toEqual(['#1 Pull request 1', '#3 Pull request 3', '#2 Pull request 2']);
+    await togglePicks(page, 'repo', 'github:alrayyes/forge-dashboard');
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await expect
+      .poll(() => titles(page))
+      .toEqual(['#3 Pull request 3', '#1 Pull request 1']);
+    await expect(page.getByLabel('Sort pull requests by')).toHaveValue('');
+  });
+
+  test('a push that leaves one row takes the controls away, and a push that adds one back returns them', async ({
+    page,
+    context,
+    baseURL,
+  }) => {
+    await saveSort(context, baseURL);
+    await openInitial(page, [rows[1], rows[2]]);
+    await expect(page.getByLabel('Sort pull requests by')).toBeVisible();
+    await push(page, [rows[1]]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(page.getByLabel('Sort pull requests by')).toBeHidden();
+    await expect(page.locator('#shared-group-select')).toBeHidden();
+    await push(page, [rows[1], rows[2]]);
+    await expect(page.locator('#pr-rows .row')).toHaveCount(2);
+    await expect(page.getByLabel('Sort pull requests by')).toBeVisible();
   });
 });

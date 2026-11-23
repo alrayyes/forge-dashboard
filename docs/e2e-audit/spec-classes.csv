@@ -283,7 +283,7 @@ show-drafts-by-page.spec.ts,5.358,2,2,A,,0.0
 show-drafts.spec.ts,7.541,8,4,A,,3.8
 show-row-clears-filters.spec.ts,0.963,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.97,9,2,C,,1.5
-stable-rows.spec.ts,12.814,24,15,A,,4.8
+stable-rows.spec.ts,12.814,26,15,A,,5.4
 stacked-prs.spec.ts,2.762,7,2,C,,2.0
 stale-dashboard-instance.spec.ts,0.314,1,0,C,,0.3
 stale-data-notice.spec.ts,1.089,4,1,C,,0.8

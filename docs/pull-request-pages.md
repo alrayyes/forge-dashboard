@@ -160,13 +160,14 @@ offered only where it changes something over the rows in view: **Group by
 repository** needs rows from two repositories, **Group by forge** rows from two
 forges, and **Sort: Repository** two repositories. When no grouping qualifies,
 the **Group** select goes too. Your chosen sort and grouping are kept and apply
-again when the select comes back; a saved grouping that does not apply leaves
-the list flat. The repo, author and **Labels** filters hide over one row unless
-something is picked in that filter, since their choices can then only empty the
-list. A filter that holds a pick stays drawn so you can clear it. If a control
-held focus when it went, focus moves to the first control still drawn. The same
-holds for the Issues, Releases, and Bots pages, and in the Filters sheet on a
-phone.
+again when the select comes back. A saved Repository sort over one repository,
+or a saved grouping that does not apply, is not used: the list keeps the server
+order, or stays flat, and the select reads the default. The repo, author and
+**Labels** filters hide over one row unless something is picked in that filter,
+since their choices can then only empty the list. A filter that holds a pick
+stays drawn so you can clear it. If a control held focus when it went, focus
+moves to the first control still drawn. The same holds for the Issues, Releases,
+and Bots pages, and in the Filters sheet on a phone.
 
 The title box hides on its own when the other filters leave exactly one row,
 since it has nothing to narrow. It counts the rows before the box's own text
