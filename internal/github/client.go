@@ -798,7 +798,8 @@ func (c *Client) probedHook(fullName, wantPath string) (seenHook, bool) {
 func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
-		return false, fmt.Errorf("github: invalid webhook target URL: %w", err)
+		// The parse error quotes the URL, which carries the webhook token.
+		return false, errors.New("github: invalid webhook target URL")
 	}
 	fullName := owner + "/" + name
 	if seen, known := c.probedHook(fullName, u.Path); known {

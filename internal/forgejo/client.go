@@ -434,7 +434,8 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
-		return false, fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
+		// The parse error quotes the URL, which carries the webhook token.
+		return false, errors.New("forgejo: invalid webhook target URL")
 	}
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
 	if err != nil || existing == nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -132,6 +133,37 @@ func TestWebhookRotation_UnchangedSecret_MakesNoRewriteAndNoWrite(t *testing.T) 
 
 	assert.Empty(t, src.rewrites())
 	assert.Equal(t, baseline, marks, "the ledger is not written again")
+}
+
+// rotatingCreds is a ledger whose secret can be replaced between refreshes.
+type rotatingCreds struct {
+	*ledgerCreds
+
+	secret atomic.Value
+}
+
+func (r *rotatingCreds) EnsureWebhookCredentials(context.Context) (string, string, error) {
+	return "tok", r.secret.Load().(string), nil
+}
+
+func TestWebhookRotation_SecondRotationAfterTheFirstCompleted_RewritesEveryHookAgain(t *testing.T) {
+	t.Parallel()
+
+	src := newRewriteSource("me/a", "me/b")
+	creds := &rotatingCreds{ledgerCreds: &ledgerCreds{synced: "old"}}
+	creds.secret.Store("first")
+	agg := rewriteAggregator(t, creds, src)
+	refreshAndWait(t, agg)
+	require.Len(t, src.rewrites(), 2)
+	firstFP, _ := creds.current()
+
+	creds.secret.Store("second")
+	refreshAndWait(t, agg)
+
+	assert.Len(t, src.rewrites(), 4, "both hooks again, not skipped as already settled")
+	assert.Equal(t, []string{"first", "first", "second", "second"}, src.secrets)
+	secondFP, _ := creds.current()
+	assert.NotEqual(t, firstFP, secondFP)
 }
 
 func TestWebhookRotation_FirstSight_RecordsTheSecretWithoutRewriting(t *testing.T) {

@@ -116,6 +116,9 @@ func (w *WebhookUpgrades) rewriteSettled(repo, fp string) bool {
 }
 
 // secretFingerprint is what the ledger stores in place of the secret itself.
+// A plain sha256 is enough because the secret is 256 random bits from
+// crypto/rand, so there is nothing to guess or brute-force. If the secret ever
+// becomes user-supplied, switch to an HMAC keyed by the encryption key.
 func secretFingerprint(secret string) string {
 	sum := sha256.Sum256([]byte(secret))
 

@@ -7,6 +7,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/forgejo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -85,4 +86,30 @@ func TestRewriteWebhookSecret_NoHookOfOurs_CreatesNothing(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, rewritten)
 	assert.EqualValues(t, 0, patches.Load()+posts.Load())
+}
+
+func TestRewriteWebhookSecret_RateLimited_ReturnsARateLimitedClientError(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	t.Cleanup(srv.Close)
+
+	rewritten, err := forgejo.NewClient(srv.URL, "test-token", "").RewriteWebhookSecret(t.Context(), "alrayyes", "a", rewriteTarget, "new-secret")
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+	assert.False(t, rewritten)
+}
+
+func TestRewriteWebhookSecret_InvalidTargetURL_DoesNotEchoTheWebhookToken(t *testing.T) {
+	t.Parallel()
+
+	_, err := forgejo.NewClient("http://unused.invalid", "test-token", "").
+		RewriteWebhookSecret(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123\x7f", "s")
+
+	require.Error(t, err)
+	assert.NotContains(t, err.Error(), "tok123")
 }

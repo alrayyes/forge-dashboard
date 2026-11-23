@@ -270,13 +270,21 @@ with admin on the repo.
 - **A changed secret** is handled by remembering. The dashboard keeps a
   fingerprint (a hash, never the secret) of the secret it last wrote to every
   hook. When the secret in use differs, the pass rewrites the secret on each of
-  this dashboard's hooks, one listing and one edit per repo, and never creates
-  a second hook. Once every repo has an answer the new fingerprint is stored,
-  so a refresh after that makes no extra write. A forge that is rate limited or
-  unreachable is asked again on a later refresh, and the fingerprint waits for
-  it. A repo the forge refuses is logged and left to the "Add a webhook"
-  button. The first start after this was introduced records the secret in use
-  as the baseline and rewrites nothing.
+  this dashboard's hooks and never creates a second hook. On GitHub that is
+  one edit per repo, because the dashboard reuses the hook it saw on its last
+  check, and one listing first only when it has no recent sighting or the
+  remembered hook is gone. On Forgejo it is one listing and one edit per repo.
+  Once every repo has an answer the new fingerprint is stored, so a refresh
+  after that makes no extra write. A forge that is rate limited or unreachable
+  is asked again on a later refresh, and the fingerprint waits for it. A repo
+  the forge refuses, or answers with an authorization error, is logged and
+  left to the "Add a webhook" button. Which repos are done is kept in memory,
+  so a restart in the middle of a rotation edits them again, which is safe.
+- **A secret changed before this existed isn't detected.** The first start
+  after this was introduced records the secret in use as the baseline and
+  rewrites nothing, since there is nothing to compare against. A hook whose
+  secret was replaced earlier still holds the old one, and its repo needs
+  "Add a webhook" once.
 - **A repo the token can't administer**, a forge that is unreachable or out of
   REST budget, and a repo the forge refuses are skipped without failing the
   refresh. The dashboard asks a refused repo again after an hour, with no
