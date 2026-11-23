@@ -9,6 +9,8 @@
   import { firstRefreshLoading, readPhase } from "#lib/first-refresh.js";
   import * as Filters from "#lib/filters.js";
   import { forgeIds, forgeLabelOf } from "#lib/forges.js";
+  import FilterGroup from "#lib/FilterGroup.svelte";
+  import FilterPill from "#lib/FilterPill.svelte";
   import {
     releaseHeldPick as releaseHeldPickWiring,
     setHideDependencyDashboard,
@@ -213,6 +215,20 @@
     return forgeIds().map((id) => ({ id, label: forgeLabelOf(id) }));
   });
 
+  // What the Forge group draws, kept from the saved pick and the forges in
+  // scope (#4273, #4615).
+  let forgePick = $state("");
+  let forgeOffer = $state<{ hidden: boolean; forges: Set<string> }>({
+    hidden: true,
+    forges: new Set(),
+  });
+
+  function pickForge(value: string) {
+    setSharedControl(sharedState, "forge", value);
+    updateSharedFilterOptions();
+    Filters.saveState(sharedState, "forge");
+  }
+
   function releaseHeldPick(pick: Filters.HeldPick) {
     heldList = releaseHeldPickWiring(sharedState, pick);
     tick().then(() => heldPicksEl && Filters.focusHeldPicks(heldPicksEl));
@@ -262,30 +278,25 @@
       sharedState.shared.forge = "";
       syncSharedControlsToState();
     }
-    if (filterBarEl)
-      Filters.offerForges(
-        filterBarEl,
-        new Set(forgeScope.map((item) => item.forge)),
-        sharedState.shared.forge ?? "",
-      );
+    forgeOffer = Filters.offerForges(
+      new Set(forgeScope.map((item) => item.forge)),
+      sharedState.shared.forge ?? "",
+    );
+    // A forge pick no pill offers reads as All (#4171).
+    forgePick = Filters.effectiveForge(sharedState.shared.forge);
     if (!holdPicks && (stalePicks || staleForge))
       Filters.saveState(sharedState);
     heldList = Filters.heldPicks();
   }
 
   function syncSharedControlsToState() {
+    forgePick = Filters.effectiveForge(sharedState.shared.forge);
     if (!filterBarEl) return;
     filterBarEl
       .querySelectorAll<HTMLInputElement | HTMLSelectElement>(".col-filter")
       .forEach((c) => {
         const col = (c as HTMLElement).dataset.col ?? "";
         const value = sharedState.shared[col];
-        if (c instanceof HTMLInputElement && c.type === "radio") {
-          // A forge pick no button offers reads as All (#4171).
-          const shown = col === "forge" ? Filters.effectiveForge(value) : value;
-          c.checked = c.value === (shown || "");
-          return;
-        }
         if (!value) return;
         if (c instanceof HTMLSelectElement) {
           const option = Array.from(c.options).find(
@@ -316,10 +327,7 @@
       .forEach((c) => {
         const apply = () => {
           const col = (c as HTMLElement).dataset.col ?? "";
-          const value =
-            c instanceof HTMLInputElement && c.type === "radio"
-              ? c.value
-              : c.value.trim().toLowerCase();
+          const value = c.value.trim().toLowerCase();
           setSharedControl(sharedState, col, value);
           // Each pick narrows what the others can offer (#1427).
           if (
@@ -742,7 +750,7 @@
     }
 
     /* ---- filters — one row above the content it scopes, same as the
-       dataviz house rule. .filter-bar and .forge-segmented themselves
+       dataviz house rule. .filter-bar and the Forge FilterGroup's pills
        come from style.css, shared with the main dashboard's own filter
        bar. ---- */
     .issue-only-filter {
@@ -778,32 +786,24 @@
     >
       <!-- Hidden until the snapshot says more than one forge is in scope, so a
            single-forge view never draws it and then takes it away (#4273). -->
-      <fieldset class="forge-segmented" hidden>
-        <legend class="sr-only">Filter by forge</legend>
-        <label>
-          <input
-            type="radio"
-            name="forge"
-            class="col-filter"
-            data-col="forge"
-            value=""
-            checked
-          />
-          <span>All</span>
-        </label>
-        {#each forgeList as forge (forge.id)}
-          <label>
-            <input
-              type="radio"
-              name="forge"
-              class="col-filter"
-              data-col="forge"
-              value={forge.id}
-            />
-            <span>{forge.label}</span>
-          </label>
+      <FilterGroup label="Forge" id="insights-forge" hidden={forgeOffer.hidden}>
+        <FilterPill
+          data-forge-pill=""
+          pressed={forgePick === ""}
+          onclick={() => pickForge("")}
+        >
+          All
+        </FilterPill>
+        {#each forgeList.filter( (f) => forgeOffer.forges.has(f.id) ) as forge (forge.id)}
+          <FilterPill
+            data-forge-pill={forge.id}
+            pressed={forgePick === forge.id}
+            onclick={() => pickForge(forge.id)}
+          >
+            {forge.label}
+          </FilterPill>
         {/each}
-      </fieldset>
+      </FilterGroup>
       <div id="shared-repo-filter" bind:this={repoHost}></div>
       <span class="search-wrap">
         <input

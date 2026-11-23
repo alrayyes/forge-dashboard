@@ -139,7 +139,7 @@ test.describe('a saved forge pick nothing reports, elsewhere on the page (#4171)
 });
 
 test.describe('a saved forge pick nothing reports, on Insights (#4171)', () => {
-  test('checks the All radio', async ({ page, baseURL }) => {
+  test('presses the All pill', async ({ page, baseURL }) => {
     await page.context().addCookies([
       {
         name: 'forge-board-filters',
@@ -163,7 +163,9 @@ test.describe('a saved forge pick nothing reports, on Insights (#4171)', () => {
     await page.goto('/insights.html');
     await expect(page.locator('#repo-pr-ranking .rank-row')).not.toHaveCount(0);
     await expect(
-      page.locator('input[data-col="forge"][value=""]'),
-    ).toBeChecked();
+      page
+        .getByRole('group', { name: 'Forge', exact: true })
+        .getByRole('button', { name: 'All', exact: true }),
+    ).toHaveAttribute('aria-pressed', 'true');
   });
 });

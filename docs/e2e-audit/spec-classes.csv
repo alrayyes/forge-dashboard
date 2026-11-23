@@ -74,7 +74,7 @@ filter-choices-board.spec.ts,5.783,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.301,4,2,A,,0.7
 filter-choices-held.spec.ts,4.079,7,7,A,,0.0
 filter-choices-pills.spec.ts,2.78,7,2,C,,2.0
-filter-choices-static.spec.ts,1.926,8,1,C,,1.7
+filter-choices-static.spec.ts,1.926,9,2,C,,1.5
 filter-control-border.spec.ts,3.063,2,2,A,,0.0
 filter-cookie-trimmed.spec.ts,1.723,3,3,A,,0.0
 filter-dropped-pick-notice.spec.ts,0.653,2,1,A,,0.3
