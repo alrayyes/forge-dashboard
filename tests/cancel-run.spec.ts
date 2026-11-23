@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { pushChecks, serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The pipeline checks dialog offers "Cancel run" for each queued or running
@@ -128,7 +129,7 @@ declare global {
 
 const snapshot = (item: ReturnType<typeof pr>) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  forges: [forgeHealth('github')],
   pullRequests: [item],
   issues: [],
 });
@@ -166,7 +167,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [item],
         issues: [],
       }),
@@ -798,7 +799,7 @@ test.describe('cancel a running pipeline', () => {
             none: 0,
             total: 1,
           },
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           branches: [
             {
               forge: 'github',
