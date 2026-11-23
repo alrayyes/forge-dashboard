@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -52,11 +53,9 @@ async function serve(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: Object.entries(repoCounts).map(([forge, repoCount]) => ({
-          forge,
-          reachable: true,
-          repoCount,
-        })),
+        forges: Object.entries(repoCounts).map(([forge, repoCount]) =>
+          forgeHealth(forge as Forge, { repoCount }),
+        ),
         pullRequests,
         issues,
         openIssueCount: issues.length,
@@ -120,13 +119,11 @@ test.describe('the banners sit above the filter bar (#1325)', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
+            forgeHealth('github', {
               reachable: false,
-              repoCount: 1,
               errorKind: 'unreachable',
               staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
-            },
+            }),
           ],
           pullRequests: [makePR(1)],
           issues: [],
