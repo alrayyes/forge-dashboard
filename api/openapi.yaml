@@ -6511,6 +6511,7 @@ components:
         - rateLimitModel
         - rateLimitDocsUrl
         - issueRefSyntax
+        - pullRequestPathSegment
         - label
         - imageHosts
         - avatarHosts
@@ -6584,6 +6585,13 @@ components:
           description: >-
             The forms the forge's text uses to reference an issue. Open-ended;
             today `hash_or_gh_prefix` (a hash sign or a `GH-` prefix before the number) and `hash` (the hash sign only).
+        pullRequestPathSegment:
+          type: string
+          description: >-
+            The path segment the forge's web address puts between a repository
+            and a pull request's number, such as `pull` on GitHub and `pulls`
+            on Forgejo. A client swaps it for an issue's `issues` segment to
+            reach the pull request behind a reference.
         label:
           type: string
           description: The forge's name as a person reads it, such as `GitHub`.
