@@ -133,14 +133,14 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await expect(pill).toContainText('Auto-merge on');
     await expect(pill).toContainText('Managed by Forge Dashboard');
     // The waiting chip says it in a word, the server's sentence is its hint,
-    // and Disarm is inside it (#1229).
+    // and Cancel auto-merge is inside it (#1229).
     const chip = row.locator('.wait-chip');
     await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
       'Waiting for checks to finish.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+      chip.getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
   });
 
@@ -166,7 +166,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await expect(row.locator('.auto-merge-status')).toContainText('Stopped');
   });
 
-  test('Disarm posts for that pull request and the pill goes', async ({
+  test('Cancel auto-merge posts for that pull request and the pill goes', async ({
     page,
   }) => {
     await mockDashboard(
@@ -197,7 +197,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = page.locator('#pr-rows .row').first();
-    await row.getByRole('button', { name: 'Disarm auto-merge' }).click();
+    await row.getByRole('button', { name: 'Cancel auto-merge' }).click();
 
     await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
     expect(posted).toEqual({
@@ -317,7 +317,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     const row = page.locator('#pr-rows .row').first();
     await row
       .getByRole('button', {
-        name: 'Disarm the merge scheduled on Forgejo',
+        name: 'Cancel auto-merge',
         exact: true,
       })
       .click();

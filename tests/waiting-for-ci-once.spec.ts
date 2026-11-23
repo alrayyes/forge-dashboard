@@ -202,7 +202,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(merge).toHaveAccessibleDescription(/draft pull request/i);
       });
 
-      test('a stale armed row keeps Disarm on the row, and Merge keeps its reason', async ({
+      test('a stale armed row keeps Cancel auto-merge on the row, and Merge keeps its reason', async ({
         page,
       }) => {
         await open(page, [ARMED_PR], 'success');
@@ -302,7 +302,7 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
     ['stacked', 'Waiting for parent'],
     ['behind', 'Waiting for update'],
   ] as const) {
-    test(`a ${code} wait keeps its chip beside a Passed pill, with no stale Disarm in its place`, async ({
+    test(`a ${code} wait keeps its chip beside a Passed pill, with no stale Cancel auto-merge in its place`, async ({
       page,
     }) => {
       await open(page, [armedWith('Armed', code)], 'success');
@@ -311,7 +311,7 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
 
       const chip = r.locator('.wait-chip');
       await expect(chip.locator('.wait-chip-label')).toHaveText(label);
-      // The chip carries the one Disarm; a stale rule would add one beside it.
+      // The chip carries the one Cancel auto-merge; a stale rule would add one beside it.
       const disarm = r.getByRole('button', {
         name: /disarm|cancel auto-merge/i,
       });

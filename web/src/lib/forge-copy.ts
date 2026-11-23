@@ -23,7 +23,6 @@ export function scheduledOnCopy(forge: string) {
     note: `Scheduled on ${n}`,
     cancelled: `Merge scheduled on ${n} cancelled.`,
     cancelling: `Cancelling the merge scheduled on ${n}…`,
-    disarmLabel: `Disarm the merge scheduled on ${n}`,
     cancelTitle: `Cancels the merge scheduled on ${n}.`,
   };
 }

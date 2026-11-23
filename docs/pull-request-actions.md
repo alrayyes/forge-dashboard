@@ -618,7 +618,7 @@ When GitHub's answer isn't known, the action shows as usual.
 On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
-(below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
+(below) with a `Cancel auto-merge` button. The note follows the server's `autoMergeHeldBy`
 field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo" (the
 forge's label, so another forge says its own name), and when the server
 doesn't say who holds it the chip has no note, since the page never guesses.
@@ -723,15 +723,15 @@ hover and on keyboard focus (the chip takes focus), and a button shows only
 where one exists. The states: `Rebase requested` and then `Rebasing` for a
 Dependabot or Renovate `rebase`, `Recreating` for a Dependabot recreate,
 `Updating branch`, `Merging` and `Closing` while the forge answers, `Arming` and
-`Disarming` for auto-merge, and `Waiting for CI` (or `Waiting for parent`, `Rate
-limited`, `Waiting for ready`, `Waiting for forge`) for an armed auto-merge on
-either forge, with `Disarm`. Once nothing is left to wait for, Forgejo's reads
-`Merging next` (this app merges it on its next refresh, also when the holder is
-unknown), `Merging` when the server says Forgejo itself holds the merge (it
-merges when checks pass), and GitHub's reads `Merging` (GitHub merges it as soon
-as it can). Cancel on a merge Forgejo holds says it cancels the merge scheduled
-on Forgejo. On GitHub, Disarm turns GitHub's own auto-merge off with
-`disablePullRequestAutoMerge`.
+`Cancelling` for auto-merge, and `Waiting for CI` (or `Waiting for parent`,
+`Rate limited`, `Waiting for ready`, `Waiting for forge`) for an armed
+auto-merge on either forge, with `Cancel auto-merge`. Once nothing is left to
+wait for, Forgejo's reads `Merging next` (this app merges it on its next
+refresh, also when the holder is unknown), `Merging` when the server says
+Forgejo itself holds the merge (it merges when checks pass), and GitHub's reads
+`Merging` (GitHub merges it as soon as it can). Cancel on a merge Forgejo holds
+says it cancels the merge scheduled on Forgejo. On GitHub, Cancel auto-merge
+turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
 On a desktop the chip is a compact status, not a banner. It is as wide as
 its icon, its bold label, its lighter line and its button, 30px tall, up to the

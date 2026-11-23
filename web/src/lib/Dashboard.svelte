@@ -4627,25 +4627,15 @@
 
       const requesting =
         cancelAutoMergeState[prKey(item)]?.phase === "requesting";
-      // In the waiting chip it says Disarm, the chip's own word for it.
+      // One word for it everywhere: Cancel auto-merge, in the chip too (#4663).
       const button = buttonEl(
         inChip ? "row-action wait-chip-action" : "row-action",
-        inChip
-          ? requesting
-            ? "Disarming…"
-            : "Disarm"
-          : requesting
-            ? "Cancelling…"
-            : "Cancel auto-merge",
+        requesting ? "Cancelling…" : "Cancel auto-merge",
       );
       if (inChip)
         button.setAttribute(
           "aria-label",
-          requesting
-            ? "Disarming auto-merge"
-            : forgeHolds(item)
-              ? scheduledOnCopy(item.forge).disarmLabel
-              : "Disarm auto-merge",
+          requesting ? "Cancelling auto-merge" : "Cancel auto-merge",
         );
       if (forgeHolds(item))
         button.title = scheduledOnCopy(item.forge).cancelTitle;

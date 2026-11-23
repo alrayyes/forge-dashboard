@@ -86,7 +86,7 @@ const SUBJECT: Record<WaitKind, (bot: string) => string> = {
   close: () => 'The close',
   reopen: () => 'The reopen',
   'enable-auto-merge': () => 'Arming auto-merge',
-  'cancel-auto-merge': () => 'Disarming auto-merge',
+  'cancel-auto-merge': () => 'Cancelling auto-merge',
   'cancel-bot-rebase': (bot) => `Cancelling the ${bot} rebase`,
 };
 
@@ -186,7 +186,7 @@ export function waitChip(input: WaitInput): Chip {
     case 'cancel-auto-merge':
       return {
         ...base,
-        label: 'Disarming',
+        label: 'Cancelling',
         detail: 'Auto-merge',
         tooltip:
           'Forge Dashboard is turning auto-merge off for this pull request.',

@@ -562,7 +562,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed pull request reads Waiting for CI, with Disarm in the chip and the reason in the tooltip', async ({
+  test('an armed pull request reads Waiting for CI, with Cancel auto-merge in the chip and the reason in the tooltip', async ({
     page,
   }) => {
     await open(page, armed());
@@ -575,7 +575,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
       'Auto-merge is waiting for checks to finish.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+      chip.getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
     await expect(firstRow(page)).not.toContainText('Waiting:');
@@ -597,7 +597,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     );
   });
 
-  test('Disarm posts for that pull request', async ({ page }) => {
+  test('Cancel auto-merge posts for that pull request', async ({ page }) => {
     let posted: unknown = null;
     await page.route(
       '**/api/v1/pull-requests/auto-merge/cancel',
@@ -617,7 +617,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     );
     await open(page, armed());
     await chipOf(page)
-      .getByRole('button', { name: 'Disarm auto-merge' })
+      .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect
       .poll(() => posted)
@@ -724,7 +724,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
 });
 
 // #1293: GitHub's own auto-merge reads like Forgejo's, with the same chip and
-// a Disarm that goes to GitHub through the same endpoint.
+// a Cancel auto-merge that goes to GitHub through the same endpoint.
 test.describe('the waiting chip on GitHub auto-merge', () => {
   const armed = (overrides: MockPR = {}) =>
     makePR({
@@ -758,7 +758,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed GitHub pull request reads Waiting for CI, with Disarm in the chip', async ({
+  test('an armed GitHub pull request reads Waiting for CI, with Cancel auto-merge in the chip', async ({
     page,
   }) => {
     await open(page, armed());
@@ -768,12 +768,14 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
       'Auto-merge is on. GitHub merges it when the checks pass.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+      chip.getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
   });
 
-  test('Disarm posts for that GitHub pull request', async ({ page }) => {
+  test('Cancel auto-merge posts for that GitHub pull request', async ({
+    page,
+  }) => {
     let posted: unknown = null;
     await page.route(
       '**/api/v1/pull-requests/auto-merge/cancel',
@@ -795,7 +797,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     );
     await open(page, armed());
     await chipOf(page)
-      .getByRole('button', { name: 'Disarm auto-merge' })
+      .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect
       .poll(() => posted)
