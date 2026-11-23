@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The title search hides when the other filters leave exactly one row, since
@@ -39,10 +40,7 @@ async function open(page: Page, live: () => unknown[] = () => TWO) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: live(),
         issues: [],
         openIssueCount: 0,

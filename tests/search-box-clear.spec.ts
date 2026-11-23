@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
@@ -67,10 +68,7 @@ async function openInsights(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: [
           pr(1, 'github'),
           pr(2, 'github'),
