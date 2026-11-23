@@ -1,5 +1,6 @@
 import { expect, type Page } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 interface WebMCPTool {
@@ -192,7 +193,7 @@ test.describe('WebMCP tools', () => {
       route.fulfill({
         json: {
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('forgejo')],
           pullRequests: [],
           issues: [],
         },
