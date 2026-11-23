@@ -41,6 +41,7 @@
     type WebhooksControl,
   } from "#lib/filter-wiring.js";
   import { webhooksFilterFromState } from "#lib/webhooks-filter.js";
+  import { webhookNote } from "#lib/webhook-reason.js";
 
   type RateLimit = {
     limit: number;
@@ -67,6 +68,10 @@
     canManageWebhooks?: boolean;
     webhookLockedByConnection?: boolean;
     webhookNeedsToken?: boolean;
+    // Why the automatic pass left the repo without a hook (#4682).
+    webhookReason?: string;
+    webhookReasonDetail?: string;
+    webhookNextAttemptAt?: string;
     // When the repo's fetch first failed, while it keeps failing.
     failingSince?: string;
     // The failure has outlasted the cutoff, worked out by the server.
@@ -123,6 +128,24 @@
     dashboardRead.lastError !== null && repos.length === 0,
   );
   let forges = $state<ForgeHealthEntry[]>([]);
+  // Why no hook can be made while the public address stays as it is, once for
+  // the whole page (#4682).
+  let originProblem = $state("");
+  // The row whose note detail Esc hid, until the pointer or focus leaves it.
+  let dismissedNote = $state<string | null>(null);
+  // The note under the pointer, so Escape on the window can hide it even when
+  // focus is elsewhere.
+  let hoveredNote = $state<string | null>(null);
+  function endDismiss(key: string) {
+    if (dismissedNote === key) dismissedNote = null;
+  }
+  function leaveNote(key: string) {
+    if (hoveredNote === key) hoveredNote = null;
+    endDismiss(key);
+  }
+  function dismissHoveredNote(e: KeyboardEvent) {
+    if (e.key === "Escape" && hoveredNote) dismissedNote = hoveredNote;
+  }
 
   let filterForge = $state("");
   let filterRepo = $state("");
@@ -760,6 +783,7 @@
       }
       repos = (data?.repos as Repo[]) || [];
       forges = (data?.forges as ForgeHealthEntry[]) || [];
+      originProblem = (data?.webhookOriginProblem as string | undefined) ?? "";
       loaded = true;
     });
   });
@@ -904,6 +928,51 @@
     }
     .webhook-locked-reason a {
       color: inherit;
+    }
+    .webhook-note {
+      display: block;
+      font-size: 0.75rem;
+      color: var(--ink-3);
+      white-space: normal;
+      max-width: 220px;
+      margin-top: 2px;
+    }
+    .webhook-note-wrap {
+      display: block;
+      position: relative;
+      max-width: 220px;
+    }
+    /* Out of sight but still read aloud. A popover over the rows below, so
+       showing it never moves them. Esc hides it (WCAG 1.4.13). */
+    .webhook-note-detail {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
+    }
+    .webhook-note-wrap:not(.dismissed):hover .webhook-note-detail,
+    .webhook-note-wrap:not(.dismissed):focus-within .webhook-note-detail {
+      top: 100%;
+      left: 0;
+      z-index: 10;
+      width: 260px;
+      height: auto;
+      overflow: visible;
+      clip-path: none;
+      white-space: normal;
+      padding: 6px 8px;
+      font-size: 0.75rem;
+      color: var(--ink-2);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+    }
+    .webhook-origin-problem {
+      font-size: 0.8125rem;
+      color: var(--ink-2);
+      margin: 0 0 var(--space-3, 0.75rem);
     }
     .status-detail {
       font-size: 0.6875rem;
@@ -1094,6 +1163,8 @@
   </style>
 </svelte:head>
 
+<svelte:window onkeydown={dismissHoveredNote} />
+
 <div class="webhooks-wrap">
   <div class="webhooks-header">
     <h1>Webhooks</h1>
@@ -1197,6 +1268,14 @@
           </details>
         {/if}
       </p>
+
+      {#if originProblem}
+        <p class="webhook-origin-problem" id="webhooks-origin-problem">
+          No webhooks are created automatically: {originProblem}. Fix the
+          dashboard's public address (<code>RP_ORIGIN</code>) and the next
+          refresh creates them.
+        </p>
+      {/if}
 
       <div
         class="webhooks-filter-bar"
@@ -1526,6 +1605,39 @@
                           ? "Adding…"
                           : "Add a webhook"}
                       </button>
+                    {/if}
+                    {#if repo.canManageWebhooks}
+                      {@const note = webhookNote(repo, formatTime)}
+                      {#if note}
+                        <span
+                          class="webhook-note-wrap"
+                          class:dismissed={dismissedNote === rowKey(repo)}
+                          onmouseenter={() => (hoveredNote = rowKey(repo))}
+                          onmouseleave={() => leaveNote(rowKey(repo))}
+                          onfocusout={() => endDismiss(rowKey(repo))}
+                          onkeydown={(e) => {
+                            if (e.key === "Escape") {
+                              dismissedNote = rowKey(repo);
+                            }
+                          }}
+                          role="presentation"
+                        >
+                          <!-- svelte-ignore a11y_no_noninteractive_tabindex -- focus is how a keyboard user reaches the detail, and Esc hides it -->
+                          <span
+                            class="webhook-note"
+                            tabindex="0"
+                            aria-describedby={`webhook-note-${rowKey(repo)}`}
+                          >
+                            {note.line}
+                          </span>
+                          <span
+                            class="webhook-note-detail"
+                            id={`webhook-note-${rowKey(repo)}`}
+                          >
+                            {note.detail}
+                          </span>
+                        </span>
+                      {/if}
                     {/if}
                   {/if}
                 </td>

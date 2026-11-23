@@ -40,6 +40,14 @@ would otherwise wait for all of it. The
 page follows both: it polls at `readIntervalSeconds`, and "Refresh now" locks
 for `Retry-After` seconds. Neither number lives in the front end.
 
+A repo in the dashboard response that has no webhook can carry `webhookReason`
+(one of `no_permission`, `forge_unavailable` or `forge_refused`; more may
+follow), `webhookReasonDetail` (the forge's own words on a refusal, absent when
+it gave none) and `webhookNextAttemptAt` (when the dashboard asks again). The
+response as a whole carries `webhookOriginProblem` while the public address
+stops hooks from being created, so a client can say it once. See
+[Webhooks](webhooks.md#why-a-repo-has-no-webhook).
+
 `GET/POST /api/v1/queued-actions` and `DELETE /api/v1/queued-actions/{id}` list,
 queue and cancel the actions that wait for a rate limit reset (see
 [Pull request actions](pull-request-actions.md)).
