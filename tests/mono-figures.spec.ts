@@ -1,4 +1,5 @@
 import { expect, type Locator, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Versions, commit hashes and numbers read in the app's own mono face
@@ -86,7 +87,7 @@ test.describe('mono face and tabular figures (#1754)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [
             {
               forge: 'github',

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickedValues, pickOnly } from './label-filter-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
@@ -53,7 +54,7 @@ function makePR(number: number, overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(prs: MockPR[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: prs,
     issues: [],
   };

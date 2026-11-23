@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The pill on a pull request row that closes an issue, and the pill on an
@@ -94,7 +95,7 @@ async function mockBoard(page: Page, board: Board, issueStatus = 200) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: all
           ? (board.everything ?? board.shown ?? [])
           : (board.shown ?? []),
