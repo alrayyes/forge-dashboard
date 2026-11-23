@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.109.0](https://github.com/alrayyes/forge-dashboard/compare/v9.108.0...v9.109.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** show why a repo has no automatic webhook ([#4702](https://github.com/alrayyes/forge-dashboard/issues/4702)) ([256bf30](https://github.com/alrayyes/forge-dashboard/commit/256bf308efc290d5c8869cfbff9f654bb0bf84b1))
+
 ## [9.108.0](https://github.com/alrayyes/forge-dashboard/compare/v9.107.0...v9.108.0) (2026-11-23)
 
 
