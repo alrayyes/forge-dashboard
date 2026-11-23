@@ -16,7 +16,7 @@ require (
 	github.com/stretchr/testify v1.12.1
 	github.com/testcontainers/testcontainers-go v0.45.0
 	golang.org/x/image v0.48.0
-	golang.org/x/oauth2 v0.35.0
+	golang.org/x/oauth2 v0.38.0
 	golang.org/x/time v0.16.0
 	modernc.org/sqlite v1.62.0
 )
