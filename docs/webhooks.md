@@ -167,9 +167,9 @@ server as `webhookReason`, and the page words it:
   sentence. When it gave none, the text says the forge refused and gave no
   reason, in the dashboard's voice.
 
-The longer text opens as a popover over the rows below, so the list doesn't
-move. The Escape key hides it, and it comes back when you move off the note and
-return.
+The longer text opens over the rows below instead of between them, so the list
+doesn't move. The Escape key hides it, and it comes back when you move off the
+note and return.
 
 A reason goes away as soon as the hook exists, when the repo leaves the list,
 and while the public address below can't receive hooks, since no attempt is
