@@ -1,8 +1,9 @@
 // Dependabot moves @playwright/test but can't edit the image pin the browser
 // jobs carry, so scripts/test-playwright-image.sh fails until a person does
-// (#4671). This is that edit, run by the pin-playwright-image workflow: it
-// reads the version from package.json, finds the tag's digest and rewrites
-// every image line in the workflows. Ported from movie-planner-web's
+// (#4671). This is that edit, for a manual run: it reads the version from
+// package.json, finds the tag's digest and rewrites every image line in the
+// workflows. The pin-playwright-image workflow does the same with its own sed,
+// so the job that holds the token runs no script from a pull request. Ported from movie-planner-web's
 // scripts/pin-playwright-image.ts (its PR #989).
 
 import { spawnSync } from 'node:child_process';
