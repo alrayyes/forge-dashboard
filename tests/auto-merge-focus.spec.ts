@@ -82,12 +82,12 @@ type Scenario = {
 
 const scenarios: Scenario[] = [
   {
-    name: 'row Disarm',
+    name: 'row Cancel auto-merge',
     before: ARMED,
     after: IDLE,
     endpoint: '/api/v1/pull-requests/auto-merge/cancel',
-    label: /^Disarm$/,
-    pending: /^Disarming…$/,
+    label: /^Cancel auto-merge$/,
+    pending: /^Cancelling…$/,
     inDialog: false,
   },
   {
@@ -198,7 +198,7 @@ for (const sc of scenarios) {
       const f1 = await sample(page);
       expect(f1.tag, JSON.stringify({ f0, f1 })).not.toBe('BODY');
       // A second Enter while the first runs sends nothing. On the row it goes
-      // to the chip that stands in for Disarm, which has no action of its own.
+      // to the chip that stands in for Cancel auto-merge, which has no action of its own.
       await page.keyboard.press('Enter');
 
       release();
@@ -223,9 +223,9 @@ for (const sc of scenarios) {
 
       expect(f0.text, trace).toMatch(sc.label);
       for (const s of [f0, f1, f2, f3]) expect(s.tag, trace).not.toBe('BODY');
-      // The row's Disarm sits in a chip the row hides while the request runs
-      // (a chip saying "Disarming" stands in), so focus is on that chip.
-      expect(f1.text, trace).toMatch(/Disarming|Cancelling…|Enabling…/);
+      // The row's Cancel auto-merge sits in a chip the row hides while the request runs
+      // (a chip saying "Cancelling" stands in), so focus is on that chip.
+      expect(f1.text, trace).toMatch(/Cancelling|Enabling…/);
       expect(posted).toHaveLength(1);
       if (status === 429) {
         // A rate limit locks the button (aria-disabled, with its reason), but

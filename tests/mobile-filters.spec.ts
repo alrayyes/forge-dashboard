@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { pickedValues, togglePicks } from './label-filter-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
@@ -41,10 +42,7 @@ const PRS = [
 function snapshot() {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [
-      { forge: 'github', reachable: true, repoCount: 2 },
-      { forge: 'forgejo', reachable: true, repoCount: 1 },
-    ],
+    forges: [forgeHealth('github', { repoCount: 2 }), forgeHealth('forgejo')],
     pullRequests: PRS,
     issues: [],
     repos: [],

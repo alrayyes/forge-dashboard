@@ -244,25 +244,36 @@ test.describe('the waiting chip on a bot rebase', () => {
     // The snapshot itself changed here (no longer behind), so only the
     // chip's own area is held to its size.
     expect((await layout(page)).slot).toEqual(before.slot);
+    const oneLine = (await size(chipOf(page))).height;
 
     current = { ...current, ci: 'pending', botRequest: undefined };
     await push(page, current);
-    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
-      'Settled',
-    );
+    // The row also waits on CI now, but its own chip steps out while the
+    // Settled one stands in for it: one chip label on the row at a time.
+    const settledChip = chipOf(page).filter({ hasText: 'Settled' });
+    await expect(settledChip).toHaveCount(1);
+    await expect(chipOf(page)).toHaveCount(1);
     await expect(live).toHaveText(/Dependabot rebase finished\./);
     const settled = await layout(page);
     expect(settled.slot).toEqual(before.slot);
+    // One line, and the row no taller than the room the chip takes (#4663).
+    expect((await size(chipOf(page))).height).toBeLessThanOrEqual(oneLine + 1);
+    expect(settled.row.height).toBeLessThanOrEqual(
+      before.row.height + CHIP_ROOM,
+    );
     const spoken = await live.textContent();
 
-    // The chip clears by itself, and says nothing as it goes.
-    await expect(chipOf(page)).toHaveCount(0, { timeout: 10_000 });
+    // The settled chip clears by itself, and says nothing as it goes. The
+    // row's own CI chip stays, since CI is still running (#4663).
+    await expect(settledChip).toHaveCount(0, { timeout: 10_000 });
     expect(await live.textContent()).toBe(spoken);
-    // The chip goes and takes its room with it: the card is as wide and no
-    // taller.
+    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
+      'Waiting for CI',
+    );
+    // It takes its room with it: the card is as wide and no taller.
     const gone = await layout(page);
     expect(gone.slot).toEqual(settled.slot);
-    expect(gone.row.height).toBeLessThan(settled.row.height);
+    expect(gone.row.height).toBeLessThanOrEqual(settled.row.height);
   });
 
   test('two minutes with no change reads Still waiting, announced once, and Check again refetches the row', async ({
@@ -562,20 +573,19 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed pull request reads Waiting for CI, with Disarm in the chip and the reason in the tooltip', async ({
+  test('an armed pull request reads Waiting for CI, with Cancel auto-merge in the chip and the reason in the tooltip', async ({
     page,
   }) => {
     await open(page, armed());
     const chip = chipOf(page);
     await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
-    await expect(chip.locator('.wait-chip-detail')).toHaveText(
-      'Merges when CI passes',
-    );
+    // One line: the second sentence repeated the label (#4663).
+    await expect(chip.locator('.wait-chip-detail')).toBeHidden();
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
       'Auto-merge is waiting for checks to finish.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+      chip.getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
     await expect(firstRow(page)).not.toContainText('Waiting:');
@@ -597,7 +607,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     );
   });
 
-  test('Disarm posts for that pull request', async ({ page }) => {
+  test('Cancel auto-merge posts for that pull request', async ({ page }) => {
     let posted: unknown = null;
     await page.route(
       '**/api/v1/pull-requests/auto-merge/cancel',
@@ -617,7 +627,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     );
     await open(page, armed());
     await chipOf(page)
-      .getByRole('button', { name: 'Disarm auto-merge' })
+      .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect
       .poll(() => posted)
@@ -724,7 +734,7 @@ test.describe('the waiting chip on an action queued for a reset (#756)', () => {
 });
 
 // #1293: GitHub's own auto-merge reads like Forgejo's, with the same chip and
-// a Disarm that goes to GitHub through the same endpoint.
+// a Cancel auto-merge that goes to GitHub through the same endpoint.
 test.describe('the waiting chip on GitHub auto-merge', () => {
   const armed = (overrides: MockPR = {}) =>
     makePR({
@@ -758,7 +768,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed GitHub pull request reads Waiting for CI, with Disarm in the chip', async ({
+  test('an armed GitHub pull request reads Waiting for CI, with Cancel auto-merge in the chip', async ({
     page,
   }) => {
     await open(page, armed());
@@ -768,12 +778,14 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
       'Auto-merge is on. GitHub merges it when the checks pass.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Disarm auto-merge' }),
+      chip.getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
   });
 
-  test('Disarm posts for that GitHub pull request', async ({ page }) => {
+  test('Cancel auto-merge posts for that GitHub pull request', async ({
+    page,
+  }) => {
     let posted: unknown = null;
     await page.route(
       '**/api/v1/pull-requests/auto-merge/cancel',
@@ -795,7 +807,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     );
     await open(page, armed());
     await chipOf(page)
-      .getByRole('button', { name: 'Disarm auto-merge' })
+      .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect
       .poll(() => posted)

@@ -332,7 +332,7 @@ test.describe('an unreachable forge goes read-only (#1199)', () => {
       gh.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);
     // Its own state, a wait on CI, is not overwritten by the read-only mode.
-    await expect(fj).toContainText('Merge after CI');
+    await expect(fj).toContainText('Waiting for CI');
     await expect(page.locator('#unreachable-banner')).not.toContainText(
       'Forgejo',
     );

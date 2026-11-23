@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A repo name cut with an ellipsis carries its whole owner/name as hover text
@@ -36,7 +37,7 @@ function makePR(number: number, repo: string) {
 
 const snapshot = (pullRequests: unknown[]) => ({
   generatedAt: new Date().toISOString(),
-  forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+  forges: [forgeHealth('github', { repoCount: 2 })],
   pullRequests,
   issues: [],
 });

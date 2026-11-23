@@ -9,6 +9,7 @@ import type { ForgeHealthEntry } from './forge-lock';
 import {
   advisoryFactsOf,
   forgeIds,
+  forgeLabelOf,
   isKnownForge,
   ownOf,
   setOwn,
@@ -671,9 +672,9 @@ export type AdvisorySourceWords = {
   testId: string;
   // What the notice says for a cause. Whether the owner has anything to do
   // differs by cause: a rate limit clears by itself, a refusal needs a token.
-  reasons: Partial<Record<AdvisoryNoticeReason, string>>;
+  reasons: Partial<Record<AdvisoryNoticeReason, (label: string) => string>>;
   // Said when the rows share no cause, or the cause has no sentence above.
-  fallback: string;
+  fallback: (label: string) => string;
   // Says how a permission is granted, for the causes a grant fixes.
   grantNote: string | null;
   // The page that explains the notice, or null for none.
@@ -688,7 +689,7 @@ const MAIN_BRANCHES_DOC =
 export const NEUTRAL_ADVISORY_WORDS: AdvisorySourceWords = {
   testId: 'other-advisories-notice',
   reasons: {},
-  fallback: 'The forge did not answer the read.',
+  fallback: () => 'The forge did not answer the read.',
   grantNote: null,
   help: null,
   dialogNeedsUrl: true,
@@ -699,19 +700,19 @@ export const ADVISORY_WORDS_BY_SOURCE: Record<string, AdvisorySourceWords> = {
   dependabot: {
     testId: 'advisories-notice',
     reasons: {
-      refused:
-        'GitHub refused the read: the credential lacks the Dependabot alerts permission (read-only).',
-      switched_off:
-        "GitHub says Dependabot alerts are switched off on the repository, or the credential can't see it.",
-      throttled:
-        'GitHub is rate limiting the dashboard. This clears by itself, and no permission needs changing.',
-      failed:
-        'GitHub returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.',
-      too_many:
+      refused: (label) =>
+        `${label} refused the read: the credential lacks the Dependabot alerts permission (read-only).`,
+      switched_off: (label) =>
+        `${label} says Dependabot alerts are switched off on the repository, or the credential can't see it.`,
+      throttled: (label) =>
+        `${label} is rate limiting the dashboard. This clears by itself, and no permission needs changing.`,
+      failed: (label) =>
+        `${label} returned an error reading the alerts. The dashboard tries again shortly, and no permission needs changing.`,
+      too_many: () =>
         'A repository has more open alerts than the dashboard reads in one go, so it shows no count rather than a short one.',
     },
-    fallback:
-      'Most likely the credential lacks the Dependabot alerts permission (read-only), or alerts are switched off on the repo. A rate limit or a GitHub error looks the same.',
+    fallback: (label) =>
+      `Most likely the credential lacks the Dependabot alerts permission (read-only), or alerts are switched off on the repo. A rate limit or a ${label} error looks the same.`,
     grantNote:
       'A permission you just accepted can take up to an hour and a quarter to show; saving Settings reads them again at once.',
     help: {
@@ -724,12 +725,12 @@ export const ADVISORY_WORDS_BY_SOURCE: Record<string, AdvisorySourceWords> = {
   osv: {
     testId: 'forgejo-advisories-notice',
     reasons: {
-      failed:
+      failed: () =>
         'OSV could not be reached, or a lock file could not be read or is over 8 megabytes. The dashboard tries again shortly.',
-      too_many:
+      too_many: () =>
         'A lock file lists more packages, or a repository matches more advisories, than the dashboard reads in one go, so it shows no count rather than a short one.',
     },
-    fallback:
+    fallback: () =>
       'OSV may be unreachable, or a lock file could not be read, was over 8 megabytes or lists too many packages.',
     grantNote: null,
     help: {
@@ -756,10 +757,14 @@ export function advisoryReasonText(
   forge: string,
   reason: string,
 ): string | undefined {
-  return ownOf(
-    advisoryWordsFor(forge).reasons as Record<string, string>,
+  const words = ownOf(
+    advisoryWordsFor(forge).reasons as Record<
+      string,
+      (label: string) => string
+    >,
     reason,
   );
+  return words?.(forgeLabelOf(forge));
 }
 
 // Whether the row's pill opens the advisories dialog on this page.

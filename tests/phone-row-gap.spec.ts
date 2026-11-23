@@ -36,7 +36,7 @@ const BOT_PR = makePR(20, {
   kind: 'dependency',
 });
 
-// The same row with auto-merge armed: the waiting chip and its Disarm button
+// The same row with auto-merge armed: the waiting chip and its Cancel auto-merge button
 // are in the slot.
 const ARMED_PR = makePR(21, {
   title: 'Bump package-21 from 1.0.0 to 1.0.1',
@@ -115,7 +115,7 @@ test.describe('phone rows keep the pill close to the meta line (#3264)', () => {
 
   // WCAG 2.4.3 and 1.3.2: the slot sits below the pill on screen, so it
   // comes after the pill in the document too. Focus must only ever move down.
-  test('Tab walks an armed row top to bottom: title, pill, chip, Disarm', async ({
+  test('Tab walks an armed row top to bottom: title, pill, chip, Cancel auto-merge', async ({
     page,
   }) => {
     await mockDashboard(page, [ARMED_PR]);

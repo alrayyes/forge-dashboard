@@ -178,19 +178,16 @@ for (const scheme of ['light', 'dark'] as const) {
       }) => {
         await open(page, [checking]);
         const r = row(page, 'Checking conflicts');
-        await expect(r.getByText('Merge after conflict check')).toBeVisible();
+        await expect(r.getByText('Checking for conflicts')).toBeVisible();
         await expect(r.locator('.merge-pill')).toHaveCount(0);
-        await expect(r.getByText('Checking for conflicts')).toHaveCount(0);
+        await expect(r.getByText('Checking for conflicts')).toHaveCount(1);
         await expect(
           r.getByRole('button', { name: 'Merge', exact: true }),
         ).toHaveCount(0);
 
         const dialog = await openActionsDialog(r);
         await expect(dialog.locator('.merge-pill')).toHaveCount(0);
-        await expect(dialog.getByText('Checking for conflicts')).toHaveCount(0);
-        await expect(
-          dialog.getByText('Merge after conflict check'),
-        ).toHaveCount(1);
+        await expect(dialog.getByText('Checking for conflicts')).toHaveCount(1);
         expect((await axe(page)).violations).toEqual([]);
       });
 

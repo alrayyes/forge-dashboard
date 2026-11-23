@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.108.0](https://github.com/alrayyes/forge-dashboard/compare/v9.107.0...v9.108.0) (2026-11-23)
+
+
+### Features
+
+* **web:** show a waiting pull request as one chip with an Auto-merge button ([#4688](https://github.com/alrayyes/forge-dashboard/issues/4688)) ([1ebb811](https://github.com/alrayyes/forge-dashboard/commit/1ebb811a649f5121aa88239bddd715628b5bcc71))
+* **web:** show what each CI pill segment counts on hover and focus ([#4716](https://github.com/alrayyes/forge-dashboard/issues/4716)) ([a59a988](https://github.com/alrayyes/forge-dashboard/commit/a59a988c4a24bc5684ffd517451a8c1c1e2a1f16))
+
+## [9.107.0](https://github.com/alrayyes/forge-dashboard/compare/v9.106.0...v9.107.0) (2026-11-23)
+
+
+### Features
+
+* **web:** carry checksIncomplete to the pills on issue rows and the related band ([#4713](https://github.com/alrayyes/forge-dashboard/issues/4713)) ([5ae1b56](https://github.com/alrayyes/forge-dashboard/commit/5ae1b5605303e392618f52ed8d6648c7b8e4a93d))
+
 ## [9.106.0](https://github.com/alrayyes/forge-dashboard/compare/v9.105.0...v9.106.0) (2026-11-23)
 
 

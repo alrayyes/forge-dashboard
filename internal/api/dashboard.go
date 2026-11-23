@@ -207,6 +207,9 @@ type linkedPullRequest struct {
 	CI                       dashboard.CIStatus    `json:"ci"`
 	Checks                   dashboard.CheckCounts `json:"checks"`
 	AwaitingWorkflowApproval bool                  `json:"awaitingWorkflowApproval"`
+	// ChecksIncomplete is true while the forge has not listed every check, so
+	// Checks counts some of them (#4299).
+	ChecksIncomplete bool `json:"checksIncomplete"`
 	// Title is the pull request's title, for the pill's hover text (#4326).
 	Title string `json:"title,omitempty"`
 }
@@ -244,6 +247,7 @@ func (b boardSettings) pullRequestPills(prs []dashboard.PullRequest) []linkedPul
 			Title:  pr.Title,
 
 			AwaitingWorkflowApproval: pr.AwaitingWorkflowApproval,
+			ChecksIncomplete:         pr.ChecksIncomplete,
 			PageURL:                  pullRequestPage(dashboard.KindOf(pr, b.renovateAuthors)) + "?pr=" + string(pr.Forge) + "/" + pr.Repo + "/" + strconv.Itoa(pr.Number),
 		})
 	}

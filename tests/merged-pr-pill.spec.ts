@@ -127,7 +127,7 @@ async function open(page: Page, unreadable = false) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify({
-          ...thread(`The ticket. See ${FOREIGN}#50.`),
+          ...thread(`The ticket. See ${FOREIGN}#50 and ${FOREIGN}#51.`),
           kind: 'issue',
           state: 'open',
           references: [
@@ -135,6 +135,8 @@ async function open(page: Page, unreadable = false) {
             reference(8, { relation: 'refs', state: 'closed' }),
             reference(6, { relation: 'closes' }),
             reference(9, { state: 'open', relation: 'mentions' }),
+            reference(40, { relation: 'mentions' }),
+            reference(41, { relation: 'mentions' }),
             reference(11, { direction: 'outgoing', relation: 'closes' }),
             reference(12, { direction: 'outgoing', relation: 'refs' }),
             reference(13, { direction: 'outgoing', relation: 'mentions' }),
@@ -168,24 +170,35 @@ async function open(page: Page, unreadable = false) {
         // What the pull request itself refers to, and one thing that refers
         // to it, which a pull request's band leaves out.
         references:
-          number === 7
-            ? [
-                reference(22, issueRef('mentions')),
-                reference(20, issueRef('closes')),
-                reference(21, issueRef('refs')),
-                reference(30, { relation: 'mentions' }),
-                // Pull requests it refers to, one merged and one closed.
-                reference(31, { direction: 'outgoing', relation: 'mentions' }),
-                reference(8, {
+          number === 41 || number === 51
+            ? // Eight outgoing mentions: more than a row shows.
+              Array.from({ length: 8 }, (_, i) =>
+                reference(60 + i, {
                   direction: 'outgoing',
-                  relation: 'refs',
-                  state: 'closed',
+                  relation: 'mentions',
                 }),
-              ]
-            : [],
+              )
+            : number === 7
+              ? [
+                  reference(22, issueRef('mentions')),
+                  reference(20, issueRef('closes')),
+                  reference(21, issueRef('refs')),
+                  reference(30, { relation: 'mentions' }),
+                  // Pull requests it refers to, one merged and one closed.
+                  reference(31, {
+                    direction: 'outgoing',
+                    relation: 'mentions',
+                  }),
+                  reference(8, {
+                    direction: 'outgoing',
+                    relation: 'refs',
+                    state: 'closed',
+                  }),
+                ]
+              : [],
         pullRequest: {
           title: `Merged change ${number}`,
-          state: number === 8 ? 'closed' : 'merged',
+          state: number === 8 ? 'closed' : number === 51 ? 'open' : 'merged',
           author: null,
         },
       }),
@@ -409,3 +422,67 @@ for (const scheme of ['light', 'dark'] as const) {
     expect(results.violations).toEqual([]);
   });
 }
+
+// Coverage for #4346. The behaviour shipped in #4477 and #4492, so these pass
+// on a first run: they pin what the acceptance criteria ask for.
+const dialogBand = (page: Page) => prDialog(page).locator('.related-band');
+
+test('a pull request off the board with nothing outgoing has no Related band', async ({
+  page,
+}) => {
+  await open(page);
+  await pill(page, 'Mentioned by', 40).click();
+  await expect(prDialog(page)).toContainText('read from the forge');
+  await expect(dialogBand(page)).toHaveCount(0);
+});
+
+test('the band of a pull request off the board folds pills past the cap', async ({
+  page,
+}) => {
+  await open(page);
+  await pill(page, 'Mentioned by', 41).click();
+  await expect(prDialog(page)).toContainText('read from the forge');
+  const row = prDialog(page).getByRole('group', { name: 'Mentions' });
+  await expect(row.locator('.linked-pr')).toHaveCount(6);
+  const toggle = row.locator('.related-toggle');
+  await expect(toggle).toHaveText('+2 more');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  await expect(row.locator('.linked-pr')).toHaveCount(8);
+});
+
+test('an open pull request in an untracked repository gets the same band', async ({
+  page,
+}) => {
+  await open(page);
+  const reference = issueDialog(page).locator(
+    `a[data-ref-repo="${FOREIGN}"][data-ref-number="51"]`,
+  );
+  const answered = page.waitForResponse(
+    (response) =>
+      response.url().includes('/api/v1/issues/details') &&
+      response.url().includes('number=51'),
+  );
+  await reference.hover();
+  await answered;
+  await reference.click();
+
+  await expect(
+    prDialog(page).getByRole('heading', { name: 'Merged change 51' }),
+  ).toBeVisible();
+  await expect(dialogBand(page)).toBeVisible();
+  await expect(
+    prDialog(page).getByRole('group', { name: 'Mentions' }),
+  ).toBeVisible();
+});
+
+test('the pop-up of a pull request off the board has no axe violations at 390px', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await open(page);
+  await pill(page, 'Mentioned by', 7).click();
+  await expect(prDialog(page)).toContainText('read from the forge');
+  await expect(dialogBand(page)).toBeVisible();
+  await expectAxeClean(page);
+});
