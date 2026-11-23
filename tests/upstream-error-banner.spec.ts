@@ -1,19 +1,18 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3527: GitHub answering with a 5xx is not GitHub being unreachable. The
 // banner says it answered, names the status code and still offers Retry.
 
-const forge = {
-  forge: 'github',
+const forge = forgeHealth('github', {
   reachable: false,
-  repoCount: 1,
   errorKind: 'upstream_error',
   upstreamStatus: 504,
   error: 'GitHub returned 504 Gateway Timeout',
   staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
-};
+});
 
 test.describe('an upstream error banner (#3527)', () => {
   test.beforeEach(async ({ page }) => {
