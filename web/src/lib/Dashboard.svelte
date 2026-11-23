@@ -329,6 +329,8 @@
     effectiveZone,
   } from "#lib/time.svelte.js";
   import { createWebMCPTools } from "#lib/webmcp-tools.js";
+  import { addPillTip } from "#lib/pill-tip.js";
+  import { commentPillTip } from "#lib/review-pill-tip.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, logout-button, whoami) —
@@ -412,6 +414,8 @@
     // server that predates them draws nothing.
     reviewComments?: number;
     conversationComments?: number;
+    // RFC 3339 creation time of the newest comment; absent when the forge can't say (#4539).
+    lastCommentAt?: string;
     unresolvedThreads?: number | null;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
@@ -1371,7 +1375,8 @@
     // at zero. The words are in the accessible name, the numbers on screen,
     // and the open state is a dot and "open" as well as amber. It opens the
     // pull request's dialog, where the comments are (#3744); the dialog links
-    // on to the forge.
+    // on to the forge. Hover or focus shows a tip with the counts and when the
+    // newest comment was written (#4539).
     function reviewPill(
       item: PullRequestItem,
       onOpen: (triggerId: string) => void,
@@ -1411,7 +1416,14 @@
             : plural(comments, word),
         ),
       );
-      return pill;
+      const tip = commentPillTip({
+        comments,
+        open,
+        word,
+        lastCommentAt: item.lastCommentAt,
+      });
+      pill.title = tip;
+      return addPillTip(pill, tip);
     }
 
     // The pull-request-closed glyph (a pull request with a cross), so the

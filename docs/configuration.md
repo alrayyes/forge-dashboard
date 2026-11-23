@@ -98,6 +98,11 @@ files-and-review view on the forge, or to the pull request itself when it has
 only conversation comments, opened in a new tab. Its accessible name is the full
 sentence, such as "7 review comments, 2 unresolved threads", or "3 comments"
 once a conversation comment is in the count.
+Hovering the pill, or focusing it by keyboard, shows a tip with the same
+sentence and, where the server sent `lastCommentAt`, when the newest comment
+was written: "3 comments, 1 open thread. Last comment 2 hours ago." The tip
+holds no comment text. Escape hides it and focus stays on the pill. Where the
+time is unknown, the tip leaves that sentence out.
 
 `awaitingWorkflowApproval` is true when GitHub is holding a workflow run on the
 head commit until someone approves it (a check run counted as `ACTION_REQUIRED`
