@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #695: a "Review requested from me" quick filter. The server says which
@@ -48,10 +49,7 @@ async function open(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: PRS,
         issues: [],
         repos: [],
