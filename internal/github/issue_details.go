@@ -155,6 +155,12 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 
 	details.References = append(details.References, c.outgoingReferences(ctx, details.Kind, item.Title, item.URL, item.Body, owner, name, number)...)
 
+	// A cancel during the lookup leaves the references out without an error,
+	// so a caller that gave up would get a thread that quietly lacks them.
+	if err := ctx.Err(); err != nil {
+		return dashboard.IssueDetails{}, fmt.Errorf("github: read issue details: %w", err)
+	}
+
 	return details, nil
 }
 
