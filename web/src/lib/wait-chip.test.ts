@@ -298,6 +298,18 @@ describe('autoMergeChip wording', () => {
     expect(chip?.detail).toBe('Codeberg merges it when checks pass');
   });
 
+  test('a status that is neither waiting nor stopped draws no chip', () => {
+    expect(
+      autoMergeChip({
+        state: undefined as unknown as 'waiting',
+        code: '',
+        message: '',
+        draft: false,
+        forge: 'github',
+      }),
+    ).toBeNull();
+  });
+
   test('a stopped auto-merge is a chip that says so, with no button and the whole sentence (#4601)', () => {
     const chip = autoMergeChip(
       waiting({

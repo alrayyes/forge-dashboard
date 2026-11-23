@@ -267,7 +267,10 @@ export function autoMergeWording(message: string, forge: string): string {
 // an alert icon, and offers no button of its own (the row's Cancel
 // auto-merge is where it was). The server's whole sentence is the tooltip and
 // the accessible description, so a long refusal is never cut (#4601).
-export function autoMergeChip(input: AutoMergeInput): Chip {
+export function autoMergeChip(input: AutoMergeInput): Chip | null {
+  // A status the page doesn't know draws nothing here, as before: the row
+  // falls back to its other chips.
+  if (input.state !== 'waiting' && input.state !== 'stopped') return null;
   if (input.state === 'stopped')
     return {
       state: 'stopped',

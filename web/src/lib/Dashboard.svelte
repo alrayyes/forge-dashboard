@@ -1675,6 +1675,7 @@
             forge: pr.forge,
             heldBy: pr.autoMergeHeldBy,
           });
+      if (!chip) return null;
       const disarm =
         isSettled(pr) || chip.action !== "disarm"
           ? null
