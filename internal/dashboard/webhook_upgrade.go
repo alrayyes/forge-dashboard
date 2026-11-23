@@ -2,6 +2,8 @@ package dashboard
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -38,6 +40,7 @@ type WebhookUpgrades struct {
 	mu         sync.Mutex
 	logged     map[Forge]string
 	next       map[string]time.Time
+	rewritten  map[string]string // repo key -> fingerprint of the secret it was rewritten with
 	jitter     time.Duration
 	retryAfter time.Duration
 	now        func() time.Time
@@ -53,6 +56,7 @@ const DefaultWebhookRetryAfter = time.Hour
 func NewWebhookUpgrades(jitter time.Duration) *WebhookUpgrades {
 	return &WebhookUpgrades{
 		next:       make(map[string]time.Time),
+		rewritten:  make(map[string]string),
 		logged:     make(map[Forge]string),
 		jitter:     jitter,
 		retryAfter: DefaultWebhookRetryAfter,
@@ -94,6 +98,28 @@ func (w *WebhookUpgrades) noteOriginProblem(forge Forge, problem string) bool {
 	w.logged[forge] = problem
 
 	return problem != ""
+}
+
+// settleRewrite notes that repo has been dealt with for the secret fp: its hook
+// was rewritten, or the forge gave a final answer that retrying won't change.
+func (w *WebhookUpgrades) settleRewrite(repo, fp string) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.rewritten[repo] = fp
+}
+
+func (w *WebhookUpgrades) rewriteSettled(repo, fp string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	return w.rewritten[repo] == fp
+}
+
+// secretFingerprint is what the ledger stores in place of the secret itself.
+func secretFingerprint(secret string) string {
+	sum := sha256.Sum256([]byte(secret))
+
+	return hex.EncodeToString(sum[:])
 }
 
 func (w *WebhookUpgrades) release(key string) {
@@ -150,7 +176,10 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 	healthy := healthyForges(snap)
 	originProblem := WebhookOriginProblem(cfg.origin)
 
-	var token, secret string
+	var (
+		token, secret, rewriteFP string
+		ledger                   WebhookSecretLedger
+	)
 	for _, src := range a.sources {
 		if !healthy[src.Forge()] {
 			continue
@@ -158,8 +187,7 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 		if held := a.budgetHold(snap, src.Forge(), apistats.KindHookMaintenance); held {
 			continue
 		}
-		jobs := forgeJobs(src, snap, originProblem, cfg.state)
-		if len(jobs) == 0 {
+		if !needsHookWork(src, snap) {
 			continue
 		}
 		if token == "" {
@@ -169,18 +197,90 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 
 				return
 			}
+			ledger, rewriteFP = rotation(cfg, secret)
+		}
+		jobs := forgeJobs(src, snap, originProblem, cfg.state, rewriteFP)
+		if len(jobs) == 0 {
+			continue
 		}
 		targetURL := cfg.origin + "/api/webhooks/" + string(src.Forge()) + "/" + token
 		runJobs(cfg, src.Forge(), jobs, targetURL, secret)
 	}
+	if rewriteFP != "" {
+		a.recordRotation(cfg, snap, ledger, rewriteFP)
+	}
+}
+
+// needsHookWork reports whether src has a repo the pass might touch, so a
+// forge with nothing to do doesn't load the credentials.
+func needsHookWork(src Source, snap Snapshot) bool {
+	forge := src.Forge()
+
+	return len(coveredRepos(snap, forge)) > 0 || len(unhookedRepos(snap, forge)) > 0
+}
+
+// rotation says whether the webhook secret changed since the hooks were last
+// written (#4683). Forges never return a hook's secret, so the dashboard keeps
+// a fingerprint of the one it last wrote everywhere and compares. The first
+// sight of a secret has nothing to compare with: it is recorded as the
+// baseline and nothing is rewritten. It returns the new fingerprint to write
+// out, or "" when there is nothing to do.
+func rotation(cfg *webhookUpgradeConfig, secret string) (WebhookSecretLedger, string) {
+	ledger, ok := cfg.creds.(WebhookSecretLedger)
+	if !ok {
+		return nil, ""
+	}
+	fp := secretFingerprint(secret)
+	synced, err := ledger.WebhookSecretSynced(cfg.ctx)
+	if err != nil {
+		slog.Warn("webhook upgrade: could not read the recorded webhook secret", "error", err)
+
+		return nil, ""
+	}
+	switch synced {
+	case fp:
+		return nil, ""
+	case "":
+		if err := ledger.MarkWebhookSecretSynced(cfg.ctx, fp); err != nil {
+			slog.Warn("webhook upgrade: could not record the webhook secret", "error", err)
+		}
+
+		return nil, ""
+	}
+	slog.Info("webhook maintenance: the webhook secret changed, rewriting the hooks")
+
+	return ledger, fp
+}
+
+// recordRotation stores the new fingerprint once every covered repo that can
+// be rewritten has been dealt with, so a repo left for later (forge down or out
+// of budget) keeps the rotation open across restarts.
+func (a *Aggregator) recordRotation(cfg *webhookUpgradeConfig, snap Snapshot, ledger WebhookSecretLedger, fp string) {
+	for _, src := range a.sources {
+		if _, ok := src.(WebhookSecretRewriter); !ok {
+			continue
+		}
+		for _, fullName := range coveredRepos(snap, src.Forge()) {
+			if !cfg.state.rewriteSettled(hookRepoKey(src.Forge(), fullName), fp) {
+				return
+			}
+		}
+	}
+	if err := ledger.MarkWebhookSecretSynced(cfg.ctx, fp); err != nil {
+		slog.Warn("webhook upgrade: could not record the webhook secret", "error", err)
+	}
+}
+
+func hookRepoKey(forge Forge, fullName string) string {
+	return string(forge) + "|" + fullName
 }
 
 // forgeJobs is src's work for one pass: an upgrade for each covered repo, and
 // a create for each repo the token can administer that has no hook, unless the
 // public origin is one a forge can't reach. That is logged only when a repo
 // needed a hook, and again only if the reason changes.
-func forgeJobs(src Source, snap Snapshot, originProblem string, state *WebhookUpgrades) []repoJob {
-	jobs := upgradeJobs(src, snap)
+func forgeJobs(src Source, snap Snapshot, originProblem string, state *WebhookUpgrades, rewriteFP string) []repoJob {
+	jobs := upgradeJobs(src, snap, state, rewriteFP)
 	creates := createJobs(src, snap)
 	if originProblem == "" {
 		state.noteOriginProblem(src.Forge(), "")
@@ -194,14 +294,43 @@ func forgeJobs(src Source, snap Snapshot, originProblem string, state *WebhookUp
 	return jobs
 }
 
-func upgradeJobs(src Source, snap Snapshot) []repoJob {
-	upgrader, ok := src.(WebhookUpgrader)
-	if !ok {
+// rewriteJob is the work for a covered repo after the secret changed: rewrite
+// the hook's secret, and settle the repo once the forge has given an answer.
+func rewriteJob(rewriter WebhookSecretRewriter, state *WebhookUpgrades, forge Forge, fullName, fp string) repoJob {
+	return repoJob{
+		key: "rewrite|" + fp + "|" + hookRepoKey(forge, fullName), fullName: fullName,
+		settled: func() { state.settleRewrite(hookRepoKey(forge, fullName), fp) },
+		run: func(ctx context.Context, owner, name, targetURL, secret string) error {
+			rewritten, err := rewriter.RewriteWebhookSecret(ctx, owner, name, targetURL, secret)
+			if err != nil {
+				return fmt.Errorf("rewrite hook secret: %w", err)
+			}
+			if rewritten {
+				slog.Info("webhook maintenance: rewrote the hook's secret", "forge", forge, "repo", owner+"/"+name)
+			}
+
+			return nil
+		},
+	}
+}
+
+func upgradeJobs(src Source, snap Snapshot, state *WebhookUpgrades, rewriteFP string) []repoJob {
+	upgrader, canUpgrade := src.(WebhookUpgrader)
+	rewriter, canRewrite := src.(WebhookSecretRewriter)
+	if !canUpgrade && !canRewrite {
 		return nil
 	}
 	forge := src.Forge()
 	var jobs []repoJob
 	for _, fullName := range coveredRepos(snap, forge) {
+		if canRewrite && rewriteFP != "" && !state.rewriteSettled(hookRepoKey(forge, fullName), rewriteFP) {
+			jobs = append(jobs, rewriteJob(rewriter, state, forge, fullName, rewriteFP))
+
+			continue
+		}
+		if !canUpgrade {
+			continue
+		}
 		jobs = append(jobs, repoJob{
 			key: string(forge) + "|" + fullName, fullName: fullName,
 			run: func(ctx context.Context, owner, name, targetURL, secret string) error {
@@ -285,7 +414,10 @@ func unhookedRepos(snap Snapshot, forge Forge) []string {
 type repoJob struct {
 	key      string
 	fullName string
-	run      func(ctx context.Context, owner, name, targetURL, secret string) error
+	// settled, when set, is called once the forge has given an answer about
+	// the repo, success or a refusal, but not when it couldn't be asked.
+	settled func()
+	run     func(ctx context.Context, owner, name, targetURL, secret string) error
 }
 
 func runJobs(cfg *webhookUpgradeConfig, forge Forge, jobs []repoJob, targetURL, secret string) {
@@ -347,6 +479,9 @@ func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret str
 			return false
 		}
 		slog.Warn("webhook maintenance: could not create or repair the hook", "forge", forge, "repo", job.fullName, "error", err)
+	}
+	if job.settled != nil {
+		job.settled()
 	}
 
 	return true
