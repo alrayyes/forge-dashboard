@@ -68,7 +68,7 @@ failure-line-stays.spec.ts,2.712,8,3,C,,1.7
 filter-bar-one-control.spec.ts,5.468,6,5,A,,0.9
 filter-bar-overlap.spec.ts,1.853,1,1,A,,0.0
 filter-bar-short-list.spec.ts,26.571,8,7,A,,3.3
-filter-bar-single-row.spec.ts,,20,14,A,,0.0
+filter-bar-single-row.spec.ts,,24,14,A,,0.0
 filter-bar-widths.spec.ts,1.005,1,1,A,,0.0
 filter-choices-board.spec.ts,5.783,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.301,4,2,A,,0.7
