@@ -695,26 +695,46 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 		return false, fmt.Errorf("github: invalid webhook target URL: %w", err)
 	}
 	fullName := owner + "/" + name
-	seen, known := c.probedHook(fullName, u.Path)
-	if !known {
-		existing, err := c.findOwnHook(ctx, owner, name, u.Path)
-		if err != nil {
-			return false, asClientError(err)
+	if seen, known := c.probedHook(fullName, u.Path); known {
+		updated, repairErr := c.repairHook(ctx, owner, name, seen, targetURL, secret)
+		if !isNotFound(repairErr) {
+			return updated, repairErr
 		}
-		if existing == nil {
-			return false, nil
-		}
-		seen = seenHook{id: existing.GetID(), active: existing.GetActive(), events: existing.Events}
+		// The hook was deleted, or recreated under a new id, since the probe.
+		// Forget it and look once, as the repair did before it reused the probe.
+		c.noteOwnHook(fullName, nil)
 	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil {
+		return false, asClientError(err)
+	}
+	if existing == nil {
+		return false, nil
+	}
+
+	return c.repairHook(ctx, owner, name,
+		seenHook{id: existing.GetID(), active: existing.GetActive(), events: existing.Events}, targetURL, secret)
+}
+
+// repairHook PATCHes seen unless it is already switched on and subscribed to
+// every event, and remembers the state it left.
+func (c *Client) repairHook(ctx context.Context, owner, name string, seen seenHook, targetURL, secret string) (bool, error) {
 	if seen.active && dashboard.WebhookCoversEvents(seen.events, githubWebhookEvents) {
 		return false, nil
 	}
 	if err := c.editHook(ctx, owner, name, seen.id, ownHook(targetURL, secret)); err != nil {
 		return false, err
 	}
-	c.noteOwnHook(fullName, &hookProbe{has: true, id: seen.id, active: true, events: githubWebhookEvents})
+	c.noteOwnHook(owner+"/"+name, &hookProbe{has: true, id: seen.id, active: true, events: githubWebhookEvents})
 
 	return true, nil
+}
+
+// isNotFound reports whether err is a forge's "no such thing" answer.
+func isNotFound(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.Kind == dashboard.ForgeErrorNotFound
 }
 
 // probedHook is what the last probe read of fullName's own hook, when that
