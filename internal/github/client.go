@@ -486,7 +486,8 @@ func (c *Client) SetWebhookDenialTTL(d time.Duration) {
 const defaultSeenHookMaxAge = 2 * time.Hour
 
 // SetSeenHookMaxAge changes how old a probe's read can be before the repair
-// lists the hooks itself (#4687). The default is two hours.
+// lists the hooks itself (#4687). Zero means the default, two hours. It is
+// exported for tests, which live outside the package.
 func (c *Client) SetSeenHookMaxAge(d time.Duration) {
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
@@ -709,8 +710,10 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hoo
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: a PATCH only when this
 // app's hook is switched off or lacks an event it subscribes to now. It never
-// creates a hook. It decides from what the last probe read, and lists the
-// hooks itself only for a repo no probe has read yet (#4687).
+// creates a hook. It decides from what the last probe read (#4687), and lists
+// the hooks itself once when that read can't be used: the repo was never
+// probed, the read is older than the max age, the probe looked for another
+// path than targetURL's, or the PATCH answered 404 because the hook is gone.
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
