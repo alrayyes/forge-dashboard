@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.104.1](https://github.com/alrayyes/forge-dashboard/compare/v9.104.0...v9.104.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **github:** return the context error when a cancel lands during the reference lookup ([#4694](https://github.com/alrayyes/forge-dashboard/issues/4694)) ([01b790b](https://github.com/alrayyes/forge-dashboard/commit/01b790bd180d3defe7748aeeaba886258d682bb2)), closes [#4691](https://github.com/alrayyes/forge-dashboard/issues/4691)
+
 ## [9.104.0](https://github.com/alrayyes/forge-dashboard/compare/v9.103.1...v9.104.0) (2026-11-23)
 
 
