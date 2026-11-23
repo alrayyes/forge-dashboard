@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { dismissToasts } from './toast-helper';
 
@@ -15,7 +16,7 @@ interface MockUpdateRequest {
 }
 
 interface MockPR {
-  forge: string;
+  forge: Forge;
   repo: string;
   number: number;
   title: string;
@@ -65,7 +66,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(pr: MockPR) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge)],
     pullRequests: [pr],
     issues: [],
   };

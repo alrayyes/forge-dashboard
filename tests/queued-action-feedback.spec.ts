@@ -5,6 +5,7 @@ import {
   openActionsDialog,
   viaActionsDialog,
 } from './actions-dialog-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 import { dismissToasts } from './toast-helper';
@@ -28,7 +29,7 @@ async function requestsDelivered(page: Page) {
 }
 
 interface MockPR {
-  forge: string;
+  forge: Forge;
   repo: string;
   number: number;
   title: string;
@@ -101,7 +102,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(pr: MockPR) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: pr.forge, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge)],
     pullRequests: [pr],
     issues: [],
   };
