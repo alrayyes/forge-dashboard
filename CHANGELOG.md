@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.101.2](https://github.com/alrayyes/forge-dashboard/compare/v9.101.1...v9.101.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** keep the status banner inside the viewport at 400% text ([#4653](https://github.com/alrayyes/forge-dashboard/issues/4653)) ([8066bf2](https://github.com/alrayyes/forge-dashboard/commit/8066bf29a6e36582efbaa5404c0d84a2e305978e))
+
 ## [9.101.1](https://github.com/alrayyes/forge-dashboard/compare/v9.101.0...v9.101.1) (2026-11-23)
 
 
