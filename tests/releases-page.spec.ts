@@ -1,6 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
-import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -43,7 +42,7 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [forgeHealth('github')],
+        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
         pullRequests,
         issues: [],
         navCounts: navCountsFor(pullRequests, 0),
