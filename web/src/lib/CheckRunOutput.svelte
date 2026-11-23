@@ -407,6 +407,7 @@
 {#if jobId !== undefined}
   <div class="run-actions">
     <button
+      bind:this={toggleButton}
       type="button"
       class="run-toggle"
       aria-expanded={shown}
