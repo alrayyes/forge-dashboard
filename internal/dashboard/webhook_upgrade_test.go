@@ -338,7 +338,9 @@ func (b *syncBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.buf.Write(p)
+	_, _ = b.buf.Write(p) // a bytes.Buffer write never fails
+
+	return len(p), nil
 }
 
 func (b *syncBuffer) String() string {

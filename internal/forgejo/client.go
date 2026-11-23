@@ -340,6 +340,12 @@ var forgejoWebhookEvents = []string{
 // method is self-contained even if SetWebhookPath was never called)
 // back to active with the right config rather than creating a second,
 // duplicate hook.
+//
+// It always writes an existing hook, because the "Add a webhook" button relies
+// on that to replace a changed secret. The post-refresh pass calls it only for
+// a repo whose snapshot shows no hook, so a write there means the snapshot was
+// stale: one idempotent PATCH, after which the next refresh sees the hook and
+// leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	c = c.withContext(ctx)
 	u, err := url.Parse(targetURL)
@@ -403,8 +409,8 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, con
 }
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
-// a PATCH only when this app's hook is switched off or lacks an event it subscribes to now. It
-// never creates a hook (#1555).
+// a PATCH only when this app's hook is switched off or lacks an event it
+// subscribes to now. It never creates a hook.
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {

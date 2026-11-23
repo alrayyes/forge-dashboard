@@ -114,9 +114,9 @@ type WebhookManager interface {
 // WebhookUpgrader is implemented by a ForgeClient (or, for github.Client, a
 // Source directly) that can bring an existing app-created webhook up to the
 // event list the app subscribes to now (#1555). Unlike WebhookManager it never
-// creates a hook, and it writes only when the hook is off or lacks an event: one hooks
-// listing per call, plus one PATCH when the list differs. It reports whether
-// it wrote.
+// creates a hook, and it writes only when the hook is off or lacks an event:
+// one hooks listing per call, plus one PATCH when it differs. It reports
+// whether it wrote.
 type WebhookUpgrader interface {
 	UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (updated bool, err error)
 }
