@@ -175,13 +175,16 @@ address: it goes in the header only.
   Add `--scope user` to use it in every project, not just this one. Check it
   with `claude mcp list` or `/mcp`. Claude Code saves the entry without
   testing the token, so a wrong one shows up there, not when you add it.
-  Steps: [Claude Code MCP docs](https://code.claude.com/docs/en/mcp).
+  See the [Claude Code MCP docs](https://code.claude.com/docs/en/mcp).
 
 - **Claude on the web and Claude Desktop**: open Customize, then Connectors,
   then Add custom connector, and paste the address. Choose "No sign in",
   since this endpoint uses the token and not OAuth, and put the header under
   "Request headers". Claude connects from the cloud, not from your machine, so the
-  dashboard has to be reachable from the internet on port 443. Steps:
+  dashboard has to be reachable from the internet on port 443. Free plans are
+  limited to one custom connector. On Team and Enterprise plans only an
+  Owner can add one, under Organization settings, then Connectors, and members
+  then connect to it from Customize, then Connectors. See
   [custom connectors using remote MCP](https://support.claude.com/en/articles/11175166).
 
 The endpoint offers these tools:
@@ -190,7 +193,7 @@ The endpoint offers these tools:
 | ------------------------------ | --------------------------------------------------------------- |
 | `get_dashboard`                | Your pull requests, as `GET /api/v1/dashboard`.                 |
 | `get_main_branches`            | Default-branch CI status and open dependency advisories.        |
-| `get_pull_request_details`     | A pull request's description, comments and reactions.           |
+| `get_pull_request_details`     | A pull request's description, its comments, and its reactions.  |
 | `get_pull_request_checks`      | A pull request's individual CI checks.                          |
 | `get_main_branch_checks`       | The jobs of a default branch's newest pipeline.                 |
 | `get_repository_advisories`    | A GitHub repository's open dependency advisories in full.       |
@@ -198,7 +201,7 @@ The endpoint offers these tools:
 | `list_queued_actions`          | Actions waiting on a rate-limited forge, and the recently done. |
 | `get_version`                  | The running server's release tag.                               |
 | `get_forge_api_stats`          | The forge request counters and budgets.                         |
-| `get_settings`                 | Your settings, without the webhook token and secret.            |
+| `get_settings`                 | Your settings. The webhook token and secret stay out.           |
 | `set_pull_request_auto_update` | Turns automatic branch update on or off for one pull request.   |
 
 `set_pull_request_auto_update` is the only one that writes, and it changes

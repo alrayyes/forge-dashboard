@@ -942,7 +942,8 @@
   // The MCP endpoint lives on the origin the page is open on, so staging and
   // production each show their own. Set after mount: there is no window while
   // the page is prerendered.
-  let mcpUrl = $state("");
+  // Until then, and in the prerendered page, a placeholder host stands in.
+  let mcpUrl = $state("https://<your-dashboard-host>/api/v1/mcp");
   let mcpCopyStatus = $state("");
   let mcpCopyStatusKind = $state<"" | "error" | "ok">("");
 
@@ -2777,7 +2778,10 @@
               <li>
                 Claude (claude.ai and Claude Desktop): open Customize, then
                 Connectors, then Add custom connector. Paste the address, choose
-                "No sign in" and put the header under "Request headers".
+                "No sign in" and put the header under "Request headers". Free
+                plans allow one custom connector. On Team and Enterprise plans
+                only an Owner can add one, under Organization settings, then
+                Connectors.
               </li>
             </ul>
             <p>
