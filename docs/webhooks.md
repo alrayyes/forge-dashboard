@@ -162,12 +162,19 @@ server as `webhookReason`, and the page words it:
 - `forge_unavailable`: the forge was rate limited or unreachable on the last
   attempt. The row says the dashboard tries again, and it does, on its own.
 - `forge_refused`: the forge answered the create with a refusal. The row shows
-  when the next attempt is (the one-hour retry wait) and, on hover, what the
-  forge said.
+  when the next attempt is (the one-hour retry wait). The longer text says
+  what the forge said, in its own words, only when the forge gave a plain
+  sentence. When it gave none, the text says the forge refused and gave no
+  reason, in the dashboard's voice.
 
-A reason goes away as soon as the hook exists. The page reads a reason that
-appeared after a pass on its next read of the dashboard, not the moment the
-pass ends.
+The longer text opens as a popover over the rows below, so the list doesn't
+move. The Escape key hides it, and it comes back when you move off the note and
+return.
+
+A reason goes away as soon as the hook exists, when the repo leaves the list,
+and while the public address below can't receive hooks, since no attempt is
+made then. The page reads a reason that appeared after a pass on its next read
+of the dashboard, not the moment the pass ends.
 
 A public address that can't receive hooks (localhost, a private network
 address, or plain HTTP on a public name) is the same problem for every repo, so
