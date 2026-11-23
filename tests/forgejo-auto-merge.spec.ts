@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 type AutoMergeStatus = {
@@ -34,7 +35,7 @@ function snapshot(
 ) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'forgejo', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('forgejo')],
     pullRequests: [pr],
     issues: [],
     ...extra,
@@ -380,7 +381,7 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
     await mockDashboard(
       page,
       snapshot(makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }), {
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }),
           makePR({

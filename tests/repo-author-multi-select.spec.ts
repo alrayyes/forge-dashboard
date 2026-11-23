@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import {
   clearPicks,
   offeredValues,
@@ -103,7 +104,7 @@ const repoEntry = (fullName: string, logoUrl?: string) => ({
 async function mock(
   page: Page,
   prs: Record<string, unknown>[] = PRS,
-  forges = [{ forge: 'github', reachable: true, repoCount: 3 }],
+  forges = [forgeHealth('github', { repoCount: 3 })],
 ) {
   await routeImage(page, LOGO, (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
@@ -438,7 +439,7 @@ test.describe('Repo and Author: logos and avatars', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: NOW,
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr(1, 'dave', 'acme/api'), pr(2, 'dave', 'acme/web')],
           issues: [],
           openIssueCount: 0,
@@ -493,10 +494,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
       pr(1, 'alice', 'acme/api'),
       pr(2, 'bob', 'acme/api', { forge: 'forgejo' }),
     ];
-    await mock(page, prs, [
-      { forge: 'github', reachable: true, repoCount: 1 },
-      { forge: 'forgejo', reachable: true, repoCount: 1 },
-    ]);
+    await mock(page, prs, [forgeHealth('github'), forgeHealth('forgejo')]);
     await page.goto('/pull-requests.html');
     await expect(prRows(page)).toHaveCount(2);
 
@@ -539,10 +537,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
         pr(1, 'alice', 'acme/api'),
         pr(2, 'bob', 'acme/api', { forge: 'forgejo' }),
       ],
-      [
-        { forge: 'github', reachable: true, repoCount: 1 },
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
-      ],
+      [forgeHealth('github'), forgeHealth('forgejo')],
     );
     await page.goto('/pull-requests.html');
     await pickButton(page, 'repo').click();
@@ -618,7 +613,7 @@ test.describe('Repo and Author: forges, limits and accessibility', () => {
         (window as unknown as { __push: (d: unknown) => void }).__push(data),
       {
         generatedAt: NOW,
-        forges: [{ forge: 'github', reachable: true, repoCount: 3 }],
+        forges: [forgeHealth('github', { repoCount: 3 })],
         // A new author makes the page redraw the list of authors; a changed
         // avatar alone is not a change to a row.
         pullRequests: [
