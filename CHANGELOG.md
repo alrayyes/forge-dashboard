@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.111.1](https://github.com/alrayyes/forge-dashboard/compare/v9.111.0...v9.111.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** judge a cancel's success by the row's newest entry ([#4747](https://github.com/alrayyes/forge-dashboard/issues/4747)) ([81f85e9](https://github.com/alrayyes/forge-dashboard/commit/81f85e9580e23f5d64a921586e2cd6b3f86080d6))
+
 ## [9.111.0](https://github.com/alrayyes/forge-dashboard/compare/v9.110.1...v9.111.0) (2026-11-23)
 
 
