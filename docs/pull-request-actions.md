@@ -1148,11 +1148,13 @@ checks cancelled". The wording is the same for every state (passed, skipped,
 running, waiting, not started, failed, unknown, cancelled, held), singular for
 one check and plural otherwise, and the number is the one on the pill. Escape
 closes the tooltip without moving focus, and you can move the pointer onto it
-without it going away. On a touch screen, tap a count to see it and tap
-anywhere else to close it; tapping the word or the rest of the pill still opens
-the pipeline panel. The Cancelled pill uses the same tooltip, and so do the
-pills on the Bots page, the issue rows and Main branches. A screen reader still
-hears the whole pill as one button, with its counts in its name.
+without it going away. On a touch screen, a tap anywhere on a pill that
+opens the pipeline, a count included, opens the pipeline panel. A badge that
+opens nothing (the pill on an issue row) shows the count's text on a tap
+instead, and a tap anywhere else closes it. The Cancelled pill uses the same
+tooltip, and so do the pills on the Bots page, the issue rows and Main
+branches. A screen reader still hears the whole pill as one button, with its
+counts in its name.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

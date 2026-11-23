@@ -228,7 +228,7 @@ export function renderCiPill(
   // The hover and focus tips. Always, not only when segmented: the Main
   // branches page keeps one button and redraws its children, so a pill that
   // gains counts later must already listen. It finds segments as it goes.
-  attachSegmentTips(root);
+  attachSegmentTips(root, Boolean(onOpen));
 
   if (onOpen) {
     if (id) root.id = id;

@@ -4,8 +4,9 @@ import { installFakeStream, pushStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// Pointing at, focusing or tapping a section of a CI pill says what it counts
-// ("7 checks passed"), the same on every pill.
+// Pointing at or focusing a section of a CI pill, or tapping one on a badge
+// that opens nothing, says what it counts ("7 checks passed"). A pill that
+// opens a pipeline opens it on a tap instead (#4753).
 // https://github.com/alrayyes/forge-dashboard/issues/4422
 
 function pr(number: number, title: string, ci: string, checks: object) {

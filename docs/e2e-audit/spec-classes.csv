@@ -46,6 +46,7 @@ checks-incomplete-pill.spec.ts,,3,1,C,,0.0
 ci-pill-actions.spec.ts,2.958,4,4,A,web/src/lib/ci-pill.test.ts,0.0
 ci-pill-counts.spec.ts,1.777,9,5,A,web/src/lib/ci-pill.test.ts,0.8
 ci-pill-segment-tips.spec.ts,,14,14,A,web/src/lib/ci-pill.test.ts,0.0
+ci-pill-tap-opens.spec.ts,,4,3,A,web/src/lib/ci-pill.test.ts,0.0
 ci-status-pulldown-gone.spec.ts,0.558,3,0,C,,0.6
 close-neutral.spec.ts,2.746,6,5,A,,0.5
 closing-issues.spec.ts,6.631,12,6,A,web/src/lib/closing-issues.test.ts,3.3
@@ -137,7 +138,7 @@ label-in-name.spec.ts,1.53,7,6,A,,0.2
 label-multi-select.spec.ts,14.074,26,5,C,,11.4
 landscape-first-row.spec.ts,8.569,5,4,A,,1.7
 legal.spec.ts,2.251,4,2,A,,1.1
-linked-pull-request-pipeline.spec.ts,6.155,8,2,C,,4.6
+linked-pull-request-pipeline.spec.ts,6.155,9,2,C,,4.8
 linked-pull-requests.spec.ts,7.75,14,5,C,web/src/lib/linked-pull-requests.test.ts,5.0
 list-date-columns-root-font-size.spec.ts,,6,4,A,,0.0
 live-control.spec.ts,12.008,12,4,C,web/src/lib/live-control.test.ts;LiveControl.stories.svelte (proven),8.0
