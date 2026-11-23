@@ -1,6 +1,9 @@
 # Webhooks
 
-Optional. Without one set up, the dashboard still refreshes on its own schedule
+The dashboard creates and repairs its own webhook on every repo your token can
+administer, so you rarely set one up by hand (see
+[What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)).
+Without one, the dashboard still refreshes on its own schedule
 (`REFRESH_INTERVAL`, 20 minutes by default, longer while every repo has a
 healthy webhook, every forge's last fetch worked and every repo was fully
 fetched) and the browser tab polls it every 30 seconds — a webhook just closes
@@ -54,19 +57,17 @@ next refresh, so a repo crossing the cutoff keeps the shorter wording until
 then. The badge goes when a fetch succeeds, and the time starts again after a
 restart.
 
-## The easy way: "Add a webhook"
+## The retry path: "Add a webhook"
 
-On the Webhooks page, a repo without a confirmed webhook gets an "Add a
-webhook" button — it creates one via the forge's own API, pointed at
+The dashboard creates and repairs hooks itself (see
+[What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)).
+On the Webhooks page, a repo still without a confirmed webhook, because the
+forge refused it or the dashboard is waiting out its retry wait, gets an "Add a
+webhook" button. It creates one via the forge's own API, pointed at
 this dashboard's URL and secret, subscribed to every event the table
 below recommends. If a forge-dashboard webhook already exists there but
-is turned off or missing an event, clicking it fixes that one up in place
-rather than creating a second, duplicate hook. A webhook the button made
-before comment events were added gets them the same way, and the dashboard
-does it for you: once per process start it checks each covered repo's hook and
-replaces an out-of-date event list with the current one (see
-[What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)
-for what that costs). Clicking the button still works.
+is turned off, has a different secret or is missing an event, clicking it fixes
+that one up in place rather than creating a second, duplicate hook.
 
 This needs a broader token scope than just reading your repos — GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and
@@ -253,15 +254,29 @@ the permission, accept it on the installation, and the next check after the
 hour sees it. Rows stay locked until then, up to an hour; restarting the
 dashboard clears it at once.
 
-A webhook the dashboard created earlier is brought up to date without a click.
-After the first refresh that finds a repo's webhook, the dashboard lists that
-repo's hooks once and, only if the hook lacks an event the dashboard now
-subscribes to, edits it in place. It never creates a hook there. Cost: one
-extra hooks listing per covered repo per process start (plus one edit for a
-hook that is out of date), at most four at a time, each after a short random
-pause. A forge that is unreachable or out of REST budget is skipped and tried
-again on a later refresh, and never fails one. A repo whose hooks the token
-can't administer is tried once and left until the next restart.
+The dashboard writes webhooks on its own, so it needs a token that can: GitHub's
+Webhooks permission set to **Read and write**, and on Forgejo `write:repository`
+with admin on the repo.
+
+- **A repo with no hook** that the token can administer gets one after the next
+  refresh, pointed at this dashboard with the current event list. A hook of
+  this dashboard's that already exists is edited, never duplicated.
+- **A hook that is switched off or lacks an event** the dashboard now subscribes
+  to is edited in place after the first refresh that finds it. The dashboard
+  lists the repo's hooks once per process start for this. It can't read a
+  hook's secret back from the forge, so a changed secret is fixed by the
+  "Add a webhook" button.
+- **A repo the token can't administer**, a forge that is unreachable or out of
+  REST budget, and a repo the forge refuses are skipped without failing the
+  refresh. The dashboard asks a refused repo again after an hour, with no
+  restart, and a forge that is down on the next refresh.
+- **A public address a forge can't reach** (`RP_ORIGIN` on localhost, a private
+  address or plain HTTP) gets no hook created, because it would never fire. The
+  log says why, once per refresh.
+
+Requests run at most four at a time, each after a short random pause, and are
+logged under the hook-maintenance kind. The "Add a webhook" button remains the
+manual retry for a locked or skipped row.
 
 ## Troubleshooting
 

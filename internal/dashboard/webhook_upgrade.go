@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"math/rand/v2"
 	"strings"
@@ -33,15 +34,51 @@ type WebhookCredentialSource interface {
 // their one hooks listing (#1555). Shared by every Aggregator a Service
 // builds, so saving credentials, which rebuilds one, doesn't repeat the work.
 type WebhookUpgrades struct {
-	mu     sync.Mutex
-	tried  map[string]struct{}
-	jitter time.Duration
+	mu         sync.Mutex
+	tried      map[string]struct{}
+	next       map[string]time.Time
+	jitter     time.Duration
+	retryAfter time.Duration
+	now        func() time.Time
 }
+
+// DefaultWebhookRetryAfter is how long the pass leaves a repo alone after
+// trying to create or repair its hook, before it tries again without a
+// restart (#4018).
+const DefaultWebhookRetryAfter = time.Hour
 
 // NewWebhookUpgrades returns an empty record. jitter is the longest random
 // pause before each repo's listing; zero turns it off.
 func NewWebhookUpgrades(jitter time.Duration) *WebhookUpgrades {
-	return &WebhookUpgrades{tried: make(map[string]struct{}), jitter: jitter}
+	return &WebhookUpgrades{
+		tried:      make(map[string]struct{}),
+		next:       make(map[string]time.Time),
+		jitter:     jitter,
+		retryAfter: DefaultWebhookRetryAfter,
+		now:        time.Now,
+	}
+}
+
+// WithRetry sets how long a repo is left alone after the pass tried to create
+// its hook, and the clock that wait is measured on. It returns w.
+func (w *WebhookUpgrades) WithRetry(after time.Duration, now func() time.Time) *WebhookUpgrades {
+	w.retryAfter, w.now = after, now
+
+	return w
+}
+
+// claimRetry is claim for work that repeats: it succeeds again once the retry
+// wait since the last claim has passed.
+func (w *WebhookUpgrades) claimRetry(key string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	now := w.now()
+	if due, ok := w.next[key]; ok && now.Before(due) {
+		return false
+	}
+	w.next[key] = now.Add(w.retryAfter)
+
+	return true
 }
 
 func (w *WebhookUpgrades) claim(key string) bool {
@@ -59,6 +96,7 @@ func (w *WebhookUpgrades) release(key string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	delete(w.tried, key)
+	delete(w.next, key)
 }
 
 type webhookUpgradeConfig struct {
@@ -98,24 +136,26 @@ func (a *Aggregator) startWebhookUpgrade(snap Snapshot) {
 	})
 }
 
-// runWebhookUpgrade visits each forge's covered repos that haven't had their
-// listing yet. A forge that is unreachable or out of REST budget is left for
-// a later refresh. A repo the forge refused (no admin right on its hooks) is
-// not asked again before the next start.
+// runWebhookUpgrade visits each forge's repos twice over. A covered repo gets
+// its one listing and a repair if the hook is off or out of date (#1555). A
+// repo with no hook that the token can administer gets one created (#4018),
+// unless the dashboard's public origin is one a forge can't reach. A forge that
+// is unreachable or out of REST budget is left for a later refresh. A repo the
+// forge refused is asked again only after the retry wait, never in a burst.
 func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot) {
 	healthy := healthyForges(snap)
+	originProblem := WebhookOriginProblem(cfg.origin)
 
 	var token, secret string
 	for _, src := range a.sources {
-		upgrader, ok := src.(WebhookUpgrader)
-		if !ok || !healthy[src.Forge()] {
+		if !healthy[src.Forge()] {
 			continue
 		}
 		if held := a.budgetHold(snap, src.Forge(), apistats.KindHookMaintenance); held {
 			continue
 		}
-		repos := coveredRepos(snap, src.Forge())
-		if len(repos) == 0 {
+		jobs := forgeJobs(src, snap, originProblem)
+		if len(jobs) == 0 {
 			continue
 		}
 		if token == "" {
@@ -127,8 +167,73 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 			}
 		}
 		targetURL := cfg.origin + "/api/webhooks/" + string(src.Forge()) + "/" + token
-		upgradeForge(cfg, src.Forge(), upgrader, repos, targetURL, secret)
+		runJobs(cfg, src.Forge(), jobs, targetURL, secret)
 	}
+}
+
+// forgeJobs is src's work for one pass: an upgrade for each covered repo, and
+// a create for each repo the token can administer that has no hook, unless the
+// public origin is one a forge can't reach.
+func forgeJobs(src Source, snap Snapshot, originProblem string) []repoJob {
+	jobs := upgradeJobs(src, snap)
+	if originProblem != "" {
+		slog.Info("webhook maintenance: not creating hooks", "forge", src.Forge(), "reason", originProblem)
+
+		return jobs
+	}
+
+	return append(jobs, createJobs(src, snap)...)
+}
+
+func upgradeJobs(src Source, snap Snapshot) []repoJob {
+	upgrader, ok := src.(WebhookUpgrader)
+	if !ok {
+		return nil
+	}
+	forge := src.Forge()
+	var jobs []repoJob
+	for _, fullName := range coveredRepos(snap, forge) {
+		jobs = append(jobs, repoJob{
+			key: string(forge) + "|" + fullName, fullName: fullName, once: true,
+			run: func(ctx context.Context, owner, name, targetURL, secret string) error {
+				updated, err := upgrader.UpgradeWebhook(ctx, owner, name, targetURL, secret)
+				if err != nil {
+					return fmt.Errorf("upgrade hook: %w", err)
+				}
+				if updated {
+					slog.Info("webhook upgrade: brought the hook up to date", "forge", forge, "repo", owner+"/"+name)
+				}
+
+				return nil
+			},
+		})
+	}
+
+	return jobs
+}
+
+func createJobs(src Source, snap Snapshot) []repoJob {
+	manager, ok := src.(WebhookManager)
+	if !ok {
+		return nil
+	}
+	forge := src.Forge()
+	var jobs []repoJob
+	for _, fullName := range unhookedRepos(snap, forge) {
+		jobs = append(jobs, repoJob{
+			key: "create|" + string(forge) + "|" + fullName, fullName: fullName,
+			run: func(ctx context.Context, owner, name, targetURL, secret string) error {
+				if err := manager.EnsureWebhook(ctx, owner, name, targetURL, secret); err != nil {
+					return fmt.Errorf("ensure hook: %w", err)
+				}
+				slog.Info("webhook maintenance: hook in place", "forge", forge, "repo", owner+"/"+name)
+
+				return nil
+			},
+		})
+	}
+
+	return jobs
 }
 
 // healthyForges marks each forge that answered and has REST budget left.
@@ -153,61 +258,88 @@ func coveredRepos(snap Snapshot, forge Forge) []string {
 	return repos
 }
 
-func upgradeForge(cfg *webhookUpgradeConfig, forge Forge, upgrader WebhookUpgrader, repos []string, targetURL, secret string) {
+// unhookedRepos is the full name of each of forge's repos with no hook of ours
+// that the token is allowed to administer. A repo it can't administer is left
+// for the manual "Add a webhook" row to explain.
+func unhookedRepos(snap Snapshot, forge Forge) []string {
+	var repos []string
+	for _, r := range snap.Repos {
+		if r.Forge == forge && !r.HasWebhook && r.CanManageWebhooks {
+			repos = append(repos, r.FullName)
+		}
+	}
+
+	return repos
+}
+
+// repoJob is one repo's hook work. once jobs run a single time per process
+// start; the rest repeat after the retry wait.
+type repoJob struct {
+	key      string
+	fullName string
+	once     bool
+	run      func(ctx context.Context, owner, name, targetURL, secret string) error
+}
+
+func runJobs(cfg *webhookUpgradeConfig, forge Forge, jobs []repoJob, targetURL, secret string) {
 	var (
 		wg      sync.WaitGroup
 		stopped atomic.Bool
 		sem     = make(chan struct{}, webhookUpgradeConcurrency)
 	)
-	for _, fullName := range repos {
+	for _, job := range jobs {
 		sem <- struct{}{}
 		wg.Go(func() {
 			defer func() { <-sem }()
 			if stopped.Load() || cfg.ctx.Err() != nil {
 				return
 			}
-			key := string(forge) + "|" + fullName
-			if !cfg.state.claim(key) {
-				return
-			}
-			if !pauseForJitter(cfg.ctx, cfg.state.jitter) || stopped.Load() {
-				cfg.state.release(key)
-
-				return
-			}
-			if !upgradeRepo(cfg.ctx, forge, upgrader, fullName, targetURL, secret) {
+			if !claimAndRun(cfg, forge, job, targetURL, secret, &stopped) {
 				// Out of budget or unreachable: not an answer about this
 				// repo, so leave it, and the rest of the forge, for later.
 				stopped.Store(true)
-				cfg.state.release(key)
+				cfg.state.release(job.key)
 			}
 		})
 	}
 	wg.Wait()
 }
 
-// upgradeRepo reports false when the forge could not be asked right now.
-func upgradeRepo(ctx context.Context, forge Forge, upgrader WebhookUpgrader, fullName, targetURL, secret string) bool {
+// claimAndRun runs job once its key is claimed and the jitter has passed. It
+// reports false when the forge could not be asked right now.
+func claimAndRun(cfg *webhookUpgradeConfig, forge Forge, job repoJob, targetURL, secret string, stopped *atomic.Bool) bool {
+	claim := cfg.state.claimRetry
+	if job.once {
+		claim = cfg.state.claim
+	}
+	if !claim(job.key) {
+		return true
+	}
+	if !pauseForJitter(cfg.ctx, cfg.state.jitter) || stopped.Load() {
+		cfg.state.release(job.key)
+
+		return true
+	}
+
+	return runJob(cfg.ctx, forge, job, targetURL, secret)
+}
+
+// runJob reports false when the forge could not be asked right now.
+func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret string) bool {
 	ctx = apistats.WithKind(ctx, apistats.KindHookMaintenance)
-	owner, name, ok := strings.Cut(fullName, "/")
+	owner, name, ok := strings.Cut(job.fullName, "/")
 	if !ok {
 		return true
 	}
-	updated, err := upgrader.UpgradeWebhook(ctx, owner, name, targetURL, secret)
-	if err != nil {
+	if err := job.run(ctx, owner, name, targetURL, secret); err != nil {
 		if clientErr, isClient := errors.AsType[*ClientError](err); isClient &&
 			(clientErr.Kind == ForgeErrorRateLimited || clientErr.Kind == ForgeErrorUnreachable ||
 				clientErr.Kind == ForgeErrorUpstream) {
-			slog.Info("webhook upgrade: forge not available, trying later", "forge", forge, "repo", fullName, "kind", clientErr.Kind)
+			slog.Info("webhook maintenance: forge not available, trying later", "forge", forge, "repo", job.fullName, "kind", clientErr.Kind)
 
 			return false
 		}
-		slog.Warn("webhook upgrade: cannot upgrade, not trying again until restart", "forge", forge, "repo", fullName, "error", err)
-
-		return true
-	}
-	if updated {
-		slog.Info("webhook upgrade: brought the hook's events up to date", "forge", forge, "repo", fullName)
+		slog.Warn("webhook maintenance: the forge refused the hook", "forge", forge, "repo", job.fullName, "error", err)
 	}
 
 	return true

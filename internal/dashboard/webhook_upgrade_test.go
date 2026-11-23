@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -27,6 +28,12 @@ type fakeUpgradeSource struct {
 	calls   []string
 	results map[string]error // by "owner/name"
 	updated bool
+
+	ensured       []string
+	ensureResults map[string]error
+	ensureHold    time.Duration
+	inflight      atomic.Int32
+	peak          atomic.Int32
 }
 
 func (f *fakeUpgradeSource) UpgradeWebhook(_ context.Context, owner, name, targetURL, _ string) (bool, error) {
@@ -83,7 +90,7 @@ func TestWebhookUpgrade_CoveredRepo_IsUpgradedAtTheOwnTargetURL(t *testing.T) {
 	t.Parallel()
 
 	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, covered(dashboard.ForgeGitHub, "me/a")...)
-	// A repo without our hook is never touched: creating one is the button's job.
+	// A repo without our hook is never upgraded: it is created, not listed.
 	src.result.Repos = append(src.result.Repos, dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: "me/bare"})
 
 	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
@@ -205,4 +212,157 @@ func TestService_SetWebhookUpgrade_EnablesItOnTheAggregatorsItBuilds(t *testing.
 	mgr.Ensure(t.Context(), []dashboard.Source{src})
 
 	assert.Eventually(t, func() bool { return len(src.called()) == 1 }, 5*time.Second, 10*time.Millisecond)
+}
+
+// EnsureWebhook records the create-or-repair calls the pass makes for repos
+// that have no hook of ours yet.
+func (f *fakeUpgradeSource) EnsureWebhook(_ context.Context, owner, name, targetURL, _ string) error {
+	now := f.inflight.Add(1)
+	defer f.inflight.Add(-1)
+	for {
+		peak := f.peak.Load()
+		if now <= peak || f.peak.CompareAndSwap(peak, now) {
+			break
+		}
+	}
+	time.Sleep(f.ensureHold)
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	key := owner + "/" + name
+	f.ensured = append(f.ensured, key)
+	if f.urls == nil {
+		f.urls = map[string]string{}
+	}
+	f.urls[key] = targetURL
+
+	return f.ensureResults[key]
+}
+
+func (f *fakeUpgradeSource) ensuredRepos() []string {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]string(nil), f.ensured...)
+}
+
+func hookless(forge dashboard.Forge, canManage bool, names ...string) []dashboard.Repo {
+	repos := make([]dashboard.Repo, 0, len(names))
+	for _, n := range names {
+		repos = append(repos, dashboard.Repo{Forge: forge, FullName: n, CanManageWebhooks: canManage})
+	}
+
+	return repos
+}
+
+func TestWebhookProvision_RepoWithoutHookTheTokenCanAdminister_GetsOneAtTheOwnTargetURL(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.Equal(t, []string{"me/bare"}, src.ensuredRepos())
+	assert.Equal(t, "https://dash.example/api/webhooks/github/tok", src.urls["me/bare"])
+}
+
+func TestWebhookProvision_RepoTheTokenCannotAdminister_IsLeftAlone(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, Reachable: true}, hookless(dashboard.ForgeForgejo, false, "me/locked")...)
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.Empty(t, src.ensuredRepos())
+}
+
+func TestWebhookProvision_RepoThatAlreadyHasOurHook_IsNotCreatedAgain(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, covered(dashboard.ForgeGitHub, "me/a")...)
+	src.result.Repos[0].CanManageWebhooks = true
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.Empty(t, src.ensuredRepos())
+}
+
+func TestWebhookProvision_OriginAForgeCannotReach_CreatesNothing(t *testing.T) {
+	t.Parallel()
+
+	for _, origin := range []string{"http://localhost:8080", "https://192.168.1.20", "http://dash.example", "https://dash.local"} {
+		t.Run(origin, func(t *testing.T) {
+			t.Parallel()
+			src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+			agg := dashboard.NewAggregator([]dashboard.Source{src})
+			agg.EnableWebhookUpgrade(t.Context(), fakeCreds{}, origin, dashboard.NewWebhookUpgrades(0))
+
+			refreshAndWait(t, agg)
+
+			assert.Empty(t, src.ensuredRepos())
+		})
+	}
+}
+
+func TestWebhookOriginProblem(t *testing.T) {
+	t.Parallel()
+
+	assert.Empty(t, dashboard.WebhookOriginProblem("https://dash.example.com"))
+	assert.Contains(t, dashboard.WebhookOriginProblem("http://dash.example.com"), "HTTPS")
+	assert.Contains(t, dashboard.WebhookOriginProblem("https://localhost"), "private")
+	assert.Contains(t, dashboard.WebhookOriginProblem("https://10.0.0.5"), "private")
+	assert.Contains(t, dashboard.WebhookOriginProblem("https://[::1]:8443"), "private")
+	assert.Contains(t, dashboard.WebhookOriginProblem(""), "origin")
+}
+
+func TestWebhookProvision_ForgeRateLimited_RetriesOnTheNextRefresh(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+	src.ensureResults = map[string]error{"me/bare": &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("rate limited")}}
+	agg := upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src)
+
+	refreshAndWait(t, agg)
+	src.mu.Lock()
+	src.ensureResults = nil
+	src.mu.Unlock()
+	refreshAndWait(t, agg)
+
+	assert.Equal(t, []string{"me/bare", "me/bare"}, src.ensuredRepos())
+}
+
+func TestWebhookProvision_RefusedRepo_IsAskedAgainOnlyAfterTheRetryWait(t *testing.T) {
+	t.Parallel()
+
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+	src.ensureResults = map[string]error{"me/bare": &dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("403")}}
+	var offset atomic.Int64
+	clock := func() time.Time {
+		return time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC).Add(time.Duration(offset.Load()))
+	}
+	agg := upgradingAggregator(t, dashboard.NewWebhookUpgrades(0).WithRetry(time.Hour, clock), src)
+
+	refreshAndWait(t, agg)
+	refreshAndWait(t, agg)
+	assert.Equal(t, []string{"me/bare"}, src.ensuredRepos(), "not asked again inside the wait")
+
+	offset.Store(int64(2 * time.Hour))
+	refreshAndWait(t, agg)
+	assert.Equal(t, []string{"me/bare", "me/bare"}, src.ensuredRepos(), "asked again after it, with no restart")
+}
+
+func TestWebhookProvision_ManyRepos_NeverMoreThanFourRequestsAtOnce(t *testing.T) {
+	t.Parallel()
+
+	names := make([]string, 0, 12)
+	for i := range 12 {
+		names = append(names, "me/r"+string(rune('a'+i)))
+	}
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, names...)...)
+	src.ensureHold = 20 * time.Millisecond
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.Len(t, src.ensuredRepos(), 12)
+	assert.LessOrEqual(t, src.peak.Load(), int32(4))
 }
