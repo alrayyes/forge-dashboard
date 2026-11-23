@@ -86,26 +86,38 @@ actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
 A wait that passes by itself, CI running or Forgejo checking for conflicts, is
-said once, in the slot where Merge goes: one line of text, "Merge after CI" or
-"Merge after conflict check", and no locked button or second sentence. It is
-real text, so a keyboard, a touch screen and a screen reader get it with no
-control to stop on. When the forge allows the merge, Merge takes the slot back
-and the row keeps its height, and a screen reader hears "Merge is available."
-only if focus is in that row. An armed row shows the waiting chip instead and no
-line, since the chip already says it. The status block and the pop-up's footer
-follow the same rule. Reasons a person can act on keep their locked Merge and
-printed words. The words follow the CI pill: while the pill reads the live jobs
-and says they have finished, the row prints no wait, whatever the last refresh
-said, and Merge stays locked until the next refresh, with "Updating from the
-latest CI results". If it is still locked after one, the forge is counting a
-check the jobs don't show, such as a status from an external CI. On Forgejo the
-pipeline list shows those statuses beside the jobs, so the pill waits with them;
-the note beside the locked Merge points at the pull request on the forge for the
-rest. A locked Merge has a dashed edge, so it reads as locked in forced colours
-too. An armed row follows the pill the same way, whatever its status says, when
-the last refresh read CI as pending: the chip goes, and a Cancel auto-merge
-button takes its place on the row until the next refresh. The reason beside the
-locked Merge is printed, so a tap reads it without a hover.
+said once, as the same one-line chip an armed auto-merge uses: "Waiting for CI"
+or "Checking for conflicts", with an Auto-merge button inside it where the
+server offers auto-merge (it does while CI runs). Armed, the button reads Cancel
+auto-merge and takes the same place. There is no locked Merge and no dashed
+placeholder, and Update branch stays a button beside the chip. The longer
+explanation is the chip's tooltip, which opens on hover and on keyboard focus
+and is the chip's accessible description, so a keyboard, a touch screen and a
+screen reader all get it. At 1280 and 1024 pixels a waiting row with the
+Auto-merge button is no taller than a normal one, with a comment pill, Update
+branch or a bot's rebase beside the chip too: the status column widens for
+those. A chip with a detail line, such as an armed chip or a bot rebase's, is
+wider than the title can spare, so with an action beside it the row keeps the
+stacked, taller cell. An armed row's "Auto-merge" label under the title also
+still adds a line to the row. The Pull requests, Releases and Bots pages share
+the row, so they share the chip. When the forge allows the merge, Merge takes
+the slot back, and a screen reader hears "Merge is available." only if focus is
+in that row. The pop-up's footer has no chip, so it keeps the words as a line of
+text. Reasons a person can act on keep their locked Merge and printed words. The
+tooltip only suggests turning on Auto-merge when the chip has the button; a row
+where the server doesn't offer it, or the forge is rate limited, says only that
+Merge unlocks by itself. A queued action (Update branch waiting for a rate limit
+to reset) keeps its own chip and Cancel in place of the waiting chip.
+The words follow the CI pill: while the pill reads the live jobs and says they
+have finished, the row keeps the chip but says "Waiting for the forge", with
+"Updating from the latest CI results" in its tooltip, and the Merge button stays
+away until the next refresh. If the row still waits after one refresh, the
+forge is counting a check the jobs don't show, such as a status from an
+external CI. On Forgejo the pipeline list shows those statuses beside the
+jobs, so the pill waits with them; the tooltip points at the pull request on
+the forge for the rest. An armed row follows the pill the same way, whatever its
+status says, when the last refresh read CI as pending: the same chip, with
+Cancel auto-merge still on the row.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).
@@ -228,14 +240,11 @@ warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
 3:1 for the outline). Conflicts and Blocked stay as merge pills, since they say
 what the merge needs.
-Checking for conflicts is the line "Merge after conflict check" instead, once
-the slot where Merge goes shows it.
 Forgejo has one `mergeable` flag. It is false for a conflict and also while the
 forge rechecks after a base push, so a Forgejo pull request that is false with a
 moved base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
 seconds, two refresh intervals. The row prints no "Checking for conflicts" pill
-beside it: its Merge is the line
-"Merge after conflict check", which says the same once.
+beside it: the waiting chip says it once.
 A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
 refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
 once, even inside the window, and names the files git reported ("In a.txt,
@@ -618,18 +627,18 @@ When GitHub's answer isn't known, the action shows as usual.
 On Forgejo this app does the merge itself. "Enable auto-merge" stores your
 intent for that pull request and sends nothing to Forgejo. The pull request
 then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
-(below) with a `Disarm` button. The note follows the server's `autoMergeHeldBy`
-field: a merge scheduled on Forgejo itself reads "Scheduled on Forgejo" (the
-forge's label, so another forge says its own name), and when the server
-doesn't say who holds it the chip has no note, since the page never guesses.
-After each refresh the server merges an armed
-pull request once its checks have passed and Forgejo says it can merge, with
-the repo's own merge method, the same as Merge. A pull request you didn't arm
-is never merged. Checks that fail, conflicts, a draft, a stack parent that
-hasn't merged yet or no checks at all keep it waiting, and it merges once that
-clears. The row says which, in words: the chip reads `Waiting for CI`, `Waiting
-for parent`, `Rate limited` and so on, and a text line says it stopped (a
-failed check, a conflict, or a refused merge, including a token without merge
+(below) with a `Cancel auto-merge` button. The note follows the server's
+`autoMergeHeldBy` field: a merge scheduled on Forgejo itself reads "Scheduled on
+Forgejo" (the forge's label, so another forge says its own name), and when the
+server doesn't say who holds it the chip has no note, since the page never
+guesses. After each refresh the server merges an armed pull request once its
+checks have passed and Forgejo says it can merge, with the repo's own merge
+method, the same as Merge. A pull request you didn't arm is never merged. Checks
+that fail, conflicts, a draft, a stack parent that hasn't merged yet or no
+checks at all keep it waiting, and it merges once that clears. The row says
+which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
+limited` and so on, and a text line says it stopped (a failed check, a conflict,
+or a refused merge, including a token without merge
 permission). When the server merges one it tells the page, which shows
 "Auto-merged owner/repo#N after checks passed" for the next few minutes. If
 Forgejo refuses the merge, the server doesn't ask again until the pull request
@@ -723,15 +732,15 @@ hover and on keyboard focus (the chip takes focus), and a button shows only
 where one exists. The states: `Rebase requested` and then `Rebasing` for a
 Dependabot or Renovate `rebase`, `Recreating` for a Dependabot recreate,
 `Updating branch`, `Merging` and `Closing` while the forge answers, `Arming` and
-`Disarming` for auto-merge, and `Waiting for CI` (or `Waiting for parent`, `Rate
-limited`, `Waiting for ready`, `Waiting for forge`) for an armed auto-merge on
-either forge, with `Disarm`. Once nothing is left to wait for, Forgejo's reads
-`Merging next` (this app merges it on its next refresh, also when the holder is
-unknown), `Merging` when the server says Forgejo itself holds the merge (it
-merges when checks pass), and GitHub's reads `Merging` (GitHub merges it as soon
-as it can). Cancel on a merge Forgejo holds says it cancels the merge scheduled
-on Forgejo. On GitHub, Disarm turns GitHub's own auto-merge off with
-`disablePullRequestAutoMerge`.
+`Cancelling` for auto-merge, and `Waiting for CI` (or `Waiting for parent`,
+`Rate limited`, `Waiting for ready`, `Waiting for forge`) for an armed
+auto-merge on either forge, with `Cancel auto-merge`. Once nothing is left to
+wait for, Forgejo's reads `Merging next` (this app merges it on its next
+refresh, also when the holder is unknown), `Merging` when the server says
+Forgejo itself holds the merge (it merges when checks pass), and GitHub's reads
+`Merging` (GitHub merges it as soon as it can). Cancel on a merge Forgejo holds
+says it cancels the merge scheduled on Forgejo. On GitHub, Cancel auto-merge
+turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
 On a desktop the chip is a compact status, not a banner. It is as wide as
 its icon, its bold label, its lighter line and its button, 30px tall, up to the

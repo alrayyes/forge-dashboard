@@ -138,7 +138,7 @@ test.describe('the row draws one action (#943)', () => {
     await expect(row).toContainText('A required review is missing');
   });
 
-  test('with no primary and Merge only waiting on CI, the row shows one line of text, not a locked Merge (#4528)', async ({
+  test('with no primary and Merge only waiting on CI, the row shows the chip with Auto-merge, not a locked Merge (#4663)', async ({
     page,
   }) => {
     const row = await open(
@@ -149,9 +149,9 @@ test.describe('the row draws one action (#943)', () => {
         { action: 'close' },
       ]),
     );
-    expect(await rowActions(row)).toEqual([]);
+    expect(await rowActions(row)).toEqual(['Auto-merge']);
     await expect(
-      row.getByText('Merge after CI', { exact: true }),
+      row.getByText('Waiting for CI', { exact: true }),
     ).toBeVisible();
     await expect(row).not.toContainText('Waiting for CI to finish');
   });
