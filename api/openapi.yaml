@@ -8633,8 +8633,10 @@ components:
         webhookReasonDetail:
           type: string
           description: |
-            The forge's own reason, in one line, when webhookReason is
-            `forge_refused`. Absent otherwise.
+            What the forge itself said about the refusal, in one plain line.
+            Present only when `webhookReason` is `forge_refused` and the forge
+            gave a sentence; absent when it gave none, so a client never shows
+            a dashboard sentence as the forge's.
         webhookNextAttemptAt:
           type: string
           format: date-time
