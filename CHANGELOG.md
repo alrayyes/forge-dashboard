@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.103.0](https://github.com/alrayyes/forge-dashboard/compare/v9.102.0...v9.103.0) (2026-11-23)
+
+
+### Features
+
+* **web:** show how to connect an AI client on the API tokens card ([#4667](https://github.com/alrayyes/forge-dashboard/issues/4667)) ([819b0b9](https://github.com/alrayyes/forge-dashboard/commit/819b0b9090234d7c9f7ad986b0200155c23becb4)), closes [#4660](https://github.com/alrayyes/forge-dashboard/issues/4660)
+
 ## [9.102.0](https://github.com/alrayyes/forge-dashboard/compare/v9.101.3...v9.102.0) (2026-11-23)
 
 
