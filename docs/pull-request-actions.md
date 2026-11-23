@@ -1156,11 +1156,15 @@ after a job finished can miss lines. Where the browser refuses every way of copy
 the log is put in a text field, selected, for the
 person to copy with Ctrl+C (Cmd+C on a Mac).
 
-While the check's output is open and loaded, the excerpt and its `Copy output`
-button are hidden, since the output panel has the whole text and one `Copy`
-button of its own (named "Copy output: {check}"). The `Failed step` line stays.
-While the output is loading or failed to load, the panel has no Copy button and
-the excerpt and its button stay.
+A failed check's excerpt is drawn by the same log view as its full output:
+numbered lines, a copy button per line, formatted lines, the `Timestamps` and
+`Wrap lines` switches and `Expand`. Opening the full output swaps the text in
+that view, and the switches keep their setting. While the output is open and
+loaded, the `Copy output` button under the excerpt is hidden, since the view
+has one `Copy` button of its own (named "Copy output: {check}"). The `Failed
+step` line stays. While the output is loading or failed to load, the excerpt
+and its button stay, and a failure says so beside a link to the job. A check
+with no job shows its excerpt in the same view, with no toggle.
 
 Opening the output of a job that finished more than 30 seconds ago a second time
 costs no forge request: the server keeps its log in memory (up to 32 MB, the

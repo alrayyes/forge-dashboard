@@ -567,6 +567,10 @@
   // an excerpt, or a job whose full log the board's checks url can name. Only
   // those two states carry an excerpt from the server, and a cancelled run is
   // not a failure to debug (Show output still opens its output).
+  function excerptOf(check: Check): string {
+    return check.excerpt ?? excerpts[excerptKey(check)] ?? "";
+  }
+
   function copyableLog(check: Check): boolean {
     return canCopyLog(check, target?.repo);
   }
@@ -716,6 +720,7 @@
           <span class="pipeline-check-flag">Blocking</span>
         {/if}
         {#if control === "output" && target && check.jobId}
+          <!-- The excerpt and the full output are one log view (#4652). -->
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
@@ -726,8 +731,7 @@
             onloaded={(loaded) =>
               (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
             earlier={excerptFlows[keyOf.get(check) ?? ""]}
-            excerptVisible={!!(check.excerpt ?? excerpts[excerptKey(check)]) &&
-              !outputLoaded[keyOf.get(check) ?? ""]}
+            excerpt={excerptOf(check)}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -748,6 +752,17 @@
             >
           </div>
         {/if}
+        {#if excerptOf(check) && !(control === "output" && target && check.jobId)}
+          <!-- No output control, so the view shows the excerpt alone. -->
+          <CheckRunOutput
+            name={check.name}
+            repo={target?.repo}
+            runUrl={check.url}
+            forgeName={forge}
+            earlier={excerptFlows[keyOf.get(check) ?? ""]}
+            excerpt={excerptOf(check)}
+          />
+        {/if}
         {#if hint}
           <p class="pipeline-check-hint">{hint}</p>
         {/if}
@@ -758,7 +773,7 @@
           name={check.name}
           jobId={check.jobId}
           repo={target?.repo}
-          excerpt={check.excerpt ?? excerpts[excerptKey(check)] ?? ""}
+          excerpt={excerptOf(check)}
           forgeName={forge}
           {copyable}
           runKey={checkRunKey(check)}

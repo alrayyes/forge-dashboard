@@ -1,8 +1,8 @@
 <script lang="ts">
-  // A failed check's log excerpt with its Copy output button. One click copies the
-  // whole log from the log endpoint, or the excerpt when the whole log can't be
-  // read, and the status says which landed. Text only: nothing here is parsed
-  // as markup.
+  // A failed check's Copy output button. One click copies the whole log from the
+  // log endpoint, or the excerpt when the whole log can't be read, and the
+  // status says which landed. The excerpt itself is drawn by CheckRunOutput, the
+  // one log view (#4652). Text only: nothing here is parsed as markup.
   import { onDestroy, onMount } from "svelte";
   import { CopyFlow } from "#lib/copy-flow.svelte.js";
   import {
@@ -98,14 +98,6 @@
   }
 </script>
 
-{#if excerpt && !outputLoaded}
-  <!-- It scrolls, so it takes focus to be reachable from the keyboard. -->
-  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-  <pre
-    class="pipeline-check-excerpt"
-    tabindex="0"
-    aria-label="Output excerpt: {name}">{excerpt}</pre>
-{/if}
 {#if copyable && !outputLoaded}
   <div class="pipeline-check-copy">
     <button
