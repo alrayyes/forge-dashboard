@@ -37,7 +37,7 @@
     {#if reasonText}
       {reasonText}
     {:else}
-      {words.fallback}
+      {words.fallback(label)}
     {/if}
     {#if words.grantNote && grantApplies}
       {words.grantNote}

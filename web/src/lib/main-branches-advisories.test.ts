@@ -295,9 +295,9 @@ describe('advisoryUnknownReason', () => {
     expect(advisoryReasonNeedsGrant('refused')).toBe(true);
     expect(advisoryReasonNeedsGrant('switched_off')).toBe(true);
     expect(advisoryReasonNeedsGrant('throttled')).toBe(false);
-    expect(ADVISORY_WORDS_BY_SOURCE.dependabot.reasons.throttled).toContain(
-      'rate limiting',
-    );
+    expect(
+      ADVISORY_WORDS_BY_SOURCE.dependabot.reasons.throttled?.('GitHub'),
+    ).toContain('rate limiting');
   });
 });
 
@@ -383,8 +383,8 @@ describe('Forgejo cue wording', () => {
   test('has notice text only for the causes an OSV source can report', () => {
     const osv = advisoryWordsFor('forgejo').reasons;
 
-    expect(osv.failed).toContain('OSV');
-    expect(osv.too_many).toContain('more packages');
+    expect(osv.failed?.('Forgejo')).toContain('OSV');
+    expect(osv.too_many?.('Forgejo')).toContain('more packages');
     expect(osv.refused).toBeUndefined();
   });
 });
@@ -423,7 +423,7 @@ describe('advisory wording by source', () => {
 
     expect(advisoryWordsFor('nowhere')).toBe(NEUTRAL_ADVISORY_WORDS);
     expect(advisoryWordsFor('other')).toBe(NEUTRAL_ADVISORY_WORDS);
-    expect(NEUTRAL_ADVISORY_WORDS.fallback).not.toContain('GitHub');
+    expect(NEUTRAL_ADVISORY_WORDS.fallback('X')).not.toContain('GitHub');
     expect(NEUTRAL_ADVISORY_WORDS.grantNote).toBeNull();
   });
 
@@ -584,7 +584,7 @@ describe('advisoryReasonText', () => {
 
   test('a reason the source wrote words for reads as them', () => {
     expect(advisoryReasonText('forgejo', 'failed')).toBe(
-      advisoryWordsFor('forgejo').reasons.failed,
+      advisoryWordsFor('forgejo').reasons.failed?.('Forgejo'),
     );
   });
 });
@@ -601,5 +601,36 @@ describe('advisoryCoverageByForge for a forge named like an inherited key', () =
     expect(Object.hasOwn(by, id)).toBe(true);
     expect(by[id]).toBe('none');
     expect(Object.getPrototypeOf(by)).toBe(Object.prototype);
+  });
+});
+
+describe('advisory wording names the forge by its label', () => {
+  const dependabotForge = (label: string) =>
+    registerForgeCapabilities([
+      {
+        forge: 'github',
+        capabilities: {
+          label,
+          advisorySource: 'dependabot',
+          advisoryUnknownNeedsReason: false,
+        },
+      },
+    ]);
+
+  test.each(['refused', 'switched_off', 'throttled', 'failed'])(
+    'the %s sentence says the forge label, not a fixed name',
+    (reason) => {
+      dependabotForge('Octoforge');
+      const text = advisoryReasonText('github', reason) ?? '';
+      expect(text).toContain('Octoforge');
+      expect(text).not.toContain('GitHub');
+    },
+  );
+
+  test('the fallback says the forge label', () => {
+    dependabotForge('Octoforge');
+    const text = advisoryWordsFor('github').fallback('Octoforge');
+    expect(text).toContain('Octoforge');
+    expect(text).not.toContain('GitHub');
   });
 });
