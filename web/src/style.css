@@ -6285,11 +6285,11 @@ footer a[aria-current="page"] {
    touches the edge (the 0 minimum in the track is what lets it). */
 .run-line {
   display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
+  grid-template-columns: var(--run-no, 44px) minmax(0, 1fr);
   align-items: start;
 }
 .run-output-stamped .run-line {
-  grid-template-columns: 44px calc(12ch + 8px) minmax(0, 1fr);
+  grid-template-columns: var(--run-no, 44px) calc(12ch + 8px) minmax(0, 1fr);
 }
 .run-line + .run-line {
   border-top: 1px solid var(--border);
@@ -6297,7 +6297,9 @@ footer a[aria-current="page"] {
 .run-line-no {
   position: relative;
   box-sizing: border-box;
-  width: 44px;
+  /* 44px, or wider when a JSON entry's range (299-305) needs it: the log sets
+     --run-no from its longest number, so every row's column still lines up. */
+  width: var(--run-no, 44px);
   min-height: 24px;
   padding: 3px 8px 3px 0;
   border: 0;
@@ -6388,30 +6390,44 @@ footer a[aria-current="page"] {
 }
 /* A JSON entry (#4685): collapsed it is its compact form on one line with an
    ellipsis; open it is the dump with its indentation, wrapped or not. */
-.run-line-json {
+.run-line-text.run-line-json {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0 8px;
   min-width: 0;
+  /* The toggle's own height sets the row, as the number button does. */
+  padding-block: 0;
 }
 .run-json-toggle {
+  flex: none;
+  min-height: 24px;
   font: inherit;
   font-size: 0.85em;
   color: var(--ink-2);
   background: none;
   border: 0;
-  padding: 0;
+  padding: 0 2px;
   text-decoration: underline;
   cursor: pointer;
 }
+.run-json-toggle::after {
+  content: " \25B8";
+}
+.run-json-toggle[aria-expanded="true"]::after {
+  content: " \25BE";
+}
 .run-json-compact {
-  max-width: 100%;
+  flex: 1 1 0;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .run-json-full {
-  max-width: 100%;
+  flex: 1 0 100%;
+  min-width: 0;
+  padding-block: 3px;
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
@@ -6438,6 +6454,15 @@ footer a[aria-current="page"] {
   }
   .run-line-time,
   .run-line-text {
+    padding-block: 14px;
+  }
+  .run-line-text.run-line-json {
+    padding-block: 0;
+  }
+  .run-json-toggle {
+    min-height: 44px;
+  }
+  .run-json-full {
     padding-block: 14px;
   }
 }

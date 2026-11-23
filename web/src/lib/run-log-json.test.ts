@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   copyLinesLabel,
+  copyLinesStatus,
   groupJsonBlocks,
   lineCopyText,
   lineNumberText,
@@ -89,6 +90,48 @@ describe('groupJsonBlocks', () => {
     expect(lines).toHaveLength(603);
   });
 
+  // `{`, n - 2 members and `}`: n raw lines in all.
+  const dumpOf = (n: number) =>
+    [
+      '{',
+      ...Array.from({ length: n - 3 }, (_, i) => `  "k${i}": ${i},`),
+      '  "end": 0',
+      '}',
+    ].join('\n');
+
+  test('groups a value of exactly 500 lines and not one of 501', () => {
+    const at = group(dumpOf(500));
+    expect(at).toHaveLength(1);
+    expect(at[0].to).toBe(500);
+    expect(group(dumpOf(501)).some((l) => l.json)).toBe(false);
+  });
+
+  test('plain colour-free escapes and a stamp on every line still group', () => {
+    const lines = group(
+      [
+        '2026-11-13T10:00:01.000Z \u001b[1m{\u001b[0m',
+        '2026-11-13T10:00:01.001Z   "a": 1',
+        '2026-11-13T10:00:01.002Z }',
+      ].join('\n'),
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0].text).toBe('{\n  "a": 1\n}');
+    expect(lines[0].time).toBe('10:00:01.000');
+  });
+
+  test('a red line inside the span keeps it as lines', () => {
+    const lines = group('{\n\u001b[31m  "a": 1\u001b[0m\n}');
+    expect(lines).toHaveLength(3);
+  });
+
+  test('a log of unclosed openers is read in linear time', () => {
+    const text = Array.from({ length: 100_000 }, () => '{').join('\n');
+    const start = performance.now();
+    const lines = group(text);
+    expect(lines).toHaveLength(100_000);
+    expect(performance.now() - start).toBeLessThan(2000);
+  });
+
   test('copying an entry gives its indented text', () => {
     const [block] = group('{\n  "a": 1\n}');
     expect(lineCopyText(block)).toBe('{\n  "a": 1\n}');
@@ -101,5 +144,11 @@ describe('line number labels', () => {
     expect(lineNumberText({ from: 4, to: 4 })).toBe('4');
     expect(copyLinesLabel(299, 305)).toBe('Copy lines 299-305');
     expect(copyLinesLabel(4, 4)).toBe('Copy line 4');
+  });
+
+  test('the copy status names the range', () => {
+    expect(copyLinesStatus(299, 305, 'copied')).toBe('Lines 299-305 copied');
+    expect(copyLinesStatus(4, 4, 'copied')).toBe('Line 4 copied');
+    expect(copyLinesStatus(2, 7, 'selected')).toBe("Couldn't copy lines 2-7.");
   });
 });

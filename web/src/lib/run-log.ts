@@ -510,28 +510,44 @@ export function parseLogLines(text: string): LogLine[] {
 // The most raw lines one JSON entry may span. A longer dump stays as lines.
 const JSON_MAX_LINES = 500;
 
-// Where a JSON value that opens on line `start` ends: the index of the line on
-// which its braces balance, or -1 when they never do within the limit, or the
-// span holds a line that isn't plain. Strings are skipped so a brace in one
-// doesn't count.
-function jsonEnd(lines: LogLine[], start: number): number {
-  let depth = 0;
+// What one line does to the brace depth, worked out once per line so a scan
+// from each opener is a sum, not a re-read of the characters (a log of
+// unclosed `{` lines would otherwise reread 500 lines per opener). `low` is the
+// lowest depth reached inside the line; `bad` marks a line that isn't plain or
+// that leaves a string open (a JSON string can't run over a line end).
+type Depth = { net: number; low: number; bad: boolean };
+
+function depthOf(line: LogLine): Depth {
+  let net = 0;
+  let low = 0;
   let inString = false;
   let escaped = false;
-  const stop = Math.min(lines.length, start + JSON_MAX_LINES);
-  for (let i = start; i < stop; i++) {
-    if (lines[i].kind !== 'plain') return -1;
-    for (const ch of lines[i].text) {
-      if (inString) {
-        if (escaped) escaped = false;
-        else if (ch === '\\') escaped = true;
-        else if (ch === '"') inString = false;
-      } else if (ch === '"') inString = true;
-      else if (ch === '{' || ch === '[') depth++;
-      else if (ch === '}' || ch === ']') depth--;
+  for (const ch of line.text) {
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === '\\') escaped = true;
+      else if (ch === '"') inString = false;
+    } else if (ch === '"') inString = true;
+    else if (ch === '{' || ch === '[') net++;
+    else if (ch === '}' || ch === ']') {
+      net--;
+      if (net < low) low = net;
     }
-    // A JSON string can't run over a line end.
-    if (inString || depth < 0) return -1;
+  }
+
+  return { net, low, bad: line.kind !== 'plain' || inString };
+}
+
+// Where a JSON value that opens on line `start` ends: the index of the line on
+// which its braces balance, or -1 when they never do within the limit, or the
+// span holds a line that isn't usable.
+function jsonEnd(depths: Depth[], start: number): number {
+  let depth = 0;
+  const stop = Math.min(depths.length, start + JSON_MAX_LINES);
+  for (let i = start; i < stop; i++) {
+    const d = depths[i];
+    if (d.bad || depth + d.low < 0) return -1;
+    depth += d.net;
     if (depth === 0) return i;
   }
 
@@ -545,11 +561,12 @@ function jsonEnd(lines: LogLine[], start: number): number {
 // so Copy and Download still give the log as the runner wrote it.
 export function groupJsonBlocks(lines: LogLine[]): LogLine[] {
   const out: LogLine[] = [];
+  const depths = lines.map(depthOf);
   let i = 0;
   while (i < lines.length) {
     const line = lines[i];
     const opens = line.kind === 'plain' && /^[{[]/.test(line.text);
-    const end = opens ? jsonEnd(lines, i) : -1;
+    const end = opens ? jsonEnd(depths, i) : -1;
     if (end > i) {
       const text = lines
         .slice(i, end + 1)
@@ -557,6 +574,8 @@ export function groupJsonBlocks(lines: LogLine[]): LogLine[] {
         .join('\n');
       let json: string | undefined;
       try {
+        // A preview only: a big integer loses precision and integer-like keys
+        // move first. The expanded text is the raw dump.
         json = JSON.stringify(JSON.parse(text));
       } catch {
         json = undefined;
@@ -590,6 +609,21 @@ export function lineNumberText(line: { from: number; to: number }): string {
 // The name of that button, which holds the visible text (WCAG 2.5.3).
 export function copyLinesLabel(from: number, to: number): string {
   return from === to ? copyLineLabel(from) : `Copy lines ${from}-${to}`;
+}
+
+// The sentence a copy of one entry earns: its line, or its range of lines.
+export function copyLinesStatus(
+  from: number,
+  to: number,
+  outcome: CopyOutcome,
+): string {
+  if (from === to) return copyLineStatus(from, outcome);
+  const range = `${from}-${to}`;
+  if (outcome === 'nothing') return `Lines ${range} are empty`;
+
+  return outcome === 'copied'
+    ? `Lines ${range} copied`
+    : `Couldn't copy lines ${range}.`;
 }
 
 // What a line's copy button puts on the clipboard: the line's own text. Not its
