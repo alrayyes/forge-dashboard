@@ -5,7 +5,7 @@ import {
   type AutoMergeInput,
   autoMergeChip,
   autoMergeWording,
-  mergeWaitLine,
+  mergeWaitChip,
   queuedChip,
   SETTLED_MS,
   STILL_WAITING_MS,
@@ -155,7 +155,7 @@ describe('autoMergeChip wording', () => {
   test('waiting for checks reads Waiting for CI and offers Disarm', () => {
     const chip = autoMergeChip(waiting({ code: 'checks_pending' }));
     expect(chip?.label).toBe('Waiting for CI');
-    expect(chip?.detail).toBe('Merges when CI passes');
+    expect(chip?.detail).toBe('');
     expect(chip?.action).toBe('disarm');
     expect(chip?.tooltip).toBe('Auto-merge is waiting for checks to finish.');
     expect(chip?.icon).not.toBe('spinner');
@@ -411,9 +411,34 @@ describe('autoMergeChip forge names', () => {
   });
 });
 
-describe('mergeWaitLine', () => {
-  test('is one short line that names what Merge waits for', () => {
-    expect(mergeWaitLine('ci')).toBe('Merge after CI');
-    expect(mergeWaitLine('conflict-check')).toBe('Merge after conflict check');
+describe('mergeWaitChip', () => {
+  test('an unarmed CI wait is the Waiting for CI chip that offers Auto-merge', () => {
+    const chip = mergeWaitChip('ci');
+    expect(chip.label).toBe('Waiting for CI');
+    expect(chip.detail).toBe('');
+    expect(chip.state).toBe('waiting');
+    expect(chip.action).toBe('arm');
+    expect(chip.tooltip).toContain('Auto-merge');
+  });
+
+  test('the conflict check reads as its own short label', () => {
+    const chip = mergeWaitChip('conflict-check');
+    expect(chip.label).toBe('Checking for conflicts');
+    expect(chip.detail).toBe('');
+    expect(chip.action).toBe('arm');
+  });
+
+  test('a refresh keeps the long explanation in the tooltip, not the row', () => {
+    const chip = mergeWaitChip('refresh');
+    expect(chip.label).toBe('Waiting for the forge');
+    expect(chip.detail).toBe('');
+    expect(chip.tooltip).toBe(
+      "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+    );
+  });
+
+  test('an armed row offers Cancel auto-merge in the same chip', () => {
+    expect(mergeWaitChip('refresh', true).action).toBe('disarm');
+    expect(mergeWaitChip('refresh', true).label).toBe('Waiting for the forge');
   });
 });

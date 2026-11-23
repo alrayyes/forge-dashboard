@@ -122,7 +122,7 @@ test.describe('the status area on a pull request row (#1375)', () => {
     const waiting = row(page, 'Waiting');
 
     await expect(waiting.locator('.status-area')).toHaveCount(0);
-    await expect(waiting.getByText('Merge after CI')).toBeVisible();
+    await expect(waiting.getByText('Waiting for CI')).toBeVisible();
     await expect(
       waiting.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);

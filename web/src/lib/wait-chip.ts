@@ -2,8 +2,8 @@
 // area for every "something is happening, hold on" state: a bot rebase, an
 // Update branch, a merge or a close in flight, an armed Forgejo auto-merge,
 // and the two ends of a wait (Settled, Still waiting). A row that only waits
-// on the forge (CI running, Forgejo checking) gets no chip but the one line
-// of mergeWaitLine(), in Merge's slot (#4528).
+// on the forge (CI running, Forgejo checking) gets mergeWaitChip(), the same
+// chip with an Auto-merge button (#4663).
 //
 // All of the wording lives here, so the states read alike: an icon, a bold
 // label of at most three words, a lighter second line naming the actor or the
@@ -44,7 +44,7 @@ export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry';
 
 // What a chip offers, if anything. The button itself is the caller's: only it
 // knows what the click does.
-export type ChipAction = 'check-again' | 'disarm' | 'cancel';
+export type ChipAction = 'check-again' | 'disarm' | 'cancel' | 'arm';
 
 export type Chip = {
   state: 'waiting' | 'stalled' | 'settled';
@@ -277,7 +277,9 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
   });
   switch (input.code) {
     case 'checks_pending':
-      return words('Waiting for CI', 'Merges when CI passes');
+      // One short line: the second sentence repeated the label and the
+      // Running pill (#4663).
+      return words('Waiting for CI', '');
     case 'stacked':
       return words('Waiting for parent', 'Merges after its parent');
     case 'behind':
@@ -309,16 +311,43 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
   }
 }
 
-// ---- the line that stands in for Merge while a row only waits ----
-// A pull request that waits on CI running, or on Forgejo checking for
-// conflicts, has nothing for a person to do. The row prints this one line in
-// Merge's slot instead of a locked button, and the button takes the slot back
-// when the forge allows the merge. Real text, so a keyboard, a touch screen
-// and a screen reader all get it with no control to stop on.
-export type MergeWait = 'ci' | 'conflict-check';
+// ---- the chip that stands in for Merge while a row only waits ----
+// A pull request that waits on CI running, on Forgejo checking for conflicts,
+// or on a refresh of CI results has nothing for a person to merge yet. The
+// row draws the same chip as an armed auto-merge, one line, with the button
+// that fits: Auto-merge when nothing is armed, Cancel auto-merge when it is.
+// The longer explanation is the chip's tooltip and accessible description
+// (#4663, which replaced #4531's bare "Merge after CI" text).
+export type MergeWait = 'ci' | 'conflict-check' | 'refresh';
 
-export function mergeWaitLine(wait: MergeWait): string {
-  return wait === 'ci' ? 'Merge after CI' : 'Merge after conflict check';
+export function mergeWaitChip(wait: MergeWait, armed = false): Chip {
+  const words = (label: string, tooltip: string): Chip => ({
+    state: 'waiting',
+    icon: 'hourglass',
+    label,
+    detail: '',
+    tooltip,
+    showAgo: false,
+    countdown: false,
+    action: armed ? 'disarm' : 'arm',
+  });
+  switch (wait) {
+    case 'ci':
+      return words(
+        'Waiting for CI',
+        'CI is still running. Merge unlocks when it passes, or turn on Auto-merge to merge it then.',
+      );
+    case 'conflict-check':
+      return words(
+        'Checking for conflicts',
+        'The forge is still working out whether it merges cleanly. Merge unlocks when it knows, or turn on Auto-merge to merge it then.',
+      );
+    case 'refresh':
+      return words(
+        'Waiting for the forge',
+        "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+      );
+  }
 }
 
 // Said once, politely, when the wait ends on the row the person is on.

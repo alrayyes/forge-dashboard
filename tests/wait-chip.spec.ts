@@ -223,7 +223,7 @@ test.describe('the waiting chip on a bot rebase', () => {
     await expect(firstRow(page).locator('.row-feedback')).toHaveCount(0);
   });
 
-  test('picked up, then settled, then gone: each change is announced once, the clearing is silent, and the card shrinks back', async ({
+  test('picked up, then settled, then gone: each change is announced once, and the clearing is silent', async ({
     page,
   }) => {
     const before = await layout(page);
@@ -247,22 +247,22 @@ test.describe('the waiting chip on a bot rebase', () => {
 
     current = { ...current, ci: 'pending', botRequest: undefined };
     await push(page, current);
-    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
-      'Settled',
-    );
+    // The row also waits on CI now, so its own chip sits beside this one.
+    await expect(
+      chipOf(page).locator('.wait-chip-label').filter({ hasText: 'Settled' }),
+    ).toHaveCount(1);
     await expect(live).toHaveText(/Dependabot rebase finished\./);
-    const settled = await layout(page);
-    expect(settled.slot).toEqual(before.slot);
     const spoken = await live.textContent();
 
-    // The chip clears by itself, and says nothing as it goes.
-    await expect(chipOf(page)).toHaveCount(0, { timeout: 10_000 });
+    // The settled chip clears by itself, and says nothing as it goes. The
+    // row's own CI chip stays, since CI is still running (#4663).
+    await expect(chipOf(page).filter({ hasText: 'Settled' })).toHaveCount(0, {
+      timeout: 10_000,
+    });
     expect(await live.textContent()).toBe(spoken);
-    // The chip goes and takes its room with it: the card is as wide and no
-    // taller.
-    const gone = await layout(page);
-    expect(gone.slot).toEqual(settled.slot);
-    expect(gone.row.height).toBeLessThan(settled.row.height);
+    await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
+      'Waiting for CI',
+    );
   });
 
   test('two minutes with no change reads Still waiting, announced once, and Check again refetches the row', async ({
@@ -568,9 +568,8 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await open(page, armed());
     const chip = chipOf(page);
     await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
-    await expect(chip.locator('.wait-chip-detail')).toHaveText(
-      'Merges when CI passes',
-    );
+    // One line: the second sentence repeated the label (#4663).
+    await expect(chip.locator('.wait-chip-detail')).toBeHidden();
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
       'Auto-merge is waiting for checks to finish.',
     );

@@ -245,7 +245,7 @@
     autoMergeChip,
     MERGE_AVAILABLE,
     type MergeWait,
-    mergeWaitLine,
+    mergeWaitChip,
     autoMergeWording,
     buildWaitChip,
     queuedChip,
@@ -1205,7 +1205,7 @@
       ci: string,
       conflict: ConflictFacts,
       forge: string,
-      // Merge's slot already says "Merge after conflict check" (#4531).
+      // The wait chip already says "Checking for conflicts" (#4663).
       lineSaysChecking = false,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
@@ -1654,21 +1654,58 @@
     // row is settled.
     function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
       if (!pr.autoMerge) return null;
-      if (autoMergeCiWaitIsStale(pr)) return null;
-      const chip = autoMergeChip({
-        state: pr.autoMerge.state,
-        code: pr.autoMerge.code,
-        message: pr.autoMerge.message,
-        draft: pr.draft,
-        forge: pr.forge,
-        heldBy: pr.autoMergeHeldBy,
-      });
+      // A wait on CI the pill has already seen finish is a short refresh: the
+      // same chip, saying so, with the same Cancel auto-merge (#4663).
+      const stale =
+        pr.autoMerge.state === "waiting" && autoMergeCiWaitIsStale(pr);
+      const chip = stale
+        ? mergeWaitChip("refresh", true)
+        : autoMergeChip({
+            state: pr.autoMerge.state,
+            code: pr.autoMerge.code,
+            message: pr.autoMerge.message,
+            draft: pr.draft,
+            forge: pr.forge,
+            heldBy: pr.autoMergeHeldBy,
+          });
       if (!chip) return null;
       const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
       return buildWaitChip(chip, {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
         button: disarm ?? undefined,
+        tipId: waitChipTipId(pr),
+      });
+    }
+
+    // What an unarmed row waits on, when the row draws it as a chip: CI
+    // running, Forgejo checking for conflicts, or CI results being refreshed.
+    // null on the dialog's footer, which has no chip, and while an armed
+    // chip already says it (#4663).
+    function rowWaitOf(pr: PullRequestItem): MergeWait | null {
+      if (idScope !== "" || isSettled(pr)) return null;
+      if (pr.autoMerge?.state === "waiting") return null;
+      const merge = findAction(pr, "merge");
+      if (!merge?.blocked) return null;
+      if (
+        (mergeState[prKey(pr)]?.phase ?? "idle") === "idle" &&
+        readOnlyBecauseRateLimited(proactiveActionLockReason(pr.forge))
+      )
+        return null;
+      if (ciWaitIsStale(pr)) return "refresh";
+      return mergeWaitOf(pr);
+    }
+
+    // The chip for a row that only waits, with Auto-merge inside it where the
+    // server offers it. The extra words are its tooltip, on hover and on
+    // keyboard focus, and its accessible description.
+    function unarmedWaitChip(pr: PullRequestItem): HTMLElement | null {
+      const wait = rowWaitOf(pr);
+      if (!wait) return null;
+      return buildWaitChip(mergeWaitChip(wait), {
+        source: "auto-merge",
+        subject: `${pr.repo}#${pr.number}`,
+        button: autoMergeActionCell(pr, true) ?? undefined,
         tipId: waitChipTipId(pr),
       });
     }
@@ -3418,15 +3455,10 @@
         // in it (Update branch) takes Tab before the CI and comment pills.
         // That matches the screen, and tests/pr-row-centering.spec.ts pins it.
         const waitSlot = el("div", "wait-slot");
-        const autoMergeWait = autoMergeWaitChip(pr);
-        // A stale wait hides the chip and Disarm with it, so Disarm stays on
-        // the row in its place until the next refresh (#4435).
-        const staleDisarm =
-          !autoMergeWait && !settledRow && autoMergeCiWaitIsStale(pr)
-            ? cancelAutoMergeCell(pr)
-            : null;
+        // A wait the pill has already seen end keeps a chip too, saying it
+        // is a refresh, so Cancel auto-merge stays on the row (#4435, #4663).
+        const autoMergeWait = autoMergeWaitChip(pr) ?? unarmedWaitChip(pr);
         if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
-        else if (staleDisarm) waitSlot.appendChild(staleDisarm);
         else {
           const queuedWait = queuedWaitChip(pr);
           if (queuedWait) waitSlot.appendChild(queuedWait);
@@ -4103,8 +4135,8 @@
       return item.mergeStatus === "checking" ? "conflict-check" : "ci";
     }
 
-    // Merge's slot prints "Merge after conflict check", so the pill that says
-    // "Checking for conflicts" stays out: one place says it (#4531). Not while
+    // The wait chip says "Checking for conflicts", so the pill that says
+    // it stays out: one place says it (#4531, #4663). Not while
     // Merge is hidden for a spent rate limit, when nothing else would.
     function checkingLineShown(item: PullRequestItem): boolean {
       if (mergeWaitOf(item) !== "conflict-check") return false;
@@ -4249,17 +4281,22 @@
       )
         return null;
       if (merge.blocked) {
+        // The row says it in the waiting chip, one place only (#4663).
+        if (rowWaitOf(item)) return null;
+        // An armed row's own chip already says it.
+        if (
+          idScope === "" &&
+          item.autoMerge?.state === "waiting" &&
+          mergeWaitOf(item)
+        )
+          return null;
         const wait = mergeWaitOf(item);
-        if (wait) {
-          // An armed row's chip already says it: one place only.
-          if (wait === "ci" && idScope === "" && chipSaysCiWait(item))
-            return null;
-          return el("span", "merge-wait", mergeWaitLine(wait));
-        }
+        if (wait) return el("span", "merge-wait", mergeWaitChip(wait).label);
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
         if (ciWaitIsStale(item))
+          // Only the dialog's footer gets here: the row draws the chip.
           return lockedActionButton(
             "Merge",
             "Updating from the latest CI results",
@@ -4484,14 +4521,21 @@
     // feature, not a state to wait out first. item.empty is excluded the
     // same way mergeActionCell excludes it: nothing to merge, so nothing
     // to arm either.
-    function autoMergeActionCell(item: PullRequestItem): HTMLElement | null {
+    function autoMergeActionCell(
+      item: PullRequestItem,
+      inChip = false,
+    ): HTMLElement | null {
       if (!findAction(item, "auto_merge")) return null;
 
       const key = prKey(item);
       const entry = autoMergeState[key] || { phase: "idle" };
 
+      // A chip has room for a live button only: a locked one keeps its reason
+      // in the dialog's footer.
       if (entry.phase === "locked")
-        return lockedActionButton("Enable auto-merge", lockOf(entry));
+        return inChip
+          ? null
+          : lockedActionButton("Enable auto-merge", lockOf(entry));
 
       if (entry.phase === "idle") {
         const proactiveReason = proactiveActionLockReason(
@@ -4500,14 +4544,25 @@
         );
         if (readOnlyBecauseRateLimited(proactiveReason)) return null;
         if (proactiveReason)
-          return lockedActionButton("Enable auto-merge", proactiveReason);
+          return inChip
+            ? null
+            : lockedActionButton("Enable auto-merge", proactiveReason);
       }
 
       const enabling = entry.phase === "enabling";
       const button = buttonEl(
-        "row-action",
-        enabling ? "Enabling…" : "Enable auto-merge",
+        inChip ? "row-action wait-chip-action" : "row-action",
+        enabling ? "Enabling…" : inChip ? "Auto-merge" : "Enable auto-merge",
       );
+      if (inChip) {
+        // The visible word is Auto-merge, and the name still says what it
+        // does. Once armed, Cancel auto-merge takes the same place.
+        button.setAttribute(
+          "aria-label",
+          enabling ? "Enabling auto-merge" : "Enable auto-merge",
+        );
+        button.dataset.focusSlot = "cancel-auto-merge";
+      }
       button.type = "button";
       markPending(button, enabling);
       button.addEventListener("click", () => {
@@ -5848,7 +5903,7 @@
       if (!(active instanceof HTMLElement) || !container.contains(active))
         return null;
       const row = active.closest<HTMLElement>(".row");
-      return row?.querySelector(".merge-wait")
+      return row?.querySelector(".merge-wait, .wait-chip")
         ? (row.dataset.prKey ?? null)
         : null;
     }
@@ -5857,7 +5912,7 @@
       const row = Array.from(
         container.querySelectorAll<HTMLElement>(".row"),
       ).find((r) => r.dataset.prKey === key);
-      if (!row || row.querySelector(".merge-wait")) return;
+      if (!row || row.querySelector(".merge-wait, .wait-chip")) return;
       if (row.querySelector('button[id^="merge-arm-"]'))
         announceText(MERGE_AVAILABLE);
     }

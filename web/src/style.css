@@ -1233,6 +1233,26 @@ section.board {
       grid-row: 1;
       justify-self: start;
     }
+    /* #4663: a waiting chip and an action (Update branch) share the cell's one
+       line: the CI pill, the chip, the action. The status track grows to the
+       chip's width the way it does for a wide pill (#4541), so the row is no
+       taller than one with a Merge button. A comment or merge-state pill keeps
+       the stacked layout, where the chip has a line of its own. */
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):has(> .row-action-bar):not(
+        :has(> .status-flags)
+      ) {
+      grid-template-columns: min-content max-content max-content;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):has(> .row-action-bar):not(
+        :has(> .status-flags)
+      )
+      > .wait-slot {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: start;
+    }
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
       display: none;
@@ -3504,6 +3524,10 @@ a.ci-pill:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A chip with no second line (Waiting for CI) is one line, with no gap. */
+.wait-chip-detail:empty {
+  display: none;
+}
 .wait-chip-detail {
   font-size: 0.6875rem;
   font-weight: 400;
@@ -3586,6 +3610,11 @@ a.ci-pill:hover {
   .wait-chip-detail {
     flex: 0 1 auto;
     min-width: 0;
+  } /* The button sits inside the chip's 1px border, so 28px keeps the chip at
+     30px and a waiting row no taller than a row with a Merge button (#4663).
+     Still over the 24px floor of WCAG 2.5.8. */
+  .wait-chip-action {
+    min-height: 28px;
   }
 }
 
