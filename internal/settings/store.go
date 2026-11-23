@@ -168,7 +168,7 @@ func (s *Store) Init(ctx context.Context) error {
 		armed_at TIMESTAMP NOT NULL,
 		PRIMARY KEY (forge, repo_full_name, number)
 	);
-	` + hiddenPullRequestsSchema + queuedActionsSchema + pullRequestAutoUpdateSchema + oauthTokensSchema + installationsSchema
+	` + hiddenPullRequestsSchema + queuedActionsSchema + pullRequestAutoUpdateSchema + oauthTokensSchema + installationsSchema + hookLedgerSchema
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
