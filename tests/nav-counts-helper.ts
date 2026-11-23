@@ -7,6 +7,7 @@
 // test builds by running the server's own buildNavCounts on every kind, CI state,
 // draft and hidden combination, and fails on when the rule or a field name
 // changes and the file isn't regenerated. All this adds up what the table says.
+import { forgeHealth } from './forge-health-helper';
 import table from './generated/nav-counts.json';
 
 type Mock = {
@@ -102,7 +103,7 @@ export function mainBranchPageFor(total: number, failed = 0) {
 export function mainBranchPageOf(statuses: string[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     branches: statuses.map((status, i) => ({
       forge: 'github',
       fullName: `acme/repo-${i}`,
