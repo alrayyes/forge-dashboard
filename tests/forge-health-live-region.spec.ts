@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -10,20 +11,14 @@ import { test } from './server-fixture';
 const LIVE = '#forge-health-live, #forge-health[aria-live]';
 
 type Forge = Record<string, unknown>;
-const up = (extra: Forge = {}) => ({
-  forge: 'github',
-  reachable: true,
-  repoCount: 1,
-  ...extra,
-});
-const down = () => ({
-  forge: 'github',
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp: i/o timeout',
-  staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
-});
+const up = (extra: Forge = {}) => forgeHealth('github', extra);
+const down = () =>
+  forgeHealth('github', {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp: i/o timeout',
+    staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
+  });
 
 type State = { forge: Forge; requests: number; answered?: number };
 

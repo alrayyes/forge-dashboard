@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { serveChecks } from './checks-feed-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/1753
@@ -383,8 +384,8 @@ async function mockDashboard(
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [
-          { forge: 'github', reachable: true, repoCount: 2 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
+          forgeHealth('github', { repoCount: 2 }),
+          forgeHealth('forgejo'),
         ],
         pullRequests,
         issues: ISSUES,
@@ -431,7 +432,7 @@ async function mockBranches(page: Page) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+        forges: [forgeHealth('github', { repoCount: 2 })],
         branches,
         counts: { failed: 1, running: 0, passed: 1, none: 0 },
       }),
@@ -768,15 +769,13 @@ test.describe('hit areas on the mocked boards (#1753)', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
+            forgeHealth('github', {
               reachable: false,
               starting: true,
-              repoCount: 1,
               errorKind: 'unreachable',
               error: 'dial tcp: i/o timeout',
               staleSince: ago(5),
-            },
+            }),
           ],
           pullRequests: PULL_REQUESTS,
           issues: ISSUES,
