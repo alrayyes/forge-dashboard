@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.103.1](https://github.com/alrayyes/forge-dashboard/compare/v9.103.0...v9.103.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **deps:** bump the bun-dependencies group across 1 directory with 14 updates ([#4675](https://github.com/alrayyes/forge-dashboard/issues/4675)) ([4316b39](https://github.com/alrayyes/forge-dashboard/commit/4316b39ec9ec776915eec6b77f36819eb9620cb5))
+* **forgejo:** return the context error when a cancel lands after the last read ([#4690](https://github.com/alrayyes/forge-dashboard/issues/4690)) ([5399376](https://github.com/alrayyes/forge-dashboard/commit/5399376ce7b6a2db3e2cb4af76e7524648d5f186)), closes [#4689](https://github.com/alrayyes/forge-dashboard/issues/4689)
+
 ## [9.103.0](https://github.com/alrayyes/forge-dashboard/compare/v9.102.0...v9.103.0) (2026-11-23)
 
 
