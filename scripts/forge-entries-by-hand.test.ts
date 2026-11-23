@@ -8,11 +8,7 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // is filled in one place. A file that still writes an entry by hand is listed
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
-const stillByHand = [
-  'dashboard.spec.ts',
-  'wait-chip.spec.ts',
-  'webhooks-page.spec.ts',
-];
+const stillByHand = ['dashboard.spec.ts'];
 
 const dir = join(import.meta.dir, '..', 'tests');
 
