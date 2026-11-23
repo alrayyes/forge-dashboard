@@ -1,4 +1,4 @@
-import { advisoryFactsOf, ownOf } from './forges';
+import { advisoryFactsOf, forgeLabelOf, ownOf } from './forges';
 import {
   ADVISORY_WORDS_BY_SOURCE,
   type Advisories,
@@ -250,13 +250,13 @@ export function unreadableText(
     );
   }
   if (source === 'dependabot') {
+    const label = forgeLabelOf(forge);
     const known = ADVISORY_WORDS_BY_SOURCE.dependabot.reasons as Record<
       string,
-      string
+      (label: string) => string
     >;
-    return (
-      (reason && ownOf(known, reason)) || 'GitHub did not answer the read.'
-    );
+    const words = reason ? ownOf(known, reason) : undefined;
+    return words ? words(label) : `${label} did not answer the read.`;
   }
   return 'The forge did not answer the read.';
 }

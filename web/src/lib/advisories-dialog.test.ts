@@ -349,3 +349,23 @@ describe('olderNote', () => {
     );
   });
 });
+
+describe('unreadableText names the forge by its label', () => {
+  test('a Dependabot-sourced forge reads as its own label', () => {
+    registerForgeCapabilities([
+      {
+        forge: 'github',
+        capabilities: {
+          label: 'Octoforge',
+          advisorySource: 'dependabot',
+          advisoryUnknownNeedsReason: false,
+        },
+      },
+    ]);
+    for (const reason of ['refused', 'throttled', 'bogus']) {
+      const text = unreadableText('github', reason);
+      expect(text).toContain('Octoforge');
+      expect(text).not.toContain('GitHub');
+    }
+  });
+});
