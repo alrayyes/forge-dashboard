@@ -350,6 +350,11 @@ type PullRequest struct {
 	// conversation, kept apart from ReviewComments so a client that reads only
 	// that one doesn't change (#1953). 0 when there are none.
 	ConversationComments int `json:"conversationComments"`
+	// LastCommentAt is when the newest comment, conversation or review, was
+	// written (its creation time, not an edit), or nil when there are none or
+	// the forge can't say (#4539). Forgejo leaves it nil: its payload has only
+	// a count, and a timestamp would cost a request per pull request.
+	LastCommentAt *time.Time `json:"lastCommentAt,omitempty"`
 	// ClosesIssues lists the issues this pull request will close when it
 	// merges: GitHub's own closing references, or on Forgejo the closing
 	// keywords in the description. Always a list, empty when there are none.

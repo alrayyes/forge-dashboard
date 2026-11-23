@@ -3985,6 +3985,81 @@ func TestFetch_MapsConversationComments(t *testing.T) {
 	assert.Equal(t, 0, result.PullRequests[0].ReviewComments)
 }
 
+// lastCommentAt is the creation time of the newest comment, conversation or
+// review, read from the same query (#4539).
+func TestFetch_MapsLastCommentAtFromTheNewestComment(t *testing.T) {
+	t.Parallel()
+
+	newest := func(at string) map[string]any {
+		return map[string]any{"nodes": []map[string]any{{"createdAt": at}}}
+	}
+	thread := func(at string) map[string]any {
+		return map[string]any{
+			"isResolved": false,
+			"comments":   map[string]any{"totalCount": 1},
+			"newest":     newest(at),
+		}
+	}
+	cases := []struct {
+		name         string
+		conversation any
+		threads      []map[string]any
+		want         string
+	}{
+		{
+			"a review comment is newest", newest("2026-11-20T10:00:00Z"),
+			[]map[string]any{thread("2026-11-21T09:00:00Z"), thread("2026-11-22T08:30:00Z")},
+			"2026-11-22T08:30:00Z",
+		},
+		{
+			"a conversation comment is newest", newest("2026-11-23T01:00:00Z"),
+			[]map[string]any{thread("2026-11-21T09:00:00Z")},
+			"2026-11-23T01:00:00Z",
+		},
+		{
+			"only review comments", nil,
+			[]map[string]any{thread("2026-11-21T09:00:00Z")},
+			"2026-11-21T09:00:00Z",
+		},
+		{"no comments", map[string]any{"nodes": []map[string]any{}}, nil, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			node := pullRequestNode("CLEAN")
+			pr := node["pullRequests"].(map[string]any)["nodes"].([]map[string]any)[0]
+			if tc.conversation != nil {
+				pr["newestConversation"] = tc.conversation
+			}
+			pr["reviewThreads"] = map[string]any{"nodes": tc.threads}
+
+			var seenQuery string
+			mux := http.NewServeMux()
+			mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+				if q := readGraphQLRequest(t, r).Query; !strings.Contains(q, "compare(") {
+					seenQuery = q
+				}
+				writeJSON(t, w, reposQueryFixture(node))
+			})
+			srv := httptest.NewServer(mux)
+			defer srv.Close()
+
+			result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+			require.Len(t, result.PullRequests, 1)
+			got := result.PullRequests[0].LastCommentAt
+			if tc.want == "" {
+				assert.Nil(t, got)
+			} else {
+				require.NotNil(t, got)
+				assert.Equal(t, tc.want, got.UTC().Format(time.RFC3339))
+			}
+			assert.Contains(t, seenQuery, "newestConversation: comments(last: 1)")
+		})
+	}
+}
+
 // No review threads is zero comments and zero open threads, never null: GitHub
 // does report resolved state, so "none" is an answer.
 func TestFetch_NoReviewThreadsIsZeroNotUnknown(t *testing.T) {

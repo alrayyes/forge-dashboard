@@ -1933,6 +1933,13 @@ type graphqlPullRequest struct {
 	Comments *struct {
 		TotalCount int `json:"totalCount"`
 	} `json:"comments"`
+	// NewestConversation is the newest conversation comment, for
+	// LastCommentAt (#4539).
+	NewestConversation *struct {
+		Nodes []struct {
+			CreatedAt time.Time `json:"createdAt"`
+		} `json:"nodes"`
+	} `json:"newestConversation"`
 	// ReviewThreads feeds the review comment and open thread counts (#1335).
 	// Only the first 30 threads are read, so a pull request with more
 	// undercounts. Fewer than that keeps the query well under GitHub's 500,000
@@ -1943,6 +1950,12 @@ type graphqlPullRequest struct {
 			Comments   struct {
 				TotalCount int `json:"totalCount"`
 			} `json:"comments"`
+			// Newest is the thread's newest comment, for LastCommentAt.
+			Newest *struct {
+				Nodes []struct {
+					CreatedAt time.Time `json:"createdAt"`
+				} `json:"nodes"`
+			} `json:"newest"`
 		} `json:"nodes"`
 	} `json:"reviewThreads"`
 	// Additions, Deletions and ChangedFiles feed mapPullRequest's own
@@ -2145,11 +2158,21 @@ query($cursor: String, $since: DateTime) {
             comments {
               totalCount
             }
+            newestConversation: comments(last: 1) {
+              nodes {
+                createdAt
+              }
+            }
             reviewThreads(first: 30) {
               nodes {
                 isResolved
                 comments {
                   totalCount
+                }
+                newest: comments(last: 1) {
+                  nodes {
+                    createdAt
+                  }
                 }
               }
             }
@@ -2273,11 +2296,21 @@ const appRepoFieldsTemplate = `
         comments {
           totalCount
         }
+        newestConversation: comments(last: 1) {
+          nodes {
+            createdAt
+          }
+        }
         reviewThreads(first: 30) {
           nodes {
             isResolved
             comments {
               totalCount
+            }
+            newest: comments(last: 1) {
+              nodes {
+                createdAt
+              }
             }
           }
         }
@@ -3283,6 +3316,38 @@ func conversationCount(p graphqlPullRequest) int {
 	return p.Comments.TotalCount
 }
 
+// lastCommentAt is when the newest comment was written, conversation or
+// review, or nil when there is none (#4539). Review comments come from the
+// first 30 threads, like their count.
+func lastCommentAt(p graphqlPullRequest) *time.Time {
+	var newest time.Time
+	consider := func(at time.Time) {
+		if at.After(newest) {
+			newest = at
+		}
+	}
+	if p.NewestConversation != nil {
+		for _, n := range p.NewestConversation.Nodes {
+			consider(n.CreatedAt)
+		}
+	}
+	if p.ReviewThreads != nil {
+		for _, thread := range p.ReviewThreads.Nodes {
+			if thread.Newest == nil {
+				continue
+			}
+			for _, n := range thread.Newest.Nodes {
+				consider(n.CreatedAt)
+			}
+		}
+	}
+	if newest.IsZero() {
+		return nil
+	}
+
+	return &newest
+}
+
 func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest {
 	comments, unresolved := reviewThreadCounts(p)
 	ci := ciFromRollup(p.Commits.Nodes)
@@ -3336,6 +3401,7 @@ func mapPullRequest(fullName string, p graphqlPullRequest) dashboard.PullRequest
 		RefsIssues:              refsIn(p.Title, p.Body, p.URL, p.Number, fullName),
 		ReviewComments:          comments,
 		ConversationComments:    conversationCount(p),
+		LastCommentAt:           lastCommentAt(p),
 		UnresolvedThreads:       &unresolved,
 	}
 }
@@ -3605,11 +3671,21 @@ const pullRequestFields = `        number
         comments {
           totalCount
         }
+        newestConversation: comments(last: 1) {
+          nodes {
+            createdAt
+          }
+        }
         reviewThreads(first: 30) {
           nodes {
             isResolved
             comments {
               totalCount
+            }
+            newest: comments(last: 1) {
+              nodes {
+                createdAt
+              }
             }
           }
         }
