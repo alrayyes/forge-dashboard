@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The owner's report on #4093 after #4095: pressing a choice's name, picture
@@ -46,8 +47,8 @@ async function open(
       json: {
         generatedAt: new Date().toISOString(),
         forges: [
-          { forge: 'github', reachable: true, repoCount: 2 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
+          forgeHealth('github', { repoCount: 2 }),
+          forgeHealth('forgejo'),
         ],
         pullRequests: PRS.map((p, i) => ({
           ...p,

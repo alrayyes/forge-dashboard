@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.106.0](https://github.com/alrayyes/forge-dashboard/compare/v9.105.0...v9.106.0) (2026-11-23)
+
+
+### Features
+
+* **web:** show a multi-line JSON dump in a check's output as one entry ([#4706](https://github.com/alrayyes/forge-dashboard/issues/4706)) ([5f0314b](https://github.com/alrayyes/forge-dashboard/commit/5f0314b09ba9f119e0e90f3a22c7149de1f93023))
+
+## [9.105.0](https://github.com/alrayyes/forge-dashboard/compare/v9.104.2...v9.105.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** rewrite the hook secret everywhere when it changes ([#4704](https://github.com/alrayyes/forge-dashboard/issues/4704)) ([d41b2cf](https://github.com/alrayyes/forge-dashboard/commit/d41b2cf79abb5ee6a93282a55bf6a5f16a853db5))
+
 ## [9.104.2](https://github.com/alrayyes/forge-dashboard/compare/v9.104.1...v9.104.2) (2026-11-23)
 
 

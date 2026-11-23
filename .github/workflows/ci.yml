@@ -662,16 +662,45 @@ jobs:
           cp docs/api/llms.txt site/docs/api/llms.txt
           cp api/openapi.yaml site/api/openapi.yaml
           scripts/build-reports.sh site
+      # The artifact is named per attempt. A "re-run failed jobs" runs this
+      # upload again in the same workflow run, and the first attempt's
+      # `github-pages` is still there: deploy-pages then fails on the
+      # duplicate (#4705). `run_attempt` gives each attempt its own name.
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
+          name: github-pages-${{ github.run_attempt }}
           path: site
-      - id: deployment
+      # deploy-pages sometimes can't see an artifact it was just handed (the
+      # artifact list lags the upload), so it gets three tries a pause apart.
+      # The first two may fail quietly; the last may not, so a real outage
+      # fails the job with the action's own error. There's no retry action
+      # worth an extra pin, and a failed attempt creates no deployment, so
+      # trying again is safe.
+      - id: deploy1
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - run: sleep 20
+        if: steps.deploy1.outcome == 'failure'
+      - id: deploy2
+        if: steps.deploy1.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        continue-on-error: true
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
+      - run: sleep 40
+        if: steps.deploy2.outcome == 'failure'
+      - id: deploy3
+        if: steps.deploy2.outcome == 'failure'
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+        with:
+          artifact_name: github-pages-${{ github.run_attempt }}
       # A deploy succeeds whether or not the URL serves what it should, so
       # fetch the real file. The retries cover the CDN catching up.
       - name: Live coverage.xml is served and is Cobertura
         env:
-          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+          PAGE_URL: ${{ steps.deploy1.outputs.page_url || steps.deploy2.outputs.page_url || steps.deploy3.outputs.page_url }}
         run: |
           curl --fail --silent --show-error --location \
             --retry 6 --retry-delay 10 --retry-all-errors \
