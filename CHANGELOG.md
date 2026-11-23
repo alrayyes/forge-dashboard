@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.111.0](https://github.com/alrayyes/forge-dashboard/compare/v9.110.1...v9.111.0) (2026-11-23)
+
+
+### Features
+
+* name the check a pull request waits on when no job shows it ([#4737](https://github.com/alrayyes/forge-dashboard/issues/4737)) ([43a570b](https://github.com/alrayyes/forge-dashboard/commit/43a570b9f92ffbaa27fe64d511d419e3011a3d26))
+
 ## [9.110.1](https://github.com/alrayyes/forge-dashboard/compare/v9.110.0...v9.110.1) (2026-11-23)
 
 
