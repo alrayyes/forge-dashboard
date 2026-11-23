@@ -750,7 +750,7 @@
     }
 
     /* ---- filters — one row above the content it scopes, same as the
-       dataviz house rule. .filter-bar and .forge-segmented themselves
+       dataviz house rule. .filter-bar and the Forge FilterGroup's pills
        come from style.css, shared with the main dashboard's own filter
        bar. ---- */
     .issue-only-filter {
