@@ -151,6 +151,37 @@ a pull request's head branch is normally caught by the preceding
 pull-request events already, and Push is a harmless second trigger for
 the same refresh in case that doesn't fire.
 
+## Why a repo has no webhook
+
+A repo without a hook says why on its row in the Webhooks page, in one line,
+with the longer text on hover or keyboard focus. The reason comes from the
+server as `webhookReason`, and the page words it:
+
+- `no_permission`: the token can't administer hooks on that repo. The row's
+  own note says which token scope or role to change, so there's no second line.
+- `forge_unavailable`: the forge was rate limited or unreachable on the last
+  attempt. The row says the dashboard tries again, and it does, on its own.
+- `forge_refused`: the forge answered the create with a refusal. The row shows
+  when the next attempt is (the one-hour retry wait). The longer text says
+  what the forge said, in its own words, only when the forge gave a plain
+  sentence. When it gave none, the text says the forge refused and gave no
+  reason, in the dashboard's voice.
+
+The longer text opens over the rows below instead of between them, so the list
+doesn't move. The Escape key hides it, and it comes back when you move off the
+note and return.
+
+A reason goes away as soon as the hook exists, when the repo leaves the list,
+and while the public address below can't receive hooks, since no attempt is
+made then. The page reads a reason that appeared after a pass on its next read
+of the dashboard, not the moment the pass ends.
+
+A public address that can't receive hooks (localhost, a private network
+address, or plain HTTP on a public name) is the same problem for every repo, so
+it is said once at the top of the list rather than on each row. It shows only while
+some repo could have a hook created and doesn't. Fix `RP_ORIGIN` and the next
+refresh creates them.
+
 ## Find your webhook URL and secret
 
 Open **Settings** (`/settings.html`, linked from the dashboard header) —
