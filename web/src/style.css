@@ -1125,14 +1125,16 @@ section.board {
 }
 
 /* #4663: a row with a waiting chip and a button (Update branch, a bot's
-   rebase) widens its status track from 280px, so the chip and the button share
-   the line under the CI pill and the row is no taller than one with a Merge
-   button. The 761-860px range keeps its narrower track. */
+   rebase) widens its status track from 280px, so the chip and the button
+   share the line under the CI pill and the row is no taller than one with a
+   Merge button. A chip with a detail line is wider than the title can spare,
+   so that row keeps the stacked cell. The 761-860px range keeps its narrower
+   track. */
 @media (min-width: 861px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
-    .row:not(.issue-row):has(.status-cell > .wait-slot:not(:empty)):has(
-        .status-cell > .row-action-bar
-      ) {
+    .row:not(.issue-row):has(.status-cell > .wait-slot:not(:empty)):not(
+        :has(.status-cell > .wait-slot .wait-chip-detail:not(:empty))
+      ):has(.status-cell > .row-action-bar) {
       grid-template-columns: 240px minmax(0, 1fr) 25rem 22px;
     }
   }
@@ -1233,7 +1235,7 @@ section.board {
     }
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags)) {
-      grid-template-columns: min-content minmax(0, 1fr);
+      grid-template-columns: min-content max-content;
     }
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags))
@@ -1252,15 +1254,15 @@ section.board {
        chip's width the way it does for a wide pill (#4541), so the row is no
        taller than one with a Merge button. */
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .row-action-bar):not(
-        :has(> .status-flags)
-      ) {
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .row-action-bar):not(:has(> .status-flags)) {
       grid-template-columns: min-content max-content max-content;
     }
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .row-action-bar):not(
-        :has(> .status-flags)
-      )
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .row-action-bar):not(:has(> .status-flags))
       > .wait-slot {
       grid-column: 2;
       grid-row: 1;
@@ -1271,23 +1273,31 @@ section.board {
        pills, the action, and the row is no taller than one without the
        chip. */
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .status-flags) {
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags) {
       grid-template-columns: min-content max-content 7.5rem max-content;
     }
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .status-flags)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
       > .wait-slot {
       grid-column: 2;
       grid-row: 1;
       justify-self: start;
     }
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .status-flags)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
       > .status-flags {
       grid-column: 3;
     }
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .status-flags)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
       > .row-action-bar {
       grid-column: 4;
     }
@@ -1336,7 +1346,9 @@ section.board {
        the first line and the chip takes the next, so the cell holds the same
        number of lines as one with a Merge button. */
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):has(> .status-flags)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
       > .state-group {
       flex: 0 1 auto;
     }
