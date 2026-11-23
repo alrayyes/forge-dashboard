@@ -1,19 +1,19 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge as ForgeName, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3719: a forge that is down is said once, in one banner. No chip repeats it,
 // both forges down share one banner, and the healthy forge's pill is untouched.
 
-const down = (forge: string) => ({
-  forge,
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp: i/o timeout',
-  staleSince: new Date(Date.now() - 3 * 3600_000).toISOString(),
-});
-const up = (forge: string) => ({ forge, reachable: true, repoCount: 1 });
+const down = (forge: ForgeName) =>
+  forgeHealth(forge, {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp: i/o timeout',
+    staleSince: new Date(Date.now() - 3 * 3600_000).toISOString(),
+  });
+const up = (forge: ForgeName) => forgeHealth(forge);
 
 const pr = (n: number, forge = 'github') => ({
   forge,
