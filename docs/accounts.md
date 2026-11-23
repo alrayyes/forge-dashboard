@@ -143,6 +143,68 @@ bearer credential. Settings lists every live token (label, created date,
 last-used date) with a one-click **Revoke** that stops it authenticating
 immediately.
 
+#### Use with an AI client
+
+The same token works on the MCP endpoint, so an AI client can read your pull
+requests. Settings' "API tokens" card has a "Use with an AI client" section
+with the address for the page you are on and a copy button. The address
+is your dashboard's own origin plus `/api/v1/mcp`:
+
+```text
+https://<your-dashboard-host>/api/v1/mcp
+```
+
+The client sends the token as a header on every request, the same one the
+`curl` example uses:
+
+```text
+Authorization: Bearer <token>
+```
+
+Generate the token first (the card shows it once) and keep it out of the
+address: it goes in the header only.
+
+- **Claude Code**: run
+
+  ```sh
+  claude mcp add --transport http forge-dashboard \
+    https://<your-dashboard-host>/api/v1/mcp \
+    --header "Authorization: Bearer <token>"
+  ```
+
+  Add `--scope user` to use it in every project, not just this one. Check it
+  with `claude mcp list` or `/mcp`. Claude Code saves the entry without
+  testing the token, so a wrong one shows up there, not when you add it.
+  Steps: [Claude Code MCP docs](https://code.claude.com/docs/en/mcp).
+
+- **Claude on the web and Claude Desktop**: open Customize, then Connectors,
+  then Add custom connector, and paste the address. Choose "No sign in",
+  since this endpoint uses the token and not OAuth, and put the header under
+  "Request headers". Claude connects from the cloud, not from your machine, so the
+  dashboard has to be reachable from the internet on port 443. Steps:
+  [custom connectors using remote MCP](https://support.claude.com/en/articles/11175166).
+
+The endpoint offers these tools:
+
+| Tool                           | What it returns or does                                         |
+| ------------------------------ | --------------------------------------------------------------- |
+| `get_dashboard`                | Your pull requests, as `GET /api/v1/dashboard`.                 |
+| `get_main_branches`            | Default-branch CI status and open dependency advisories.        |
+| `get_pull_request_details`     | A pull request's description, comments and reactions.           |
+| `get_pull_request_checks`      | A pull request's individual CI checks.                          |
+| `get_main_branch_checks`       | The jobs of a default branch's newest pipeline.                 |
+| `get_repository_advisories`    | A GitHub repository's open dependency advisories in full.       |
+| `get_check_log`                | One CI job's output, the last 256 KiB at most.                  |
+| `list_queued_actions`          | Actions waiting on a rate-limited forge, and the recently done. |
+| `get_version`                  | The running server's release tag.                               |
+| `get_forge_api_stats`          | The forge request counters and budgets.                         |
+| `get_settings`                 | Your settings, without the webhook token and secret.            |
+| `set_pull_request_auto_update` | Turns automatic branch update on or off for one pull request.   |
+
+`set_pull_request_auto_update` is the only one that writes, and it changes
+only this app's own setting. Several of the reads spend forge request budget;
+[Architecture](../ARCHITECTURE.md#design) has the cost of each.
+
 ## Credentials
 
 Set from the Settings page (`/settings.html`, linked from the dashboard
