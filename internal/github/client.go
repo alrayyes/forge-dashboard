@@ -676,7 +676,7 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hoo
 }
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
-// a PATCH only when this app's hook lacks an event it subscribes to now. It
+// a PATCH only when this app's hook is switched off or lacks an event it subscribes to now. It
 // never creates a hook (#1555).
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
@@ -687,7 +687,7 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 	if err != nil {
 		return false, asClientError(err)
 	}
-	if existing == nil || dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents) {
+	if existing == nil || (existing.GetActive() && dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents)) {
 		return false, nil
 	}
 	if err := c.editHook(ctx, owner, name, existing.GetID(), ownHook(targetURL, secret)); err != nil {

@@ -403,7 +403,7 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, con
 }
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
-// a PATCH only when this app's hook lacks an event it subscribes to now. It
+// a PATCH only when this app's hook is switched off or lacks an event it subscribes to now. It
 // never creates a hook (#1555).
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
@@ -411,7 +411,7 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 		return false, fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
 	}
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
-	if err != nil || existing == nil || dashboard.WebhookCoversEvents(existing.Events, upgradeComparedEvents()) {
+	if err != nil || existing == nil || (existing.Active && dashboard.WebhookCoversEvents(existing.Events, upgradeComparedEvents())) {
 		return false, err
 	}
 	config := map[string]string{"url": targetURL, "content_type": "json", "secret": secret}
