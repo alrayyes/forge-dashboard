@@ -1,5 +1,18 @@
 # Changelog
 
+## [9.110.0](https://github.com/alrayyes/forge-dashboard/compare/v9.109.0...v9.110.0) (2026-11-23)
+
+
+### Features
+
+* **web:** build a pull request's address from the forge's path segment ([#4721](https://github.com/alrayyes/forge-dashboard/issues/4721)) ([f728592](https://github.com/alrayyes/forge-dashboard/commit/f728592975c0173e954eb276b16ec4c4900cb88f)), closes [#4073](https://github.com/alrayyes/forge-dashboard/issues/4073)
+
+
+### Bug Fixes
+
+* **web:** keep focus off the stale chip after a cancelled auto-merge ([#4733](https://github.com/alrayyes/forge-dashboard/issues/4733)) ([3e81c71](https://github.com/alrayyes/forge-dashboard/commit/3e81c718ccb14007dbf08e730c518516f4eec308)), closes [#4729](https://github.com/alrayyes/forge-dashboard/issues/4729)
+* **web:** show a stopped auto-merge as a chip beside the status pill ([#4725](https://github.com/alrayyes/forge-dashboard/issues/4725)) ([0840cdf](https://github.com/alrayyes/forge-dashboard/commit/0840cdffb091f2f9faf300ea1a88272ff7cb0396))
+
 ## [9.109.0](https://github.com/alrayyes/forge-dashboard/compare/v9.108.0...v9.109.0) (2026-11-23)
 
 
