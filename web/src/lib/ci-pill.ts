@@ -92,8 +92,8 @@ function cancelledTotal({
   return `${total} ${total === 1 ? 'check' : 'checks'}`;
 }
 
-const COUNTING = 'Counting checks…';
-const COUNTING_NOTE = 'The list of checks is not complete yet.';
+export const COUNTING = 'Counting checks…';
+export const COUNTING_NOTE = 'The list of checks is not complete yet.';
 
 export function ciPillModel(input: CiPillInput): CiPillModel {
   const awaiting = input.awaiting === true;

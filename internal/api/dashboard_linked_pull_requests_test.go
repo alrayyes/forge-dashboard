@@ -27,6 +27,7 @@ type linkedEntry struct {
 		Failed  int `json:"failed"`
 	} `json:"checks"`
 	AwaitingWorkflowApproval bool `json:"awaitingWorkflowApproval"`
+	ChecksIncomplete         bool `json:"checksIncomplete"`
 }
 
 // linkedByIssue reads /api/v1/dashboard and returns each issue's linked pull
@@ -109,6 +110,7 @@ func linkedServer(t *testing.T) (srvURL string, cookie *http.Cookie) {
 			pr(dashboard.ForgeForgejo, "Ryan/Hush", 7, func(p *dashboard.PullRequest) {
 				p.CI = dashboard.CIFailure
 				p.Checks = dashboard.CheckCounts{Passed: 4, Waiting: 1, Failed: 2}
+				p.ChecksIncomplete = true
 				closes("ryan/hush", 3)(p)
 			}),
 		},
@@ -160,7 +162,7 @@ func TestDashboard_IssuesListThePullRequestsThatWillCloseThem(t *testing.T) {
 	t.Run("forgejo: a lowercased reference finds the mixed-case repo's issue", func(t *testing.T) {
 		got := linkedByIssue(t, srvURL, cookie)
 
-		assert.Equal(t, []linkedEntry{{Forge: "forgejo", Repo: "Ryan/Hush", Number: 7, PageURL: "/pull-requests.html?pr=forgejo/Ryan/Hush/7", CI: "failure", Checks: checkCounts(4, 0, 1, 2)}}, got["forgejo:Ryan/Hush#3"])
+		assert.Equal(t, []linkedEntry{{Forge: "forgejo", Repo: "Ryan/Hush", Number: 7, PageURL: "/pull-requests.html?pr=forgejo/Ryan/Hush/7", CI: "failure", Checks: checkCounts(4, 0, 1, 2), ChecksIncomplete: true}}, got["forgejo:Ryan/Hush#3"])
 		assert.Equal(t, []linkedEntry{}, got["forgejo:Ryan/Hush#4"], "an issue nothing closes lists none, never null")
 	})
 	t.Run("a pull request in a repo whose pull requests are ignored is not listed", func(t *testing.T) {
