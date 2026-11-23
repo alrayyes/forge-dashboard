@@ -48,6 +48,11 @@ type repoStatus struct {
 	// FailingForGood: the failure has outlasted the cutoff the refresh
 	// schedule uses, so retrying has not helped. Absent otherwise.
 	FailingForGood bool `json:"failingForGood,omitempty"`
+	// WebhookReason is why a repo with no hook has none, when known (#4682).
+	WebhookReason       dashboard.WebhookReason `json:"webhookReason,omitempty"`
+	WebhookReasonDetail string                  `json:"webhookReasonDetail,omitempty"`
+	// WebhookNextAttemptAt is when the pass asks the forge again after a refusal.
+	WebhookNextAttemptAt *time.Time `json:"webhookNextAttemptAt,omitempty"`
 }
 
 // dashboardResponse is the wire shape for /api/v1/dashboard and its SSE
@@ -81,6 +86,9 @@ type dashboardResponse struct {
 	// from the lists above so they always agree with the pages.
 	NavCounts navCounts    `json:"navCounts"`
 	Repos     []repoStatus `json:"repos"`
+	// WebhookOriginProblem is why no hook can be created while the public
+	// origin stays as it is (#4682), stated once instead of on every repo.
+	WebhookOriginProblem string `json:"webhookOriginProblem,omitempty"`
 	// MainBranchPage is what GET /api/v1/main-branches answers, so the Main branches
 	// page takes its rows from the same message as every other page and
 	// keeps no poll of its own.
@@ -515,6 +523,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	board.refreshInterval = deps.Service.RefreshInterval()
 	board.now = time.Now()
 	board.forges = snap.Forges
+	board.webhookOutcome = deps.Service.WebhookOutcome
 	board.forgetClosedHides(ctx, deps.SettingsStore, snap)
 	pullRequests, hiddenDrafts, hiddenPullRequests := board.pullRequestViews(snap.PullRequests, view)
 	filter := loadIssueFilter(ctx, deps.SettingsStore)
@@ -524,6 +533,7 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 
 	branches := board.mainBranchRows(snap.MainBranches)
 
+	repos := board.repoStatuses(snap.Repos)
 	done := firstRefreshDone(deps.Service)
 	// A snapshot with forges in it was either refreshed or restored from the
 	// last run, and either way there is something to show instead of a
@@ -544,7 +554,8 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		IgnoredTitlesSet:         filter.titlesSet,
 		NavCounts:                buildNavCounts(pullRequests, openIssues),
 		MainBranchPage:           buildMainBranchesResponse(snap.GeneratedAt, snap.Forges, branches),
-		Repos:                    board.repoStatuses(snap.Repos),
+		Repos:                    repos,
+		WebhookOriginProblem:     webhookOriginProblem(repos, deps.PublicOrigin),
 		HiddenDrafts:             hiddenDrafts.total(),
 		HiddenDraftsByPage:       hiddenDrafts,
 
@@ -578,6 +589,7 @@ type boardSettings struct {
 	// forges is each host's health, which the claim rule reads for a row's
 	// allowed actions (#3994).
 	forges           []dashboard.ForgeHealth
+	webhookOutcome   func(dashboard.Forge, string) (dashboard.WebhookOutcome, bool)
 	deliveries       map[string]struct{}
 	ignored          map[string]settings.IgnoreScope
 	autoUpdateBranch map[string]struct{}
@@ -695,10 +707,74 @@ func (b boardSettings) repoStatuses(repos []dashboard.Repo) []repoStatus {
 			WebhookNeedsToken:         r.WebhookNeedsToken,
 			FailingSince:              failingSince,
 			FailingForGood:            forGood,
-		})
+		}.withWebhookReason(b, r))
 	}
 
 	return out
+}
+
+// withWebhookReason says why a repo with no hook has none (#4682). A repo the
+// credential can't administer has no_permission; one on a forge that can't be
+// asked right now, or that the last pass found rate limited or down, is
+// forge_unavailable; one the forge refused carries its reason and the time of
+// the next attempt. A repo with a hook, or one nothing has been learned about
+// yet, gets none.
+func (s repoStatus) withWebhookReason(b boardSettings, r dashboard.Repo) repoStatus {
+	if s.HasWebhook {
+		return s
+	}
+	if !r.CanManageWebhooks {
+		s.WebhookReason = reasonNoPermission
+
+		return s
+	}
+	if !b.forgeServes(r.Forge) {
+		s.WebhookReason = dashboard.WebhookUnavailable
+
+		return s
+	}
+	if b.webhookOutcome == nil {
+		return s
+	}
+	if o, ok := b.webhookOutcome(r.Forge, r.FullName); ok {
+		s.WebhookReason = o.Reason
+		s.WebhookReasonDetail = o.Detail
+		if !o.NextAttempt.IsZero() {
+			next := o.NextAttempt
+			s.WebhookNextAttemptAt = &next
+		}
+	}
+
+	return s
+}
+
+// reasonNoPermission is the API's reason for a repo the credential can't
+// administer. The dashboard package has no outcome for it: the repo's own
+// CanManageWebhooks already says so.
+const reasonNoPermission dashboard.WebhookReason = "no_permission"
+
+// forgeServes reports whether forge answered the last refresh with REST
+// budget left. A forge missing from the health list counts as serving.
+func (b boardSettings) forgeServes(forge dashboard.Forge) bool {
+	for _, h := range b.forges {
+		if h.Forge == forge {
+			return dashboard.ForgeServesHookWork(h)
+		}
+	}
+
+	return true
+}
+
+// webhookOriginProblem names why the pass creates no hook, when some repo
+// would have got one: it has none and the credential could make it.
+func webhookOriginProblem(repos []repoStatus, origin string) string {
+	for _, r := range repos {
+		if !r.HasWebhook && r.CanManageWebhooks {
+			return dashboard.WebhookOriginProblem(origin)
+		}
+	}
+
+	return ""
 }
 
 // pullRequestViews leaves out the pull requests of ignored repos, then the ones
