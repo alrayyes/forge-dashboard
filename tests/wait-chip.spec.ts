@@ -248,22 +248,18 @@ test.describe('the waiting chip on a bot rebase', () => {
 
     current = { ...current, ci: 'pending', botRequest: undefined };
     await push(page, current);
-    // The row also waits on CI now, so its own chip sits beside this one.
+    // The row also waits on CI now, but its own chip steps out while the
+    // Settled one stands in for it: one chip label on the row at a time.
     const settledChip = chipOf(page).filter({ hasText: 'Settled' });
     await expect(settledChip).toHaveCount(1);
+    await expect(chipOf(page)).toHaveCount(1);
     await expect(live).toHaveText(/Dependabot rebase finished\./);
     const settled = await layout(page);
     expect(settled.slot).toEqual(before.slot);
-    // Two chips in the one slot, each on a single line, the card growing by
-    // their room and no more (#4663).
-    await expect(chipOf(page)).toHaveCount(2);
-    const heights = await chipOf(page).evaluateAll((els) =>
-      els.map((e) => e.getBoundingClientRect().height),
-    );
-    expect(heights).toHaveLength(2);
-    for (const h of heights) expect(h).toBeLessThanOrEqual(oneLine + 1);
+    // One line, and the row no taller than the room the chip takes (#4663).
+    expect((await size(chipOf(page))).height).toBeLessThanOrEqual(oneLine + 1);
     expect(settled.row.height).toBeLessThanOrEqual(
-      before.row.height + 2 * CHIP_ROOM,
+      before.row.height + CHIP_ROOM,
     );
     const spoken = await live.textContent();
 
