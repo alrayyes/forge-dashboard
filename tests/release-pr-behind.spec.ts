@@ -5,6 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1104: a release-please pull request that falls behind in a repo with
@@ -55,7 +56,7 @@ const releasePR = {
 const snapshot = () =>
   JSON.stringify({
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: [releasePR],
     issues: [],
     repos: [],
