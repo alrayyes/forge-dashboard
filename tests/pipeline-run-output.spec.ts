@@ -297,6 +297,97 @@ test.describe('a check run output in the pipeline dialog', () => {
     }
   });
 
+  test('a JSON dump in the output is one entry that opens to its indented text (#4685)', async ({
+    page,
+  }) => {
+    const dump = [
+      '{',
+      '  "a": 0,',
+      '  "result": "success",',
+      '  "needs": [',
+      '    1',
+      '  ]',
+      '}',
+    ];
+    // The dump is raw lines 299 to 305: a range of three digits each side.
+    const before = Array.from({ length: 298 }, (_, i) => `step ${i + 1}`);
+    await setup(page, {
+      status: 200,
+      body: {
+        text: [...before, ...dump, 'after', ''].join('\n'),
+        truncated: false,
+      },
+    });
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output.locator('.run-line')).toHaveCount(300);
+    // The number is the raw range, so "line 306" still means line 306.
+    const range = output.getByRole('button', { name: 'Copy lines 299-305' });
+    await expect(range).toHaveText('299-305');
+    await expect(
+      output.getByRole('button', { name: 'Copy line 306' }),
+    ).toHaveText('306');
+    await expect(output.locator('.run-json-compact')).toHaveText(
+      '{"a":0,"result":"success","needs":[1]}',
+    );
+    // The range fits its button, and the collapsed entry is one row tall like
+    // a plain line (AC2).
+    expect(await range.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(
+      true,
+    );
+    const entryBox = await output.locator('.run-line').nth(298).boundingBox();
+    const plainBox = await output.locator('.run-line').nth(0).boundingBox();
+    expect(entryBox?.height).toBeGreaterThan(0);
+    expect(
+      Math.abs((entryBox?.height ?? 0) - (plainBox?.height ?? 1)),
+    ).toBeLessThan(2);
+    const toggle = output.getByRole('button', { name: 'JSON, lines 299-305' });
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    // The toggle is a 24px target at least (WCAG 2.5.8).
+    expect((await toggle.boundingBox())?.height).toBeGreaterThanOrEqual(24);
+
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(output.locator('.run-json-full')).toHaveText(dump.join('\n'));
+    // Indentation survives with Wrap lines off too.
+    await dialog.getByLabel('Wrap lines').uncheck();
+    await expect(output.locator('.run-json-full')).toHaveCSS(
+      'white-space',
+      'pre',
+    );
+
+    const results = await new AxeBuilder({ page })
+      .include('#pipeline-dialog')
+      .analyze();
+    expect(results.violations).toEqual([]);
+  });
+
+  test('a JSON dump in a failed check excerpt is one entry too (#4685)', async ({
+    page,
+  }) => {
+    await setup(
+      page,
+      { status: 200, body: { text: 'x\n', truncated: false } },
+      [
+        {
+          name: 'build',
+          status: 'completed',
+          conclusion: 'failure',
+          url: runUrl,
+          jobId: 9,
+          excerpt: ['boom', '{', '  "a": 1', '}'].join('\n'),
+        },
+      ],
+    );
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const excerpt = dialog.locator('.run-excerpt');
+    await expect(excerpt.locator('.run-line')).toHaveCount(2);
+    await expect(excerpt.locator('.run-json-compact')).toHaveText('{"a":1}');
+  });
+
   // The wording, the job link and the colours of each answer are stories
   // (CheckRunOutput.stories.svelte); what stays is the dialog around them. The
   // refused read's axe run covers the error's colours, as every error shares them.

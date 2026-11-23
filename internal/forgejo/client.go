@@ -428,6 +428,27 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 	return true, nil
 }
 
+// RewriteWebhookSecret implements dashboard.WebhookSecretRewriter: one hooks
+// listing, and a PATCH of this app's hook whatever its state, since Forgejo
+// never returns the secret to compare. It never creates a hook.
+func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		// The parse error quotes the URL, which carries the webhook token.
+		return false, errInvalidTargetURL
+	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil || existing == nil {
+		return false, err
+	}
+	config := map[string]string{"url": targetURL, "content_type": "json", "secret": secret}
+	if err := c.editHook(ctx, owner, name, existing.ID, config); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // upgradeComparedEvents is forgejoWebhookEvents without `status`: two real
 // Forgejo instances never persist that event however it is set
 // (docs/webhooks.md), so counting its absence would PATCH every covered hook at
@@ -2201,6 +2222,10 @@ func (c *Client) listActionRunJobs(ctx context.Context, owner, name string, runI
 // errTooManyJobs is a run whose jobs were not all read. A caller that has to act
 // on every job, such as a rerun, takes this over a partial list.
 var errTooManyJobs = errors.New("forgejo: too many jobs to read")
+
+// errInvalidTargetURL stands in for url.Parse's error, which quotes the URL and
+// so the webhook token.
+var errInvalidTargetURL = errors.New("forgejo: invalid webhook target URL")
 
 // listWholeRunJobs is listActionRunJobs for a caller that must see every job:
 // a list that is not whole is errTooManyJobs, not a shorter list.

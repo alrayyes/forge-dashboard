@@ -296,8 +296,26 @@ with admin on the repo.
   to is edited in place on the first refresh after it is found. The dashboard
   lists each hooked repo's hooks for this at most once an hour, so a hook
   switched off later is switched back on within the hour, with no restart. It
-  can't read a hook's secret back from the forge, so a changed secret is fixed
-  by the "Add a webhook" button.
+  can't read a hook's secret back from the forge, so it can't tell a stale
+  secret from a current one by looking.
+- **A changed secret** is handled by remembering. The dashboard keeps a
+  fingerprint (a hash, never the secret) of the secret it last wrote to every
+  hook. When the secret in use differs, the pass rewrites the secret on each of
+  this dashboard's hooks and never creates a second hook. On GitHub that is
+  one edit per repo, because the dashboard reuses the hook it saw on its last
+  check, and one listing first only when it has no recent sighting or the
+  remembered hook is gone. On Forgejo it is one listing and one edit per repo.
+  Once every repo has an answer the new fingerprint is stored, so a refresh
+  after that makes no extra write. A forge that is rate limited or unreachable
+  is asked again on a later refresh, and the fingerprint waits for it. A repo
+  the forge refuses, or answers with an authorization error, is logged and
+  left to the "Add a webhook" button. Which repos are done is kept in memory,
+  so a restart in the middle of a rotation edits them again, which is safe.
+- **A secret changed before this existed isn't detected.** The first start
+  after this was introduced records the secret in use as the baseline and
+  rewrites nothing, since there is nothing to compare against. A hook whose
+  secret was replaced earlier still holds the old one, and its repo needs
+  "Add a webhook" once.
 - **A repo the token can't administer**, a forge that is unreachable or out of
   REST budget, and a repo the forge refuses are skipped without failing the
   refresh. The dashboard asks a refused repo again after an hour, with no
@@ -353,7 +371,8 @@ manual retry for a locked or skipped row.
   `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`
   with the repo, the delivery ID and, for a pull request event, the pull
   request number.
-- **You want to rotate the secret**: there's currently no way to do that
-  from the dashboard — it's generated once, the first time the Settings
-  page is opened, and stays fixed after that for as long as the account
-  exists.
+- **You want to rotate the secret**: there's no button for it. The secret is
+  generated once, the first time the Settings page is opened. If it is
+  replaced in the database, the next refresh rewrites it on every hook the
+  dashboard made (see "What the dashboard checks on its own"); no clicking
+  "Add a webhook" per repo.

@@ -121,6 +121,25 @@ type WebhookUpgrader interface {
 	UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (updated bool, err error)
 }
 
+// WebhookSecretRewriter is implemented by a ForgeClient (or, for github.Client,
+// a Source directly) that can rewrite the secret of this app's existing hook
+// (#4683). Forges never return a hook's secret, so the pass can't tell a stale
+// one from a current one and writes it only once the secret is known to have
+// changed. It never creates a hook, and reports whether it wrote.
+type WebhookSecretRewriter interface {
+	RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (rewritten bool, err error)
+}
+
+// WebhookSecretLedger is implemented by the WebhookCredentialSource that
+// remembers which secret the hooks were last written with, as a fingerprint
+// (#4683). It is how the pass learns a rotation happened. settings.Store
+// satisfies it.
+type WebhookSecretLedger interface {
+	// WebhookSecretSynced is the fingerprint last recorded, "" before any.
+	WebhookSecretSynced(ctx context.Context) (string, error)
+	MarkWebhookSecretSynced(ctx context.Context, fingerprint string) error
+}
+
 // WebhookCoversEvents reports whether a hook's event list has every event want
 // names. A hook may carry more (a user's own extra ticks); those are left.
 func WebhookCoversEvents(have, want []string) bool {
