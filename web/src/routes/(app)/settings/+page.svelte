@@ -2790,8 +2790,10 @@
                   type="button"
                   class="token-copy-button"
                   aria-label="Copy MCP URL"
-                  onclick={copyMcpUrl}>Copy</button
+                  onclick={copyMcpUrl}
                 >
+                  Copy
+                </button>
               </div>
               <p
                 class={`status${mcpCopyStatusKind ? ` ${mcpCopyStatusKind}` : ""}`}
@@ -2826,8 +2828,10 @@
               Steps for other clients and the list of tools are in the
               <a
                 href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/accounts.md#use-with-an-ai-client"
-                rel="noopener noreferrer">accounts docs</a
-              >.
+                rel="noopener noreferrer"
+              >
+                accounts docs
+              </a>.
             </p>
           </fieldset>
           <p
