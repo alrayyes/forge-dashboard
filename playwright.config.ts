@@ -312,6 +312,7 @@ const singleUserSpecs = [
   '**/main-branch-snapshot-runs.spec.ts',
   '**/author-link-focus-ring.spec.ts',
   '**/settings-hint-size.spec.ts',
+  '**/settings-mcp-help.spec.ts',
   '**/csp-img-src.spec.ts',
   '**/settings-avatar-skipped.spec.ts',
   '**/filter-bar-short-list.spec.ts',

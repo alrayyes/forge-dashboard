@@ -939,6 +939,21 @@
     }
   }
 
+  // The MCP endpoint lives on the origin the page is open on, so staging and
+  // production each show their own. Set after mount: there is no window while
+  // the page is prerendered.
+  // Until then, and in the prerendered page, a placeholder host stands in.
+  let mcpUrl = $state("https://<your-dashboard-host>/api/v1/mcp");
+  let mcpCopyStatus = $state("");
+  let mcpCopyStatusKind = $state<"" | "error" | "ok">("");
+
+  function copyMcpUrl() {
+    copyToClipboard(mcpUrl, (message, kind) => {
+      mcpCopyStatus = message;
+      mcpCopyStatusKind = kind;
+    });
+  }
+
   function copyTokenReveal(value: string) {
     copyToClipboard(value, (message, kind) => {
       tokenStatus = message;
@@ -1018,6 +1033,7 @@
   });
 
   onMount(() => {
+    mcpUrl = `${window.location.origin}/api/v1/mcp`;
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     loadTimezone();
@@ -1662,6 +1678,44 @@
     .api-token-meta {
       font-size: 0.75rem;
       color: var(--ink-3);
+    }
+    .mcp-help {
+      margin: 16px 0 0;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .mcp-help legend {
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .mcp-help p,
+    .mcp-help li {
+      font-size: 0.8125rem;
+      color: var(--ink-3);
+      line-height: 1.5;
+    }
+    .mcp-help ul {
+      margin: 0 0 12px;
+      padding-left: 20px;
+    }
+    .mcp-help pre {
+      margin: 4px 0 12px;
+      padding: 8px 10px;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      background: var(--surface-sunken);
+      border: 1px solid var(--control-border);
+      border-radius: 6px;
+    }
+    .mcp-help .field {
+      margin-bottom: 12px;
     }
   </style>
 </svelte:head>
@@ -2721,6 +2775,61 @@
           >
             No API tokens yet.
           </p>
+          <fieldset class="mcp-help">
+            <legend>Use with an AI client</legend>
+            <p>
+              The MCP endpoint lets an AI client read your pull requests with an
+              API token. Generate a token above, then add this address to your
+              client.
+            </p>
+            <div class="field">
+              <label for="mcp-url">MCP endpoint address</label>
+              <div class="token-input">
+                <input id="mcp-url" type="text" readonly value={mcpUrl} />
+                <button
+                  type="button"
+                  class="token-copy-button"
+                  aria-label="Copy MCP URL"
+                  onclick={copyMcpUrl}>Copy</button
+                >
+              </div>
+              <p
+                class={`status${mcpCopyStatusKind ? ` ${mcpCopyStatusKind}` : ""}`}
+                id="mcp-copy-status"
+                role="status"
+                aria-live="polite"
+              >
+                {mcpCopyStatus}
+              </p>
+            </div>
+            <p>
+              The client sends the token as a header on every request:
+              <code>Authorization: Bearer &lt;token&gt;</code>. Paste your own
+              token where the steps say <code>&lt;token&gt;</code>. It is never
+              shown here.
+            </p>
+            <ul>
+              <li>
+                Claude Code: run
+                <pre>claude mcp add --transport http forge-dashboard {mcpUrl} --header "Authorization: Bearer &lt;token&gt;"</pre>
+              </li>
+              <li>
+                Claude (claude.ai and Claude Desktop): open Customize, then
+                Connectors, then Add custom connector. Paste the address, choose
+                "No sign in" and put the header under "Request headers". Free
+                plans allow one custom connector. On Team and Enterprise plans
+                only an Owner can add one, under Organization settings, then
+                Connectors.
+              </li>
+            </ul>
+            <p>
+              Steps for other clients and the list of tools are in the
+              <a
+                href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/accounts.md#use-with-an-ai-client"
+                rel="noopener noreferrer">accounts docs</a
+              >.
+            </p>
+          </fieldset>
           <p
             class={`status${tokenStatusKind ? ` ${tokenStatusKind}` : ""}`}
             id="token-status"
