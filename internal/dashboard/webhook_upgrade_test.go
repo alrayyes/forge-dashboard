@@ -1,8 +1,11 @@
 package dashboard_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -323,6 +326,89 @@ func TestWebhookProvision_OriginAForgeCannotReach_CreatesNothing(t *testing.T) {
 			assert.Empty(t, src.ensuredRepos())
 		})
 	}
+}
+
+// syncBuffer is a log sink the pass's goroutines can write to while a test reads.
+type syncBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (b *syncBuffer) Write(p []byte) (int, error) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.Write(p)
+}
+
+func (b *syncBuffer) String() string {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.buf.String()
+}
+
+// captureLogs swaps the default logger for one that writes to the returned
+// buffer. Tests that call it are not parallel: the default logger is global.
+func captureLogs(t *testing.T) *syncBuffer {
+	t.Helper()
+	buf := &syncBuffer{}
+	previous := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	t.Cleanup(func() { slog.SetDefault(previous) })
+
+	return buf
+}
+
+func badOriginAggregator(t *testing.T, srcs ...dashboard.Source) *dashboard.Aggregator {
+	t.Helper()
+	agg := dashboard.NewAggregator(srcs)
+	agg.EnableWebhookUpgrade(t.Context(), fakeCreds{}, "http://dash.example", dashboard.NewWebhookUpgrades(0))
+
+	return agg
+}
+
+func TestWebhookProvision_UnreachableOrigin_IsLoggedOnceWhileTheProblemStaysTheSame(t *testing.T) {
+	logs := captureLogs(t)
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+	agg := badOriginAggregator(t, src)
+
+	refreshAndWait(t, agg)
+	refreshAndWait(t, agg)
+	refreshAndWait(t, agg)
+
+	assert.Equal(t, 1, strings.Count(logs.String(), "not creating hooks"))
+}
+
+func TestWebhookProvision_UnreachableOrigin_WithNothingToCreate_LogsNothing(t *testing.T) {
+	logs := captureLogs(t)
+	repos := append(covered(dashboard.ForgeGitHub, "me/a"), hookless(dashboard.ForgeGitHub, false, "me/locked")...)
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, repos...)
+
+	refreshAndWait(t, badOriginAggregator(t, src))
+
+	assert.NotContains(t, logs.String(), "not creating hooks")
+}
+
+func TestWebhookProvision_FailureThatIsNotARefusal_IsNotReportedAsOne(t *testing.T) {
+	logs := captureLogs(t)
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+	src.ensureResults = map[string]error{"me/bare": errors.New("parse target URL")}
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.NotContains(t, logs.String(), "refused")
+	assert.Contains(t, logs.String(), "could not create or repair the hook")
+}
+
+func TestWebhookProvision_ShutdownMidPass_LogsNoWarning(t *testing.T) {
+	logs := captureLogs(t)
+	src := upgradeSource(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}, hookless(dashboard.ForgeGitHub, true, "me/bare")...)
+	src.ensureResults = map[string]error{"me/bare": context.Canceled}
+
+	refreshAndWait(t, upgradingAggregator(t, dashboard.NewWebhookUpgrades(0), src))
+
+	assert.NotContains(t, logs.String(), "level=WARN")
 }
 
 func TestWebhookOriginProblem(t *testing.T) {

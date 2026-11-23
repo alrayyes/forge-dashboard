@@ -30,11 +30,13 @@ type WebhookCredentialSource interface {
 	EnsureWebhookCredentials(ctx context.Context) (token, secret string, err error)
 }
 
-// WebhookUpgrades remembers, for the life of the process, which repos have had
-// their one hooks listing (#1555). Shared by every Aggregator a Service
-// builds, so saving credentials, which rebuilds one, doesn't repeat the work.
+// WebhookUpgrades remembers, for the life of the process, when each repo's hook
+// was last looked at (#1555, #4018) and which origin problem was last logged
+// for each forge. Shared by every Aggregator a Service builds, so saving
+// credentials, which rebuilds one, doesn't repeat the work.
 type WebhookUpgrades struct {
 	mu         sync.Mutex
+	logged     map[Forge]string
 	next       map[string]time.Time
 	jitter     time.Duration
 	retryAfter time.Duration
@@ -51,6 +53,7 @@ const DefaultWebhookRetryAfter = time.Hour
 func NewWebhookUpgrades(jitter time.Duration) *WebhookUpgrades {
 	return &WebhookUpgrades{
 		next:       make(map[string]time.Time),
+		logged:     make(map[Forge]string),
 		jitter:     jitter,
 		retryAfter: DefaultWebhookRetryAfter,
 		now:        time.Now,
@@ -79,6 +82,20 @@ func (w *WebhookUpgrades) claimRetry(key string) bool {
 	return true
 }
 
+// noteOriginProblem reports whether problem is news for forge: it differs from
+// the last one noted. An empty problem resets, so a problem that comes back is
+// news again.
+func (w *WebhookUpgrades) noteOriginProblem(forge Forge, problem string) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.logged[forge] == problem {
+		return false
+	}
+	w.logged[forge] = problem
+
+	return problem != ""
+}
+
 func (w *WebhookUpgrades) release(key string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
@@ -94,9 +111,10 @@ type webhookUpgradeConfig struct {
 	wg      sync.WaitGroup
 }
 
-// EnableWebhookUpgrade turns on the once-per-process-start upgrade of this
-// user's app-created webhooks (#1555). ctx outlives any one refresh, so a
-// refresh a request started doesn't cancel the upgrade when it returns.
+// EnableWebhookUpgrade turns on the post-refresh webhook pass for this user: it
+// repairs hooks and creates missing ones (#1555, #4018). ctx outlives any one
+// refresh, so a refresh a request started doesn't cancel the pass when it
+// returns.
 func (a *Aggregator) EnableWebhookUpgrade(ctx context.Context, creds WebhookCredentialSource, origin string, state *WebhookUpgrades) {
 	a.webhookUpgrade = &webhookUpgradeConfig{ctx: ctx, creds: creds, origin: strings.TrimRight(origin, "/"), state: state}
 }
@@ -140,7 +158,7 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 		if held := a.budgetHold(snap, src.Forge(), apistats.KindHookMaintenance); held {
 			continue
 		}
-		jobs := forgeJobs(src, snap, originProblem)
+		jobs := forgeJobs(src, snap, originProblem, cfg.state)
 		if len(jobs) == 0 {
 			continue
 		}
@@ -159,16 +177,21 @@ func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot)
 
 // forgeJobs is src's work for one pass: an upgrade for each covered repo, and
 // a create for each repo the token can administer that has no hook, unless the
-// public origin is one a forge can't reach.
-func forgeJobs(src Source, snap Snapshot, originProblem string) []repoJob {
+// public origin is one a forge can't reach. That is logged only when a repo
+// needed a hook, and again only if the reason changes.
+func forgeJobs(src Source, snap Snapshot, originProblem string, state *WebhookUpgrades) []repoJob {
 	jobs := upgradeJobs(src, snap)
-	if originProblem != "" {
-		slog.Info("webhook maintenance: not creating hooks", "forge", src.Forge(), "reason", originProblem)
+	creates := createJobs(src, snap)
+	if originProblem == "" {
+		state.noteOriginProblem(src.Forge(), "")
 
-		return jobs
+		return append(jobs, creates...)
+	}
+	if len(creates) > 0 && state.noteOriginProblem(src.Forge(), originProblem) {
+		slog.Info("webhook maintenance: not creating hooks", "forge", src.Forge(), "reason", originProblem)
 	}
 
-	return append(jobs, createJobs(src, snap)...)
+	return jobs
 }
 
 func upgradeJobs(src Source, snap Snapshot) []repoJob {
@@ -312,6 +335,10 @@ func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret str
 		return true
 	}
 	if err := job.run(ctx, owner, name, targetURL, secret); err != nil {
+		if errors.Is(err, context.Canceled) {
+			// Shutting down, not an answer about this repo.
+			return false
+		}
 		if clientErr, isClient := errors.AsType[*ClientError](err); isClient &&
 			(clientErr.Kind == ForgeErrorRateLimited || clientErr.Kind == ForgeErrorUnreachable ||
 				clientErr.Kind == ForgeErrorUpstream) {
@@ -319,7 +346,7 @@ func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret str
 
 			return false
 		}
-		slog.Warn("webhook maintenance: the forge refused the hook", "forge", forge, "repo", job.fullName, "error", err)
+		slog.Warn("webhook maintenance: could not create or repair the hook", "forge", forge, "repo", job.fullName, "error", err)
 	}
 
 	return true

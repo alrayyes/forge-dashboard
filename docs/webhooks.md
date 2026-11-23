@@ -273,7 +273,8 @@ with admin on the repo.
   restart, and a forge that is down on the next refresh.
 - **A public address a forge can't reach** (`RP_ORIGIN` on localhost, a private
   address or plain HTTP) gets no hook created, because it would never fire. The
-  log says why, once per refresh.
+  log says why the first time a repo needed a hook, and again only if the
+  reason changes.
 
 Requests run at most four at a time, each after a short random pause, and are
 logged under the hook-maintenance kind. The "Add a webhook" button remains the
