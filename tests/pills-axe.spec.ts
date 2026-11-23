@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageOf } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -58,7 +59,7 @@ async function routeDashboard(page: Page, body: object) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         openIssueCount: 0,
@@ -177,10 +178,7 @@ test(`pull request pills in every state have no axe violations in both themes`, 
       await page.emulateMedia({ colorScheme: scheme });
 
       await routeDashboard(page, {
-        forges: [
-          { forge: 'github', reachable: true, repoCount: 1 },
-          { forge: 'forgejo', reachable: true, repoCount: 1 },
-        ],
+        forges: [forgeHealth('github'), forgeHealth('forgejo')],
         pullRequests: PRS,
       });
 

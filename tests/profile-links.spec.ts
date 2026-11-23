@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { routeImage } from './proxied-image';
 import { test } from './server-fixture';
 
@@ -69,7 +70,7 @@ async function mock(page: Page, issues: object[] = ISSUES) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: PRS,
         issues,
         openIssueCount: issues.length,
