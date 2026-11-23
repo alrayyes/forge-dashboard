@@ -49,6 +49,13 @@ describe('repinImage', () => {
     expect(repinImage(wf(NEW), '1.65.1', DIGEST)).toBe(wf(NEW));
   });
 
+  test('keeps a trailing comment on the image line', () => {
+    const old = `jobs:\n  t:\n    container:\n      image: ${OLD} # keep me\n`;
+    expect(repinImage(old, '1.65.1', DIGEST)).toBe(
+      `jobs:\n  t:\n    container:\n      image: ${NEW} # keep me\n`,
+    );
+  });
+
   test('leaves other images and a file with no image line untouched', () => {
     const other = wf('ubuntu:24.04');
     expect(repinImage(other, '1.65.1', DIGEST)).toBe(other);
@@ -104,6 +111,28 @@ describe('repinWorkflows', () => {
         },
       }),
     ).rejects.toThrow('ci-playwright:1.65.1 does not exist yet');
+  });
+
+  test('fails when an image line is one the pattern does not read', async () => {
+    const odd = wf(OLD).replace(`image: ${OLD}`, `image: "${OLD}"`);
+    await expect(
+      repinWorkflows({
+        packageJson,
+        workflows: { 'ci.yml': odd },
+        resolve: async () => DIGEST,
+      }),
+    ).rejects.toThrow('ci.yml');
+  });
+
+  test('fails when it finds fewer image lines than the guard needs', async () => {
+    await expect(
+      repinWorkflows({
+        packageJson,
+        workflows: { 'ci.yml': wf(OLD) },
+        resolve: async () => DIGEST,
+        minimum: 3,
+      }),
+    ).rejects.toThrow('found 1 image line');
   });
 
   test('repins all four image references in the real workflows', async () => {

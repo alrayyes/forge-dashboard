@@ -5,9 +5,22 @@
 // every image line in the workflows. Ported from movie-planner-web's
 // scripts/pin-playwright-image.ts (its PR #989).
 
+import { spawnSync } from 'node:child_process';
+import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 const REPOSITORY = 'ghcr.io/alrayyes/ci-playwright';
-// The same `image:` lines scripts/test-playwright-image.sh reads.
-const IMAGE = /^\s+image: (ghcr\.io\/alrayyes\/ci-playwright:\S+)\s*$/gm;
+// The `image:` lines scripts/test-playwright-image.sh reads, with or without a
+// trailing comment.
+const IMAGE =
+  /^\s+image: (ghcr\.io\/alrayyes\/ci-playwright:\S+)[ \t]*(?:#.*)?$/gm;
+// Any line that names the image, so one the pattern misses is an error and not
+// a silent skip.
+const MENTION = /^\s*image:.*ci-playwright:/gm;
+// The guard fails below this many jobs on the image: the e2e shards,
+// Lighthouse and the release screenshots.
+const GUARD_MINIMUM = 3;
 
 /** The exact @playwright/test version package.json pins, if it pins one. */
 export function playwrightVersion(packageJson: string): string | undefined {
@@ -36,6 +49,8 @@ export type Repin = {
   packageJson: string;
   workflows: Record<string, string>;
   resolve: (version: string) => Promise<string>;
+  /** Fewer image lines than this across the workflows is an error. */
+  minimum?: number;
 };
 
 /** The workflows whose text changes, by file name. */
@@ -43,10 +58,27 @@ export async function repinWorkflows({
   packageJson,
   workflows,
   resolve,
+  minimum = 0,
 }: Repin): Promise<Record<string, string>> {
   const version = playwrightVersion(packageJson);
   if (!version) {
     throw new Error('package.json pins no exact @playwright/test version');
+  }
+  let found = 0;
+  for (const [file, text] of Object.entries(workflows)) {
+    const read = [...text.matchAll(IMAGE)].length;
+    const named = [...text.matchAll(MENTION)].length;
+    if (read !== named) {
+      throw new Error(
+        `${file} has ${named - read} ci-playwright image line(s) this script can't read`,
+      );
+    }
+    found += read;
+  }
+  if (found < minimum) {
+    throw new Error(
+      `found ${found} image line(s) in the workflows, expected at least ${minimum}`,
+    );
   }
   const digest = await resolve(version);
   const changed: Record<string, string> = {};
@@ -59,15 +91,13 @@ export async function repinWorkflows({
 
 async function resolveWithDocker(version: string): Promise<string> {
   const image = `${REPOSITORY}:${version}`;
-  const run = Bun.spawn(['docker', 'buildx', 'imagetools', 'inspect', image], {
-    stdout: 'pipe',
-    stderr: 'pipe',
+  const {
+    stdout: out,
+    stderr: err,
+    status: code,
+  } = spawnSync('docker', ['buildx', 'imagetools', 'inspect', image], {
+    encoding: 'utf8',
   });
-  const [out, err, code] = await Promise.all([
-    new Response(run.stdout).text(),
-    new Response(run.stderr).text(),
-    run.exited,
-  ]);
   if (code !== 0) {
     throw new Error(
       `${image} can't be read (${err.trim() || `exit ${code}`}). The ci-playwright repo ` +
@@ -77,20 +107,21 @@ async function resolveWithDocker(version: string): Promise<string> {
   return digestFrom(out);
 }
 
-if (import.meta.main) {
-  const root = new URL('..', import.meta.url).pathname;
-  const dir = `${root}.github/workflows`;
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dir = path.join(root, '.github', 'workflows');
   const workflows: Record<string, string> = {};
-  for (const file of new Bun.Glob('*.yml').scanSync(dir)) {
-    workflows[file] = await Bun.file(`${dir}/${file}`).text();
+  for (const file of readdirSync(dir).filter((f) => f.endsWith('.yml'))) {
+    workflows[file] = readFileSync(path.join(dir, file), 'utf8');
   }
   const changed = await repinWorkflows({
-    packageJson: await Bun.file(`${root}package.json`).text(),
+    packageJson: readFileSync(path.join(root, 'package.json'), 'utf8'),
     workflows,
     resolve: resolveWithDocker,
+    minimum: GUARD_MINIMUM,
   });
   for (const [file, text] of Object.entries(changed)) {
-    await Bun.write(`${dir}/${file}`, text);
+    writeFileSync(path.join(dir, file), text);
     console.log(`repinned ${file}`);
   }
   if (Object.keys(changed).length === 0) {

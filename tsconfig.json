@@ -12,9 +12,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["tests", "scripts", "playwright.config.ts"],
-  "exclude": [
-    "scripts/*.test.ts",
-    "scripts/storybook-smoke.ts",
-    "scripts/pin-playwright-image.ts"
-  ]
+  "exclude": ["scripts/*.test.ts", "scripts/storybook-smoke.ts"]
 }
