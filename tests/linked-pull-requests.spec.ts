@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // An issue that an open pull request will close shows a pill linking to it,
@@ -91,7 +92,7 @@ async function mockBoard(page: Page, board: Board) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: all ? (board.everything ?? board.shown) : board.shown,
         issues: board.issues ?? [],
       }),

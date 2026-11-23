@@ -1,4 +1,5 @@
 import { expect, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -51,7 +52,7 @@ test('the pull request page stays free of release pull requests after leaving Re
         body: JSON.stringify({
           generatedAt: new Date(Date.now() + polls * 1000).toISOString(),
           readIntervalSeconds: 1,
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: SNAPSHOT,
           issues: [],
           navCounts: navCountsFor(SNAPSHOT, 0),
