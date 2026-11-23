@@ -9,14 +9,7 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
 const stillByHand = [
-  'branch-rerun-checks.spec.ts',
   'dashboard.spec.ts',
-  'forge-health-live-region.spec.ts',
-  'forgejo-auto-merge.spec.ts',
-  'hit-areas.spec.ts',
-  'insights.spec.ts',
-  'pull-request-update-branch.spec.ts',
-  'repo-author-multi-select.spec.ts',
   'wait-chip.spec.ts',
   'webhooks-page.spec.ts',
 ];

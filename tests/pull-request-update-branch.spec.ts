@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -52,7 +53,7 @@ function mockDashboard(page: Page, pr?: MockPR) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),
@@ -60,22 +61,15 @@ function mockDashboard(page: Page, pr?: MockPR) {
   );
 }
 
-interface MockForge {
-  forge: string;
-  reachable: boolean;
-  repoCount: number;
-  rateLimitREST?: {
-    limit: number;
-    remaining: number;
-    resetsAt: string;
-  };
-}
-
 // mockDashboardCustom, unlike mockDashboard above, takes its own forges
 // array and a real list of pull requests — for the proactive-lock tests,
 // which need to control ForgeHealth directly and (for the cross-action
 // permission-lock test) more than one row.
-function mockDashboardCustom(page: Page, forges: MockForge[], prs: MockPR[]) {
+function mockDashboardCustom(
+  page: Page,
+  forges: ReturnType<typeof forgeHealth>[],
+  prs: MockPR[],
+) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -180,7 +174,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [{ ...pr, behind: false }],
           issues: [],
         }),
@@ -219,7 +213,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [{ ...pr, behind: false }],
           issues: [],
         }),
@@ -255,7 +249,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr],
           issues: [],
         }),
@@ -289,7 +283,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [
             {
               ...pr,
@@ -336,7 +330,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [
             refreshCount === 1
               ? {
@@ -434,7 +428,7 @@ test.describe('pull request update-branch button', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr],
           issues: [],
         }),
@@ -495,7 +489,7 @@ test.describe('pull request update-branch button', () => {
     }) => {
       await mockDashboardCustom(
         page,
-        [{ forge: 'github', reachable: false, repoCount: 0 }],
+        [forgeHealth('github', { reachable: false, repoCount: 0 })],
         [makePR()],
       );
       await page.goto('/pull-requests.html');
@@ -517,12 +511,9 @@ test.describe('pull request update-branch button', () => {
       await mockDashboardCustom(
         page,
         [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
+          forgeHealth('github', {
             rateLimitREST: rateLimit(5000, 0, resetsAt),
-          },
+          }),
         ],
         [makePR()],
       );
@@ -560,7 +551,7 @@ test.describe('pull request update-branch button', () => {
       });
       await mockDashboardCustom(
         page,
-        [{ forge: 'github', reachable: true, repoCount: 2 }],
+        [forgeHealth('github', { repoCount: 2 })],
         [first, second],
       );
       // The force refresh below answers the same board, so it never reaches the
@@ -571,7 +562,7 @@ test.describe('pull request update-branch button', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [first, second],
             issues: [],
           }),
