@@ -277,7 +277,7 @@ test.describe('on the Main branches page', () => {
         none: 0,
         total: 1,
       },
-      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      forges: [forgeHealth('github')],
       branches: [
         {
           forge: 'github',
