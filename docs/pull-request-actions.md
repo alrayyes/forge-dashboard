@@ -93,19 +93,21 @@ auto-merge and takes the same place. There is no locked Merge and no dashed
 placeholder, and Update branch stays a button beside the chip. The longer
 explanation is the chip's tooltip, which opens on hover and on keyboard focus
 and is the chip's accessible description, so a keyboard, a touch screen and a
-screen reader all get it. At 1280 and 1024 pixels a waiting row is no taller
-than a normal one, with a comment pill, Update branch or a bot's rebase beside
-the chip too: the status column widens for those. An armed row's status cell is
-no taller either, but its "Auto-merge" label under the title still adds a line
-to the row. The Pull requests, Releases and Bots pages share the row, so they
-share the chip. When the forge allows the merge, Merge takes the slot back, and
-a screen reader hears "Merge is available." only if focus is in that row. The
-pop-up's footer has no chip, so it keeps the words as a line of text. Reasons a
-person can act on keep their locked Merge and printed words. The tooltip only
-suggests turning on Auto-merge when the chip has the button; a row where the
-server doesn't offer it, or the forge is rate limited, says only that Merge
-unlocks by itself. A queued action (Update branch waiting for a rate limit to
-reset) keeps its own chip and Cancel in place of the waiting chip.
+screen reader all get it. At 1280 and 1024 pixels a waiting row with the
+Auto-merge button is no taller than a normal one, with a comment pill, Update
+branch or a bot's rebase beside the chip too: the status column widens for
+those. A chip with a detail line, such as an armed chip or a bot rebase's, is
+wider than the title can spare, so with an action beside it the row keeps the
+stacked, taller cell. An armed row's "Auto-merge" label under the title also
+still adds a line to the row. The Pull requests, Releases and Bots pages share
+the row, so they share the chip. When the forge allows the merge, Merge takes
+the slot back, and a screen reader hears "Merge is available." only if focus is
+in that row. The pop-up's footer has no chip, so it keeps the words as a line of
+text. Reasons a person can act on keep their locked Merge and printed words. The
+tooltip only suggests turning on Auto-merge when the chip has the button; a row
+where the server doesn't offer it, or the forge is rate limited, says only that
+Merge unlocks by itself. A queued action (Update branch waiting for a rate limit
+to reset) keeps its own chip and Cancel in place of the waiting chip.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row keeps the chip but says "Waiting for the forge", with
 "Updating from the latest CI results" in its tooltip, and the Merge button stays
