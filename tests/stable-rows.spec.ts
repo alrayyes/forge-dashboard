@@ -5,6 +5,7 @@ import {
   kindFor,
   statusFor,
 } from './allowed-actions-stand-in';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Live updates land by themselves. A snapshot (poll or SSE push) that adds,
@@ -58,7 +59,7 @@ function makePR(number: number, overrides: Partial<MockPR> = {}): MockPR {
 function snapshot(prs: MockPR[]) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+    forges: [forgeHealth('github', { repoCount: 2 })],
     // This spec stubs the whole stream, so the stand-in can't enrich what it
     // pushes: state the server's answer here.
     pullRequests: prs.map((pr) => ({
