@@ -210,11 +210,18 @@ for (const sc of scenarios) {
       await expect(
         scope.locator('button').filter({ hasText: sc.pending }),
       ).toHaveCount(0);
-      if (status === 204)
+      if (status === 204) {
         await expect(
           scope.locator('button').filter({ hasText: sc.label }),
         ).toHaveCount(0);
-      else
+        // While the request runs, a feedback chip stands in on the row and the
+        // row's own chip, with its button, is detached, so the two counts above
+        // hold before the reply is handled. When the reply lands the stale chip
+        // comes back until the refreshed board replaces it. The row has no chip
+        // of its own once that board is in, which is the settled state.
+        if (!sc.inDialog)
+          await expect(row.locator('.wait-chip')).toHaveCount(0);
+      } else
         await expect(
           scope.locator('button').filter({ hasText: sc.label }),
         ).toBeVisible();
