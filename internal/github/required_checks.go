@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -195,12 +196,13 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 		if c.requiredChecks.isComplete(cand.headOid) {
 			continue
 		}
-		switch c.hasUnreportedRequired(ctx, cand) {
+		verdict, missing := c.hasUnreportedRequired(ctx, cand)
+		switch verdict {
 		case verdictMissing:
-			c.settleUnreported(ctx, prs, cand)
+			c.settleUnreported(ctx, prs, cand, missing)
 		case verdictUnreadable:
 			if cand.onlyChecksCanBlock {
-				c.settleUnreported(ctx, prs, cand)
+				c.settleUnreported(ctx, prs, cand, nil)
 			}
 		case verdictComplete:
 			c.requiredChecks.markComplete(cand.headOid)
@@ -216,7 +218,7 @@ func (c *Client) settleUnreportedRequiredChecks(ctx context.Context, prs []dashb
 // (#1280): failing, and awaiting approval. A workflow run that ended in
 // startup_failure is the other reason nothing is coming: it created no jobs,
 // so it reads as failing, with the run counted as failed (#3305).
-func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullRequest, cand missingRequiredCheck) {
+func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullRequest, cand missingRequiredCheck, missing []string) {
 	runs := c.headWorkflowRuns(ctx, cand.owner, cand.name, cand.headOid, true)
 	switch {
 	case runs.held:
@@ -228,6 +230,7 @@ func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullReque
 		prs[cand.prIndex].Checks.Failed += len(runs.failed)
 	default:
 		prs[cand.prIndex].CI = dashboard.CIPending
+		prs[cand.prIndex].PendingChecks = missing
 	}
 }
 
@@ -235,31 +238,37 @@ func (c *Client) settleUnreported(ctx context.Context, prs []dashboard.PullReque
 // context is missing whatever else failed to load, but "nothing missing" holds
 // only when both places that can require a check (branch protection and
 // rulesets) answered, since the one that didn't might name another.
-func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequiredCheck) requiredVerdict {
+func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequiredCheck) (requiredVerdict, []string) {
 	required, answered := c.requiredContextNames(ctx, cand)
 	if len(required) == 0 {
 		if answered {
-			return verdictKeepRollup
+			return verdictKeepRollup, nil
 		}
 
-		return verdictUnreadable
+		return verdictUnreadable, nil
 	}
 	reported, err := c.reportedContexts(ctx, cand.owner, cand.name, cand.headOid)
 	if err != nil {
 		slog.Warn("github required-check lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
 
-		return verdictKeepRollup
+		return verdictKeepRollup, nil
 	}
+	var missing []string
 	for name := range required {
 		if !reported[name] {
-			return verdictMissing
+			missing = append(missing, name)
 		}
 	}
+	if len(missing) > 0 {
+		slices.Sort(missing)
+
+		return verdictMissing, missing
+	}
 	if answered {
-		return verdictComplete
+		return verdictComplete, nil
 	}
 
-	return verdictUnreadable
+	return verdictUnreadable, nil
 }
 
 // reportedContexts is every context the head commit has reported a result for:

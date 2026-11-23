@@ -265,6 +265,33 @@ func TestFetch_EveryRequiredCheckReported_StaysSuccess(t *testing.T) {
 	assert.Equal(t, dashboard.CISuccess, result.PullRequests[0].CI)
 }
 
+// The row can name what it is waiting on: the required checks nothing has
+// reported (#4442).
+func TestFetch_RequiredCheckNotYetReported_NamesIt(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := unreportedChecksServer(t, "BLOCKED",
+		[]string{"build", "check", "secrets"}, []string{"check"}, &lookups)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Equal(t, []string{"build", "secrets"}, result.PullRequests[0].PendingChecks)
+}
+
+func TestFetch_EveryRequiredCheckReported_NamesNothing(t *testing.T) {
+	t.Parallel()
+
+	var lookups atomic.Int32
+	srv := unreportedChecksServer(t, "BLOCKED", []string{"build"}, []string{"build"}, &lookups)
+
+	result := github.NewClient("test-token", "", srv.URL).Fetch(t.Context())
+
+	require.Len(t, result.PullRequests, 1)
+	assert.Empty(t, result.PullRequests[0].PendingChecks)
+}
+
 func TestFetch_CleanPullRequest_SkipsTheRequiredChecksLookup(t *testing.T) {
 	t.Parallel()
 
