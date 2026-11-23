@@ -1,4 +1,6 @@
 import { expect, test } from 'bun:test';
+import { readdirSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import { assignShards, durationsFromJunit } from './e2e-shards';
 
 test('every spec lands in exactly one shard', () => {
@@ -67,4 +69,30 @@ test('durations sum the test times of each spec in a JUnit report', () => {
     'a.spec.ts': 3.75,
     'b.spec.ts': 0.5,
   });
+});
+
+// The committed split, not the algorithm: a durations file that falls behind
+// the suite leaves one shard carrying the specs it doesn't know about, and that
+// shard hits the job's 10 minute limit (#3477). CONTRIBUTING.md says how to
+// refresh it.
+const specDir = path.join(import.meta.dir, '..', 'tests');
+const committed = JSON.parse(
+  readFileSync(path.join(specDir, 'e2e-durations.json'), 'utf8'),
+) as Record<string, number>;
+const specs = readdirSync(specDir)
+  .filter((f) => f.endsWith('.spec.ts'))
+  .sort();
+
+test('the committed durations cover at least 90 percent of the specs', () => {
+  const missing = specs.filter((s) => !(s in committed));
+  expect(missing.length / specs.length).toBeLessThanOrEqual(0.1);
+});
+
+test('the committed durations split the suite into six shards within a minute', () => {
+  const known = specs.filter((s) => s in committed);
+  const mean = known.reduce((n, s) => n + committed[s], 0) / known.length;
+  const loads = assignShards(specs, committed, 6).map((shard) =>
+    shard.reduce((n, s) => n + (committed[s] ?? mean), 0),
+  );
+  expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(60);
 });
