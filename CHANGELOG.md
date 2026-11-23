@@ -1,5 +1,14 @@
 # Changelog
 
+## [9.101.1](https://github.com/alrayyes/forge-dashboard/compare/v9.101.0...v9.101.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **deps:** bump golang.org/x/oauth2 ([#4647](https://github.com/alrayyes/forge-dashboard/issues/4647)) ([edbb4ba](https://github.com/alrayyes/forge-dashboard/commit/edbb4ba7700494372844b7559d8db2ce62ee42b3))
+* **deps:** bump oven/bun ([#4649](https://github.com/alrayyes/forge-dashboard/issues/4649)) ([a38fd17](https://github.com/alrayyes/forge-dashboard/commit/a38fd1725375b94bc2b6edf2232cfb5f51dce6a8))
+* **web:** keep the Branches empty states inside the viewport at 400% text ([#4645](https://github.com/alrayyes/forge-dashboard/issues/4645)) ([c826a77](https://github.com/alrayyes/forge-dashboard/commit/c826a776f5988903447f26a9c90a92b934ae89b0)), closes [#4638](https://github.com/alrayyes/forge-dashboard/issues/4638)
+
 ## [9.101.0](https://github.com/alrayyes/forge-dashboard/compare/v9.100.1...v9.101.0) (2026-11-22)
 
 
