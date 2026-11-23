@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageOf } from './nav-counts-helper';
 import { test } from './server-fixture';
 
@@ -29,7 +30,7 @@ async function mockDashboard(page: Page, generatedAt = ago(12)) {
       body: JSON.stringify({
         generatedAt,
         readIntervalSeconds: 60,
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [],
         issues: [],
         openIssueCount: 0,
@@ -171,7 +172,7 @@ async function stubStream(page: Page) {
 const snap = (generatedAt: string) => ({
   generatedAt,
   readIntervalSeconds: 60,
-  forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+  forges: [forgeHealth('github')],
   pullRequests: [],
   issues: [],
   openIssueCount: 0,
