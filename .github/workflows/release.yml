@@ -116,7 +116,7 @@ jobs:
           # ref it's standing on, and needs the history to build from.
           ref: refs/tags/${{ needs.release-please.outputs.tag_name || inputs.tag }}
           fetch-depth: 0
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       # goreleaser's own before.hooks run `bun install`/`bun run build:web`
@@ -231,7 +231,7 @@ jobs:
         with:
           ref: main
           token: ${{ secrets.RELEASE_TOKEN }}
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go.mod
       - name: the image's bun is the one package.json names
