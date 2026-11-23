@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.101.3](https://github.com/alrayyes/forge-dashboard/compare/v9.101.2...v9.101.3) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** keep the Branches page header inside the viewport at 400% text ([#4637](https://github.com/alrayyes/forge-dashboard/issues/4637)) ([87e846b](https://github.com/alrayyes/forge-dashboard/commit/87e846b5bef335e5c8c12368901c3ea5792d4131)), closes [#4631](https://github.com/alrayyes/forge-dashboard/issues/4631)
+
 ## [9.101.2](https://github.com/alrayyes/forge-dashboard/compare/v9.101.1...v9.101.2) (2026-11-23)
 
 
