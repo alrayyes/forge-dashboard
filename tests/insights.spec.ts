@@ -12,14 +12,6 @@ interface RateLimit {
   cost?: number;
 }
 
-interface ForgeStatus {
-  forge: string;
-  reachable: boolean;
-  repoCount: number;
-  rateLimitGraphQL?: RateLimit;
-  rateLimitREST?: RateLimit;
-}
-
 interface PullRequestFixture {
   forge: string;
   repo: string;
@@ -51,11 +43,11 @@ function mockDashboard(
   {
     pullRequests = [],
     issues = [],
-    forges = [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges = [forgeHealth('github')],
   }: {
     pullRequests?: PullRequestFixture[];
     issues?: IssueFixture[];
-    forges?: ForgeStatus[];
+    forges?: ReturnType<typeof forgeHealth>[];
   } = {},
 ) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
@@ -357,13 +349,11 @@ test.describe('insights page', () => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
       await mockDashboard(page, {
         forges: [
-          {
-            forge: 'github',
-            reachable: true,
+          forgeHealth('github', {
             repoCount: 3,
             rateLimitGraphQL: { limit: 5000, remaining: 4321, resetsAt },
             rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
-          },
+          }),
         ],
       });
 
@@ -384,9 +374,7 @@ test.describe('insights page', () => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
       await mockDashboard(page, {
         forges: [
-          {
-            forge: 'github',
-            reachable: true,
+          forgeHealth('github', {
             repoCount: 3,
             rateLimitGraphQL: {
               limit: 5000,
@@ -395,7 +383,7 @@ test.describe('insights page', () => {
               cost: 7,
             },
             rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
-          },
+          }),
         ],
       });
 
@@ -416,7 +404,7 @@ test.describe('insights page', () => {
       // they make no GraphQL calls (#361) — so GraphQL reads as "not
       // reported" here even though the forge itself is otherwise healthy.
       await mockDashboard(page, {
-        forges: [{ forge: 'forgejo', reachable: true, repoCount: 2 }],
+        forges: [forgeHealth('forgejo', { repoCount: 2 })],
       });
 
       await page.goto('/insights.html');
@@ -436,12 +424,10 @@ test.describe('insights page', () => {
       const resetsAt = new Date(Date.now() + 41 * 60 * 1000).toISOString();
       await mockDashboard(page, {
         forges: [
-          {
-            forge: 'github',
-            reachable: true,
+          forgeHealth('github', {
             repoCount: 3,
             rateLimitREST: { limit: 5000, remaining: 4922, resetsAt },
-          },
+          }),
         ],
       });
 
@@ -471,12 +457,10 @@ test.describe('insights page', () => {
       const resetsAt = new Date(Date.now() + 90 * 1000).toISOString();
       await mockDashboard(page, {
         forges: [
-          {
-            forge: 'github',
-            reachable: true,
+          forgeHealth('github', {
             repoCount: 3,
             rateLimitREST: rateLimit(5000, 0, resetsAt),
-          },
+          }),
         ],
       });
 
@@ -796,17 +780,15 @@ test.describe('insights page', () => {
   }) => {
     await mockDashboard(page, {
       forges: [
-        {
-          forge: 'github',
-          reachable: true,
+        forgeHealth('github', {
           repoCount: 3,
           rateLimitREST: {
             limit: 5000,
             remaining: 4922,
             resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),
           },
-        },
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
+        }),
+        forgeHealth('forgejo'),
       ],
       pullRequests: [
         pr('success'),
@@ -837,17 +819,15 @@ test.describe('insights page', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockDashboard(page, {
       forges: [
-        {
-          forge: 'github',
-          reachable: true,
+        forgeHealth('github', {
           repoCount: 3,
           rateLimitREST: {
             limit: 5000,
             remaining: 4922,
             resetsAt: new Date(Date.now() + 41 * 60 * 1000).toISOString(),
           },
-        },
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
+        }),
+        forgeHealth('forgejo'),
       ],
       pullRequests: [
         pr('success'),

@@ -3,6 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { factsOf } from './check-facts';
 import { type CheckRow, pushChecks, serveChecks } from './checks-feed-helper';
 import { installFakeStream, pushStream } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Main branches pipeline dialog offers "Rerun failed checks" on a failed
@@ -52,9 +53,7 @@ function snapshot(status: 'failed' | 'passed', state: PanelState) {
       none: 0,
       total: 1,
     },
-    forges: state.forges ?? [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ],
+    forges: state.forges ?? [forgeHealth('github')],
     branches: [{ ...branch(status, state.running ?? 0), ...state.row }],
   };
 }
@@ -334,7 +333,7 @@ test.describe('main branches rerun failed checks', () => {
   }) => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
-      forges: [{ forge: 'github', reachable: false, repoCount: 1 }],
+      forges: [forgeHealth('github', { reachable: false })],
     });
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
@@ -355,14 +354,7 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       row: { forge: 'forgejo' },
-      forges: [
-        {
-          forge: 'forgejo',
-          reachable: true,
-          repoCount: 1,
-          rerunChecksBlocked: reason,
-        },
-      ],
+      forges: [forgeHealth('forgejo', { rerunChecksBlocked: reason })],
     });
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
@@ -376,16 +368,13 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges: [
-        {
-          forge: 'github',
-          reachable: true,
-          repoCount: 1,
+        forgeHealth('github', {
           rateLimitREST: {
             limit: 5000,
             remaining: 0,
             resetsAt,
           },
-        },
+        }),
       ],
     });
 
@@ -398,9 +387,7 @@ test.describe('main branches rerun failed checks', () => {
   test('the button comes back when a poll shows the forge reachable again', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: false, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github', { reachable: false })];
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
@@ -408,7 +395,7 @@ test.describe('main branches rerun failed checks', () => {
     });
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
-    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    forges[0] = forgeHealth('github');
 
     // Step the clock until the page's own poll has run, whatever its interval.
     await poll(page);
@@ -426,16 +413,13 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges: [
-        {
-          forge: 'github',
-          reachable: true,
-          repoCount: 1,
+        forgeHealth('github', {
           rateLimitREST: {
             limit: 5000,
             remaining: 0,
             resetsAt,
           },
-        },
+        }),
       ],
     });
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
@@ -453,9 +437,7 @@ test.describe('main branches rerun failed checks', () => {
   test('a lock keeps the queued status and hides an earlier failure', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({ status: 204 }),
     );
@@ -469,7 +451,7 @@ test.describe('main branches rerun failed checks', () => {
       'The new results show here',
     );
 
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
@@ -487,8 +469,8 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges: [
-        { forge: 'github', reachable: false, repoCount: 1 },
-        { forge: 'github', reachable: true, repoCount: 2 },
+        forgeHealth('github', { reachable: false }),
+        forgeHealth('github', { repoCount: 2 }),
       ],
     });
 
@@ -507,15 +489,15 @@ test.describe('main branches rerun failed checks', () => {
     [
       'the later reset comes first',
       () => [
-        { forge: 'github', reachable: true, rateLimitREST: spentUntil(10) },
-        { forge: 'github', reachable: true, rateLimitREST: spentUntil(5) },
+        forgeHealth('github', { rateLimitREST: spentUntil(10) }),
+        forgeHealth('github', { rateLimitREST: spentUntil(5) }),
       ],
     ],
     [
       'the first host is unreachable',
       () => [
-        { forge: 'github', reachable: false },
-        { forge: 'github', reachable: true, rateLimitREST: spentUntil(5) },
+        forgeHealth('github', { reachable: false }),
+        forgeHealth('github', { rateLimitREST: spentUntil(5) }),
       ],
     ],
   ] as const) {
@@ -563,9 +545,7 @@ test.describe('main branches rerun failed checks', () => {
   test('an earlier outage failure does not come back after a lock lifts', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.route('**/api/v1/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
@@ -575,11 +555,11 @@ test.describe('main branches rerun failed checks', () => {
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
     await expect(dialog.getByRole('alert')).toContainText('forge is down');
 
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
-    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    forges[0] = forgeHealth('github');
     await poll(page);
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
@@ -590,9 +570,7 @@ test.describe('main branches rerun failed checks', () => {
   test('a permission refusal is still shown after an outage passes', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.route('**/api/v1/main-branches/rerun-checks', (route) =>
       route.fulfill({
         status: 403,
@@ -611,11 +589,11 @@ test.describe('main branches rerun failed checks', () => {
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).click();
     await expect(dialog.getByRole('alert')).toContainText('cannot rerun');
 
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
-    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    forges[0] = forgeHealth('github');
     await poll(page);
     await expect(
       dialog.getByRole('button', { name: 'Rerun failed checks' }),
@@ -643,9 +621,7 @@ test.describe('main branches rerun failed checks', () => {
   test('keyboard focus stays in the dialog when a poll takes the button away', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
@@ -653,7 +629,7 @@ test.describe('main branches rerun failed checks', () => {
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
 
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
 
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
@@ -668,9 +644,7 @@ test.describe('main branches rerun failed checks', () => {
   test('keyboard focus stays in the dialog when a lock removes the Copy button', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.route('**/api/v1/main-branches/rerun-checks', unavailable);
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
@@ -681,7 +655,7 @@ test.describe('main branches rerun failed checks', () => {
     const copy = dialog.getByRole('button', { name: 'Copy error details' });
     await copy.focus();
 
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
 
     await expect(copy).toHaveCount(0);
@@ -701,9 +675,7 @@ test.describe('main branches rerun failed checks', () => {
   test('a redraw that throws says so on the page and inside the dialog, and clears when it recovers', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
@@ -748,20 +720,18 @@ test.describe('main branches rerun failed checks', () => {
   test('keyboard focus returns to the button when the lock lifts', async ({
     page,
   }) => {
-    const forges: unknown[] = [
-      { forge: 'github', reachable: true, repoCount: 1 },
-    ];
+    const forges: unknown[] = [forgeHealth('github')];
     await page.clock.install();
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges,
     });
     await dialog.getByRole('button', { name: 'Rerun failed checks' }).focus();
-    forges[0] = { forge: 'github', reachable: false, repoCount: 1 };
+    forges[0] = forgeHealth('github', { reachable: false });
     await poll(page);
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
 
-    forges[0] = { forge: 'github', reachable: true, repoCount: 1 };
+    forges[0] = forgeHealth('github');
     await poll(page);
 
     await expect(
@@ -780,11 +750,7 @@ test.describe('main branches rerun failed checks', () => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
       forges: [
-        {
-          forge: 'github',
-          reachable: true,
-          rateLimitREST: spentUntil(60 * 24 * 40),
-        },
+        forgeHealth('github', { rateLimitREST: spentUntil(60 * 24 * 40) }),
       ],
     });
     await expect(dialog.getByRole('button', { name: /rerun/i })).toHaveCount(0);
