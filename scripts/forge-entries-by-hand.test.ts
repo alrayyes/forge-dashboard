@@ -9,11 +9,6 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
 const stillByHand = [
-  'startup-banner.spec.ts',
-  'startup-state.spec.ts',
-  'stream-after-first-poll.spec.ts',
-  'unreachable-age-tick.spec.ts',
-  'unreachable-once.spec.ts',
   'armed-behind-status.spec.ts',
   'branch-rerun-checks.spec.ts',
   'dashboard.spec.ts',
@@ -38,10 +33,6 @@ const stillByHand = [
   'repo-author-multi-select.spec.ts',
   'row-failure-lines.spec.ts',
   'timezone.spec.ts',
-  'unreachable-banner-height.spec.ts',
-  'unreachable-forge.spec.ts',
-  'unreachable-incident.spec.ts',
-  'upstream-error-banner.spec.ts',
   'wait-chip.spec.ts',
   'webhooks-filter-choices.spec.ts',
   'webhooks-page.spec.ts',

@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { type Forge as ForgeName, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3745: the banner's relative age keeps counting while nothing else changes,
@@ -7,14 +8,13 @@ import { test } from './server-fixture';
 
 const minutesAgo = (m: number) =>
   new Date(Date.now() - m * 60_000).toISOString();
-const down = (forge: string, staleSince: string) => ({
-  forge,
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp: i/o timeout',
-  staleSince,
-});
+const down = (forge: ForgeName, staleSince: string) =>
+  forgeHealth(forge, {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp: i/o timeout',
+    staleSince,
+  });
 
 async function open(page: Page, forges: unknown[]) {
   await page.clock.install({ time: new Date() });

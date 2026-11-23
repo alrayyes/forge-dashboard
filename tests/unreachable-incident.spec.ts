@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3633: when GitHub is unreachable and its own status page reports an
@@ -11,16 +12,15 @@ const status = {
   components: ['Pull Requests'],
 };
 
-const github = (providerStatus?: unknown) => ({
-  forge: 'github',
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp: i/o timeout',
-  staleSince: new Date(Date.now() - 3 * 3600_000).toISOString(),
-  ...(providerStatus ? { providerStatus } : {}),
-});
-const forgejo = { forge: 'forgejo', reachable: true, repoCount: 1 };
+const github = (providerStatus?: unknown) =>
+  forgeHealth('github', {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp: i/o timeout',
+    staleSince: new Date(Date.now() - 3 * 3600_000).toISOString(),
+    ...(providerStatus ? { providerStatus } : {}),
+  });
+const forgejo = forgeHealth('forgejo');
 
 async function open(page: Page, forges: unknown[]) {
   await page.route('**/api/v1/dashboard*', (route: Route) => {
