@@ -606,6 +606,12 @@ var githubWebhookEvents = []string{
 // back to active with the right config rather than creating a second,
 // duplicate hook — GitHub, unlike Forgejo, allows several hooks with
 // the identical URL, so nothing stops a duplicate except checking first.
+//
+// It always writes an existing hook, because the "Add a webhook" button relies
+// on that to replace a changed secret. The post-refresh pass calls it only for
+// a repo whose snapshot shows no hook, so a write there means the snapshot was
+// stale: one idempotent PATCH, after which the next refresh sees the hook and
+// leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	u, err := url.Parse(targetURL)
 	if err != nil {
@@ -676,8 +682,8 @@ func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hoo
 }
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
-// a PATCH only when this app's hook lacks an event it subscribes to now. It
-// never creates a hook (#1555).
+// a PATCH only when this app's hook is switched off or lacks an event it
+// subscribes to now. It never creates a hook.
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
@@ -687,7 +693,7 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 	if err != nil {
 		return false, asClientError(err)
 	}
-	if existing == nil || dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents) {
+	if existing == nil || (existing.GetActive() && dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents)) {
 		return false, nil
 	}
 	if err := c.editHook(ctx, owner, name, existing.GetID(), ownHook(targetURL, secret)); err != nil {

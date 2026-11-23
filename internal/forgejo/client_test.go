@@ -2589,3 +2589,39 @@ func TestDeletePullRequestBranch_EscapesTheBranchNameInThePaths(t *testing.T) {
 		"/api/v1/repos/alrayyes/a/branches/feat/a%23b%3Fc%25d%20e",
 	}, srv.uris)
 }
+
+func TestUpgradeWebhook_HookSwitchedOff_PatchesItActiveWithoutPosting(t *testing.T) {
+	t.Parallel()
+
+	var patch struct {
+		Active *bool `json:"active"`
+	}
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		if r.URL.Query().Get("page") != "1" {
+			writeJSON(t, w, []map[string]any{})
+
+			return
+		}
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "type": "forgejo", "events": []string{"action_run_success", "action_run_failure", "status", "push", "pull_request_review_rejected", "pull_request_review_approved", "pull_request_review_comment", "pull_request_comment", "issue_comment", "issues", "pull_request"}, "config": map[string]string{"url": "https://dashboard.example/api/webhooks/forgejo/tok123"}, "active": false},
+		})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		assert.NoError(t, json.NewDecoder(r.Body).Decode(&patch))
+		w.WriteHeader(http.StatusOK)
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := forgejo.NewClient(srv.URL, "test-token", "")
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/forgejo/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+	require.NotNil(t, patch.Active)
+	assert.True(t, *patch.Active)
+}
