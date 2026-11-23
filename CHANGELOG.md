@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.105.0](https://github.com/alrayyes/forge-dashboard/compare/v9.104.2...v9.105.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** rewrite the hook secret everywhere when it changes ([#4704](https://github.com/alrayyes/forge-dashboard/issues/4704)) ([d41b2cf](https://github.com/alrayyes/forge-dashboard/commit/d41b2cf79abb5ee6a93282a55bf6a5f16a853db5))
+
 ## [9.104.2](https://github.com/alrayyes/forge-dashboard/compare/v9.104.1...v9.104.2) (2026-11-23)
 
 
