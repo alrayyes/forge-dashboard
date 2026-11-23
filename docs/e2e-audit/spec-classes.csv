@@ -136,7 +136,7 @@ label-in-name.spec.ts,1.53,7,6,A,,0.2
 label-multi-select.spec.ts,14.074,26,5,C,,11.4
 landscape-first-row.spec.ts,8.569,5,4,A,,1.7
 legal.spec.ts,2.251,4,2,A,,1.1
-linked-pull-request-pipeline.spec.ts,6.155,7,2,C,,4.4
+linked-pull-request-pipeline.spec.ts,6.155,8,2,C,,4.6
 linked-pull-requests.spec.ts,7.75,14,5,C,web/src/lib/linked-pull-requests.test.ts,5.0
 list-date-columns-root-font-size.spec.ts,,6,4,A,,0.0
 live-control.spec.ts,12.008,12,4,C,web/src/lib/live-control.test.ts;LiveControl.stories.svelte (proven),8.0
