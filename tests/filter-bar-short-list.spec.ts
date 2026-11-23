@@ -247,7 +247,7 @@ for (const pick of PICKS) {
 
     await expect(page.locator('#pr-rows .row')).toHaveCount(1);
     await expect(page.locator('.filter-bar')).toBeVisible();
-    await expect(page.locator('#pr-sort-select')).toBeVisible();
+    await expect(page.locator('#pr-sort-select')).toBeHidden();
     await expect(page.locator('#clear-filters-button')).toBeEnabled();
 
     await page.locator('#clear-filters-button').click();
@@ -269,7 +269,7 @@ test('a filter that narrows a longer list to one row keeps the bar', async ({
     .fill('Pull request 2');
   await expect(page.locator('#pr-rows .row')).toHaveCount(1);
   await expect(page.locator('.filter-bar')).toBeVisible();
-  await expect(page.locator('#pr-sort-select')).toBeVisible();
+  await expect(page.locator('#pr-sort-select')).toBeHidden();
 
   await page.locator('#clear-filters-button').click();
   await expect(page.locator('#pr-rows .row')).toHaveCount(3);

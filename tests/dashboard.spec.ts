@@ -1145,11 +1145,11 @@ test.describe('dashboard page', () => {
       await page.selectOption('#shared-group-select', 'repo');
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'Dashboard');
 
-      await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
-      await expect(page.locator('#pr-rows > h3.group-heading')).toContainText(
-        'alrayyes/forge-dashboard',
-      );
+      // Two rows from one repo: grouping would make one heading, so the list
+      // is flat and the select is not drawn (#4680).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+      await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(0);
+      await expect(page.locator('#shared-group-select')).toBeHidden();
     });
 
     test('switching back to no grouping returns to the flat list', async ({
@@ -2934,10 +2934,10 @@ test.describe('dashboard page', () => {
       await boardReady(page);
       // The pill goes first: once the title leaves only failing rows, the pill
       // would show what All shows and is no longer offered (#3669).
-      await page.locator('.quick-pills [data-pill="failing"]').click();
-      // Before the title narrows the list: grouping is disabled over one row
-      // (#3886).
+      // Grouping is picked first: the select is not drawn once the filters
+      // leave one repo (#4680).
       await page.selectOption('#shared-group-select', 'repo');
+      await page.locator('.quick-pills [data-pill="failing"]').click();
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'build');
       // Title and the pill together leave the failing "Fix build" PR (#1427:
       // a combination that matched nothing is no longer offered).

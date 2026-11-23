@@ -5759,6 +5759,9 @@
     // How many rows the filters leave on the current view, for the Filters
     // sheet's "Show N results" button (#828).
     let visibleResultCount = 0;
+    // The rows themselves, for the controls that only make sense over a
+    // spread of repos or forges (#4680).
+    let visibleRows: { forge: string; repo: string }[] = [];
 
     // The issues page's counterpart. A change that would add, remove or
     // move rows waits only while you're scrolled below the top, a control
@@ -9024,6 +9027,18 @@
         return isPR ? extraState : withSettings(extraState);
       }
 
+      // The saved grouping, while it would make more than one group over
+      // these rows. Otherwise the list is flat and the saved choice waits
+      // (#4680).
+      function groupByFor(rows: { forge: string; repo: string }[]): string {
+        const saved = sharedState.shared.groupBy;
+        const choices = Filters.groupChoices(rows);
+        return (saved === "repo" && choices.repo) ||
+          (saved === "forge" && choices.forge)
+          ? saved
+          : "";
+      }
+
       function render() {
         const container = document.getElementById(containerId);
         if (!container) return;
@@ -9037,7 +9052,7 @@
         container.innerHTML = "";
         titleHover.prune();
 
-        const groupBy = sharedState.shared.groupBy;
+        const groupBy = groupByFor(visible);
         if (groupBy) {
           // Grouping and pagination stay mutually exclusive —
           // paginating grouped clusters coherently is a bigger problem
@@ -9068,6 +9083,7 @@
 
         if (isPR === pullsView) {
           visibleResultCount = visible.length;
+          visibleRows = visible;
           visibleBotRows = visible as PullRequestItem[];
           visiblePullRows = visibleBotRows;
           rowFoldsDirty = false;
@@ -9210,10 +9226,10 @@
         find: (key) => state.items.find((item) => prKey(item) === key),
         showPageOf: (key) => {
           // Grouped mode has no pages: every filtered row is on screen.
-          if (sharedState.shared.groupBy) return null;
           const visible = state.items.filter((item) =>
             Filters.matchesFilters(item, isPR, sharedState.shared, ruleState()),
           );
+          if (groupByFor(visible)) return null;
           const pages = Stacks.pagesOf(entriesFor(visible), state.pageSize);
           const page =
             pages.findIndex((entries) =>
@@ -9540,45 +9556,63 @@
       );
     }
 
-    // The sort and grouping selects stay in the bar but are disabled, with the
-    // reason in a visible line they are described by, once the filters leave
-    // one row or none (#3886). They keep their value, so the sort is back as
-    // it was when a second row returns. Focus a select held moves to a control
-    // still drawn, since a disabled one can't keep it.
+    // The sort and grouping selects, and the Created and Updated filters, are
+    // drawn only while they have something to offer over the rows in view
+    // (#4680). A set date filter stays so it can be undone, and a chosen sort
+    // or grouping is kept for when the select is back. Focus a control held
+    // moves to one still drawn.
     function syncListControls() {
       const rows = visibleResultCount;
-      let sortOff = false;
-      let groupOff = false;
-      for (const [id, offered] of [
-        ["pr-sort-select", Filters.sortOffered(rows)],
-        [
-          "shared-group-select",
-          Filters.groupOffered(rows, sharedState.shared.groupBy || ""),
-        ],
-      ] as const) {
-        const select = document.getElementById(id) as HTMLSelectElement | null;
-        if (!select) continue;
-        if (!offered) {
-          if (id === "pr-sort-select") sortOff = true;
-          else groupOff = true;
-        }
-        // Described by the reason only while it is disabled: a hidden note
-        // still supplies its text to whatever references it.
-        if (offered) select.removeAttribute("aria-describedby");
-        else select.setAttribute("aria-describedby", "list-controls-note");
-        if (select.disabled === !offered) continue;
+      const choices = Filters.groupChoices(visibleRows);
+      const repos = new Set(
+        visibleRows.map((r) => Filters.repoKey(r.forge, r.repo)),
+      ).size;
+      const sortChoices = Filters.sortChoices(repos);
+      const saved = {
+        sort: sharedState.view.sort || "",
+        group: sharedState.shared.groupBy || "",
+      };
+      const showOnly = (select: HTMLSelectElement, offered: boolean) => {
+        if (select.hidden === !offered) return;
         const hadFocus = document.activeElement === select;
-        select.disabled = !offered;
-        if (hadFocus && !offered) {
-          focusFilterBar(select);
+        select.hidden = !offered;
+        if (hadFocus && !offered) focusFilterBar(select);
+      };
+      const optionsOf = (
+        select: HTMLSelectElement,
+        allowed: Record<string, boolean>,
+        value: string,
+      ) => {
+        for (const option of select.options) {
+          const off = allowed[option.value] === false;
+          option.hidden = off;
+          option.disabled = off;
         }
+        // A saved choice that is not on offer shows as the default.
+        select.value = allowed[value] === false ? "" : value;
+      };
+      const sortSelect = document.getElementById(
+        "pr-sort-select",
+      ) as HTMLSelectElement | null;
+      if (sortSelect) {
+        optionsOf(sortSelect, { repo: sortChoices.repo }, saved.sort);
+        showOnly(sortSelect, Filters.sortOffered(rows));
       }
-      const note = document.getElementById("list-controls-note");
-      if (note) {
-        note.hidden = !sortOff && !groupOff;
-        note.textContent = groupOff
-          ? "Sorting and grouping need two or more rows."
-          : "Sorting needs two or more rows.";
+      const groupSelect = document.getElementById(
+        "shared-group-select",
+      ) as HTMLSelectElement | null;
+      if (groupSelect) {
+        optionsOf(
+          groupSelect,
+          { repo: choices.repo, forge: choices.forge },
+          saved.group,
+        );
+        showOnly(groupSelect, Filters.groupOffered(choices));
+      }
+      for (const id of ["created-filter", "updated-filter"]) {
+        const select = document.getElementById(id) as HTMLSelectElement | null;
+        if (select)
+          showOnly(select, Filters.dateFilterOffered(rows, select.value));
       }
     }
 
@@ -11605,9 +11639,6 @@
         <option value="repo">Group by repository</option>
         <option value="forge">Group by forge</option>
       </select>
-      <span class="list-controls-note" id="list-controls-note" hidden>
-        Sorting and grouping need two or more rows.
-      </span>
       <!-- The sheet names each dropdown above it (#4611); in the bar the
            button's own text does, so the wrapper and its label are not drawn
            there. The label is hidden from assistive technology because the
