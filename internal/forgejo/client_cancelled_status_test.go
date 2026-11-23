@@ -59,6 +59,9 @@ type forge struct {
 	totalCount int
 	// state is the combined state; empty answers failure.
 	state string
+	// required are the status contexts the base branch's rule requires. Nil
+	// serves no rule list at all, which the forge does for a token without admin.
+	required []string
 }
 
 // jobsPageSize is how many jobs the fake forge serves a page when the request
@@ -127,9 +130,17 @@ func (f forge) serve(t *testing.T) served {
 			"number": 12, "title": "t", "html_url": "https://git.example/alrayyes/a/pulls/12",
 			"user": map[string]string{"login": "ryankes"}, "labels": []map[string]string{}, "mergeable": true,
 			"created_at": "2026-09-01T00:00:00Z", "updated_at": "2026-09-02T00:00:00Z",
-			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
+			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc", "ref": "main"},
 		}})
 	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/12", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 12, "head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"ref": "main"}})
+	})
+	if f.required != nil {
+		mux.HandleFunc("/api/v1/repos/alrayyes/a/branch_protections", func(w http.ResponseWriter, _ *http.Request) {
+			writeJSON(t, w, []map[string]any{{"rule_name": "main", "enable_status_check": true, "status_check_contexts": f.required}})
+		})
+	}
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
 		state := cmp.Or(f.state, "failure")
 		writeJSON(t, w, map[string]any{"state": state, "statuses": f.statuses, "total_count": f.totalCount})
