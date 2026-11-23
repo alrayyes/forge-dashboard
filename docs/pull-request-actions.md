@@ -114,10 +114,18 @@ have finished, the row keeps the chip but says "Waiting for the forge", with
 away until the next refresh. If the row still waits after one refresh, the
 forge is counting a check the jobs don't show, such as a status from an
 external CI. On Forgejo the pipeline list shows those statuses beside the
-jobs, so the pill waits with them; the tooltip points at the pull request on
-the forge for the rest. An armed row follows the pill the same way, whatever its
-status says, when the last refresh read CI as pending: the same chip, with
-Cancel auto-merge still on the row.
+jobs, so the pill waits with them. The server also sends `pendingChecks`, the
+names of the checks it waits on that no job shows: a pending status no job
+stands behind, and a check the branch rule requires that nothing has reported
+(on Forgejo that counts as waiting, so the row stays pending; on GitHub the
+name comes from the same lookup that keeps it pending). The tooltip names them,
+"The forge is waiting on deploy/gate, a check the pipeline doesn't
+list", and the locked Merge in the pop-up says the same. With no name, which
+is the case when Forgejo's branch rules can't be read without admin on the
+repository, the tooltip points at the pull request on the forge instead. An
+armed row follows the pill the same way, whatever its status says, when the
+last refresh read CI as pending: the same chip, with Cancel auto-merge still on
+the row.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).
