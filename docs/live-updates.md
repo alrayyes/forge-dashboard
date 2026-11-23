@@ -152,6 +152,11 @@ counts from the oldest data. A screen reader isn't told again as it counts: the
 banner's live region is rewritten only when the banner itself changes (a forge,
 its error, its stale time or the time zone).
 
+At 320px with the text at 400% the banner's sentence and its Status page and
+Retry controls break inside a long word instead of running past the screen, so
+the page doesn't scroll sideways. The rate-limit and read-error banners already
+fit at that size.
+
 ## When full refreshes fail but webhooks keep landing
 
 A full refresh that fails (the repo list can't be read, the pass runs past its

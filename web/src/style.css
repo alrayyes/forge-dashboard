@@ -3964,6 +3964,10 @@ a.ci-pill:hover {
   flex: 1 1 260px;
   font-size: 0.875rem;
   color: var(--ink);
+  /* At 400% text one word is wider than a phone; break it rather than let
+     the banner push the page sideways (#4644). */
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* GitHub's own report sits under the sentence, on its own line (#3633). */
@@ -3983,6 +3987,9 @@ a.ci-pill:hover {
   border: 1px solid var(--border-strong);
   border-radius: 8px;
   cursor: pointer;
+  /* The label wraps inside the 44px-minimum control at any text size (#4644). */
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .unreachable-banner-link {
