@@ -1236,6 +1236,11 @@ section.board {
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags)) {
       grid-template-columns: min-content max-content;
+      /* The CI pill keeps one x whether or not a chip sits beside it (#1563,
+         #4663): packed to the start, the chip grows the cell to the right
+         instead of pushing the pill left. It is also the x the pill has in
+         a row with actions. */
+      justify-content: start;
     }
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags))
