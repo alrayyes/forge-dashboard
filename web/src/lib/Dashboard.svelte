@@ -1702,10 +1702,12 @@
     function unarmedWaitChip(pr: PullRequestItem): HTMLElement | null {
       const wait = rowWaitOf(pr);
       if (!wait) return null;
-      return buildWaitChip(mergeWaitChip(wait), {
+      // The tooltip only suggests Auto-merge where the chip has the button.
+      const button = autoMergeActionCell(pr, true) ?? undefined;
+      return buildWaitChip(mergeWaitChip(wait, false, button !== undefined), {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
-        button: autoMergeActionCell(pr, true) ?? undefined,
+        button,
         tipId: waitChipTipId(pr),
       });
     }
@@ -3457,12 +3459,12 @@
         const waitSlot = el("div", "wait-slot");
         // A wait the pill has already seen end keeps a chip too, saying it
         // is a refresh, so Cancel auto-merge stays on the row (#4435, #4663).
-        const autoMergeWait = autoMergeWaitChip(pr) ?? unarmedWaitChip(pr);
-        if (autoMergeWait) waitSlot.appendChild(autoMergeWait);
-        else {
-          const queuedWait = queuedWaitChip(pr);
-          if (queuedWait) waitSlot.appendChild(queuedWait);
-        }
+        // A queued action (Update branch at the rate-limit reset) keeps its
+        // chip and its Cancel over the unarmed wait: it is the one thing the
+        // person asked for and can undo.
+        const rowWait =
+          autoMergeWaitChip(pr) ?? queuedWaitChip(pr) ?? unarmedWaitChip(pr);
+        if (rowWait) waitSlot.appendChild(rowWait);
         statusCell.appendChild(waitSlot);
         notePlacements.set(statusCell, {
           cluster: clusterEl,
@@ -4690,7 +4692,11 @@
       if (inChip)
         button.setAttribute(
           "aria-label",
-          requesting ? "Cancelling auto-merge" : "Cancel auto-merge",
+          requesting
+            ? "Cancelling auto-merge"
+            : forgeHolds(item)
+              ? scheduledOnCopy(item.forge).cancelLabel
+              : "Cancel auto-merge",
         );
       if (forgeHolds(item))
         button.title = scheduledOnCopy(item.forge).cancelTitle;

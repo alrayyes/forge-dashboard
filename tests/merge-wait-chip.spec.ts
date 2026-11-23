@@ -128,7 +128,11 @@ function snapshot(pullRequests: unknown[]) {
 
 // The stream is kept so a test can push a second snapshot into the same page,
 // as the server does.
-async function open(page: Page, pullRequests: unknown[]) {
+async function open(
+  page: Page,
+  pullRequests: unknown[],
+  path = '/pull-requests.html',
+) {
   await page.addInitScript(() => {
     const w = window as unknown as {
       __streams: EventSource[];
@@ -150,7 +154,7 @@ async function open(page: Page, pullRequests: unknown[]) {
       body: JSON.stringify(snapshot(pullRequests)),
     }),
   );
-  await page.goto('/pull-requests.html');
+  await page.goto(path);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(
     pullRequests.length,
   );
@@ -300,6 +304,90 @@ for (const scheme of ['light', 'dark'] as const) {
           );
       });
 
+      test('a row with a comment pill and Update branch is no taller than the same row with Merge', async ({
+        page,
+      }) => {
+        test.skip(width < 1024, 'the phone card stacks the chip by design');
+        const comments = { reviewComments: 3, unresolvedThreads: 1 };
+        await open(page, [
+          {
+            ...offered(1, 'Commented', [{ action: 'update_branch' }]),
+            behind: true,
+            ...comments,
+          },
+          {
+            ...ready(2, 'Normal'),
+            behind: true,
+            ...comments,
+            allowedActions: [
+              { action: 'merge', primary: true },
+              { action: 'update_branch' },
+              { action: 'close' },
+            ],
+          },
+        ]);
+        const r = row(page, 'Commented');
+        await expect(r.locator('.review-pill')).toBeVisible();
+        await expect(r.locator('.wait-chip')).toHaveCount(1);
+        await expect(
+          r.getByRole('button', { name: /^Update branch/ }),
+        ).toBeVisible();
+        expect(await heightOf(page, 'Commented')).toBeLessThanOrEqual(
+          (await heightOf(page, 'Normal')) + 1,
+        );
+      });
+
+      test('a waiting row that cannot arm has no button and a tooltip that does not offer one', async ({
+        page,
+      }) => {
+        await open(page, [
+          pr(1, 'No arming', {
+            status: CI_BLOCK,
+            allowedActions: [
+              { action: 'merge', blocked: CI_BLOCK },
+              { action: 'close' },
+            ],
+          }),
+        ]);
+        const chip = row(page, 'No arming').locator('.wait-chip');
+        await expect(chip).toHaveCount(1);
+        await expect(chip.locator('.wait-chip-label')).toHaveText(
+          'Waiting for CI',
+        );
+        await expect(chip.getByRole('button')).toHaveCount(0);
+        await expect(chip).toHaveAccessibleDescription(/CI is still running/);
+        await expect(chip.locator('.wait-chip-tip')).not.toContainText(
+          /auto-merge/i,
+        );
+      });
+
+      test('a queued action keeps its chip while CI is still running', async ({
+        page,
+      }) => {
+        await open(page, [
+          {
+            ...offered(1, 'Queued', [{ action: 'update_branch' }]),
+            behind: true,
+            queued: {
+              id: 'q1',
+              action: 'update_branch',
+              forge: 'github',
+              fullName: 'alrayyes/app',
+              number: 1,
+              status: 'queued',
+              runAt: new Date(Date.now() + 20 * 60_000).toISOString(),
+              createdAt: new Date().toISOString(),
+            },
+          },
+        ]);
+        const chip = row(page, 'Queued').locator('.wait-chip');
+        await expect(chip).toHaveCount(1);
+        await expect(chip).toHaveAttribute('data-source', 'queued');
+        await expect(
+          chip.getByRole('button', { name: /^Cancel queued update/ }),
+        ).toBeVisible();
+      });
+
       test('there is no dead stop on a locked control when tabbing', async ({
         page,
       }) => {
@@ -367,3 +455,58 @@ test.describe('the unlock is announced only to the row the person is on', () => 
     expect(await announced(page)).toBe('');
   });
 });
+
+// A dependency bot's row gets its rebase button where a person's gets Update
+// branch, and the same chip beside it, no taller than a bot row without one.
+for (const width of [1280, 1024]) {
+  test(`a bot row with a rebase button and the chip is no taller than one without, ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    const bot = (n: number, title: string, over: Record<string, unknown>) =>
+      pr(n, title, {
+        author: 'dependabot[bot]',
+        kind: 'dependency',
+        behind: true,
+        ...over,
+      });
+    await open(
+      page,
+      [
+        bot(1, 'Waiting bump', {
+          status: CI_BLOCK,
+          allowedActions: [
+            { action: 'merge', blocked: CI_BLOCK },
+            { action: 'auto_merge' },
+            { action: 'dependabot_rebase', primary: true },
+            { action: 'close' },
+          ],
+        }),
+        bot(2, 'Plain bump', {
+          ci: 'success',
+          mergeStatus: 'mergeable',
+          allowedActions: [
+            { action: 'merge', primary: true },
+            { action: 'dependabot_rebase' },
+            { action: 'close' },
+          ],
+        }),
+      ],
+      '/bots.html',
+    );
+    const r = row(page, 'Waiting bump');
+    await expect(r.locator('.wait-chip')).toHaveCount(1);
+    await expect(
+      r
+        .locator('.wait-chip')
+        .getByRole('button', { name: 'Enable auto-merge' }),
+    ).toBeVisible();
+    await expect(
+      r.locator('.row-action-bar').getByRole('button').first(),
+    ).toBeVisible();
+    await expect(r.locator('.row-action-bar')).toContainText(/Rebase/);
+    expect(await heightOf(page, 'Waiting bump')).toBeLessThanOrEqual(
+      (await heightOf(page, 'Plain bump')) + 1,
+    );
+  });
+}

@@ -315,12 +315,18 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     );
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
-    await row
-      .getByRole('button', {
-        name: 'Cancel auto-merge',
-        exact: true,
-      })
-      .click();
+    // The visible word is the same everywhere; the name adds where the merge
+    // is scheduled, and the hover text says what cancelling does.
+    const cancel = row.getByRole('button', {
+      name: 'Cancel auto-merge scheduled on Forgejo',
+      exact: true,
+    });
+    await expect(cancel).toHaveText('Cancel auto-merge');
+    await expect(cancel).toHaveAttribute(
+      'title',
+      'Cancels the merge scheduled on Forgejo.',
+    );
+    await cancel.click();
     await expect(
       page
         .getByText('Merge scheduled on Forgejo cancelled.')

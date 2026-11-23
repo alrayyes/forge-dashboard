@@ -320,7 +320,15 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
 // (#4663, which replaced #4531's bare "Merge after CI" text).
 export type MergeWait = 'ci' | 'conflict-check' | 'refresh';
 
-export function mergeWaitChip(wait: MergeWait, armed = false): Chip {
+// canArm is whether the row draws an Auto-merge button: the server may not
+// offer it, or the forge may be locked or rate limited. The tooltip only
+// suggests turning it on when there is a button to do it with.
+export function mergeWaitChip(
+  wait: MergeWait,
+  armed = false,
+  canArm = true,
+): Chip {
+  const orArm = canArm ? ', or turn on Auto-merge to merge it then' : '';
   const words = (label: string, tooltip: string): Chip => ({
     state: 'waiting',
     icon: 'hourglass',
@@ -335,12 +343,12 @@ export function mergeWaitChip(wait: MergeWait, armed = false): Chip {
     case 'ci':
       return words(
         'Waiting for CI',
-        'CI is still running. Merge unlocks when it passes, or turn on Auto-merge to merge it then.',
+        `CI is still running. Merge unlocks when it passes${orArm}.`,
       );
     case 'conflict-check':
       return words(
         'Checking for conflicts',
-        'The forge is still working out whether it merges cleanly. Merge unlocks when it knows, or turn on Auto-merge to merge it then.',
+        `The forge is still working out whether it merges cleanly. Merge unlocks when it knows${orArm}.`,
       );
     case 'refresh':
       return words(

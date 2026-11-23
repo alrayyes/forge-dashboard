@@ -437,6 +437,17 @@ describe('mergeWaitChip', () => {
     );
   });
 
+  test('a row that cannot arm never tells the person to turn on Auto-merge', () => {
+    for (const wait of ['ci', 'conflict-check'] as const) {
+      const chip = mergeWaitChip(wait, false, false);
+      expect(chip.tooltip).not.toMatch(/auto-merge/i);
+      expect(chip.tooltip).toContain('Merge unlocks when');
+    }
+    expect(mergeWaitChip('ci', false, false).tooltip).toBe(
+      'CI is still running. Merge unlocks when it passes.',
+    );
+  });
+
   test('an armed row offers Cancel auto-merge in the same chip', () => {
     expect(mergeWaitChip('refresh', true).action).toBe('disarm');
     expect(mergeWaitChip('refresh', true).label).toBe('Waiting for the forge');

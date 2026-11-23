@@ -223,7 +223,7 @@ test.describe('the waiting chip on a bot rebase', () => {
     await expect(firstRow(page).locator('.row-feedback')).toHaveCount(0);
   });
 
-  test('picked up, then settled, then gone: each change is announced once, and the clearing is silent', async ({
+  test('picked up, then settled, then gone: each change is announced once, the clearing is silent, and the card shrinks back', async ({
     page,
   }) => {
     const before = await layout(page);
@@ -244,25 +244,40 @@ test.describe('the waiting chip on a bot rebase', () => {
     // The snapshot itself changed here (no longer behind), so only the
     // chip's own area is held to its size.
     expect((await layout(page)).slot).toEqual(before.slot);
+    const oneLine = (await size(chipOf(page))).height;
 
     current = { ...current, ci: 'pending', botRequest: undefined };
     await push(page, current);
     // The row also waits on CI now, so its own chip sits beside this one.
-    await expect(
-      chipOf(page).locator('.wait-chip-label').filter({ hasText: 'Settled' }),
-    ).toHaveCount(1);
+    const settledChip = chipOf(page).filter({ hasText: 'Settled' });
+    await expect(settledChip).toHaveCount(1);
     await expect(live).toHaveText(/Dependabot rebase finished\./);
+    const settled = await layout(page);
+    expect(settled.slot).toEqual(before.slot);
+    // Two chips in the one slot, each on a single line, the card growing by
+    // their room and no more (#4663).
+    await expect(chipOf(page)).toHaveCount(2);
+    const heights = await chipOf(page).evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().height),
+    );
+    expect(heights).toHaveLength(2);
+    for (const h of heights) expect(h).toBeLessThanOrEqual(oneLine + 1);
+    expect(settled.row.height).toBeLessThanOrEqual(
+      before.row.height + 2 * CHIP_ROOM,
+    );
     const spoken = await live.textContent();
 
     // The settled chip clears by itself, and says nothing as it goes. The
     // row's own CI chip stays, since CI is still running (#4663).
-    await expect(chipOf(page).filter({ hasText: 'Settled' })).toHaveCount(0, {
-      timeout: 10_000,
-    });
+    await expect(settledChip).toHaveCount(0, { timeout: 10_000 });
     expect(await live.textContent()).toBe(spoken);
     await expect(chipOf(page).locator('.wait-chip-label')).toHaveText(
       'Waiting for CI',
     );
+    // It takes its room with it: the card is as wide and no taller.
+    const gone = await layout(page);
+    expect(gone.slot).toEqual(settled.slot);
+    expect(gone.row.height).toBeLessThanOrEqual(settled.row.height);
   });
 
   test('two minutes with no change reads Still waiting, announced once, and Check again refetches the row', async ({
