@@ -562,7 +562,7 @@ export function mountFeedbackUI(
     const succeeded =
       !wait &&
       returning.length > 0 &&
-      store.entriesFor(key).some((e) => e.phase === 'done');
+      store.entriesFor(key)[0]?.phase === 'done';
     if (held && succeeded) {
       const title = row.querySelector<HTMLElement>(
         "button[id^='details-trigger-']",
