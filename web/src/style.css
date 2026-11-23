@@ -767,6 +767,8 @@ section.board {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--ink-2);
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 /* The count is a result total: the number is the one thing a person scans for
@@ -1616,9 +1618,9 @@ select.col-filter {
   color: var(--ink-2);
   flex: none;
 }
-/* On Main branches, at a large root size on a narrow phone, the group wraps
-   instead of scrolling the page sideways. */
-.mb-header-controls .live-control {
+/* At a large root size on a narrow phone the group wraps instead of
+   scrolling the page sideways (#4631). */
+.live-control {
   flex-wrap: wrap;
   max-width: 100%;
 }
@@ -1642,7 +1644,6 @@ select.col-filter {
 }
 .live-updated {
   color: var(--ink-3);
-  white-space: nowrap;
 }
 .live-control button {
   font-family: inherit;

@@ -622,6 +622,8 @@
     .mb-header h1 {
       font-size: 1.375rem;
       margin: 0 0 4px;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
     .mb-loading {
       font-size: 0.84375rem;

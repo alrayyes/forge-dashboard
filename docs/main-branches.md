@@ -80,6 +80,9 @@ every group and the search to their defaults and puts focus on the first pill
 of the bar, since the button turns itself off again. On a phone the button is a
 44px target, and on a narrow screen or at large text it wraps under the search
 box instead of squeezing it, so the bar never scrolls sideways at 320px.
+The page header does the same: at 400% text on a 320px screen the title and
+the live control wrap rather than push the page sideways. So do the other
+boards' headers.
 
 The filter groups (Status, Forge and Advisories) are drawn with the shared
 filter pill: 32 pixels high, outlined, the accent fill when pressed, a visible
