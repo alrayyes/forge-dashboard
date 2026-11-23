@@ -1,0 +1,167 @@
+# Dependabot bumps @playwright/test in package.json and bun.lock but can't edit
+# the ci-playwright image pin in the workflows, so scripts/test-playwright-image.sh
+# failed every Playwright bump until someone repinned by hand (#4671). This does
+# that edit on Dependabot's branch: one commit, tag and digest in every image
+# line of ci.yml and release.yml. Ported from movie-planner-web's workflow of
+# the same name (its PR #989, hardened in #993).
+#
+# The job that holds RELEASE_TOKEN runs no script from the pull request. It
+# reads the @playwright/test version out of package.json as data and checks it
+# is x.y.z, asks the registry for the digest and checks that is sha256:<64 hex>,
+# and rewrites the image lines with a fixed sed built from those two values. It
+# then checks that only ci.yml and release.yml changed and that the image line
+# count is the expected 3 and 1. That is as far as this goes: whoever can edit
+# this workflow on a Dependabot branch can still reach the token, because the
+# workflow file itself comes from the pull request. That is the same as the
+# write access they already have, so this doesn't widen it.
+#
+# pull_request, not pull_request_target: Dependabot's pull requests come from a
+# branch on this repo, never a fork. Dependabot-triggered runs read Dependabot
+# secrets, not Actions secrets, so RELEASE_TOKEN only needs to be a Dependabot
+# secret (`gh secret set RELEASE_TOKEN --app dependabot`). Nothing here reads an
+# Actions copy.
+#
+# RELEASE_TOKEN, not GITHUB_TOKEN: GitHub starts no workflow run for a push made
+# with GITHUB_TOKEN, so the repinned head would sit with no CI at all.
+#
+# The checkout is the head SHA, not the branch name, so a push between the
+# trigger and the checkout can't swap in a commit this run wasn't started for.
+# The push then fails as non-fast-forward if the branch has moved on.
+#
+# No loop: the run the push triggers has the token's owner as actor, so the job
+# skips it. The actor is in the concurrency group so that run can't cancel this
+# one before it comments. A run that finds the pin already right commits
+# nothing.
+#
+# After this workflow pushes, the branch carries a commit Dependabot didn't
+# make, and Dependabot stops rebasing it by itself. A pull request that falls
+# behind main then needs `@dependabot recreate`, which makes a fresh branch
+# and runs this workflow again. `@dependabot rebase` refuses a branch with
+# someone else's commits.
+name: pin-playwright-image
+
+on:
+  pull_request:
+    paths: [package.json]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pin-playwright-image-${{ github.event.pull_request.number }}-${{ github.actor }}
+  cancel-in-progress: true
+
+env:
+  LEFTHOOK: "0"
+
+jobs:
+  pin:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    # Dependabot's pull_request runs get a read-only default token unless the
+    # workflow asks, as dependabot-auto-merge.yml does. Only the comment uses it.
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      # A bump that leaves @playwright/test alone has nothing to repin, and
+      # resolving a digest would let a ghcr blip fail an unrelated pull request.
+      - name: Check whether @playwright/test changed
+        id: version
+        run: |
+          git fetch --depth=1 origin "$BASE_SHA"
+          before=$(git show "$BASE_SHA:package.json" | grep -oE '"@playwright/test": "[^"]+"' || true)
+          after=$(grep -oE '"@playwright/test": "[^"]+"' package.json || true)
+          if [ "$before" = "$after" ]; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+      # Only a real Playwright bump needs the token, so until the Dependabot
+      # secret exists every other package.json pull request stays green.
+      - name: Check RELEASE_TOKEN reaches Dependabot runs
+        if: steps.version.outputs.changed == 'true'
+        run: |
+          if [ -z "$RELEASE_TOKEN" ]; then
+            echo "::error::RELEASE_TOKEN is empty. Add it as a Dependabot secret: gh secret set RELEASE_TOKEN --app dependabot"
+            exit 1
+          fi
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+      # Fails, and so fails the pull request, when ci-playwright hasn't built
+      # this Playwright version yet. Re-run the job once it has. The test for
+      # this step runs this exact script (scripts/pin-playwright-image-workflow.test.ts).
+      - name: Rewrite the image pins
+        id: rewrite
+        if: steps.version.outputs.changed == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          repo='ghcr.io/alrayyes/ci-playwright'
+          files=(.github/workflows/ci.yml .github/workflows/release.yml)
+          version=$(jq -r '(.devDependencies // {})["@playwright/test"] // empty' package.json)
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::package.json doesn't pin @playwright/test to an exact x.y.z version"
+            exit 1
+          fi
+          inspected=$(docker buildx imagetools inspect "$repo:$version")
+          digest=$(printf '%s\n' "$inspected" | awk '/^Digest:/ { print $2; exit }')
+          if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::no digest for $repo:$version. Has the image repo built it yet?"
+            exit 1
+          fi
+          # Every line that names the image has to be one the sed reads, and
+          # there have to be exactly the jobs the guard counts: 3 and 1.
+          expected=(3 1)
+          for i in 0 1; do
+            named=$(grep -cE '^[[:space:]]*image:.*ci-playwright:' "${files[$i]}" || true)
+            read=$(grep -cE '^[[:space:]]+image: ghcr\.io/alrayyes/ci-playwright:[^[:space:]]+' "${files[$i]}" || true)
+            if [ "$named" != "$read" ] || [ "$read" != "${expected[$i]}" ]; then
+              echo "::error::${files[$i]} has $named ci-playwright image lines, $read readable, expected ${expected[$i]}"
+              exit 1
+            fi
+          done
+          sed -i -E "s#^([[:space:]]+image: ghcr\.io/alrayyes/ci-playwright:)[^[:space:]]+#\1${version}@${digest}#" "${files[@]}"
+          changed=$(git diff --name-only)
+          unexpected=$(printf '%s\n' "$changed" | grep -vxE '\.github/workflows/(ci|release)\.yml|' || true)
+          if [ -n "$unexpected" ]; then
+            echo "::error::unexpected files changed: $unexpected"
+            exit 1
+          fi
+          if [ -z "$changed" ]; then
+            echo "image pin already matches package.json"
+            echo "version=" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=$version" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Commit the new pin
+        id: commit
+        if: steps.rewrite.outputs.version != ''
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "build(deps): pin the ci-playwright image for ${VERSION}"
+          auth=$(printf 'x-access-token:%s' "$RELEASE_TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" \
+            push origin "HEAD:refs/heads/$HEAD_REF"
+          echo "pushed=true" >> "$GITHUB_OUTPUT"
+        env:
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          VERSION: ${{ steps.rewrite.outputs.version }}
+      - name: Comment on the pull request
+        if: steps.commit.outputs.pushed == 'true'
+        run: |
+          gh pr comment "$PR_URL" --body "Repinned the ci-playwright image to ${VERSION} in \`ci.yml\` and \`release.yml\` (tag and digest). Pushed by the pin-playwright-image workflow, so this head is the one CI runs on. If the image's bun differs from \`packageManager\`, the bun check still needs a person. If this branch falls behind main, comment \`@dependabot recreate\`: Dependabot won't rebase a branch with a commit it didn't make."
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          VERSION: ${{ steps.rewrite.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

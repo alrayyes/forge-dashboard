@@ -195,6 +195,34 @@ since that would hide a failed check; only the release screenshots job does,
 on purpose. The guard reads `image:` and `options:` only from the job's own
 `container:` block. It doesn't check that a digest belongs to its tag; that
 takes a registry call.
+
+On a Dependabot pull request that moves `@playwright/test`, the
+`pin-playwright-image` workflow updates the image pin for you. It reads the
+version from `package.json`, looks up the digest of `ci-playwright:<version>`
+and rewrites the image lines in `ci.yml` and `release.yml`. Then it checks it
+changed only those two files and the expected three and one lines. It pushes one
+commit as `github-actions[bot]` with the `RELEASE_TOKEN` secret so the new head
+gets CI, and comments on the pull request. `RELEASE_TOKEN` only needs to be a
+Dependabot secret (`gh secret set RELEASE_TOKEN --app dependabot`), and it needs
+Contents and Workflows read and write, since the push changes files under
+`.github/workflows/`. Until the secret exists, only a pull request that changes
+`@playwright/test` fails, with that command in the message. The workflow
+runs no script from the pull request, but anyone who can edit the workflow file
+on a Dependabot branch can still reach the token, which is the write access they
+already have. Once that commit is on the branch, Dependabot
+stops rebasing it, so a pull request that falls behind main needs a comment
+reading `@dependabot recreate`. The new branch gets the pin again. Two things
+stay manual:
+
+- If the image repo hasn't built that Playwright version yet, the job fails
+  and says so. Re-run it once the tag exists.
+- The workflow doesn't touch `packageManager`. The image's bun is whatever the
+  image repo built, so when it differs from `packageManager` the bun check
+  fails, and someone bumps `packageManager` to match.
+
+For a bump that doesn't come from Dependabot, run
+`bun scripts/pin-playwright-image.ts` and commit the result. The workflow
+doesn't use that script; it does the same rewrite with its own `sed`.
 The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
