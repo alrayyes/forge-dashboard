@@ -527,7 +527,7 @@ test.describe('pull request pipeline checks panel', () => {
     const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
     await expect(failed.getByText('Failed step: Run tests')).toBeVisible();
     await expect(failed.getByText('2m 5s')).toBeVisible();
-    const excerpt = failed.locator('pre.pipeline-check-excerpt');
+    const excerpt = failed.locator('.run-excerpt');
     await expect(excerpt).toContainText('FAIL internal/api');
     await expect(excerpt).toContainText('<img src=x onerror=alert(1)>');
     await expect(excerpt.locator('img')).toHaveCount(0);
@@ -594,14 +594,14 @@ test.describe('pull request pipeline checks panel', () => {
     await expect(
       failed.getByRole('button', { name: 'Show output: test' }),
     ).toBeVisible();
-    await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(failed.locator('.run-excerpt')).toHaveCount(0);
     await expect.poll(() => asked.length).toBe(1);
     expect(asked[0]).toContain('excerpt=true');
     expect(asked[0]).toContain('jobId=7');
 
     release();
 
-    const excerpt = failed.locator('pre.pipeline-check-excerpt');
+    const excerpt = failed.locator('.run-excerpt');
     await expect(excerpt).toContainText('FAIL internal/api');
     await expect(excerpt.locator('img')).toHaveCount(0);
     await expect(dialog.locator('.pipeline-live-status')).toHaveText(
@@ -658,7 +658,7 @@ test.describe('pull request pipeline checks panel', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
     const failed = dialog.locator('.pipeline-check', { hasText: 'test' });
     await expect.poll(() => asked.length).toBe(1);
-    await expect(failed.locator('pre.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(failed.locator('.run-excerpt')).toHaveCount(0);
 
     // The retry timer is set once the empty answer is handled, which may be
     // after the first request is seen, so advance the clock until it fires.
@@ -667,7 +667,7 @@ test.describe('pull request pipeline checks panel', () => {
       expect(asked.length).toBeGreaterThanOrEqual(2);
     }).toPass();
 
-    await expect(failed.locator('pre.pipeline-check-excerpt')).toContainText(
+    await expect(failed.locator('.run-excerpt')).toContainText(
       'FAIL internal/api',
     );
     expect(asked).toHaveLength(2);
