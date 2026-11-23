@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -52,12 +53,7 @@ function mockDashboard(
   );
 }
 
-const github = (extra: Record<string, unknown>) => ({
-  forge: 'github',
-  reachable: true,
-  repoCount: 1,
-  ...extra,
-});
+const github = (extra: Record<string, unknown>) => forgeHealth('github', extra);
 
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 
@@ -205,14 +201,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
   }) => {
     await mockDashboard(
       page,
-      [
-        {
-          forge: 'forgejo',
-          reachable: true,
-          repoCount: 1,
-          rateLimitREST: spent(),
-        },
-      ],
+      [forgeHealth('forgejo', { rateLimitREST: spent() })],
       [makePR({ forge: 'forgejo' })],
     );
     await page.goto('/pull-requests.html');
@@ -225,18 +214,17 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
 
   // #4169: the link comes from the forge's own data. A third forge that counts
   // requests the way GitHub does must not send readers to docs.github.com.
-  const gitea = (capabilities: Record<string, unknown>) => ({
-    forge: 'gitea',
-    reachable: true,
-    repoCount: 1,
-    rateLimitREST: spent(),
-    rateLimitGraphQL: spent(),
-    capabilities: {
-      label: 'Gitea',
-      rateLimitModel: 'graphql_and_rest',
-      ...capabilities,
-    },
-  });
+  const gitea = (capabilities: Record<string, unknown>) =>
+    forgeHealth('github', {
+      forge: 'gitea',
+      rateLimitREST: spent(),
+      rateLimitGraphQL: spent(),
+      capabilities: {
+        label: 'Gitea',
+        rateLimitModel: 'graphql_and_rest',
+        ...capabilities,
+      },
+    });
 
   test('a third forge with GitHub’s model and no docs shows no link', async ({
     page,
@@ -277,7 +265,7 @@ test.describe('a rate-limited forge goes read-only (#755)', () => {
       page,
       [
         github({ rateLimitREST: spent(), rateLimitGraphQL: spent() }),
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
+        forgeHealth('forgejo'),
       ],
       [
         makePR({ number: 1, title: 'On GitHub' }),

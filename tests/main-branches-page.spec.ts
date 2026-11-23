@@ -4,6 +4,7 @@ import { checkLinkName } from './check-link-name-helper';
 import { type Reply, serveChecks } from './checks-feed-helper';
 import { closeStream } from './fake-stream-helper';
 import { createFirstRefreshGate, twoFrames } from './first-refresh-gate-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { setTheme } from './theme-helper';
 
@@ -111,7 +112,7 @@ async function mock(
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           readIntervalSeconds: 60,
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
           repos: [],
@@ -897,9 +898,7 @@ test.describe('Main branches page (#1224, #1279)', () => {
     const stale = { staleSince: minutesAgo(11) };
     await mock(page, {
       ...snapshot([row('acme/a', 'passed', stale)]),
-      forges: [
-        { forge: 'github', reachable: false, starting: true, repoCount: 1 },
-      ],
+      forges: [forgeHealth('github', { reachable: false, starting: true })],
     });
     await page.goto('/');
     await expect(page.locator('[data-testid="starting-banner"]')).toContainText(
