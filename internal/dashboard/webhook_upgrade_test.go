@@ -307,11 +307,50 @@ func TestWebhookProvision_OriginAForgeCannotReach_CreatesNothing(t *testing.T) {
 func TestWebhookOriginProblem(t *testing.T) {
 	t.Parallel()
 
-	assert.Empty(t, dashboard.WebhookOriginProblem("https://dash.example.com"))
+	reachable := []string{
+		"https://dash.example.com",
+		"https://dash.example.com:8443",
+		"https://172.32.0.1",
+		"https://100.63.255.255",
+		"https://8.8.8.8",
+		"https://[2606:4700::1111]",
+	}
+	for _, origin := range reachable {
+		assert.Empty(t, dashboard.WebhookOriginProblem(origin), origin)
+	}
+
+	private := []string{
+		"https://localhost",
+		"https://localhost.",
+		"https://LOCALHOST",
+		"https://10.0.0.5",
+		"https://127.0.0.2",
+		"https://169.254.1.1",
+		"https://172.16.0.1",
+		"https://172.31.255.255",
+		"https://192.168.0.1",
+		"https://[::1]:8443",
+		"https://[fd00::1]",
+		"https://[::ffff:127.0.0.1]",
+		"https://user@127.0.0.1",
+		"https://dash.example@10.0.0.1",
+		"https://0.0.0.0",
+		"https://0.1.2.3",
+		"https://100.64.0.1",
+		"https://100.127.255.255",
+		"https://127.1",
+		"https://0x7f.1",
+		"https://0x7f000001",
+		"https://2130706433",
+		"https://017700000001",
+		"https://0177.0.0.1",
+		"https://192.168.1",
+	}
+	for _, origin := range private {
+		assert.Contains(t, dashboard.WebhookOriginProblem(origin), "private", origin)
+	}
+
 	assert.Contains(t, dashboard.WebhookOriginProblem("http://dash.example.com"), "HTTPS")
-	assert.Contains(t, dashboard.WebhookOriginProblem("https://localhost"), "private")
-	assert.Contains(t, dashboard.WebhookOriginProblem("https://10.0.0.5"), "private")
-	assert.Contains(t, dashboard.WebhookOriginProblem("https://[::1]:8443"), "private")
 	assert.Contains(t, dashboard.WebhookOriginProblem(""), "origin")
 }
 
