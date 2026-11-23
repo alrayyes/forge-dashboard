@@ -200,10 +200,13 @@ On a Dependabot pull request that moves `@playwright/test`, the
 `pin-playwright-image` workflow updates the image pin for you. It runs
 `scripts/pin-playwright-image.ts` on the bot's branch, which looks up the
 digest of `ci-playwright:<version>` and rewrites every image line in `ci.yml`
-and `release.yml`. It pushes one commit as `github-actions[bot]`, using the
-`RELEASE_TOKEN` Dependabot secret so the new head gets CI, and comments on the
-pull request. A Dependabot rebase drops that commit, and the workflow adds it
-back. Two things stay manual:
+and `release.yml`. The script runs in a job with no secret. A second job checks
+the result only changes image lines, pushes one commit as `github-actions[bot]`
+with the `RELEASE_TOKEN` Dependabot secret so the new head gets CI, and
+comments on the pull request. Once that commit is on the branch, Dependabot
+stops rebasing it, so a pull request that falls behind main needs a comment
+reading `@dependabot recreate`. The new branch gets the pin again. Two things
+stay manual:
 
 - If the image repo hasn't built that Playwright version yet, the job fails
   and says so. Re-run it once the tag exists.
