@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The merge endpoint answers a refused merge with a structured result
@@ -59,14 +60,7 @@ function makePR(): MockPR {
 function snapshot(prs: MockPR[]) {
   return JSON.stringify({
     generatedAt: new Date().toISOString(),
-    forges: [
-      {
-        forge: 'github',
-        reachable: true,
-        repoCount: 1,
-        capabilities: { label: 'GitHub' },
-      },
-    ],
+    forges: [forgeHealth('github')],
     pullRequests: prs,
     issues: [],
   });

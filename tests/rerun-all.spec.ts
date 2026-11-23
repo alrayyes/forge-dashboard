@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // "Rerun failed checks" on the Pull requests and Bots pages (#3236). Who may
@@ -55,9 +56,7 @@ async function open(
   const snapshot = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: opts.forges ?? [
-        { forge: 'github', reachable: true, repoCount: 1 },
-      ],
+      forges: opts.forges ?? [forgeHealth('github')],
       pullRequests,
       issues: [],
       repos: [],
@@ -293,11 +292,8 @@ const spent = {
   resetsAt: new Date(Date.now() + 20 * 60_000).toISOString(),
 };
 for (const [name, forge] of [
-  ['unreachable', { forge: 'github', reachable: false, repoCount: 1 }],
-  [
-    'rate limited',
-    { forge: 'github', reachable: true, repoCount: 1, rateLimitREST: spent },
-  ],
+  ['unreachable', forgeHealth('github', { reachable: false })],
+  ['rate limited', forgeHealth('github', { rateLimitREST: spent })],
 ] as const) {
   test(`with a ${name} forge the button is gone and nothing is sent`, async ({
     page,
@@ -329,13 +325,8 @@ test("a Forgejo with no rerun route goes under Can't rerun with its reason, unas
     {},
     {
       forges: [
-        { forge: 'github', reachable: true, repoCount: 1 },
-        {
-          forge: 'forgejo',
-          reachable: true,
-          repoCount: 1,
-          rerunChecksBlocked: reason,
-        },
+        forgeHealth('github'),
+        forgeHealth('forgejo', { rerunChecksBlocked: reason }),
       ],
     },
   );
@@ -355,10 +346,7 @@ test('a filter that hides a failing row takes it out of the count', async ({
     [pr(1), pr(2, { forge: 'forgejo', repo: 'home/app' })],
     {},
     {
-      forges: [
-        { forge: 'github', reachable: true, repoCount: 1 },
-        { forge: 'forgejo', reachable: true, repoCount: 1 },
-      ],
+      forges: [forgeHealth('github'), forgeHealth('forgejo')],
     },
   );
   await expect(

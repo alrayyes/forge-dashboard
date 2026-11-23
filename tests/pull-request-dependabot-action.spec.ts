@@ -6,6 +6,7 @@ import {
   openActionsDialog,
 } from './actions-dialog-helper';
 import { waitOutConfirmGuard } from './confirm-guard-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 interface MockLabel {
@@ -51,14 +52,14 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
   };
 }
 
-function mockDashboard(page: Page, forge: string, pr?: MockPR) {
+function mockDashboard(page: Page, forge: Forge, pr?: MockPR) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1 }],
+        forges: [forgeHealth(forge)],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),
@@ -467,7 +468,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [current],
             issues: [],
           }),
@@ -507,7 +508,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         },
         JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [current],
           issues: [],
         }),
@@ -648,12 +649,7 @@ test.describe('pull request Dependabot rebase/recreate buttons', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
-              reachable: true,
-              repoCount: 1,
-              dependabotCommandsBlocked: reason,
-            },
+            forgeHealth('github', { dependabotCommandsBlocked: reason }),
           ],
           pullRequests: [makePR({ behind: true })],
           issues: [],
