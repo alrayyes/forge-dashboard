@@ -2569,7 +2569,7 @@ test.describe('the excerpt and the full output are one log view (#4652)', () => 
     await expect(dialog.getByLabel('Wrap lines')).not.toBeChecked();
   });
 
-  test('a log that cannot be read leaves the excerpt, its job link and Copy output', async ({
+  test('a log that cannot be read leaves the excerpt, says so, links to the job and keeps one Copy output', async ({
     page,
   }) => {
     await setup(page, { status: 404, body: { error: 'gone' } }, failed);
@@ -2581,9 +2581,103 @@ test.describe('the excerpt and the full output are one log view (#4652)', () => 
     await expect(
       dialog.getByRole('region', { name: 'Output excerpt: build' }),
     ).toBeVisible();
+    const error = dialog.locator('.run-output-error');
+    await expect(error).toBeVisible();
+    await expect(error).not.toHaveText('');
     await expect(
-      dialog.getByRole('button', { name: 'Copy output: build' }).first(),
+      error.getByRole('link', { name: /Open job on GitHub/ }),
+    ).toHaveAttribute('href', runUrl);
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: build' }),
+    ).toHaveCount(1);
+  });
+
+  test('the Failed step line comes before the excerpt in the page, not only on screen', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
+
+    const before = await dialog.evaluate((root) => {
+      const step = [...root.querySelectorAll('.pipeline-check-step')][0];
+      const excerpt = root.querySelector('.run-excerpt');
+      if (!step || !excerpt) return false;
+
+      return !!(
+        step.compareDocumentPosition(excerpt) & Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    });
+    expect(before).toBe(true);
+  });
+
+  test('focus inside the excerpt moves to the toggle when the full log lands', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const release = await holdLog(page, log);
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    await dialog.getByLabel('Wrap lines').focus();
+    release();
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output: build' }),
     ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Hide output: build' }),
+    ).toBeFocused();
+  });
+
+  test('Copy log in Expand, with only the excerpt showing, copies it and says so', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Expand log: build' }).click();
+    const wide = page.getByRole('dialog', { name: 'Log: build' });
+    await wide.getByRole('button', { name: 'Copy log' }).click();
+
+    await expect(wide.locator('.run-wide-status')).toContainText(
+      'Copied the excerpt only',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'step 2\n##[error]boom: exit 1',
+    );
+  });
+
+  test('a failed check with an excerpt and no job shows the view without a toggle and copies the excerpt', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, log, [
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: runUrl,
+        excerpt: 'only an excerpt',
+      },
+    ]);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output excerpt: build' }),
+    ).toContainText('only an excerpt');
+    await expect(dialog.locator('.run-toggle')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Copied the excerpt only',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'only an excerpt',
+    );
   });
 
   for (const [width, scheme, forced] of [

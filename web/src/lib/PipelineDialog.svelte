@@ -684,6 +684,19 @@
       {@const secs = checkDurationSeconds(check)}
       {@const state = checkState(check)}
       {@const word = checkUnknownWord(check)}
+      {@const withOutput =
+        control === "output" && !!target && check.jobId != null}
+      {@const withView = withOutput || !!excerptOf(check)}
+      <!-- The hint and the failed step come before the log they describe, in
+           the page's order as well as the eye's. -->
+      {#snippet contextRows()}
+        {#if hint}
+          <p class="pipeline-check-hint">{hint}</p>
+        {/if}
+        {#if check.failedStep}
+          <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
+        {/if}
+      {/snippet}
       <li class="pipeline-check">
         <span
           class="pipeline-check-status {state}"
@@ -719,12 +732,12 @@
         {#if isBlocking(check)}
           <span class="pipeline-check-flag">Blocking</span>
         {/if}
-        {#if control === "output" && target && check.jobId}
+        {#if withOutput}
           <!-- The excerpt and the full output are one log view (#4652). -->
           <CheckRunOutput
             name={check.name}
             jobId={check.jobId}
-            repo={target.repo}
+            repo={target?.repo}
             run={check}
             runUrl={check.url}
             forgeName={forge}
@@ -732,6 +745,7 @@
               (outputLoaded[keyOf.get(check) ?? ""] = loaded)}
             earlier={excerptFlows[keyOf.get(check) ?? ""]}
             excerpt={excerptOf(check)}
+            context={contextRows}
           />
         {:else if control === "open-on-forge" || control === "link"}
           <!-- Never an empty href, which would resolve to this page. A job with
@@ -752,7 +766,7 @@
             >
           </div>
         {/if}
-        {#if excerptOf(check) && !(control === "output" && target && check.jobId)}
+        {#if excerptOf(check) && !withOutput}
           <!-- No output control, so the view shows the excerpt alone. -->
           <CheckRunOutput
             name={check.name}
@@ -761,13 +775,11 @@
             forgeName={forge}
             earlier={excerptFlows[keyOf.get(check) ?? ""]}
             excerpt={excerptOf(check)}
+            context={contextRows}
           />
         {/if}
-        {#if hint}
-          <p class="pipeline-check-hint">{hint}</p>
-        {/if}
-        {#if check.failedStep}
-          <p class="pipeline-check-step">Failed step: {check.failedStep}</p>
+        {#if !withView}
+          {@render contextRows()}
         {/if}
         <CopyCheckLog
           name={check.name}

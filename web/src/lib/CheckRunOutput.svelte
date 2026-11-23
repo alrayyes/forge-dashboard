@@ -7,7 +7,7 @@
   // Expand opens the same log in a wide modal dialog (#4281). The panel stays
   // drawn behind it, so it keeps its width and scroll position, and the
   // switches are the one setting for both.
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, type Snippet } from "svelte";
   import ExternalLinkIcon from "#lib/ExternalLinkIcon.svelte";
   import type { Check } from "#lib/pipeline-checks.js";
   import { CopyFlow, selectCopy } from "#lib/copy-flow.svelte.js";
@@ -37,6 +37,7 @@
     onloaded,
     earlier,
     excerpt = "",
+    context,
   }: {
     name: string;
     // None for a check with no job to read: the view then shows only its
@@ -58,9 +59,12 @@
     // full output is loaded, which then takes its place (#4652). Closed, the
     // toggle says it opens the full output (#4236).
     excerpt?: string;
+    // The row's hint and failed step. They are drawn between the buttons and
+    // the log, so the page reads in the order the eye does.
+    context?: Snippet;
   } = $props();
 
-  const url = $derived(jobId ? logUrl(repo, jobId, run) : null);
+  const url = $derived(jobId !== undefined ? logUrl(repo, jobId, run) : null);
   let shown = $state(false);
   let phase = $state<"loading" | "ready" | "error">("loading");
   // The view holds the full log once it is open and loaded, else the excerpt.
@@ -108,6 +112,7 @@
     onloaded?.(false);
   });
   let panel = $state<HTMLDivElement>();
+  let toggleButton = $state<HTMLButtonElement>();
   let ask = 0;
   // The wide dialog is always in the markup, closed; its contents are drawn
   // only while it is open, so a long log is not kept in the page twice.
@@ -260,6 +265,12 @@
         ?.closest("li")
         ?.querySelector(".pipeline-check-copy");
       const hadFocus = !!copyArea?.contains(document.activeElement);
+      // The excerpt's own controls go when the full log lands: focus moves to
+      // the toggle, which stays, so it isn't dropped to the page.
+      const inExcerpt = !!panel
+        ?.closest("li")
+        ?.querySelector(".run-excerpt")
+        ?.contains(document.activeElement);
       text = got.text;
       truncated = got.truncated;
       phase = "ready";
@@ -268,6 +279,7 @@
       // The end of a log is where it failed.
       await tick();
       if (hadFocus) flow.button?.focus();
+      else if (inExcerpt) toggleButton?.focus();
       if (output) output.scrollTop = output.scrollHeight;
     } else {
       message = got.message;
@@ -392,7 +404,7 @@
     aria-label={checkLinkLabel(label, name)}>{label}<ExternalLinkIcon /></a
   >
 {/snippet}
-{#if jobId}
+{#if jobId !== undefined}
   <div class="run-actions">
     <button
       type="button"
@@ -459,6 +471,7 @@
     >
   </div>
 {/if}
+{@render context?.()}
 <div id={panelId} class="run-output" hidden={!shown} bind:this={panel}>
   {#if shown}
     <!-- While the wide dialog is open its own line is the one that speaks. -->
