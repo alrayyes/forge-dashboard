@@ -369,8 +369,10 @@
       <span
         class="mono"
         id="whoami"
-        style="font-size:0.75rem;color:var(--ink-3);">{displayName}</span
+        style="font-size:0.75rem;color:var(--ink-3);"
       >
+        {displayName}
+      </span>
       <nav class="app-nav" aria-label="Main">
         <a
           class="theme-toggle"
@@ -389,10 +391,11 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><rect width="8" height="8" x="3" y="3" rx="2" /><path
-              d="M7 11v4a2 2 0 0 0 2 2h4"
-            /><rect width="8" height="8" x="13" y="13" rx="2" /></svg
           >
+            <rect width="8" height="8" x="3" y="3" rx="2" /><path
+              d="M7 11v4a2 2 0 0 0 2 2h4"
+            /><rect width="8" height="8" x="13" y="13" rx="2" />
+          </svg>
           <NavPills pending={navPending} count={branches} />
         </a>
         {#if showPulls}
@@ -413,7 +416,8 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              ><circle cx="18" cy="18" r="3" /><circle
+            >
+              <circle cx="18" cy="18" r="3" /><circle
                 cx="6"
                 cy="6"
                 r="3"
@@ -422,8 +426,8 @@
                 x2="6"
                 y1="9"
                 y2="21"
-              /></svg
-            ><NavPills pending={navPending} count={pulls} />
+              />
+            </svg><NavPills pending={navPending} count={pulls} />
           </a>
         {/if}
         {#if showReleases}
@@ -444,10 +448,11 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              ><path
+            >
+              <path
                 d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-              /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
-            ><NavPills pending={navPending} count={releases} />
+              /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+            </svg><NavPills pending={navPending} count={releases} />
           </a>
         {/if}
         {#if showBots}
@@ -468,7 +473,8 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              ><path d="M12 8V4H8" /><rect
+            >
+              <path d="M12 8V4H8" /><rect
                 width="16"
                 height="12"
                 x="4"
@@ -476,8 +482,8 @@
                 rx="2"
               /><path d="M2 14h2" /><path d="M20 14h2" /><path
                 d="M15 13v2"
-              /><path d="M9 13v2" /></svg
-            ><NavPills pending={navPending} count={bots} />
+              /><path d="M9 13v2" />
+            </svg><NavPills pending={navPending} count={bots} />
           </a>
         {/if}
         {#if showIssues}
@@ -498,12 +504,9 @@
               stroke-width="2"
               stroke-linecap="round"
               stroke-linejoin="round"
-              ><circle cx="12" cy="12" r="10" /><circle
-                cx="12"
-                cy="12"
-                r="1"
-              /></svg
-            ><NavPills pending={navPending} count={issues} />
+            >
+              <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" />
+            </svg><NavPills pending={navPending} count={issues} />
           </a>
         {/if}
         <a
@@ -523,10 +526,9 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><path d="M3 3v18h18" /><path
-              d="M18.7 8 13 13.7l-3-3L4 16.7"
-            /></svg
           >
+            <path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" />
+          </svg>
         </a>
         <a
           class="theme-toggle"
@@ -545,8 +547,9 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
           >
+            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+          </svg>
         </a>
         <a
           class="theme-toggle"
@@ -565,10 +568,11 @@
             stroke-width="2"
             stroke-linecap="round"
             stroke-linejoin="round"
-            ><circle cx="12" cy="12" r="3" /><path
-              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-            /></svg
           >
+            <circle cx="12" cy="12" r="3" /><path
+              d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+            />
+          </svg>
         </a>
       </nav>
       <button
@@ -588,10 +592,11 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path
-            d="M16 17l5-5-5-5"
-          /><path d="M21 12H9" /></svg
         >
+          <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path
+            d="M16 17l5-5-5-5"
+          /><path d="M21 12H9" />
+        </svg>
       </button>
     </div>
   </header>
@@ -633,14 +638,15 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><rect width="8" height="8" x="3" y="3" rx="2" /><rect
+      >
+        <rect width="8" height="8" x="3" y="3" rx="2" /><rect
           width="8"
           height="8"
           x="13"
           y="13"
           rx="2"
-        /><path d="M7 11v4a2 2 0 0 0 2 2h4" /></svg
-      >
+        /><path d="M7 11v4a2 2 0 0 0 2 2h4" />
+      </svg>
       <span class="bottom-nav-label">Branches</span>
     </a>
     {#if showPulls}
@@ -660,10 +666,11 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
-            d="M13 6h3a2 2 0 0 1 2 2v7"
-          /><line x1="6" x2="6" y1="9" y2="21" /></svg
         >
+          <circle cx="18" cy="18" r="3" /><circle cx="6" cy="6" r="3" /><path
+            d="M13 6h3a2 2 0 0 1 2 2v7"
+          /><line x1="6" x2="6" y1="9" y2="21" />
+        </svg>
         <span class="bottom-nav-label">PRs</span>
       </a>
     {/if}
@@ -684,10 +691,11 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path
-            d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
-          /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" /></svg
         >
+          <path
+            d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"
+          /><circle cx="7.5" cy="7.5" r=".5" fill="currentColor" />
+        </svg>
         <span class="bottom-nav-label">Releases</span>
       </a>
     {/if}
@@ -708,7 +716,8 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path d="M12 8V4H8" /><rect
+        >
+          <path d="M12 8V4H8" /><rect
             width="16"
             height="12"
             x="4"
@@ -716,8 +725,8 @@
             rx="2"
           /><path d="M2 14h2" /><path d="M20 14h2" /><path d="M15 13v2" /><path
             d="M9 13v2"
-          /></svg
-        >
+          />
+        </svg>
         <span class="bottom-nav-label">Bots</span>
       </a>
     {/if}
@@ -738,12 +747,9 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><circle cx="12" cy="12" r="10" /><circle
-            cx="12"
-            cy="12"
-            r="1"
-          /></svg
         >
+          <circle cx="12" cy="12" r="10" /><circle cx="12" cy="12" r="1" />
+        </svg>
         <span class="bottom-nav-label">Issues</span>
       </a>
     {/if}
@@ -762,8 +768,9 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" /></svg
       >
+        <path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" />
+      </svg>
       <span class="bottom-nav-label">Insights</span>
     </a>
     <a
@@ -781,8 +788,9 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" /></svg
       >
+        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+      </svg>
       <span class="bottom-nav-label">Webhooks</span>
     </a>
     <a
@@ -800,10 +808,11 @@
         stroke-width="2"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><circle cx="12" cy="12" r="3" /><path
-          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
-        /></svg
       >
+        <circle cx="12" cy="12" r="3" /><path
+          d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"
+        />
+      </svg>
       <span class="bottom-nav-label">Settings</span>
     </a>
   </div>

@@ -43,11 +43,11 @@
       {words.grantNote}
     {/if}
     {#if words.help && (!words.grantNote || grantApplies)}
-      <a href={words.help.href} target="_blank" rel="noopener noreferrer"
-        >{words.help.text(label)}<span class="sr-only">
-          (opens in a new tab)</span
-        ></a
-      >.
+      <a href={words.help.href} target="_blank" rel="noopener noreferrer">
+        {words.help.text(label)}<span class="sr-only">
+          (opens in a new tab)
+        </span>
+      </a>.
     {/if}
   </p>
 </div>

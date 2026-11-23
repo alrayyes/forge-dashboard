@@ -48,7 +48,9 @@ queue and cancel the actions that wait for a rate limit reset (see
 Streamable HTTP transport (JSON-RPC over HTTP, not a REST resource
 `redocly`/OpenAPI describes), not a plain request/response endpoint. See
 the **Design** section of [Architecture](../ARCHITECTURE.md#design) for what
-it exposes and how it authenticates.
+it exposes and how it authenticates. To connect it to an AI client, see
+[Use with an AI client](accounts.md#use-with-an-ai-client): the address is
+`https://<your-dashboard-host>/api/v1/mcp`.
 
 ## Versioning
 

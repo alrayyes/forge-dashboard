@@ -387,12 +387,14 @@
                 class="mono"
                 href={r.url}
                 target="_blank"
-                rel="noopener noreferrer">v{r.version}</a
-              >{:else}<span class="mono">v{r.version}</span>{/if}
+                rel="noopener noreferrer"
+              >
+                v{r.version}
+              </a>{:else}<span class="mono">v{r.version}</span>{/if}
           </h2>
-          <time class="release-date" datetime={r.date}
-            >{formatDate(r.date)}</time
-          >
+          <time class="release-date" datetime={r.date}>
+            {formatDate(r.date)}
+          </time>
         </div>
         <div class="release-notes">
           {#if r.version in rendered}

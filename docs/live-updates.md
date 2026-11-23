@@ -295,10 +295,12 @@ the total alone, so the numbers need not add up. Bots also carries `behind`: how
 many of its passing pull requests are behind their base branch with something
 left to merge. It is a note on `passed`, not another part of the total. The Bots
 pill draws it after the passing count as a bare up arrow in the warning colour,
-and the link's name says "3 behind the base branch". They count what each page shows
-when it opens. Pull requests leave out ignored repos, drafts and hidden ones
-(even while Show drafts or Show hidden is on). They are always present, zero
-when nothing is there.
+and the link's name says "3 behind the base branch". A draft, hidden, failing
+or empty pull request never counts as behind, and the mocked dashboard in the
+e2e specs takes the same rule from a table the Go tests generate. They count
+what each page shows when it opens. Pull requests leave out ignored repos,
+drafts and hidden ones (even while Show drafts or Show hidden is on). They
+are always present, zero when nothing is there.
 
 The Branches badge isn't in `navCounts`. The page counts the default branches
 in `mainBranchPage`, the same rows the Main branches page lists, so the badge

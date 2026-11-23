@@ -2624,6 +2624,12 @@ a.ci-pill:hover {
 .review-pill:hover {
   text-decoration: underline;
 }
+/* The comment pill sits at the right of its cell, so its tip opens leftwards
+   and stays inside the viewport on a phone (#4539). */
+.status-flags .pill-tip-host > .pill-tip {
+  left: auto;
+  right: 0;
+}
 
 /* What a pull request is waiting on or blocked by, in one place on the row
    (#1375): an icon and words, on a line of its own above the actions. */

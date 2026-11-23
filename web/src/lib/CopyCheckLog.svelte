@@ -107,11 +107,13 @@
       aria-disabled={flow.busy ? "true" : undefined}
       aria-busy={flow.busy ? "true" : undefined}
       onclick={copy}
-      aria-label="Copy output: {name}">Copy output</button
+      aria-label="Copy output: {name}"
     >
-    <span class="pipeline-check-copy-status" role="status"
-      >{flow.busy ? "Copying" : flow.status}</span
-    >
+      Copy output
+    </button>
+    <span class="pipeline-check-copy-status" role="status">
+      {flow.busy ? "Copying" : flow.status}
+    </span>
   </div>
 {/if}
 {#if flow.manual}

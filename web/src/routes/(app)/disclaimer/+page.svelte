@@ -56,9 +56,11 @@
       <a
         href="https://github.com/alrayyes/forge-dashboard/blob/main/LICENSE"
         target="_blank"
-        rel="noopener noreferrer">AGPL-3.0</a
-      >. Like every GPL-family licence, it's provided as-is, with no warranty of
-      any kind — no guarantee it's fit for a particular purpose, or that it's
+        rel="noopener noreferrer"
+      >
+        AGPL-3.0
+      </a>. Like every GPL-family licence, it's provided as-is, with no warranty
+      of any kind — no guarantee it's fit for a particular purpose, or that it's
       free of bugs. Read the licence for the exact terms; this page doesn't
       restate or reinterpret them.
     </p>

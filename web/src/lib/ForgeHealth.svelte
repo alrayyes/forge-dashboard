@@ -87,9 +87,9 @@
   {#if needsChip(f, limited(f)) || age || lines.length > 0 || cause(f)}
     <div class="forge-health-item">
       {#if needsChip(f, limited(f))}
-        <span class={chipClass(f)}
-          ><span class="pulse-dot"></span>{chipLabel(name(f), f)}</span
-        >
+        <span class={chipClass(f)}>
+          <span class="pulse-dot"></span>{chipLabel(name(f), f)}
+        </span>
       {/if}
       {#if age}<span class="forge-health-stale">{age}</span>{/if}
       <!-- The numbers change on every poll, so they stay out of the live region. -->

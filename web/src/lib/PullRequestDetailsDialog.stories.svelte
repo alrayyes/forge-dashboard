@@ -114,8 +114,10 @@
   <button
     type="button"
     id="open-details"
-    onclick={() => dialog?.open(target, "open-details")}>Open details</button
+    onclick={() => dialog?.open(target, "open-details")}
   >
+    Open details
+  </button>
   <PullRequestDetailsDialog bind:this={dialog} />
 {/snippet}
 

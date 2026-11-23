@@ -329,6 +329,8 @@
     effectiveZone,
   } from "#lib/time.svelte.js";
   import { createWebMCPTools } from "#lib/webmcp-tools.js";
+  import { addPillTip } from "#lib/pill-tip.js";
+  import { commentPillTip } from "#lib/review-pill-tip.js";
 
   // This page now lives under (app) and inherits (app)/+layout.svelte's
   // header (brand link, .app-nav, logout-button, whoami) —
@@ -412,6 +414,8 @@
     // server that predates them draws nothing.
     reviewComments?: number;
     conversationComments?: number;
+    // RFC 3339 creation time of the newest comment; absent when the forge can't say (#4539).
+    lastCommentAt?: string;
     unresolvedThreads?: number | null;
     // What the server offers on this pull request (#805).
     allowedActions?: AllowedAction[];
@@ -1371,7 +1375,8 @@
     // at zero. The words are in the accessible name, the numbers on screen,
     // and the open state is a dot and "open" as well as amber. It opens the
     // pull request's dialog, where the comments are (#3744); the dialog links
-    // on to the forge.
+    // on to the forge. Hover or focus shows a tip with the counts and when the
+    // newest comment was written (#4539).
     function reviewPill(
       item: PullRequestItem,
       onOpen: (triggerId: string) => void,
@@ -1411,7 +1416,16 @@
             : plural(comments, word),
         ),
       );
-      return pill;
+      // whenWritten spells the age out ("2 hours ago"), unlike the short
+      // relativeTime above: a screen reader reads the tip as a description.
+      const tip = commentPillTip({
+        comments,
+        open,
+        word,
+        lastCommentAt: item.lastCommentAt,
+      });
+      pill.title = tip;
+      return addPillTip(pill, tip);
     }
 
     // The pull-request-closed glyph (a pull request with a cross), so the
@@ -11196,8 +11210,10 @@
           data-pill="all"
           pressed={true}
           count={0}
-          onclick={(e) => pillClick(e.currentTarget)}>All</FilterPill
+          onclick={(e) => pillClick(e.currentTarget)}
         >
+          All
+        </FilterPill>
         {#if group === "forge"}
           {#each forgePills as pill (pill.id)}
             <FilterPill
@@ -11206,8 +11222,9 @@
               pressed={false}
               count={0}
               onclick={(e) => pillClick(e.currentTarget)}
-              >{pill.label}</FilterPill
             >
+              {pill.label}
+            </FilterPill>
           {/each}
         {:else if group === "ci"}
           {#each Filters.PILL_GROUPS.ci as pill (pill)}
@@ -11218,8 +11235,9 @@
               pressed={false}
               count={0}
               onclick={(e) => pillClick(e.currentTarget)}
-              >{Filters.pillLabel(pill)}</FilterPill
             >
+              {Filters.pillLabel(pill)}
+            </FilterPill>
           {/each}
         {:else}
           {#each Filters.PILL_GROUPS[group] as pill (pill)}
@@ -11229,8 +11247,9 @@
               pressed={false}
               count={0}
               onclick={(e) => pillClick(e.currentTarget)}
-              >{Filters.pillLabel(pill)}</FilterPill
             >
+              {Filters.pillLabel(pill)}
+            </FilterPill>
           {/each}
         {/if}
       </FilterGroup>
@@ -11249,9 +11268,9 @@
       ? "Referencing pull request"
       : "Referencing issue"}
   >
-    <span class="am-label" aria-hidden="true"
-      >{view === "issues" ? "Refs PR" : "Refs issue"}</span
-    >
+    <span class="am-label" aria-hidden="true">
+      {view === "issues" ? "Refs PR" : "Refs issue"}
+    </span>
     <button type="button" data-ref="any" aria-pressed="true">Any</button>
     <button
       type="button"
@@ -11262,8 +11281,9 @@
         pullsView,
         'yes',
       )}, {Filters.refsChoiceLabel(pullsView, 'yes').toLowerCase()}"
-      >{Filters.refsChoiceShort(pullsView, "yes")}</button
     >
+      {Filters.refsChoiceShort(pullsView, "yes")}
+    </button>
     <button
       type="button"
       data-ref="no"
@@ -11273,8 +11293,9 @@
         pullsView,
         'no',
       )}, {Filters.refsChoiceLabel(pullsView, 'no').toLowerCase()}"
-      >{Filters.refsChoiceShort(pullsView, "no")}</button
     >
+      {Filters.refsChoiceShort(pullsView, "no")}
+    </button>
   </div>
 {/snippet}
 
@@ -11317,8 +11338,10 @@
       class="activity-toggle"
       id="activity-toggle"
       aria-expanded="false"
-      aria-controls="activity-panel">Activity 0</button
+      aria-controls="activity-panel"
     >
+      Activity 0
+    </button>
     <div
       class="activity-panel"
       id="activity-panel"
@@ -11328,9 +11351,9 @@
     >
       <div class="activity-panel-head">
         <p class="activity-title">Recent actions</p>
-        <button type="button" class="activity-clear" disabled
-          >Clear finished</button
-        >
+        <button type="button" class="activity-clear" disabled>
+          Clear finished
+        </button>
       </div>
       <ul class="activity-list"></ul>
       <!-- Actions queued for a rate limit reset (#756), from the snapshot. -->
@@ -11371,14 +11394,18 @@
           type="button"
           data-am="on"
           aria-label="Auto-merge on"
-          aria-pressed="false">On</button
+          aria-pressed="false"
         >
+          On
+        </button>
         <button
           type="button"
           data-am="off"
           aria-label="Auto-merge off"
-          aria-pressed="false">Off</button
+          aria-pressed="false"
         >
+          Off
+        </button>
       </div>
     {/if}
     <!-- Phones (#828): this row stays when the rest of the controls fold
@@ -11423,8 +11450,10 @@
         id="filters-button"
         aria-haspopup="dialog"
         aria-expanded="false"
-        aria-controls="filter-sheet">Filters</button
+        aria-controls="filter-sheet"
       >
+        Filters
+      </button>
     </div>
     <div
       class="active-filters"
@@ -11447,14 +11476,18 @@
             type="button"
             data-am="on"
             aria-label="Auto-merge on"
-            aria-pressed="false">On</button
+            aria-pressed="false"
           >
+            On
+          </button>
           <button
             type="button"
             data-am="off"
             aria-label="Auto-merge off"
-            aria-pressed="false">Off</button
+            aria-pressed="false"
           >
+            Off
+          </button>
         </div>
         <button
           type="button"
@@ -11462,12 +11495,10 @@
           id="show-drafts-toggle"
           aria-pressed="false"
           hidden
-          >Show drafts<span
-            class="drafts-hidden"
-            id="drafts-hidden-count"
-            hidden
-          ></span></button
         >
+          Show drafts<span class="drafts-hidden" id="drafts-hidden-count" hidden
+          ></span>
+        </button>
       {/if}
       {@render refsSegment(true)}
       <select
@@ -11490,9 +11521,9 @@
         <option value="repo">Group by repository</option>
         <option value="forge">Group by forge</option>
       </select>
-      <span class="list-controls-note" id="list-controls-note" hidden
-        >Sorting and grouping need two or more rows.</span
-      >
+      <span class="list-controls-note" id="list-controls-note" hidden>
+        Sorting and grouping need two or more rows.
+      </span>
       <!-- The sheet names each dropdown above it (#4611); in the bar the
            button's own text does, so the wrapper and its label are not drawn
            there. The label is hidden from assistive technology because the
@@ -11537,8 +11568,10 @@
         type="button"
         class="clear-filters"
         id="clear-filters-button"
-        disabled>Clear filters</button
+        disabled
       >
+        Clear filters
+      </button>
     </div>
     <!-- Last in the bar, so the pills above it appearing or going moves
          nothing but this segment and the bar keeps its height. -->
@@ -11563,17 +11596,19 @@
         type="button"
         class="filter-sheet-close"
         id="filter-sheet-close"
-        aria-label="Close filters">&times;</button
+        aria-label="Close filters"
       >
+        &times;
+      </button>
     </div>
     <div class="filter-sheet-body" id="filter-sheet-body"></div>
     <div class="filter-sheet-foot">
-      <button type="button" class="filter-sheet-clear" id="filter-sheet-clear"
-        >Clear all</button
-      >
-      <button type="button" class="filter-sheet-show" id="filter-sheet-show"
-        >Show results</button
-      >
+      <button type="button" class="filter-sheet-clear" id="filter-sheet-clear">
+        Clear all
+      </button>
+      <button type="button" class="filter-sheet-show" id="filter-sheet-show">
+        Show results
+      </button>
       <span
         class="sr-only"
         id="filter-sheet-count"
@@ -11612,8 +11647,10 @@
             id="hidden-prs-toggle"
             aria-expanded="false"
             aria-controls="hidden-prs-panel"
-            hidden>Hidden (0)</button
+            hidden
           >
+            Hidden (0)
+          </button>
           <div class="bulk-actions">
             {#if view === "pulls"}
               <div class="update-all bulk-action" hidden>
@@ -11621,8 +11658,10 @@
                   type="button"
                   class="update-all-button"
                   id="update-all-button"
-                  aria-haspopup="dialog">Update all</button
+                  aria-haspopup="dialog"
                 >
+                  Update all
+                </button>
               </div>
             {/if}
             {#if view === "bots"}
@@ -11637,8 +11676,10 @@
                   class="rebase-all-button"
                   id="rebase-all-button"
                   aria-haspopup="dialog"
-                  aria-describedby="rebase-all-summary">Rebase all</button
+                  aria-describedby="rebase-all-summary"
                 >
+                  Rebase all
+                </button>
               </div>
             {/if}
             {#if view === "bots" || view === "pulls"}
@@ -11647,8 +11688,10 @@
                   type="button"
                   class="rerun-all-button"
                   id="rerun-all-button"
-                  aria-haspopup="dialog">Rerun failed checks</button
+                  aria-haspopup="dialog"
                 >
+                  Rerun failed checks
+                </button>
               </div>
             {/if}
           </div>

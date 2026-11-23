@@ -255,7 +255,7 @@ repo-name-hover.spec.ts,5.57,7,5,A,,1.6
 rerun-all.spec.ts,16.505,13,8,A,web/src/lib/rerun-all.test.ts,6.3
 rerun-count.spec.ts,8.633,9,2,C,,6.7
 result-count.spec.ts,,9,7,A,,0.0
-review-comments-pill.spec.ts,5.764,11,5,C,,3.1
+review-comments-pill.spec.ts,5.764,15,7,C,,3.1
 review-requested-pill.spec.ts,1.203,2,1,A,,0.6
 revoke-button-phone.spec.ts,2.567,5,3,A,,1.0
 root-font-size.spec.ts,11.481,7,7,A,,0.0
@@ -275,6 +275,7 @@ settings-groups.spec.ts,27.694,22,10,C,web/src/lib/settings-groups.test.ts,15.1
 settings-hint-size.spec.ts,1.308,1,1,A,,0.0
 settings-ignore-counts.spec.ts,2.63,8,2,C,,2.0
 settings-ignore-issues.spec.ts,7.626,19,6,C,,5.2
+settings-mcp-help.spec.ts,,3,2,A,,0.0
 settings.spec.ts,21.51,49,11,C,web/src/lib/settings-groups.test.ts,16.7
 shared-dashboard-read.spec.ts,5.322,6,0,C,,5.3
 show-drafts-by-page.spec.ts,5.358,2,2,A,,0.0

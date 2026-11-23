@@ -1025,8 +1025,10 @@
     class="sr-only"
     id="list-updates-status"
     role="status"
-    aria-live="polite">{pauseNote}</span
+    aria-live="polite"
   >
+    {pauseNote}
+  </span>
   <p
     class="mb-banner"
     role="alert"
@@ -1110,14 +1112,18 @@
           <FilterPill
             pressed={filter.forge === "all"}
             count={counts.total}
-            onclick={() => setForge("all")}>All</FilterPill
+            onclick={() => setForge("all")}
           >
+            All
+          </FilterPill>
           {#each forgeIds().filter((f) => forgeOffered.has(f)) as forge (forge)}
             <FilterPill
               pressed={filter.forge === forge}
               count={perForge[forge]}
-              onclick={() => setForge(forge)}>{forgeLabelOf(forge)}</FilterPill
+              onclick={() => setForge(forge)}
             >
+              {forgeLabelOf(forge)}
+            </FilterPill>
           {/each}
         </FilterGroup>
         {#if advisoryOffered.size > 1}
@@ -1125,24 +1131,28 @@
             <FilterPill
               pressed={filter.advisories === "all"}
               count={counts.total}
-              onclick={() => setAdvisories("all")}>Any</FilterPill
+              onclick={() => setAdvisories("all")}
             >
+              Any
+            </FilterPill>
             {#each [["has", "Has advisories"], ["none", "No advisories"]] as const as [key, label] (key)}
               {#if advisoryOffered.has(key)}
                 <FilterPill
                   pressed={filter.advisories === key}
                   count={advisoryTally[key]}
-                  onclick={() => setAdvisories(key)}>{label}</FilterPill
+                  onclick={() => setAdvisories(key)}
                 >
+                  {label}
+                </FilterPill>
               {/if}
             {/each}
             {#if advisoryTally.unknown > 0}
-              <span class="mb-left-out" data-testid="advisory-filter-unknown"
-                >{advisoryTally.unknown}
+              <span class="mb-left-out" data-testid="advisory-filter-unknown">
+                {advisoryTally.unknown}
                 {advisoryTally.unknown === 1
                   ? "branch with unknown advisories is"
-                  : "branches with unknown advisories are"} in neither choice</span
-              >
+                  : "branches with unknown advisories are"} in neither choice
+              </span>
             {/if}
           </FilterGroup>
         {/if}
@@ -1185,8 +1195,10 @@
             type="button"
             class="clear-filters"
             disabled={!isFiltered(filter)}
-            onclick={clearFilters}>Clear filters</button
+            onclick={clearFilters}
           >
+            Clear filters
+          </button>
         </div>
       </div>
 
@@ -1223,13 +1235,9 @@
                       class="attr-icon"
                       aria-hidden="true"
                       focusable="false"
-                      ><circle
-                        cx="8"
-                        cy="8"
-                        r="6.25"
-                        stroke-dasharray="2 2"
-                      /></svg
-                    >{STATUS_LABEL[pill.status]}
+                    >
+                      <circle cx="8" cy="8" r="6.25" stroke-dasharray="2 2" />
+                    </svg>{STATUS_LABEL[pill.status]}
                   </span>
                 {/if}
               </div>
@@ -1242,18 +1250,21 @@
                     target="_blank"
                     rel="noopener noreferrer"
                     aria-label="{b.fullName} (opens in a new tab)"
-                    >{b.fullName}</a
                   >
-                  <span class="forge-badge {forgeClassOf(b.forge)}"
-                    ><span class="dot"></span>{forgeLabelOf(b.forge)}</span
-                  >
+                    {b.fullName}
+                  </a>
+                  <span class="forge-badge {forgeClassOf(b.forge)}">
+                    <span class="dot"></span>{forgeLabelOf(b.forge)}
+                  </span>
                   {#if isStale(b)}<span
                       class="mb-chip mb-stale"
                       title={mainBranchClaim(
                         b,
                         b.staleSince ? formatTime(b.staleSince) : undefined,
-                      ).reason}>stale</span
-                    >{/if}
+                      ).reason}
+                    >
+                      stale
+                    </span>{/if}
                   {#if b.latestRelease && httpHref(b.latestRelease.url)}
                     {@const release = b.latestRelease}
                     <!-- A native button, as the CI pill is: it opens the
@@ -1267,28 +1278,33 @@
                       aria-haspopup="dialog"
                       aria-label="Latest release {release.tag}, open details"
                       onclick={() => openRelease(b)}
-                      ><svg
+                    >
+                      <svg
                         viewBox="0 0 16 16"
                         class="attr-icon"
                         aria-hidden="true"
                         focusable="false"
-                        ><path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z" /><circle
+                      >
+                        <path d="M2.5 2.5h5.2l6 6-5.2 5.2-6-6z" /><circle
                           cx="5.5"
                           cy="5.5"
                           r="1"
-                        /></svg
-                      ><span class="mb-release-tag">{release.tag}</span></button
-                    >
+                        />
+                      </svg><span class="mb-release-tag">{release.tag}</span>
+                    </button>
                   {/if}
                   {#if advisoryStateByForge[b.forge] === "partial" && advisoryRowUnreadable(b)}
                     <span
                       class="mb-advisory-cue"
                       data-testid="main-branch-advisories-cue"
                       title={advisoryRowHint(b)}
-                      ><span aria-hidden="true">&#8211;</span><span
-                        class="sr-only">Advisories unknown</span
-                      ></span
                     >
+                      <span aria-hidden="true">&#8211;</span><span
+                        class="sr-only"
+                      >
+                        Advisories unknown
+                      </span>
+                    </span>
                   {/if}
                   {#if adv}
                     <!-- Severity is the word beside the count; the colour
@@ -1319,8 +1335,10 @@
                             opener: e.currentTarget,
                           });
                           advisoryWarmer.opened(rowKey(b));
-                        }}>{adv.text}</button
+                        }}
                       >
+                        {adv.text}
+                      </button>
                     {:else if adv.href}
                       <a
                         class="mb-advisory"
@@ -1330,23 +1348,28 @@
                         target="_blank"
                         rel="noopener noreferrer"
                         aria-label="{adv.text} (opens in a new tab)"
-                        >{adv.text}</a
                       >
+                        {adv.text}
+                      </a>
                     {:else}
                       <span
                         class="mb-advisory"
                         data-tone={adv.tone}
                         title={adv.hint}
-                        data-testid="main-branch-advisories">{adv.text}</span
+                        data-testid="main-branch-advisories"
                       >
+                        {adv.text}
+                      </span>
                     {/if}
                   {/if}
                 </div>
                 <p class="mb-meta">
-                  {#if b.branch}<span class="mb-branch">{b.branch}</span
-                    >{" "}{/if}
-                  {#if b.commit}<span class="mb-sha">{b.commit.sha}</span
-                    >{" "}{commitText(b.commit)}{/if}
+                  {#if b.branch}<span class="mb-branch">
+                      {b.branch}
+                    </span>{" "}{/if}
+                  {#if b.commit}<span class="mb-sha">
+                      {b.commit.sha}
+                    </span>{" "}{commitText(b.commit)}{/if}
                 </p>
                 {#if b.status === "failed" && b.failingJobs.length > 0}
                   <p class="mb-failing">Failing: {listed(b)}</p>

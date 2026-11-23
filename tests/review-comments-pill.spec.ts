@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // #1335: every pull request row says how many review comments it has and how
@@ -33,7 +33,12 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
 const PRS = [
   makePR(7, { title: 'None', reviewComments: 0, unresolvedThreads: 0 }),
   makePR(6, { title: 'Resolved', reviewComments: 7, unresolvedThreads: 0 }),
-  makePR(5, { title: 'Open', reviewComments: 7, unresolvedThreads: 2 }),
+  makePR(5, {
+    title: 'Open',
+    reviewComments: 7,
+    unresolvedThreads: 2,
+    lastCommentAt: new Date(Date.now() - 2 * 3600_000).toISOString(),
+  }),
   makePR(4, { title: 'Busy', reviewComments: 128, unresolvedThreads: 24 }),
   makePR(3, {
     title: 'Forgejo',
@@ -257,4 +262,89 @@ test.describe('the review comments pill (#1335)', () => {
       .analyze();
     expect(results.violations).toEqual([]);
   });
+});
+
+// #4539: the pill's tip says when the newest comment was written, from
+// `lastCommentAt`. The visible pill and its name don't change, and no comment
+// text is involved. Hover shows the native title; keyboard focus shows the tip.
+async function focusByKeyboard(page: Page, target: Locator) {
+  await target.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(target).toBeFocused();
+}
+
+const tipOf = (page: Page, title: string) =>
+  row(page, title).locator('[role="tooltip"]');
+
+test.describe('the comment pill says when the latest comment was written (#4539)', () => {
+  test('hover and keyboard focus show the count, then the age, and the description carries it', async ({
+    page,
+  }) => {
+    await open(page);
+
+    const p = pill(page, 'Open');
+    const text = '7 review comments, 2 open threads. Last comment 2 hours ago.';
+    await expect(p).toHaveAttribute('title', text);
+    await expect(tipOf(page, 'Open')).toBeHidden();
+    await focusByKeyboard(page, p);
+    await expect(tipOf(page, 'Open')).toBeVisible();
+    await expect(tipOf(page, 'Open')).toHaveText(text);
+    await expect(p).toHaveAccessibleDescription(text);
+    // The visible pill and its name are as they were.
+    await expect(shown(page, 'Open')).toHaveText('7 · 2 open');
+    await expect(p).toHaveAccessibleName(
+      '7 review comments, 2 unresolved threads',
+    );
+  });
+
+  test('without a time the tip is the count alone, with no empty or undefined part', async ({
+    page,
+  }) => {
+    await open(page);
+
+    const p = pill(page, 'Forgejo');
+    await expect(p).toHaveAttribute('title', '4 review comments.');
+    await focusByKeyboard(page, p);
+    await expect(tipOf(page, 'Forgejo')).toHaveText('4 review comments.');
+    await expect(row(page, 'Forgejo')).not.toContainText(/undefined|null/);
+    await expect(p).toHaveAccessibleDescription('4 review comments.');
+  });
+
+  test('Escape hides the tip and keeps focus on the pill', async ({ page }) => {
+    await open(page);
+
+    const p = pill(page, 'Open');
+    await focusByKeyboard(page, p);
+    await expect(tipOf(page, 'Open')).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(tipOf(page, 'Open')).toBeHidden();
+    await expect(p).toBeFocused();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
+  for (const width of [360, 390, 1280]) {
+    test(`at ${width}px the tip fits the viewport and has no axe violations in both themes`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 800 });
+      for (const scheme of ['light', 'dark'] as const) {
+        await test.step(scheme, async () => {
+          await open(page, scheme);
+          const p = pill(page, 'Open');
+          await focusByKeyboard(page, p);
+          const tip = tipOf(page, 'Open');
+          await expect(tip).toBeVisible();
+          const box = await tip.boundingBox();
+          expect(box?.x ?? -1).toBeGreaterThanOrEqual(0);
+          expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
+      }
+    });
+  }
 });

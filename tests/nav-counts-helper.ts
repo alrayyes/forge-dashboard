@@ -14,6 +14,9 @@ type Mock = {
   ci?: string;
   draft?: boolean;
   hidden?: boolean;
+  // Behind its base branch, and with nothing left to merge (#4629).
+  behindBase?: boolean;
+  empty?: boolean;
 };
 
 type Page = {
@@ -58,7 +61,9 @@ export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {
         r.kind === kind &&
         r.ci === ci &&
         r.draft === Boolean(pr.draft) &&
-        r.hidden === Boolean(pr.hidden),
+        r.hidden === Boolean(pr.hidden) &&
+        r.behindBase === Boolean(pr.behindBase) &&
+        r.empty === Boolean(pr.empty),
     );
     if (!row)
       throw new Error(
@@ -73,6 +78,7 @@ export function navCountsFor(pullRequests: unknown[], openIssueCount: number) {
         `nav-counts fixture row for kind "${kind}", ci "${ci}" names state "${row.state}", which this helper does not count`,
       );
     page[state]++;
+    page.behind += row.behind;
   }
 
   return {

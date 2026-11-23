@@ -39,7 +39,9 @@
       status={key === "all" ? undefined : key}
       pressed={status === key}
       count={statusCount(counts, key)}
-      onclick={() => onselect(key)}>{label}</FilterPill
+      onclick={() => onselect(key)}
     >
+      {label}
+    </FilterPill>
   {/each}
 </FilterGroup>

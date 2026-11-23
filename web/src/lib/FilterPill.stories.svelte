@@ -60,15 +60,15 @@
     </FilterGroup>
     <FilterGroup label="CI" id="story-ci">
       <FilterPill pressed={false} count={42} onclick={fn()}>All</FilterPill>
-      <FilterPill pressed={true} count={28} status="passed" onclick={fn()}
-        >Passing</FilterPill
-      >
-      <FilterPill pressed={false} count={6} status="failed" onclick={fn()}
-        >Failing</FilterPill
-      >
-      <FilterPill pressed={false} count={8} status="running" onclick={fn()}
-        >Running</FilterPill
-      >
+      <FilterPill pressed={true} count={28} status="passed" onclick={fn()}>
+        Passing
+      </FilterPill>
+      <FilterPill pressed={false} count={6} status="failed" onclick={fn()}>
+        Failing
+      </FilterPill>
+      <FilterPill pressed={false} count={8} status="running" onclick={fn()}>
+        Running
+      </FilterPill>
     </FilterGroup>
   </div>
 {/snippet}

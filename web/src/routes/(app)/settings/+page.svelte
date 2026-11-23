@@ -939,6 +939,21 @@
     }
   }
 
+  // The MCP endpoint lives on the origin the page is open on, so staging and
+  // production each show their own. Set after mount: there is no window while
+  // the page is prerendered.
+  // Until then, and in the prerendered page, a placeholder host stands in.
+  let mcpUrl = $state("https://<your-dashboard-host>/api/v1/mcp");
+  let mcpCopyStatus = $state("");
+  let mcpCopyStatusKind = $state<"" | "error" | "ok">("");
+
+  function copyMcpUrl() {
+    copyToClipboard(mcpUrl, (message, kind) => {
+      mcpCopyStatus = message;
+      mcpCopyStatusKind = kind;
+    });
+  }
+
   function copyTokenReveal(value: string) {
     copyToClipboard(value, (message, kind) => {
       tokenStatus = message;
@@ -1018,6 +1033,7 @@
   });
 
   onMount(() => {
+    mcpUrl = `${window.location.origin}/api/v1/mcp`;
     openFromHash();
     window.addEventListener("hashchange", openFromHash);
     loadTimezone();
@@ -1663,6 +1679,44 @@
       font-size: 0.75rem;
       color: var(--ink-3);
     }
+    .mcp-help {
+      margin: 16px 0 0;
+      padding: 0;
+      border: 0;
+      min-width: 0;
+    }
+    .mcp-help legend {
+      padding: 0;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--ink);
+      margin-bottom: 4px;
+    }
+    .mcp-help p,
+    .mcp-help li {
+      font-size: 0.8125rem;
+      color: var(--ink-3);
+      line-height: 1.5;
+    }
+    .mcp-help ul {
+      margin: 0 0 12px;
+      padding-left: 20px;
+    }
+    .mcp-help pre {
+      margin: 4px 0 12px;
+      padding: 8px 10px;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+      font-size: 0.75rem;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      color: var(--ink);
+      background: var(--surface-sunken);
+      border: 1px solid var(--control-border);
+      border-radius: 6px;
+    }
+    .mcp-help .field {
+      margin-bottom: 12px;
+    }
   </style>
 </svelte:head>
 
@@ -1733,15 +1787,12 @@
             </select>
             <span class="timezone-preview" id="timezone-preview">
               Now:
-              <time datetime={previewNow}
-                >{formatDateTime(
-                  previewNow,
-                  timezone.setting || detectedZone,
-                )}</time
-              >
-              <span class="timezone-name"
-                >({timezone.setting || detectedZone})</span
-              >
+              <time datetime={previewNow}>
+                {formatDateTime(previewNow, timezone.setting || detectedZone)}
+              </time>
+              <span class="timezone-name">
+                ({timezone.setting || detectedZone})
+              </span>
             </span>
           </div>
           <p
@@ -1763,13 +1814,15 @@
               A token sees every repo it can push to, private included.
             </p>
             <div class="field">
-              <label for="github-token"
-                >Personal access token <span
+              <label for="github-token">
+                Personal access token <span
                   class="configured"
                   id="github-token-badge"
-                  hidden={!githubTokenSet}>Configured</span
-                ></label
-              >
+                  hidden={!githubTokenSet}
+                >
+                  Configured
+                </span>
+              </label>
               <div class="token-input">
                 <input
                   id="github-token"
@@ -1792,8 +1845,9 @@
                     ? "Hide personal access token"
                     : "Show personal access token"}
                   onclick={() => (githubTokenShown = !githubTokenShown)}
-                  >{githubTokenShown ? "Hide" : "Show"}</button
                 >
+                  {githubTokenShown ? "Hide" : "Show"}
+                </button>
               </div>
               {#if githubTokenSet}
                 <p class="field-hint" id="github-token-saved">
@@ -1821,8 +1875,9 @@
                     href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard"
                     target="_blank"
                     rel="noopener noreferrer"
-                    >Create a token with that scope already set &rarr;</a
                   >
+                    Create a token with that scope already set &rarr;
+                  </a>
                 </p>
                 <p>
                   Classic token: the <code>repo</code> scope (or just
@@ -1865,10 +1920,10 @@
               </Disclosure>
             </div>
             <div class="field">
-              <label for="github-app-installation-id"
-                >GitHub App installation ID (optional, takes precedence over the
-                token above)</label
-              >
+              <label for="github-app-installation-id">
+                GitHub App installation ID (optional, takes precedence over the
+                token above)
+              </label>
               <input
                 id="github-app-installation-id"
                 name="githubAppInstallationId"
@@ -1908,9 +1963,9 @@
               </p>
             </div>
             <div class="field">
-              <label for="github-username"
-                >Username (used only when no token is set)</label
-              >
+              <label for="github-username">
+                Username (used only when no token is set)
+              </label>
               <input
                 id="github-username"
                 name="githubUsername"
@@ -1972,13 +2027,15 @@
               </p>
             </div>
             <div class="field">
-              <label for="forgejo-token"
-                >API token <span
+              <label for="forgejo-token">
+                API token <span
                   class="configured"
                   id="forgejo-token-badge"
-                  hidden={!forgejoTokenSet}>Configured</span
-                ></label
-              >
+                  hidden={!forgejoTokenSet}
+                >
+                  Configured
+                </span>
+              </label>
               <div class="token-input">
                 <input
                   id="forgejo-token"
@@ -2001,8 +2058,9 @@
                     ? "Hide API token"
                     : "Show API token"}
                   onclick={() => (forgejoTokenShown = !forgejoTokenShown)}
-                  >{forgejoTokenShown ? "Hide" : "Show"}</button
                 >
+                  {forgejoTokenShown ? "Hide" : "Show"}
+                </button>
               </div>
               {#if forgejoTokenSet}
                 <p class="field-hint" id="forgejo-token-saved">
@@ -2031,18 +2089,20 @@
                       href={forgejoTokenLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Open your instance's token settings &rarr;</a
                     >
+                      Open your instance's token settings &rarr;
+                    </a>
                   {:else}
                     <a
                       id="forgejo-token-link"
                       target="_blank"
                       rel="noopener noreferrer"
-                      >Open your instance's token settings &rarr;</a
                     >
-                    <span id="forgejo-token-link-disabled-hint"
-                      >(fill in the instance URL above first)</span
-                    >
+                      Open your instance's token settings &rarr;
+                    </a>
+                    <span id="forgejo-token-link-disabled-hint">
+                      (fill in the instance URL above first)
+                    </span>
                   {/if}
                 </p>
                 <p>Select all of:</p>
@@ -2066,9 +2126,9 @@
               </Disclosure>
             </div>
             <div class="field">
-              <label for="forgejo-username"
-                >Username (used only when no token is set)</label
-              >
+              <label for="forgejo-username">
+                Username (used only when no token is set)
+              </label>
               <input
                 id="forgejo-username"
                 name="forgejoUsername"
@@ -2105,13 +2165,14 @@
                   <circle cx="12" cy="12" r="9" />
                   <path d="M12 11v5M12 8h.01" />
                 </svg>
-                <span
-                  >{skippedAvatarLead(skippedAvatarHostList)}
-                  {#each skippedAvatarHostList as host, i (host)}<code
-                      >{host}</code
-                    >{i < skippedAvatarHostList.length - 1 ? ", " : ""}{/each}.
-                  Initials are shown instead.</span
-                >
+                <span>
+                  {skippedAvatarLead(skippedAvatarHostList)}
+                  {#each skippedAvatarHostList as host, i (host)}<code>
+                      {host}
+                    </code>{i < skippedAvatarHostList.length - 1
+                      ? ", "
+                      : ""}{/each}. Initials are shown instead.
+                </span>
               </p>
             {/if}
           </div>
@@ -2120,8 +2181,10 @@
               type="submit"
               class="btn btn-primary"
               id="save-connections-button"
-              disabled={saving || !settingsLoaded}>Save</button
+              disabled={saving || !settingsLoaded}
             >
+              Save
+            </button>
             <p
               class={`status${statusKind ? ` ${statusKind}` : ""}`}
               id="connections-status"
@@ -2228,9 +2291,9 @@
                   <span class="pattern-text">
                     <code>{pattern}</code>
                     {#if countText}
-                      <span class="pattern-count" id={`ignored-count-${i}`}
-                        >{countText}</span
-                      >
+                      <span class="pattern-count" id={`ignored-count-${i}`}>
+                        {countText}
+                      </span>
                     {/if}
                   </span>
                   <button
@@ -2240,8 +2303,10 @@
                     aria-describedby={countText
                       ? `ignored-count-${i}`
                       : undefined}
-                    onclick={() => removeIgnoredPattern(pattern)}>Remove</button
+                    onclick={() => removeIgnoredPattern(pattern)}
                   >
+                    Remove
+                  </button>
                 </li>
               {/each}
             </ul>
@@ -2269,9 +2334,9 @@
                   bind:value={ignoredPattern}
                   onkeydown={onIgnoredPatternKeydown}
                 />
-                <button type="button" class="btn" onclick={addIgnoredPattern}
-                  >Add</button
-                >
+                <button type="button" class="btn" onclick={addIgnoredPattern}>
+                  Add
+                </button>
               </div>
               <p
                 class="pattern-error"
@@ -2288,8 +2353,10 @@
               type="submit"
               class="btn btn-primary"
               id="save-button"
-              disabled={saving || !settingsLoaded}>Save</button
+              disabled={saving || !settingsLoaded}
             >
+              Save
+            </button>
             <p
               class={`status${statusKind ? ` ${statusKind}` : ""}`}
               id="status"
@@ -2332,8 +2399,10 @@
             <a
               href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md"
               target="_blank"
-              rel="noopener noreferrer">Full setup steps &rarr;</a
+              rel="noopener noreferrer"
             >
+              Full setup steps &rarr;
+            </a>
           </p>
           <div class="field">
             <label for="webhook-url-github">GitHub webhook URL</label>
@@ -2349,8 +2418,10 @@
                 type="button"
                 class="copy-button"
                 data-copy-target="webhook-url-github"
-                onclick={() => copyWebhookField(webhookUrlGithub)}>Copy</button
+                onclick={() => copyWebhookField(webhookUrlGithub)}
               >
+                Copy
+              </button>
             </div>
           </div>
           <div class="field">
@@ -2367,8 +2438,10 @@
                 type="button"
                 class="copy-button"
                 data-copy-target="webhook-url-forgejo"
-                onclick={() => copyWebhookField(webhookUrlForgejo)}>Copy</button
+                onclick={() => copyWebhookField(webhookUrlForgejo)}
               >
+                Copy
+              </button>
             </div>
           </div>
           <div class="field">
@@ -2385,8 +2458,10 @@
                   type="button"
                   class="copy-button"
                   data-copy-target="webhook-secret"
-                  onclick={() => copyWebhookField(webhookSecret)}>Copy</button
+                  onclick={() => copyWebhookField(webhookSecret)}
                 >
+                  Copy
+                </button>
                 <button
                   type="button"
                   class="token-toggle"
@@ -2396,8 +2471,9 @@
                     ? "Hide webhook secret"
                     : "Show webhook secret"}
                   onclick={() => (webhookSecretShown = !webhookSecretShown)}
-                  >{webhookSecretShown ? "Hide" : "Show"}</button
                 >
+                  {webhookSecretShown ? "Hide" : "Show"}
+                </button>
               </div>
             </div>
             <p class="field-hint">
@@ -2437,9 +2513,9 @@
           >
             <span id="webhook-coverage-count">{webhookCoverageCount}</span>
             &middot;
-            <a href="/webhooks.html"
-              >See which repos, and add a webhook &rarr;</a
-            >
+            <a href="/webhooks.html">
+              See which repos, and add a webhook &rarr;
+            </a>
           </p>
         </div>
 
@@ -2455,9 +2531,9 @@
             class="entry-form"
             onsubmit={submitAddPasskey}
           >
-            <label for="passkey-label" class="sr-only"
-              >Name for the new passkey</label
-            >
+            <label for="passkey-label" class="sr-only">
+              Name for the new passkey
+            </label>
             <input
               id="passkey-label"
               type="text"
@@ -2471,11 +2547,13 @@
               bind:value={passkeyLabel}
               oninput={() => (passkeyLabelError = "")}
             />
-            <button type="submit" class="btn btn-primary" disabled={passkeyBusy}
-              >{passkeyBusy
-                ? "Waiting for your passkey…"
-                : "Add passkey"}</button
+            <button
+              type="submit"
+              class="btn btn-primary"
+              disabled={passkeyBusy}
             >
+              {passkeyBusy ? "Waiting for your passkey…" : "Add passkey"}
+            </button>
           </form>
           {#if passkeyLabelError}
             <p class="status error" id="passkey-label-error" role="alert">
@@ -2487,9 +2565,9 @@
               <li>
                 {#if renamingId === key.id}
                   <form class="rename-form" onsubmit={submitRename}>
-                    <label for="rename-{key.id}"
-                      >New name for {passkeyName(key)}</label
-                    >
+                    <label for="rename-{key.id}">
+                      New name for {passkeyName(key)}
+                    </label>
                     <div class="rename-row">
                       <input
                         id="rename-{key.id}"
@@ -2512,13 +2590,17 @@
                       <button
                         type="submit"
                         class="btn-small"
-                        disabled={renameBusy}>Save</button
+                        disabled={renameBusy}
                       >
+                        Save
+                      </button>
                       <button
                         type="button"
                         class="btn-small"
-                        onclick={cancelRename}>Cancel</button
+                        onclick={cancelRename}
                       >
+                        Cancel
+                      </button>
                     </div>
                     <p
                       class="status error"
@@ -2531,11 +2613,11 @@
                 {:else}
                   <span>
                     {passkeyName(key)}<br />
-                    <span class="api-token-meta"
-                      >Created <time datetime={key.createdAt}
-                        >{formatDate(key.createdAt)}</time
-                      ></span
-                    >
+                    <span class="api-token-meta">
+                      Created <time datetime={key.createdAt}>
+                        {formatDate(key.createdAt)}
+                      </time>
+                    </span>
                   </span>
                   <span class="entry-actions">
                     <button
@@ -2543,8 +2625,10 @@
                       type="button"
                       data-rename-passkey-id={key.id}
                       aria-label="Rename {passkeyName(key)}"
-                      onclick={() => startRename(key)}>Rename</button
+                      onclick={() => startRename(key)}
                     >
+                      Rename
+                    </button>
                     <button
                       class="btn-remove"
                       type="button"
@@ -2553,8 +2637,10 @@
                       title={passkeys.length <= 1
                         ? "Can't remove your only passkey"
                         : ""}
-                      onclick={() => removePasskey(key.id)}>Remove</button
+                      onclick={() => removePasskey(key.id)}
                     >
+                      Remove
+                    </button>
                   </span>
                 {/if}
               </li>
@@ -2589,9 +2675,9 @@
             class="entry-form"
             onsubmit={submitGenerateToken}
           >
-            <label for="token-label" class="sr-only"
-              >Label for the new token</label
-            >
+            <label for="token-label" class="sr-only">
+              Label for the new token
+            </label>
             <input
               id="token-label"
               type="text"
@@ -2608,9 +2694,9 @@
               <option value="custom">Custom date&hellip;</option>
             </select>
             {#if tokenExpiryPreset === "custom"}
-              <label for="token-expiry-custom-date" class="sr-only"
-                >Custom expiration date</label
-              >
+              <label for="token-expiry-custom-date" class="sr-only">
+                Custom expiration date
+              </label>
               <input
                 id="token-expiry-custom-date"
                 type="date"
@@ -2627,8 +2713,9 @@
             id="token-reveal-field"
             hidden={!tokenRevealVisible}
           >
-            <label for="token-reveal-value">New token &mdash; copy it now</label
-            >
+            <label for="token-reveal-value">
+              New token &mdash; copy it now
+            </label>
             <div class="token-input">
               <input
                 id="token-reveal-value"
@@ -2640,8 +2727,10 @@
                 type="button"
                 class="token-copy-button"
                 data-copy-target="token-reveal-value"
-                onclick={() => copyTokenReveal(tokenRevealValue)}>Copy</button
+                onclick={() => copyTokenReveal(tokenRevealValue)}
               >
+                Copy
+              </button>
             </div>
             <p class="field-hint">
               Shown once. It won't be shown again &mdash; losing it means
@@ -2653,26 +2742,29 @@
               <li>
                 <span>
                   {escapeHTML(tok.label)}<br />
-                  <span class="api-token-meta"
-                    >Created <time datetime={tok.createdAt}
-                      >{formatDate(tok.createdAt)}</time
-                    >
+                  <span class="api-token-meta">
+                    Created <time datetime={tok.createdAt}>
+                      {formatDate(tok.createdAt)}
+                    </time>
                     &middot; Expires
-                    <time datetime={tok.expiresAt}
-                      >{formatDate(tok.expiresAt)}</time
-                    >
+                    <time datetime={tok.expiresAt}>
+                      {formatDate(tok.expiresAt)}
+                    </time>
                     &middot; Last used {#if tok.lastUsedAt}<time
                         datetime={tok.lastUsedAt}
-                        >{formatDate(tok.lastUsedAt)}</time
-                      >{:else}never used{/if}</span
-                  >
+                      >
+                        {formatDate(tok.lastUsedAt)}
+                      </time>{:else}never used{/if}
+                  </span>
                 </span>
                 <button
                   class="btn-remove"
                   type="button"
                   data-token-id={tok.id}
-                  onclick={() => revokeToken(tok.id)}>Revoke</button
+                  onclick={() => revokeToken(tok.id)}
                 >
+                  Revoke
+                </button>
               </li>
             {/each}
           </ul>
@@ -2683,6 +2775,65 @@
           >
             No API tokens yet.
           </p>
+          <fieldset class="mcp-help">
+            <legend>Use with an AI client</legend>
+            <p>
+              The MCP endpoint lets an AI client read your pull requests with an
+              API token. Generate a token above, then add this address to your
+              client.
+            </p>
+            <div class="field">
+              <label for="mcp-url">MCP endpoint address</label>
+              <div class="token-input">
+                <input id="mcp-url" type="text" readonly value={mcpUrl} />
+                <button
+                  type="button"
+                  class="token-copy-button"
+                  aria-label="Copy MCP URL"
+                  onclick={copyMcpUrl}
+                >
+                  Copy
+                </button>
+              </div>
+              <p
+                class={`status${mcpCopyStatusKind ? ` ${mcpCopyStatusKind}` : ""}`}
+                id="mcp-copy-status"
+                role="status"
+                aria-live="polite"
+              >
+                {mcpCopyStatus}
+              </p>
+            </div>
+            <p>
+              The client sends the token as a header on every request:
+              <code>Authorization: Bearer &lt;token&gt;</code>. Paste your own
+              token where the steps say <code>&lt;token&gt;</code>. It is never
+              shown here.
+            </p>
+            <ul>
+              <li>
+                Claude Code: run
+                <pre>claude mcp add --transport http forge-dashboard {mcpUrl} --header "Authorization: Bearer &lt;token&gt;"</pre>
+              </li>
+              <li>
+                Claude (claude.ai and Claude Desktop): open Customize, then
+                Connectors, then Add custom connector. Paste the address, choose
+                "No sign in" and put the header under "Request headers". Free
+                plans allow one custom connector. On Team and Enterprise plans
+                only an Owner can add one, under Organization settings, then
+                Connectors.
+              </li>
+            </ul>
+            <p>
+              Steps for other clients and the list of tools are in the
+              <a
+                href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/accounts.md#use-with-an-ai-client"
+                rel="noopener noreferrer"
+              >
+                accounts docs
+              </a>.
+            </p>
+          </fieldset>
           <p
             class={`status${tokenStatusKind ? ` ${tokenStatusKind}` : ""}`}
             id="token-status"

@@ -275,16 +275,19 @@
             class="btn btn-primary"
             id="login-submit"
             disabled={!passkeysSupported || loginSubmitting}
-            >Sign in with a passkey</button
           >
+            Sign in with a passkey
+          </button>
           {#if registrationOpen}
             <button
               type="button"
               class="btn btn-secondary"
               id="show-register"
               disabled={!passkeysSupported}
-              onclick={showRegister}>Register a new passkey instead</button
+              onclick={showRegister}
             >
+              Register a new passkey instead
+            </button>
           {/if}
         </div>
       </form>
@@ -295,14 +298,18 @@
             type="submit"
             class="btn btn-primary"
             id="register-submit"
-            disabled={registerSubmitting}>Create passkey</button
+            disabled={registerSubmitting}
           >
+            Create passkey
+          </button>
           <button
             type="button"
             class="btn btn-secondary"
             id="show-login"
-            onclick={showLogin}>Back to sign in</button
+            onclick={showLogin}
           >
+            Back to sign in
+          </button>
         </div>
       </form>
     {/if}

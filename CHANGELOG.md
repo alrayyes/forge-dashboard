@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.103.0](https://github.com/alrayyes/forge-dashboard/compare/v9.102.0...v9.103.0) (2026-11-23)
+
+
+### Features
+
+* **web:** show how to connect an AI client on the API tokens card ([#4667](https://github.com/alrayyes/forge-dashboard/issues/4667)) ([819b0b9](https://github.com/alrayyes/forge-dashboard/commit/819b0b9090234d7c9f7ad986b0200155c23becb4)), closes [#4660](https://github.com/alrayyes/forge-dashboard/issues/4660)
+
+## [9.102.0](https://github.com/alrayyes/forge-dashboard/compare/v9.101.3...v9.102.0) (2026-11-23)
+
+
+### Features
+
+* **web:** say when the latest comment was written in the comment pill's tip ([#4664](https://github.com/alrayyes/forge-dashboard/issues/4664)) ([4906890](https://github.com/alrayyes/forge-dashboard/commit/4906890fcab15d47406287507f921b197bed9571))
+
+## [9.101.3](https://github.com/alrayyes/forge-dashboard/compare/v9.101.2...v9.101.3) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** keep the Branches page header inside the viewport at 400% text ([#4637](https://github.com/alrayyes/forge-dashboard/issues/4637)) ([87e846b](https://github.com/alrayyes/forge-dashboard/commit/87e846b5bef335e5c8c12368901c3ea5792d4131)), closes [#4631](https://github.com/alrayyes/forge-dashboard/issues/4631)
+
 ## [9.101.2](https://github.com/alrayyes/forge-dashboard/compare/v9.101.1...v9.101.2) (2026-11-23)
 
 

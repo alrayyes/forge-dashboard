@@ -346,7 +346,8 @@
               onclick={(e) => copyLine(i, e.currentTarget)}
               onfocus={() => (active = i)}
               onkeydown={(e) => moveLine(e, i)}
-              >{#if copiedLine === i}<svg
+            >
+              {#if copiedLine === i}<svg
                   class="run-line-check"
                   viewBox="0 0 16 16"
                   width="11"
@@ -357,16 +358,21 @@
                   stroke="currentColor"
                   stroke-width="2"
                   stroke-linecap="round"
-                  stroke-linejoin="round"><path d="M3 8.5l3.5 3.5L13 5" /></svg
-                >{/if}{i + 1}</button
-            >{#if timestamps && line.time}<span class="run-line-time"
-                >{line.time}</span
-              >{/if}<span class="run-line-text"
-              >{#if line.kind === "error"}<span class="run-line-tag">Error</span
-                >{:else if line.kind === "warning"}<span class="run-line-tag"
-                  >Warning</span
-                >{/if}{line.text}</span
-            >
+                  stroke-linejoin="round"
+                >
+                  <path d="M3 8.5l3.5 3.5L13 5" />
+                </svg>{/if}{i + 1}
+            </button>{#if timestamps && line.time}<span class="run-line-time">
+                {line.time}
+              </span>{/if}<span class="run-line-text">
+              {#if line.kind === "error"}<span class="run-line-tag">
+                  Error
+                </span>{:else if line.kind === "warning"}<span
+                  class="run-line-tag"
+                >
+                  Warning
+                </span>{/if}{line.text}
+            </span>
           </div>
         {/each}
       {:else}
@@ -392,8 +398,10 @@
       class="run-expand"
       aria-label="Expand log: {name}"
       aria-haspopup="dialog"
-      onclick={expand}>Expand</button
+      onclick={expand}
     >
+      Expand
+    </button>
   </div>
 {/snippet}
 {#snippet jobLink(label: string)}
@@ -401,8 +409,10 @@
     href={runUrl}
     target="_blank"
     rel="noopener"
-    aria-label={checkLinkLabel(label, name)}>{label}<ExternalLinkIcon /></a
+    aria-label={checkLinkLabel(label, name)}
   >
+    {label}<ExternalLinkIcon />
+  </a>
 {/snippet}
 {#if jobId !== undefined}
   <div class="run-actions">
@@ -415,7 +425,8 @@
       disabled={!url}
       onclick={toggle}
       aria-label="{toggleName}: {name}"
-      >{toggleLabel}<svg
+    >
+      {toggleLabel}<svg
         class="run-chevron"
         viewBox="0 0 16 16"
         width="12"
@@ -427,9 +438,10 @@
         stroke-width="1.5"
         stroke-linecap="round"
         stroke-linejoin="round"
-        ><path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} /></svg
-      ></button
-    >
+      >
+        <path d={shown ? "M3 10l5-5 5 5" : "M3 6l5 5 5-5"} />
+      </svg>
+    </button>
     <!-- The slot is always there, so the toggle and the job link don't move when
        the output loads (#3866). Until the text is ready it is out of sight and
        out of the tab order. -->
@@ -444,7 +456,8 @@
         onclick={copy}
         title="Copy output"
         aria-label="Copy output: {name}"
-        ><svg
+      >
+        <svg
           viewBox="0 0 16 16"
           width="16"
           height="16"
@@ -455,11 +468,12 @@
           stroke-width="1.5"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><rect x="5" y="5" width="9" height="9" rx="1.5" /><path
+        >
+          <rect x="5" y="5" width="9" height="9" rx="1.5" /><path
             d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5"
-          /></svg
-        ></button
-      >
+          />
+        </svg>
+      </button>
     {/if}
     <a
       class="run-icon-btn"
@@ -468,8 +482,9 @@
       rel="noopener"
       title="Open job on {forgeName}"
       aria-label={checkLinkLabel(`Open job on ${forgeName}`, name)}
-      ><ExternalLinkIcon /></a
     >
+      <ExternalLinkIcon />
+    </a>
   </div>
 {/if}
 {@render context?.()}
@@ -531,7 +546,8 @@
         class="run-wide-x"
         aria-label="Close log dialog"
         onclick={() => wideDialog?.close()}
-        ><svg
+      >
+        <svg
           viewBox="0 0 24 24"
           width="18"
           height="18"
@@ -542,9 +558,10 @@
           stroke-width="2"
           stroke-linecap="round"
           stroke-linejoin="round"
-          ><path d="M18 6 6 18" /><path d="M6 6l12 12" /></svg
-        ></button
-      >
+        >
+          <path d="M18 6 6 18" /><path d="M6 6l12 12" />
+        </svg>
+      </button>
     </div>
     <div class="run-wide-bar">
       <div class="run-log-bar">{@render switches()}</div>
@@ -554,8 +571,10 @@
         class="run-wide-btn"
         aria-disabled={flow.busy ? "true" : undefined}
         aria-busy={flow.busy ? "true" : undefined}
-        onclick={copy}>Copy log</button
+        onclick={copy}
       >
+        Copy log
+      </button>
     </div>
     <p class="run-output-status run-wide-status" aria-live="polite">
       {statusLine}
@@ -580,16 +599,19 @@
       <button
         type="button"
         class="run-wide-btn"
-        onclick={() => wideDialog?.close()}>Close</button
+        onclick={() => wideDialog?.close()}
       >
+        Close
+      </button>
       <a
         class="run-wide-btn run-wide-primary"
         href={runUrl}
         target="_blank"
         rel="noopener"
         aria-label={checkLinkLabel(`Open run on ${forgeName}`, name)}
-        >Open run on {forgeName}<ExternalLinkIcon /></a
       >
+        Open run on {forgeName}<ExternalLinkIcon />
+      </a>
     </div>
   {/if}
 </dialog>
