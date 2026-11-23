@@ -27,7 +27,7 @@
     `=== RUN   TestStatic_ServerWiring\n--- FAIL: TestStatic_ServerWiring (0.02s)\n    static_test.go:48: GET /style.css: status 404, want 200\nFAIL${extra}\n`;
 </script>
 
-<!-- A failed check: the excerpt and the Copy output button. -->
+<!-- A failed check: the Copy output button. CheckRunOutput draws the excerpt (#4652). -->
 <Story name="Failed check" />
 
 <!-- The button is pressed while the whole log is still being read. -->
@@ -76,17 +76,16 @@
 <!-- A check with no job id (a status, not a run) copies its excerpt. -->
 <Story name="No job" args={{ jobId: undefined }} />
 
-<!-- Nothing to copy: the excerpt only, no button. -->
+<!-- Nothing to copy: no button. -->
 <Story name="Not copyable" args={{ copyable: false }} />
 
-<!-- Nothing at all: no excerpt and no button. -->
+<!-- Nothing at all: no button. -->
 <Story name="Empty" args={{ copyable: false, excerpt: "" }} />
 
 <!-- Keyboard focus on the button. -->
 <Story
   name="Focused"
   play={async ({ canvasElement }) => {
-    await userEvent.tab();
     await userEvent.tab();
     await expect(document.activeElement).toBe(
       canvasElement.querySelector("button"),

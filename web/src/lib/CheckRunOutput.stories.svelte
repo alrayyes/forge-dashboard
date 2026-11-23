@@ -24,6 +24,11 @@
     "FAIL\tgithub.com/alrayyes/forge-dashboard/internal/api\t0.118s",
   ].join("\n");
 
+  const EXCERPT = [
+    "    static_test.go:48: GET /style.css: status 404, want 200",
+    "FAIL",
+  ].join("\n");
+
   const view = async (canvasElement: HTMLElement) => {
     await userEvent.click(
       canvasElement.querySelector("button") as HTMLButtonElement,
@@ -112,7 +117,7 @@
      the accessible name, and the width is the one Show output has. -->
 <Story
   name="Closed with an excerpt"
-  args={{ excerptVisible: true }}
+  args={{ excerpt: EXCERPT }}
   play={async ({ canvasElement }) => {
     const toggle = within(canvasElement).getByRole("button", {
       name: "Show full output: test / go",
@@ -128,7 +133,7 @@
 <!-- Opening it with an excerpt in view reads Hide output, as without one. -->
 <Story
   name="Open with an excerpt"
-  args={{ excerptVisible: true }}
+  args={{ excerpt: EXCERPT }}
   beforeEach={() =>
     mockFetch([
       {
@@ -143,6 +148,74 @@
     });
     await expect(toggle).toHaveTextContent("Hide output");
     await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  }}
+/>
+
+<!-- A failed check's excerpt is drawn by the same view as the full output:
+     numbered lines, the switches and Expand (#4652). -->
+<Story
+  name="Excerpt"
+  args={{ excerpt: EXCERPT }}
+  play={async ({ canvasElement }) => {
+    const log = within(canvasElement).getByRole("region", {
+      name: "Output excerpt: test / go",
+    });
+    await expect(
+      within(log).getAllByRole("button", { name: /^Copy line \d+$/ }),
+    ).toHaveLength(2);
+    await expect(
+      within(canvasElement).getByLabelText("Wrap lines"),
+    ).toBeChecked();
+    await expect(
+      within(canvasElement).getByRole("button", {
+        name: "Expand log: test / go",
+      }),
+    ).toBeVisible();
+  }}
+/>
+
+<!-- Opening the full output replaces the excerpt in the one view, and the
+     switches keep their setting. -->
+<Story
+  name="Excerpt then full output"
+  args={{ excerpt: EXCERPT }}
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: /\/api\/v1\/checks\/log/,
+        body: { text: LOG, truncated: false },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByLabelText("Wrap lines"));
+    await view(canvasElement);
+    await waitFor(() =>
+      expect(
+        within(canvasElement).getByRole("region", {
+          name: "Output: test / go",
+        }),
+      ).toBeVisible(),
+    );
+    await expect(
+      within(canvasElement).getAllByLabelText("Wrap lines"),
+    ).toHaveLength(1);
+    await expect(
+      within(canvasElement).getByLabelText("Wrap lines"),
+    ).not.toBeChecked();
+  }}
+/>
+
+<!-- A check with no job: the excerpt alone, with no toggle. -->
+<Story
+  name="Excerpt without a job"
+  args={{ excerpt: EXCERPT, jobId: undefined }}
+  play={async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector(".run-toggle")).toBeNull();
+    await expect(
+      within(canvasElement).getByRole("region", {
+        name: "Output excerpt: test / go",
+      }),
+    ).toBeVisible();
   }}
 />
 
