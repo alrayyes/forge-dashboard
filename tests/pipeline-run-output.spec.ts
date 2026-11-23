@@ -408,7 +408,7 @@ test.describe('a check run output in the pipeline dialog', () => {
     );
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
 
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveText(
@@ -760,7 +760,7 @@ test.describe('a rerun gives a failed check a new job', () => {
 
     await rerun();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'new boom',
     );
     await expect(field).toHaveCount(0);
@@ -780,7 +780,7 @@ test.describe('a rerun gives a failed check a new job', () => {
 
     await rerunSameJob();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'new boom',
     );
     await expect(field).toHaveCount(0);
@@ -803,7 +803,7 @@ test.describe('a rerun gives a failed check a new job', () => {
 
     await retryAttempt();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'new boom',
     );
     await expect(field).toHaveCount(0);
@@ -885,7 +885,7 @@ test.describe('a rerun gives a failed check a new job', () => {
     state.excerpt = 'failed again';
     await poll();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'failed again',
     );
     await expect(field).toHaveCount(0);
@@ -906,7 +906,7 @@ test.describe('a rerun gives a failed check a new job', () => {
     state.excerpt = 'a later line of the same job';
     await poll();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'a later line of the same job',
     );
     await expect(field).toHaveValue('log of job 9\n');
@@ -928,7 +928,7 @@ test.describe('a rerun gives a failed check a new job', () => {
       'Copying',
     );
     await rerun();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveText(
+    await expect(dialog.locator('.run-excerpt .run-line-text')).toHaveText(
       'new boom',
     );
     release();
@@ -1108,12 +1108,12 @@ test.describe('a failed row has one Copy button', () => {
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
     await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(dialog.locator('.run-excerpt')).toBeVisible();
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await expect(copy).toHaveCount(1);
     await expect(copy).toHaveText('Copy output');
     await expect(
-      dialog.locator('pre[aria-label="Output excerpt: build"]'),
+      dialog.getByRole('region', { name: 'Output excerpt: build' }),
     ).toBeVisible();
   });
 
@@ -1129,7 +1129,7 @@ test.describe('a failed row has one Copy button', () => {
     await expect(
       dialog.getByRole('region', { name: 'Output: build' }),
     ).toBeVisible();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await expect(copy).toHaveCount(1);
@@ -1145,7 +1145,7 @@ test.describe('a failed row has one Copy button', () => {
 
     // Closing it brings the excerpt back, and focus stays on the toggle.
     await dialog.getByRole('button', { name: 'Hide output: build' }).click();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(dialog.locator('.run-excerpt')).toBeVisible();
     await expect(
       dialog.getByRole('button', { name: 'Show full output: build' }),
     ).toBeFocused();
@@ -1165,14 +1165,14 @@ test.describe('a failed row has one Copy button', () => {
       .click();
 
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
-    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(dialog.locator('.run-excerpt')).toBeVisible();
     await expect(copy).toHaveCount(1);
     await expect(copy).toHaveText('Copy output');
 
     await copy.focus();
     release();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(copy).toHaveAttribute('title', 'Copy output');
     await expect(copy).toBeFocused();
   });
@@ -1189,7 +1189,7 @@ test.describe('a failed row has one Copy button', () => {
       .click();
 
     await expect(dialog.locator('.run-output-error')).toBeVisible();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toBeVisible();
+    await expect(dialog.locator('.run-excerpt')).toBeVisible();
     const copy = dialog.getByRole('button', { name: 'Copy output: build' });
     await expect(copy).toHaveCount(1);
     await expect(copy).toHaveText('Copy output');
@@ -1215,12 +1215,12 @@ test.describe('a failed row has one Copy button', () => {
     await dialog
       .getByRole('button', { name: 'Show full output: build' })
       .click();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await pushChecks(page, subject, [{ ...failed[0], excerpt: 'boom again' }]);
     await expect(
       dialog.getByRole('region', { name: 'Output: build' }),
     ).toBeVisible();
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(
       dialog.getByRole('button', { name: 'Copy output: build' }),
     ).toHaveCount(1);
@@ -1266,7 +1266,7 @@ test.describe('a copy pressed while the output loads', () => {
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     release();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(dialog.locator('.run-output-status')).toHaveText('Copied');
     // Visible once: the excerpt's own status went with its button.
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
@@ -1288,7 +1288,7 @@ test.describe('a copy pressed while the output loads', () => {
     await dialog.getByRole('button', { name: 'Copy output: build' }).click();
     release();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(dialog.locator('.run-output-status')).toContainText(
       "Couldn't copy automatically",
     );
@@ -1305,7 +1305,7 @@ test.describe('a copy pressed while the output loads', () => {
       .click();
     release();
 
-    await expect(dialog.locator('.pipeline-check-excerpt')).toHaveCount(0);
+    await expect(dialog.locator('.run-excerpt')).toHaveCount(0);
     await expect(dialog.locator('.run-output-status')).toHaveText('');
     await expect(dialog.locator('.pipeline-check-copy-status')).toHaveCount(0);
   });
@@ -2509,4 +2509,197 @@ test.describe('the wide log dialog (#4281)', () => {
     expect(edge).toBeGreaterThanOrEqual(1);
     await expect(wide.getByRole('button', { name: 'Copy log' })).toBeVisible();
   });
+});
+
+// #4652: a failed check's excerpt and its full output are one log view.
+test.describe('the excerpt and the full output are one log view (#4652)', () => {
+  const failed = [
+    {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'failure',
+      url: runUrl,
+      jobId: 9,
+      excerpt: 'step 2\n##[error]boom: exit 1',
+      failedStep: 'Run tests',
+    },
+  ];
+  const log = {
+    status: 200,
+    body: { text: 'step 1\nstep 2\n##[error]boom: exit 1\n', truncated: false },
+  };
+
+  test('the excerpt has numbered lines, per-line copy, switches and Expand', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const excerpt = dialog.getByRole('region', {
+      name: 'Output excerpt: build',
+    });
+
+    await expect(excerpt).toContainText('boom: exit 1');
+    await expect(
+      excerpt.getByRole('button', { name: /^Copy line \d+$/ }),
+    ).toHaveCount(2);
+    await expect(excerpt.locator('.run-line-tag')).toHaveText('Error');
+    await expect(dialog.getByLabel('Wrap lines')).toBeChecked();
+    await expect(
+      dialog.getByRole('button', { name: 'Expand log: build' }),
+    ).toBeVisible();
+    await expect(dialog.locator('pre')).toHaveCount(0);
+  });
+
+  test('opening the full output swaps the text in place and keeps the switches', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByLabel('Wrap lines').uncheck();
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+
+    const output = dialog.getByRole('region', { name: 'Output: build' });
+    await expect(output).toContainText('step 1');
+    await expect(dialog.getByRole('region', { name: /^Output/ })).toHaveCount(
+      1,
+    );
+    await expect(dialog.getByLabel('Wrap lines')).toHaveCount(1);
+    await expect(dialog.getByLabel('Wrap lines')).not.toBeChecked();
+  });
+
+  test('a log that cannot be read leaves the excerpt, says so, links to the job and keeps one Copy output', async ({
+    page,
+  }) => {
+    await setup(page, { status: 404, body: { error: 'gone' } }, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output excerpt: build' }),
+    ).toBeVisible();
+    const error = dialog.locator('.run-output-error');
+    await expect(error).toBeVisible();
+    await expect(error).not.toHaveText('');
+    await expect(
+      error.getByRole('link', { name: /Open job on GitHub/ }),
+    ).toHaveAttribute('href', runUrl);
+    await expect(
+      dialog.getByRole('button', { name: 'Copy output: build' }),
+    ).toHaveCount(1);
+  });
+
+  test('the Failed step line comes before the excerpt in the page, not only on screen', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await expect(dialog.getByText('Failed step: Run tests')).toBeVisible();
+
+    const before = await dialog.evaluate((root) => {
+      const step = [...root.querySelectorAll('.pipeline-check-step')][0];
+      const excerpt = root.querySelector('.run-excerpt');
+      if (!step || !excerpt) return false;
+
+      return !!(
+        step.compareDocumentPosition(excerpt) & Node.DOCUMENT_POSITION_FOLLOWING
+      );
+    });
+    expect(before).toBe(true);
+  });
+
+  test('focus inside the excerpt moves to the toggle when the full log lands', async ({
+    page,
+  }) => {
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    const release = await holdLog(page, log);
+    await dialog
+      .getByRole('button', { name: 'Show full output: build' })
+      .click();
+    await dialog.getByLabel('Wrap lines').focus();
+    release();
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output: build' }),
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole('button', { name: 'Hide output: build' }),
+    ).toBeFocused();
+  });
+
+  test('Copy log in Expand, with only the excerpt showing, copies it and says so', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await setup(page, log, failed);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+    await dialog.getByRole('button', { name: 'Expand log: build' }).click();
+    const wide = page.getByRole('dialog', { name: 'Log: build' });
+    await wide.getByRole('button', { name: 'Copy log' }).click();
+
+    await expect(wide.locator('.run-wide-status')).toContainText(
+      'Copied the excerpt only',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'step 2\n##[error]boom: exit 1',
+    );
+  });
+
+  test('a failed check with an excerpt and no job shows the view without a toggle and copies the excerpt', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+    await setup(page, log, [
+      {
+        name: 'build',
+        status: 'completed',
+        conclusion: 'failure',
+        url: runUrl,
+        excerpt: 'only an excerpt',
+      },
+    ]);
+    const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+
+    await expect(
+      dialog.getByRole('region', { name: 'Output excerpt: build' }),
+    ).toContainText('only an excerpt');
+    await expect(dialog.locator('.run-toggle')).toHaveCount(0);
+    await dialog.getByRole('button', { name: 'Copy output: build' }).click();
+    await expect(dialog.locator('.pipeline-check-copy-status')).toContainText(
+      'Copied the excerpt only',
+    );
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
+      'only an excerpt',
+    );
+  });
+
+  for (const [width, scheme, forced] of [
+    [1280, 'light', 'none'],
+    [390, 'dark', 'none'],
+    [1280, 'light', 'active'],
+  ] as const) {
+    test(`the excerpt state passes axe at ${width}px, ${scheme}, forced colours ${forced}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.emulateMedia({ colorScheme: scheme, forcedColors: forced });
+      await setup(page, log, failed);
+      const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+      await expect(
+        dialog.getByRole('region', { name: 'Output excerpt: build' }),
+      ).toBeVisible();
+
+      const results = await new AxeBuilder({ page })
+        .include('#pipeline-dialog')
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
 });
