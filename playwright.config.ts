@@ -59,6 +59,7 @@ const singleUserSpecs = [
   '**/failed-pills-clear-comment.spec.ts',
   '**/wide-screen-title.spec.ts',
   '**/wait-chip-desktop.spec.ts',
+  '**/stopped-auto-merge-chip.spec.ts',
   '**/filter-bar-widths.spec.ts',
   '**/filter-bar-overlap.spec.ts',
   '**/filter-bar-one-control.spec.ts',

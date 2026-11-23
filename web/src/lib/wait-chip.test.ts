@@ -298,8 +298,22 @@ describe('autoMergeChip wording', () => {
     expect(chip?.detail).toBe('Codeberg merges it when checks pass');
   });
 
-  test('a stopped auto-merge is not a wait', () => {
-    expect(autoMergeChip(waiting({ state: 'stopped' }))).toBeNull();
+  test('a stopped auto-merge is a chip that says so, with no button and the whole sentence (#4601)', () => {
+    const chip = autoMergeChip(
+      waiting({
+        state: 'stopped',
+        message:
+          'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.',
+      }),
+    );
+    expect(chip).toMatchObject({
+      state: 'stopped',
+      icon: 'alert',
+      label: 'Auto-merge stopped',
+      detail: '',
+    });
+    expect(chip.action).toBeUndefined();
+    expect(chip.tooltip).toContain('Resolve it on');
   });
 });
 

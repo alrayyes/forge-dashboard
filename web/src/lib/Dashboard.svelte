@@ -1587,8 +1587,10 @@
     }
 
     // An armed pull request that has stopped needs a person, so it reads as a
-    // line led by the state, never by colour alone. One that is only waiting
-    // is the row's waiting chip instead (#1229). Both forges send the status
+    // line led by the state, never by colour alone. On a phone the card keeps
+    // this text line. From 761px the same words are the wait chip's stopped
+    // state instead (#4601), and CSS shows one of the two. One that is only
+    // waiting is the row's waiting chip (#1229). Both forges send the status
     // (GitHub since #1293).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMerge?.state !== "stopped") return null;
@@ -1668,8 +1670,10 @@
             forge: pr.forge,
             heldBy: pr.autoMergeHeldBy,
           });
-      if (!chip) return null;
-      const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
+      const disarm =
+        isSettled(pr) || chip.action !== "disarm"
+          ? null
+          : cancelAutoMergeCell(pr, true);
       return buildWaitChip(chip, {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
@@ -5909,7 +5913,9 @@
       if (!(active instanceof HTMLElement) || !container.contains(active))
         return null;
       const row = active.closest<HTMLElement>(".row");
-      return row?.querySelector(".merge-wait, .wait-chip")
+      return row?.querySelector(
+        ".merge-wait, .wait-chip:not([data-state=stopped])",
+      )
         ? (row.dataset.prKey ?? null)
         : null;
     }
@@ -5918,7 +5924,11 @@
       const row = Array.from(
         container.querySelectorAll<HTMLElement>(".row"),
       ).find((r) => r.dataset.prKey === key);
-      if (!row || row.querySelector(".merge-wait, .wait-chip")) return;
+      if (
+        !row ||
+        row.querySelector(".merge-wait, .wait-chip:not([data-state=stopped])")
+      )
+        return;
       if (row.querySelector('button[id^="merge-arm-"]'))
         announceText(MERGE_AVAILABLE);
     }

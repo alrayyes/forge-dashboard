@@ -40,14 +40,15 @@ export function settlesOnRow(kind: WaitKind): boolean {
   );
 }
 
-export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry';
+export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry' | 'alert';
 
 // What a chip offers, if anything. The button itself is the caller's: only it
 // knows what the click does.
 export type ChipAction = 'check-again' | 'disarm' | 'cancel' | 'arm';
 
 export type Chip = {
-  state: 'waiting' | 'stalled' | 'settled';
+  // 'stopped' is no wait: an armed auto-merge that needs a person (#4601).
+  state: 'waiting' | 'stalled' | 'settled' | 'stopped';
   icon: ChipIcon;
   // At most three words.
   label: string;
@@ -261,10 +262,22 @@ export function autoMergeWording(message: string, forge: string): string {
   return message.replace(/\bthe forge\b/i, () => label);
 }
 
-// An armed Forgejo auto-merge that is waiting. A stopped one needs a person,
-// so it is no wait and gets no chip.
-export function autoMergeChip(input: AutoMergeInput): Chip | null {
-  if (input.state !== 'waiting') return null;
+// The chip for an armed auto-merge. A waiting one carries on by itself. A
+// stopped one needs a person, so it is no wait: it says so in its label, with
+// an alert icon, and offers no button of its own (the row's Cancel
+// auto-merge is where it was). The server's whole sentence is the tooltip and
+// the accessible description, so a long refusal is never cut (#4601).
+export function autoMergeChip(input: AutoMergeInput): Chip {
+  if (input.state === 'stopped')
+    return {
+      state: 'stopped',
+      icon: 'alert',
+      label: 'Auto-merge stopped',
+      detail: '',
+      tooltip: autoMergeWording(input.message, input.forge),
+      showAgo: false,
+      countdown: false,
+    };
   const words = (label: string, detail: string) => ({
     state: 'waiting' as const,
     icon: 'hourglass' as const,
@@ -396,6 +409,7 @@ const ICON_PATHS: Record<ChipIcon, string[]> = {
   spinner: ['M21 12a9 9 0 1 1-6.2-8.55'],
   hourglass: ['M6 2h12', 'M6 22h12', 'M7 2v4l5 6-5 6v4', 'M17 2v4l-5 6 5 6v4'],
   check: ['M20 6 9 17l-5-5'],
+  alert: ['M12 3 2 20h20z', 'M12 10v4', 'M12 17h.01'],
   retry: ['M21 12a9 9 0 1 1-3-6.7', 'M21 3v6h-6'],
 };
 

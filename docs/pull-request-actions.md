@@ -637,9 +637,15 @@ method, the same as Merge. A pull request you didn't arm is never merged. Checks
 that fail, conflicts, a draft, a stack parent that hasn't merged yet or no
 checks at all keep it waiting, and it merges once that clears. The row says
 which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
-limited` and so on, and a text line says it stopped (a failed check, a conflict,
-or a refused merge, including a token without merge
-permission). When the server merges one it tells the page, which shows
+limited` and so on. One that has stopped (a failed check, a conflict, or a
+refused merge, including a token without merge permission) is the same kind of
+chip, `Auto-merge stopped`, with an alert icon and no button, on the status
+pill's line from 761px up. On a phone it stays the text line it was. The chip is
+as wide as its words, so a long refusal never cuts it: the server's whole
+sentence is the chip's tooltip, which opens on hover and on keyboard focus and
+is the chip's accessible description. On a list narrower than 1191px, from
+861px, the status column widens to make room for it, as it does for a chip with
+a button. When the server merges one it tells the page, which shows
 "Auto-merged owner/repo#N after checks passed" for the next few minutes. If
 Forgejo refuses the merge, the server doesn't ask again until the pull request
 changes (a rate limit or an unreachable forge is retried after five minutes),
@@ -766,8 +772,8 @@ the same way. `tests/phone-row-status-gap.spec.ts` measures all of it.
 
 The server's auto-merge sentences never name a forge. Where one would, it says
 "the forge" and the page swaps in the forge's capability label (GitHub,
-Forgejo), in the chip's tooltip and in the stopped line. The server sends the
-facts and the code, the page owns the wording.
+Forgejo), in the chip's tooltip and in the stopped line on a phone. The server
+sends the facts and the code, the page owns the wording.
 
 An armed pull request that is behind says whether that is what holds it. Where
 the base branch needs the branch to be current before a merge (GitHub's `strict`
