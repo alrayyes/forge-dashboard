@@ -66,6 +66,12 @@ func (c *Client) GetIssueDetails(ctx context.Context, owner, name string, number
 	}
 	details.References = append(details.References, c.outgoingReferences(ctx, details.Kind, issue.Title, issue.Body, owner, name, number)...)
 
+	// A cancel that lands after the last response was read has no failed
+	// request to carry it, so a caller that gave up still gets the error.
+	if err := ctx.Err(); err != nil {
+		return dashboard.IssueDetails{}, fmt.Errorf("forgejo: read issue details: %w", err)
+	}
+
 	return details, nil
 }
 
