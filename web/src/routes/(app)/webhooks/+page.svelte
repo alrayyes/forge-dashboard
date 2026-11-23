@@ -133,8 +133,18 @@
   let originProblem = $state("");
   // The row whose note detail Esc hid, until the pointer or focus leaves it.
   let dismissedNote = $state<string | null>(null);
+  // The note under the pointer, so Escape on the window can hide it even when
+  // focus is elsewhere.
+  let hoveredNote = $state<string | null>(null);
   function endDismiss(key: string) {
     if (dismissedNote === key) dismissedNote = null;
+  }
+  function leaveNote(key: string) {
+    if (hoveredNote === key) hoveredNote = null;
+    endDismiss(key);
+  }
+  function dismissHoveredNote(e: KeyboardEvent) {
+    if (e.key === "Escape" && hoveredNote) dismissedNote = hoveredNote;
   }
 
   let filterForge = $state("");
@@ -1153,6 +1163,8 @@
   </style>
 </svelte:head>
 
+<svelte:window onkeydown={dismissHoveredNote} />
+
 <div class="webhooks-wrap">
   <div class="webhooks-header">
     <h1>Webhooks</h1>
@@ -1600,7 +1612,8 @@
                         <span
                           class="webhook-note-wrap"
                           class:dismissed={dismissedNote === rowKey(repo)}
-                          onmouseleave={() => endDismiss(rowKey(repo))}
+                          onmouseenter={() => (hoveredNote = rowKey(repo))}
+                          onmouseleave={() => leaveNote(rowKey(repo))}
                           onfocusout={() => endDismiss(rowKey(repo))}
                           onkeydown={(e) => {
                             if (e.key === "Escape") {

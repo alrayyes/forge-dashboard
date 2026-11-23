@@ -94,8 +94,22 @@ test('a repo with no webhook says why, and a bad origin is said once', async ({
   expect(box?.width).toBeGreaterThan(100);
   expect((await locked.boundingBox())?.y).toBe(before?.y);
   await page.keyboard.press('Escape');
-  await expect(detail).not.toBeInViewport();
+  await expect
+    .poll(async () => (await detail.boundingBox())?.width ?? 0)
+    .toBeLessThanOrEqual(1);
   await expect(note).toBeFocused();
+
+  // Esc also hides it when only the pointer is on the note and focus is
+  // elsewhere (WCAG 1.4.13).
+  await page.locator('body').click({ position: { x: 1, y: 1 } });
+  await note.hover();
+  await expect
+    .poll(async () => (await detail.boundingBox())?.width ?? 0)
+    .toBeGreaterThan(100);
+  await page.keyboard.press('Escape');
+  await expect
+    .poll(async () => (await detail.boundingBox())?.width ?? 0)
+    .toBeLessThanOrEqual(1);
 
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
