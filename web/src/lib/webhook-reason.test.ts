@@ -40,6 +40,21 @@ describe('the note on a row that has no webhook', () => {
     );
   });
 
+  test('a refusal with no forge words is not credited to the forge', () => {
+    const note = webhookNote(
+      {
+        webhookReason: 'forge_refused',
+        webhookNextAttemptAt: '2026-11-23T13:00:00Z',
+      },
+      at,
+    );
+
+    expect(note?.detail).toBe(
+      'The forge refused to create the webhook and gave no reason.',
+    );
+    expect(note?.detail).not.toContain('The forge said');
+  });
+
   test('a refusal with no time still says it will try again', () => {
     const note = webhookNote({ webhookReason: 'forge_refused' }, at);
 

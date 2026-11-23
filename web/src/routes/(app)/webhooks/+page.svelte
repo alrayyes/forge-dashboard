@@ -131,6 +131,11 @@
   // Why no hook can be made while the public address stays as it is, once for
   // the whole page (#4682).
   let originProblem = $state("");
+  // The row whose note detail Esc hid, until the pointer or focus leaves it.
+  let dismissedNote = $state<string | null>(null);
+  function endDismiss(key: string) {
+    if (dismissedNote === key) dismissedNote = null;
+  }
 
   let filterForge = $state("");
   let filterRepo = $state("");
@@ -924,9 +929,11 @@
     }
     .webhook-note-wrap {
       display: block;
+      position: relative;
       max-width: 220px;
     }
-    /* Out of sight but still read aloud, until the note is hovered or focused. */
+    /* Out of sight but still read aloud. A popover over the rows below, so
+       showing it never moves them. Esc hides it (WCAG 1.4.13). */
     .webhook-note-detail {
       position: absolute;
       width: 1px;
@@ -935,17 +942,22 @@
       clip-path: inset(50%);
       white-space: nowrap;
     }
-    .webhook-note-wrap:hover .webhook-note-detail,
-    .webhook-note-wrap:focus-within .webhook-note-detail {
-      position: static;
-      display: block;
-      width: auto;
+    .webhook-note-wrap:not(.dismissed):hover .webhook-note-detail,
+    .webhook-note-wrap:not(.dismissed):focus-within .webhook-note-detail {
+      top: 100%;
+      left: 0;
+      z-index: 10;
+      width: 260px;
       height: auto;
       overflow: visible;
       clip-path: none;
       white-space: normal;
-      font-size: 0.6875rem;
-      color: var(--ink-3);
+      padding: 6px 8px;
+      font-size: 0.75rem;
+      color: var(--ink-2);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
     }
     .webhook-origin-problem {
       font-size: 0.8125rem;
@@ -1585,8 +1597,19 @@
                     {#if repo.canManageWebhooks}
                       {@const note = webhookNote(repo, formatTime)}
                       {#if note}
-                        <span class="webhook-note-wrap">
-                          <!-- svelte-ignore a11y_no_noninteractive_tabindex -- focus is how a keyboard user reaches the detail shown below -->
+                        <span
+                          class="webhook-note-wrap"
+                          class:dismissed={dismissedNote === rowKey(repo)}
+                          onmouseleave={() => endDismiss(rowKey(repo))}
+                          onfocusout={() => endDismiss(rowKey(repo))}
+                          onkeydown={(e) => {
+                            if (e.key === "Escape") {
+                              dismissedNote = rowKey(repo);
+                            }
+                          }}
+                          role="presentation"
+                        >
+                          <!-- svelte-ignore a11y_no_noninteractive_tabindex -- focus is how a keyboard user reaches the detail, and Esc hides it -->
                           <span
                             class="webhook-note"
                             tabindex="0"
