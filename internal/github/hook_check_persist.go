@@ -183,6 +183,7 @@ func (c *Client) pruneHookChecks(ctx context.Context, repos []graphqlRepo) {
 		if !slices.Contains(names, repo) {
 			delete(c.hookLastSaved, repo)
 			delete(c.ownHookEvents, repo)
+			delete(c.ownHookSeen, repo)
 		}
 	}
 }
