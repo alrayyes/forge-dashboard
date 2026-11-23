@@ -353,7 +353,10 @@ type PullRequest struct {
 	// LastCommentAt is when the newest comment, conversation or review, was
 	// written (its creation time, not an edit), or nil when there are none or
 	// the forge can't say (#4539). Forgejo leaves it nil: its payload has only
-	// a count, and a timestamp would cost a request per pull request.
+	// a count, and a timestamp would cost a request per pull request. GitHub
+	// returns the oldest 30 review threads, so on a pull request with more a
+	// newer comment in a later thread is missed and this can read older than
+	// the truth.
 	LastCommentAt *time.Time `json:"lastCommentAt,omitempty"`
 	// ClosesIssues lists the issues this pull request will close when it
 	// merges: GitHub's own closing references, or on Forgejo the closing

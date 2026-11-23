@@ -1416,6 +1416,8 @@
             : plural(comments, word),
         ),
       );
+      // whenWritten spells the age out ("2 hours ago"), unlike the short
+      // relativeTime above: a screen reader reads the tip as a description.
       const tip = commentPillTip({
         comments,
         open,

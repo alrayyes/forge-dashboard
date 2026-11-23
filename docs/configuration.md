@@ -88,6 +88,9 @@ same query, the newest conversation comment and the newest comment of each of
 the first 30 review threads, so it costs no request. Forgejo's pull request
 payload has only a count, so a timestamp would cost a request per pull request:
 the field is left out there, and so in GitHub's unauthenticated fallback.
+GitHub returns the oldest 30 review threads, so on a pull request with more than
+30 a newer comment in a later thread is missed and the time can read older than
+the truth.
 
 Each row shows that as a pill beside the other status pills: the number of
 comments, review and conversation together, and `7 · 2 open` in amber, with a

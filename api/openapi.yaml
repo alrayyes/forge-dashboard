@@ -7027,7 +7027,10 @@ components:
             request. Forgejo's pull request payload carries only a count, and
             a timestamp would take a request per pull request, so Forgejo
             leaves the field out. GitHub's unauthenticated fallback has no
-            comment data and leaves it out too.
+            comment data and leaves it out too. GitHub returns the oldest 30
+            review threads, so on a pull request with more than 30 a newer
+            comment in a later thread is missed and the time can read older
+            than the truth.
         closesIssues:
           type: array
           maxItems: 20
