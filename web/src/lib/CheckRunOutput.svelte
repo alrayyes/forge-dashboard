@@ -13,10 +13,12 @@
   import { CopyFlow, selectCopy } from "#lib/copy-flow.svelte.js";
   import {
     checkLinkLabel,
-    copyLineLabel,
-    copyLineStatus,
+    copyLinesLabel,
+    copyLinesStatus,
     copyLog,
     lineCopyText,
+    groupJsonBlocks,
+    lineNumberText,
     loadRunLog,
     logUrl,
     notePlaces,
@@ -73,7 +75,7 @@
   const toggleLabel = $derived(outputToggleLabel(shown, excerptVisible));
   const toggleName = $derived(outputToggleName(shown, excerptVisible));
   let text = $state("");
-  const lines = $derived(parseLogLines(full ? text : excerpt));
+  const lines = $derived(groupJsonBlocks(parseLogLines(full ? text : excerpt)));
   let truncated = $state(false);
   let message = $state("");
   // Whether the failure gets a link to the job beside its sentence.
@@ -105,6 +107,22 @@
   );
   // Lines wrap by default; off, a long line scrolls the one log area sideways.
   let wrap = $state(true);
+  // The JSON entries opened to their full text, by first raw line (#4685).
+  let openJson = $state<Record<number, boolean>>({});
+  // The number column's width: 44px, or more when a JSON entry's range such as
+  // 299-305 is longer than it holds. One width for the whole log, so the rows
+  // still line up.
+  const numberColumn = $derived.by(() => {
+    let longest = 0;
+    for (const [i, l] of lines.entries()) {
+      const n = lineNumberText({ from: l.from ?? i + 1, to: l.to ?? i + 1 });
+      if (n.length > longest) longest = n.length;
+    }
+
+    return longest > 4
+      ? `max(44px, calc(${longest} * 0.45rem + 16px))`
+      : undefined;
+  });
   const hasTimes = $derived(lines.some((l) => l.time));
   onDestroy(() => {
     clearTimeout(lineTimer);
@@ -137,7 +155,8 @@
   }
 
   async function copyLine(i: number, button: HTMLButtonElement) {
-    const n = i + 1;
+    const from = lines[i].from ?? i + 1;
+    const to = lines[i].to ?? i + 1;
     const text = lineCopyText(lines[i]);
     // The hide timer runs from the press, so a write that hangs behind a
     // permission prompt can't leave an old toast up. The toast keeps its words
@@ -155,7 +174,7 @@
     // The same words again are no change to a live region, so a trailing
     // no-break space flips each time they repeat. The toast keeps its words,
     // and never shows empty.
-    const base = copyLineStatus(n, outcome);
+    const base = copyLinesStatus(from, to, outcome);
     const said = lineStatus === base ? `${base}\u00a0` : base;
     copiedLine = outcome === "copied" ? i : -1;
     lineStatus = said;
@@ -272,6 +291,7 @@
         ?.querySelector(".run-excerpt")
         ?.contains(document.activeElement);
       text = got.text;
+      openJson = {};
       truncated = got.truncated;
       phase = "ready";
       flow.status = "";
@@ -322,6 +342,7 @@
       class="run-output-text"
       class:run-output-stamped={timestamps && hasTimes}
       class:run-output-nowrap={!wrap}
+      style:--run-no={numberColumn}
       {@attach (el) => {
         if (wide) wideOutput = el as HTMLDivElement;
         else output = el as HTMLDivElement;
@@ -342,7 +363,7 @@
               class="run-line-no"
               data-line={i}
               tabindex={i === stop ? 0 : -1}
-              aria-label={copyLineLabel(i + 1)}
+              aria-label={copyLinesLabel(line.from ?? i + 1, line.to ?? i + 1)}
               onclick={(e) => copyLine(i, e.currentTarget)}
               onfocus={() => (active = i)}
               onkeydown={(e) => moveLine(e, i)}
@@ -361,18 +382,43 @@
                   stroke-linejoin="round"
                 >
                   <path d="M3 8.5l3.5 3.5L13 5" />
-                </svg>{/if}{i + 1}
+                </svg>{/if}{lineNumberText({
+                from: line.from ?? i + 1,
+                to: line.to ?? i + 1,
+              })}
             </button>{#if timestamps && line.time}<span class="run-line-time">
                 {line.time}
-              </span>{/if}<span class="run-line-text">
-              {#if line.kind === "error"}<span class="run-line-tag">
-                  Error
-                </span>{:else if line.kind === "warning"}<span
-                  class="run-line-tag"
+              </span>{/if}{#if line.json !== undefined}<span
+                class="run-line-text run-line-json"
+              >
+                <button
+                  type="button"
+                  class="run-json-toggle"
+                  aria-label="JSON, lines {lineNumberText({
+                    from: line.from ?? i + 1,
+                    to: line.to ?? i + 1,
+                  })}"
+                  aria-expanded={!!openJson[line.from ?? i]}
+                  onclick={() =>
+                    (openJson[line.from ?? i] = !openJson[line.from ?? i])}
                 >
-                  Warning
-                </span>{/if}{line.text}
-            </span>
+                  JSON
+                </button>{#if openJson[line.from ?? i]}<span
+                    class="run-json-full"
+                  >
+                    {line.text}
+                  </span>{:else}<span class="run-json-compact">
+                    {line.json}
+                  </span>{/if}
+              </span>{:else}<span class="run-line-text">
+                {#if line.kind === "error"}<span class="run-line-tag">
+                    Error
+                  </span>{:else if line.kind === "warning"}<span
+                    class="run-line-tag"
+                  >
+                    Warning
+                  </span>{/if}{line.text}
+              </span>{/if}
           </div>
         {/each}
       {:else}
