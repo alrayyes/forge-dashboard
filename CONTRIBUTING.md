@@ -203,7 +203,10 @@ and rewrites the image lines in `ci.yml` and `release.yml`. Then it checks it
 changed only those two files and the expected three and one lines. It pushes one
 commit as `github-actions[bot]` with the `RELEASE_TOKEN` secret so the new head
 gets CI, and comments on the pull request. `RELEASE_TOKEN` only needs to be a
-Dependabot secret (`gh secret set RELEASE_TOKEN --app dependabot`). The workflow
+Dependabot secret (`gh secret set RELEASE_TOKEN --app dependabot`), and it needs
+Contents and Workflows read and write, since the push changes files under
+`.github/workflows/`. Until the secret exists, only a pull request that changes
+`@playwright/test` fails, with that command in the message. The workflow
 runs no script from the pull request, but anyone who can edit the workflow file
 on a Dependabot branch can still reach the token, which is the write access they
 already have. Once that commit is on the branch, Dependabot

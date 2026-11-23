@@ -3,8 +3,8 @@
 // (#4671). This is that edit, for a manual run: it reads the version from
 // package.json, finds the tag's digest and rewrites every image line in the
 // workflows. The pin-playwright-image workflow does the same with its own sed,
-// so the job that holds the token runs no script from a pull request. Ported from movie-planner-web's
-// scripts/pin-playwright-image.ts (its PR #989).
+// so the job that holds the token runs no script from a pull request. Ported
+// from movie-planner-web's scripts/pin-playwright-image.ts (its PR #989).
 
 import { spawnSync } from 'node:child_process';
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
