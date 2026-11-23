@@ -324,8 +324,8 @@ describe('autoMergeChip wording', () => {
       label: 'Auto-merge stopped',
       detail: '',
     });
-    expect(chip.action).toBeUndefined();
-    expect(chip.tooltip).toContain('Resolve it on');
+    expect(chip?.action).toBeUndefined();
+    expect(chip?.tooltip).toContain('Resolve it on');
   });
 });
 
