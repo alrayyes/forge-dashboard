@@ -82,6 +82,13 @@ comments from the reviews call that already feeds `review`, so a draft
 reports 0. Forgejo gives no resolved state without a request per review, so its
 `unresolvedThreads` is `null`: unknown, not zero.
 
+`lastCommentAt` says when the newest comment, conversation or review, was
+written: its creation time, so an edit doesn't move it. GitHub reads it from the
+same query, the newest conversation comment and the newest comment of each of
+the first 30 review threads, so it costs no request. Forgejo's pull request
+payload has only a count, so a timestamp would cost a request per pull request:
+the field is left out there, and so in GitHub's unauthenticated fallback.
+
 Each row shows that as a pill beside the other status pills: the number of
 comments, review and conversation together, and `7 · 2 open` in amber, with a
 dot, when threads are still unresolved. A pull request with no comments shows
