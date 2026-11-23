@@ -8,6 +8,7 @@ import {
   type CheckSegment,
   pillName,
 } from './check-counts.js';
+import { COUNTING, COUNTING_NOTE } from './ci-pill';
 import { isKnownForge } from './forges';
 import {
   addPillTip,
@@ -32,6 +33,8 @@ export type LinkedPullRequest = {
   ci: string;
   checks: CheckCounts;
   awaitingWorkflowApproval: boolean;
+  /** True while the forge has not listed every check; the counts are some of them (#4299). */
+  checksIncomplete?: boolean;
   /** The item's title when the server holds it, for the pill's hover text. */
   title?: string;
   /**
@@ -152,9 +155,20 @@ export function linkedPillName(
   const says = relation === 'refs' ? 'references, does not close' : relation;
   const noun = stated(pr) ? '' : `${nounOf(pr)} `;
   if (!ci) return `${noun}${head}, ${says} this issue`;
+  const said = ciSaid(ci);
+  return `${noun}${head} ${said}, ${says} this issue`;
+}
+
+/**
+ * What a pipeline says in a pill's accessible name: its words and counts, and
+ * for a list still being counted the same note the row's name carries (#4299).
+ */
+function ciSaid(ci: PillCi) {
   const said =
     ci.segments.length > 0 ? pillName(ci.label, ci.segments) : ci.label;
-  return `${noun}${head} ${said}, ${says} this issue`;
+  if (ci.label !== COUNTING) return said;
+
+  return `${said}${said.endsWith('…') ? '' : '.'} ${COUNTING_NOTE}`;
 }
 
 /** What a pull request does to the issue its pill sits on. */
@@ -176,11 +190,7 @@ export function linkedDialogName(
   const head = stated(pr)
     ? headOf(pr, issueRepo)
     : `${nounOf(pr)} ${numberOf(pr, issueRepo)}${stateOf(pr)}`;
-  const said = ci
-    ? ci.segments.length > 0
-      ? pillName(ci.label, ci.segments)
-      : ci.label
-    : '';
+  const said = ci ? ciSaid(ci) : '';
   const name = `${relationLabel(side, relation)}: ${said ? `${head} ${said}` : head}`;
   return external ? `${name}, opens on the forge in a new tab` : name;
 }
