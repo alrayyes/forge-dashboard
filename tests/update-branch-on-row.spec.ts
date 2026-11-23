@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A behind pull request the forge still calls mergeable keeps Merge as its
@@ -39,7 +40,7 @@ async function open(page: Page, width: number, pullRequest: unknown) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pullRequest],
         issues: [],
         repos: [],
@@ -129,7 +130,7 @@ test('a bot pull request, which the server gives no update_branch, has none on i
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pr({ author: 'dependabot[bot]', kind: 'dependency' })],
         issues: [],
         repos: [],
@@ -188,7 +189,7 @@ test('a behind bot pull request whose allowedActions omit update_branch gets non
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [
           pr({
             author: 'dependabot[bot]',

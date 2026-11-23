@@ -1,15 +1,18 @@
 package github_test
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -473,6 +476,43 @@ func TestGetIssueDetails_AFailedLookupLeavesTheThread(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "See #9", got.Description.Text)
 	assert.Empty(t, got.References)
+}
+
+// A caller that gives up while the references are looked up must get the
+// error, not a thread that quietly lacks them. Cancelling from the recorder,
+// which runs once the lookup's response has been read, fixes the order (#4691).
+func TestGetIssueDetails_ACancelDuringTheReferenceLookupIsAnError(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	defer cancel()
+	var queries []graphqlRequestBody
+	srv := outgoingServer(t, quietIssue("See #9"), map[string]map[string]any{
+		"alrayyes/a#9": referencingItem("Issue", "alrayyes/a", 9, "Nine", "OPEN"),
+	}, &queries)
+	recorder := &cancelOnNthRecord{n: 2, cancel: cancel}
+
+	got, err := github.NewClient("test-token", "", srv.URL, recorder).GetIssueDetails(ctx, "alrayyes", "a", 7)
+
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Len(t, queries, 2, "the lookup ran, so the cancel landed during it")
+	assert.Equal(t, dashboard.IssueDetails{}, got, "no partial thread")
+}
+
+// cancelOnNthRecord cancels a context once its nth request has been read and
+// logged.
+type cancelOnNthRecord struct {
+	n      int32
+	seen   atomic.Int32
+	cancel context.CancelFunc
+}
+
+func (r *cancelOnNthRecord) Record(_ context.Context, _ requestlog.Entry) error {
+	if r.seen.Add(1) == r.n {
+		r.cancel()
+	}
+
+	return nil
 }
 
 // A pull request closes what it says it closes.

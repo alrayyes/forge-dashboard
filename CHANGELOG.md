@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.104.2](https://github.com/alrayyes/forge-dashboard/compare/v9.104.1...v9.104.2) (2026-11-23)
+
+
+### Performance Improvements
+
+* **github:** repair a hook from the probe's read, not a second listing ([#4699](https://github.com/alrayyes/forge-dashboard/issues/4699)) ([1a22203](https://github.com/alrayyes/forge-dashboard/commit/1a22203fa31498ecaf39fac90de379fc4f479505))
+
+## [9.104.1](https://github.com/alrayyes/forge-dashboard/compare/v9.104.0...v9.104.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **github:** return the context error when a cancel lands during the reference lookup ([#4694](https://github.com/alrayyes/forge-dashboard/issues/4694)) ([01b790b](https://github.com/alrayyes/forge-dashboard/commit/01b790bd180d3defe7748aeeaba886258d682bb2)), closes [#4691](https://github.com/alrayyes/forge-dashboard/issues/4691)
+
+## [9.104.0](https://github.com/alrayyes/forge-dashboard/compare/v9.103.1...v9.104.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** create hooks on every repo the token can administer ([#4684](https://github.com/alrayyes/forge-dashboard/issues/4684)) ([1e5d2a8](https://github.com/alrayyes/forge-dashboard/commit/1e5d2a8e2dff14d8d1e4023f4d89d859d5697731))
+
 ## [9.103.1](https://github.com/alrayyes/forge-dashboard/compare/v9.103.0...v9.103.1) (2026-11-23)
 
 

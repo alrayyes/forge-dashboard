@@ -5423,3 +5423,31 @@ func TestListChecks_UnfinishedCheckHasNoEnd(t *testing.T) {
 		assert.Nil(t, queued.CompletedAt)
 	})
 }
+
+func TestUpgradeWebhook_HookSwitchedOff_PatchesItActive(t *testing.T) {
+	t.Parallel()
+
+	var patches int
+	mux := http.NewServeMux()
+	mux.HandleFunc("/repos/alrayyes/a/hooks", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		writeJSON(t, w, []map[string]any{
+			{"id": 7, "events": []string{"check_run", "status", "pull_request_review_thread", "pull_request_review_comment", "pull_request_review", "issue_comment", "issues", "pull_request", "push"}, "config": map[string]any{"url": "https://dashboard.example/api/webhooks/github/tok123"}, "active": false},
+		})
+	})
+	mux.HandleFunc("/repos/alrayyes/a/hooks/7", func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPatch, r.Method)
+		patches++
+		writeJSON(t, w, map[string]any{"id": 7})
+	})
+	srv := httptest.NewServer(mux)
+	defer srv.Close()
+
+	client := github.NewClient("test-token", "", srv.URL)
+
+	updated, err := client.UpgradeWebhook(t.Context(), "alrayyes", "a", "https://dashboard.example/api/webhooks/github/tok123", "sekret")
+
+	require.NoError(t, err)
+	assert.True(t, updated)
+	assert.Equal(t, 1, patches)
+}

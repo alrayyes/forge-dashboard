@@ -108,7 +108,18 @@ type Client struct {
 	// ownHookEvents is the event list of the app's own hook on each repo the
 	// last check found one on, keyed by full name. A repo with no entry has
 	// no confirmed hook. Guarded by hooksMu.
-	ownHookEvents   map[string][]string
+	ownHookEvents map[string][]string
+	// ownHookSeen is what the last probe read of that hook, enough for the
+	// hourly repair to act without listing the hooks again (#4687). Memory
+	// only: after a restart the first repair lists once. Guarded by hooksMu.
+	//
+	// Two trade-offs, both bounded. A probe whose listing failed leaves the old
+	// entry, so the repair can skip a hook that lost an event meanwhile; the
+	// entry stops counting after seenHookMaxAge, and the old code read fresh
+	// every hour. A probe that read before a PATCH can't overwrite the PATCH's
+	// answer: noteOwnHook compares the times the reads were taken.
+	ownHookSeen     map[string]seenHook
+	seenHookMaxAge  time.Duration
 	hooksDeniedRepo map[string]time.Time
 	// refusedRepo is the last real refusal verdict per repo, so a poll
 	// whose hooks call failed for an unrelated reason doesn't flip it.
@@ -469,6 +480,20 @@ func (c *Client) SetWebhookDenialTTL(d time.Duration) {
 	c.hooksDenialTTL = d
 }
 
+// defaultSeenHookMaxAge is how long what a probe read is trusted by the hourly
+// repair: two of its own intervals, so one missed pass doesn't force a listing
+// but a probe that keeps failing does.
+const defaultSeenHookMaxAge = 2 * time.Hour
+
+// SetSeenHookMaxAge changes how old a probe's read can be before the repair
+// lists the hooks itself (#4687). Zero means the default, two hours. It is
+// exported for tests, which live outside the package.
+func (c *Client) SetSeenHookMaxAge(d time.Duration) {
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	c.seenHookMaxAge = d
+}
+
 func (c *Client) hooksTTL() time.Duration {
 	if c.hooksDenialTTL > 0 {
 		return c.hooksDenialTTL
@@ -606,6 +631,12 @@ var githubWebhookEvents = []string{
 // back to active with the right config rather than creating a second,
 // duplicate hook — GitHub, unlike Forgejo, allows several hooks with
 // the identical URL, so nothing stops a duplicate except checking first.
+//
+// It always writes an existing hook, because the "Add a webhook" button relies
+// on that to replace a changed secret. The post-refresh pass calls it only for
+// a repo whose snapshot shows no hook, so a write there means the snapshot was
+// stale: one idempotent PATCH, after which the next refresh sees the hook and
+// leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	u, err := url.Parse(targetURL)
 	if err != nil {
@@ -619,7 +650,9 @@ func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secr
 
 	hook := ownHook(targetURL, secret)
 	if existing != nil {
-		return c.editHook(ctx, owner, name, existing.GetID(), hook)
+		_, err = c.editHook(ctx, owner, name, existing.GetID(), hook)
+
+		return err
 	}
 
 	path := fmt.Sprintf("/repos/%s/%s/hooks", owner, name)
@@ -662,39 +695,90 @@ func ownHook(targetURL, secret string) *ghsdk.Hook {
 	}
 }
 
-// editHook PATCHes hook id with hook.
-func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hook *ghsdk.Hook) error {
+// editHook PATCHes hook id with hook and returns the hook GitHub answers with.
+func (c *Client) editHook(ctx context.Context, owner, name string, id int64, hook *ghsdk.Hook) (*ghsdk.Hook, error) {
 	path := fmt.Sprintf("/repos/%s/%s/hooks/%d", owner, name, id)
 	slog.Debug("github request", "method", http.MethodPatch, "url", path)
-	_, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
+	edited, resp, err := c.restClient.Repositories.EditHook(ctx, owner, name, id, hook)
 	if err != nil {
-		return c.appAware(asClientError(c.restError(ctx, http.MethodPatch, path, err)))
+		return nil, c.appAware(asClientError(c.restError(ctx, http.MethodPatch, path, err)))
 	}
 	c.recordRESTSuccess(ctx, http.MethodPatch, path, resp)
 
-	return nil
+	return edited, nil
 }
 
-// UpgradeWebhook implements dashboard.WebhookUpgrader: one hooks listing, and
-// a PATCH only when this app's hook lacks an event it subscribes to now. It
-// never creates a hook (#1555).
+// UpgradeWebhook implements dashboard.WebhookUpgrader: a PATCH only when this
+// app's hook is switched off or lacks an event it subscribes to now. It never
+// creates a hook. It decides from what the last probe read (#4687), and lists
+// the hooks itself once when that read can't be used: the repo was never
+// probed, the read is older than the max age, the probe looked for another
+// path than targetURL's, or the PATCH answered 404 because the hook is gone.
 func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
 	u, err := url.Parse(targetURL)
 	if err != nil {
 		return false, fmt.Errorf("github: invalid webhook target URL: %w", err)
 	}
+	fullName := owner + "/" + name
+	if seen, known := c.probedHook(fullName, u.Path); known {
+		updated, repairErr := c.repairHook(ctx, owner, name, seen, targetURL, secret)
+		if !isNotFound(repairErr) {
+			return updated, repairErr
+		}
+		// The hook was deleted, or recreated under a new id, since the probe.
+		// Forget it and look once, as the repair did before it reused the probe.
+		c.noteOwnHook(fullName, nil, time.Now())
+	}
 	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
 	if err != nil {
 		return false, asClientError(err)
 	}
-	if existing == nil || dashboard.WebhookCoversEvents(existing.Events, githubWebhookEvents) {
+	if existing == nil {
 		return false, nil
 	}
-	if err := c.editHook(ctx, owner, name, existing.GetID(), ownHook(targetURL, secret)); err != nil {
+
+	return c.repairHook(ctx, owner, name,
+		seenHook{id: existing.GetID(), active: existing.GetActive(), events: existing.Events}, targetURL, secret)
+}
+
+// repairHook PATCHes seen unless it is already switched on and subscribed to
+// every event, and remembers the state it left.
+func (c *Client) repairHook(ctx context.Context, owner, name string, seen seenHook, targetURL, secret string) (bool, error) {
+	if seen.active && dashboard.WebhookCoversEvents(seen.events, githubWebhookEvents) {
+		return false, nil
+	}
+	edited, err := c.editHook(ctx, owner, name, seen.id, ownHook(targetURL, secret))
+	if err != nil {
 		return false, err
 	}
+	fullName := owner + "/" + name
+	probe := hookProbe{has: true, id: seen.id, active: edited.GetActive(), events: edited.Events, refused: c.lastRefused(fullName)}
+	c.noteOwnHook(fullName, &probe, time.Now())
+	c.saveHookCheck(fullName, probe)
 
 	return true, nil
+}
+
+// isNotFound reports whether err is a forge's "no such thing" answer.
+func isNotFound(err error) bool {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+
+	return ok && clientErr.Kind == dashboard.ForgeErrorNotFound
+}
+
+// probedHook is what the last probe read of fullName's own hook, when that
+// probe looked for the path the repair wants. Anything else, such as a repo
+// not probed since the process started, sends the repair to list the hooks.
+func (c *Client) probedHook(fullName, wantPath string) (seenHook, bool) {
+	if c.webhookPath == "" || c.webhookPath != wantPath {
+		return seenHook{}, false
+	}
+	c.hooksMu.Lock()
+	defer c.hooksMu.Unlock()
+	seen, ok := c.ownHookSeen[fullName]
+	maxAge := cmp.Or(c.seenHookMaxAge, defaultSeenHookMaxAge)
+
+	return seen, ok && time.Since(seen.at) < maxAge
 }
 
 // MergePullRequest implements dashboard.PullRequestMerger: merges
@@ -2898,6 +2982,7 @@ func repoLogoURL(r graphqlRepo) string {
 // nothing about the permission, so they leave refused as it last was.
 type hookProbe struct {
 	has     bool
+	id      int64
 	refused bool
 	// active is whether the hook that was found is switched on.
 	active bool
@@ -2913,6 +2998,15 @@ func (p hookProbe) vouchesForChecks() bool {
 	return p.has && p.active && (slices.Contains(p.events, "check_run") || slices.Contains(p.events, "status"))
 }
 
+// seenHook is the part of a hook the repair decides from.
+type seenHook struct {
+	id     int64
+	active bool
+	events []string
+	// at is when the hook was read, or for a PATCH when it answered.
+	at time.Time
+}
+
 // WebhookEvents returns the events the app's own hook on fullName subscribes
 // to, and whether the last check confirmed such a hook at all. A repo that
 // was never checked, or whose last answer was no hook, is not confirmed.
@@ -2926,20 +3020,32 @@ func (c *Client) WebhookEvents(fullName string) ([]string, bool) {
 	return slices.Clone(events), ok
 }
 
-// noteOwnHook remembers what a successful hooks listing found for fullName.
-func (c *Client) noteOwnHook(fullName string, hook *hookProbe) {
+// noteOwnHook remembers what a successful hooks listing found for fullName. It
+// reports whether it did: a read older than what is remembered is ignored.
+func (c *Client) noteOwnHook(fullName string, hook *hookProbe, readAt time.Time) bool {
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
 
+	if cur, ok := c.ownHookSeen[fullName]; ok && cur.at.After(readAt) {
+		return false
+	}
+
 	if hook == nil || !hook.has {
 		delete(c.ownHookEvents, fullName)
+		delete(c.ownHookSeen, fullName)
 
-		return
+		return true
 	}
+	if c.ownHookSeen == nil {
+		c.ownHookSeen = make(map[string]seenHook)
+	}
+	c.ownHookSeen[fullName] = seenHook{id: hook.id, active: hook.active, events: hook.events, at: readAt}
 	if c.ownHookEvents == nil {
 		c.ownHookEvents = make(map[string][]string)
 	}
 	c.ownHookEvents[fullName] = hook.events
+
+	return true
 }
 
 // CredentialLabel implements dashboard.CredentialLabeler: the label this
@@ -3189,6 +3295,7 @@ func (c *Client) checkWebhooks(ctx context.Context, repos []graphqlRepo) map[str
 // the events, since it says nothing about them.
 func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe {
 	fullName := owner + "/" + name
+	readAt := time.Now()
 	hook, err := c.findOwnHook(ctx, owner, name, c.webhookPath)
 	if err != nil {
 		c.logHooksFailure(fullName, err)
@@ -3204,11 +3311,13 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 	}
 	probe := hookProbe{has: hook != nil, refused: c.noteRefused(fullName, false, false)}
 	if hook != nil {
+		probe.id = hook.GetID()
 		probe.events = hook.Events
 		probe.active = hook.GetActive()
 	}
-	c.noteOwnHook(fullName, &probe)
-	c.saveHookCheck(fullName, probe)
+	if c.noteOwnHook(fullName, &probe, readAt) {
+		c.saveHookCheck(fullName, probe)
+	}
 
 	return probe
 }

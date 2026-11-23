@@ -1,5 +1,6 @@
 import { expect, type Route } from '@playwright/test';
 import { flushRequests } from './flush-requests-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
@@ -12,7 +13,7 @@ const now = new Date().toISOString();
 function snapshot(extra: Record<string, unknown> = {}) {
   return {
     generatedAt: now,
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: [],
     issues: [],
     ...extra,

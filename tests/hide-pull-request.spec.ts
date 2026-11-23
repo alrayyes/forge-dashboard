@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Hide one pull request, with Undo and a Hidden list (#841). The server owns
@@ -47,7 +48,7 @@ function standIn(page: Page, initial: Record<number, Hidden> = {}) {
 
   const dashboard = (includeHidden: boolean) => ({
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     pullRequests: PRS.filter((p) => includeHidden || !hidden.has(p.number)).map(
       (p) => {
         const h = hidden.get(p.number);
