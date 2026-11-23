@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -88,15 +89,7 @@ func unreportedContexts(globs, reported []string) []string {
 	var missing []string
 	for _, g := range globs {
 		re := globRegexp(g, false)
-		found := false
-		for _, r := range reported {
-			if re.MatchString(r) {
-				found = true
-
-				break
-			}
-		}
-		if !found {
+		if !slices.ContainsFunc(reported, re.MatchString) {
 			missing = append(missing, g)
 		}
 	}
