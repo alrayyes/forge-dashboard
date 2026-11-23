@@ -3017,20 +3017,21 @@ func (c *Client) WebhookEvents(fullName string) ([]string, bool) {
 	return slices.Clone(events), ok
 }
 
-// noteOwnHook remembers what a successful hooks listing found for fullName.
-func (c *Client) noteOwnHook(fullName string, hook *hookProbe, readAt time.Time) {
+// noteOwnHook remembers what a successful hooks listing found for fullName. It
+// reports whether it did: a read older than what is remembered is ignored.
+func (c *Client) noteOwnHook(fullName string, hook *hookProbe, readAt time.Time) bool {
 	c.hooksMu.Lock()
 	defer c.hooksMu.Unlock()
 
 	if cur, ok := c.ownHookSeen[fullName]; ok && cur.at.After(readAt) {
-		return
+		return false
 	}
 
 	if hook == nil || !hook.has {
 		delete(c.ownHookEvents, fullName)
 		delete(c.ownHookSeen, fullName)
 
-		return
+		return true
 	}
 	if c.ownHookSeen == nil {
 		c.ownHookSeen = make(map[string]seenHook)
@@ -3040,6 +3041,8 @@ func (c *Client) noteOwnHook(fullName string, hook *hookProbe, readAt time.Time)
 		c.ownHookEvents = make(map[string][]string)
 	}
 	c.ownHookEvents[fullName] = hook.events
+
+	return true
 }
 
 // CredentialLabel implements dashboard.CredentialLabeler: the label this
@@ -3309,8 +3312,9 @@ func (c *Client) probeOwnHook(ctx context.Context, owner, name string) hookProbe
 		probe.events = hook.Events
 		probe.active = hook.GetActive()
 	}
-	c.noteOwnHook(fullName, &probe, readAt)
-	c.saveHookCheck(fullName, probe)
+	if c.noteOwnHook(fullName, &probe, readAt) {
+		c.saveHookCheck(fullName, probe)
+	}
 
 	return probe
 }
