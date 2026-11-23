@@ -38,6 +38,7 @@ type WebhookUpgrades struct {
 	mu         sync.Mutex
 	logged     map[Forge]string
 	next       map[string]time.Time
+	outcomes   map[string]WebhookOutcome
 	jitter     time.Duration
 	retryAfter time.Duration
 	now        func() time.Time
@@ -53,6 +54,7 @@ const DefaultWebhookRetryAfter = time.Hour
 func NewWebhookUpgrades(jitter time.Duration) *WebhookUpgrades {
 	return &WebhookUpgrades{
 		next:       make(map[string]time.Time),
+		outcomes:   make(map[string]WebhookOutcome),
 		logged:     make(map[Forge]string),
 		jitter:     jitter,
 		retryAfter: DefaultWebhookRetryAfter,
@@ -230,7 +232,7 @@ func createJobs(src Source, snap Snapshot) []repoJob {
 	var jobs []repoJob
 	for _, fullName := range unhookedRepos(snap, forge) {
 		jobs = append(jobs, repoJob{
-			key: "create|" + string(forge) + "|" + fullName, fullName: fullName,
+			key: "create|" + string(forge) + "|" + fullName, fullName: fullName, create: true,
 			run: func(ctx context.Context, owner, name, targetURL, secret string) error {
 				if err := manager.EnsureWebhook(ctx, owner, name, targetURL, secret); err != nil {
 					return fmt.Errorf("ensure hook: %w", err)
@@ -249,7 +251,7 @@ func createJobs(src Source, snap Snapshot) []repoJob {
 func healthyForges(snap Snapshot) map[Forge]bool {
 	healthy := make(map[Forge]bool, len(snap.Forges))
 	for _, h := range snap.Forges {
-		healthy[h.Forge] = h.Reachable && (h.RateLimitREST == nil || h.RateLimitREST.Remaining > 0)
+		healthy[h.Forge] = ForgeServesHookWork(h)
 	}
 
 	return healthy
@@ -285,7 +287,9 @@ func unhookedRepos(snap Snapshot, forge Forge) []string {
 type repoJob struct {
 	key      string
 	fullName string
-	run      func(ctx context.Context, owner, name, targetURL, secret string) error
+	// create marks a job that makes a missing hook, whose outcome is kept.
+	create bool
+	run    func(ctx context.Context, owner, name, targetURL, secret string) error
 }
 
 func runJobs(cfg *webhookUpgradeConfig, forge Forge, jobs []repoJob, targetURL, secret string) {
@@ -324,11 +328,11 @@ func claimAndRun(cfg *webhookUpgradeConfig, forge Forge, job repoJob, targetURL,
 		return true
 	}
 
-	return runJob(cfg.ctx, forge, job, targetURL, secret)
+	return runJob(cfg.ctx, cfg.state, forge, job, targetURL, secret)
 }
 
 // runJob reports false when the forge could not be asked right now.
-func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret string) bool {
+func runJob(ctx context.Context, state *WebhookUpgrades, forge Forge, job repoJob, targetURL, secret string) bool {
 	ctx = apistats.WithKind(ctx, apistats.KindHookMaintenance)
 	owner, name, ok := strings.Cut(job.fullName, "/")
 	if !ok {
@@ -343,10 +347,21 @@ func runJob(ctx context.Context, forge Forge, job repoJob, targetURL, secret str
 			(clientErr.Kind == ForgeErrorRateLimited || clientErr.Kind == ForgeErrorUnreachable ||
 				clientErr.Kind == ForgeErrorUpstream) {
 			slog.Info("webhook maintenance: forge not available, trying later", "forge", forge, "repo", job.fullName, "kind", clientErr.Kind)
+			if job.create {
+				state.record(forge, job.fullName, job.key, &WebhookOutcome{Reason: WebhookUnavailable})
+			}
 
 			return false
 		}
 		slog.Warn("webhook maintenance: could not create or repair the hook", "forge", forge, "repo", job.fullName, "error", err)
+		if _, isClient := errors.AsType[*ClientError](err); isClient && job.create {
+			state.record(forge, job.fullName, job.key, &WebhookOutcome{Reason: WebhookRefused, Detail: ClassifyForgeRefusal(err).Message})
+		}
+
+		return true
+	}
+	if job.create {
+		state.record(forge, job.fullName, job.key, nil)
 	}
 
 	return true
