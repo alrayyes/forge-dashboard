@@ -23,6 +23,8 @@
   // close button and a click on the backdrop close it, and focus goes back to
   // the control that opened it.
   import { tick } from "svelte";
+  import FilterGroup from "#lib/FilterGroup.svelte";
+  import FilterPill from "#lib/FilterPill.svelte";
   import { forgeLabelOf } from "#lib/forges.js";
   import { renderMarkdown } from "#lib/markdown.js";
   import { type Advisories, ago, httpHref } from "#lib/main-branches.js";
@@ -334,20 +336,21 @@
         </p>
       {/if}
     {:else}
-      <div class="adv-filters" role="group" aria-label="Filter by severity">
-        {#each FILTERS as f (f.key)}
-          {#if f.key === "all" || counts[f.key] > 0}
-            <button
-              type="button"
-              class="adv-filter"
-              data-testid="advisory-filter-{f.key}"
-              aria-pressed={filter === f.key}
-              onclick={() => pick(f.key)}
-            >
-              {f.label} <span class="adv-count">{countOf(f.key)}</span>
-            </button>
-          {/if}
-        {/each}
+      <div class="adv-filters">
+        <FilterGroup label="Severity" id="adv-severity">
+          {#each FILTERS as f (f.key)}
+            {#if f.key === "all" || counts[f.key] > 0}
+              <FilterPill
+                data-testid="advisory-filter-{f.key}"
+                pressed={filter === f.key}
+                count={countOf(f.key)}
+                onclick={() => pick(f.key)}
+              >
+                {f.label}
+              </FilterPill>
+            {/if}
+          {/each}
+        </FilterGroup>
         <span class="adv-sorted">Sorted by severity, then age</span>
       </div>
       {#if list?.partial}
@@ -679,8 +682,7 @@
   .adv-close,
   .adv-ghost,
   .adv-back,
-  .adv-row,
-  .adv-filter {
+  .adv-row {
     cursor: pointer;
   }
   .adv-close {
@@ -711,7 +713,6 @@
   .adv-ghost:focus-visible,
   .adv-back:focus-visible,
   .adv-row:focus-visible,
-  .adv-filter:focus-visible,
   .adv-refs a:focus-visible {
     outline: 2px solid var(--accent);
     outline-offset: 1px;
@@ -746,32 +747,6 @@
     align-items: center;
     gap: 8px;
     margin-bottom: 12px;
-  }
-  .adv-filter {
-    min-height: 32px;
-    padding: 0 12px;
-    border: 1px solid var(--control-border);
-    border-radius: 999px;
-    background: var(--surface);
-    color: var(--ink);
-    font: inherit;
-    font-size: 0.8125rem;
-  }
-  .adv-filter[aria-pressed="true"] {
-    background: var(--ink);
-    color: var(--surface);
-    border-color: var(--ink);
-  }
-  /* Forced colors drops the ink fill of the pressed filter (#3388): a 3px
-     system-colour border marks it, padding cut to match. */
-  @media (forced-colors: active) {
-    .adv-filter[aria-pressed="true"] {
-      border: 3px solid Highlight;
-      padding: 0 10px;
-    }
-  }
-  .adv-count {
-    font-weight: 600;
   }
   .adv-sorted {
     margin-left: auto;
@@ -942,7 +917,6 @@
       flex-basis: 100%;
     }
     .adv-row,
-    .adv-filter,
     .adv-ghost,
     .adv-back,
     .adv-close {
