@@ -1,7 +1,7 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { assignShards, durationsFromJunit } from './e2e-shards';
+import { assignShards, durationsFromJunit, speedsFor } from './e2e-shards';
 
 test('every spec lands in exactly one shard', () => {
   const durations = { 'a.spec.ts': 5, 'b.spec.ts': 3, 'c.spec.ts': 2 };
@@ -22,6 +22,15 @@ test('the longest specs go to different shards and the rest even them out', () =
     s.reduce((n, f) => n + durations[f as keyof typeof durations], 0),
   );
   expect(Math.abs(totals[0] - totals[1])).toBeLessThanOrEqual(1);
+});
+
+test('a slower shard is given proportionally less work', () => {
+  const durations = Object.fromEntries(
+    Array.from({ length: 40 }, (_, i) => [`s${i}.spec.ts`, 10]),
+  );
+  const shards = assignShards(Object.keys(durations), durations, 2, [0.5, 1]);
+  expect(shards[0].length).toBe(13);
+  expect(shards[1].length).toBe(27);
 });
 
 test('a spec with no recorded duration counts as the average of the rest', () => {
@@ -91,8 +100,10 @@ test('the committed durations cover at least 90 percent of the specs', () => {
 test('the committed durations split the suite into six shards within a minute', () => {
   const known = specs.filter((s) => s in committed);
   const mean = known.reduce((n, s) => n + committed[s], 0) / known.length;
-  const loads = assignShards(specs, committed, 6).map((shard) =>
-    shard.reduce((n, s) => n + (committed[s] ?? mean), 0),
+  const speeds = speedsFor(6);
+  const loads = assignShards(specs, committed, 6, speeds).map(
+    (shard, i) =>
+      shard.reduce((n, s) => n + (committed[s] ?? mean), 0) / speeds[i],
   );
   expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(60);
 });

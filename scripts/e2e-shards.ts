@@ -7,16 +7,32 @@ const durationsFile = path.join(testsDir, 'e2e-durations.json');
 
 type Durations = Record<string, number>;
 
+// Shard 1 runs the same specs about 1.25 times slower than the rest, whatever
+// it is given: its test step took 7m47s against 6m05s for shard 2 on a run
+// where both had 348s of recorded work, and it was the slowest shard in five
+// of the last six runs, under the old split too (#3477). Nothing in the job is
+// specific to it, so it gets 80 percent of an even share instead. Re-measure
+// when the runners change; set this to 1 if shard 1 stops standing out.
+export const SHARD_SPEEDS: Record<number, number> = { 1: 0.8 };
+
+export function speedsFor(total: number): number[] {
+  return Array.from({ length: total }, (_, i) => SHARD_SPEEDS[i + 1] ?? 1);
+}
+
 // Splits spec files over `total` shards so each shard's summed duration is
 // close to the others': longest spec first, each into the lightest shard so
 // far. A spec with no recorded duration counts as the average of the recorded
 // ones, so a new spec lands somewhere sensible until the file is refreshed.
 // Entries for specs that are gone are ignored. The result depends only on the
 // inputs, never on the order specs arrive in.
+//
+// `speeds` is each shard's relative speed (1 by default): a shard at 0.8 runs
+// the same specs a quarter slower, so it is given less work.
 export function assignShards(
   specs: string[],
   durations: Durations,
   total: number,
+  speeds: number[] = new Array<number>(total).fill(1),
 ): string[][] {
   const known = specs.filter((s) => s in durations);
   const mean =
@@ -32,7 +48,11 @@ export function assignShards(
   for (const spec of ordered) {
     let lightest = 0;
     for (let i = 1; i < total; i++)
-      if (loads[i] < loads[lightest]) lightest = i;
+      if (
+        (loads[i] + weight(spec)) / speeds[i] <
+        (loads[lightest] + weight(spec)) / speeds[lightest]
+      )
+        lightest = i;
     shards[lightest].push(spec);
     loads[lightest] += weight(spec);
   }
@@ -67,7 +87,12 @@ if (import.meta.main) {
   if (cmd === 'shard' && a && b) {
     const index = Number(a);
     const total = Number(b);
-    const shards = assignShards(listSpecs(), readDurations(), total);
+    const shards = assignShards(
+      listSpecs(),
+      readDurations(),
+      total,
+      speedsFor(total),
+    );
     const mine = shards[index - 1];
     // `playwright test` with no file arguments runs every spec, so an empty
     // shard must fail rather than quietly run the whole suite.
@@ -85,9 +110,13 @@ if (import.meta.main) {
   } else if (cmd === 'plan' && a) {
     const total = Number(a);
     const durations = readDurations();
-    assignShards(listSpecs(), durations, total).forEach((s, i) => {
+    const speeds = speedsFor(total);
+    assignShards(listSpecs(), durations, total, speeds).forEach((s, i) => {
       const sum = s.reduce((n, f) => n + (durations[f] ?? 0), 0);
-      console.log(`shard ${i + 1}: ${s.length} specs, ${sum.toFixed(0)}s`);
+      console.log(
+        `shard ${i + 1}: ${s.length} specs, ${sum.toFixed(0)}s of work, ` +
+          `about ${(sum / speeds[i]).toFixed(0)}s to run`,
+      );
     });
   } else {
     console.error(
