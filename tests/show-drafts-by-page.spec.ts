@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3704: a page offers Show drafts only when a draft of a kind it lists is
@@ -39,7 +40,7 @@ function answer(route: Route) {
     contentType: 'application/json',
     body: JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+      forges: [forgeHealth('github')],
       pullRequests: include
         ? [RELEASE, RELEASE_2, BOT, BOT_DRAFT]
         : [RELEASE, RELEASE_2, BOT],
