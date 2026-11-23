@@ -151,6 +151,7 @@ func (a *Aggregator) startWebhookUpgrade(snap Snapshot) {
 func (a *Aggregator) runWebhookUpgrade(cfg *webhookUpgradeConfig, snap Snapshot) {
 	healthy := healthyForges(snap)
 	originProblem := WebhookOriginProblem(cfg.origin)
+	cfg.state.prune(snap, healthy, originProblem)
 
 	var token, secret string
 	for _, src := range a.sources {
@@ -355,7 +356,7 @@ func runJob(ctx context.Context, state *WebhookUpgrades, forge Forge, job repoJo
 		}
 		slog.Warn("webhook maintenance: could not create or repair the hook", "forge", forge, "repo", job.fullName, "error", err)
 		if _, isClient := errors.AsType[*ClientError](err); isClient && job.create {
-			state.record(forge, job.fullName, job.key, &WebhookOutcome{Reason: WebhookRefused, Detail: ClassifyForgeRefusal(err).Message})
+			state.record(forge, job.fullName, job.key, &WebhookOutcome{Reason: WebhookRefused, Detail: forgeOwnWords(err)})
 		}
 
 		return true

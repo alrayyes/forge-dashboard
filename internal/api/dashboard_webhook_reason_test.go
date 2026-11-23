@@ -121,13 +121,13 @@ func TestDashboard_WebhookReason_RateLimitedCreate_IsUnavailable(t *testing.T) {
 func TestDashboard_WebhookReason_RefusedCreate_CarriesTheForgesReasonAndTheNextAttempt(t *testing.T) {
 	t.Parallel()
 
-	src := githubSource(dashboard.ForgeHealth{Reachable: true}, &dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("403 forbidden")},
+	src := githubSource(dashboard.ForgeHealth{Reachable: true}, &dashboard.ClientError{Kind: dashboard.ForgeErrorUnauthorized, Err: errors.New("Resource not accessible by integration")},
 		dashboard.Repo{Forge: dashboard.ForgeGitHub, FullName: "o/bare", CanManageWebhooks: true})
 
 	repo := firstRepo(webhookDashboard(t, src, goodOrigin, func(b map[string]any) bool { return firstRepo(b)["webhookReason"] != nil }))
 
 	assert.Equal(t, "forge_refused", repo["webhookReason"])
-	assert.NotEmpty(t, repo["webhookReasonDetail"])
+	assert.Equal(t, "Resource not accessible by integration", repo["webhookReasonDetail"])
 	next, err := time.Parse(time.RFC3339, repo["webhookNextAttemptAt"].(string))
 	require.NoError(t, err)
 	assert.True(t, next.After(time.Now()))
