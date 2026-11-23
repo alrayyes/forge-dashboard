@@ -1,6 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { checkSegments, pillName, pillWord } from './check-counts';
+import {
+  type CheckKind,
+  checkSegments,
+  pillName,
+  pillWord,
+  segmentTip,
+} from './check-counts';
 
 describe('checkSegments', () => {
   test('draws passed, running, waiting, failed in that order', () => {
@@ -272,4 +278,27 @@ describe('checkSegments with unknown, cancelled and held', () => {
       'Running 2: 2 unknown',
     );
   });
+});
+
+// What a segment says when pointed at (#4422): one rule for every kind, a
+// singular "check" for one and a plural for the rest.
+describe('segmentTip', () => {
+  const kinds: [CheckKind, string][] = [
+    ['passed', 'passed'],
+    ['skipped', 'skipped'],
+    ['running', 'running'],
+    ['waiting', 'waiting'],
+    ['notStarted', 'not started'],
+    ['failed', 'failed'],
+    ['unknown', 'unknown'],
+    ['cancelled', 'cancelled'],
+    ['held', 'held'],
+  ];
+
+  for (const [kind, word] of kinds) {
+    test(`${kind} is singular for 1 and plural otherwise`, () => {
+      expect(segmentTip({ kind, n: 1 })).toBe(`1 check ${word}`);
+      expect(segmentTip({ kind, n: 7 })).toBe(`7 checks ${word}`);
+    });
+  }
 });

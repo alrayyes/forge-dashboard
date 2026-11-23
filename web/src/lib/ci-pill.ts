@@ -19,8 +19,10 @@ import {
   onlySkipped,
   pillName,
   pillWord,
+  segmentTip,
 } from './check-counts';
 import { CHECK_GLYPHS } from './check-glyphs';
+import { attachSegmentTips } from './ci-pill-tip';
 
 export type CiPillInput = {
   // The status class the colours hang on: success, failure, pending, ...
@@ -44,6 +46,8 @@ export type CiPillModel = {
   glyph: string;
   word: string;
   segments: CheckSegment[];
+  // What each segment says when pointed at, in the segments' order (#4422).
+  tips: string[];
   // A failed pill whose pipeline has checks running or queued: the failure
   // stands, but the run can still change, so the pill says it is not over.
   live: boolean;
@@ -135,6 +139,7 @@ export function ciPillModel(input: CiPillInput): CiPillModel {
     glyph: input.glyph,
     word,
     segments,
+    tips: segments.map(segmentTip),
     live,
     cancelled,
     name,
@@ -203,10 +208,9 @@ export function renderCiPill(
       label.appendChild(live);
     }
     root.appendChild(label);
-    // A Cancelled pill's tooltip says its counts whole (#3395).
-    if (model.cancelled) root.title = model.name;
-    for (const { kind, n } of model.segments) {
+    for (const [i, { kind, n }] of model.segments.entries()) {
       const seg = span(`ci-seg ci-seg-${kind}`);
+      seg.setAttribute('data-tip', model.tips[i]);
       // The counts are said in words by the name (or, on a badge, by the hidden
       // text after them), so a screen reader skips these.
       seg.setAttribute('aria-hidden', 'true');
@@ -220,6 +224,12 @@ export function renderCiPill(
       root.appendChild(seg);
     }
   }
+
+  // Before the click that opens the pipeline, so a tap on a segment can show
+  // its tip instead of opening it. Always, not only when segmented: the Main
+  // branches page keeps one button and redraws its children, so a pill that
+  // gains counts later must already listen. It finds segments as it goes.
+  attachSegmentTips(root);
 
   if (onOpen) {
     if (id) root.id = id;

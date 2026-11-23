@@ -525,6 +525,7 @@ export function mountFeedbackUI(
   // chip is in it, so the card grows once. An armed auto-merge's own chip is
   // in the slot already; an action in flight on the row outranks it while it
   // lasts.
+  const parked = new WeakMap<HTMLElement, HTMLElement[]>();
   function decorateChip(row: HTMLElement, key: string) {
     const slot = row.querySelector<HTMLElement>('.status-cell > .wait-slot');
     if (!slot) return;
@@ -538,18 +539,26 @@ export function mountFeedbackUI(
       .forEach((chip) => {
         chip.remove();
       });
+    // The row's own chip steps out of the document while an action's chip
+    // stands in for it, so one chip label is on the row at a time. It comes
+    // back when the action's chip goes.
+    for (const own of parked.get(slot) ?? []) slot.appendChild(own);
+    parked.delete(slot);
     const wait = waitFor(key);
-    if (wait) slot.appendChild(drawChip(wait.entry, wait.chip));
-    for (const own of Array.from(
-      slot.querySelectorAll<HTMLElement>(
-        ':scope > .wait-chip:not([data-source="feedback"])',
-      ),
-    ))
-      own.hidden = wait !== null;
+    if (wait) {
+      const own = Array.from(
+        slot.querySelectorAll<HTMLElement>(
+          ':scope > .wait-chip:not([data-source="feedback"])',
+        ),
+      );
+      for (const chip of own) chip.remove();
+      parked.set(slot, own);
+      slot.appendChild(drawChip(wait.entry, wait.chip));
+    }
     if (held && !slot.contains(document.activeElement))
       (
-        slot.querySelector<HTMLElement>('.wait-chip:not([hidden]) button') ??
-        slot.querySelector<HTMLElement>('.wait-chip:not([hidden])')
+        slot.querySelector<HTMLElement>('.wait-chip button') ??
+        slot.querySelector<HTMLElement>('.wait-chip')
       )?.focus({ preventScroll: true });
   }
 

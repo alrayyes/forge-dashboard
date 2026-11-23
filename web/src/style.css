@@ -1124,6 +1124,22 @@ section.board {
   }
 }
 
+/* #4663: a row with a waiting chip and a button (Update branch, a bot's
+   rebase) widens its status track from 280px, so the chip and the button
+   share the line under the CI pill and the row is no taller than one with a
+   Merge button. A chip with a detail line is wider than the title can spare,
+   so that row keeps the stacked cell. The 761-860px range keeps its narrower
+   track. */
+@media (min-width: 861px) {
+  @container (max-width: min(calc(700px + 19rem), 1190px)) {
+    .row:not(.issue-row):has(.status-cell > .wait-slot:not(:empty)):not(
+        :has(.status-cell > .wait-slot .wait-chip-detail:not(:empty))
+      ):has(.status-cell > .row-action-bar) {
+      grid-template-columns: 240px minmax(0, 1fr) 25rem 22px;
+    }
+  }
+}
+
 /* #4502: from 1191px of list width (a 1280px window) a pull request row is
    one centred line. The status track holds three fixed slots: the CI pill, the
    merge-state and comment pills (a Conflicting pill takes the same slot as the
@@ -1219,7 +1235,12 @@ section.board {
     }
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags)) {
-      grid-template-columns: min-content minmax(0, 1fr);
+      grid-template-columns: min-content max-content;
+      /* The CI pill keeps one x whether or not a chip sits beside it (#1563,
+         #4663): packed to the start, the chip grows the cell to the right
+         instead of pushing the pill left. It is also the x the pill has in
+         a row with actions. */
+      justify-content: start;
     }
     .row:not(.issue-row)
       .status-cell:not(:has(> .row-action-bar, > .status-flags))
@@ -1232,6 +1253,58 @@ section.board {
       grid-column: 2;
       grid-row: 1;
       justify-self: start;
+    }
+    /* #4663: a waiting chip and an action (Update branch) share the cell's one
+       line: the CI pill, the chip, the action. The status track grows to the
+       chip's width the way it does for a wide pill (#4541), so the row is no
+       taller than one with a Merge button. */
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .row-action-bar):not(:has(> .status-flags)) {
+      grid-template-columns: min-content max-content max-content;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .row-action-bar):not(:has(> .status-flags))
+      > .wait-slot {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: start;
+    }
+    /* With a comment or merge-state pill too, the chip takes a track between
+       the CI pill and the pills, so the line is the CI pill, the chip, the
+       pills, the action, and the row is no taller than one without the
+       chip. */
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags) {
+      grid-template-columns: min-content max-content 7.5rem max-content;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
+      > .wait-slot {
+      grid-column: 2;
+      grid-row: 1;
+      justify-self: start;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
+      > .status-flags {
+      grid-column: 3;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
+      > .row-action-bar {
+      grid-column: 4;
     }
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
@@ -1273,6 +1346,16 @@ section.board {
     }
     .row:not(.issue-row) .title-cell {
       align-content: flex-start;
+    }
+    /* #4663: with a comment pill and a chip, the CI pill and the pill share
+       the first line and the chip takes the next, so the cell holds the same
+       number of lines as one with a Merge button. */
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags)
+      > .state-group {
+      flex: 0 1 auto;
     }
   }
 }
@@ -3504,6 +3587,10 @@ a.ci-pill:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A chip with no second line (Waiting for CI) is one line, with no gap. */
+.wait-chip-detail:empty {
+  display: none;
+}
 .wait-chip-detail {
   font-size: 0.6875rem;
   font-weight: 400;
@@ -3586,6 +3673,24 @@ a.ci-pill:hover {
   .wait-chip-detail {
     flex: 0 1 auto;
     min-width: 0;
+  }
+  /* The button sits inside the chip's 1px border, so 28px keeps the chip at
+     30px and a waiting row no taller than a row with a Merge button (#4663).
+     Still over the 24px floor of WCAG 2.5.8. */
+  .wait-chip-action {
+    min-height: 28px;
+  }
+}
+
+/* A touch screen wider than the phone card (a tablet) gets the 44px target
+   the card has, and the chip grows to hold it (#4663). */
+@media (min-width: 761px) and (pointer: coarse) {
+  .wait-chip {
+    min-height: 46px;
+  }
+  .wait-chip-action {
+    min-width: 44px;
+    min-height: 44px;
   }
 }
 
@@ -7119,4 +7224,28 @@ footer a[aria-current="page"] {
   border-radius: 999px;
   padding: 1px 7px;
   line-height: 1.3;
+}
+
+/* #4422: what a CI pill's segment counts, on hover, keyboard focus and tap.
+   One shared popover (the top layer, so a pill in a dialog is not covered and
+   no row's overflow clips it); ci-pill-tip.ts places it inside the viewport.
+   Same surface, ink and border as the other tooltips, so the contrast holds
+   in both themes. */
+.ci-pill-tip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.71875rem;
+  font-weight: 400;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  white-space: normal;
+  overflow: visible;
 }
