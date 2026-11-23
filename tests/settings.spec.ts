@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 import { addVirtualAuthenticator } from './webauthn-helper';
@@ -21,7 +22,7 @@ test.describe('settings page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [],
           navCounts: {

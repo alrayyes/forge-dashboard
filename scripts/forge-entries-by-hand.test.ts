@@ -62,9 +62,7 @@ const stillByHand = [
   'row-failure-lines.spec.ts',
   'row-opens-dialog.spec.ts',
   'row-status-grammar.spec.ts',
-  'settings.spec.ts',
   'stable-rows.spec.ts',
-  'stale-dashboard-instance.spec.ts',
   'timezone.spec.ts',
   'unreachable-banner-height.spec.ts',
   'unreachable-forge.spec.ts',
@@ -76,7 +74,6 @@ const stillByHand = [
   'webhooks-filter-choices.spec.ts',
   'webhooks-page.spec.ts',
   'webhooks-rebase-bots.spec.ts',
-  'webmcp.spec.ts',
 ];
 
 const dir = join(import.meta.dir, '..', 'tests');
