@@ -5,6 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #705: Merge is always on an open pull request's row. Clickable when the
@@ -52,7 +53,7 @@ function mockDashboard(page: Page, pr: MockPR) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+        forges: [forgeHealth('github')],
         pullRequests: [pr],
         issues: [],
       }),

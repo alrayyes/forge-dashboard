@@ -201,6 +201,18 @@ for (const sc of scenarios) {
       // to the chip that stands in for Cancel auto-merge, which has no action of its own.
       await page.keyboard.press('Enter');
 
+      // From the reply on, every focus change is written down, so a control
+      // focused for a few milliseconds still shows (#4729).
+      await page.evaluate(() => {
+        const w = window as unknown as { __focused: string[] };
+        w.__focused = [];
+        document.addEventListener('focusin', (e) => {
+          const t = e.target as HTMLElement;
+          w.__focused.push(
+            `${t.closest('.wait-chip') ? 'chip' : 'other'}:${t.id || t.textContent?.trim()}`,
+          );
+        });
+      });
       release();
       // f2 is taken once the route has answered, not at a fixed delay.
       await expect.poll(() => replied).toBe(true);
@@ -234,6 +246,16 @@ for (const sc of scenarios) {
       // (a chip saying "Cancelling" stands in), so focus is on that chip.
       expect(f1.text, trace).toMatch(/Cancelling|Enabling…/);
       expect(posted).toHaveLength(1);
+      if (status === 204 && !sc.inDialog) {
+        // A 204 never puts focus on the stale chip the reply re-attaches.
+        const focused = await page.evaluate(
+          () => (window as unknown as { __focused: string[] }).__focused,
+        );
+        expect(
+          focused.filter((f) => f.startsWith('chip:')),
+          trace,
+        ).toEqual([]);
+      }
       if (status === 429) {
         // A rate limit locks the button (aria-disabled, with its reason), but
         // it stays in place and focused.
