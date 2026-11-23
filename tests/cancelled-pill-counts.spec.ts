@@ -147,7 +147,9 @@ test.describe('Cancelled pill counts (#3395)', () => {
     ).toHaveCount(0);
   });
 
-  test('the name and the tooltip say the counts whole', async ({ page }) => {
+  test('the name says the counts whole, with no native title (#4422)', async ({
+    page,
+  }) => {
     await open(page);
 
     const name = 'Cancelled 4 9: 4 passed, 9 cancelled out of 13 checks.';
@@ -155,7 +157,7 @@ test.describe('Cancelled pill counts (#3395)', () => {
       'aria-label',
       `${name} Open pipeline`,
     );
-    await expect(pill(page, 'Some passed')).toHaveAttribute('title', name);
+    await expect(pill(page, 'Some passed')).not.toHaveAttribute('title', /.*/);
     await expect(pill(page, 'Some passed')).toHaveAccessibleName(
       `${name} Open pipeline`,
     );
