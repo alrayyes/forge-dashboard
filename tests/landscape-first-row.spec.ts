@@ -281,8 +281,9 @@ const EXPECTED: Record<
     toolbar: 24,
     // One row shorter since the page offers no Show drafts when no draft
     // exists (#3680): the mock holds none. A row taller again, since the
-    // pills are 32px, carry a count and wrap sooner (#4611).
-    filterBar: 138,
+    // pills are 32px, carry a count and wrap sooner (#4611). A pixel shorter
+    // with Group not drawn over one repo (#4680).
+    filterBar: 137,
   },
   '1280x800': {
     activityPosition: 'sticky',

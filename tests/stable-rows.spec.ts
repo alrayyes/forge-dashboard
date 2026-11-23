@@ -566,7 +566,8 @@ test.describe('stable rows: a long list', () => {
 });
 
 test.describe('stable rows: choices the server saves', () => {
-  const initial = [makePR(1), makePR(2)];
+  // Two repos, since sorting by repository is offered only over more than one (#4680).
+  const initial = [makePR(1), makePR(2, { repo: 'alrayyes/other' })];
 
   test.beforeEach(async ({ page }) => {
     await stubStream(page);
@@ -613,7 +614,11 @@ test.describe('stable rows: choices the server saves', () => {
     // move it first, Created keeps it where it was.
     await push(page, [
       initial[0],
-      makePR(2, { updatedAt: new Date().toISOString(), title: 'Renamed 2' }),
+      makePR(2, {
+        repo: 'alrayyes/other',
+        updatedAt: new Date().toISOString(),
+        title: 'Renamed 2',
+      }),
     ]);
     await expect(page.locator('#pr-rows .row').nth(1)).toContainText(
       'Renamed 2',
