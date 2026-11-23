@@ -428,6 +428,26 @@ func (c *Client) UpgradeWebhook(ctx context.Context, owner, name, targetURL, sec
 	return true, nil
 }
 
+// RewriteWebhookSecret implements dashboard.WebhookSecretRewriter: one hooks
+// listing, and a PATCH of this app's hook whatever its state, since Forgejo
+// never returns the secret to compare. It never creates a hook.
+func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return false, fmt.Errorf("forgejo: invalid webhook target URL: %w", err)
+	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil || existing == nil {
+		return false, err
+	}
+	config := map[string]string{"url": targetURL, "content_type": "json", "secret": secret}
+	if err := c.editHook(ctx, owner, name, existing.ID, config); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
 // upgradeComparedEvents is forgejoWebhookEvents without `status`: two real
 // Forgejo instances never persist that event however it is set
 // (docs/webhooks.md), so counting its absence would PATCH every covered hook at

@@ -747,16 +747,26 @@ func (c *Client) repairHook(ctx context.Context, owner, name string, seen seenHo
 	if seen.active && dashboard.WebhookCoversEvents(seen.events, githubWebhookEvents) {
 		return false, nil
 	}
+	if err := c.patchOwnHook(ctx, owner, name, seen, targetURL, secret); err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+// patchOwnHook PATCHes seen with this app's hook body and remembers the state
+// it left.
+func (c *Client) patchOwnHook(ctx context.Context, owner, name string, seen seenHook, targetURL, secret string) error {
 	edited, err := c.editHook(ctx, owner, name, seen.id, ownHook(targetURL, secret))
 	if err != nil {
-		return false, err
+		return err
 	}
 	fullName := owner + "/" + name
 	probe := hookProbe{has: true, id: seen.id, active: edited.GetActive(), events: edited.Events, refused: c.lastRefused(fullName)}
 	c.noteOwnHook(fullName, &probe, time.Now())
 	c.saveHookCheck(fullName, probe)
 
-	return true, nil
+	return nil
 }
 
 // isNotFound reports whether err is a forge's "no such thing" answer.
@@ -779,6 +789,36 @@ func (c *Client) probedHook(fullName, wantPath string) (seenHook, bool) {
 	maxAge := cmp.Or(c.seenHookMaxAge, defaultSeenHookMaxAge)
 
 	return seen, ok && time.Since(seen.at) < maxAge
+}
+
+// RewriteWebhookSecret implements dashboard.WebhookSecretRewriter: a PATCH of
+// this app's hook whatever its state, since GitHub never returns the secret to
+// compare. It never creates a hook. Like UpgradeWebhook it starts from what the
+// last probe read and lists the hooks once when that can't be used.
+func (c *Client) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
+	u, err := url.Parse(targetURL)
+	if err != nil {
+		return false, fmt.Errorf("github: invalid webhook target URL: %w", err)
+	}
+	fullName := owner + "/" + name
+	if seen, known := c.probedHook(fullName, u.Path); known {
+		err := c.patchOwnHook(ctx, owner, name, seen, targetURL, secret)
+		if !isNotFound(err) {
+			return err == nil, err
+		}
+		c.noteOwnHook(fullName, nil, time.Now())
+	}
+	existing, err := c.findOwnHook(ctx, owner, name, u.Path)
+	if err != nil {
+		return false, asClientError(err)
+	}
+	if existing == nil {
+		return false, nil
+	}
+	err = c.patchOwnHook(ctx, owner, name,
+		seenHook{id: existing.GetID(), active: existing.GetActive(), events: existing.Events}, targetURL, secret)
+
+	return err == nil, err
 }
 
 // MergePullRequest implements dashboard.PullRequestMerger: merges
