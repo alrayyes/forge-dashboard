@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #4188: a #N that is a pull request opened an error ("Could not resolve to an
@@ -93,14 +94,7 @@ async function open(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: now,
-        forges: [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
-            capabilities: { label: 'GitHub' },
-          },
-        ],
+        forges: [forgeHealth('github')],
         pullRequests: [pullRequest],
         issues: [issue],
       }),
