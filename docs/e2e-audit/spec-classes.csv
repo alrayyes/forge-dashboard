@@ -45,6 +45,7 @@ checking-for-conflicts.spec.ts,7.653,2,1,A,,3.8
 checks-incomplete-pill.spec.ts,,3,1,C,,0.0
 ci-pill-actions.spec.ts,2.958,4,4,A,web/src/lib/ci-pill.test.ts,0.0
 ci-pill-counts.spec.ts,1.777,9,5,A,web/src/lib/ci-pill.test.ts,0.8
+ci-pill-segment-tips.spec.ts,,14,13,A,web/src/lib/ci-pill.test.ts,0.0
 ci-status-pulldown-gone.spec.ts,0.558,3,0,C,,0.6
 close-neutral.spec.ts,2.746,6,5,A,,0.5
 closing-issues.spec.ts,6.631,12,6,A,web/src/lib/closing-issues.test.ts,3.3

@@ -127,6 +127,13 @@ export function checkSegments(counts: CheckCounts | undefined): CheckSegment[] {
   });
 }
 
+// What a segment says when pointed at, focused or tapped (#4422): "7 checks
+// passed", "1 check running". One rule for every kind, built from the segment
+// the pill draws, so the number can never differ from the one beside the glyph.
+export function segmentTip({ kind, n }: CheckSegment): string {
+  return `${n} ${n === 1 ? 'check' : 'checks'} ${kindWord(kind)}`;
+}
+
 // What a screen reader hears: the visible text first, word and counts spelt
 // the way the pill's own text reads, so the name contains it whole (WCAG 2.5.3,
 // which axe measures as label-content-name-mismatch), and then each count in

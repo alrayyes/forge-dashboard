@@ -1105,7 +1105,7 @@ runs are counted in `checks.cancelled` beside the others. The pill says how far
 the run got, drawn like the Failed, Passed and Running pills: the word
 `Cancelled`, then a passed count and a cancelled count, each with its glyph (the
 passed part is left out when nothing passed). On a phone the word goes and the
-counts stay, as it does for those pills. Its name and hover text read `Cancelled
+counts stay, as it does for those pills. Its accessible name reads `Cancelled
 4 9: 4 passed, 9 cancelled out of 13 checks.` The branch pill stays the word
 alone; the count is in `checks.cancelled`. A Cancelled row is not in the Failing
 pill or the Failed number of the menu pill, and it is not a pass either, so
@@ -1120,6 +1120,19 @@ panel: a cancelled job beside one still going is Running, beside a real failure
 it is Failed, and beside passed jobs alone it is Cancelled, counting how many of
 them passed and how many were cancelled. Close the panel and the row goes back
 to what the server sent.
+
+Each count on a CI pill says what it is when you point at it. Hover a count with
+a mouse, or focus the pill with the keyboard and press the left and right arrow
+keys, and a small tooltip names it: "7 checks passed", "1 check running", "3
+checks cancelled". The wording is the same for every state (passed, skipped,
+running, waiting, not started, failed, unknown, cancelled, held), singular for
+one check and plural otherwise, and the number is the one on the pill. Escape
+closes the tooltip without moving focus, and you can move the pointer onto it
+without it going away. On a touch screen, tap a count to see it and tap
+anywhere else to close it; tapping the word or the rest of the pill still opens
+the pipeline panel. The Cancelled pill uses the same tooltip, and so do the
+pills on the Bots page, the issue rows and Main branches. A screen reader still
+hears the whole pill as one button, with its counts in its name.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

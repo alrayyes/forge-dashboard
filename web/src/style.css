@@ -7225,3 +7225,27 @@ footer a[aria-current="page"] {
   padding: 1px 7px;
   line-height: 1.3;
 }
+
+/* #4422: what a CI pill's segment counts, on hover, keyboard focus and tap.
+   One shared popover (the top layer, so a pill in a dialog is not covered and
+   no row's overflow clips it); ci-pill-tip.ts places it inside the viewport.
+   Same surface, ink and border as the other tooltips, so the contrast holds
+   in both themes. */
+.ci-pill-tip {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 16px));
+  padding: 6px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.71875rem;
+  font-weight: 400;
+  line-height: 1.35;
+  box-shadow: var(--shadow);
+  white-space: normal;
+  overflow: visible;
+}
