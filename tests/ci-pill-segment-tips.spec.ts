@@ -4,8 +4,9 @@ import { installFakeStream, pushStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// Pointing at, focusing or tapping a section of a CI pill says what it counts
-// ("7 checks passed"), the same on every pill.
+// Pointing at or focusing a section of a CI pill, or tapping one on a badge
+// that opens nothing, says what it counts ("7 checks passed"). A pill that
+// opens a pipeline opens it on a tap instead (#4753).
 // https://github.com/alrayyes/forge-dashboard/issues/4422
 
 function pr(number: number, title: string, ci: string, checks: object) {
@@ -221,21 +222,32 @@ test.describe('CI pill segment tooltips (#4422)', () => {
 test.describe('on a touch screen', () => {
   test.use({ hasTouch: true });
 
-  test('tapping a segment shows the text, not the dialog; the word opens it', async ({
+  test('tapping any part of the pill opens the dialog, not a tip (#4753)', async ({
     page,
   }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
     await open(page);
-    const p = pill(page, 'Mixed run');
     const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
 
-    await p.locator('.ci-seg-failed').tap({ force: true });
-    await expect(tip(page)).toHaveText('3 checks failed');
-    await expect(dialog).toBeHidden();
-    await page.locator('h1, header').first().tap();
-    await expect(tip(page)).toBeHidden();
-
-    await p.locator('.ci-word').tap({ force: true });
-    await expect(dialog).toBeVisible();
+    for (const part of [
+      '.ci-word',
+      '.ci-seg-passed',
+      '.ci-seg-running',
+      '.ci-seg-failed',
+    ]) {
+      const p = pill(page, 'Mixed run');
+      await p.locator(part).first().tap({ force: true });
+      await expect(dialog).toBeVisible();
+      await expect(tip(page)).toBeHidden();
+      await page.keyboard.press('Escape');
+      await expect(dialog).toBeHidden();
+      // Focus comes back to the pill (#3313).
+      await expect(p).toBeFocused();
+    }
+    const results = await new AxeBuilder({ page })
+      .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+      .analyze();
+    expect(results.violations).toEqual([]);
   });
 
   test('a tap on the body of the pill, between the parts, opens the dialog', async ({

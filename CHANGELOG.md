@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.111.2](https://github.com/alrayyes/forge-dashboard/compare/v9.111.1...v9.111.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** open the checks dialog on a tap of a CI pill segment ([#4755](https://github.com/alrayyes/forge-dashboard/issues/4755)) ([0f68a41](https://github.com/alrayyes/forge-dashboard/commit/0f68a41736eed0521d2f512a57bdecc6d21a3b69)), closes [#4753](https://github.com/alrayyes/forge-dashboard/issues/4753) [#4756](https://github.com/alrayyes/forge-dashboard/issues/4756)
+
 ## [9.111.1](https://github.com/alrayyes/forge-dashboard/compare/v9.111.0...v9.111.1) (2026-11-23)
 
 

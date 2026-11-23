@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1229: every "something is happening, hold on" state on a pull request
@@ -41,7 +42,7 @@ const botPR = (author: string) =>
 function snapshot(pr: MockPR) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: pr.forge as string, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge as Forge)],
     pullRequests: [pr],
     issues: [],
   };

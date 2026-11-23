@@ -11,6 +11,7 @@ const singleUserSpecs = [
   '**/filter-stale-forge-pick.spec.ts',
   '**/cancelled-pill-counts.spec.ts',
   '**/ci-pill-segment-tips.spec.ts',
+  '**/ci-pill-tap-opens.spec.ts',
   '**/checks-incomplete-pill.spec.ts',
   '**/pill-counts-add-up.spec.ts',
   '**/pills-axe.spec.ts',
