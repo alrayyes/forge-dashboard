@@ -240,6 +240,16 @@ entry if it stops standing out. Each shard still builds its own binary and
 database, and the merged JUnit report still holds every test. Refresh the file
 when the slowest shard drifts more than about a minute from the fastest.
 
+A shard that runs past its 10-minute limit is cancelled, and the log ends at
+`The operation was canceled.` A final `cancelled()` step then writes an error
+annotation and a job summary line saying it hit the limit, with the elapsed
+time (`scripts/e2e-shard-cancelled.sh`). A shard cancelled by a newer push
+says so instead and claims no timeout: the script compares the elapsed time
+with the limit, allowing 40 seconds for pulling the image. On that message,
+refresh the durations, and add a shard if the refresh doesn't bring the
+slowest back well under the limit. `scripts/test-e2e-shard-timeout.sh` checks
+the step, and that its limit matches the job's `timeout-minutes`.
+
 A run takes about two minutes on 16 cores. Locally it uses the default worker
 count; CI uses one worker and one retry. A red run that passes alone usually
 means a test raced the page, so fix the wait rather than adding a retry. A
