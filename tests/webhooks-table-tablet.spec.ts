@@ -2,9 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
-// At 820px the Webhooks table used to break "Enable auto-update" over three
-// lines (hyphenated) and "Rebase bots: off" over two (#3373). The actions stay
-// on one line, the Set up column folds into the Webhook cell, and the help
+// At 820px the Webhooks table used to break its action buttons over three
+// lines (hyphenated) (#3373). The actions stay on one line, the Set up column folds into the Webhook cell, and the help
 // text is at least 12px.
 
 const REPOS = [
@@ -21,8 +20,6 @@ const REPOS = [
     fullName: 'alrayyes/gamma',
     hasWebhook: false,
     canManageWebhooks: true,
-    autoUpdateBranch: true,
-    rebaseBots: true,
   },
 ];
 
@@ -84,19 +81,6 @@ test.describe('webhooks table at tablet width', () => {
     await expect(cell).toContainText('Not yet');
     await expect(
       cell.getByRole('link', { name: /set it up manually/i }),
-    ).toBeVisible();
-  });
-
-  test('on/off state is text and each control names its repo', async ({
-    page,
-  }) => {
-    await open(page, 820);
-    const row = page.locator('#webhooks-rows tr', { hasText: 'gamma' });
-    await expect(
-      row.getByRole('button', { name: /Rebase bots: on.*alrayyes\/gamma/ }),
-    ).toContainText('Rebase bots: on');
-    await expect(
-      row.getByRole('button', { name: /Disable auto-update.*alrayyes\/gamma/ }),
     ).toBeVisible();
   });
 

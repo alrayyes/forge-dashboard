@@ -178,26 +178,26 @@ test('Settings: a 401 leaves the page where it is', async ({ page }) => {
   expect(logins.length).toBe(0);
 });
 
-test('Webhooks: after a done answer a later poll does not replace the rows the person changed', async ({
+test('Repositories: after a done answer a later poll does not replace the rows the person changed', async ({
   page,
 }) => {
   await freezeClock(page);
   await page.route('**/api/v1/repos/ignore', (r) => r.fulfill({ status: 204 }));
   const seen = await script(page, [body(true, true)]);
-  await page.goto('/webhooks.html');
-  await expect(page.locator('#webhooks-rows tr')).toHaveCount(2);
+  await page.goto('/settings.html#repositories');
+  await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
   await page
-    .locator('#webhooks-rows tr')
+    .locator('#repositories-rows tr')
     .first()
     .getByRole('combobox', { name: 'Ignore alrayyes/held' })
     .selectOption('both');
-  await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
+  await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
   const before = seen.started;
   await advance(page, 5);
   await expect.poll(() => seen.started).toBeGreaterThan(before);
   await page.waitForTimeout(300);
-  await expect(page.locator('#webhooks-rows tr')).toHaveCount(1);
-  await expect(page.locator('#webhooks-ignored summary')).toContainText(
+  await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
+  await expect(page.locator('#repositories-ignored summary')).toContainText(
     'Ignored (1)',
   );
 });

@@ -1,7 +1,7 @@
 import { expect, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
-// The Webhooks page status line (#webhooks-status) is a polite live region.
+// The Repositories status line (#repositories-status) is a polite live region.
 // A result is stale once the next action starts or a filter changes, and the
 // same result twice must be a real change to the region, or a screen reader
 // says nothing the second time.
@@ -47,13 +47,13 @@ async function open(page: Page, hold?: Promise<void>) {
     },
   );
   page.on('dialog', (d) => d.accept());
-  await page.goto('/webhooks.html');
-  await expect(page.locator('#webhooks-rows tr').first()).toBeVisible();
+  await page.goto('/settings.html#repositories');
+  await expect(page.locator('#repositories-rows tr').first()).toBeVisible();
   // Record every text the polite live region takes on.
   await page.evaluate(() => {
     const w = window as unknown as { seen: string[] };
     w.seen = [];
-    const el = document.getElementById('webhooks-status') as HTMLElement;
+    const el = document.getElementById('repositories-status') as HTMLElement;
     new MutationObserver(() =>
       w.seen.push(el.textContent?.trim() ?? ''),
     ).observe(el, { childList: true, characterData: true, subtree: true });
@@ -62,13 +62,13 @@ async function open(page: Page, hold?: Promise<void>) {
 
 const seen = (page: Page) =>
   page.evaluate(() => (window as unknown as { seen: string[] }).seen);
-const text = (page: Page) => page.locator('#webhooks-status').innerText();
+const text = (page: Page) => page.locator('#repositories-status').innerText();
 const enable = (page: Page) =>
   page.getByRole('button', { name: /^Enable auto-update for/ });
 const disable = (page: Page) =>
   page.getByRole('button', { name: /^Disable auto-update for/ });
 
-test.describe('webhooks: status line', () => {
+test.describe('repositories: status line', () => {
   test('the old text is gone as soon as the next action starts', async ({
     page,
   }) => {
@@ -78,7 +78,7 @@ test.describe('webhooks: status line', () => {
     });
     await open(page, hold);
     await enable(page).click();
-    await expect(page.locator('#webhooks-status')).toHaveText(ENABLED);
+    await expect(page.locator('#repositories-status')).toHaveText(ENABLED);
 
     await disable(page).click();
     // The disable calls are held, so this is the in-flight state.
@@ -87,7 +87,7 @@ test.describe('webhooks: status line', () => {
       .toBe('Disabling auto-update-branch for acme/app…');
     expect(await text(page)).not.toContain('Enabled');
     release();
-    await expect(page.locator('#webhooks-status')).toHaveText(
+    await expect(page.locator('#repositories-status')).toHaveText(
       'Disabled auto-update-branch for all 2 repos.',
     );
   });
@@ -96,12 +96,14 @@ test.describe('webhooks: status line', () => {
     await open(page);
     for (const round of [1, 2]) {
       await enable(page).click();
-      await expect(page.locator('#webhooks-status')).toHaveText(ENABLED);
+      await expect(page.locator('#repositories-status')).toHaveText(ENABLED);
       expect((await seen(page)).filter((t) => t === ENABLED)).toHaveLength(
         round,
       );
       await disable(page).click();
-      await expect(page.locator('#webhooks-status')).toContainText('Disabled');
+      await expect(page.locator('#repositories-status')).toContainText(
+        'Disabled',
+      );
     }
   });
 
@@ -110,14 +112,16 @@ test.describe('webhooks: status line', () => {
   }) => {
     await open(page);
     await enable(page).click();
-    await expect(page.locator('#webhooks-status')).toHaveText(ENABLED);
+    await expect(page.locator('#repositories-status')).toHaveText(ENABLED);
 
-    await page.locator('#webhooks-repo-filter').fill('infra');
+    await page.locator('#repositories-search').fill('infra');
     await expect.poll(() => text(page)).toBe('');
 
     await disable(page).click();
-    await expect(page.locator('#webhooks-status')).toContainText('Disabled');
-    await page.locator('#webhooks-status-filter').selectOption('confirmed');
+    await expect(page.locator('#repositories-status')).toContainText(
+      'Disabled',
+    );
+    await page.getByRole('button', { name: 'Forgejo', pressed: false }).click();
     await expect.poll(() => text(page)).toBe('');
   });
 });
