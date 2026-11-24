@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.118.0](https://github.com/alrayyes/forge-dashboard/compare/v9.117.2...v9.118.0) (2026-11-24)
+
+
+### Features
+
+* **web:** retire the Webhooks page ([#4811](https://github.com/alrayyes/forge-dashboard/issues/4811)) ([727b81f](https://github.com/alrayyes/forge-dashboard/commit/727b81f80f4e20072d9eac9425684fe13c9199d4)), closes [#4029](https://github.com/alrayyes/forge-dashboard/issues/4029)
+
+
+### Bug Fixes
+
+* **web:** keep a bot row's label chips on one line at 1280px ([#4793](https://github.com/alrayyes/forge-dashboard/issues/4793)) ([1c9fea5](https://github.com/alrayyes/forge-dashboard/commit/1c9fea55ad0674ce04965094808ca6eaa19856f2)), closes [#4789](https://github.com/alrayyes/forge-dashboard/issues/4789)
+
 ## [9.117.2](https://github.com/alrayyes/forge-dashboard/compare/v9.117.1...v9.117.2) (2026-11-24)
 
 
