@@ -2853,9 +2853,11 @@ test.describe('dashboard page', () => {
       await boardReady(page);
     });
 
-    test('is visible but disabled with no filters active', async ({ page }) => {
-      var button = page.getByRole('button', { name: 'Clear filters' });
-      await expect(button).toBeVisible();
+    test('is not drawn, and disabled, with no filters active (#4288)', async ({
+      page,
+    }) => {
+      var button = page.locator('#clear-filters-button');
+      await expect(button).toBeHidden();
       await expect(button).toBeDisabled();
     });
 

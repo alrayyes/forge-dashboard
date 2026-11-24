@@ -1676,6 +1676,64 @@ select.col-filter {
   cursor: default;
 }
 
+/* The result bar (#4288): the count, whether a filter is on, the sort and
+   Clear filters on one line, the last row of the filter bar. */
+.result-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.result-count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.result-count strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* Text, so the state is never colour alone. Dark teal on pale cyan, over 4.5:1. */
+.result-tag {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #0b4f56;
+  background: #d8f3f6;
+}
+.result-tag[hidden],
+.result-bar .clear-filters[hidden] {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .result-tag {
+    color: #a8e6ec;
+    background: #12373c;
+  }
+}
+:root[data-theme="dark"] .result-tag {
+  color: #a8e6ec;
+  background: #12373c;
+}
+/* 32px, and level with the text beside it rather than hanging below it. */
+.filter-bar select.result-sort {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 32px;
+  padding-block: 0;
+  line-height: 30px;
+  vertical-align: middle;
+}
+.result-bar .clear-filters {
+  margin-inline-start: auto;
+}
+
 /* Always visible (#354's own "Design decisions" section, not this file's
    own restraint elsewhere for e.g. mergeStatusPill): hiding it would
    remove both the "filters can be cleared" affordance and the passive

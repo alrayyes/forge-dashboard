@@ -383,7 +383,7 @@ test.describe('filter bar over one row on a phone (#3886)', () => {
     await page.getByRole('button', { name: /^Filters/ }).click();
     const sheet = page.locator('dialog#filter-sheet');
     await sheet.getByRole('button', { name: /^Forgejo( \d+)?$/ }).click();
-    await expect(sheet.locator('#pr-sort-select')).toBeHidden();
+    await expect(page.locator('#pr-sort-select')).toBeHidden();
     await expect(sheet.locator('#shared-group-select')).toBeHidden();
     await expect(sheet.locator('#created-filter')).toBeHidden();
     await expect(sheet.locator('#shared-label-filter-button')).toBeHidden();
@@ -391,19 +391,19 @@ test.describe('filter bar over one row on a phone (#3886)', () => {
     expect((await axe(page)).violations).toEqual([]);
   });
 
-  test('a focused sort that hides in the open sheet keeps focus in it', async ({
+  test('a focused group select that hides in the open sheet keeps focus in it', async ({
     page,
   }) => {
     await open(page);
     await page.getByRole('button', { name: /^Filters/ }).click();
     const sheet = page.locator('dialog#filter-sheet');
-    await sheet.locator('#pr-sort-select').focus();
+    await sheet.locator('#shared-group-select').focus();
     await page.evaluate(() => {
       document
         .querySelector<HTMLElement>('#filter-sheet [data-pill="forgejo"]')
         ?.click();
     });
-    await expect(sheet.locator('#pr-sort-select')).toBeHidden();
+    await expect(sheet.locator('#shared-group-select')).toBeHidden();
     expect(
       await page.evaluate(
         () => !!document.activeElement?.closest('#filter-sheet'),

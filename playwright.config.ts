@@ -34,6 +34,7 @@ const singleUserSpecs = [
   '**/pr-filter-pill.spec.ts',
   '**/overview-ci-filter-glyphs.spec.ts',
   '**/result-count.spec.ts',
+  '**/result-bar.spec.ts',
   '**/advisory-chip-fit.spec.ts',
   '**/dashboard-error-banner.spec.ts',
   '**/settings-field-errors.spec.ts',

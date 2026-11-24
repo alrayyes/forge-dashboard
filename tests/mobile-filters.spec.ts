@@ -275,8 +275,9 @@ for (const size of [
           subtree: true,
         });
       });
-      // A new sort re-renders the board without changing the count.
-      const sort = sheet(page).locator('#pr-sort-select');
+      // A new sort re-renders the board without changing the count. The sort
+      // sits in the result bar, not in the sheet (#4288).
+      const sort = page.locator('#result-bar #pr-sort-select');
       const other = await sort.evaluate(
         (el: HTMLSelectElement) =>
           Array.from(el.options).find((o) => o.value !== el.value)?.value,

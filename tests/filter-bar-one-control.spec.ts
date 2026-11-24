@@ -53,8 +53,9 @@ const TRIGGERS = [
   '#shared-author-filter-button',
   '#shared-label-filter-button',
 ];
+// The sort select is the result bar's own 32px control (#4288), so it is not
+// held to the filter controls' size.
 const SELECTS = [
-  '#pr-sort-select',
   '#shared-group-select',
   'select[data-col="created"]',
   'select[data-col="updated"]',
