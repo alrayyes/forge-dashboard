@@ -6,7 +6,7 @@ import { test } from './server-fixture';
 // aria-pressed buttons still say "pressed" by colour or box-shadow alone, which
 // forced colors drops: the auto-merge and refs segments, Pause live
 // updates and the advisories severity filters. Each needs a border width, an
-// outline or a weight. The Settings show-token buttons and the Webhooks
+// outline or a weight. The Settings show-token buttons and the
 // rebase-bots toggle already swap their text, so they need nothing here.
 // https://github.com/alrayyes/forge-dashboard/issues/3388
 

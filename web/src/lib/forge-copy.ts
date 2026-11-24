@@ -42,15 +42,10 @@ export function forgeNameList(
   return `${names.slice(0, -1).join(', ')} ${conjunction} ${names[names.length - 1]}`;
 }
 
-// The Webhooks page's empty state.
+// The Repositories group's empty state.
 export function noReposCopy(): string {
   const forges = forgeNameList(Object.values(FORGE_LABELS), 'or');
   return `Nothing tracked yet — save ${forges} credentials in Settings first.`;
-}
-
-// The Webhooks row of a repo the forge listed without the user's permissions.
-export function permissionsNotReportedCopy(forge: string): string {
-  return `${name(forge)} didn't report your access on this repo, so the dashboard can't tell if you can manage its webhooks.`;
 }
 
 export type PageView = 'issues' | 'releases' | 'bots' | 'pulls';
@@ -69,11 +64,10 @@ export function pageDescription(view: PageView): string {
   }
 }
 
-// The Webhooks page's words about an app connection, named by the forge's label.
+// The Repositories group's words about an app connection, named by the forge's label.
 export function appConnectionCopy(forge: string) {
   const n = name(forge);
   return {
-    missingWebhookPermission: `Give your ${n} App the Webhooks (read and write) permission, then accept it on the installation, or `,
     dependabotNeedsToken: `Dependabot needs a personal access token when a ${n} App is connected.`,
   };
 }

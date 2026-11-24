@@ -10,7 +10,7 @@ import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
 // #1620, acceptance criterion 1: a list, from a test, of which filter controls
-// are remembered. Pull requests, Issues and Webhooks each get one test that
+// are remembered. Pull requests and Issues each get one test that
 // sets every control that combines in one round and reads it back three ways:
 // after a client navigation away and back, after a reload with the saved copy
 // refused (the cookie alone), and after the filter cookie is deleted and the
@@ -478,8 +478,6 @@ interface Surface {
   awayReady: (page: Page) => Promise<unknown>;
 }
 
-const webhooksRows = (page: Page) => page.locator('#webhooks-rows tr').first();
-
 function boardSurface(board: Board): Surface {
   const away = BOARDS[board].away;
   return {
@@ -489,15 +487,6 @@ function boardSurface(board: Board): Surface {
     awayReady: (page) => loaded(page, away),
   };
 }
-
-const WEBHOOKS_URL = '/webhooks.html';
-
-const webhooksSurface: Surface = {
-  link: (page) => page.locator(`.app-nav a[href="${WEBHOOKS_URL}"]`),
-  awayLink: (page) => link(page, 'issues'),
-  ready: (page) => expect(webhooksRows(page)).toBeVisible(),
-  awayReady: (page) => loaded(page, 'issues'),
-};
 
 async function readBackRound(page: Page, s: Surface, round: Control[]) {
   const names = round.map((c) => c.name).join(' + ');
@@ -650,141 +639,3 @@ for (const board of ['releases', 'bots'] as const) {
     ]);
   });
 }
-
-// Webhooks: its own page with its own controls, saved as the `webhooks` group
-// (the way Branches is). Same reads as above. The page size and the current
-// page stay unsaved, as on the other pages.
-const WEBHOOK_REPOS = [
-  { forge: 'github', fullName: 'acme/app', hasWebhook: true },
-  { forge: 'forgejo', fullName: 'acme/infra', hasWebhook: false },
-  ...Array.from({ length: 28 }, (_, i) => ({
-    forge: 'github',
-    fullName: `acme/lib-${i + 1}`,
-    hasWebhook: true,
-  })),
-].map((r) => ({
-  ...r,
-  ignored: false,
-  ignoredPRs: false,
-  ignoredIssues: false,
-  autoUpdateBranch: false,
-  canManageWebhooks: true,
-}));
-
-async function openWebhooks(page: Page) {
-  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
-    route.abort(),
-  );
-  await page.route('**/api/v1/dashboard*', (route: Route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        generatedAt: new Date().toISOString(),
-        forges: [],
-        pullRequests: [],
-        issues: [],
-        repos: WEBHOOK_REPOS,
-        // The Issues link is how the test leaves the page, and it is drawn
-        // only for a known count (#4276).
-        navCounts: navCountsFor([], 1),
-      }),
-    }),
-  );
-  await page.goto(WEBHOOKS_URL);
-  await expect(webhooksRows(page)).toBeVisible();
-}
-
-const forgeRadio = (page: Page, value: string) =>
-  page.locator(`input[data-filter="forge"][value="${value}"]`);
-const sortHeader = (page: Page, key: string) =>
-  page.locator(`th:has([data-sort-key="${key}"])`);
-
-const webhooksStored = (stored: Record<string, string>): Stored[] =>
-  Object.entries(stored).map(([key, value]) => ({
-    group: 'webhooks',
-    key,
-    value,
-  }));
-
-const webhookForge = (name: string, value: string): Control => ({
-  name,
-  stored: webhooksStored({ forge: value }),
-  set: (page) => forgeRadio(page, value).check(),
-  show: (page) => expect(forgeRadio(page, value)).toBeChecked(),
-});
-
-const webhookSort = (
-  name: string,
-  sort: string,
-  dir: 'asc' | 'desc',
-): Control => ({
-  name,
-  stored: webhooksStored({ sort, dir }),
-  set: (page) => page.locator(`[data-sort-key="${sort}"]`).click(),
-  show: (page) =>
-    expect(sortHeader(page, sort)).toHaveAttribute(
-      'aria-sort',
-      dir === 'asc' ? 'ascending' : 'descending',
-    ),
-});
-
-const WEBHOOK_ROUNDS: Control[][] = [
-  [
-    webhookForge('Forgejo forge button', 'forgejo'),
-    {
-      name: 'repo search',
-      stored: webhooksStored({ repo: 'infra' }),
-      set: (page) => page.locator('#webhooks-repo-filter').fill('infra'),
-      show: (page) =>
-        expect(page.locator('#webhooks-repo-filter')).toHaveValue('infra'),
-    },
-    {
-      name: 'status select',
-      stored: webhooksStored({ status: 'pending' }),
-      set: (page) =>
-        page.locator('#webhooks-status-filter').selectOption('pending'),
-      show: (page) =>
-        expect(page.locator('#webhooks-status-filter')).toHaveValue('pending'),
-    },
-    webhookSort('sort column', 'hasWebhook', 'asc'),
-  ],
-];
-
-test('webhooks: every remembered control survives leaving and coming back', async ({
-  page,
-}) => {
-  test.setTimeout(60_000);
-  await openWebhooks(page);
-
-  await test.step('page size and current page are not remembered', async () => {
-    await page.locator('#webhooks-page-size').selectOption('10');
-    await page
-      .locator('#webhooks-pagination-pages .pagination-page', { hasText: '2' })
-      .click();
-    await expect(
-      page.locator('#webhooks-pagination-pages .pagination-page.active'),
-    ).toHaveText('2');
-    // Something else gets saved, so the copies exist to be read.
-    await page.locator('#webhooks-status-filter').selectOption('confirmed');
-    await expect
-      .poll(async () => (await serverCopy(page)).webhooks?.status)
-      .toBe('confirmed');
-
-    await page.reload();
-    await expect(webhooksRows(page)).toBeVisible();
-    await expect(page.locator('#webhooks-page-size')).toHaveValue('25');
-    await expect(
-      page.locator('#webhooks-pagination-pages .pagination-page.active'),
-    ).toHaveText('1');
-    for (const copy of [await serverCopy(page), await cookieCopy(page)]) {
-      expect(JSON.stringify(copy.webhooks)).not.toMatch(/page|size/i);
-    }
-    // Back to every status, so the forge buttons are offered again.
-    await page.locator('#webhooks-status-filter').selectOption('');
-  });
-
-  for (const round of WEBHOOK_ROUNDS) {
-    await readBackRound(page, webhooksSurface, round);
-  }
-});

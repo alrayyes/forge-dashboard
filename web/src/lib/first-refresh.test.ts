@@ -46,7 +46,6 @@ describe('firstRefreshStatus', () => {
     ['release pull requests', 'Loading your release pull requests…'],
     ['branches', 'Loading your branches…'],
     ['insights', 'Loading your insights…'],
-    ['webhooks', 'Loading your webhooks…'],
   ] as const)('names %s while it is loading', (subject, line) => {
     expect(firstRefreshStatus(true, 0, subject)).toBe(line);
     expect(firstRefreshStatus(true, FIRST_REFRESH_SLOW_MS - 1, subject)).toBe(

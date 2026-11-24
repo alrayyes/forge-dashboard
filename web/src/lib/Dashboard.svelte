@@ -3681,13 +3681,10 @@
     // ---- pull request merge action ----
     // mergeState persists per-PR merge-button UI state across renders —
     // the dashboard polls and pushes fresh snapshots (applySnapshot)
-    // that rebuild every row from scratch, unlike the webhooks page's
-    // one-shot render, so a lock earned from a real
+    // that rebuild every row from scratch, so a lock earned from a real
     // permission/rate-limit/conflict failure has to live outside the DOM
     // node itself, or the next poll would silently hand back a
-    // re-clickable button and undo the whole point of locking it (see
-    // webhooks.js's own reactiveLockReason/lockedButton, the same
-    // pattern this mirrors).
+    // re-clickable button and undo the whole point of locking it.
     const mergeState: Record<string, ActionState> = {};
 
     function prKey(item: {
@@ -3740,9 +3737,8 @@
       return { reason: entry.reason ?? "", code: entry.code };
     }
 
-    // Same aria-disabled + visible, wired-up reason shape webhooks.js's
-    // own lockedButton uses, not a native disabled attribute or a
-    // title-only tooltip — native disabled would drop it from the tab
+    // An aria-disabled button with a visible, wired-up reason, not a
+    // native disabled attribute or a title-only tooltip — native disabled would drop it from the tab
     // order and hide the reason from keyboard and screen-reader users.
     //
     // onRetry, when given, makes this a real clickable "Retry" instead
@@ -3922,8 +3918,7 @@
       });
     }
 
-    // Known-doomed before ever calling the API, the same pre-click check
-    // addWebhookButton (webhooks.js) already does from ForgeHealth — a
+    // Known-doomed before ever calling the API: a
     // forge that's currently unreachable or already out of rate-limit
     // budget will fail the exact same way after a real, wasted request
     // as it would before one.

@@ -50,7 +50,6 @@ const blank = (): SharedFilterState => ({
   issue: { hideDependencyDashboard: '1' },
   view: {},
   branches: {},
-  webhooks: {},
 });
 
 describe('the filter cookie round trip', () => {
@@ -110,13 +109,6 @@ describe('the filter cookie round trip', () => {
       issue: { hideDependencyDashboard: '', hideTitleRegex: '^zzz' },
       view: { sort: 'created', paused: '1', drafts: '1' },
       branches: {},
-      webhooks: {
-        forge: 'forgejo',
-        repo: 'infra',
-        status: 'pending',
-        sort: 'hasWebhook',
-        dir: 'asc',
-      },
     };
     saveState(state);
     expect(readCookieState()).toEqual(state);

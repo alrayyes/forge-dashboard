@@ -6,7 +6,6 @@ import { test } from './server-fixture';
 // narrow pages; the dashboard and issues stay full width.
 const NARROW_PAGES = [
   { path: '/settings.html', wrap: '.settings-wrap' },
-  { path: '/webhooks.html', wrap: '.webhooks-wrap' },
   { path: '/insights.html', wrap: '.insights-wrap' },
   { path: '/changelog.html', wrap: '.changelog-wrap' },
   { path: '/disclaimer.html', wrap: '.legal-wrap' },

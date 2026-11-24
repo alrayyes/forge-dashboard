@@ -136,12 +136,12 @@ test.describe('Repository logo (#2001)', () => {
     await expect(cell.locator('.repo-name')).toHaveText('alrayyes/broken-logo');
   });
 
-  test('the Repositories page shows it beside the repository name too', async ({
+  test('Settings, Repositories shows it beside the repository name too', async ({
     page,
   }) => {
     await mock(page);
-    await page.goto('/webhooks.html');
-    const rows = page.locator('#webhooks-rows tr');
+    await page.goto('/settings.html#repositories');
+    const rows = page.locator('#repositories-rows tr');
     await expect(rows).toHaveCount(REPOS.length);
     await expect(
       rows.filter({ hasText: 'alrayyes/with-logo' }).locator('img.repo-logo'),
@@ -154,29 +154,34 @@ test.describe('Repository logo (#2001)', () => {
     ).toHaveCount(1);
   });
 
-  test('the Repositories page cell reads as the bare repository name, with or without a logo', async ({
+  test('a Settings, Repositories cell reads as the bare repository name, with or without a logo', async ({
     page,
   }) => {
     await mock(page);
-    await page.goto('/webhooks.html');
-    await expect(page.locator('#webhooks-rows tr')).toHaveCount(REPOS.length);
-    const names = await page
-      .locator('#webhooks-rows tr td:nth-child(2)')
-      .allTextContents();
+    await page.goto('/settings.html#repositories');
+    await expect(page.locator('#repositories-rows tr')).toHaveCount(
+      REPOS.length,
+    );
+    // The cell also carries the row's polling-only note; the name leads it.
+    const names = (
+      await page
+        .locator('#repositories-rows tr td:nth-child(2)')
+        .allTextContents()
+    ).map((t) => t.trim().split(/\s+/)[0]);
 
     expect(names.sort()).toEqual(REPOS.map((r) => `alrayyes/${r.name}`).sort());
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`the Repositories page with a logo has no accessibility violations in ${scheme} mode`, async ({
+    test(`Settings, Repositories with a logo has no accessibility violations in ${scheme} mode`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await mock(page);
-      await page.goto('/webhooks.html');
+      await page.goto('/settings.html#repositories');
       await expect(
         page
-          .locator('#webhooks-rows tr', { hasText: 'alrayyes/with-logo' })
+          .locator('#repositories-rows tr', { hasText: 'alrayyes/with-logo' })
           .locator('img.repo-logo'),
       ).toBeVisible();
       const results = await new AxeBuilder({ page })

@@ -110,39 +110,6 @@ test.describe('times in the viewer zone (#996)', () => {
     await showResetOnDashboard(page, TODAY_RESET);
     await expect(header(page)).toContainText('resets 14:00 CEST');
   });
-
-  test('the webhooks page names the zone too', async ({ page }) => {
-    await mockSavedZone(page, 'UTC');
-    await page.clock.setFixedTime(NOW);
-    await page.route('**/api/v1/dashboard*', (route: Route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: NOW.toISOString(),
-          forges: [
-            forgeHealth('github', {
-              rateLimitREST: rateLimit(5000, 0, TODAY_RESET),
-            }),
-          ],
-          repos: [
-            {
-              forge: 'github',
-              fullName: 'alrayyes/forge-dashboard',
-              hasWebhook: false,
-              canManageWebhooks: true,
-            },
-          ],
-          pullRequests: [],
-          issues: [],
-        }),
-      }),
-    );
-    await page.goto('/webhooks.html');
-    await expect(page.locator('#webhooks-rows')).toContainText(
-      'Rate limit exhausted · resets 12:00 UTC',
-    );
-  });
 });
 
 test.describe('a browser that reports UTC (#996)', () => {

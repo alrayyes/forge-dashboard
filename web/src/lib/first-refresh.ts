@@ -56,7 +56,6 @@ export type FirstRefreshSubject =
   | 'release pull requests'
   | 'branches'
   | 'insights'
-  | 'webhooks'
   | 'repositories';
 
 export function firstRefreshStatus(

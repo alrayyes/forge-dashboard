@@ -8,9 +8,9 @@ full toolchain and hooks.
 
 ## What's here
 
-A route under `src/routes/` per migrated page — `webhooks/` is the first
-one. Each prerenders to a plain static file via `@sveltejs/adapter-static`
-(no Node server at request time), matching the shape the Go binary already
+A route under `src/routes/` per migrated page — `settings/` is one. Each
+prerenders to a plain static file via `@sveltejs/adapter-static` (no Node
+server at request time), matching the shape the Go binary already
 embeds and serves.
 
 ## Building

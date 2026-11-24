@@ -15,9 +15,6 @@ export interface SharedFilterState {
   // state built without it, or a saved copy from before it existed, still
   // reads as "nothing set".
   branches?: Record<string, string>;
-  // The Webhooks page's forge, repo search, status and sort. Optional for
-  // the same reason as branches.
-  webhooks?: Record<string, string>;
 }
 
 export interface FilterableItem {
@@ -386,14 +383,7 @@ function cookieSize(state: SharedFilterState, rev: number): number {
   );
 }
 
-const GROUPS = [
-  'shared',
-  'pr',
-  'issue',
-  'view',
-  'branches',
-  'webhooks',
-] as const;
+const GROUPS = ['shared', 'pr', 'issue', 'view', 'branches'] as const;
 type CookieGroup = (typeof GROUPS)[number];
 
 // Cuts the state down to what the cookie can hold, on purpose: the title
@@ -412,7 +402,6 @@ export function fitToCookie(
     issue: { ...state.issue },
     view: { ...state.view },
     branches: state.branches ? { ...state.branches } : undefined,
-    webhooks: state.webhooks ? { ...state.webhooks } : undefined,
   };
   const cut: string[] = [];
   if (typeof copy.shared.title === 'string' && copy.shared.title) {
@@ -518,7 +507,6 @@ function defaultState(): SharedFilterState {
     issue: { hideDependencyDashboard: '1' },
     view: {},
     branches: {},
-    webhooks: {},
   };
 }
 
@@ -557,8 +545,6 @@ export function readCookieState(): SharedFilterState {
     Object.assign(state.view, parsed.view);
   if (parsed.branches && typeof parsed.branches === 'object')
     state.branches = { ...state.branches, ...parsed.branches };
-  if (parsed.webhooks && typeof parsed.webhooks === 'object')
-    state.webhooks = { ...state.webhooks, ...parsed.webhooks };
   dropUnknownAutoMerge(state);
   dropUnknownClosing(state);
   dropNonStringTitleRule(state);
@@ -975,7 +961,6 @@ function savedCopy(state: SharedFilterState): SharedFilterState {
     issue: { ...state.issue },
     view: { ...state.view },
     branches: { ...state.branches },
-    webhooks: { ...state.webhooks },
   };
   for (const h of held) {
     if (!copy[h.group][h.key]) copy[h.group][h.key] = h.value;
@@ -1222,8 +1207,7 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
         (!parsed.pr || Object.keys(parsed.pr).length === 0) &&
         (!parsed.issue || Object.keys(parsed.issue).length === 0) &&
         (!parsed.view || Object.keys(parsed.view).length === 0) &&
-        (!parsed.branches || Object.keys(parsed.branches).length === 0) &&
-        (!parsed.webhooks || Object.keys(parsed.webhooks).length === 0)
+        (!parsed.branches || Object.keys(parsed.branches).length === 0)
       ) {
         return null;
       }
@@ -1249,7 +1233,7 @@ export function loadStateFromServer(): Promise<Partial<SharedFilterState> | null
 // it is in flight is newer than the copy, so the copy must not overwrite it.
 // Keys are "group.key". Clear filters touches every key of the three filter
 // groups at once, so a late copy cannot bring old values back.
-type TouchGroup = StateGroup | 'branches' | 'webhooks';
+type TouchGroup = StateGroup | 'branches';
 const touchedKeys = new Set<string>();
 let clearedAll = false;
 const CLEARED_GROUPS: TouchGroup[] = ['shared', 'pr', 'issue'];
@@ -1349,15 +1333,15 @@ export function applyServerState(
       state[group][key] = value;
     }
   }
-  // Branches and Webhooks have no held picks: their controls keep the active
-  // choice on offer.
-  for (const group of ['branches', 'webhooks'] as const) {
-    const incoming = got[group];
-    if (!incoming || typeof incoming !== 'object') continue;
-    state[group] ??= {};
-    const into = state[group];
-    for (const [key, value] of Object.entries(incoming))
-      if (!isTouched(group, key)) into[key] = value;
+  // Branches has no held picks: its controls keep the active choice on offer.
+  {
+    const incoming = got.branches;
+    if (incoming && typeof incoming === 'object') {
+      state.branches ??= {};
+      const into = state.branches;
+      for (const [key, value] of Object.entries(incoming))
+        if (!isTouched('branches', key)) into[key] = value;
+    }
   }
   dropUnknownAutoMerge(state);
   dropUnknownClosing(state);

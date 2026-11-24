@@ -509,8 +509,8 @@ type boardView struct {
 // unreachable forge.
 //
 // An ignored repo (#363) is deliberately not excluded from Repos itself
-// — only from PullRequests/Issues — so it still appears on the Webhooks
-// page with accurate coverage status and can still be un-ignored; see
+// — only from PullRequests/Issues — so it still appears in Settings,
+// Repositories with accurate coverage status and can still be un-ignored; see
 // the issue's own "reversible, not destructive" design decision.
 //
 // Draft pull requests (#791) are left out unless includeDrafts, since nothing

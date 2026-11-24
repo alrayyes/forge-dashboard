@@ -2,8 +2,8 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// Insights and Webhooks used to show nothing when the dashboard read failed,
-// so an empty page read as "0 repositories tracked" or "no webhooks". They now
+// Insights used to show nothing when the dashboard read failed,
+// so an empty page read as "0 repositories tracked". They now
 // show a role="alert" message with a Retry that re-runs the layout's read.
 // https://github.com/alrayyes/forge-dashboard/issues/3212
 
@@ -52,13 +52,6 @@ const PAGES = [
     data: '#insights-tracked',
     shown: '2 repositories tracked',
     falseZero: '0 repositories tracked',
-  },
-  {
-    name: 'Webhooks',
-    url: '/webhooks.html',
-    data: '#webhooks-table',
-    shown: 'acme/web',
-    falseZero: 'Nothing tracked yet',
   },
 ];
 

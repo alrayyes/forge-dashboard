@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
-// menu (branches, pull requests, issues, releases, bots, insights, webhooks,
+// menu (branches, pull requests, issues, releases, bots, insights,
 // settings, and its Repositories group, with a phone shot of the last and of
 // branches), the pipeline checks panel, the pull request dialogs
 // (a pull request, a release, a bot, and the phone sheet) and the login page
@@ -223,7 +223,7 @@ const MAIN_BRANCHES = {
   branches: MAIN_BRANCH_ROWS,
 };
 
-// Fixture repos for the webhooks page (/api/v1/dashboard's `repos` list).
+// Fixture repos for the Repositories group (/api/v1/dashboard's `repos` list).
 const REPOS = [
   {
     forge: 'github',
@@ -491,7 +491,6 @@ const PAGES = [
   { name: 'releases', url: '/releases.html', ready: '#pr-rows .row' },
   { name: 'bots', url: '/bots.html', ready: '#pr-rows .row' },
   { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
-  { name: 'webhooks', url: '/webhooks.html', ready: '#webhooks-rows tr' },
   { name: 'settings', url: '/settings.html', ready: 'h1' },
   {
     name: 'repositories',

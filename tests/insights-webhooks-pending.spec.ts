@@ -3,9 +3,9 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// Insights and Webhooks drew their empty-data text ("0 repositories tracked",
-// "No open pull requests.", "Nothing tracked yet") while the first dashboard
-// read was still pending. They now draw the Pull requests/Issues skeleton,
+// Insights drew its empty-data text ("0 repositories tracked",
+// "No open pull requests.") while the first dashboard
+// read was still pending. It now draws the Pull requests/Issues skeleton,
 // aria-busy and a polite status, and the empty text only after a read that
 // answered with zero records. https://github.com/alrayyes/forge-dashboard/issues/3367
 
@@ -67,18 +67,6 @@ const PAGES = [
     real: { selector: '#insights-tracked', text: '2 repositories tracked' },
     skeletons: 5,
     busyRegions: 4,
-  },
-  {
-    name: 'Webhooks',
-    line: 'Loading your webhooks…',
-    url: '/webhooks.html',
-    emptyTexts: ['Nothing tracked yet'],
-    failedHides: ['Nothing tracked yet'],
-    neutral: 'Checking tracked repositories...',
-    zeroText: 'Nothing tracked yet',
-    real: { selector: '#webhooks-table', text: 'acme/web' },
-    skeletons: 1,
-    busyRegions: 1,
   },
 ];
 

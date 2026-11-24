@@ -111,7 +111,7 @@ async function seed(page: Page, path: string) {
     );
     return;
   }
-  if (path !== '/webhooks.html' && path !== '/') return;
+  if (path !== '/') return;
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
@@ -178,7 +178,6 @@ const CONTROLS: Record<string, string[]> = {
   '/issues.html': ['input.col-filter[data-col="title"]'],
   '/releases.html': ['input.col-filter[data-col="title"]'],
   '/bots.html': ['input.col-filter[data-col="title"]'],
-  '/webhooks.html': ['input.col-filter', 'select.col-filter'],
   '/insights.html': ['input.col-filter[data-col="title"]'],
   '/': ['input.mb-search'],
 };

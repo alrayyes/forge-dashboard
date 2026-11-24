@@ -1,7 +1,7 @@
 // What the banner says when the /api/v1/dashboard read fails. An HTTP error
 // means the backend was reached and answered; "could not reach" is only true
 // for a network failure or the read timeout. Kept in its own module so the
-// Insights and Webhooks pages can reuse the wording.
+// Insights page and Settings' Repositories can reuse the wording.
 // https://github.com/alrayyes/forge-dashboard/issues/3211
 
 export class BackendStatusError extends Error {

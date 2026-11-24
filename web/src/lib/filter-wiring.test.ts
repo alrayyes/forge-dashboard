@@ -4,8 +4,6 @@ import {
   clearFilterFor,
   releaseHeldPick,
   resetFilters,
-  saveWebhooksControl,
-  saveWebhooksFilter,
   setDrafts,
   setGroupBy,
   setHideDependencyDashboard,
@@ -25,12 +23,10 @@ import {
   type SharedFilterState,
   saveState,
 } from './filters';
-import { DEFAULT_WEBHOOKS_FILTER } from './webhooks-filter';
 
 // Each control marks the key it changed as touched, so a saved copy still
 // loading cannot overwrite it (#1713). Every test changes one control, then
-// lets a server copy that disagrees arrive: the change must win. These stand
-// in for the Webhooks end-to-end test of the same behaviour (#3862).
+// lets a server copy that disagrees arrive: the change must win.
 // https://github.com/alrayyes/forge-dashboard/issues/1713
 
 const state = (over: Partial<SharedFilterState> = {}): SharedFilterState => ({
@@ -106,52 +102,6 @@ describe('releaseHeldPick', () => {
     applyServerState(s, { shared: { [first.key]: 'github:zed' } });
     expect(s.shared[first.key]).toBe('');
     expect(puts).toHaveLength(1);
-  });
-});
-
-describe('saveWebhooksFilter', () => {
-  test('keeps the changed status over a saved copy, the repo search takes the copy', () => {
-    const saved = state({ webhooks: {} });
-    const next = saveWebhooksFilter(
-      saved,
-      { ...DEFAULT_WEBHOOKS_FILTER, status: 'pending' },
-      ['status'],
-    );
-    applyServerState(next, { webhooks: { repo: 'acme', status: 'confirmed' } });
-    expect(next.webhooks?.status).toBe('pending');
-    expect(next.webhooks?.repo).toBe('acme');
-  });
-
-  test('starts from what another tab saved to the shared cookie', () => {
-    const jar: Record<string, string> = {};
-    Object.defineProperty(globalThis.document, 'cookie', {
-      configurable: true,
-      get: () =>
-        Object.entries(jar)
-          .map(([k, v]) => `${k}=${v}`)
-          .join('; '),
-      set: (v: string) => {
-        const [pair] = v.split(';');
-        const at = pair.indexOf('=');
-        jar[pair.slice(0, at)] = pair.slice(at + 1);
-      },
-    });
-    saveState({ ...state(), shared: { label: 'bug' } });
-    const next = saveWebhooksFilter(
-      state({ webhooks: {} }),
-      { ...DEFAULT_WEBHOOKS_FILTER, repo: 'acme' },
-      ['repo'],
-    );
-    expect(next.shared.label).toBe('bug');
-  });
-
-  test('saves the filter under the webhooks group', () => {
-    saveWebhooksFilter(
-      state({ webhooks: {} }),
-      { ...DEFAULT_WEBHOOKS_FILTER, repo: 'acme' },
-      ['repo'],
-    );
-    expect((puts.at(-1) as SharedFilterState).webhooks?.repo).toBe('acme');
   });
 });
 
@@ -300,77 +250,5 @@ describe('resetFilters', () => {
     resetFilters(s, settings);
     expect(s.issue.hideDependencyDashboard).toBe('1');
     expect(s.issue.hideTitleRegex).toBeUndefined();
-  });
-});
-
-describe('saveWebhooksControl', () => {
-  const filter = { ...DEFAULT_WEBHOOKS_FILTER };
-  const wins = (control: Parameters<typeof saveWebhooksControl>[2]) => {
-    const next = saveWebhooksControl(
-      state({ webhooks: {} }),
-      {
-        ...filter,
-        forge: 'github',
-        repo: 'acme',
-        status: 'pending',
-        sort: 'forge',
-        dir: 'desc',
-      },
-      control,
-    );
-    applyServerState(next, {
-      webhooks: {
-        forge: 'forgejo',
-        repo: 'zed',
-        status: 'confirmed',
-        sort: 'fullName',
-        dir: 'asc',
-      },
-    });
-    return next.webhooks ?? {};
-  };
-
-  test('the forge control owns the forge key only', () => {
-    const w = wins('forge');
-    expect(w.forge).toBe('github');
-    expect(w.repo).toBe('zed');
-    expect(w.status).toBe('confirmed');
-  });
-
-  test('the repo control owns the repo key only', () => {
-    const w = wins('repo');
-    expect(w.repo).toBe('acme');
-    expect(w.forge).toBe('forgejo');
-  });
-
-  test('the status control owns the status key only', () => {
-    const w = wins('status');
-    expect(w.status).toBe('pending');
-    expect(w.forge).toBe('forgejo');
-  });
-
-  test('the sort control owns the sort and direction', () => {
-    const w = wins('sort');
-    expect(w.sort).toBe('forge');
-    expect(w.dir).toBe('desc');
-    expect(w.repo).toBe('zed');
-  });
-
-  test('clearing owns every key', () => {
-    const w = wins('clear');
-    expect([w.forge, w.repo, w.status, w.sort, w.dir]).toEqual([
-      'github',
-      'acme',
-      'pending',
-      'forge',
-      'desc',
-    ]);
-  });
-
-  test('the repo box waits for a pause in typing, the others save at once', () => {
-    saveWebhooksControl(state({ webhooks: {} }), filter, 'repo');
-    expect(puts).toHaveLength(0);
-    saveWebhooksControl(state({ webhooks: {} }), filter, 'status');
-    expect(puts).toHaveLength(1);
   });
 });
