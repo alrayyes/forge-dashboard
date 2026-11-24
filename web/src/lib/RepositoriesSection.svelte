@@ -1068,7 +1068,7 @@
        right edge says there is more. The tab bar's clearance comes from the
        body padding in the stylesheet. */
     .forge-scroll {
-      flex: 1 1 100%;
+      flex: 0 0 auto;
       overflow-x: auto;
       mask-image: linear-gradient(
         to right,
@@ -1076,8 +1076,14 @@
         transparent
       );
     }
+    /* The bar is a column here, so a flex-basis would be a height. */
+    .search-field {
+      flex: 0 0 auto;
+    }
     .repositories-sort {
       display: block;
+      flex: 0 0 auto;
+      width: 100%;
     }
     .repo-table,
     .repo-table thead,
