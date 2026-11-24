@@ -13,13 +13,25 @@ describe('settings groups', () => {
     });
   });
 
-  test('four groups in the agreed order', () => {
+  test('five groups in the agreed order, Repositories last', () => {
     expect(SETTINGS_GROUPS.map((g) => g.label)).toEqual([
       'Display',
       'Connections',
       'Behaviour',
       'Integrations and security',
+      'Repositories',
     ]);
+  });
+
+  test('Repositories opens from its own hash, with its caption', () => {
+    expect(groupFromHash('#repositories')).toEqual({ group: 'repositories' });
+    const repositories = SETTINGS_GROUPS.find((g) => g.id === 'repositories');
+    expect(repositories?.caption()).toBe('Auto-update, rebase bots, ignore');
+  });
+
+  test('Integrations no longer names Webhooks in its caption', () => {
+    const integrations = SETTINGS_GROUPS.find((g) => g.id === 'integrations');
+    expect(integrations?.caption()).not.toMatch(/webhook/i);
   });
 
   test('no hash and unknown hashes open Display', () => {
