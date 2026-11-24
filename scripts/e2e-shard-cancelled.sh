@@ -4,24 +4,27 @@
 # push cancelling the run (concurrency). Only the first means the split is
 # stale, so tell them apart by elapsed time: a timeout fires at the limit, a
 # push cancel comes whenever the push does. Time spent pulling the image
-# counts toward the limit but happens before the start is recorded, so allow a
-# minute of slack. A push landing in that last minute is called a timeout; the
-# message points at a check anyway, so the cost is one look at the durations.
+# counts toward the limit but happens before the start is recorded: runs here
+# lose 21 to 25 seconds to it, so allow 40. A push landing in that last 40
+# seconds is called a timeout; the message points at a check anyway, so the
+# cost is one look at the durations.
 #
 # Env: SHARD, SHARD_TOTAL, LIMIT_MINUTES, STARTED (epoch seconds, may be
 # empty), NOW (epoch seconds, defaults to the clock).
 set -euo pipefail
 
-slack=60
+slack=40
 now=${NOW:-$(date +%s)}
 limit=$((LIMIT_MINUTES * 60))
 label="shard ${SHARD}/${SHARD_TOTAL}"
 summary=${GITHUB_STEP_SUMMARY:-/dev/null}
 
-if [ -z "${STARTED:-}" ]; then
+case "${STARTED:-}" in
+'' | *[!0-9]*)
   echo "::notice::e2e $label was cancelled; its start time wasn't recorded, so the cause is unknown."
   exit 0
-fi
+  ;;
+esac
 
 elapsed=$((now - STARTED))
 shown="$((elapsed / 60))m$((elapsed % 60))s"
