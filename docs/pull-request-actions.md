@@ -38,24 +38,27 @@ behind person's pull request whose row button is Merge, or none (ready to merge,
 failing checks), also draws the Update branch the server lists in the row bar,
 beside the main button. On a phone the two share one line, and shrink a little
 at 320px before they would wrap. A locked Merge that prints its own reason takes
-the full line, so Update branch sits under it. A confirmed conflict (the forge
-says conflicting and, on Forgejo, a refusal named it) draws its warning alone:
-no locked Merge, no locked Update branch and no Out of date chip, since none of
-them unlocks anything the warning doesn't name. A behind bot pull request whose
-rebase was just requested shows its waiting chip and neither the Out of date
-chip nor the "Behind the base branch" block, since the request already does what
-they ask for. When the request times out ("No reply from Dependabot yet") both
-come back. An unconfirmed Forgejo conflict keeps its live Update branch, because
-updating is how it gets confirmed. The pop-up's footer still lists Merge and
-Update branch locked, each with its reason. A conflict row still keeps a Close,
-the cancel of a pending Renovate rebase and a Merge already confirming or
-running. A pull request that is behind the base branch is the one case where a
-locked Merge is not the row's button: the row draws no button of its own,
-because the cure (Update branch, or the bot's rebase) sits inside the status
-block on top of it, and the greyed Merge is in the pop-up. A behind bot pull
-request whose Merge is held back by something else too (checks running, say)
-draws its rebase on the row. Every other action is in the pop-up's footer, one
-click away, and there is no "More actions" menu.
+the full line, so Update branch sits under it. From 1191px of list width the
+note, like the pills, starts at the left of its slot, and the Close-locked cue
+starts at the CI pill; a narrower list right-aligns them with the button, and a
+phone card left-aligns them. A confirmed conflict (the forge says conflicting
+and, on Forgejo, a refusal named it) draws its warning alone: no locked Merge,
+no locked Update branch and no Out of date chip, since none of them unlocks
+anything the warning doesn't name. A behind bot pull request whose rebase was
+just requested shows its waiting chip and neither the Out of date chip nor the
+"Behind the base branch" block, since the request already does what they ask
+for. When the request times out ("No reply from Dependabot yet") both come back.
+An unconfirmed Forgejo conflict keeps its live Update branch, because updating
+is how it gets confirmed. The pop-up's footer still lists Merge and Update
+branch locked, each with its reason. A conflict row still keeps a Close, the
+cancel of a pending Renovate rebase and a Merge already confirming or running. A
+pull request that is behind the base branch is the one case where a locked Merge
+is not the row's button: the row draws no button of its own, because the cure
+(Update branch, or the bot's rebase) sits inside the status block on top of it,
+and the greyed Merge is in the pop-up. A behind bot pull request whose Merge is
+held back by something else too (checks running, say) draws its rebase on the
+row. Every other action is in the pop-up's footer, one click away, and there is
+no "More actions" menu.
 
 When runs wait for someone to approve them, that is the reason Merge gives,
 ahead of being behind the base branch, whatever the merge state the forge
