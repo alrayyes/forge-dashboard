@@ -1132,10 +1132,17 @@ section.board {
    track. */
 @media (min-width: 861px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
+    .row:not(.issue-row) {
+      /* The wider track is 25rem, but never more than leaves the title 200px
+         (240px repo, 22px go, gaps): at 150% text the 600px track left a row
+         with labels a 24px title and its chips broken at every letter (#4789).
+         The 280px of the plain track is the least it takes. */
+      --wide-status: max(280px, min(25rem, calc(100% - 480px)));
+    }
     .row:not(.issue-row):has(.status-cell > .wait-slot:not(:empty)):not(
         :has(.status-cell > .wait-slot .wait-chip-detail:not(:empty))
       ):has(.status-cell > .row-action-bar) {
-      grid-template-columns: 240px minmax(0, 1fr) 25rem 22px;
+      grid-template-columns: 240px minmax(0, 1fr) var(--wide-status) 22px;
     }
     /* #4601: a stopped auto-merge chip (162px) shares the line with the CI
        pill and the Auto-merge attribute chip (200px together), which the 280px
@@ -1143,7 +1150,7 @@ section.board {
     .row:not(.issue-row):has(
         .status-cell > .wait-slot > .wait-chip[data-state="stopped"]
       ) {
-      grid-template-columns: 240px minmax(0, 1fr) 25rem 22px;
+      grid-template-columns: 240px minmax(0, 1fr) var(--wide-status) 22px;
     }
   }
 }
