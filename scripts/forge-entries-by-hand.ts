@@ -1,7 +1,7 @@
 // Finds a mocked forge entry written by hand: an object literal that has both a
-// `forge` key and a `reachable` key at its own level (#4030). Key order, other
-// keys between them, a leading spread, quoted keys and `{ forge, reachable }`
-// shorthand all count.
+// `forge` key and a `reachable` or `repoCount` key at its own level (#4030). An
+// entry that leaves `reachable` out still counts. Key order, other keys between
+// them, a leading spread, quoted keys and shorthand all count.
 
 import ts from 'typescript';
 
@@ -84,13 +84,23 @@ export function writesForgeEntryByHand(raw: string): boolean {
       spans.push([open.pop() as number, i]);
     }
   }
+  // An object's own level is its text with each nested `{ ... }` blanked out. A
+  // nested one is taken whole, outermost first, so a block holding other blocks
+  // is blanked once and none of its inside is left behind.
+  spans.sort((x, y) => x[0] - y[0]);
   return spans.some(([start, end]) => {
-    let body = source.slice(start, end + 1);
+    let body = '';
+    let at = start;
     for (const [s, e] of spans) {
-      if (s > start && e < end) {
-        body = body.replace(source.slice(s, e + 1), '{}');
+      if (s > start && e < end && s >= at) {
+        body += `${source.slice(at, s)}{}`;
+        at = e + 1;
       }
     }
-    return hasKey(body, 'forge') && hasKey(body, 'reachable');
+    body += source.slice(at, end + 1);
+    return (
+      hasKey(body, 'forge') &&
+      (hasKey(body, 'reachable') || hasKey(body, 'repoCount'))
+    );
   });
 }
