@@ -226,6 +226,7 @@ const singleUserSpecs = [
   '**/refresh-queue-focus.spec.ts',
   '**/pagination-focus.spec.ts',
   '**/label-chip-pill-overlap.spec.ts',
+  '**/label-chip-one-line.spec.ts',
   '**/inline-feedback.spec.ts',
   '**/label-in-name.spec.ts',
   '**/mono-figures.spec.ts',
