@@ -182,7 +182,14 @@ for (const vp of VIEWPORTS) {
       expect(b.x + b.width).toBeLessThanOrEqual(s.x + s.width + 0.5);
       if (phone) {
         const f = await box(page.locator('#filters-button'));
-        expect(b.x + b.width).toBeLessThanOrEqual(f.x);
+        // The Filters button sits in the result bar under the box now
+        // (#4288), so the check is that the two never overlap.
+        const apart =
+          b.x + b.width <= f.x ||
+          f.x + f.width <= b.x ||
+          b.y + b.height <= f.y ||
+          f.y + f.height <= b.y;
+        expect(apart).toBe(true);
         expect(b.height).toBeGreaterThanOrEqual(44);
       } else {
         expect(b.height).toBeGreaterThanOrEqual(24);
