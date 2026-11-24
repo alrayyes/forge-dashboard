@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.111.3](https://github.com/alrayyes/forge-dashboard/compare/v9.111.2...v9.111.3) (2026-11-24)
+
+
+### Bug Fixes
+
+* **web:** only a CI pill that is a button gets the pointer cursor ([#4761](https://github.com/alrayyes/forge-dashboard/issues/4761)) ([9ea5df2](https://github.com/alrayyes/forge-dashboard/commit/9ea5df24aad8d47d490bcffcacd29a0f32e63cfe)), closes [#4756](https://github.com/alrayyes/forge-dashboard/issues/4756) [#4753](https://github.com/alrayyes/forge-dashboard/issues/4753)
+
 ## [9.111.2](https://github.com/alrayyes/forge-dashboard/compare/v9.111.1...v9.111.2) (2026-11-23)
 
 
