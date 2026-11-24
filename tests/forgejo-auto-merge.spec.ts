@@ -355,7 +355,7 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
   });
 });
 
-// Two rows, since the group control is not drawn over one (#3670).
+// Two repos, since the group control is not drawn over fewer (#3670, #4680).
 const CALLOUT =
   'Auto-merge on Forgejo is handled by Forge Dashboard, not Forgejo itself.';
 
@@ -365,12 +365,14 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
   }) => {
     await mockDashboard(
       page,
-      snapshot(makePR(), { pullRequests: [makePR(), makePR({ number: 8 })] }),
+      snapshot(makePR(), {
+        pullRequests: [makePR(), makePR({ number: 8, repo: 'acme/other' })],
+      }),
     );
     await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
 
-    const callout = page.locator('#pr-rows .group-callout');
+    const callout = page.locator('#pr-rows .group-callout').first();
     await expect(callout).toContainText(CALLOUT);
     await expect(
       callout.getByRole('link', { name: 'Settings' }),
@@ -384,29 +386,27 @@ test.describe('Forgejo auto-merge explained where it is used', () => {
         forges: [forgeHealth('github')],
         pullRequests: [
           makePR({ forge: 'github', repo: 'alrayyes/forge-dashboard' }),
-          makePR({
-            forge: 'github',
-            repo: 'alrayyes/forge-dashboard',
-            number: 8,
-          }),
+          makePR({ forge: 'github', repo: 'alrayyes/other', number: 8 }),
         ],
       }),
     );
     await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
 
-    await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(1);
+    await expect(page.locator('#pr-rows > h3.group-heading')).toHaveCount(2);
     await expect(page.locator('#pr-rows .group-callout')).toHaveCount(0);
   });
 
   test('the callout has no axe-core violations', async ({ page }) => {
     await mockDashboard(
       page,
-      snapshot(makePR(), { pullRequests: [makePR(), makePR({ number: 8 })] }),
+      snapshot(makePR(), {
+        pullRequests: [makePR(), makePR({ number: 8, repo: 'acme/other' })],
+      }),
     );
     await page.goto('/pull-requests.html');
     await page.selectOption('#shared-group-select', 'repo');
-    await expect(page.locator('#pr-rows .group-callout')).toBeVisible();
+    await expect(page.locator('#pr-rows .group-callout').first()).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])

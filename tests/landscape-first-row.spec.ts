@@ -252,9 +252,18 @@ for (const size of UNCHANGED) {
         };
       });
     await expect.poll(measure).toMatchObject({ activityPosition: 'sticky' });
+    // The bar's height is a fractional sum of wrapped rows rounded to a pixel,
+    // and the mock here has one repo, so Group is not drawn (#4680). That
+    // can land on either side of the integer, so the bar is checked to a
+    // pixel and every other height exactly.
+    const expected = EXPECTED[`${size.width}x${size.height}`];
     await expect
-      .poll(measure)
-      .toEqual(EXPECTED[`${size.width}x${size.height}`]);
+      .poll(async () => {
+        const got = await measure();
+        const near = Math.abs(got.filterBar - expected.filterBar) <= 1;
+        return { ...got, filterBar: near ? expected.filterBar : got.filterBar };
+      })
+      .toEqual(expected);
   });
 }
 

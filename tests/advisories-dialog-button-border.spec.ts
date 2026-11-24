@@ -162,7 +162,7 @@ for (const scheme of ['light', 'dark'] as const) {
       const dialog = page.getByTestId('advisories-dialog');
 
       // List view: every pill (pressed and not), the X, the footer Close.
-      const pills = dialog.locator('.adv-filter');
+      const pills = dialog.locator('.adv-filters .filter-pill');
       await expect(pills).toHaveCount(3);
       await dialog.getByTestId('advisory-filter-critical').click();
       for (const [i, pill] of (await pills.all()).entries()) {
@@ -198,7 +198,7 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
-test('the pressed pill keeps its ink fill and border in light', async ({
+test('the pressed pill takes the shared accent fill in light', async ({
   page,
 }) => {
   await page.emulateMedia({ colorScheme: 'light' });
@@ -206,9 +206,52 @@ test('the pressed pill keeps its ink fill and border in light', async ({
   const pill = page.getByTestId('advisory-filter-critical');
   await pill.click();
   await expect(pill).toHaveAttribute('aria-pressed', 'true');
-  await expect(pill).toHaveCSS('background-color', 'rgb(16, 24, 38)');
-  await expect(pill).toHaveCSS('border-top-color', 'rgb(16, 24, 38)');
+  const accent = await pill.evaluate((el) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--pill-active)';
+    el.appendChild(probe);
+    const colour = getComputedStyle(probe).color;
+    probe.remove();
+    return colour;
+  });
+  await expect(pill).toHaveClass(/filter-pill/);
+  await expect(pill).toHaveCSS('background-color', accent);
+  await expect(pill).toHaveCSS('border-top-color', accent);
 });
+
+// The severity filter is the shared FilterPill in a labelled FilterGroup: 32px
+// high with a count, and on a phone a 44px hit area around the drawn pill.
+// https://github.com/alrayyes/forge-dashboard/issues/4614
+for (const width of [1280, 390, 320]) {
+  test(`the severity pills are shared 32px pills with a count at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await open(page);
+    const dialog = page.getByTestId('advisories-dialog');
+    const group = dialog.getByRole('group', { name: 'Severity', exact: true });
+    await expect(group.locator('.filter-group-label')).toBeVisible();
+    const pills = group.locator('.filter-pill');
+    await expect(pills).toHaveCount(3);
+    for (const pill of await pills.all()) {
+      expect((await pill.boundingBox())?.height).toBe(32);
+      await expect(pill.locator('.filter-pill-count')).toHaveText(/^\d+$/);
+      if (width > 760) {
+        continue;
+      }
+      const hits = await pill.evaluate((p) => {
+        const r = p.getBoundingClientRect();
+        const x = r.left + r.width / 2;
+        const owns = (y: number) => {
+          const e = document.elementFromPoint(x, y);
+          return e === p || p.contains(e);
+        };
+        return [owns(r.top - 5), owns(r.bottom + 5)];
+      });
+      expect(hits).toEqual([true, true]);
+    }
+  });
+}
 
 test('the provider chip keeps its decorative border', async ({ page }) => {
   await page.emulateMedia({ colorScheme: 'light' });

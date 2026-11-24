@@ -2,7 +2,7 @@ spec,duration_s,tests,browser_only_tests,cls,lower,est_movable_s
 actions-dialog-helper.spec.ts,1.24,4,3,A,,0.3
 activity-persistence.spec.ts,1.228,2,0,C,,1.2
 address-open-focus.spec.ts,0.935,3,3,A,,0.0
-advisories-dialog-button-border.spec.ts,5.352,4,4,A,web/src/lib/advisories-dialog.test.ts,0.0
+advisories-dialog-button-border.spec.ts,5.352,5,5,A,web/src/lib/advisories-dialog.test.ts,0.0
 advisories-dialog-cached-list.spec.ts,16.564,8,4,A,web/src/lib/advisories-dialog.test.ts,8.3
 advisories-dialog-close-position.spec.ts,2.24,2,1,A,web/src/lib/advisories-dialog.test.ts,1.1
 advisory-chip-fit.spec.ts,5.411,2,2,A,,0.0
@@ -69,7 +69,7 @@ failure-line-stays.spec.ts,4.213,8,3,C,,2.6
 filter-bar-one-control.spec.ts,4.225,6,5,A,,0.7
 filter-bar-overlap.spec.ts,1.97,1,1,A,,0.0
 filter-bar-short-list.spec.ts,20.844,8,7,A,,2.6
-filter-bar-single-row.spec.ts,36.643,20,14,A,,11.0
+filter-bar-single-row.spec.ts,36.643,24,14,A,,15.3
 filter-bar-widths.spec.ts,0.889,1,1,A,,0.0
 filter-choices-board.spec.ts,5.81,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.057,4,2,A,,0.5
@@ -284,7 +284,7 @@ show-drafts-by-page.spec.ts,5.164,2,2,A,,0.0
 show-drafts.spec.ts,5.541,8,4,A,,2.8
 show-row-clears-filters.spec.ts,0.997,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.956,9,2,C,,1.5
-stable-rows.spec.ts,10.214,24,15,A,,3.8
+stable-rows.spec.ts,10.214,26,15,A,,4.3
 stacked-prs.spec.ts,2.66,7,2,C,,1.9
 stale-dashboard-instance.spec.ts,0.347,1,0,C,,0.3
 stale-data-notice.spec.ts,1.23,4,1,C,,0.9

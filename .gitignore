@@ -72,3 +72,6 @@ CHANGELOG.md
 # `bun run storybook:screenshots`.
 /web/storybook-static/
 /docs/storybook/
+
+# Push logs are written outside the tree; never stage one.
+push-*.log

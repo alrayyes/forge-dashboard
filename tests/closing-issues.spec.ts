@@ -253,9 +253,9 @@ test.describe('the address of an issue', () => {
     await expect(issueDialog(page)).toBeHidden();
     // The cookie's pick leaves one row, so the title box is hidden (#3823):
     // focus lands on the first enabled control still drawn (the sort box is
-    // disabled over one row, #3886, so the picked Author filter here), not the page.
+    // not drawn over one row, #4680, so the picked Author filter here), not the page.
     await expect(page.getByLabel('Filter by title')).toBeHidden();
-    await expect(page.getByLabel('Sort issues by')).toBeDisabled();
+    await expect(page.getByLabel('Sort issues by')).toBeHidden();
     await expect(page.locator('#shared-author-filter-button')).toBeFocused();
     await context.clearCookies({ name: 'forge-board-filters' });
   });

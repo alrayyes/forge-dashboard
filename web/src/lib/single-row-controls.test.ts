@@ -1,6 +1,12 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { groupOffered, sortOffered } from './filters';
+import {
+  dateFilterOffered,
+  groupChoices,
+  groupOffered,
+  sortChoices,
+  sortOffered,
+} from './filters';
 import { pickFilterVisible } from './shared-picks';
 
 // A list the filters have left at one row, or none, has nothing to sort or
@@ -20,18 +26,59 @@ describe('sortOffered', () => {
   });
 });
 
+describe('groupChoices', () => {
+  const row = (forge: string, repo: string) => ({ forge, repo });
+
+  test('offers nothing for one row, none, or one repo', () => {
+    expect(groupChoices([])).toEqual({ repo: false, forge: false });
+    expect(groupChoices([row('github', 'a/b')])).toEqual({
+      repo: false,
+      forge: false,
+    });
+    expect(groupChoices([row('github', 'a/b'), row('github', 'a/b')])).toEqual({
+      repo: false,
+      forge: false,
+    });
+  });
+
+  test('offers repository for two repos on one forge', () => {
+    expect(groupChoices([row('github', 'a/b'), row('github', 'a/c')])).toEqual({
+      repo: true,
+      forge: false,
+    });
+  });
+
+  test('a repo name on two forges is two repos, and two forges', () => {
+    expect(groupChoices([row('github', 'a/b'), row('forgejo', 'a/b')])).toEqual(
+      {
+        repo: true,
+        forge: true,
+      },
+    );
+  });
+});
+
 describe('groupOffered', () => {
-  test('is off for one row or none while no grouping is chosen', () => {
-    expect(groupOffered(1, '')).toBe(false);
-    expect(groupOffered(0, '')).toBe(false);
+  test('is on when either choice is', () => {
+    expect(groupOffered({ repo: false, forge: false })).toBe(false);
+    expect(groupOffered({ repo: true, forge: false })).toBe(true);
+    expect(groupOffered({ repo: false, forge: true })).toBe(true);
   });
+});
 
-  test('stays on while a grouping is chosen, so it can be undone', () => {
-    expect(groupOffered(1, 'repo')).toBe(true);
+describe('sortChoices', () => {
+  test('Repository needs two repos', () => {
+    expect(sortChoices(1)).toEqual({ repo: false });
+    expect(sortChoices(2)).toEqual({ repo: true });
   });
+});
 
-  test('is on for two or more rows', () => {
-    expect(groupOffered(2, '')).toBe(true);
+describe('dateFilterOffered', () => {
+  test('hides over one row unless a value is set', () => {
+    expect(dateFilterOffered(1, '')).toBe(false);
+    expect(dateFilterOffered(0, '')).toBe(false);
+    expect(dateFilterOffered(1, '1440')).toBe(true);
+    expect(dateFilterOffered(2, '')).toBe(true);
   });
 });
 
