@@ -298,8 +298,17 @@
     return liveHost;
   }
 
-  export function close() {
-    dialogEl?.close();
+  // Closes the dialog. The promise settles once the close has been handled:
+  // the dialog hands focus back from its "close" event, a task after close()
+  // returns, so a caller that is about to put focus elsewhere waits for it
+  // rather than lose to it (#4748).
+  export function close(): Promise<void> {
+    const el = dialogEl;
+    if (!el?.open) return Promise.resolve();
+    return new Promise((resolve) => {
+      el.addEventListener("close", () => resolve(), { once: true });
+      el.close();
+    });
   }
 
   export function isOpen(): boolean {

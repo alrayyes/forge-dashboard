@@ -6123,7 +6123,7 @@
       // successful Hide closes the dialog first (the pull request is leaving
       // the board anyway), and the page's status line and its Undo are
       // spoken and focused where the user can reach them.
-      if (dialogKey === key) detailsDialog?.close();
+      if (dialogKey === key) await detailsDialog?.close();
       setHideStatus(hidMessage(item), () => void doRestore(item));
       await refreshBoard();
       // The row this was reached from is gone, so focus moves to the one
