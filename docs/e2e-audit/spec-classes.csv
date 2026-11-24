@@ -111,7 +111,7 @@ forge-odd-ids.spec.ts,1.444,7,0,C,,1.4
 forgejo-auto-merge.spec.ts,7.428,13,3,C,,5.7
 forgejo-token-saved-hint.spec.ts,7.929,1,1,A,,0.0
 github-token-saved-hint.spec.ts,4.732,6,2,C,,3.2
-hide-pull-request.spec.ts,5.717,14,3,C,,4.5
+hide-pull-request.spec.ts,5.717,15,4,C,,4.2
 hit-areas.spec.ts,25.323,23,23,A,,0.0
 in-place-dialogs.spec.ts,14.189,21,11,A,,6.8
 inline-feedback.spec.ts,32.133,36,26,A,,8.9

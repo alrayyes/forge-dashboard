@@ -3,6 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
+import { settle } from './settle-helper';
 
 // Hide one pull request, with Undo and a Hidden list (#841). The server owns
 // the hiding (POST /api/v1/pull-requests/hide, /unhide, and `hiddenPullRequests`
@@ -193,6 +194,36 @@ test.describe('hiding one pull request (#841)', () => {
     // server push would not be caught by it.
     await page.clock.runFor(10_000);
     await expect(status).toContainText('Hid PR #2');
+  });
+
+  test('Undo keeps focus when it is focused the moment the message appears (#4748)', async ({
+    page,
+  }) => {
+    await open(page);
+    const footer = await footerOf(page, 'Pull request 2');
+    // Focuses Undo in the same task that draws it, the earliest anything can:
+    // the dialog's own handback of focus, which runs from its "close" event,
+    // must not take it away afterwards.
+    await page.evaluate(() => {
+      const status = document.getElementById('hide-status');
+      if (!status) return;
+      new MutationObserver((_records, observer) => {
+        const undo = status.querySelector('button');
+        if (!undo) return;
+        undo.focus();
+        observer.disconnect();
+      }).observe(status, { childList: true });
+    });
+    await footer
+      .getByRole('button', { name: 'Hide this pull request' })
+      .click();
+    const undo = page.locator('#hide-status').getByRole('button', {
+      name: 'Undo',
+    });
+    await expect(undo).toBeVisible();
+    await settle(page);
+
+    await expect(undo).toBeFocused();
   });
 
   test('Undo brings the row back', async ({ page }) => {
