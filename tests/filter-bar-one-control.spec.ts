@@ -53,8 +53,9 @@ const TRIGGERS = [
   '#shared-author-filter-button',
   '#shared-label-filter-button',
 ];
+// The sort select is the result bar's own 32px control (#4288), so it is not
+// held to the filter controls' size.
 const SELECTS = [
-  '#pr-sort-select',
   '#shared-group-select',
   'select[data-col="created"]',
   'select[data-col="updated"]',
@@ -91,6 +92,13 @@ for (const [name, path] of [
         expect(reference.chevron).not.toBe('none');
         for (const selector of [...TRIGGERS.slice(1), ...SELECTS]) {
           expect(await look(page, selector), selector).toEqual(reference);
+        }
+        // The sort select is 32px by design (#4288, result-bar.spec pins it);
+        // everything else about it matches the other controls.
+        if (name === 'pull requests') {
+          const { height: _h, ...rest } = await look(page, '#pr-sort-select');
+          const { height: _r, ...want } = reference;
+          expect(rest, '#pr-sort-select').toEqual(want);
         }
       }).toPass();
     });

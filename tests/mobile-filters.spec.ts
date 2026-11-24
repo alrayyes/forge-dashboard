@@ -101,8 +101,13 @@ for (const size of [
       // Visible without scrolling: its top is well inside the viewport.
       expect(first?.y ?? 9999).toBeLessThan(size.height - 60);
 
+      // The search row, then one result-bar line with Filters, the count and
+      // the sort (#4288). Two pixels of slack, so a wrapped line fails. At
+      // 360px the sort wraps to a second 44px line, so that width gets one.
       const bar = await page.locator('.filter-bar').boundingBox();
-      expect(bar?.height ?? 9999).toBeLessThanOrEqual(150);
+      expect(bar?.height ?? 9999).toBeLessThanOrEqual(
+        size.width >= 390 ? 120 : 172,
+      );
     });
 
     test('closed, it is a search row and the Filters button, with no pill groups in the bar (#3734)', async ({
@@ -275,8 +280,9 @@ for (const size of [
           subtree: true,
         });
       });
-      // A new sort re-renders the board without changing the count.
-      const sort = sheet(page).locator('#pr-sort-select');
+      // A new sort re-renders the board without changing the count. The sort
+      // sits in the result bar, not in the sheet (#4288).
+      const sort = page.locator('#result-bar #pr-sort-select');
       const other = await sort.evaluate(
         (el: HTMLSelectElement) =>
           Array.from(el.options).find((o) => o.value !== el.value)?.value,

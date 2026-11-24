@@ -58,7 +58,7 @@ async function overlaps(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const boxes = [
       ...document.querySelectorAll<HTMLElement>(
-        '.filter-bar #filter-controls > *',
+        '.filter-bar #filter-controls > *, .filter-bar #result-count',
       ),
     ]
       .map((el) => ({

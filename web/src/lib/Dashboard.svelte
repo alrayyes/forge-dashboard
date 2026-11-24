@@ -324,6 +324,7 @@
   import { remainingBand } from "#lib/rate-limit-band.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
   import { renderShownCount } from "#lib/shown-count.js";
+  import { resultBarSentence, resultBarText } from "#lib/result-bar.js";
   import {
     formatClock,
     formatTime,
@@ -9166,6 +9167,8 @@
         // The nav icons carry the totals, so the page has no tiles repeating
         // them; this is the one place a filtered total shows (#1325, #3867).
         if (count) renderShownCount(count, visible.length, state.items.length);
+        if (isPR === pullsView)
+          renderResultBar(visible.length, state.items.length);
         // Every state change this app makes ends in a render() on one
         // or both boards (directly, or via renderBoth()) —
         // updateClearFiltersButton is declared later in this same
@@ -9696,11 +9699,42 @@
       if (hadFocus && !offered) {
         focusFilterBar();
         // A phone draws no pills in the bar, so the Filters button takes it.
-        if (
-          document.activeElement === document.body ||
-          document.activeElement === input
-        )
-          document.getElementById("filters-button")?.focus();
+        // It is drawn only there, and leads the result bar, after the sort.
+        const trigger = document.getElementById("filters-button");
+        if (trigger && trigger.getClientRects().length > 0) trigger.focus();
+      }
+    }
+
+    // The result bar's count line and Filtered tag (#4288). The polite region
+    // is written only when the sentence changes, and not for the first one, so
+    // loading the page says nothing.
+    function renderResultBar(shown: number, total: number) {
+      const count = document.getElementById("result-count");
+      const tag = document.getElementById("result-tag");
+      const live = document.getElementById("result-live");
+      if (!count) return;
+      const filtered = !filtersAreDefault();
+      const { number, rest } = resultBarText(
+        shown,
+        total,
+        loadingSubject,
+        filtered,
+      );
+      const strong = document.createElement("strong");
+      strong.textContent = number;
+      count.replaceChildren(strong, rest);
+      if (tag) tag.hidden = !filtered;
+      const sentence = resultBarSentence(
+        shown,
+        total,
+        loadingSubject,
+        filtered,
+      );
+      if (live) {
+        const last = live.dataset.sentence;
+        if (last !== undefined && last !== sentence)
+          live.textContent = sentence;
+        live.dataset.sentence = sentence;
       }
     }
 
@@ -9721,7 +9755,11 @@
       const button = document.getElementById(
         "clear-filters-button",
       ) as HTMLButtonElement | null;
-      if (button) button.disabled = filtersAreDefault();
+      if (button) {
+        // Drawn only while a filter is on (#4288).
+        button.disabled = filtersAreDefault();
+        button.hidden = button.disabled;
+      }
       syncFilterBar();
       renderFilterChrome();
     }
@@ -10032,6 +10070,9 @@
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {
+      // The button hides once the filters are default, so a keyboard user
+      // who pressed it would lose focus to the page.
+      const hadFocus = document.activeElement === clearFiltersButton;
       // Emptied in place: createBoard's own extraState closures captured
       // these objects at setup time.
       resetFilters(sharedState, {
@@ -10068,6 +10109,7 @@
       issueBoard.resetPage();
       Filters.saveState(sharedState);
       renderBoth();
+      if (hadFocus && clearFiltersButton.hidden) focusFilterBar();
     });
 
     // ---- forge health ----
@@ -11625,16 +11667,6 @@
         </button>
       </span>
       <datalist id="shared-title-options"></datalist>
-      <button
-        type="button"
-        class="filters-trigger"
-        id="filters-button"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-controls="filter-sheet"
-      >
-        Filters
-      </button>
     </div>
     <div
       class="active-filters"
@@ -11684,17 +11716,6 @@
       {@render refsSegment(true)}
       <select
         class="group-select"
-        id="pr-sort-select"
-        aria-label={view === "issues"
-          ? "Sort issues by"
-          : "Sort pull requests by"}
-      >
-        <option value="">Sort: Last activity</option>
-        <option value="created">Sort: Created</option>
-        <option value="repo">Sort: Repository</option>
-      </select>
-      <select
-        class="group-select"
         id="shared-group-select"
         aria-label="Group rows by"
       >
@@ -11742,18 +11763,58 @@
         <option value="10080">&lt; 7 days</option>
         <option value="43200">&lt; 30 days</option>
       </select>
-      <button
-        type="button"
-        class="clear-filters"
-        id="clear-filters-button"
-        disabled
-      >
-        Clear filters
-      </button>
     </div>
     <!-- Last in the bar, so the pills above it appearing or going moves
          nothing but this segment and the bar keeps its height. -->
     {@render refsSegment(false)}
+    <!-- The result bar (#4288): the count, whether a filter is on, the sort and
+         Clear filters in one line, on a phone too, where the rest of the bar
+         folds into the Filters sheet. The polite region says "N of M" when the
+         count changes, since the count line itself is redrawn on every render. -->
+    <div class="result-bar" id="result-bar">
+      <!-- Phone only: the Filters button leads the line, as in the draft. -->
+      <button
+        type="button"
+        class="filters-trigger"
+        id="filters-button"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="filter-sheet"
+      >
+        Filters
+      </button>
+      <p class="result-count" id="result-count"></p>
+      <span class="result-tag" id="result-tag" hidden>Filtered</span>
+      <label class="result-sort-wrap">
+        <select
+          class="group-select result-sort"
+          id="pr-sort-select"
+          aria-label={view === "issues"
+            ? "Sort issues by"
+            : "Sort pull requests by"}
+        >
+          <option value="">Sorted by Last activity</option>
+          <option value="created">Sorted by Created</option>
+          <option value="repo">Sorted by Repository</option>
+        </select>
+      </label>
+      <button
+        type="button"
+        class="clear-filters"
+        id="clear-filters-button"
+        hidden
+        disabled
+      >
+        Clear filters
+      </button>
+      <span
+        class="sr-only"
+        id="result-live"
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+      ></span>
+    </div>
   </div>
 
   <!-- Saved picks this page does not offer (#1620). Always in the page, so a

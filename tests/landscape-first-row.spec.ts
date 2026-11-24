@@ -280,7 +280,9 @@ const EXPECTED: Record<
     activityPosition: 'sticky',
     header: 84,
     toolbar: 24,
-    filterBar: 66,
+    // The result bar adds one 44px line with Filters, the count and the sort
+    // (#4288).
+    filterBar: 118,
   },
   // The header is one row here, not two: Releases and Bots draw 2 passing
   // without a repeated total (#3489), so the nav pills fit beside the brand.
@@ -291,13 +293,15 @@ const EXPECTED: Record<
     // One row shorter since the page offers no Show drafts when no draft
     // exists (#3680): the mock holds none. A row taller again, since the
     // pills are 32px, carry a count and wrap sooner (#4611).
-    filterBar: 138,
+    // Two pixels taller again for the result bar's row (#4288).
+    filterBar: 140,
   },
   '1280x800': {
     activityPosition: 'sticky',
     header: 82,
     toolbar: 24,
     // Two pixels taller: the pills are 32px high (#4611).
-    filterBar: 98,
+    // And two pixels for the result bar (#4288).
+    filterBar: 100,
   },
 };

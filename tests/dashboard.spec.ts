@@ -2853,18 +2853,21 @@ test.describe('dashboard page', () => {
       await boardReady(page);
     });
 
-    test('is visible but disabled with no filters active', async ({ page }) => {
-      var button = page.getByRole('button', { name: 'Clear filters' });
-      await expect(button).toBeVisible();
+    test('is not drawn, and disabled, with no filters active (#4288)', async ({
+      page,
+    }) => {
+      var button = page.locator('#clear-filters-button');
+      await expect(button).toBeHidden();
       await expect(button).toBeDisabled();
     });
 
     test('becomes enabled once a shared filter is active, and stays enabled for a CI pill/Hide Dependency Dashboard alone too', async ({
       page,
     }) => {
-      var button = page.getByRole('button', { name: 'Clear filters' });
+      var button = page.locator('#clear-filters-button');
 
       await page.fill('.filter-bar .col-filter[data-col="title"]', 'alarm');
+      await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
 
       const results = await new AxeBuilder({ page })
@@ -2873,9 +2876,10 @@ test.describe('dashboard page', () => {
       expect(results.violations).toEqual([]);
 
       await page.fill('.filter-bar .col-filter[data-col="title"]', '');
-      await expect(button).toBeDisabled();
+      await expect(button).toBeHidden();
 
       await page.locator('.quick-pills [data-pill="failing"]').click();
+      await expect(button).toBeVisible();
       await expect(button).toBeEnabled();
     });
 
@@ -2910,11 +2914,11 @@ test.describe('dashboard page', () => {
       // a combination that matched nothing is no longer offered).
       await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
 
-      var button = page.getByRole('button', { name: 'Clear filters' });
+      var button = page.locator('#clear-filters-button');
       await expect(button).toBeEnabled();
       await button.click();
 
-      await expect(button).toBeDisabled();
+      await expect(button).toBeHidden();
       await expect(
         page.locator('.filter-bar .col-filter[data-col="title"]'),
       ).toHaveValue('');
@@ -2950,9 +2954,7 @@ test.describe('dashboard page', () => {
       await page.reload();
       await boardReady(page);
 
-      await expect(
-        page.getByRole('button', { name: 'Clear filters' }),
-      ).toBeDisabled();
+      await expect(page.locator('#clear-filters-button')).toBeHidden();
       await expect(
         page.locator('.filter-bar .col-filter[data-col="title"]'),
       ).toHaveValue('');

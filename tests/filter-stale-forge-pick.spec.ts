@@ -113,16 +113,11 @@ test.describe('a saved forge pick nothing reports, elsewhere on the page (#4171)
     );
   });
 
-  test('leaves Clear filters disabled with no chip', async ({
-    page,
-    baseURL,
-  }) => {
+  test('draws no Clear filters with no chip', async ({ page, baseURL }) => {
     await open(page, baseURL, 'gitea');
     await expect(page.getByText('Pull request 1 on github')).toBeVisible();
     await expect(page.locator('.filter-chip-label')).toHaveCount(0);
-    await expect(
-      page.getByRole('button', { name: 'Clear filters' }),
-    ).toBeDisabled();
+    await expect(page.locator('#clear-filters-button')).toBeHidden();
   });
 
   test('a pick a pill offers still hides the option and resets the grouping', async ({

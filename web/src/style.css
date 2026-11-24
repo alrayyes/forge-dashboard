@@ -1676,6 +1676,86 @@ select.col-filter {
   cursor: default;
 }
 
+/* The result bar (#4288): the count, whether a filter is on, the sort and
+   Clear filters on one line, the last row of the filter bar. */
+.result-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 100%;
+  gap: 8px 12px;
+  min-width: 0;
+}
+.result-count {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+.result-count strong {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+/* Text, so the state is never colour alone. Dark teal on pale cyan, over 4.5:1. */
+.result-tag {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  color: #0b4f56;
+  background: #d8f3f6;
+}
+.result-tag[hidden],
+.result-bar .clear-filters[hidden] {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .result-tag {
+    color: #a8e6ec;
+    background: #12373c;
+  }
+}
+:root[data-theme="dark"] .result-tag {
+  color: #a8e6ec;
+  background: #12373c;
+}
+/* 32px, and level with the text beside it rather than hanging below it. */
+.filter-bar select.result-sort {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 0;
+  height: 32px;
+  padding-block: 0;
+  line-height: 30px;
+  vertical-align: middle;
+}
+.result-bar .clear-filters {
+  margin-inline-start: auto;
+}
+/* The select stays 32px; on a phone the label around it carries the rest of
+   the 44px tap target, and a tap on it focuses the select. */
+.result-sort-wrap {
+  display: inline-flex;
+}
+@media (max-width: 760px) {
+  .result-sort-wrap {
+    padding-block: 6px;
+  }
+  :root body .filter-bar .result-sort-wrap select.result-sort {
+    min-height: 32px;
+  }
+  /* Filters, the count and the sort share one line while no filter is on
+     (#4288); Clear filters and the Filtered tag wrap to a second line. */
+  .result-bar {
+    column-gap: 8px;
+  }
+  :root body .filter-bar .result-sort-wrap select.result-sort {
+    padding-inline: 6px;
+    font-size: 0.75rem;
+  }
+}
+
 /* Always visible (#354's own "Design decisions" section, not this file's
    own restraint elsewhere for e.g. mergeStatusPill): hiding it would
    remove both the "filters can be cleared" affordance and the passive

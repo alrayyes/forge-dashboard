@@ -141,6 +141,28 @@ stays in the box. Escape on an empty box does nothing. The Insights title box
 has the same button and Escape, and so does the search box on Main branches
 (button label **Clear search**, see [Main branches](main-branches.md)).
 
+## The result bar
+
+The last row of the filter bar is one line with the count, whether a filter is
+on, the sort and **Clear filters**. With no filter it reads "42 pull requests"
+and draws no **Filtered** tag and no **Clear filters** button. With a filter on
+it reads "12 of 42 pull requests", draws the **Filtered** tag (text, so the
+state is never colour alone, and over 4.5:1 in light and dark) and the button,
+which resets every group. The sort select is 32px high and its options read
+"Sorted by Last activity", "Sorted by Created" and "Sorted by Repository". On a
+phone this row stays in the bar while the rest of the filters fold into the
+Filters sheet. The **Filters** button leads the line, beside the count and the
+sort, so with no filter on the bar is one line at 390px. The **Filtered** tag
+and **Clear filters** wrap to a second line, as does the sort on a narrower
+screen. The select stays 32px and the surrounding label carries the 44px tap
+target. Pressing **Clear filters** from the keyboard moves focus to the filter
+bar, since the button hides. A polite live region says the same
+"N of M" when a filter or a refresh changes the count; it says nothing on first
+load. The menu pill is not part of this: it keeps the unfiltered totals, and its
+link keeps the numbers in its name. The Issues, Releases, and Bots pages draw the
+same bar with their own noun. The board header's own count ("4 open", "Showing 1
+of 2") is a separate line that the bulk actions use, and is unchanged.
+
 ## Short lists
 
 A page with one row, or none, has nothing to search or sort, so the filter bar,
@@ -159,7 +181,7 @@ since there is nothing to reorder, group or tell apart. A **Created** or
 **Updated** value that is set stays drawn so you can undo it. Each option is
 offered only where it changes something over the rows in view: **Group by
 repository** needs rows from two repositories, **Group by forge** rows from two
-forges, and **Sort: Repository** two repositories. When no grouping qualifies,
+forges, and **Sorted by Repository** two repositories. When no grouping qualifies,
 the **Group** select goes too. Your chosen sort and grouping are kept and apply
 again when the select comes back. A saved Repository sort over one repository,
 or a saved grouping that does not apply, is not used: the list keeps the server
