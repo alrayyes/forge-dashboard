@@ -105,8 +105,10 @@ async function dropForge(page: Page) {
   );
 }
 
-// Press Update branch where it is. A page taller than the viewport would
-// scroll to reach the button, and these specs measure the card's position.
+// Press Update branch where it is. Playwright's own click scrolls the button
+// into view when the page is taller than the viewport, which would move the
+// card these specs measure. An element click() dispatches the same click
+// event, including the handler and the focus handoff, without that scroll.
 const press = (row: Locator) =>
   row
     .getByRole('button', { name: 'Update branch' })
