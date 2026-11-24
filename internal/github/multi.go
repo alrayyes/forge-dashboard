@@ -65,11 +65,15 @@ func (m *Multi) Owner(owner, name string) Member {
 		return Member{}
 	}
 
-	m.mu.Lock()
-	r := m.owner[strings.ToLower(owner+"/"+name)]
-	m.mu.Unlock()
+	return m.members[m.ownerIndex(owner, name)]
+}
 
-	return m.members[r.member]
+// ownerIndex is Owner's place in the members.
+func (m *Multi) ownerIndex(owner, name string) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	return m.owner[strings.ToLower(owner+"/"+name)].member
 }
 
 // Fetch implements dashboard.Source. It reads every member at once and merges
