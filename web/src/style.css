@@ -5754,21 +5754,21 @@ button.pipeline-check-link:disabled {
    so the note reads at a measure of its own and not in the title track's 200px.
    The cap keeps a line short enough to scan on a wide list. */
 @media (min-width: 761px) {
-  .row > .stack-info {
+  /* The stack block and the stacked reason sit side by side, each at least
+     28ch wide, and wrap into two lines of the band when the row is narrow. */
+  .row > .stack-band {
     grid-column: 2 / -1;
-    /* After every cell, so it takes the line under them whatever the order
-       the row was built in. */
-    order: 1;
-    margin-top: 0;
-    max-width: 72ch;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px 16px;
   }
-  /* #4775: the reason a stacked pull request cannot merge reads across the
-     row too, under the chip line. */
-  .row > .status-area-stacked {
-    grid-column: 2 / -1;
-    order: 2;
-    flex: none;
+  .stack-band > .stack-info,
+  .stack-band > .status-area-stacked {
+    flex: 1 1 30ch;
+    min-width: 0;
     max-width: 72ch;
+    margin-top: 0;
   }
 }
 

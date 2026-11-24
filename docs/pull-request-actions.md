@@ -154,12 +154,13 @@ A filter that matches any member keeps the whole stack and dims the rest. A
 child says it targets its parent's branch, not main, so auto-merge isn't
 offered, and its Merge shows the server's reason. Tapping the chip lists the
 stack. Above a phone the chip, what it waits for, the note and the reason a
-stacked pull request can't merge sit under the row, across its title and status
-tracks, so they read at their own measure (up to 72 characters) and not in the
-narrow title track. On a phone they stay under the title, the chip is short,
-and the title is what gets cut. The server works out stacks from the branches
-(`stack`, `stackedOn` and `stackChildren` on each
-pull request).
+stacked pull request can't merge sit in one band under the row: the chip and
+note on the left, the reason beside them, each at least 28 characters wide, so
+the row grows by about one chip line and two lines of text. When the band is
+too narrow for both, the reason wraps under the chip block. On a phone they stay
+under the title, the chip is short, and the title is what gets cut. The server
+works out stacks from the branches (`stack`, `stackedOn` and `stackChildren` on
+each pull request).
 
 On Forgejo, while a run that is still going has jobs the counts leave out (it
 has none yet, or no status points at it), the server sets `checksIncomplete` on

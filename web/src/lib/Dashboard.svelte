@@ -3235,6 +3235,9 @@
         // The stack chip and its note, where the row has them (#4775).
         row: HTMLElement;
         stack: HTMLElement | null;
+        // Holds the stack block and the stacked reason side by side above a
+        // phone, so the row grows by one band and not two (#4775).
+        band: HTMLElement | null;
       }
     >();
     function oneLineList(): boolean {
@@ -3264,17 +3267,26 @@
       // row across its title and status tracks, where it reads at a measure
       // of its own instead of in the narrow title track. On a phone the
       // title cell is as wide as the card, so it stays there (#4775).
-      if (parts.stack) {
-        if (onPhone()) parts.titleCell.appendChild(parts.stack);
-        else parts.row.appendChild(parts.stack);
+      const stackedArea =
+        parts.area?.classList.contains("status-area-stacked") ?? false;
+      if (parts.stack && parts.band) {
+        const focused = parts.stack.contains(document.activeElement)
+          ? (document.activeElement as HTMLElement)
+          : null;
+        if (onPhone()) {
+          parts.titleCell.appendChild(parts.stack);
+          parts.band.remove();
+        } else {
+          parts.band.appendChild(parts.stack);
+          if (stackedArea && parts.area) parts.band.appendChild(parts.area);
+          parts.row.appendChild(parts.band);
+        }
+        focused?.focus();
       }
       if (oneLine || onPhone()) parts.titleCell.appendChild(parts.cluster);
       else parts.ciSlot.after(parts.cluster);
       if (!parts.area) return;
-      if (parts.area.classList.contains("status-area-stacked") && !onPhone()) {
-        parts.row.appendChild(parts.area);
-        return;
-      }
+      if (stackedArea && parts.band && !onPhone()) return;
       if (oneLine) parts.titleCell.appendChild(parts.area);
       else statusCell.insertBefore(parts.area, parts.waitSlot);
     }
@@ -3512,6 +3524,7 @@
           titleCell: titleCellEl,
           row,
           stack: stackEl,
+          band: stackEl ? el("div", "stack-band") : null,
         });
         placeNotes(statusCell, oneLineKnown);
         // The row draws one control: the action the server marked primary,
@@ -3547,6 +3560,10 @@
       }
       row.appendChild(meta);
       row.appendChild(el("div", "go", "→"));
+      // The stack block goes after the cells it follows in tab order, the
+      // same place a resize puts it.
+      const builtStatus = row.querySelector<HTMLElement>(".status-cell");
+      if (isPR && builtStatus) placeNotes(builtStatus, oneLineKnown);
       if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
     }

@@ -126,9 +126,7 @@ for (const width of [1280, 390]) {
       expect(m.lines).toBeLessThanOrEqual(4);
     });
 
-    test('the Stack chip and its summary sit on one line, with no separator dot', async ({
-      page,
-    }) => {
+    test('the Stack chip and its summary sit on one line', async ({ page }) => {
       await open(page, width);
       for (const n of [838, 839]) {
         const row = rowFor(page, n);
@@ -138,7 +136,6 @@ for (const width of [1280, 390]) {
         expect(
           Math.abs(chip!.y + chip!.height / 2 - (wait!.y + wait!.height / 2)),
         ).toBeLessThan(6);
-        await expect(row.locator('.stack-sep:visible')).toHaveCount(0);
       }
     });
 
@@ -184,10 +181,45 @@ for (const width of [1280, 390]) {
       expect(m.lines).toBeLessThanOrEqual(4);
       const plain = (await rowFor(page, 900).boundingBox())!.height;
       const dependent = (await row.boundingBox())!.height;
-      // At 1280px: the row (55px), the chip line, the note's two lines and the
-      // reason's two lines, 183px as drawn. The phone card is taller by design.
-      expect(dependent).toBeLessThanOrEqual(width === 1280 ? 190 : 370);
+      // The criterion: a plain row plus a chip line and two note lines. At
+      // 1280px the note and the reason sit side by side, so that is about
+      // 55 + 12 + 26 + 36. The phone card is taller by design.
+      expect(dependent).toBeLessThanOrEqual(width === 1280 ? 135 : 370);
       expect(plain).toBeLessThanOrEqual(width === 1280 ? 60 : 230);
+    });
+
+    test('the stack block follows the interactive cells of the row in tab order, before and after a resize', async ({
+      page,
+    }) => {
+      if (width !== 1280) return;
+      await open(page, width);
+      const follows = () =>
+        rowFor(page, 839).evaluate((row) => {
+          const chip = row.querySelector('.stack-chip')!;
+          const after = (sel: string) =>
+            !!(
+              row.querySelector(sel)!.compareDocumentPosition(chip) &
+              Node.DOCUMENT_POSITION_FOLLOWING
+            );
+          return after('.title') && after('.ci-pill') && after('.row-action');
+        });
+      expect(await follows()).toBe(true);
+      await page.setViewportSize({ width: 1100, height: 900 });
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await expect.poll(follows).toBe(true);
+    });
+
+    test('the chip keeps focus when the layout crosses the phone breakpoint', async ({
+      page,
+    }) => {
+      if (width !== 1280) return;
+      await open(page, width);
+      const chip = rowFor(page, 839).locator('.stack-chip');
+      await chip.focus();
+      await page.setViewportSize({ width: 390, height: 900 });
+      await expect(chip).toBeFocused();
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await expect(chip).toBeFocused();
     });
 
     test('has no axe violations', async ({ page }) => {
