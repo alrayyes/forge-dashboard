@@ -1,4 +1,4 @@
-// The four Settings groups and the URL hash that picks one. A hash is either
+// The five Settings groups and the URL hash that picks one. A hash is either
 // a group id ("#behaviour") or the id of a card that older links point at
 // ("#api-tokens"); the second opens the card's group and names the card so
 // the page can scroll it into view.
@@ -9,7 +9,8 @@ export type SettingsGroupId =
   | 'display'
   | 'connections'
   | 'behaviour'
-  | 'integrations';
+  | 'integrations'
+  | 'repositories';
 
 export const SETTINGS_GROUPS: {
   id: SettingsGroupId;
@@ -27,7 +28,12 @@ export const SETTINGS_GROUPS: {
   {
     id: 'integrations',
     label: 'Integrations and security',
-    caption: () => 'Webhooks, passkeys, API tokens',
+    caption: () => 'Passkeys, API tokens, MCP',
+  },
+  {
+    id: 'repositories',
+    label: 'Repositories',
+    caption: () => 'Auto-update, rebase bots, ignore',
   },
 ];
 

@@ -21,7 +21,6 @@
     type SharedFilterState,
     saveState,
   } from "#lib/filters.js";
-  import { dependabotBlockedReason } from "#lib/forge-lock.js";
   import {
     appConnectionCopy,
     noReposCopy,
@@ -81,17 +80,6 @@
     ignoredIssues: boolean;
     autoUpdateBranch: boolean;
     rebaseBots: boolean;
-  };
-
-  // The three choices POST /api/v1/repos/ignore's scope maps to (#511) — a
-  // plain union rather than two separate booleans in the UI layer, since
-  // "neither" isn't a fourth choice here: it's not ignoring at all, which
-  // is un-ignore's job, not this control's.
-  type IgnoreScope = "prs" | "issues" | "both";
-  const IGNORE_SCOPE_LABELS: Record<IgnoreScope, string> = {
-    prs: "Ignore PRs",
-    issues: "Ignore issues",
-    both: "Ignore both",
   };
 
   const ERROR_HEADLINES: Record<number, string> = {
@@ -176,12 +164,6 @@
   function lockReasonFor(repo: Repo): string | null {
     return rowState[rowKey(repo)]?.lockReason ?? rateLimitLock(repo.forge);
   }
-
-  // Ignored repos (#363) have their own "Ignored (N)" disclosure below
-  // rather than cluttering this table's default view alongside every
-  // repo that still matters day to day — un-ignoring one is what brings
-  // it back here, not a filter toggle.
-  const ignoredRepos = $derived(repos.filter((r) => r.ignored));
 
   // #380: every currently-tracked repo missing a webhook, regardless of
   // the active filter bar — the bulk action's whole point is doing every
@@ -481,279 +463,6 @@
     }
   }
 
-  let ignoreBusy = $state<Record<string, boolean>>({});
-
-  const IGNORE_SCOPE_DESCRIPTIONS: Record<IgnoreScope, string> = {
-    prs: "its pull requests won't show on the dashboard or Insights",
-    issues: "its issues won't show on the dashboard or Insights",
-    both: "its pull requests and issues won't show on the dashboard or Insights",
-  };
-
-  // Reversible, not destructive (#363's own design decision): no confirm
-  // step, the same as addWebhook above — a pure local write, never
-  // touching the forge, so there's nothing here a retry can't undo. A
-  // repeat call with a different scope (#511) replaces the saved scope
-  // rather than adding to it, matching POST /api/v1/repos/ignore's own
-  // documented behavior.
-  async function ignoreRepo(repo: Repo, scope: IgnoreScope) {
-    const key = rowKey(repo);
-    ignoreBusy[key] = true;
-    setStatus(`Ignoring ${repo.fullName}…`);
-
-    try {
-      const res = await fetch("/api/v1/repos/ignore", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          forge: repo.forge,
-          fullName: repo.fullName,
-          prs: scope === "prs" || scope === "both",
-          issues: scope === "issues" || scope === "both",
-        }),
-      });
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (res.status !== 204) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `backend answered ${res.status}`);
-      }
-      repo.ignored = true;
-      repo.ignoredPRs = scope === "prs" || scope === "both";
-      repo.ignoredIssues = scope === "issues" || scope === "both";
-      setStatus(
-        `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
-      );
-    } catch (err) {
-      setStatus(
-        `Couldn't ignore ${repo.fullName}: ${(err as Error).message}`,
-        "error",
-      );
-    } finally {
-      delete ignoreBusy[key];
-    }
-  }
-
-  // Un-ignore always clears both scopes at once (#511's own decision — no
-  // per-scope un-ignore in this pass): the "Ignored" disclosure shows one
-  // repo per row regardless of scope, so a single Un-ignore there means
-  // "stop ignoring this repo", not "stop ignoring whichever scope I
-  // happened to click".
-  async function unignoreRepo(repo: Repo) {
-    const key = rowKey(repo);
-    ignoreBusy[key] = true;
-    setStatus(`Un-ignoring ${repo.fullName}…`);
-
-    try {
-      const res = await fetch("/api/v1/repos/unignore", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
-      });
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (res.status !== 204) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `backend answered ${res.status}`);
-      }
-      repo.ignored = false;
-      repo.ignoredPRs = false;
-      repo.ignoredIssues = false;
-      setStatus(`${repo.fullName} is no longer ignored.`);
-    } catch (err) {
-      setStatus(
-        `Couldn't un-ignore ${repo.fullName}: ${(err as Error).message}`,
-        "error",
-      );
-    } finally {
-      delete ignoreBusy[key];
-    }
-  }
-
-  let autoUpdateBusy = $state<Record<string, boolean>>({});
-
-  // Mirrors ignoreRepo/unignoreRepo above: a pure settings write,
-  // nothing touching the forge, so a global status message is enough — no
-  // per-row locked-reason mechanic the way addWebhook needs one.
-  async function setAutoUpdateBranch(repo: Repo, enabled: boolean) {
-    const key = rowKey(repo);
-    autoUpdateBusy[key] = true;
-    const verb = enabled ? "Enabling" : "Disabling";
-    setStatus(`${verb} auto-update-branch for ${repo.fullName}…`);
-
-    try {
-      const res = await fetch(
-        `/api/v1/repos/auto-update-branch/${enabled ? "enable" : "disable"}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
-        },
-      );
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (res.status !== 204) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `backend answered ${res.status}`);
-      }
-      repo.autoUpdateBranch = enabled;
-      setStatus(
-        enabled
-          ? `Auto-update-branch enabled for ${repo.fullName}.`
-          : `Auto-update-branch disabled for ${repo.fullName}.`,
-      );
-    } catch (err) {
-      setStatus(
-        `Couldn't ${enabled ? "enable" : "disable"} auto-update-branch for ${repo.fullName}: ${(err as Error).message}`,
-        "error",
-      );
-    } finally {
-      delete autoUpdateBusy[key];
-    }
-  }
-
-  // Same bulk shape as reposNeedingWebhook/addAllWebhooks (#380): every
-  // currently-tracked, non-ignored repo on the wrong side of the target
-  // state, regardless of the active filter bar.
-  const reposMissingAutoUpdate = $derived(
-    repos.filter((r) => !r.ignored && !r.autoUpdateBranch),
-  );
-  const reposWithAutoUpdate = $derived(
-    repos.filter((r) => !r.ignored && r.autoUpdateBranch),
-  );
-
-  let bulkAutoUpdateDirection = $state<"enable" | "disable" | null>(null);
-
-  async function bulkSetAutoUpdateBranch(enabled: boolean) {
-    const targets = enabled ? reposMissingAutoUpdate : reposWithAutoUpdate;
-    if (targets.length === 0) return;
-
-    const verb = enabled ? "Enable" : "Disable";
-    const confirmed = window.confirm(
-      `${verb} auto-update-branch on ${targets.length} repo${targets.length === 1 ? "" : "s"}?`,
-    );
-    if (!confirmed) return;
-
-    bulkAutoUpdateDirection = enabled ? "enable" : "disable";
-    for (const repo of targets) {
-      await setAutoUpdateBranch(repo, enabled);
-    }
-    bulkAutoUpdateDirection = null;
-
-    const succeeded = targets.filter(
-      (r) => r.autoUpdateBranch === enabled,
-    ).length;
-    const failed = targets.length - succeeded;
-    setStatus(
-      failed === 0
-        ? `${enabled ? "Enabled" : "Disabled"} auto-update-branch for all ${succeeded} repos.`
-        : `${enabled ? "Enabled" : "Disabled"} auto-update-branch for ${succeeded} of ${targets.length} repos — ${failed} failed, see status above.`,
-      failed === 0 ? "" : "error",
-    );
-  }
-
-  // Rebase bots (#2861): the bot's own rebase, never a generic branch update.
-  // Same shape as the auto-update setter above.
-  let rebaseBotsBusy = $state<Record<string, boolean>>({});
-
-  // Dependabot ignores a GitHub App, so the switch can't work on a repo whose
-  // forge has no personal access token. The server says so per forge; the
-  // wording is the page's.
-  function rebaseBotsLock(repo: Repo): string | null {
-    return dependabotBlockedReason(forges, repo.forge)
-      ? appConnectionCopy(repo.forge).dependabotNeedsToken
-      : null;
-  }
-
-  async function setRebaseBots(repo: Repo, enabled: boolean) {
-    const key = rowKey(repo);
-    rebaseBotsBusy[key] = true;
-    setStatus(
-      `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
-    );
-
-    try {
-      const res = await fetch(
-        `/api/v1/repos/rebase-bots/${enabled ? "enable" : "disable"}`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          body: JSON.stringify({ forge: repo.forge, fullName: repo.fullName }),
-        },
-      );
-      if (res.status === 401) {
-        window.location.href = "/login.html";
-        return;
-      }
-      if (res.status !== 204) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body?.error || `backend answered ${res.status}`);
-      }
-      repo.rebaseBots = enabled;
-      setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
-    } catch (err) {
-      setStatus(
-        `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${(err as Error).message}`,
-        "error",
-      );
-    } finally {
-      delete rebaseBotsBusy[key];
-    }
-  }
-
-  // A locked repo can't be switched on, so the bulk "on" skips it; "off" still
-  // reaches every repo that has it.
-  const reposMissingRebaseBots = $derived(
-    repos.filter((r) => !r.ignored && !r.rebaseBots && !rebaseBotsLock(r)),
-  );
-  const reposWithRebaseBots = $derived(
-    repos.filter((r) => !r.ignored && r.rebaseBots),
-  );
-
-  let bulkRebaseBotsDirection = $state<"enable" | "disable" | null>(null);
-
-  async function bulkSetRebaseBots(enabled: boolean) {
-    const targets = enabled ? reposMissingRebaseBots : reposWithRebaseBots;
-    if (targets.length === 0) return;
-
-    const confirmed = window.confirm(
-      `Turn ${enabled ? "on" : "off"} rebase bots for ${targets.length} repo${targets.length === 1 ? "" : "s"}?`,
-    );
-    if (!confirmed) return;
-
-    bulkRebaseBotsDirection = enabled ? "enable" : "disable";
-    for (const repo of targets) {
-      await setRebaseBots(repo, enabled);
-    }
-    bulkRebaseBotsDirection = null;
-
-    const succeeded = targets.filter((r) => r.rebaseBots === enabled).length;
-    const failed = targets.length - succeeded;
-    setStatus(
-      failed === 0
-        ? `Rebase bots ${enabled ? "on" : "off"} for all ${succeeded} repos.`
-        : `Rebase bots ${enabled ? "on" : "off"} for ${succeeded} of ${targets.length} repos — ${failed} failed, see status above.`,
-      failed === 0 ? "" : "error",
-    );
-  }
-
   onMount(() => {
     saved = loadState();
     applySaved();
@@ -1025,6 +734,11 @@
     .sort-arrow {
       font-size: 0.5625rem;
     }
+    /* A link to Settings is a long unbreakable run at 400% text on 320px. */
+    #webhooks-hint,
+    #webhooks-hint a {
+      overflow-wrap: anywhere;
+    }
     .webhooks-filter-bar {
       display: flex;
       flex-wrap: wrap;
@@ -1176,7 +890,9 @@
   <div class="card" aria-busy={awaiting ? "true" : undefined}>
     <p class="hint" id="webhooks-hint">
       Every tracked repo, and whether this dashboard has confirmed a webhook for
-      it. <a href="/settings.html#webhooks">Webhook setup</a>
+      it. <a href="/settings.html#webhooks">Webhook setup</a>. Auto-update,
+      rebase bots and ignore moved to
+      <a href="/settings.html#repositories">Settings, Repositories</a>.
     </p>
 
     {#if loaded && reposNeedingWebhook.length > 0}
@@ -1189,58 +905,6 @@
         {bulkRunning
           ? "Setting up webhooks…"
           : `Set up webhooks for ${reposNeedingWebhook.length} repo${reposNeedingWebhook.length === 1 ? "" : "s"}`}
-      </button>
-    {/if}
-
-    {#if loaded && reposMissingAutoUpdate.length > 0}
-      <button
-        type="button"
-        class="row-action bulk-webhook-button"
-        disabled={bulkAutoUpdateDirection !== null}
-        onclick={() => bulkSetAutoUpdateBranch(true)}
-      >
-        {bulkAutoUpdateDirection === "enable"
-          ? "Enabling auto-update…"
-          : `Enable auto-update for ${reposMissingAutoUpdate.length} repo${reposMissingAutoUpdate.length === 1 ? "" : "s"}`}
-      </button>
-    {/if}
-
-    {#if loaded && reposWithAutoUpdate.length > 0}
-      <button
-        type="button"
-        class="row-action bulk-webhook-button"
-        disabled={bulkAutoUpdateDirection !== null}
-        onclick={() => bulkSetAutoUpdateBranch(false)}
-      >
-        {bulkAutoUpdateDirection === "disable"
-          ? "Disabling auto-update…"
-          : `Disable auto-update for ${reposWithAutoUpdate.length} repo${reposWithAutoUpdate.length === 1 ? "" : "s"}`}
-      </button>
-    {/if}
-
-    {#if loaded && reposMissingRebaseBots.length > 0}
-      <button
-        type="button"
-        class="row-action bulk-webhook-button"
-        disabled={bulkRebaseBotsDirection !== null}
-        onclick={() => bulkSetRebaseBots(true)}
-      >
-        {bulkRebaseBotsDirection === "enable"
-          ? "Turning rebase bots on…"
-          : `Rebase bots on for ${reposMissingRebaseBots.length} repo${reposMissingRebaseBots.length === 1 ? "" : "s"}`}
-      </button>
-    {/if}
-
-    {#if loaded && reposWithRebaseBots.length > 0}
-      <button
-        type="button"
-        class="row-action bulk-webhook-button"
-        disabled={bulkRebaseBotsDirection !== null}
-        onclick={() => bulkSetRebaseBots(false)}
-      >
-        {bulkRebaseBotsDirection === "disable"
-          ? "Turning rebase bots off…"
-          : `Rebase bots off for ${reposWithRebaseBots.length} repo${reposWithRebaseBots.length === 1 ? "" : "s"}`}
       </button>
     {/if}
 
@@ -1469,19 +1133,6 @@
                   </span>
                 </button>
               </th>
-              <th scope="col" role="columnheader">Auto-update</th>
-              <th scope="col" role="columnheader">
-                Rebase bots
-                <span
-                  class="info-hint"
-                  role="img"
-                  aria-label="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
-                  title="Rebase bots sends Dependabot and Renovate pull requests their own rebase when they fall behind. Human, draft and release pull requests are left alone."
-                >
-                  ⓘ
-                </span>
-              </th>
-              <th scope="col" role="columnheader">Ignore</th>
             </tr>
           </thead>
           <!-- svelte-ignore a11y_no_redundant_roles -->
@@ -1641,80 +1292,6 @@
                     {/if}
                   {/if}
                 </td>
-                <td class="action" role="cell">
-                  <button
-                    type="button"
-                    disabled={autoUpdateBusy[rowKey(repo)]}
-                    aria-label={autoUpdateBusy[rowKey(repo)]
-                      ? undefined
-                      : `${repo.autoUpdateBranch ? "Disable" : "Enable"} auto-update on ${repo.fullName}`}
-                    onclick={() =>
-                      setAutoUpdateBranch(repo, !repo.autoUpdateBranch)}
-                  >
-                    {autoUpdateBusy[rowKey(repo)]
-                      ? repo.autoUpdateBranch
-                        ? "Disabling…"
-                        : "Enabling…"
-                      : repo.autoUpdateBranch
-                        ? "Disable auto-update"
-                        : "Enable auto-update"}
-                  </button>
-                </td>
-                <td class="action" role="cell">
-                  {#if rebaseBotsLock(repo) && !repo.rebaseBots}
-                    <button
-                      type="button"
-                      disabled
-                      aria-describedby={`rebase-bots-lock-${rowKey(repo)}`}
-                    >
-                      Rebase bots
-                    </button>
-                    <span
-                      class="row-action-note"
-                      id={`rebase-bots-lock-${rowKey(repo)}`}
-                    >
-                      {rebaseBotsLock(repo)}
-                    </span>
-                  {:else}
-                    <button
-                      type="button"
-                      aria-pressed={repo.rebaseBots}
-                      aria-label={rebaseBotsBusy[rowKey(repo)]
-                        ? undefined
-                        : `Rebase bots: ${repo.rebaseBots ? "on" : "off"} for ${repo.fullName}`}
-                      disabled={rebaseBotsBusy[rowKey(repo)]}
-                      onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
-                    >
-                      {rebaseBotsBusy[rowKey(repo)]
-                        ? repo.rebaseBots
-                          ? "Turning off…"
-                          : "Turning on…"
-                        : repo.rebaseBots
-                          ? "Rebase bots: on"
-                          : "Rebase bots: off"}
-                    </button>
-                  {/if}
-                </td>
-                <td class="action" role="cell">
-                  <select
-                    class="ignore-scope-select"
-                    aria-label={`Ignore ${repo.fullName}`}
-                    disabled={ignoreBusy[rowKey(repo)]}
-                    value=""
-                    onchange={(e) => {
-                      const scope = e.currentTarget.value as IgnoreScope;
-                      e.currentTarget.value = "";
-                      if (scope) ignoreRepo(repo, scope);
-                    }}
-                  >
-                    <option value="" disabled selected>
-                      {ignoreBusy[rowKey(repo)] ? "Ignoring…" : "Ignore…"}
-                    </option>
-                    {#each Object.entries(IGNORE_SCOPE_LABELS) as [scope, label] (scope)}
-                      <option value={scope}>{label}</option>
-                    {/each}
-                  </select>
-                </td>
               </tr>
             {/each}
           </tbody>
@@ -1780,54 +1357,6 @@
             </label>
           </div>
         {/if}
-      {/if}
-
-      {#if ignoredRepos.length > 0}
-        <details class="ignored-disclosure" id="webhooks-ignored">
-          <summary>Ignored ({ignoredRepos.length})</summary>
-          <ul>
-            {#each ignoredRepos as repo (rowKey(repo))}
-              <li>
-                <span class={`forge-badge ${forgeClassOf(repo.forge)}`}>
-                  <span class="dot"></span>
-                  {forgeLabelOf(repo.forge)}
-                </span>
-                <RepoLogo
-                  forge={repo.forge}
-                  url={repo.logoUrl}
-                  name={repo.fullName}
-                />
-                {#if repo.url}
-                  <a
-                    class="repo-link"
-                    href={repo.url}
-                    title={repo.fullName}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {repo.fullName}
-                  </a>
-                {:else}
-                  {repo.fullName}
-                {/if}
-                <span class="ignored-scope">
-                  {repo.ignoredPRs && repo.ignoredIssues
-                    ? "(PRs, issues)"
-                    : repo.ignoredPRs
-                      ? "(PRs)"
-                      : "(issues)"}
-                </span>
-                <button
-                  type="button"
-                  disabled={ignoreBusy[rowKey(repo)]}
-                  onclick={() => unignoreRepo(repo)}
-                >
-                  {ignoreBusy[rowKey(repo)] ? "Un-ignoring…" : "Un-ignore"}
-                </button>
-              </li>
-            {/each}
-          </ul>
-        </details>
       {/if}
     {/if}
   </div>

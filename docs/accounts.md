@@ -212,9 +212,9 @@ only this app's own setting. Several of the reads spend forge request budget;
 
 Set from the Settings page (`/settings.html`, linked from the dashboard
 header) once you're signed in — nothing forge-related is configured by
-the process itself. The page has four groups (Display, Connections,
-Behaviour, Integrations and security), one shown at a time; the group is in
-the URL hash, so `/settings.html#connections` opens Connections.
+the process itself. The page has five groups (Display, Connections,
+Behaviour, Integrations and security, Repositories), one shown at a time; the
+group is in the URL hash, so `/settings.html#connections` opens Connections.
 
 Each forge takes either a token (sees private repos
 too) or a bare username (public repos only, no credential at all) —

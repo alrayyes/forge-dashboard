@@ -36,12 +36,13 @@ the page as on the other lists. It is enabled while any of them differs from
 its default, and puts them all back, including after a saved repo search that
 matches nothing.
 
-Each row has an "Auto-update" and a rebase-bots switch. The second rebases
-only Dependabot and Renovate pull requests when they fall behind; see
-[Pull request actions](pull-request-actions.md). The header buttons `Rebase
-bots on for N repos` and `Rebase bots off for N repos` switch every repo that
-needs it. A repo whose forge is a GitHub App with no saved personal access
-token has the switch greyed, with the reason beside it.
+The per-repo controls moved to Settings, in the Repositories group
+(`/settings.html#repositories`). Each row there has an Auto-update toggle, a
+bot-rebase toggle and an Ignore select; the header buttons `Rebase bots on for
+N repos` and `Rebase bots off for N repos` switch every repo that needs it. See
+[Pull request actions](pull-request-actions.md) for what each one does. A repo
+whose forge is a GitHub App with no saved personal access token has its
+bot-rebase toggle greyed, with the reason beside it.
 
 On a phone the table turns into cards and its header is hidden. A "Sort by"
 select over the cards takes over, with the same choices as the column

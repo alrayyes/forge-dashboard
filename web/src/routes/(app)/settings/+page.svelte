@@ -9,6 +9,7 @@
   } from "#lib/forge-copy.js";
   import { forgesWhere } from "#lib/forges.js";
   import SettingsNav from "#lib/SettingsNav.svelte";
+  import RepositoriesSection from "#lib/RepositoriesSection.svelte";
   import {
     DEFAULT_GROUP,
     groupFromHash,
@@ -2842,6 +2843,13 @@
           >
             {tokenStatus}
           </p>
+        </div>
+      </div>
+
+      <div class="group" id="repositories" hidden={group !== "repositories"}>
+        <div class="card">
+          <h2>Repositories</h2>
+          <RepositoriesSection />
         </div>
       </div>
     </div>

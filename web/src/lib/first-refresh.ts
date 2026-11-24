@@ -56,7 +56,8 @@ export type FirstRefreshSubject =
   | 'release pull requests'
   | 'branches'
   | 'insights'
-  | 'webhooks';
+  | 'webhooks'
+  | 'repositories';
 
 export function firstRefreshStatus(
   pending: boolean,

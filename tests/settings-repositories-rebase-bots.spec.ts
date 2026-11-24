@@ -50,7 +50,7 @@ async function expectNoAxeViolations(page: Page) {
   expect(results.violations).toEqual([]);
 }
 
-test.describe('rebase bots setting on the webhooks page', () => {
+test.describe('rebase bots setting in Settings, Repositories', () => {
   test('switching a repo on and off calls the endpoints and says so', async ({
     page,
   }) => {
@@ -63,22 +63,29 @@ test.describe('rebase bots setting on the webhooks page', () => {
       });
       return route.fulfill({ status: 204 });
     });
-    await page.goto('/webhooks.html');
+    await page.goto('/settings.html#repositories');
 
-    const row = page.locator('#webhooks-rows tr').first();
+    const row = page.locator('#repositories-rows tr').first();
     await expectNoAxeViolations(page);
-    await row.getByRole('button', { name: 'Rebase bots: off' }).click();
+    await row
+      .getByRole('button', { name: 'Rebase bots on alrayyes/a' })
+      .click();
     await expect(
-      row.getByRole('button', { name: 'Rebase bots: on' }),
+      row.getByRole('button', {
+        name: 'Rebase bots on alrayyes/a',
+        pressed: true,
+      }),
     ).toBeVisible();
-    await expect(page.locator('#webhooks-status')).toContainText(
+    await expect(page.locator('#repositories-status')).toContainText(
       'Rebase bots on for alrayyes/a',
     );
     await expectNoAxeViolations(page);
 
-    await row.getByRole('button', { name: 'Rebase bots: on' }).click();
+    await row
+      .getByRole('button', { name: 'Rebase bots on alrayyes/a', pressed: true })
+      .click();
     await expect(
-      row.getByRole('button', { name: 'Rebase bots: off' }),
+      row.getByRole('button', { name: 'Rebase bots on alrayyes/a' }),
     ).toBeVisible();
     expect(bodies).toEqual([
       {
@@ -104,12 +111,12 @@ test.describe('rebase bots setting on the webhooks page', () => {
       route.fulfill({ status: 204 }),
     );
     page.on('dialog', (dialog) => void dialog.accept());
-    await page.goto('/webhooks.html');
+    await page.goto('/settings.html#repositories');
 
     await page
       .getByRole('button', { name: 'Rebase bots on for 2 repos' })
       .click();
-    await expect(page.locator('#webhooks-status')).toContainText(
+    await expect(page.locator('#repositories-status')).toContainText(
       'Rebase bots on for all 2 repos',
     );
     await expect(
@@ -136,7 +143,7 @@ test.describe('rebase bots setting on the webhooks page', () => {
       return route.fulfill({ status: 204 });
     });
     page.on('dialog', (dialog) => void dialog.accept());
-    await page.goto('/webhooks.html');
+    await page.goto('/settings.html#repositories');
 
     await page
       .getByRole('button', { name: 'Rebase bots on for 1 repo' })
@@ -159,11 +166,11 @@ test.describe('rebase bots setting on the webhooks page', () => {
         }),
       ],
     );
-    await page.goto('/webhooks.html');
+    await page.goto('/settings.html#repositories');
 
-    const row = page.locator('#webhooks-rows tr').first();
+    const row = page.locator('#repositories-rows tr').first();
     await expect(
-      row.getByRole('button', { name: 'Rebase bots' }),
+      row.getByRole('button', { name: 'Rebase bots on alrayyes/a' }),
     ).toBeDisabled();
     await expect(row).toContainText(LOCK_TEXT);
     await expect(
