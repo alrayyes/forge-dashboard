@@ -35,3 +35,24 @@ export function showsBehindStatus(
 ): boolean {
   return !(onRow && code === 'behind' && rebaseRequested);
 }
+
+// A fix the row already asked for, so its own chip says it: a bot rebase or an
+// Update branch.
+export function fixRequested(
+  rebaseRequested: boolean,
+  updateRequested: boolean,
+): boolean {
+  return rebaseRequested || updateRequested;
+}
+
+// The locked Merge a behind row draws. Once Update branch is queued the wait
+// clears by itself, so the row's chip is the one line and the locked button
+// goes (#4532). The pop-up keeps it, and so does every block the person can
+// act on.
+export function dropsBehindMerge(
+  code: string | undefined,
+  updateRequested: boolean,
+  onRow: boolean,
+): boolean {
+  return onRow && code === 'behind' && updateRequested;
+}

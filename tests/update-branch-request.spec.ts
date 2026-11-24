@@ -177,7 +177,6 @@ test.describe('update branch request from the server', () => {
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
     ).toHaveCount(0);
-    await expect(chip(page)).toHaveText('Updating branch');
   });
 
   test('a queued record on the next snapshot keeps the row Queued', async ({

@@ -557,10 +557,13 @@ for (const s of scenarios) {
     }) => {
       const { row } = await prepare(page, 502);
       await row.getByRole('button', { name: s.button }).click();
+      // The request shows as pending before the failure lands: a locked
+      // button, or for Update branch on a row, the chip alone (#4532).
       if (s.queuedLabel !== null)
         await expect(
           row.getByRole('button', { name: s.queuedLabel }),
         ).toBeVisible();
+      else await expect(chip(page)).toBeVisible();
 
       const toast = page.locator('#feedback-toasts .feedback-toast').first();
       await expect(toast).toContainText(s.failure);

@@ -105,6 +105,13 @@ async function dropForge(page: Page) {
   );
 }
 
+// Press Update branch where it is. A page taller than the viewport would
+// scroll to reach the button, and these specs measure the card's position.
+const press = (row: Locator) =>
+  row
+    .getByRole('button', { name: 'Update branch' })
+    .evaluate((b: HTMLElement) => b.click());
+
 const top = (row: Locator) =>
   row.evaluate((r) => Math.round(r.getBoundingClientRect().top * 10) / 10);
 
@@ -118,7 +125,7 @@ test.describe('the Activity control appearing (#4591)', () => {
       const before = await top(row);
       await expect(page.locator('#activity-toggle')).toBeHidden();
 
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
 
       expect(await top(row)).toBe(before);
@@ -131,7 +138,7 @@ test.describe('the Activity control appearing (#4591)', () => {
     }) => {
       await page.setViewportSize({ width, height: 844 });
       const row = await open(page);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       const hits = await page.evaluate(() => {
         const t = document
@@ -163,7 +170,7 @@ test.describe('the Activity control appearing (#4591)', () => {
     }) => {
       await page.setViewportSize({ width, height: 844 });
       const row = await open(page);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       await page.evaluate(() => {
         // A long list: the control pins for as long as its page does.
@@ -208,7 +215,7 @@ test.describe('the Activity control appearing (#4591)', () => {
       // The stream is kept, so the forge can drop out after the action.
       await keepStreams(page);
       const row = await open(page);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       await dropForge(page);
       await expect(page.locator('#unreachable-banner')).toBeVisible();
@@ -243,7 +250,7 @@ test.describe('the Activity control appearing (#4591)', () => {
     }) => {
       await page.setViewportSize({ width, height: 844 });
       const row = await open(page);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       const gap = await page.evaluate(() => {
         const t = document
@@ -287,7 +294,7 @@ test.describe('the Activity control appearing (#4591)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.emulateMedia({ reducedMotion: 'reduce' });
     const row = await open(page);
-    await row.getByRole('button', { name: 'Update branch' }).click();
+    await press(row);
     await expect(page.locator('#activity-toggle')).toBeVisible();
     const motion = await page
       .locator('.activity-bar, .activity-toggle')
@@ -308,7 +315,7 @@ test.describe('the Activity control appearing (#4591)', () => {
       await page.setViewportSize({ width: 320, height: 844 });
       await page.emulateMedia({ colorScheme: scheme });
       const row = await open(page);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       const overflow = await page.evaluate(
         () =>
@@ -334,7 +341,7 @@ test.describe('the Activity control appearing (#4591)', () => {
     await page.setViewportSize({ width: 320, height: 844 });
     await keepStreams(page);
     const row = await open(page);
-    await row.getByRole('button', { name: 'Update branch' }).click();
+    await press(row);
     await expect(page.locator('#activity-toggle')).toBeVisible();
     await dropForge(page);
     await expect(page.locator('#unreachable-banner')).toBeVisible();
@@ -390,7 +397,7 @@ test.describe('the Activity control appearing (#4591)', () => {
       const row = await open(page);
       await page.addStyleTag({ content: css });
       const before = await top(row);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       expect(await top(row)).toBe(before);
       const rest = await page.evaluate(() => {
@@ -442,9 +449,7 @@ test.describe('the Activity control appearing (#4591)', () => {
       const before = await top(row);
       // A page taller than the viewport would scroll to reach the button;
       // this spec measures the card, so press it where it is.
-      await row
-        .getByRole('button', { name: 'Update branch' })
-        .evaluate((b: HTMLElement) => b.click());
+      await press(row);
       await expect(page.locator('#activity-toggle')).toBeVisible();
       expect(await top(row)).toBe(before);
       const m = await page.evaluate(() => {

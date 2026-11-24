@@ -61,7 +61,12 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
-  import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
+  import {
+    dropsBehindMerge,
+    fixRequested as anyFixRequested,
+    showsBehindPill,
+    showsBehindStatus,
+  } from "#lib/behind-signals.js";
   import {
     detailsCache,
     detailsKey,
@@ -4354,9 +4359,11 @@
         // A behind Merge whose Update branch is on its way clears by itself:
         // the Updating branch chip is the one sign, no locked button (#4532).
         if (
-          idScope === "" &&
-          merge.blocked.code === "behind" &&
-          updateRequested(item)
+          dropsBehindMerge(
+            merge.blocked.code,
+            updateRequested(item),
+            idScope === "",
+          )
         )
           return null;
         // An armed row's own chip already says it.
@@ -6993,7 +7000,7 @@
     // or an Update branch. The behind message and the fix button leave the
     // row, the chip is the one sign (#4022, #4532).
     function fixRequested(item: PullRequestItem): boolean {
-      return rebaseRequested(item) || updateRequested(item);
+      return anyFixRequested(rebaseRequested(item), updateRequested(item));
     }
 
     function updateRequested(item: PullRequestItem): boolean {

@@ -1,6 +1,11 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { showsBehindPill, showsBehindStatus } from './behind-signals';
+import {
+  dropsBehindMerge,
+  fixRequested,
+  showsBehindPill,
+  showsBehindStatus,
+} from './behind-signals';
 
 const behindRow = {
   behind: true,
@@ -69,5 +74,35 @@ describe('showsBehindStatus', () => {
   test('other statuses are never hidden by a request', () => {
     expect(showsBehindStatus('ci_pending', true, true)).toBe(true);
     expect(showsBehindStatus(undefined, true, true)).toBe(true);
+  });
+});
+
+describe('fixRequested', () => {
+  test('a bot rebase or an Update branch request counts', () => {
+    expect(fixRequested(true, false)).toBe(true);
+    expect(fixRequested(false, true)).toBe(true);
+  });
+
+  test('neither request is no request', () => {
+    expect(fixRequested(false, false)).toBe(false);
+  });
+});
+
+describe('dropsBehindMerge (#4532)', () => {
+  test('a row waiting on its own update request drops the locked Merge', () => {
+    expect(dropsBehindMerge('behind', true, true)).toBe(true);
+  });
+
+  test('the pop-up keeps the locked Merge', () => {
+    expect(dropsBehindMerge('behind', true, false)).toBe(false);
+  });
+
+  test('a behind row with no request keeps it', () => {
+    expect(dropsBehindMerge('behind', false, true)).toBe(false);
+  });
+
+  test('a conflict or draft keeps its locked Merge whatever was asked', () => {
+    expect(dropsBehindMerge('conflict', true, true)).toBe(false);
+    expect(dropsBehindMerge('draft', true, true)).toBe(false);
   });
 });
