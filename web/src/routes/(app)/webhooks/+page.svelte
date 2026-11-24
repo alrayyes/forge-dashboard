@@ -734,6 +734,11 @@
     .sort-arrow {
       font-size: 0.5625rem;
     }
+    /* A link to Settings is a long unbreakable run at 400% text on 320px. */
+    #webhooks-hint,
+    #webhooks-hint a {
+      overflow-wrap: anywhere;
+    }
     .webhooks-filter-bar {
       display: flex;
       flex-wrap: wrap;
