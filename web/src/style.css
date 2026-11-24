@@ -1330,6 +1330,36 @@ section.board {
       > .row-action-bar {
       grid-column: 4;
     }
+    /* #4789: the two layouts above hold the chip beside the pills and the
+       action, which is up to 660px of status cell at 1280px: a status track
+       as wide as the cell left the title nothing, and the chips of a row with
+       labels broke at every letter. A row with labels keeps the chip on a
+       line of its own, as it does with a detail line, and the title keeps its
+       width. This holds at every width, because the one-line row has no room
+       to spare even where it fits, and costs a row with labels one 18px line
+       against the one-line row. A row with no label has nothing to break and
+       keeps the one line. */
+    .row:not(.issue-row):has(> .title-cell > .label-chip)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):is(
+        :has(> .row-action-bar):not(:has(> .status-flags)),
+        :has(> .status-flags)
+      ) {
+      grid-template-columns: min-content 7.5rem 9.25rem;
+      > .wait-slot {
+        grid-column: 1 / -1;
+        grid-row: auto;
+        justify-self: end;
+      }
+      > .status-flags {
+        grid-column: 2;
+      }
+      > .row-action-bar {
+        grid-column: 3;
+      }
+    }
+
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
       display: none;
