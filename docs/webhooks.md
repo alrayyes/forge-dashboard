@@ -183,6 +183,27 @@ it is said once at the top of the list rather than on each row. It shows only wh
 some repo could have a hook created and doesn't. Fix `RP_ORIGIN` and the next
 refresh creates them.
 
+## Polling only
+
+A repo with no confirmed webhook still updates, but on a schedule (see
+`REFRESH_INTERVAL` in [Configuration](configuration.md)) instead of the moment
+something happens. Settings, Repositories and Branches say so with an amber
+notice, "N repos refresh on a schedule instead of instantly", and a "Show only
+these" button that narrows the list to those repos. The notice is not drawn when
+every tracked repo has a hook.
+
+Each such row in Repositories says why, and links to the fix:
+
+- Your token can't manage webhooks on that repo: "Fix in Connections" opens
+  Settings, Connections.
+- The public address can't receive hooks (see `RP_ORIGIN`): the forge can't
+  reach this dashboard, so fix the address first.
+- The forge didn't answer or refused the last attempt: the line says when the
+  next attempt is.
+
+On Branches the repo carries a "Polling only" chip, and "See why in Settings"
+opens Repositories.
+
 ## Find your webhook URL and secret
 
 Open **Settings** (`/settings.html`, linked from the dashboard header) —
