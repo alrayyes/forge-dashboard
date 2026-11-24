@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.116.0](https://github.com/alrayyes/forge-dashboard/compare/v9.115.1...v9.116.0) (2026-11-24)
+
+
+### Features
+
+* **web:** one result bar with the count, the filter state and the sort ([#4770](https://github.com/alrayyes/forge-dashboard/issues/4770)) ([938638e](https://github.com/alrayyes/forge-dashboard/commit/938638e40725d9e7887c24277c590e653432bf83)), closes [#4288](https://github.com/alrayyes/forge-dashboard/issues/4288)
+
+
+### Bug Fixes
+
+* **web:** make the narrow-list status block no taller than its content ([#4790](https://github.com/alrayyes/forge-dashboard/issues/4790)) ([59106c0](https://github.com/alrayyes/forge-dashboard/commit/59106c03d6df4a210e305a22d438ae884650b5a8))
+
 ## [9.115.1](https://github.com/alrayyes/forge-dashboard/compare/v9.115.0...v9.115.1) (2026-11-24)
 
 
