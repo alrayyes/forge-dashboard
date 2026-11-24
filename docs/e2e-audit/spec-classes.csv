@@ -144,6 +144,7 @@ linked-pull-request-pipeline.spec.ts,4.627,9,2,C,,3.6
 linked-pull-requests.spec.ts,5.642,14,5,C,web/src/lib/linked-pull-requests.test.ts,3.6
 list-date-columns-root-font-size.spec.ts,8.278,6,4,A,,2.8
 live-control.spec.ts,13.535,12,4,C,web/src/lib/live-control.test.ts;LiveControl.stories.svelte (proven),9.0
+locked-note-align.spec.ts,,6,4,A,,0.0
 long-label-card.spec.ts,3.926,1,1,A,,0.0
 long-label-dialog.spec.ts,6.249,1,1,A,,0.0
 main-branch-advisories-dialog.spec.ts,8.005,9,6,A,,2.7

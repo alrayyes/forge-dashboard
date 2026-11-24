@@ -1212,6 +1212,22 @@ section.board {
     .row:not(.issue-row) .status-cell > .row-action-bar .row-action {
       padding-inline: 5px;
     }
+    /* #4602: the pills and the action sit at the left of their slots, so the
+       notes do too: a locked Merge and its note start at the slot's edge, and
+       the Close cue at the CI pill's. The text stays in the same words. */
+    .row:not(.issue-row)
+      .status-cell
+      > .row-action-bar
+      .row-action-locked-visible {
+      align-items: flex-start;
+    }
+    .row:not(.issue-row) .status-cell .row-action-note {
+      align-items: flex-start;
+      text-align: left;
+    }
+    .row:not(.issue-row) .status-cell > .row-lock-cue {
+      justify-self: start;
+    }
     /* The flags slot is 120px, so the pills in it fit it instead of the other
        way round: a merge-state label wraps to a second line (the row is
        already as tall as two stacked pills), and the comment pill gives up a
