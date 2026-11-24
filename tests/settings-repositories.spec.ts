@@ -229,6 +229,34 @@ test.describe('settings, repositories', () => {
     await expect(page.locator('#repositories-ignored')).toHaveCount(0);
   });
 
+  for (const [scope, prs, issues] of [
+    ['prs', true, false],
+    ['issues', false, true],
+    ['both', true, true],
+  ] as const) {
+    test(`Ignore ${scope} posts prs=${prs} and issues=${issues}`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, [repo('a')]);
+      let body: unknown;
+      await page.route('**/api/v1/repos/ignore', (route) => {
+        body = route.request().postDataJSON();
+        return route.fulfill({ status: 204 });
+      });
+      await open(page);
+      await page
+        .getByRole('combobox', { name: 'Ignore alrayyes/a' })
+        .selectOption(scope);
+      await expect(page.locator('#repositories-ignored')).toBeVisible();
+      expect(body).toEqual({
+        forge: 'github',
+        fullName: 'alrayyes/a',
+        prs,
+        issues,
+      });
+    });
+  }
+
   test('a failed ignore keeps the repo in the table', async ({ page }) => {
     await mockDashboard(page, [repo('a')]);
     await page.route('**/api/v1/repos/ignore', (route) =>
