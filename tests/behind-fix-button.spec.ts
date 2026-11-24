@@ -122,7 +122,7 @@ test('a behind pull request with a conflict puts no button in its warning', asyn
   await expect(status.getByRole('button')).toHaveCount(0);
 });
 
-test('the button in the warning acts once and shows it is queued', async ({
+test('the button in the warning acts once and the row shows the Updating branch chip instead', async ({
   page,
 }) => {
   let calls = 0;
@@ -135,9 +135,9 @@ test('the button in the warning acts once and shows it is queued', async ({
     .locator('.status-area')
     .getByRole('button', { name: 'Update branch' })
     .click();
-  await expect(
-    row.locator('.status-area').getByRole('button', { name: 'Queued…' }),
-  ).toBeDisabled();
+  await expect(row.locator('.wait-chip-label')).toHaveText('Updating branch');
+  await expect(row.locator('.status-area')).toHaveCount(0);
+  await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
   expect(calls).toBe(1);
 });
 

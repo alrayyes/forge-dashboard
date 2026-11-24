@@ -244,7 +244,10 @@ test('Update branch leaves the row while Merge is running', async ({
   );
 });
 
-test('a clicked Update branch on the row shows Queued and is disabled', async ({
+// doUpdateBranch sets the queued phase before the fetch, and the button reads
+// Queued… until the next render, which comes after the 202. The row then
+// swaps it for the chip alone (#4532).
+test('a clicked Update branch on the row shows Queued and is disabled until the forge answers', async ({
   page,
 }) => {
   await page.route(

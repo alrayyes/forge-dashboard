@@ -838,14 +838,18 @@ one place, `web/src/lib/wait-chip.ts`. A failure or a timeout is not a wait and
 stays a text line with Retry and Dismiss.
 
 Update branch, `Dependabot: Rebase` and `Renovate: Rebase` only ask the forge or
-a bot to act, and the result shows up on a later refresh. Update branch turns
-into a "Queued…" button the moment you click it. It ignores clicks but keeps
-keyboard focus (`aria-disabled`), so you don't lose your place. The row's
-`Updating branch` chip says the request went out and counts down to the next
-background poll. If the countdown runs out before the refresh lands, it reads
-"Refreshing…" instead. An unrelated refresh doesn't clear it. Update branch
-clears once a refresh shows the branch caught up. If the request fails, the
-button comes back and the row and an error toast say why.
+a bot to act, and the result shows up on a later refresh. On a row, Update
+branch is gone the moment you click it, along with the "Behind the base branch"
+message and the locked Merge that went with it: a wait that clears by itself is
+one line, and the row's `Updating branch` chip is that line. Keyboard focus
+moves to the chip, so you don't lose your place, and no greyed button is left to
+tab to. The chip says the request went out and counts down to the next
+background poll. The details pop-up keeps its own Update branch button, which
+reads "Queued…" and ignores clicks (`aria-disabled`) while the request waits. If
+the countdown runs out before the refresh lands, it reads "Refreshing…" instead.
+An unrelated refresh doesn't clear it. Update branch clears once a refresh shows
+the branch caught up. If the request fails, the button comes back and the row
+and an error toast say why.
 
 The server keeps the request: a branch update the forge accepted shows up on the
 pull request as `updateRequest`, with a phase (`queued` or `expired`), when it

@@ -47,6 +47,7 @@ const singleUserSpecs = [
   '**/branches-load-failure.spec.ts',
   '**/out-of-date-filter.spec.ts',
   '**/out-of-date-chip-fit.spec.ts',
+  '**/one-line-wait.spec.ts',
   '**/long-label-card.spec.ts',
   '**/long-label-dialog.spec.ts',
   '**/branch-pill-dialog-agree.spec.ts',

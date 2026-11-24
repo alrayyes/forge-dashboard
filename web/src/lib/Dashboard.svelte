@@ -61,7 +61,12 @@
     autoUpdateBadge,
     autoUpdateControl,
   } from "#lib/auto-update.js";
-  import { showsBehindPill, showsBehindStatus } from "#lib/behind-signals.js";
+  import {
+    dropsBehindMerge,
+    fixRequested as anyFixRequested,
+    showsBehindPill,
+    showsBehindStatus,
+  } from "#lib/behind-signals.js";
   import {
     detailsCache,
     detailsKey,
@@ -4226,7 +4231,7 @@
       if (withFix && snapshotWaitsOnCi(item) && chipSaysCiWait(item))
         return null;
       // The requested rebase is the fix the message asks for (#4022).
-      if (!showsBehindStatus(status.code, rebaseRequested(item), withFix))
+      if (!showsBehindStatus(status.code, fixRequested(item), withFix))
         return null;
       // The pill already says it, and holds the reason (#3965).
       if (unconfirmedConflict(item) && status.code === "conflict") return null;
@@ -4288,7 +4293,7 @@
       if (!action || isSettled(item)) return null;
       // The block is left out while the rebase is requested, so the row
       // draws the button itself (#4022).
-      if (!showsBehindStatus(item.status?.code, rebaseRequested(item), true))
+      if (!showsBehindStatus(item.status?.code, fixRequested(item), true))
         return null;
       return fixCellFor(item, action) ? (action as ActionName) : null;
     }
@@ -4351,6 +4356,16 @@
       if (merge.blocked) {
         // The row says it in the waiting chip, one place only (#4663).
         if (rowWaitOf(item)) return null;
+        // A behind Merge whose Update branch is on its way clears by itself:
+        // the Updating branch chip is the one sign, no locked button (#4532).
+        if (
+          dropsBehindMerge(
+            merge.blocked.code,
+            updateRequested(item),
+            idScope === "",
+          )
+        )
+          return null;
         // An armed row's own chip already says it.
         if (
           idScope === "" &&
@@ -4381,7 +4396,7 @@
             : !item.status ||
                 !showsBehindStatus(
                   item.status.code,
-                  rebaseRequested(item),
+                  fixRequested(item),
                   idScope === "",
                 )
               ? undefined
@@ -5292,6 +5307,13 @@
             toast: true,
             announce: requestedAnnouncement("update-branch"),
           });
+          // The snapshot that follows carries the server's record of the
+          // request, and the row drops the button and the behind message for
+          // its chip (#4532). Focus moves to the chip, so a keyboard user
+          // keeps their place.
+          const hadFocus = document.activeElement === button;
+          keepFocusAcross(renderPRBoard);
+          if (hadFocus) focusWaitChip(key);
           // The forge already took the action. A refresh that fails is not a
           // failed action: the next poll brings the board up to date.
           if (refresh) return refreshBoard();
@@ -5323,6 +5345,13 @@
           });
         })
         .then(() => requested);
+    }
+
+    function focusWaitChip(key: string) {
+      Array.from(document.querySelectorAll<HTMLElement>("#pr-rows .row"))
+        .find((r) => r.dataset.prKey === key)
+        ?.querySelector<HTMLElement>(".wait-chip:not([hidden])")
+        ?.focus({ preventScroll: true });
     }
 
     // The row draws no Update branch: its forge is read-only (budget spent,
@@ -5364,6 +5393,10 @@
 
       const key = prKey(item);
       const entry = updateBranchState[key] || { phase: "idle" };
+
+      // A request that is on its way is the row's Updating branch chip. No
+      // greyed "Queued…" beside it (#4532). The pop-up keeps its button.
+      if (entry.phase === "queued" && idScope === "") return null;
 
       if (entry.phase === "locked")
         return lockedActionButton("Update branch", lockOf(entry), () =>
@@ -6962,6 +6995,17 @@
     // Rebase action, so a failure shows on its row with that row's retry.
     let visibleBotRows: PullRequestItem[] = [];
     let rebaseAllRun: { done: number; total: number } | null = null;
+
+    // A fix the row already asked for, so its own chip says it: a bot rebase
+    // or an Update branch. The behind message and the fix button leave the
+    // row, the chip is the one sign (#4022, #4532).
+    function fixRequested(item: PullRequestItem): boolean {
+      return anyFixRequested(rebaseRequested(item), updateRequested(item));
+    }
+
+    function updateRequested(item: PullRequestItem): boolean {
+      return updateBranchState[prKey(item)]?.phase === "queued";
+    }
 
     function rebaseRequested(item: PullRequestItem): boolean {
       const waiting = (entry: ActionState | undefined) =>
