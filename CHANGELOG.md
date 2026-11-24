@@ -1,5 +1,26 @@
 # Changelog
 
+## [9.111.2](https://github.com/alrayyes/forge-dashboard/compare/v9.111.1...v9.111.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** open the checks dialog on a tap of a CI pill segment ([#4755](https://github.com/alrayyes/forge-dashboard/issues/4755)) ([0f68a41](https://github.com/alrayyes/forge-dashboard/commit/0f68a41736eed0521d2f512a57bdecc6d21a3b69)), closes [#4753](https://github.com/alrayyes/forge-dashboard/issues/4753) [#4756](https://github.com/alrayyes/forge-dashboard/issues/4756)
+
+## [9.111.1](https://github.com/alrayyes/forge-dashboard/compare/v9.111.0...v9.111.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** judge a cancel's success by the row's newest entry ([#4747](https://github.com/alrayyes/forge-dashboard/issues/4747)) ([81f85e9](https://github.com/alrayyes/forge-dashboard/commit/81f85e9580e23f5d64a921586e2cd6b3f86080d6))
+
+## [9.111.0](https://github.com/alrayyes/forge-dashboard/compare/v9.110.1...v9.111.0) (2026-11-23)
+
+
+### Features
+
+* name the check a pull request waits on when no job shows it ([#4737](https://github.com/alrayyes/forge-dashboard/issues/4737)) ([43a570b](https://github.com/alrayyes/forge-dashboard/commit/43a570b9f92ffbaa27fe64d511d419e3011a3d26))
+
 ## [9.110.1](https://github.com/alrayyes/forge-dashboard/compare/v9.110.0...v9.110.1) (2026-11-23)
 
 

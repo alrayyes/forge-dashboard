@@ -385,6 +385,10 @@ type PullRequest struct {
 	// present; false on GitHub, whose rollup says nothing about checks still to
 	// be created.
 	ChecksIncomplete bool `json:"checksIncomplete"`
+	// PendingChecks names the checks the roll-up waits on that no job in the
+	// pipeline shows: a pending status from an external CI, or a required
+	// check nothing has reported (#4442). A fact for the client to word.
+	PendingChecks []string `json:"pendingChecks,omitempty"`
 	// FailingOnlyForApproval is true when held runs are the only reason CI reads
 	// as failing: no job really failed. The menu pill counts such a pull
 	// request in the total but not as failed. Server-side only, so the API shape

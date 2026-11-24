@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 const LOCK_TEXT =
@@ -123,12 +124,10 @@ test.describe('rebase bots setting on the webhooks page', () => {
       page,
       [repo('a'), repo('b', { forge: 'forgejo' })],
       [
-        {
-          forge: 'github',
-          reachable: true,
+        forgeHealth('github', {
           dependabotCommandsBlocked: 'Dependabot ignores GitHub Apps',
-        },
-        { forge: 'forgejo', reachable: true },
+        }),
+        forgeHealth('forgejo'),
       ],
     );
     const calls: unknown[] = [];
@@ -155,11 +154,9 @@ test.describe('rebase bots setting on the webhooks page', () => {
       page,
       [repo('a')],
       [
-        {
-          forge: 'github',
-          reachable: true,
+        forgeHealth('github', {
           dependabotCommandsBlocked: 'Dependabot ignores GitHub Apps',
-        },
+        }),
       ],
     );
     await page.goto('/webhooks.html');

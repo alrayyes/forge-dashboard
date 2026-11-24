@@ -343,6 +343,7 @@ export function mergeWaitChip(
   wait: MergeWait,
   armed = false,
   canArm = true,
+  pendingChecks: readonly string[] = [],
 ): Chip {
   const orArm = canArm ? ', or turn on Auto-merge to merge it then' : '';
   const words = (label: string, tooltip: string): Chip => ({
@@ -369,9 +370,17 @@ export function mergeWaitChip(
     case 'refresh':
       return words(
         'Waiting for the forge',
-        "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+        pendingChecks.length > 0
+          ? `The forge is waiting on ${joinNames(pendingChecks)}, ${pendingChecks.length === 1 ? 'a check' : 'checks'} the pipeline doesn't list. Merge unlocks when ${pendingChecks.length === 1 ? 'it reports' : 'they report'}.`
+          : "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
       );
   }
+}
+
+// "a", "a and b", "a, b and c": the names the server sent, in its order.
+export function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 // Said once, politely, when the wait ends on the row the person is on.

@@ -96,6 +96,9 @@ type clientState struct {
 	// upToDate remembers each base branch's up-to-date rule (#3428).
 	upToDate *dashboard.UpToDateRuleCache
 
+	// required remembers each base branch's required status contexts (#4442).
+	required requiredGlobsCache
+
 	// version is the instance's major version, read from /version (see
 	// versionCache).
 	version versionCache
@@ -1185,11 +1188,12 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	if p.Head != nil {
 		sha = p.Head.Sha
 	}
-	ci, checks, incomplete, err := c.ciStatus(ctx, owner, name, sha)
+	ci, checks, incomplete, pending, err := c.ciStatus(ctx, owner, name, sha, branchRef(p.Base))
 	if err != nil {
 		ci = dashboard.CINone
 		checks = dashboard.CheckCounts{}
 		incomplete = false
+		pending = nil
 	}
 	var created, updated time.Time
 	if p.Created != nil {
@@ -1217,6 +1221,7 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		CI:                      ci,
 		Checks:                  checks,
 		ChecksIncomplete:        incomplete,
+		PendingChecks:           pending,
 		MergeStatus:             verdict.Status,
 		ConflictConfirmed:       verdict.Confirmed,
 		ConflictFiles:           verdict.Files,
@@ -1326,16 +1331,16 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 //
 // incomplete is true while a run that is still going has jobs the counts
 // leave out (#4253).
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboard.CIStatus, dashboard.CheckCounts, bool, error) {
+func (c *Client) ciStatus(ctx context.Context, owner, name, sha, base string) (dashboard.CIStatus, dashboard.CheckCounts, bool, []string, error) {
 	if sha == "" {
-		return dashboard.CINone, dashboard.CheckCounts{}, false, nil
+		return dashboard.CINone, dashboard.CheckCounts{}, false, nil, nil
 	}
 	c = c.withContext(ctx)
 	ctx = withJobPagesMemo(ctx)
 
 	combined, whole, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, dashboard.CheckCounts{}, false, err
+		return dashboard.CINone, dashboard.CheckCounts{}, false, nil, err
 	}
 
 	counts := checkCountsOf(combined.Statuses)
@@ -1359,8 +1364,15 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha string) (dashboa
 		state = settledState(state, counts, combined.Statuses)
 		incomplete = c.runsHaveUncountedJobs(ctx, owner, name, runs, combined.Statuses)
 	}
+	var pending []string
+	if whole {
+		pending = unjobbedPending(combined.Statuses)
+		var missing []string
+		state, counts, missing = c.withUnreportedRequired(ctx, owner, name, base, combined.Statuses, state, counts)
+		pending = append(pending, missing...)
+	}
 
-	return state, counts, incomplete, nil
+	return state, counts, incomplete, pending, nil
 }
 
 // excuseCancelled takes the failure statuses of cancelled jobs out of the
@@ -1989,6 +2001,7 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 		return nil, err
 	}
 	c.markRequired(ctx, owner, name, base, checks, probes)
+	checks = c.withUnreportedRequiredChecks(ctx, owner, name, base, checks, probes)
 
 	return checks, nil
 }

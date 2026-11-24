@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -37,12 +38,9 @@ function mockExhausted(page: Page, resetsAt: string) {
       body: JSON.stringify({
         generatedAt: NOW.toISOString(),
         forges: [
-          {
-            forge: 'github',
-            reachable: true,
-            repoCount: 1,
+          forgeHealth('github', {
             rateLimitREST: rateLimit(5000, 0, resetsAt),
-          },
+          }),
         ],
         pullRequests: [],
         issues: [],
@@ -123,12 +121,9 @@ test.describe('times in the viewer zone (#996)', () => {
         body: JSON.stringify({
           generatedAt: NOW.toISOString(),
           forges: [
-            {
-              forge: 'github',
-              reachable: true,
-              repoCount: 1,
+            forgeHealth('github', {
               rateLimitREST: rateLimit(5000, 0, TODAY_RESET),
-            },
+            }),
           ],
           repos: [
             {

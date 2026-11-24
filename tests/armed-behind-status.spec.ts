@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import fixture from './generated/behind-status.json';
 import { test } from './server-fixture';
 
@@ -39,7 +40,7 @@ async function open(page: Page, pr: MockPR) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: pr.forge as string, reachable: true, repoCount: 1 }],
+        forges: [forgeHealth(pr.forge as Forge)],
         pullRequests: [pr],
         issues: [],
         openIssueCount: 0,

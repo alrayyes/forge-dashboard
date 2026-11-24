@@ -8,36 +8,7 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // is filled in one place. A file that still writes an entry by hand is listed
 // here. The list only shrinks: converting a file means deleting its line, and a
 // new hand-written entry in any other file fails this test.
-const stillByHand = [
-  'armed-behind-status.spec.ts',
-  'branch-rerun-checks.spec.ts',
-  'dashboard.spec.ts',
-  'forge-health-budgets.spec.ts',
-  'forge-health-live-region.spec.ts',
-  'forgejo-auto-merge.spec.ts',
-  'hit-areas.spec.ts',
-  'insights.spec.ts',
-  'main-branches-page.spec.ts',
-  'main-branches-refetch-on-flag.spec.ts',
-  'main-branches-server-copy.spec.ts',
-  'main-branches-stream.spec.ts',
-  'nav-counts-helper.ts',
-  'page-tops.spec.ts',
-  'pull-request-update-branch.spec.ts',
-  'queued-for-reset.spec.ts',
-  'rate-limit-actions.spec.ts',
-  'rate-limit-readonly.spec.ts',
-  'rate-limit-severity.spec.ts',
-  'refresh-queue-focus.spec.ts',
-  'releases-page.spec.ts',
-  'repo-author-multi-select.spec.ts',
-  'row-failure-lines.spec.ts',
-  'timezone.spec.ts',
-  'wait-chip.spec.ts',
-  'webhooks-filter-choices.spec.ts',
-  'webhooks-page.spec.ts',
-  'webhooks-rebase-bots.spec.ts',
-];
+const stillByHand = ['dashboard.spec.ts'];
 
 const dir = join(import.meta.dir, '..', 'tests');
 

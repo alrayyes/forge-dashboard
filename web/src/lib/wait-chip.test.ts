@@ -463,6 +463,25 @@ describe('mergeWaitChip', () => {
     );
   });
 
+  test('a refresh names the check the forge waits on when the server says which', () => {
+    const chip = mergeWaitChip('refresh', false, true, ['deploy/gate']);
+    expect(chip.label).toBe('Waiting for the forge');
+    expect(chip.tooltip).toBe(
+      "The forge is waiting on deploy/gate, a check the pipeline doesn't list. Merge unlocks when it reports.",
+    );
+  });
+
+  test('a refresh names several checks, in the order the server sent them', () => {
+    const chip = mergeWaitChip('refresh', false, true, ['a', 'b', 'c']);
+    expect(chip.tooltip).toContain('a, b and c');
+  });
+
+  test('a refresh with no names keeps the pointer to the forge', () => {
+    expect(mergeWaitChip('refresh', false, true, []).tooltip).toContain(
+      'Open the pull request on the forge',
+    );
+  });
+
   test('a row that cannot arm never tells the person to turn on Auto-merge', () => {
     for (const wait of ['ci', 'conflict-check'] as const) {
       const chip = mergeWaitChip(wait, false, false);

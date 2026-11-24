@@ -4,6 +4,7 @@ import {
   installFakeStream,
   pushStream,
 } from './fake-stream-helper';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The Main branches page takes its rows from the dashboard stream. The one
@@ -23,7 +24,7 @@ function page(subject: string, status: 'failed' | 'passed') {
       none: 0,
       total: 1,
     },
-    forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+    forges: [forgeHealth('github')],
     branches: [
       {
         forge: 'github',

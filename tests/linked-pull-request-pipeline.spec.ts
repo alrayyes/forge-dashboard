@@ -276,3 +276,28 @@ test.describe('the pipeline on an issue row pill', () => {
     }
   });
 });
+
+// A badge opens nothing, so on a phone a tap on a count is the only way to read
+// what it counts (#4753 keeps this while a pill with a pipeline opens it).
+test.describe('on a touch screen', () => {
+  test.use({ hasTouch: true, viewport: { width: 390, height: 844 } });
+
+  test('tapping a count on the issue row pill shows its text', async ({
+    page,
+  }) => {
+    await mockBoard(page, [
+      issue(1, [
+        linked(12, {
+          ci: 'failure',
+          checks: { passed: 3, running: 0, waiting: 0, failed: 2 },
+        }),
+      ]),
+    ]);
+    await page.goto('/issues.html');
+    const tip = page.locator('[role="tooltip"].ci-pill-tip');
+
+    await pill(page, 1).locator('.ci-seg-failed').tap({ force: true });
+    await expect(tip).toHaveText('2 checks failed');
+    await expect(page).toHaveURL(/\/issues\.html/);
+  });
+});

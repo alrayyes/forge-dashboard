@@ -314,14 +314,7 @@ test.describe('webhooks page', () => {
           canManageWebhooks: true,
         },
       ],
-      [
-        {
-          forge: 'github',
-          reachable: true,
-          repoCount: 1,
-          rateLimitREST: rateLimit(5000, 0, resetsAt),
-        },
-      ],
+      [forgeHealth('github', { rateLimitREST: rateLimit(5000, 0, resetsAt) })],
     );
     await page.goto('/webhooks.html');
 

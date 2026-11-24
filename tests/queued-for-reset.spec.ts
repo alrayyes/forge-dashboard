@@ -5,6 +5,7 @@ import {
   closeActionsDialog,
   openActionsDialog,
 } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -51,14 +52,12 @@ function makePR(overrides: Record<string, unknown> = {}) {
   };
 }
 
-const limited = () => ({
-  forge: 'github',
-  reachable: true,
-  repoCount: 1,
-  rateLimitREST: rateLimit(5000, 0, RESET),
-  rateLimitGraphQL: rateLimit(5000, 0, RESET),
-});
-const healthy = () => ({ forge: 'github', reachable: true, repoCount: 1 });
+const limited = () =>
+  forgeHealth('github', {
+    rateLimitREST: rateLimit(5000, 0, RESET),
+    rateLimitGraphQL: rateLimit(5000, 0, RESET),
+  });
+const healthy = () => forgeHealth('github');
 
 type State = { queuedActions: Queued[]; posts: unknown[]; deletes: string[] };
 
@@ -134,7 +133,7 @@ test.describe('queue a safe action for the rate limit reset (#756)', () => {
   }) => {
     await setup(
       page,
-      [{ forge: 'github', reachable: false, repoCount: 1 }, limited()],
+      [forgeHealth('github', { reachable: false }), limited()],
       makePR(),
     );
     await page.goto('/pull-requests.html');

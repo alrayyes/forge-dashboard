@@ -1,4 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { dismissToasts } from './toast-helper';
 
@@ -40,14 +41,7 @@ async function mockDashboard(
   const body = () =>
     JSON.stringify({
       generatedAt: new Date().toISOString(),
-      forges: [
-        {
-          forge: 'github',
-          reachable: true,
-          repoCount: 1,
-          rateLimitREST,
-        },
-      ],
+      forges: [forgeHealth('github', { rateLimitREST })],
       pullRequests: prs,
       issues: [],
     });

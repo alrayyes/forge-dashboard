@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1427: a filter offers only choices that exist in the results. On the
@@ -62,8 +63,8 @@ test.describe('webhooks filter choices (#1427)', () => {
         { forge: 'forgejo', fullName: 'alrayyes/b', hasWebhook: true },
       ],
       [
-        { forge: 'github', reachable: true, capabilities: { label: 'Octo' } },
-        { forge: 'forgejo', reachable: true, capabilities: { label: 'Berg' } },
+        forgeHealth('github', { capabilities: { label: 'Octo' } }),
+        forgeHealth('forgejo', { capabilities: { label: 'Berg' } }),
       ],
     );
     await page.goto('/webhooks.html');
@@ -84,8 +85,11 @@ test.describe('webhooks filter choices (#1427)', () => {
         { forge: 'gitea', fullName: 'alrayyes/b', hasWebhook: true },
       ],
       [
-        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
-        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+        forgeHealth('github', { capabilities: { label: 'GitHub' } }),
+        forgeHealth('github', {
+          forge: 'gitea',
+          capabilities: { label: 'Gitea' },
+        }),
       ],
     );
     await page.goto('/webhooks.html');
@@ -107,13 +111,12 @@ test.describe('webhooks filter choices (#1427)', () => {
         { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
       ],
       [
-        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
-        {
-          forge: 'forgejo',
-          reachable: true,
-          capabilities: { label: 'Forgejo' },
-        },
-        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+        forgeHealth('github', { capabilities: { label: 'GitHub' } }),
+        forgeHealth('forgejo', { capabilities: { label: 'Forgejo' } }),
+        forgeHealth('github', {
+          forge: 'gitea',
+          capabilities: { label: 'Gitea' },
+        }),
       ],
     );
     await page.goto('/webhooks.html');
@@ -142,13 +145,12 @@ test.describe('webhooks filter choices (#1427)', () => {
         { forge: 'forgejo', fullName: 'alrayyes/b', hasWebhook: true },
       ],
       [
-        { forge: 'github', reachable: true, capabilities: { label: 'GitHub' } },
-        {
-          forge: 'forgejo',
-          reachable: true,
-          capabilities: { label: 'Forgejo' },
-        },
-        { forge: 'gitea', reachable: true, capabilities: { label: 'Gitea' } },
+        forgeHealth('github', { capabilities: { label: 'GitHub' } }),
+        forgeHealth('forgejo', { capabilities: { label: 'Forgejo' } }),
+        forgeHealth('github', {
+          forge: 'gitea',
+          capabilities: { label: 'Gitea' },
+        }),
       ],
     );
     await page.goto('/webhooks.html');

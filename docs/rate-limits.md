@@ -358,6 +358,7 @@ a new read can't skip the question of whether it can be conditional.
 | `internal/forgejo/rerun.go`                | 2     | One pull request, Actions runs                                                                                                                                                         | No, Forgejo sends no ETag         |
 | `internal/forgejo/scheduled_merge.go`      | 1     | Issue timeline                                                                                                                                                                         | No, Forgejo sends no ETag         |
 | `internal/forgejo/up_to_date_rule.go`      | 1     | The repository's branch protections, for the up-to-date rule, once per branch while a pull request is behind                                                                           | No, Forgejo sends no ETag         |
+| `internal/forgejo/pending_checks.go`       | 1     | The repository's branch protections, for the required checks nothing has reported, once per branch every five minutes, only for a pull request whose statuses all passed               | No, Forgejo sends no ETag         |
 
 The rule that a branch must be current before it merges (GitHub's `strict`
 branch protection setting, Forgejo's "Block merge if the pull request is
