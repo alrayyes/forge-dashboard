@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.113.0](https://github.com/alrayyes/forge-dashboard/compare/v9.112.1...v9.113.0) (2026-11-24)
+
+
+### Features
+
+* **github:** route each per-repo call to the installation that owns the repo ([#4766](https://github.com/alrayyes/forge-dashboard/issues/4766)) ([6dc9e98](https://github.com/alrayyes/forge-dashboard/commit/6dc9e98737051c1ff37b144b9cc01ccd764c3947)), closes [#4586](https://github.com/alrayyes/forge-dashboard/issues/4586)
+
 ## [9.112.1](https://github.com/alrayyes/forge-dashboard/compare/v9.112.0...v9.112.1) (2026-11-24)
 
 
