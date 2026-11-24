@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.115.1](https://github.com/alrayyes/forge-dashboard/compare/v9.115.0...v9.115.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **web:** let the stacked-pull-request notes read across the row ([#4778](https://github.com/alrayyes/forge-dashboard/issues/4778)) ([3e47bd1](https://github.com/alrayyes/forge-dashboard/commit/3e47bd1c7ffa34f1f88d074eba6865018ff999fe))
+
 ## [9.115.0](https://github.com/alrayyes/forge-dashboard/compare/v9.114.0...v9.115.0) (2026-11-24)
 
 
