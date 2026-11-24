@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.117.0](https://github.com/alrayyes/forge-dashboard/compare/v9.116.0...v9.117.0) (2026-11-24)
+
+
+### Features
+
+* **web:** flag polling-only repos in Repositories and on Branches ([#4771](https://github.com/alrayyes/forge-dashboard/issues/4771)) ([21e3aa6](https://github.com/alrayyes/forge-dashboard/commit/21e3aa6ed362e624bd72ac3ecb627c3e04811e81)), closes [#4028](https://github.com/alrayyes/forge-dashboard/issues/4028)
+* **web:** one line for an update-branch wait, no locked button beside it ([#4791](https://github.com/alrayyes/forge-dashboard/issues/4791)) ([b47e1da](https://github.com/alrayyes/forge-dashboard/commit/b47e1da572de79c1a7661620228724776ed0ef67))
+
 ## [9.116.0](https://github.com/alrayyes/forge-dashboard/compare/v9.115.1...v9.116.0) (2026-11-24)
 
 
