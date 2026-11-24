@@ -767,7 +767,7 @@ test.describe('main branches rerun failed checks', () => {
   }) => {
     const dialog = await openPanel(page, 'failed', {
       checks: failedCheck,
-      forges: [{ forge: 'github', repoCount: 1 }],
+      forges: [forgeHealth('github', { reachable: undefined })],
     });
 
     await expect(

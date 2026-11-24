@@ -7,7 +7,7 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // Every mocked `forges` entry comes from forgeHealth() (#4030), so `capabilities`
 // is filled in one place. The list shrinks to empty as the specs convert
 // (#4030), and a new hand-written entry in any file fails this test.
-const stillByHand: string[] = ['branch-rerun-checks.spec.ts'];
+const stillByHand: string[] = [];
 
 const dir = join(import.meta.dir, '..', 'tests');
 
