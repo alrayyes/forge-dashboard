@@ -605,10 +605,12 @@
                 <span
                   class="repo-control ignore-control"
                   data-tip={ignoreName(repo.fullName)}
-                  aria-busy={busy[busyKey("ignore", repo)] ? "true" : undefined}
                 >
                   <select
                     class="ignore-select"
+                    aria-busy={busy[busyKey("ignore", repo)]
+                      ? "true"
+                      : undefined}
                     aria-label={ignoreName(repo.fullName)}
                     disabled={busy[busyKey("ignore", repo)]}
                     value=""

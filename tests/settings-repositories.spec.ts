@@ -257,6 +257,27 @@ test.describe('settings, repositories', () => {
     });
   }
 
+  test('a busy ignore puts aria-busy on the select, not on its wrapper', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [repo('a')]);
+    let release!: () => void;
+    const hold = new Promise<void>((r) => {
+      release = r;
+    });
+    await page.route('**/api/v1/repos/ignore', async (route) => {
+      await hold;
+      await route.fulfill({ status: 204 });
+    });
+    await open(page);
+    const select = page.getByRole('combobox', { name: 'Ignore alrayyes/a' });
+    await select.selectOption('prs');
+    await expect(select).toHaveAttribute('aria-busy', 'true');
+    await expect(page.locator('.ignore-control[aria-busy]')).toHaveCount(0);
+    release();
+    await expect(page.locator('#repositories-ignored')).toBeVisible();
+  });
+
   test('a failed ignore keeps the repo in the table', async ({ page }) => {
     await mockDashboard(page, [repo('a')]);
     await page.route('**/api/v1/repos/ignore', (route) =>
