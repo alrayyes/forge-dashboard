@@ -241,11 +241,11 @@ database, and the merged JUnit report still holds every test. Refresh the file
 when the slowest shard drifts more than about a minute from the fastest.
 
 A shard that runs past its 10-minute limit is cancelled, and the log ends at
-`The operation was canceled.` The shard's last step then writes an error
+`The operation was canceled.` A final `cancelled()` step then writes an error
 annotation and a job summary line saying it hit the limit, with the elapsed
 time (`scripts/e2e-shard-cancelled.sh`). A shard cancelled by a newer push
 says so instead and claims no timeout: the script compares the elapsed time
-with the limit, allowing a minute for pulling the image. On that message,
+with the limit, allowing 40 seconds for pulling the image. On that message,
 refresh the durations, and add a shard if the refresh doesn't bring the
 slowest back well under the limit. `scripts/test-e2e-shard-timeout.sh` checks
 the step, and that its limit matches the job's `timeout-minutes`.
