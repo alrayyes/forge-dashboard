@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.114.0](https://github.com/alrayyes/forge-dashboard/compare/v9.113.0...v9.114.0) (2026-11-24)
+
+
+### Features
+
+* **web:** say what the forge waits for on an armed row with a green pill ([#4774](https://github.com/alrayyes/forge-dashboard/issues/4774)) ([630a295](https://github.com/alrayyes/forge-dashboard/commit/630a295d12d6c30ed6b009dd3783844964b8dde4))
+
 ## [9.113.0](https://github.com/alrayyes/forge-dashboard/compare/v9.112.1...v9.113.0) (2026-11-24)
 
 
