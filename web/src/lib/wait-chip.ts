@@ -241,6 +241,21 @@ export function queuedChip(input: {
   };
 }
 
+// The review decisions the API documents (ReviewState.decision in
+// api/openapi.yaml; a test keeps the two in step). A decision the page doesn't
+// know reads as no reason.
+export const REVIEW_DECISIONS = [
+  'approved',
+  'changes_requested',
+  'review_required',
+  'none',
+] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+
+export function reviewDecisionOf(value?: string): ReviewDecision | undefined {
+  return REVIEW_DECISIONS.find((decision) => decision === value);
+}
+
 export type AutoMergeInput = {
   state: 'waiting' | 'stopped';
   code?: string;
@@ -252,6 +267,12 @@ export type AutoMergeInput = {
   // Who holds a Forgejo auto-merge, as the server says. Omitted is unknown:
   // never guessed from other fields (#1596).
   heldBy?: 'dashboard' | 'forge';
+  // What the row already knows about why the forge won't merge a green pull
+  // request yet. Read only where the server's code names nothing (#4434).
+  holds?: {
+    review?: ReviewDecision;
+    pendingChecks?: readonly string[];
+  };
 };
 
 // The server's auto-merge sentence with the forge named from its label. The
@@ -323,8 +344,63 @@ export function autoMergeChip(input: AutoMergeInput): Chip | null {
     default:
       return input.draft
         ? words('Waiting for ready', 'Merges once marked ready')
-        : words('Waiting for forge', 'Merges when it allows');
+        : heldWords(input, words);
   }
+}
+
+// The catch-all wait on a green pull request: names what the forge holds it
+// for when the row knows (#4434), and says plainly when it doesn't. The tooltip
+// keeps the server's sentence and adds the reason to it.
+function heldWords(
+  input: AutoMergeInput,
+  words: (label: string, detail: string) => Chip,
+): Chip {
+  const forge = forgeLabelOf(input.forge);
+  const named = (label: string, detail: string, reason: string): Chip => ({
+    ...words(label, detail),
+    tooltip: `${autoMergeWording(input.message, input.forge)} ${reason}`,
+  });
+  const checks = input.holds?.pendingChecks ?? [];
+  const review = input.holds?.review;
+  switch (review) {
+    case 'review_required':
+      return named(
+        'Waiting for review',
+        'A review is required',
+        `${forge} requires a review before it merges.`,
+      );
+    case 'changes_requested':
+      return named(
+        'Changes requested',
+        'Needs a new review',
+        `A reviewer asked for changes. ${forge} merges it after a new review.`,
+      );
+    case 'approved':
+    case 'none':
+    case undefined:
+      break;
+    default:
+      // A new decision in REVIEW_DECISIONS is a compile error until it is
+      // handled here.
+      return review satisfies never;
+  }
+  if (checks.length > 0)
+    return named(
+      checks.length === 1 ? 'Waiting for check' : 'Waiting for checks',
+      joinNames(checks),
+      `${forge} requires ${joinNames(checks)} to report before it merges.`,
+    );
+  if (input.code === 'blocked_by_protection')
+    return named(
+      'Waiting for rule',
+      'A branch rule holds it',
+      `A branch rule on the base branch stops ${forge} merging it yet.`,
+    );
+  return named(
+    'Waiting for forge',
+    'The forge gave no reason',
+    `${forge} gave no reason. Open the pull request there to see what it needs.`,
+  );
 }
 
 // ---- the chip that stands in for Merge while a row only waits ----

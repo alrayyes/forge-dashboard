@@ -754,7 +754,14 @@ Dependabot or Renovate `rebase`, `Recreating` for a Dependabot recreate,
 `Updating branch`, `Merging` and `Closing` while the forge answers, `Arming` and
 `Cancelling` for auto-merge, and `Waiting for CI` (or `Waiting for parent`,
 `Rate limited`, `Waiting for ready`, `Waiting for forge`) for an armed
-auto-merge on either forge, with `Cancel auto-merge`. Once nothing is left to
+auto-merge on either forge, with `Cancel auto-merge`. When the forge holds a
+green pull request for a reason the row knows, the chip names it instead of
+`Waiting for forge`: `Waiting for review` (a review is required), `Changes
+requested` (needs a new review), `Waiting for check` or `Waiting for checks`
+(the required checks nothing has reported, named on the lighter line) and
+`Waiting for rule` (a branch rule). With no reason it keeps `Waiting for forge`
+and its lighter line reads `The forge gave no reason`. The tooltip carries the
+reason in a sentence, so it reads on keyboard focus too. Once nothing is left to
 wait for, Forgejo's reads `Merging next` (this app merges it on its next
 refresh, also when the holder is unknown), `Merging` when the server says
 Forgejo itself holds the merge (it merges when checks pass), and GitHub's reads

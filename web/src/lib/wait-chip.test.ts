@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
@@ -7,6 +8,8 @@ import {
   autoMergeWording,
   mergeWaitChip,
   queuedChip,
+  REVIEW_DECISIONS,
+  reviewDecisionOf,
   SETTLED_MS,
   STILL_WAITING_MS,
   settledChip,
@@ -239,6 +242,112 @@ describe('autoMergeChip wording', () => {
       waiting({ code: 'checks_pending', heldBy: 'forge' }),
     );
     expect(chip?.label).toBe('Waiting for CI');
+  });
+
+  // #4434: on a green pill the server's code is the catch-all, so the page
+  // names the hold from the facts the row already carries.
+  describe('Waiting for forge says what the forge waits for (#4434)', () => {
+    const held = (holds: AutoMergeInput['holds']) =>
+      autoMergeChip(waiting({ code: 'not_mergeable', holds }));
+
+    test('a review the forge requires', () => {
+      const chip = held({ review: 'review_required' });
+      expect(chip?.label).toBe('Waiting for review');
+      expect(chip?.detail).toBe('A review is required');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('changes requested wait for a new review', () => {
+      const chip = held({ review: 'changes_requested' });
+      expect(chip?.label).toBe('Changes requested');
+      expect(chip?.detail).toBe('Needs a new review');
+    });
+
+    test('a required check nothing has reported is named', () => {
+      const chip = held({ pendingChecks: ['lint', 'e2e'] });
+      expect(chip?.label).toBe('Waiting for checks');
+      expect(chip?.detail).toBe('lint and e2e');
+      expect(words(chip?.label ?? '')).toBeLessThanOrEqual(3);
+    });
+
+    test('a branch rule', () => {
+      const chip = autoMergeChip(waiting({ code: 'blocked_by_protection' }));
+      expect(chip?.label).toBe('Waiting for rule');
+      expect(chip?.detail).toBe('A branch rule holds it');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('no reason is said plainly and Disarm stays', () => {
+      const chip = held(undefined);
+      expect(chip?.label).toBe('Waiting for forge');
+      expect(chip?.detail).toBe('The forge gave no reason');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('the tooltip adds the reason to the server sentence', () => {
+      const chip = held({ review: 'review_required' });
+      expect(chip?.tooltip).toBe(
+        'Auto-merge is waiting for checks to finish. Forgejo requires a review before it merges.',
+      );
+    });
+
+    test('a review outranks a check, and a check outranks a rule', () => {
+      const both = autoMergeChip(
+        waiting({
+          code: 'blocked_by_protection',
+          holds: { review: 'review_required', pendingChecks: ['lint'] },
+        }),
+      );
+      expect(both?.label).toBe('Waiting for review');
+      const checkAndRule = autoMergeChip(
+        waiting({
+          code: 'blocked_by_protection',
+          holds: { pendingChecks: ['lint'] },
+        }),
+      );
+      expect(checkAndRule?.label).toBe('Waiting for check');
+    });
+
+    test('an approved or unchecked review names nothing, so a check still shows', () => {
+      for (const review of ['approved', 'none'] as const) {
+        const chip = held({ review, pendingChecks: ['lint'] });
+        expect(chip?.label).toBe('Waiting for check');
+      }
+    });
+
+    test('a review decision the page does not know is no reason', () => {
+      expect(reviewDecisionOf('something_new')).toBeUndefined();
+      expect(reviewDecisionOf(undefined)).toBeUndefined();
+      const chip = held({ review: reviewDecisionOf('something_new') });
+      expect(chip?.label).toBe('Waiting for forge');
+      expect(chip?.detail).toBe('The forge gave no reason');
+    });
+
+    test('the decisions the page knows are the ones the API documents', () => {
+      const yaml = readFileSync(
+        new URL('../../../api/openapi.yaml', import.meta.url),
+        'utf8',
+      );
+      const block = yaml.slice(yaml.indexOf('    ReviewState:'));
+      const listed = /decision:\s+type: string\s+enum: \[([^\]]+)\]/
+        .exec(block)?.[1]
+        .split(',')
+        .map((v) => v.trim());
+      expect([...REVIEW_DECISIONS].map(String).sort()).toEqual(
+        [...(listed ?? [])].sort(),
+      );
+    });
+
+    test('a draft still reads Waiting for ready', () => {
+      const chip = autoMergeChip(
+        waiting({
+          code: 'not_mergeable',
+          draft: true,
+          holds: { review: 'review_required' },
+        }),
+      );
+      expect(chip?.label).toBe('Waiting for ready');
+    });
   });
 
   test('a GitHub auto-merge ignores the holder', () => {

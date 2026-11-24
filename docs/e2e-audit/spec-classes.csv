@@ -10,6 +10,7 @@ advisory-detail-scroll-share.spec.ts,3.954,1,1,A,,0.0
 allowed-actions.spec.ts,3.143,15,0,C,web/src/lib/allowed-actions.test.ts,3.1
 ambiguous-action-outcome.spec.ts,6.131,7,4,A,,2.6
 armed-behind-status.spec.ts,4.07,4,1,C,,3.1
+armed-wait-reason.spec.ts,,4,1,C,,0.0
 auth-single-user.spec.ts,8.341,13,1,C,,7.7
 auth.spec.ts,0.833,2,2,A,,0.0
 author-choices-per-forge.spec.ts,3.032,8,2,C,,2.3
