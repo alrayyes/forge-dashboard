@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.112.0](https://github.com/alrayyes/forge-dashboard/compare/v9.111.3...v9.112.0) (2026-11-24)
+
+
+### Features
+
+* **github:** read each installation with its own token, composite source ([#4762](https://github.com/alrayyes/forge-dashboard/issues/4762)) ([5f60ca5](https://github.com/alrayyes/forge-dashboard/commit/5f60ca5397c5f0da167fc27746e14807c603edc4)), closes [#4586](https://github.com/alrayyes/forge-dashboard/issues/4586)
+
 ## [9.111.3](https://github.com/alrayyes/forge-dashboard/compare/v9.111.2...v9.111.3) (2026-11-24)
 
 
