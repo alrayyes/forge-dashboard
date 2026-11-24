@@ -132,8 +132,9 @@ Dependabot alerts. It lists them with the worst first (critical, high, medium,
 low, then the newest first). Each row shows the severity word, the title, the
 package and its ecosystem, whether it is a runtime or development dependency
 and a direct or transitive one, the file that pulled it in, and how long ago it
-opened. Severity chips ahead of the list (All open, Critical, High, Medium, Low,
-each with its count) narrow it; a level with none open has no chip.
+opened. A labelled Severity group of filter pills ahead of the list (All open,
+Critical, High, Medium, Low, each with its count) narrows it. They are the same
+pills the page's own filters use, and a level with none open has no pill.
 
 Picking a row shows its detail: the GHSA and CVE ids, the package, the file,
 when it opened, the vulnerable and patched versions, the severity score with

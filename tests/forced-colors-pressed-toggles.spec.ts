@@ -169,7 +169,7 @@ async function openAdvisories(page: Page, width: number) {
   await page.goto('/');
   await page.getByTestId('main-branch-advisories').click();
   await expect(page.getByTestId('advisories-dialog')).toBeVisible();
-  return page.locator('.adv-filter');
+  return page.locator('.adv-filters .filter-pill');
 }
 
 const CASES: {

@@ -2,7 +2,7 @@ spec,duration_s,tests,browser_only_tests,cls,lower,est_movable_s
 actions-dialog-helper.spec.ts,1.083,4,3,A,,0.3
 activity-persistence.spec.ts,1.284,2,0,C,,1.3
 address-open-focus.spec.ts,,3,3,A,,0.0
-advisories-dialog-button-border.spec.ts,,4,4,A,web/src/lib/advisories-dialog.test.ts,0.0
+advisories-dialog-button-border.spec.ts,,5,5,A,web/src/lib/advisories-dialog.test.ts,0.0
 advisories-dialog-cached-list.spec.ts,,8,4,A,web/src/lib/advisories-dialog.test.ts,0.0
 advisories-dialog-close-position.spec.ts,2.23,2,1,A,web/src/lib/advisories-dialog.test.ts,1.1
 advisory-chip-fit.spec.ts,5.46,2,2,A,,0.0
