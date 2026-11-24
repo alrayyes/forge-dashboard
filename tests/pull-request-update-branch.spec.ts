@@ -308,7 +308,8 @@ test.describe('pull request update-branch button', () => {
     await row.getByRole('button', { name: 'Update branch' }).click();
     await refreshResponse;
 
-    await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
+    await expect(row.locator('.wait-chip-label')).toHaveText('Updating branch');
+    await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -352,7 +353,7 @@ test.describe('pull request update-branch button', () => {
 
     const row = page.locator('#pr-rows .row').first();
     await row.getByRole('button', { name: 'Update branch' }).click();
-    await expect(row.getByRole('button', { name: 'Queued…' })).toBeVisible();
+    await expect(row.locator('.wait-chip-label')).toHaveText('Updating branch');
 
     await page.click('#force-refresh-button');
 

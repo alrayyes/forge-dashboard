@@ -118,9 +118,10 @@ test.describe('update branch request from the server', () => {
 
   async function click(page: Page) {
     await row(page).getByRole('button', { name: 'Update branch' }).click();
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(page.locator('#feedback-toasts')).toContainText(
       'Branch update requested.',
     );
@@ -156,9 +157,10 @@ test.describe('update branch request from the server', () => {
     await click(page);
     await page.reload();
 
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(
       row(page).getByRole('button', { name: 'Update branch' }),
     ).toHaveCount(0);
@@ -171,9 +173,10 @@ test.describe('update branch request from the server', () => {
     current = { ...current, updateRequest: updateRequest('queued', 30_000) };
     await page.goto('/pull-requests.html');
 
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(chip(page)).toHaveText('Updating branch');
   });
 
@@ -184,9 +187,10 @@ test.describe('update branch request from the server', () => {
     await click(page);
     await push(page, current);
     await settle(page);
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect(page.locator('#feedback-toasts .feedback-toast')).toHaveCount(
       1,
     );
@@ -261,9 +265,10 @@ test.describe('update branch request from the server', () => {
     while ((await dismiss.count()) > 0) await dismiss.first().click();
     await line(page).getByRole('button', { name: 'Retry' }).click();
 
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
   });
 
   // #1124: Update branch asks for a refresh once the server answers 202. That
@@ -289,9 +294,10 @@ test.describe('update branch request from the server', () => {
 
     await page.goto('/pull-requests.html');
     await row(page).getByRole('button', { name: 'Update branch' }).click();
+    await expect(chip(page)).toHaveText('Updating branch');
     await expect(
       row(page).getByRole('button', { name: 'Queued…' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expect.poll(() => staleBody).not.toBe('');
 
     current = {

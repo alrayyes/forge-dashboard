@@ -141,8 +141,9 @@ interface Scenario {
   inDialog: boolean;
   button: string;
   // What the disabled button reads once clicked: a bot rebase says what
-  // was requested (#707), Update branch is a plain queue.
-  queuedLabel: string;
+  // was requested (#707). Update branch has none: the row draws the chip
+  // alone, with no locked button beside it (#4532).
+  queuedLabel: string | null;
   // The chip's label.
   waiting: string;
   // Only Update branch waits on the dashboard's own next refresh; a bot
@@ -166,7 +167,7 @@ const scenarios: Scenario[] = [
     endpoint: '**/api/v1/pull-requests/update-branch',
     inDialog: false,
     button: 'Update branch',
-    queuedLabel: 'Queued…',
+    queuedLabel: null,
     awaitsRefresh: true,
     waiting: 'Updating branch',
     toast: 'Branch update requested.',
@@ -304,7 +305,7 @@ for (const s of scenarios) {
       await settle(page);
     }
 
-    test('the button reads Queued… and is disabled right after the click, only one request is sent, and a dialog keeps focus inside it', async ({
+    test('the button gives way to the chip, or reads what was requested, right after the click, only one request is sent, and a dialog keeps focus inside it', async ({
       page,
     }) => {
       const mocks = await prepare(page);
@@ -312,9 +313,18 @@ for (const s of scenarios) {
       const button = row.getByRole('button', { name: s.button });
       await button.click();
 
-      const queued = row.getByRole('button', { name: s.queuedLabel });
-      await expect(queued).toBeVisible();
-      await expect(queued).toBeDisabled();
+      if (s.queuedLabel === null) {
+        await expect(chip(page).locator('.wait-chip-label')).toHaveText(
+          s.waiting,
+        );
+        await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(
+          0,
+        );
+      } else {
+        const queued = row.getByRole('button', { name: s.queuedLabel });
+        await expect(queued).toBeVisible();
+        await expect(queued).toBeDisabled();
+      }
       // A negative check: no second request follows. Wait until the answer
       // and the render it causes are in, then count.
       await afterResponseLands(page, mocks);
@@ -332,10 +342,10 @@ for (const s of scenarios) {
     });
 
     if (s.full) {
-      // #690: a native `disabled` button drops focus, so a keyboard or
-      // screen reader user loses their place. The queued button is
-      // aria-disabled instead: still focusable, ignores clicks.
-      test('the queued button is aria-disabled, keeps focus across the re-render, ignores clicks and passes axe', async ({
+      // #690: a native `disabled` button drops focus. The button is gone
+      // from the row now, so focus moves to the chip that stands in for it,
+      // and no dead aria-disabled stop is left behind (#4532).
+      test('focus moves to the chip, no aria-disabled stop remains and axe passes', async ({
         page,
       }) => {
         const mocks = await prepare(page);
@@ -344,25 +354,19 @@ for (const s of scenarios) {
         await button.focus();
         await button.press('Enter');
 
-        const queuedButton = () =>
+        const waitChip = () =>
+          page.locator('#pr-rows .row').first().locator('.wait-chip');
+        await expect(waitChip()).toBeFocused();
+        await expect(
           page
             .locator('#pr-rows .row')
             .first()
-            .getByRole('button', { name: s.queuedLabel });
-        await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
-        await expect(queuedButton()).not.toHaveAttribute('disabled', /.*/);
-        await expect(queuedButton()).toBeFocused();
+            .locator('[aria-disabled="true"]'),
+        ).toHaveCount(0);
 
-        // The mock holds the response 300ms; the handler re-renders after.
         await expect.poll(hits).toBe(1);
         await afterResponseLands(page, mocks);
-        await expect(queuedButton()).toBeFocused();
-        await expect(queuedButton()).toHaveAttribute('aria-disabled', 'true');
-
-        // Playwright refuses to click an aria-disabled button unless forced.
-        await queuedButton().click({ force: true });
-        // A negative check: no second request follows the forced click. The
-        // sentinel returns only after any such request reached the mock.
+        await expect(waitChip()).toBeFocused();
         await requestsDelivered(page);
         await settle(page);
         expect(hits()).toBe(1);
@@ -467,8 +471,8 @@ for (const s of scenarios) {
 
         const fresh = page.locator('#pr-rows .row').first();
         await expect(
-          fresh.getByRole('button', { name: s.queuedLabel }),
-        ).toBeDisabled();
+          fresh.getByRole('button', { name: 'Queued…' }),
+        ).toHaveCount(0);
         await expect(chip(page).locator('.wait-chip-label')).toHaveText(
           s.waiting,
         );
@@ -521,8 +525,8 @@ for (const s of scenarios) {
         ).toHaveCount(1);
         const fresh = page.locator('#pr-rows .row').first();
         await expect(
-          fresh.getByRole('button', { name: s.queuedLabel }),
-        ).toBeDisabled();
+          fresh.getByRole('button', { name: 'Queued…' }),
+        ).toHaveCount(0);
       });
 
       test('the row says Refreshing… rather than vanishing when the countdown hits zero', async ({
@@ -553,9 +557,10 @@ for (const s of scenarios) {
     }) => {
       const { row } = await prepare(page, 502);
       await row.getByRole('button', { name: s.button }).click();
-      await expect(
-        row.getByRole('button', { name: s.queuedLabel }),
-      ).toBeVisible();
+      if (s.queuedLabel !== null)
+        await expect(
+          row.getByRole('button', { name: s.queuedLabel }),
+        ).toBeVisible();
 
       const toast = page.locator('#feedback-toasts .feedback-toast').first();
       await expect(toast).toContainText(s.failure);
@@ -567,7 +572,7 @@ for (const s of scenarios) {
       await expect(page.locator('#error-banner')).toHaveCount(0);
       await expect(page.locator('#status-banner')).toHaveCount(0);
       await expect(
-        row.getByRole('button', { name: s.queuedLabel }),
+        row.getByRole('button', { name: s.queuedLabel ?? 'Queued…' }),
       ).toHaveCount(0);
       await expect(row.getByRole('button', { name: s.button })).toBeEnabled();
     });

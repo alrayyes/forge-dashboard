@@ -42,7 +42,10 @@ async function open(
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github', forge)],
-        pullRequests: [pr(BEHIND)],
+        // A second behind pull request keeps the Update all bar above the
+        // list once the first is on its way, as a real list does. The spec
+        // is about the Activity control, not that bar (#4532).
+        pullRequests: [pr(BEHIND), pr({ ...BEHIND, number: 8 })],
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -437,7 +440,11 @@ test.describe('the Activity control appearing (#4591)', () => {
       await page.emulateMedia(media);
       const row = await open(page);
       const before = await top(row);
-      await row.getByRole('button', { name: 'Update branch' }).click();
+      // A page taller than the viewport would scroll to reach the button;
+      // this spec measures the card, so press it where it is.
+      await row
+        .getByRole('button', { name: 'Update branch' })
+        .evaluate((b: HTMLElement) => b.click());
       await expect(page.locator('#activity-toggle')).toBeVisible();
       expect(await top(row)).toBe(before);
       const m = await page.evaluate(() => {

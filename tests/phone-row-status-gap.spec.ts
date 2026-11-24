@@ -61,7 +61,10 @@ function snapshot(pullRequest: unknown) {
 
 // The stream is kept so a test can push a second snapshot into the same row,
 // as the server does, instead of loading the page twice.
-async function open(page: Page, pullRequest: unknown) {
+// `sibling` adds a second pull request below the first. With one behind row,
+// Update all vanishes the moment it is queued and the toolbar shifts; a
+// second behind row keeps that bar so the spec measures the card alone (#4532).
+async function open(page: Page, pullRequest: unknown, sibling?: unknown) {
   await page.addInitScript(() => {
     const w = window as unknown as {
       __streams: EventSource[];
@@ -80,7 +83,10 @@ async function open(page: Page, pullRequest: unknown) {
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(pullRequest)),
+      body: JSON.stringify({
+        ...snapshot(pullRequest),
+        pullRequests: sibling ? [pullRequest, sibling] : [pullRequest],
+      }),
     }),
   );
   await page.goto('/pull-requests.html');
@@ -224,7 +230,7 @@ test.describe('phone row status gap (#3834)', () => {
       await page.route('**/api/v1/pull-requests/update-branch', (route) =>
         route.fulfill({ status: 202 }),
       );
-      const row = await open(page, pr(BEHIND));
+      const row = await open(page, pr(BEHIND), pr({ ...BEHIND, number: 8 }));
       await page.evaluate(() => {
         document.body.style.minHeight = '4000px';
         window.scrollTo(0, 40);
@@ -266,6 +272,8 @@ test.describe('phone row status gap (#3834)', () => {
     const row = await open(page, pr(BEHIND));
     await row.getByRole('button', { name: 'Update branch' }).click();
     await expect(row.locator('.wait-chip')).toBeVisible();
+    // The row is drawn again as the request lands; read it after that.
+    await expect(row.getByRole('button', { name: 'Queued…' })).toHaveCount(0);
     const motion = await row.evaluate((r) =>
       ['.status-cell', '.wait-slot', '.wait-chip'].map((s) => {
         const cs = getComputedStyle(r.querySelector(s)!);

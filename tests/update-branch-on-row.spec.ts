@@ -244,7 +244,9 @@ test('Update branch leaves the row while Merge is running', async ({
   );
 });
 
-test('a clicked Update branch on the row shows Queued and is disabled', async ({
+// While the request is still in flight the button holds its place as Queued…;
+// once the forge answers, the row swaps it for the chip alone (#4532).
+test('a clicked Update branch on the row shows Queued and is disabled until the forge answers', async ({
   page,
 }) => {
   await page.route(
