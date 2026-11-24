@@ -449,7 +449,14 @@
 
   <p class="hint">
     Every tracked repo, and what the dashboard does for it. Webhooks are set up
-    on their own; <a href="/webhooks.html">see their coverage</a>.
+    on their own; a repo without one says why on its row, and the guide covers
+    <a
+      href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md#polling-only"
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      polling only
+    </a>.
   </p>
 
   {#if awaiting}
