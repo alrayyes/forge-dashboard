@@ -33,6 +33,7 @@
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import {
     isPollingOnly,
+    pollingFilterHolds,
     pollingOnlyCount,
     pollingOnlyKeys,
   } from "#lib/polling-only.js";
@@ -169,6 +170,11 @@
   const pollingCount = $derived(pollingOnlyCount(pollingRepos));
   const pollingKeys = $derived(pollingOnlyKeys(pollingRepos));
   let onlyPolling = $state(false);
+  // The last polling repo got a hook: the pill is gone, so the filter goes too
+  // (#4786).
+  $effect(() => {
+    if (!pollingFilterHolds(onlyPolling, pollingCount)) onlyPolling = false;
+  });
   const visible = $derived(
     applyFilter(branches, filter).filter(
       (b) => !onlyPolling || pollingKeys.has(rowKey(b)),

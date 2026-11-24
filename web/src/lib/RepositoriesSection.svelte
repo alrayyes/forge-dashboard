@@ -15,7 +15,11 @@
   import { appConnectionCopy, noReposCopy } from "./forge-copy.js";
   import { dependabotBlockedReason } from "./forge-lock.js";
   import { forgeClassOf, forgeLabelOf } from "./forges.js";
-  import { pollingOnlyCount, pollingOnlyReason } from "./polling-only.js";
+  import {
+    pollingFilterHolds,
+    pollingOnlyCount,
+    pollingOnlyReason,
+  } from "./polling-only.js";
   import {
     autoUpdateName,
     bulkTargets,
@@ -134,6 +138,20 @@
     page = 1;
     setStatus("");
   }
+  // The last polling repo got a hook or was ignored: the notice and its pill
+  // are gone, so the filter must not stay on over an empty list (#4786).
+  $effect(() => {
+    if (
+      loaded &&
+      !pollingFilterHolds(filter.pollingOnly === true, pollingCount)
+    )
+      untrack(() => {
+        if (filter.pollingOnly) {
+          filter.pollingOnly = false;
+          changeFilter();
+        }
+      });
+  });
   function togglePolling() {
     filter.pollingOnly = !filter.pollingOnly;
     changeFilter();

@@ -29,6 +29,11 @@ export const pollingOnlyCount = (repos: PollingRepo[]): number =>
 export const pollingOnlyKeys = (repos: PollingRepo[]): Set<string> =>
   new Set(repos.filter(isPollingOnly).map((r) => `${r.forge}:${r.fullName}`));
 
+// The filter only means something while a repo still polls. The notice that
+// holds its pill is gone at zero, so the filter goes with it (#4786).
+export const pollingFilterHolds = (pressed: boolean, count: number): boolean =>
+  pressed && count > 0;
+
 export function pollingOnlyNotice(count: number): string {
   if (count <= 0) return '';
   return count === 1

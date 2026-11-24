@@ -205,7 +205,7 @@ pipeline-long-check-name.spec.ts,3.228,1,1,A,,0.0
 pipeline-panel-live.spec.ts,6.905,14,7,A,,3.5
 pipeline-run-output.spec.ts,68.191,90,64,A,CheckRunOutput.stories.svelte (proven);PipelineDialog.stories.svelte (proven),19.7
 placeholder-contrast.spec.ts,0.726,2,2,A,web/src/lib/placeholder-contrast.test.ts,0.0
-polling-only.spec.ts,,12,4,C,web/src/lib/polling-only.test.ts,0.0
+polling-only.spec.ts,,13,5,C,web/src/lib/polling-only.test.ts,0.0
 popup-focus-fallback-sites.spec.ts,2.115,7,0,C,,2.1
 pr-author-avatar.spec.ts,2.55,9,5,A,,1.1
 pr-auto-update.spec.ts,8.912,12,4,C,,5.9
