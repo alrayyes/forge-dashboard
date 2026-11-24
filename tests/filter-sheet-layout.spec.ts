@@ -178,8 +178,9 @@ for (const size of sizes) {
       });
       console.log(JSON.stringify({ path, size: size.width, m }));
 
-      // Group is not drawn over one repo (#4680), so three is the floor.
-      expect(m.pickers.length).toBeGreaterThan(2);
+      // Group is not drawn over one repo (#4680), and the sort now lives in the
+      // result bar rather than the sheet (#4288), so two is the floor.
+      expect(m.pickers.length).toBeGreaterThan(1);
       for (const p of m.pickers) {
         expect(p.h, p.name).toBeGreaterThanOrEqual(44);
         expect(p.paddingLeft, p.name).toBe(m.pickers[0].paddingLeft);
