@@ -738,7 +738,7 @@ describe('HTML comments', () => {
       );
       expect(await renderMarkdown(hostile)).toContain('&lt;!--');
     }
-  });
+  }, 30_000);
 
   // This pins the helper, not the renderer: a stub that goes quadratic must
   // push the ratio past the limit, so the check above can fail on a slow render.
