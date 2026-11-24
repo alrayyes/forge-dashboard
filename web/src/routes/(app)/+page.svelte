@@ -29,6 +29,13 @@
   import PipelineDialog from "#lib/PipelineDialog.svelte";
   import FilterGroup from "#lib/FilterGroup.svelte";
   import FilterPill from "#lib/FilterPill.svelte";
+  import PollingOnlyNotice from "#lib/PollingOnlyNotice.svelte";
+  import { dashboardRead } from "#lib/dashboard-read.svelte.js";
+  import {
+    isPollingOnly,
+    pollingOnlyCount,
+    pollingOnlyKeys,
+  } from "#lib/polling-only.js";
   import StatusPills from "#lib/StatusPills.svelte";
   import PullRequestDetailsDialog from "#lib/PullRequestDetailsDialog.svelte";
   import FirstRefreshStatus from "#lib/FirstRefreshStatus.svelte";
@@ -155,7 +162,18 @@
     withSnapshotRuns(sortMainBranches(data?.branches ?? [])),
   );
   const branches = $derived(withLiveJobs(refreshed, liveLists));
-  const visible = $derived(applyFilter(branches, filter));
+  // Repos that refresh on a schedule (#4028), from the layout's dashboard read.
+  const pollingRepos = $derived(
+    (dashboardRead.data?.repos ?? []) as Parameters<typeof isPollingOnly>[0][],
+  );
+  const pollingCount = $derived(pollingOnlyCount(pollingRepos));
+  const pollingKeys = $derived(pollingOnlyKeys(pollingRepos));
+  let onlyPolling = $state(false);
+  const visible = $derived(
+    applyFilter(branches, filter).filter(
+      (b) => !onlyPolling || pollingKeys.has(rowKey(b)),
+    ),
+  );
   // The rows to watch are chosen from the snapshot's pills, not the live ones: a
   // row whose live pill left the filter would be let go, read the snapshot
   // again, come back and flap. They are the first rows the page shows, up to
@@ -536,6 +554,7 @@
   // focus moves to the first pill of the bar rather than falling to the page.
   async function clearFilters() {
     filter = { ...DEFAULT_FILTER };
+    onlyPolling = false;
     save(["status", "forge", "advisories", "query"]);
     await tick();
     document.querySelector<HTMLElement>(".mb-bar .filter-pill")?.focus();
@@ -865,9 +884,22 @@
         min-height: 44px;
       }
     }
-    .mb-stale {
+    .mb-stale,
+    .mb-polling {
       background: var(--warning-bg);
       color: var(--warning);
+    }
+    .mb-polling {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .mb-polling-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      color: inherit;
+      text-decoration: underline;
     }
     .mb-meta,
     .mb-when,
@@ -1101,6 +1133,13 @@
         </div>
       {/if}
 
+      <PollingOnlyNotice
+        id="mb-polling"
+        count={pollingCount}
+        pressed={onlyPolling}
+        onpress={() => (onlyPolling = !onlyPolling)}
+      />
+
       <div class="mb-bar">
         <StatusPills
           offered={statusOffered}
@@ -1194,7 +1233,7 @@
           <button
             type="button"
             class="clear-filters"
-            disabled={!isFiltered(filter)}
+            disabled={!isFiltered(filter) && !onlyPolling}
             onclick={clearFilters}
           >
             Clear filters
@@ -1256,6 +1295,19 @@
                   <span class="forge-badge {forgeClassOf(b.forge)}">
                     <span class="dot"></span>{forgeLabelOf(b.forge)}
                   </span>
+                  {#if pollingKeys.has(rowKey(b))}<span
+                      class="mb-chip mb-polling"
+                      data-testid="polling-only-chip"
+                    >
+                      Polling only<a
+                        class="mb-polling-link"
+                        href="/settings.html#repositories"
+                      >
+                        See why in Settings<span class="sr-only">
+                          for {b.fullName}
+                        </span>
+                      </a>
+                    </span>{/if}
                   {#if isStale(b)}<span
                       class="mb-chip mb-stale"
                       title={mainBranchClaim(

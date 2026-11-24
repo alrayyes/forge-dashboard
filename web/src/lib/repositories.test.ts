@@ -141,3 +141,35 @@ describe('what a bulk button reaches', () => {
     expect(bulkTargets(list, 'rebaseBots', false, lock)).toEqual([list[0]]);
   });
 });
+
+describe('the polling-only filter (#4028)', () => {
+  const polling = [
+    repo('github', 'demo/live', { hasWebhook: true }),
+    repo('github', 'demo/poll', { hasWebhook: false }),
+    repo('forgejo', 'sandbox/poll', { hasWebhook: false }),
+    repo('forgejo', 'sandbox/ignored', { hasWebhook: false, ignored: true }),
+  ];
+  const on = { forge: '', search: '', pollingOnly: true };
+
+  test('keeps only repos without a hook', () => {
+    expect(filterRepos(polling, on).map((r) => r.fullName)).toEqual([
+      'demo/poll',
+      'sandbox/poll',
+    ]);
+  });
+  test('is ANDed with the forge and the search', () => {
+    expect(
+      filterRepos(polling, { ...on, forge: 'forgejo' }).map((r) => r.fullName),
+    ).toEqual(['sandbox/poll']);
+    expect(filterRepos(polling, { ...on, search: 'live' })).toEqual([]);
+  });
+  test('counts as a filter that Clear filters undoes', () => {
+    expect(filtersAreClear(on)).toBe(false);
+    expect(filtersAreClear({ forge: '', search: '', pollingOnly: false })).toBe(
+      true,
+    );
+  });
+  test('a missing flag means off', () => {
+    expect(filtersAreClear({ forge: '', search: '' })).toBe(true);
+  });
+});

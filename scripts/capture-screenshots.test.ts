@@ -29,7 +29,15 @@ test('the README links a light and a dark image for each dialog shot', () => {
 
 test('the capture script writes every image the README links', () => {
   for (const name of new Set(linked)) {
-    expect(script).toContain(name);
+    // A phone shot is named by its page plus "-phone", built at run time from
+    // the PHONE_PAGES list.
+    const page = name.replace(/-phone$/, '');
+    expect(script).toContain(page);
+    if (name !== page) {
+      expect(script).toMatch(
+        new RegExp(`PHONE_PAGES = \\[[^\\]]*'${page}'[^\\]]*\\]`),
+      );
+    }
   }
 });
 
