@@ -159,6 +159,37 @@ for (const width of [1280, 390]) {
       ).toBeLessThanOrEqual(26 + 8 + 2 * 18);
     });
 
+    test('the "Stacked on" reason reads at 28ch or more in at most four lines and the row stays short', async ({
+      page,
+    }) => {
+      await open(page, width);
+      const row = rowFor(page, 839);
+      const m = await row.locator('.status-area').evaluate((el) => {
+        const cs = getComputedStyle(el);
+        const probe = document.createElement('span');
+        probe.style.cssText = `position:absolute;visibility:hidden;font:${cs.font}`;
+        probe.textContent = '0'.repeat(28);
+        document.body.appendChild(probe);
+        const ch28 = probe.getBoundingClientRect().width;
+        probe.remove();
+        const text = el.querySelector('.status-area-text')!;
+        const lh = Number.parseFloat(cs.lineHeight);
+        return {
+          width: text.getBoundingClientRect().width,
+          ch28,
+          lines: Math.round(text.getBoundingClientRect().height / lh),
+        };
+      });
+      expect(m.width).toBeGreaterThanOrEqual(m.ch28);
+      expect(m.lines).toBeLessThanOrEqual(4);
+      const plain = (await rowFor(page, 900).boundingBox())!.height;
+      const dependent = (await row.boundingBox())!.height;
+      // At 1280px: the row (55px), the chip line, the note's two lines and the
+      // reason's two lines, 183px as drawn. The phone card is taller by design.
+      expect(dependent).toBeLessThanOrEqual(width === 1280 ? 190 : 370);
+      expect(plain).toBeLessThanOrEqual(width === 1280 ? 60 : 230);
+    });
+
     test('has no axe violations', async ({ page }) => {
       await open(page, width);
       const results = await new AxeBuilder({ page })

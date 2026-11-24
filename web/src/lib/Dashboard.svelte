@@ -3271,6 +3271,10 @@
       if (oneLine || onPhone()) parts.titleCell.appendChild(parts.cluster);
       else parts.ciSlot.after(parts.cluster);
       if (!parts.area) return;
+      if (parts.area.classList.contains("status-area-stacked") && !onPhone()) {
+        parts.row.appendChild(parts.area);
+        return;
+      }
       if (oneLine) parts.titleCell.appendChild(parts.area);
       else statusCell.insertBefore(parts.area, parts.waitSlot);
     }
@@ -4204,6 +4208,9 @@
       // The pill already says it, and holds the reason (#3965).
       if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
+      // A stacked pull request's reason is a sentence, and the row gives it
+      // the width of the row (#4775).
+      if (status.code === "stacked") area.classList.add("status-area-stacked");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
       svg.setAttribute("height", "14");

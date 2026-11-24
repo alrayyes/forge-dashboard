@@ -5762,6 +5762,14 @@ button.pipeline-check-link:disabled {
     margin-top: 0;
     max-width: 72ch;
   }
+  /* #4775: the reason a stacked pull request cannot merge reads across the
+     row too, under the chip line. */
+  .row > .status-area-stacked {
+    grid-column: 2 / -1;
+    order: 2;
+    flex: none;
+    max-width: 72ch;
+  }
 }
 
 /* On a phone the indentation gives way to the rule, and the title is what
