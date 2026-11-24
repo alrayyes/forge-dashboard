@@ -1,5 +1,13 @@
 # Changelog
 
+## [9.115.0](https://github.com/alrayyes/forge-dashboard/compare/v9.114.0...v9.115.0) (2026-11-24)
+
+
+### Features
+
+* **github:** read every enabled installation with its own token ([#4777](https://github.com/alrayyes/forge-dashboard/issues/4777)) ([ab97d03](https://github.com/alrayyes/forge-dashboard/commit/ab97d034f3767354a9502a2943d08d549e741509)), closes [#4586](https://github.com/alrayyes/forge-dashboard/issues/4586)
+* **web:** move the per-repo controls into Settings, Repositories ([#4765](https://github.com/alrayyes/forge-dashboard/issues/4765)) ([1f67b4f](https://github.com/alrayyes/forge-dashboard/commit/1f67b4f7de956378e4760c00ba6da75fd178bdfc))
+
 ## [9.114.0](https://github.com/alrayyes/forge-dashboard/compare/v9.113.0...v9.114.0) (2026-11-24)
 
 
