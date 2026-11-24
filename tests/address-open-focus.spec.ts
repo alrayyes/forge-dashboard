@@ -124,10 +124,23 @@ test.describe('closing a pull request opened from its address onto a hidden titl
 
     await expect(dialog(page)).toBeHidden();
     await expect(page.getByLabel('Filter by title')).toBeHidden();
-    // The sort and group boxes are disabled over one row (#3886) and cannot
-    // take focus, so it lands on the first enabled control still drawn.
-    await expect(page.getByLabel('Sort pull requests by')).toBeDisabled();
-    await expect(page.locator('#created-filter')).toBeFocused();
+    // The sort, group and date controls are not drawn over one row (#4680),
+    // so focus lands on the first control still drawn.
+    await expect(page.getByLabel('Sort pull requests by')).toBeHidden();
+    await expect(page.locator('#created-filter')).toBeHidden();
+    await expect
+      .poll(() =>
+        page.evaluate(() => {
+          const el = document.activeElement as HTMLElement | null;
+          return (
+            !!el &&
+            el !== document.body &&
+            el.getClientRects().length > 0 &&
+            !!el.closest('.filter-bar')
+          );
+        }),
+      )
+      .toBe(true);
   });
 
   test('with a sort and a grouping chosen, focus still lands on an enabled control', async ({
@@ -138,7 +151,6 @@ test.describe('closing a pull request opened from its address onto a hidden titl
     await page.goto('/pull-requests.html');
     await expect(page.locator('#pr-rows .row')).toHaveCount(2);
     await page.getByLabel('Sort pull requests by').selectOption('created');
-    await page.getByLabel('Group rows by').selectOption('repo');
     // Carry the chosen sort and grouping into a load that the author pick
     // narrows to one row.
     const saved = (await page.context().cookies()).find(
@@ -147,7 +159,11 @@ test.describe('closing a pull request opened from its address onto a hidden titl
     const state = saved
       ? JSON.parse(decodeURIComponent(saved.value))
       : { rev: 2_000_000_000 };
-    state.shared = { ...state.shared, author: 'github:someone-else' };
+    state.shared = {
+      ...state.shared,
+      groupBy: 'repo',
+      author: 'github:someone-else',
+    };
     await page.context().addCookies([
       {
         name: 'forge-board-filters',
@@ -162,9 +178,9 @@ test.describe('closing a pull request opened from its address onto a hidden titl
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
 
-    // Sort is disabled over one row. Whatever holds focus is a drawn, enabled
-    // control, never the page and never a disabled select (WCAG 2.4.3).
-    await expect(page.getByLabel('Sort pull requests by')).toBeDisabled();
+    // Sort is not drawn over one row. Whatever holds focus is a drawn, enabled
+    // control, never the page (WCAG 2.4.3).
+    await expect(page.getByLabel('Sort pull requests by')).toBeHidden();
     await expect
       .poll(() =>
         page.evaluate(() => {

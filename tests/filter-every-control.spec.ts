@@ -381,15 +381,40 @@ function combined(board: Board): Control[] {
       show: (page) => expect(page.locator(TITLE)).toHaveValue(title),
     },
     // Right after the widening title, while many rows are listed: the picks
-    // below can leave one row, and a sort or group is disabled over one (#3886).
-    select(
-      'group-by select',
-      '#shared-group-select',
-      'repo',
-      'shared',
-      'groupBy',
-    ),
+    // below can leave one row, and sort, group and the date selects are not drawn over one (#4680).
+    {
+      // The later repo pick leaves one repo, so the select is not drawn (#4680)
+      // while the choice is still saved: the read-back is that the choice is
+      // still saved while the list renders flat.
+      ...select(
+        'group-by select',
+        '#shared-group-select',
+        'repo',
+        'shared',
+        'groupBy',
+      ),
+      show: async (page) => {
+        await expect(page.locator('.group-heading')).toHaveCount(0);
+        await expect
+          .poll(async () => (await serverCopy(page)).shared?.groupBy)
+          .toBe('repo');
+      },
+    },
     select('sort select', '#pr-sort-select', 'created', 'view', 'sort'),
+    select(
+      'created select',
+      '[data-col="created"]',
+      '1440',
+      'shared',
+      'created',
+    ),
+    select(
+      'updated select',
+      '[data-col="updated"]',
+      '1440',
+      'shared',
+      'updated',
+    ),
     {
       name: 'repo filter',
       stored: [{ group: 'shared', key: 'repo', value: 'forgejo:acme/infra' }],
@@ -421,20 +446,6 @@ function combined(board: Board): Control[] {
       set: (page) => toggleLabels(page, label),
       show: (page) => expect.poll(() => pickedLabels(page)).toEqual([label]),
     },
-    select(
-      'created select',
-      '[data-col="created"]',
-      '1440',
-      'shared',
-      'created',
-    ),
-    select(
-      'updated select',
-      '[data-col="updated"]',
-      '1440',
-      'shared',
-      'updated',
-    ),
     ...(issues ? [] : [toggle('Show drafts', '#show-drafts-toggle', 'drafts')]),
     {
       name: 'Pause live updates',

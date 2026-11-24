@@ -80,7 +80,7 @@ test.describe('rate-limited actions (#732)', () => {
   }) => {
     await mockDashboard(page, exhausted(), [
       makePR({ number: 1 }),
-      makePR({ number: 2 }),
+      makePR({ number: 2, repo: 'alrayyes/other' }),
     ]);
     await page.goto('/pull-requests.html');
     await page.locator('#shared-group-select').selectOption('repo');

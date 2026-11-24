@@ -69,7 +69,7 @@ failure-line-stays.spec.ts,2.712,8,3,C,,1.7
 filter-bar-one-control.spec.ts,5.468,6,5,A,,0.9
 filter-bar-overlap.spec.ts,1.853,1,1,A,,0.0
 filter-bar-short-list.spec.ts,26.571,8,7,A,,3.3
-filter-bar-single-row.spec.ts,,20,14,A,,0.0
+filter-bar-single-row.spec.ts,,24,14,A,,0.0
 filter-bar-widths.spec.ts,1.005,1,1,A,,0.0
 filter-choices-board.spec.ts,5.783,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.301,4,2,A,,0.7
@@ -284,7 +284,7 @@ show-drafts-by-page.spec.ts,5.358,2,2,A,,0.0
 show-drafts.spec.ts,7.541,8,4,A,,3.8
 show-row-clears-filters.spec.ts,0.963,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.97,9,2,C,,1.5
-stable-rows.spec.ts,12.814,24,15,A,,4.8
+stable-rows.spec.ts,12.814,26,15,A,,5.4
 stacked-prs.spec.ts,2.762,7,2,C,,2.0
 stale-dashboard-instance.spec.ts,0.314,1,0,C,,0.3
 stale-data-notice.spec.ts,1.089,4,1,C,,0.8

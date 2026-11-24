@@ -154,18 +154,21 @@ drafts** has drafts to reveal. The same holds for the
 Issues, Releases, and Bots pages. The bar comes back when a second row arrives.
 
 When the filters narrow a longer list to one row or none, the **Sort** and
-**Group** selects stay in the bar but are disabled, and a line beside them says
-why ("Sorting and grouping need two or more rows."). It is visible, so touch and
-keyboard users get it too, and the selects are described by it. The bar can
-still change height as rows come and go. Your chosen sort is kept and works
-again when a second row arrives. A chosen grouping stays enabled so it can be
-undone. The repo, author and **Labels** filters hide over one row unless
-something is picked in that filter, since their choices can then only empty the
-list. A filter that holds a pick stays drawn so you can clear it. If a select
-held focus when it disabled, focus moves to the first control still drawn. The
-same holds for the Issues, Releases, and Bots pages. On a phone the selects and
-the line sit in the Filters sheet, and a filter that hides is gone from the
-sheet too.
+**Group** selects and the **Created** and **Updated** filters are not drawn,
+since there is nothing to reorder, group or tell apart. A **Created** or
+**Updated** value that is set stays drawn so you can undo it. Each option is
+offered only where it changes something over the rows in view: **Group by
+repository** needs rows from two repositories, **Group by forge** rows from two
+forges, and **Sort: Repository** two repositories. When no grouping qualifies,
+the **Group** select goes too. Your chosen sort and grouping are kept and apply
+again when the select comes back. A saved Repository sort over one repository,
+or a saved grouping that does not apply, is not used: the list keeps the server
+order, or stays flat, and the select reads the default. The repo, author and
+**Labels** filters hide over one row unless something is picked in that filter,
+since their choices can then only empty the list. A filter that holds a pick
+stays drawn so you can clear it. If a control held focus when it went, focus
+moves to the first control still drawn. The same holds for the Issues, Releases,
+and Bots pages, and in the Filters sheet on a phone.
 
 The title box hides on its own when the other filters leave exactly one row,
 since it has nothing to narrow. It counts the rows before the box's own text

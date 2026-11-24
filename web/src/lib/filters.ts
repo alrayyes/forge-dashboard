@@ -1986,16 +1986,42 @@ export function searchOffered(rows: number, text: string): boolean {
 }
 
 // The sort select, only while it could reorder something: not over one row or
-// none left by every filter (#3886). The caller disables it rather than hides
-// it, so the bar keeps its controls (#3866), and the chosen sort is kept.
+// none left by every filter (#3886). The caller hides it, and the chosen sort
+// is kept (#4680).
 export function sortOffered(rows: number): boolean {
   return rows > 1;
 }
 
-// The grouping select, on the same rule. A chosen grouping stays on over one
-// row, or it could not be undone.
-export function groupOffered(rows: number, groupBy: string): boolean {
-  return rows > 1 || groupBy !== '';
+// Which sort options say something about the rows in view: Repository needs
+// two repos.
+export function sortChoices(repos: number): { repo: boolean } {
+  return { repo: repos > 1 };
+}
+
+// Which grouping options would make more than one group over the rows in
+// view. A repo is a forge and a name, so one name on two forges is two repos.
+export function groupChoices(rows: { forge: string; repo: string }[]): {
+  repo: boolean;
+  forge: boolean;
+} {
+  const repos = new Set(rows.map((r) => repoKey(r.forge, r.repo)));
+  const forges = new Set(rows.map((r) => r.forge));
+  return { repo: repos.size > 1, forge: forges.size > 1 };
+}
+
+// The grouping select, only while one of its options would split the rows. A
+// saved grouping is kept and applies again once it does.
+export function groupOffered(choices: {
+  repo: boolean;
+  forge: boolean;
+}): boolean {
+  return choices.repo || choices.forge;
+}
+
+// Created and Updated, only while there are two rows to tell apart, or while
+// a value is set, so it can be undone (#4680).
+export function dateFilterOffered(rows: number, value: string): boolean {
+  return rows > 1 || value !== '';
 }
 
 // The refs segment's Yes and No.
