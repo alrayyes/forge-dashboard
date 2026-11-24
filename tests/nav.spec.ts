@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { mainBranchPageFor } from './nav-counts-helper';
@@ -24,14 +25,13 @@ const NAV_PAGES = [
   { path: '/bots.html', label: 'Bots', tab: 'Bots' },
   { path: '/issues.html', label: 'Issues', tab: 'Issues' },
   { path: '/insights.html', label: 'Insights', tab: 'Insights' },
-  { path: '/webhooks.html', label: 'Webhooks', tab: 'Webhooks' },
   { path: '/settings.html', label: 'Settings', tab: 'Settings' },
 ];
 
 // Pull requests, Issues, Releases and Bots leave the navigation while their
 // count is 0 (#1228, #1415), and a new user has nothing, so here only these
 // four are always there; the page you are on keeps its own link.
-const ALWAYS_THERE = ['Branches', 'Insights', 'Webhooks', 'Settings'];
+const ALWAYS_THERE = ['Branches', 'Insights', 'Settings'];
 const linksOn = (label: string) =>
   NAV_PAGES.filter((p) => ALWAYS_THERE.includes(p.label) || p.label === label);
 
@@ -125,7 +125,6 @@ test.describe('persistent top nav', () => {
     'Bots',
     'Issues',
     'Insights',
-    'Webhooks',
     'Settings',
   ];
 
@@ -162,10 +161,43 @@ test.describe('persistent top nav', () => {
       '/bots.html',
       '/issues.html',
       '/insights.html',
-      '/webhooks.html',
       '/settings.html',
     ]);
   });
+
+  // The Webhooks page is gone (#4029). Its menu item goes with it, and a saved
+  // link lands on the per-repo controls in Settings.
+  test('no Webhooks item in the header menu or the phone tab bar (#4029)', async ({
+    page,
+  }) => {
+    await page.goto('/settings.html');
+    await expect(
+      page.locator('.app-nav a[href="/settings.html"]'),
+    ).toBeVisible();
+    await expect(page.locator('a[href="/webhooks.html"]')).toHaveCount(0);
+    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveCount(0);
+
+    await page.setViewportSize(MOBILE_VIEWPORT);
+    await expect(
+      page.locator('.bottom-nav a[href="/settings.html"]'),
+    ).toBeVisible();
+    await expect(page.locator('a[aria-label="Webhooks"]')).toHaveCount(0);
+  });
+
+  for (const old of ['/webhooks.html', '/webhooks']) {
+    test(`${old} lands on Settings, Repositories (#4029)`, async ({ page }) => {
+      await page.goto(old);
+      await expect(page).toHaveURL(/\/settings\.html#repositories$/);
+      await expect(page.locator('#repositories')).toBeVisible();
+      for (const colorScheme of ['light', 'dark'] as const) {
+        await page.emulateMedia({ colorScheme });
+        const { violations } = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(violations, colorScheme).toEqual([]);
+      }
+    });
+  }
 
   test('/main-branches.html still works: it sends you to the Branches page (#1279)', async ({
     page,
@@ -248,12 +280,12 @@ test.describe('mobile bottom tab bar', () => {
     await page.setViewportSize(MOBILE_VIEWPORT);
     await page.goto('/');
 
-    const webhooksTab = page.locator('.bottom-nav a[aria-label="Webhooks"]');
-    await webhooksTab.focus();
-    await expect(webhooksTab).toBeFocused();
+    const settingsTab = page.locator('.bottom-nav a[aria-label="Settings"]');
+    await settingsTab.focus();
+    await expect(settingsTab).toBeFocused();
 
     await page.keyboard.press('Enter');
-    await expect(page).toHaveURL(/\/webhooks\.html$/);
+    await expect(page).toHaveURL(/\/settings\.html$/);
   });
 
   test('focus is visible on a bottom tab, same convention as the header nav', async ({

@@ -58,7 +58,7 @@ async function walk(page: Page) {
 }
 
 test.describe('bottom nav focus order', () => {
-  test('phone: bottom nav links are the last eight stops, in order', async ({
+  test('phone: bottom nav links are the last seven stops, in order', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -73,7 +73,7 @@ test.describe('bottom nav focus order', () => {
     // outside it follows, and it is not wedged between header and content.
     const tail = stops.slice(first);
     expect(tail.every((s) => s.nav)).toBe(true);
-    expect(tail).toHaveLength(8);
+    expect(tail).toHaveLength(7);
     expect(stops.slice(0, first).length).toBeGreaterThan(8);
 
     const lefts = await page

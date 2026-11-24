@@ -5,18 +5,17 @@ import { test } from './server-fixture';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3288
 //
-// With all eight tabs showing, the bottom nav's labels collided at 320px
-// (the WCAG 1.4.10 Reflow width): Webhooks (48px) overflowed its 40px tab and
-// touched Insights and Settings, and Branches began off-screen. Every label
+// With all the tabs showing, the bottom nav's labels collided at 320px
+// (the WCAG 1.4.10 Reflow width): a long label overflowed its 40px tab and
+// touched its neighbour, and Branches began off-screen. Every label
 // must sit inside the viewport and inside its own tab, with at least 2px
 // between neighbours.
 
-// 352 to 361 straddle the width where tabs start keeping 44px (BREAKPOINT).
-const WIDTHS = [
-  320, 352, 353, 354, 355, 356, 357, 359, 360, 361, 375, 390, 412,
-];
-// Eight tabs of 44px, one of them the 50px Webhooks, need 358px of bar.
-const BREAKPOINT = 360;
+// 318 to 324 straddle the width where tabs start keeping 44px (BREAKPOINT).
+const WIDTHS = [320, 321, 322, 323, 324, 340, 360, 375, 390, 412];
+// Seven tabs, PRs and Bots held to 44px and the rest sized by their word, need
+// 319px of bar (measured in the real bar); 322px rounds that up.
+const BREAKPOINT = 322;
 
 // The numbers drawn above the icons (#1315) must not widen a tab either.
 const MIXED = {
@@ -51,12 +50,12 @@ test.describe('bottom nav labels (#3288)', () => {
     page,
   }) => {
     // Every tab is drawn only for a known count above zero (#4276), so the
-    // eight-tab bar needs counts, and each tab then draws its pill.
+    // seven-tab bar needs counts, and each tab then draws its pill.
     await withCounts(page);
     for (const width of WIDTHS) {
       await page.setViewportSize({ width, height: 700 });
       await page.goto('/insights.html');
-      await expect(page.locator('.bottom-nav-label')).toHaveCount(8);
+      await expect(page.locator('.bottom-nav-label')).toHaveCount(7);
       // Widths are those of the web font, not the fallback it replaces.
       await page.evaluate(() => document.fonts.ready);
       // Branches, PRs, Releases, Bots and Issues each draw a pill.
@@ -82,9 +81,9 @@ test.describe('bottom nav labels (#3288)', () => {
         );
 
         const problems: string[] = [];
-        if (boxes.length !== 8)
-          problems.push(`${boxes.length} tabs, expected 8`);
-        // Tabs are at least 44px wide where eight fit and 32px below that.
+        if (boxes.length !== 7)
+          problems.push(`${boxes.length} tabs, expected 7`);
+        // Tabs are at least 44px wide where seven fit and 32px below that.
         const minTab = width >= BREAKPOINT ? 44 : 32;
         for (const b of boxes) {
           if (!b.laidOut) problems.push(`${b.name} is not laid out`);

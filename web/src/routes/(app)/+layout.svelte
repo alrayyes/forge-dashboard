@@ -532,27 +532,6 @@
         </a>
         <a
           class="theme-toggle"
-          href="/webhooks.html"
-          aria-label="Webhooks"
-          title="Webhooks"
-          aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
-          style="text-decoration:none;"
-        >
-          <svg
-            width="16"
-            height="16"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-          </svg>
-        </a>
-        <a
-          class="theme-toggle"
           href="/settings.html"
           aria-label="Settings"
           title="Settings"
@@ -772,26 +751,6 @@
         <path d="M3 3v18h18" /><path d="M18.7 8 13 13.7l-3-3L4 16.7" />
       </svg>
       <span class="bottom-nav-label">Insights</span>
-    </a>
-    <a
-      class="bottom-nav-link"
-      href="/webhooks.html"
-      aria-label="Webhooks"
-      aria-current={isCurrentRoute("/webhooks") ? "page" : undefined}
-    >
-      <svg
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
-      </svg>
-      <span class="bottom-nav-label">Webhooks</span>
     </a>
     <a
       class="bottom-nav-link"
