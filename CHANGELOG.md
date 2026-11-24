@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.117.2](https://github.com/alrayyes/forge-dashboard/compare/v9.117.1...v9.117.2) (2026-11-24)
+
+
+### Bug Fixes
+
+* **web:** drop the polling-only filter when no repo polls any more ([#4804](https://github.com/alrayyes/forge-dashboard/issues/4804)) ([a8b3249](https://github.com/alrayyes/forge-dashboard/commit/a8b3249dd65ec453ff96c091e99900fa41325f72)), closes [#4786](https://github.com/alrayyes/forge-dashboard/issues/4786)
+
 ## [9.117.1](https://github.com/alrayyes/forge-dashboard/compare/v9.117.0...v9.117.1) (2026-11-24)
 
 
