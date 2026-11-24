@@ -1680,6 +1680,10 @@
             draft: pr.draft,
             forge: pr.forge,
             heldBy: pr.autoMergeHeldBy,
+            holds: {
+              review: pr.review?.decision,
+              pendingChecks: pr.pendingChecks,
+            },
           });
       if (!chip) return null;
       const disarm =

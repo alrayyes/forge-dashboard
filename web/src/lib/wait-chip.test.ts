@@ -241,6 +241,65 @@ describe('autoMergeChip wording', () => {
     expect(chip?.label).toBe('Waiting for CI');
   });
 
+  // #4434: on a green pill the server's code is the catch-all, so the page
+  // names the hold from the facts the row already carries.
+  describe('Waiting for forge says what the forge waits for (#4434)', () => {
+    const held = (holds: AutoMergeInput['holds']) =>
+      autoMergeChip(waiting({ code: 'not_mergeable', holds }));
+
+    test('a review the forge requires', () => {
+      const chip = held({ review: 'review_required' });
+      expect(chip?.label).toBe('Waiting for review');
+      expect(chip?.detail).toBe('A review is required');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('changes requested wait for a new review', () => {
+      const chip = held({ review: 'changes_requested' });
+      expect(chip?.label).toBe('Changes requested');
+      expect(chip?.detail).toBe('Needs a new review');
+    });
+
+    test('a required check nothing has reported is named', () => {
+      const chip = held({ pendingChecks: ['lint', 'e2e'] });
+      expect(chip?.label).toBe('Waiting for checks');
+      expect(chip?.detail).toBe('lint and e2e');
+      expect(words(chip?.label ?? '')).toBeLessThanOrEqual(3);
+    });
+
+    test('a branch rule', () => {
+      const chip = autoMergeChip(waiting({ code: 'blocked_by_protection' }));
+      expect(chip?.label).toBe('Waiting for rule');
+      expect(chip?.detail).toBe('A branch rule holds it');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('no reason is said plainly and Disarm stays', () => {
+      const chip = held(undefined);
+      expect(chip?.label).toBe('Waiting for forge');
+      expect(chip?.detail).toBe('The forge gave no reason');
+      expect(chip?.action).toBe('disarm');
+    });
+
+    test('the tooltip adds the reason to the server sentence', () => {
+      const chip = held({ review: 'review_required' });
+      expect(chip?.tooltip).toBe(
+        'Auto-merge is waiting for checks to finish. Forgejo requires a review before it merges.',
+      );
+    });
+
+    test('a draft still reads Waiting for ready', () => {
+      const chip = autoMergeChip(
+        waiting({
+          code: 'not_mergeable',
+          draft: true,
+          holds: { review: 'review_required' },
+        }),
+      );
+      expect(chip?.label).toBe('Waiting for ready');
+    });
+  });
+
   test('a GitHub auto-merge ignores the holder', () => {
     const chip = autoMergeChip(
       waiting({ code: '', forge: 'github', heldBy: 'forge' }),

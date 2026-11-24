@@ -188,6 +188,7 @@ const singleUserSpecs = [
   '**/update-branch-request.spec.ts',
   '**/wait-chip.spec.ts',
   '**/armed-behind-status.spec.ts',
+  '**/armed-wait-reason.spec.ts',
   '**/webhooks-failing-repo.spec.ts',
   '**/webhooks-reasons.spec.ts',
   '**/webhooks-unknown-forge.spec.ts',
