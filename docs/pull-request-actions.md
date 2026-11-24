@@ -1011,8 +1011,8 @@ already be stale. The next refresh still publishes, since it doesn't wait for
 the slot.
 
 A repo can also rebase only its bot pull requests. Switch on rebase bots for
-it on the Webhooks page, beside Auto-update, and the background pass sends a
-behind Dependabot or Renovate pull request its own rebase, the same
+it in Settings, Repositories, beside Auto-update, and the background pass
+sends a behind Dependabot or Renovate pull request its own rebase, the same
 `@dependabot rebase` comment or Renovate rebase label as before, never a generic
 branch update. Human, draft and release-please pull requests are left alone.
 With both switches on, the rebase-bots switch decides a behind bot pull
