@@ -173,8 +173,7 @@
   // The last polling repo got a hook: the pill is gone, so the filter goes too
   // (#4786).
   $effect(() => {
-    if (onlyPolling && !pollingFilterHolds(onlyPolling, pollingCount))
-      onlyPolling = false;
+    if (!pollingFilterHolds(onlyPolling, pollingCount)) onlyPolling = false;
   });
   const visible = $derived(
     applyFilter(branches, filter).filter(
