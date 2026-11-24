@@ -554,22 +554,14 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Dr
 // it's a parameter purely so a test can override it, the same testability
 // NewClient/NewAppClient's own baseURL parameters already provide.
 func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, bodies *github.RenderedBodyCache) dashboard.Source {
-	appConnected := githubAppID != 0 && c.GitHubAppInstallationID != 0
+	ids := c.GitHubAppInstallationIDs
+	if len(ids) == 0 && c.GitHubAppInstallationID != 0 {
+		ids = []int64{c.GitHubAppInstallationID}
+	}
+	appConnected := githubAppID != 0 && len(ids) > 0
 	if appConnected {
-		client, err := github.NewAppClient(githubAppID, c.GitHubAppInstallationID, githubAppPrivateKey, baseURL, recorder)
-		if err != nil {
-			slog.Error("github app installation client failed, falling back", "installationId", c.GitHubAppInstallationID, "error", err)
-		} else {
-			if c.WebhookToken != "" {
-				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
-			}
-			// Dependabot ignores GitHub Apps, so its commands go out as the
-			// saved personal token when there is one (#666).
-			client.SetCommentToken(c.GitHubToken)
-			client.SetStats(stats, apistats.AppCredential(c.GitHubAppInstallationID))
-			shareBodies(client, bodies)
-
-			return client
+		if src := buildAppSource(c, ids, githubAppID, githubAppPrivateKey, baseURL, recorder, stats, bodies); src != nil {
+			return src
 		}
 	}
 
@@ -593,10 +585,46 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 		// The App branch above failed and there's nothing to fall back to
 		// — surface it as a real forge-health error rather than silently
 		// never adding a GitHub source at all.
-		return github.NewUnreachableClient(fmt.Sprintf("github: app installation %d failed and no personal access token is saved as a fallback", c.GitHubAppInstallationID))
+		return github.NewUnreachableClient(fmt.Sprintf("github: app installation %d failed and no personal access token is saved as a fallback", ids[0]))
 	default:
 		return nil
 	}
+}
+
+// buildAppSource reads each installation with its own token. One installation
+// is a plain client; two or more are members of a composite source (#4586).
+// An installation whose client cannot be built is logged and left out, and the
+// rest still read. It is nil when none could be built.
+func buildAppSource(c settings.Credentials, ids []int64, appID int64, key []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, bodies *github.RenderedBodyCache) dashboard.Source {
+	var members []github.Member
+	for _, id := range ids {
+		client, err := github.NewAppClient(appID, id, key, baseURL, recorder)
+		if err != nil {
+			slog.Error("github app installation client failed", "installationId", id, "error", err)
+
+			continue
+		}
+		if c.WebhookToken != "" {
+			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+		}
+		// Dependabot ignores GitHub Apps, so its commands go out as the
+		// saved personal token when there is one (#666).
+		client.SetCommentToken(c.GitHubToken)
+		client.SetStats(stats, apistats.AppCredential(id))
+		shareBodies(client, bodies)
+		members = append(members, github.Member{ID: id, Source: client})
+	}
+
+	switch len(members) {
+	case 0:
+		return nil
+	case 1:
+		if client, ok := members[0].Source.(*github.Client); ok {
+			return client
+		}
+	}
+
+	return github.NewMulti(members)
 }
 
 // shareBodies puts client on the shared rendered-body cache, if there is one.

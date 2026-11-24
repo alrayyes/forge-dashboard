@@ -261,7 +261,8 @@ and puts focus on that input. The page holds no copy of those rules.
   reads through the linked account yet.
   Installations are kept one per row, so a second account or org can be added
   through the App's Setup URL without pasting an ID; the existing installation
-  ID is carried over as the first row when you upgrade.
+  ID is carried over as the first row when you upgrade. Every enabled row is
+  read with its own installation token and the results are merged.
 
 ### Forgejo
 

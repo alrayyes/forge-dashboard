@@ -244,9 +244,14 @@ installation's ID. The dashboard doesn't trust that ID: it stores it, with the
 account it belongs to, only when it appears in the linked account's own
 installations (`GET /user/installations`). With no linked account, or an ID
 that isn't listed, nothing is stored. Each installation is one row, so you
-never paste an ID. Today reads still use the first one; reading with every
-installation, the "waiting for owner approval" state and webhook updates are
-not built yet, and neither is the Settings screen.
+never paste an ID. Reads use every enabled installation, each with its own
+installation token, and the results are merged into one GitHub board. If one
+installation fails, the others still load, its last rows stay on the board, and
+the health response names it under `failedInstallations`. A repo is read through
+one installation: if two see the same repo, the first one added keeps it. An
+action on a repo no installation has reported yet is refused with a 404. The
+"waiting for owner approval" state and webhook updates are not built yet, and
+neither is the Settings screen.
 
 This is the sign-in half only. The dashboard doesn't yet use the linked
 account to read your repositories, and the Settings screen for it is not built;

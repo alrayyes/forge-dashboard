@@ -215,3 +215,44 @@ func TestMigrateInstallations_ATableThatAlreadyHasRows_KeepsThem(t *testing.T) {
 	assert.Equal(t, 2, scalar[int](t, db, `SELECT count(*) FROM github_app_installations`))
 	assert.Equal(t, "acme", scalar[string](t, db, `SELECT account_login FROM github_app_installations WHERE installation_id = 42`))
 }
+
+func TestStore_Get_ListsEveryEnabledInstallationInOrder(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTokenStore(t)
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{}))
+	require.NoError(t, store.SaveInstallation(t.Context(), settings.Installation{ID: 77, AccountLogin: "acme"}))
+	require.NoError(t, store.SaveInstallation(t.Context(), settings.Installation{ID: 5, AccountLogin: "alice"}))
+
+	c, err := store.Get(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{77, 5}, c.GitHubAppInstallationIDs)
+	assert.Equal(t, int64(77), c.GitHubAppInstallationID, "the single ID stays the first one")
+}
+
+func TestStore_Get_NoInstallations_ListsNone(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTokenStore(t)
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{}))
+
+	c, err := store.Get(t.Context())
+
+	require.NoError(t, err)
+	assert.Empty(t, c.GitHubAppInstallationIDs)
+}
+
+func TestStore_Get_ASavedIDWithNoTableRows_IsTheOnlyListedInstallation(t *testing.T) {
+	t.Parallel()
+
+	store, db := newTokenStore(t)
+	require.NoError(t, store.Set(t.Context(), settings.Credentials{GitHubAppInstallationID: 9}))
+	_, err := db.ExecContext(t.Context(), `DELETE FROM github_app_installations`)
+	require.NoError(t, err)
+
+	c, err := store.Get(t.Context())
+
+	require.NoError(t, err)
+	assert.Equal(t, []int64{9}, c.GitHubAppInstallationIDs)
+}

@@ -106,7 +106,9 @@ refresh tries again.
 
 A GitHub App installation has its own budget separate from your tokens and from
 other tools. The dashboard asks GitHub for an installation token for the
-installation you connect and uses it for reading and for most actions. The
+installation you connect and uses it for reading and for most actions. With
+more than one installation each has its own budget; the health response shows
+the one with the least left. The
 exception is the `@dependabot` comments, which Dependabot ignores from an App.
 They are posted with the personal token you saved, and they spend that token's
 budget. An installation is still the better choice when a token is shared,
