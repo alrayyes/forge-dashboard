@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1229: every "something is happening, hold on" state on a pull request
@@ -41,7 +42,7 @@ const botPR = (author: string) =>
 function snapshot(pr: MockPR) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: pr.forge as string, reachable: true, repoCount: 1 }],
+    forges: [forgeHealth(pr.forge as Forge)],
     pullRequests: [pr],
     issues: [],
   };
@@ -638,7 +639,7 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
       });
   });
 
-  test('a stopped auto-merge is not a wait: it stays a text line with no chip', async ({
+  test('a stopped auto-merge is not a wait: the phone card keeps its text line and shows no chip (#4601)', async ({
     page,
   }) => {
     await open(
@@ -651,7 +652,8 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
         },
       }),
     );
-    await expect(chipOf(page)).toHaveCount(0);
+    await expect(chipOf(page)).toBeHidden();
+    await expect(firstRow(page).locator('.auto-merge-status')).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toContainText(
       'Stopped',
     );
@@ -819,7 +821,7 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     await expect(chipOf(page)).toHaveCount(0);
   });
 
-  test('a stopped GitHub auto-merge stays a text line with no chip', async ({
+  test('a stopped GitHub auto-merge keeps its text line on the phone card and shows no chip (#4601)', async ({
     page,
   }) => {
     await open(
@@ -832,7 +834,8 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
         },
       }),
     );
-    await expect(chipOf(page)).toHaveCount(0);
+    await expect(chipOf(page)).toBeHidden();
+    await expect(firstRow(page).locator('.auto-merge-status')).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toContainText(
       'Stopped',
     );

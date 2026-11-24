@@ -246,6 +246,7 @@
     MERGE_AVAILABLE,
     type MergeWait,
     mergeWaitChip,
+    joinNames,
     autoMergeWording,
     buildWaitChip,
     queuedChip,
@@ -394,6 +395,8 @@
     awaitingWorkflowApproval?: boolean;
     // The server's fact that the forge hasn't listed every check yet (#4253).
     checksIncomplete?: boolean;
+    // Checks the forge waits on that the pipeline doesn't list (#4442).
+    pendingChecks?: string[];
     autoMergeEnabled: boolean | null;
     // Who holds an enabled auto-merge. Omitted means the server doesn't
     // know, and the page doesn't guess (#1596).
@@ -1575,8 +1578,11 @@
       onRow = false,
     ): HTMLElement {
       const cluster = el("div", "attr-cluster");
+      // A row whose wait chip already says "armed" leaves the chip out, so
+      // the state is announced once and the row keeps a normal row's height
+      // (#4686). The dialog has no wait chip and keeps it.
       const chips = [
-        autoMergePill(pr),
+        onRow && pr.autoMerge ? null : autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
         showBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
         behindPill(pr, onRow),
@@ -1587,12 +1593,19 @@
     }
 
     // An armed pull request that has stopped needs a person, so it reads as a
-    // line led by the state, never by colour alone. One that is only waiting
-    // is the row's waiting chip instead (#1229). Both forges send the status
+    // line led by the state, never by colour alone. On a phone the card keeps
+    // this text line. From 761px the same words are the wait chip's stopped
+    // state instead (#4601), and CSS shows one of the two. One that is only
+    // waiting is the row's waiting chip (#1229). Both forges send the status
     // (GitHub since #1293).
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMerge?.state !== "stopped") return null;
-      const line = el("span", `auto-merge-status ${pr.autoMerge.state}`);
+      // A stopped row with a queued action keeps this line at every width:
+      // the queued chip takes the slot, so the sentence has no chip (#4601).
+      const line = el(
+        "span",
+        `auto-merge-status ${pr.autoMerge.state}${pr.queued ? " no-chip" : ""}`,
+      );
       line.appendChild(el("strong", "", "Stopped: "));
       line.appendChild(
         document.createTextNode(
@@ -1659,7 +1672,7 @@
       const stale =
         pr.autoMerge.state === "waiting" && autoMergeCiWaitIsStale(pr);
       const chip = stale
-        ? mergeWaitChip("refresh", true)
+        ? mergeWaitChip("refresh", true, true, pr.pendingChecks)
         : autoMergeChip({
             state: pr.autoMerge.state,
             code: pr.autoMerge.code,
@@ -1669,7 +1682,10 @@
             heldBy: pr.autoMergeHeldBy,
           });
       if (!chip) return null;
-      const disarm = isSettled(pr) ? null : cancelAutoMergeCell(pr, true);
+      const disarm =
+        isSettled(pr) || chip.action !== "disarm"
+          ? null
+          : cancelAutoMergeCell(pr, true);
       return buildWaitChip(chip, {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
@@ -1704,12 +1720,15 @@
       if (!wait) return null;
       // The tooltip only suggests Auto-merge where the chip has the button.
       const button = autoMergeActionCell(pr, true) ?? undefined;
-      return buildWaitChip(mergeWaitChip(wait, false, button !== undefined), {
-        source: "auto-merge",
-        subject: `${pr.repo}#${pr.number}`,
-        button,
-        tipId: waitChipTipId(pr),
-      });
+      return buildWaitChip(
+        mergeWaitChip(wait, false, button !== undefined, pr.pendingChecks),
+        {
+          source: "auto-merge",
+          subject: `${pr.repo}#${pr.number}`,
+          button,
+          tipId: waitChipTipId(pr),
+        },
+      );
     }
 
     // ---- stacked pull requests (#861) ----
@@ -3462,8 +3481,14 @@
         // A queued action (Update branch at the rate-limit reset) keeps its
         // chip and its Cancel over the unarmed wait: it is the one thing the
         // person asked for and can undo.
-        const rowWait =
-          autoMergeWaitChip(pr) ?? queuedWaitChip(pr) ?? unarmedWaitChip(pr);
+        // A stopped auto-merge yields to it: its sentence stays as the text
+        // line (#4601), so the Cancel is never hidden behind the stopped chip.
+        const stoppedYields = pr.autoMerge?.state === "stopped" && !!pr.queued;
+        const rowWait = stoppedYields
+          ? queuedWaitChip(pr)
+          : (autoMergeWaitChip(pr) ??
+            queuedWaitChip(pr) ??
+            unarmedWaitChip(pr));
         if (rowWait) waitSlot.appendChild(rowWait);
         statusCell.appendChild(waitSlot);
         notePlacements.set(statusCell, {
@@ -4305,7 +4330,9 @@
             undefined,
             // The forge can count a check the job list never shows, so the
             // lock can outlast a refresh (#4433): say where to look.
-            "Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+            item.pendingChecks?.length
+              ? `The forge is waiting on ${joinNames(item.pendingChecks)}, which the pipeline doesn't list.`
+              : "Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
           );
         const described =
           idScope === "" && snapshotWaitsOnCi(item) && chipSaysCiWait(item)
@@ -5909,7 +5936,9 @@
       if (!(active instanceof HTMLElement) || !container.contains(active))
         return null;
       const row = active.closest<HTMLElement>(".row");
-      return row?.querySelector(".merge-wait, .wait-chip")
+      return row?.querySelector(
+        ".merge-wait, .wait-chip:not([data-state=stopped])",
+      )
         ? (row.dataset.prKey ?? null)
         : null;
     }
@@ -5918,7 +5947,11 @@
       const row = Array.from(
         container.querySelectorAll<HTMLElement>(".row"),
       ).find((r) => r.dataset.prKey === key);
-      if (!row || row.querySelector(".merge-wait, .wait-chip")) return;
+      if (
+        !row ||
+        row.querySelector(".merge-wait, .wait-chip:not([data-state=stopped])")
+      )
+        return;
       if (row.querySelector('button[id^="merge-arm-"]'))
         announceText(MERGE_AVAILABLE);
     }

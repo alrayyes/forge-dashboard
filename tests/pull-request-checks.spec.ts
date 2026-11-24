@@ -9,7 +9,7 @@ import {
 import { checkLinkName } from './check-link-name-helper';
 import { serveChecks } from './checks-feed-helper';
 import { closeStream } from './fake-stream-helper';
-import { forgeHealth } from './forge-health-helper';
+import { type Forge, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 interface MockPR {
@@ -50,7 +50,7 @@ function makePR(overrides: Partial<MockPR> = {}): MockPR {
 
 function mockDashboard(
   page: Page,
-  forge: string,
+  forge: Forge,
   pr?: MockPR,
   health: Record<string, unknown> = {},
 ) {
@@ -60,7 +60,7 @@ function mockDashboard(
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge, reachable: true, repoCount: 1, ...health }],
+        forges: [forgeHealth(forge, health)],
         pullRequests: pr ? [pr] : [],
         issues: [],
       }),
@@ -808,9 +808,7 @@ test.describe('pull request pipeline checks panel', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [
-            { forge: 'forgejo', reachable: true, repoCount: 1, ...health },
-          ],
+          forges: [forgeHealth('forgejo', health)],
           pullRequests: [makePR({ forge: 'forgejo', ci: 'failure' })],
           issues: [],
         }),

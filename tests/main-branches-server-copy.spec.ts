@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #1620: the Branches filter (status, forge, search) follows the account like
@@ -184,7 +185,7 @@ test.describe('the Branches filter follows the account (#1620)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [pr(1), pr(2)],
           issues: [],
         }),

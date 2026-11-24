@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -40,13 +41,10 @@ const pr = {
   kind: 'regular',
 };
 
-const limited = {
-  forge: 'github',
-  reachable: true,
-  repoCount: 1,
+const limited = forgeHealth('github', {
   rateLimitREST: rateLimit(5000, 0, RESET),
   rateLimitGraphQL: rateLimit(5000, 0, RESET),
-};
+});
 
 function gate() {
   let release: () => void = () => {};

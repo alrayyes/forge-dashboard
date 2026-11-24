@@ -1,5 +1,53 @@
 # Changelog
 
+## [9.111.2](https://github.com/alrayyes/forge-dashboard/compare/v9.111.1...v9.111.2) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** open the checks dialog on a tap of a CI pill segment ([#4755](https://github.com/alrayyes/forge-dashboard/issues/4755)) ([0f68a41](https://github.com/alrayyes/forge-dashboard/commit/0f68a41736eed0521d2f512a57bdecc6d21a3b69)), closes [#4753](https://github.com/alrayyes/forge-dashboard/issues/4753) [#4756](https://github.com/alrayyes/forge-dashboard/issues/4756)
+
+## [9.111.1](https://github.com/alrayyes/forge-dashboard/compare/v9.111.0...v9.111.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** judge a cancel's success by the row's newest entry ([#4747](https://github.com/alrayyes/forge-dashboard/issues/4747)) ([81f85e9](https://github.com/alrayyes/forge-dashboard/commit/81f85e9580e23f5d64a921586e2cd6b3f86080d6))
+
+## [9.111.0](https://github.com/alrayyes/forge-dashboard/compare/v9.110.1...v9.111.0) (2026-11-23)
+
+
+### Features
+
+* name the check a pull request waits on when no job shows it ([#4737](https://github.com/alrayyes/forge-dashboard/issues/4737)) ([43a570b](https://github.com/alrayyes/forge-dashboard/commit/43a570b9f92ffbaa27fe64d511d419e3011a3d26))
+
+## [9.110.1](https://github.com/alrayyes/forge-dashboard/compare/v9.110.0...v9.110.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **web:** drop the Auto-merge chip from an armed row so it keeps its height ([#4736](https://github.com/alrayyes/forge-dashboard/issues/4736)) ([634811d](https://github.com/alrayyes/forge-dashboard/commit/634811dbf78fe23d1ec81ddac2062f97b630fbc0)), closes [#4686](https://github.com/alrayyes/forge-dashboard/issues/4686)
+
+## [9.110.0](https://github.com/alrayyes/forge-dashboard/compare/v9.109.0...v9.110.0) (2026-11-23)
+
+
+### Features
+
+* **web:** build a pull request's address from the forge's path segment ([#4721](https://github.com/alrayyes/forge-dashboard/issues/4721)) ([f728592](https://github.com/alrayyes/forge-dashboard/commit/f728592975c0173e954eb276b16ec4c4900cb88f)), closes [#4073](https://github.com/alrayyes/forge-dashboard/issues/4073)
+
+
+### Bug Fixes
+
+* **web:** keep focus off the stale chip after a cancelled auto-merge ([#4733](https://github.com/alrayyes/forge-dashboard/issues/4733)) ([3e81c71](https://github.com/alrayyes/forge-dashboard/commit/3e81c718ccb14007dbf08e730c518516f4eec308)), closes [#4729](https://github.com/alrayyes/forge-dashboard/issues/4729)
+* **web:** show a stopped auto-merge as a chip beside the status pill ([#4725](https://github.com/alrayyes/forge-dashboard/issues/4725)) ([0840cdf](https://github.com/alrayyes/forge-dashboard/commit/0840cdffb091f2f9faf300ea1a88272ff7cb0396))
+
+## [9.109.0](https://github.com/alrayyes/forge-dashboard/compare/v9.108.0...v9.109.0) (2026-11-23)
+
+
+### Features
+
+* **webhooks:** show why a repo has no automatic webhook ([#4702](https://github.com/alrayyes/forge-dashboard/issues/4702)) ([256bf30](https://github.com/alrayyes/forge-dashboard/commit/256bf308efc290d5c8869cfbff9f654bb0bf84b1))
+
 ## [9.108.0](https://github.com/alrayyes/forge-dashboard/compare/v9.107.0...v9.108.0) (2026-11-23)
 
 

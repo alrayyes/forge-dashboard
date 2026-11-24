@@ -403,7 +403,7 @@ describe('renderCiPill', () => {
       `${failed().name}. Open pipeline`,
     );
     expect(pill.listeners.at(-1)).toBe('click');
-    // The segment tips listen first, so a tap on a segment can stop the click.
+    // The segment tips listen too, and the open click stays last.
     expect(pill.listeners).toContain('pointermove');
     expect(pill.find('sr-only')).toBeUndefined();
   });

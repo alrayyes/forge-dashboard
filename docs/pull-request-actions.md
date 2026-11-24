@@ -114,10 +114,18 @@ have finished, the row keeps the chip but says "Waiting for the forge", with
 away until the next refresh. If the row still waits after one refresh, the
 forge is counting a check the jobs don't show, such as a status from an
 external CI. On Forgejo the pipeline list shows those statuses beside the
-jobs, so the pill waits with them; the tooltip points at the pull request on
-the forge for the rest. An armed row follows the pill the same way, whatever its
-status says, when the last refresh read CI as pending: the same chip, with
-Cancel auto-merge still on the row.
+jobs, so the pill waits with them. The server also sends `pendingChecks`, the
+names of the checks it waits on that no job shows: a pending status no job
+stands behind, and a check the branch rule requires that nothing has reported
+(on Forgejo that counts as waiting, so the row stays pending; on GitHub the
+name comes from the same lookup that keeps it pending). The tooltip names them,
+"The forge is waiting on deploy/gate, a check the pipeline doesn't
+list", and the locked Merge in the pop-up says the same. With no name, which
+is the case when Forgejo's branch rules can't be read without admin on the
+repository, the tooltip points at the pull request on the forge instead. An
+armed row follows the pill the same way, whatever its status says, when the
+last refresh read CI as pending: the same chip, with Cancel auto-merge still on
+the row.
 
 When the status is "Behind the base branch", it also carries `action`: the
 action that clears it (Update branch or the Dependabot or Renovate rebase).
@@ -223,7 +231,9 @@ something set on the pull request that holds until someone changes it:
 `Auto-merge` on, `Draft`, `Bot` (a Dependabot or Renovate pull request),
 `Out of date` and the automatic branch update. The Bots page leaves `Bot` out
 of its rows, since every row there is a bot's; the details pop-up still shows
-it.
+it. An armed row has no `Auto-merge` chip either: its wait chip already says it
+is armed, and a second chip under the title would make the row taller than a
+normal one. The pop-up keeps the chip.
 Attributes are quiet outlined chips with a small icon and no fill or motion,
 in a cluster under the title, with the labels, never inside the CI slot.
 `Out of date` is the one exception: it is drawn for every pull request that is
@@ -625,27 +635,37 @@ nothing to wait for, so GitHub refuses it and the action stays hidden.
 When GitHub's answer isn't known, the action shows as usual.
 
 On Forgejo this app does the merge itself. "Enable auto-merge" stores your
-intent for that pull request and sends nothing to Forgejo. The pull request
-then shows "Auto-merge on" and "Managed by Forge Dashboard", and a waiting chip
-(below) with a `Cancel auto-merge` button. The note follows the server's
-`autoMergeHeldBy` field: a merge scheduled on Forgejo itself reads "Scheduled on
-Forgejo" (the forge's label, so another forge says its own name), and when the
-server doesn't say who holds it the chip has no note, since the page never
-guesses. After each refresh the server merges an armed pull request once its
-checks have passed and Forgejo says it can merge, with the repo's own merge
-method, the same as Merge. A pull request you didn't arm is never merged. Checks
-that fail, conflicts, a draft, a stack parent that hasn't merged yet or no
-checks at all keep it waiting, and it merges once that clears. The row says
+intent for that pull request and sends nothing to Forgejo. The pull request then
+shows a waiting chip (below) with a `Cancel auto-merge` button, and the details
+pop-up shows "Auto-merge on" and "Managed by Forge Dashboard". The note follows
+the server's `autoMergeHeldBy` field: a merge scheduled on Forgejo itself reads
+"Scheduled on Forgejo" (the forge's label, so another forge says its own name),
+and when the server doesn't say who holds it the chip has no note, since the
+page never guesses. After each refresh the server merges an armed pull request
+once its checks have passed and Forgejo says it can merge, with the repo's own
+merge method, the same as Merge. A pull request you didn't arm is never merged.
+Checks that fail, conflicts, a draft, a stack parent that hasn't merged yet or
+no checks at all keep it waiting, and it merges once that clears. The row says
 which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
-limited` and so on, and a text line says it stopped (a failed check, a conflict,
-or a refused merge, including a token without merge
-permission). When the server merges one it tells the page, which shows
-"Auto-merged owner/repo#N after checks passed" for the next few minutes. If
-Forgejo refuses the merge, the server doesn't ask again until the pull request
-changes (a rate limit or an unreachable forge is retried after five minutes),
-and the log records each attempt by repo and number. Closing or merging the
-pull request elsewhere removes the intent, once Forgejo confirms it. A token
-that can push but not merge only finds out at the merge itself.
+limited` and so on. One that has stopped (a failed check, a conflict, or a
+refused merge, including a token without merge permission) is the same kind of
+chip, `Auto-merge stopped`, with an alert icon and no button, on the status
+pill's line from 761px up. On a phone it stays the text line it was, and so does
+a stopped row that has a queued action (an Update branch waiting for a
+rate-limit reset): that row keeps its queued chip and its Cancel, with the
+sentence as text beside it. The chip is as wide as its words, so a long refusal
+never cuts it: the server's whole sentence is the chip's tooltip, which opens on
+hover and on keyboard focus and is the chip's accessible description. You can
+move the pointer onto the tooltip without it closing, and Escape closes it until
+the pointer and focus have left the chip. On a list narrower than 1191px, from
+861px, the status column widens to make room for it, as it does for a chip with
+a button. When the server merges one it tells the page, which shows "Auto-merged
+owner/repo#N after checks passed" for the next few minutes. If Forgejo refuses
+the merge, the server doesn't ask again until the pull request changes (a rate
+limit or an unreachable forge is retried after five minutes), and the log
+records each attempt by repo and number. Closing or merging the pull request
+elsewhere removes the intent, once Forgejo confirms it. A token that can push
+but not merge only finds out at the merge itself.
 
 A merge scheduled in Forgejo's own web UI ("Merge when checks succeed") shows
 as auto-merging too, with Cancel auto-merge on it. Forgejo's pull request JSON
@@ -766,8 +786,8 @@ the same way. `tests/phone-row-status-gap.spec.ts` measures all of it.
 
 The server's auto-merge sentences never name a forge. Where one would, it says
 "the forge" and the page swaps in the forge's capability label (GitHub,
-Forgejo), in the chip's tooltip and in the stopped line. The server sends the
-facts and the code, the page owns the wording.
+Forgejo), in the chip's tooltip and in the stopped line on a phone. The server
+sends the facts and the code, the page owns the wording.
 
 An armed pull request that is behind says whether that is what holds it. Where
 the base branch needs the branch to be current before a merge (GitHub's `strict`
@@ -1128,11 +1148,13 @@ checks cancelled". The wording is the same for every state (passed, skipped,
 running, waiting, not started, failed, unknown, cancelled, held), singular for
 one check and plural otherwise, and the number is the one on the pill. Escape
 closes the tooltip without moving focus, and you can move the pointer onto it
-without it going away. On a touch screen, tap a count to see it and tap
-anywhere else to close it; tapping the word or the rest of the pill still opens
-the pipeline panel. The Cancelled pill uses the same tooltip, and so do the
-pills on the Bots page, the issue rows and Main branches. A screen reader still
-hears the whole pill as one button, with its counts in its name.
+without it going away. On a touch screen, a tap anywhere on a pill that
+opens the pipeline, a count included, opens the pipeline panel. A badge that
+opens nothing (the pill on an issue row) shows the count's text on a tap
+instead, and a tap anywhere else closes it. The Cancelled pill uses the same
+tooltip, and so do the pills on the Bots page, the issue rows and Main
+branches. A screen reader still hears the whole pill as one button, with its
+counts in its name.
 
 Where branch protection also holds the merge, the row's status line says
 "Blocked, the only run was cancelled" beside the Cancelled pill, because the

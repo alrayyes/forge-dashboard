@@ -1,5 +1,7 @@
 // The tooltip a CI pill's segments share (#4422): "7 checks passed" on hover,
-// on keyboard focus and on a tap, the same on every board that draws the pill.
+// on keyboard focus and, for a pill that opens nothing, on a tap, the same on
+// every board that draws the pill. A pill with an opener opens it on a tap
+// instead (#4753): the tip was swallowing the tap on a phone.
 //
 // One tooltip element serves the whole page, placed in the top layer (a popover)
 // so a pill inside a dialog is not covered and no row's overflow clips it.
@@ -25,8 +27,7 @@ let active: HTMLElement | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 let watcher: ReturnType<typeof setInterval> | undefined;
 // A touch press this recent on a pill makes the next click a real tap. A
-// screen reader's double-tap sends a click with no press before it, and that
-// must still open the pipeline.
+// screen reader's click has no press before it.
 const TAP_MS = 1000;
 const attached = new WeakSet<HTMLElement>();
 
@@ -148,7 +149,10 @@ function activeIndex(root: HTMLElement): number {
 }
 
 // Idempotent: the Main branches page keeps one button and redraws its contents.
-export function attachSegmentTips(root: HTMLElement) {
+// opens: the pill has a handler that opens the pipeline, so a tap opens it and
+// shows no tip. A badge opens nothing, so a tap shows the tip, its only way to
+// be read on a touch screen.
+export function attachSegmentTips(root: HTMLElement, opens = false) {
   if (attached.has(root)) return;
   attached.add(root);
   let touchedAt = -Infinity;
@@ -183,13 +187,12 @@ export function attachSegmentTips(root: HTMLElement) {
     const next = at < 0 ? 0 : Math.max(0, Math.min(all.length - 1, at + step));
     show(root, all[next]);
   });
-  // Registered before the click that opens the pipeline, so a tap on a
-  // segment shows its text instead. The word and the pill's body still open it.
   root.addEventListener('click', (e: MouseEvent) => {
     const touch =
       (e as PointerEvent).pointerType === 'touch' &&
       Date.now() - touchedAt < TAP_MS;
-    const seg = touch ? segmentAt(root, e.clientX, e.clientY) : undefined;
+    const seg =
+      touch && !opens ? segmentAt(root, e.clientX, e.clientY) : undefined;
     if (seg) {
       e.preventDefault();
       e.stopImmediatePropagation();

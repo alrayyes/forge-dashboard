@@ -40,14 +40,15 @@ export function settlesOnRow(kind: WaitKind): boolean {
   );
 }
 
-export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry';
+export type ChipIcon = 'spinner' | 'hourglass' | 'check' | 'retry' | 'alert';
 
 // What a chip offers, if anything. The button itself is the caller's: only it
 // knows what the click does.
 export type ChipAction = 'check-again' | 'disarm' | 'cancel' | 'arm';
 
 export type Chip = {
-  state: 'waiting' | 'stalled' | 'settled';
+  // 'stopped' is no wait: an armed auto-merge that needs a person (#4601).
+  state: 'waiting' | 'stalled' | 'settled' | 'stopped';
   icon: ChipIcon;
   // At most three words.
   label: string;
@@ -261,10 +262,25 @@ export function autoMergeWording(message: string, forge: string): string {
   return message.replace(/\bthe forge\b/i, () => label);
 }
 
-// An armed Forgejo auto-merge that is waiting. A stopped one needs a person,
-// so it is no wait and gets no chip.
+// The chip for an armed auto-merge. A waiting one carries on by itself. A
+// stopped one needs a person, so it is no wait: it says so in its label, with
+// an alert icon, and offers no button of its own (the row's Cancel
+// auto-merge is where it was). The server's whole sentence is the tooltip and
+// the accessible description, so a long refusal is never cut (#4601).
 export function autoMergeChip(input: AutoMergeInput): Chip | null {
-  if (input.state !== 'waiting') return null;
+  // A status the page doesn't know draws nothing here, as before: the row
+  // falls back to its other chips.
+  if (input.state !== 'waiting' && input.state !== 'stopped') return null;
+  if (input.state === 'stopped')
+    return {
+      state: 'stopped',
+      icon: 'alert',
+      label: 'Auto-merge stopped',
+      detail: '',
+      tooltip: autoMergeWording(input.message, input.forge),
+      showAgo: false,
+      countdown: false,
+    };
   const words = (label: string, detail: string) => ({
     state: 'waiting' as const,
     icon: 'hourglass' as const,
@@ -327,6 +343,7 @@ export function mergeWaitChip(
   wait: MergeWait,
   armed = false,
   canArm = true,
+  pendingChecks: readonly string[] = [],
 ): Chip {
   const orArm = canArm ? ', or turn on Auto-merge to merge it then' : '';
   const words = (label: string, tooltip: string): Chip => ({
@@ -353,9 +370,17 @@ export function mergeWaitChip(
     case 'refresh':
       return words(
         'Waiting for the forge',
-        "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+        pendingChecks.length > 0
+          ? `The forge is waiting on ${joinNames(pendingChecks)}, ${pendingChecks.length === 1 ? 'a check' : 'checks'} the pipeline doesn't list. Merge unlocks when ${pendingChecks.length === 1 ? 'it reports' : 'they report'}.`
+          : "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
       );
   }
+}
+
+// "a", "a and b", "a, b and c": the names the server sent, in its order.
+export function joinNames(names: readonly string[]): string {
+  if (names.length <= 1) return names.join('');
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 }
 
 // Said once, politely, when the wait ends on the row the person is on.
@@ -396,6 +421,7 @@ const ICON_PATHS: Record<ChipIcon, string[]> = {
   spinner: ['M21 12a9 9 0 1 1-6.2-8.55'],
   hourglass: ['M6 2h12', 'M6 22h12', 'M7 2v4l5 6-5 6v4', 'M17 2v4l-5 6 5 6v4'],
   check: ['M20 6 9 17l-5-5'],
+  alert: ['M12 3 2 20h20z', 'M12 10v4', 'M12 17h.01'],
   retry: ['M21 12a9 9 0 1 1-3-6.7', 'M21 3v6h-6'],
 };
 
@@ -481,5 +507,28 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   tip.id = tipId;
   tip.setAttribute('role', 'tooltip');
   root.appendChild(tip);
+  armTipDismiss(root);
   return root;
+}
+
+// WCAG 1.4.13: Escape closes an open tooltip without moving the pointer or
+// focus. It stays closed until the pointer and focus have both left the chip.
+let tipEscapeBound = false;
+function armTipDismiss(root: HTMLElement): void {
+  const reopen = () => {
+    if (!root.matches(':hover, :focus-within'))
+      delete root.dataset.tipDismissed;
+  };
+  root.addEventListener('pointerleave', reopen);
+  root.addEventListener('focusout', () => queueMicrotask(reopen));
+  if (tipEscapeBound || typeof document === 'undefined') return;
+  tipEscapeBound = true;
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape') return;
+    for (const chip of document.querySelectorAll<HTMLElement>(
+      '.wait-chip:hover, .wait-chip:focus-within',
+    )) {
+      chip.dataset.tipDismissed = '';
+    }
+  });
 }

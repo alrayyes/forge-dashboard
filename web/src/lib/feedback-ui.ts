@@ -542,7 +542,8 @@ export function mountFeedbackUI(
     // The row's own chip steps out of the document while an action's chip
     // stands in for it, so one chip label is on the row at a time. It comes
     // back when the action's chip goes.
-    for (const own of parked.get(slot) ?? []) slot.appendChild(own);
+    const returning = parked.get(slot) ?? [];
+    for (const own of returning) slot.appendChild(own);
     parked.delete(slot);
     const wait = waitFor(key);
     if (wait) {
@@ -554,6 +555,22 @@ export function mountFeedbackUI(
       for (const chip of own) chip.remove();
       parked.set(slot, own);
       slot.appendChild(drawChip(wait.entry, wait.chip));
+    }
+    // A request that went through leaves the returning chips stale until the
+    // refreshed board replaces them, so focus skips them for the row's title
+    // button (#4729). A failed one restores them and their focus.
+    const succeeded =
+      !wait &&
+      returning.length > 0 &&
+      store.entriesFor(key)[0]?.phase === 'done';
+    if (held && succeeded) {
+      const title = row.querySelector<HTMLElement>(
+        "button[id^='details-trigger-']",
+      );
+      if (title) {
+        title.focus({ preventScroll: true });
+        return;
+      }
     }
     if (held && !slot.contains(document.activeElement))
       (

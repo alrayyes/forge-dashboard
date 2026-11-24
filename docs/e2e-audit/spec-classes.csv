@@ -16,7 +16,7 @@ author-choices-per-forge.spec.ts,3.105,8,2,C,,2.3
 author-link-focus-ring.spec.ts,2.36,2,1,A,,1.2
 author-name-ellipsis.spec.ts,1.711,4,0,C,,1.7
 auto-merge-filter.spec.ts,5.903,9,4,C,,3.3
-auto-merge-focus.spec.ts,2.049,2,2,A,,0.0
+auto-merge-focus.spec.ts,2.049,3,3,A,,0.0
 awaiting-approval.spec.ts,3.029,5,3,A,,1.2
 behind-fix-button.spec.ts,2.993,6,2,C,,2.0
 board-title-width.spec.ts,0.848,4,4,A,,0.0
@@ -45,7 +45,8 @@ checking-for-conflicts.spec.ts,7.653,2,1,A,,3.8
 checks-incomplete-pill.spec.ts,,3,1,C,,0.0
 ci-pill-actions.spec.ts,2.958,4,4,A,web/src/lib/ci-pill.test.ts,0.0
 ci-pill-counts.spec.ts,1.777,9,5,A,web/src/lib/ci-pill.test.ts,0.8
-ci-pill-segment-tips.spec.ts,,14,13,A,web/src/lib/ci-pill.test.ts,0.0
+ci-pill-segment-tips.spec.ts,,14,14,A,web/src/lib/ci-pill.test.ts,0.0
+ci-pill-tap-opens.spec.ts,,4,3,A,web/src/lib/ci-pill.test.ts,0.0
 ci-status-pulldown-gone.spec.ts,0.558,3,0,C,,0.6
 close-neutral.spec.ts,2.746,6,5,A,,0.5
 closing-issues.spec.ts,6.631,12,6,A,web/src/lib/closing-issues.test.ts,3.3
@@ -74,7 +75,7 @@ filter-choices-board.spec.ts,5.783,5,0,C,,5.8
 filter-choices-edges.spec.ts,1.301,4,2,A,,0.7
 filter-choices-held.spec.ts,4.079,7,7,A,,0.0
 filter-choices-pills.spec.ts,2.78,7,2,C,,2.0
-filter-choices-static.spec.ts,1.926,8,1,C,,1.7
+filter-choices-static.spec.ts,1.926,9,2,C,,1.5
 filter-control-border.spec.ts,3.063,2,2,A,,0.0
 filter-cookie-trimmed.spec.ts,1.723,3,3,A,,0.0
 filter-dropped-pick-notice.spec.ts,0.653,2,1,A,,0.3
@@ -106,7 +107,7 @@ forge-filter-single-forge.spec.ts,,7,3,C,,0.0
 forge-health-budgets.spec.ts,2.87,5,2,C,ForgeHealth.stories.svelte (proven),1.7
 forge-health-live-region.spec.ts,4.725,8,0,C,,4.7
 forge-odd-ids.spec.ts,,7,0,C,,0.0
-forgejo-auto-merge.spec.ts,10.268,14,4,C,,7.3
+forgejo-auto-merge.spec.ts,10.268,13,3,C,,7.9
 forgejo-token-saved-hint.spec.ts,11.42,1,1,A,,0.0
 github-token-saved-hint.spec.ts,4.995,6,2,C,,3.3
 hide-pull-request.spec.ts,5.325,14,3,C,,4.2
@@ -137,7 +138,7 @@ label-in-name.spec.ts,1.53,7,6,A,,0.2
 label-multi-select.spec.ts,14.074,26,5,C,,11.4
 landscape-first-row.spec.ts,8.569,5,4,A,,1.7
 legal.spec.ts,2.251,4,2,A,,1.1
-linked-pull-request-pipeline.spec.ts,6.155,8,2,C,,4.6
+linked-pull-request-pipeline.spec.ts,6.155,9,2,C,,4.8
 linked-pull-requests.spec.ts,7.75,14,5,C,web/src/lib/linked-pull-requests.test.ts,5.0
 list-date-columns-root-font-size.spec.ts,,6,4,A,,0.0
 live-control.spec.ts,12.008,12,4,C,web/src/lib/live-control.test.ts;LiveControl.stories.svelte (proven),8.0
@@ -159,7 +160,7 @@ main-branches-refetch-on-flag.spec.ts,6.451,4,0,C,,6.5
 main-branches-server-copy.spec.ts,4.052,7,0,B,,4.1
 main-branches-stream.spec.ts,0.84,3,0,C,,0.8
 mentioned-tickets.spec.ts,7.167,16,9,A,,3.1
-merge-wait-chip.spec.ts,,17,7,C,,0.0
+merge-wait-chip.spec.ts,,17,6,C,,0.0
 merged-pr-pill.spec.ts,,12,7,A,,0.0
 mobile-filters.spec.ts,6.974,13,9,A,,2.1
 mono-figures.spec.ts,0.853,4,0,A,,0.9
@@ -291,6 +292,7 @@ startup-banner.spec.ts,0.58,3,0,C,,0.6
 startup-state.spec.ts,2.287,3,2,A,,0.8
 status-banner-400.spec.ts,,3,3,A,,0.0
 status-pill-glyphs.spec.ts,,11,8,A,,0.0
+stopped-auto-merge-chip.spec.ts,,9,7,A,,0.0
 stream-after-first-poll.spec.ts,3.564,4,0,C,,3.6
 timezone-select-phone.spec.ts,1.779,5,5,A,,0.0
 timezone.spec.ts,3.186,11,0,C,,3.2
@@ -309,7 +311,7 @@ update-branch-request.spec.ts,8.081,8,0,C,,8.1
 upstream-error-banner.spec.ts,1.779,2,1,A,,0.9
 wait-chip-desktop.spec.ts,,9,6,A,web/src/lib/wait-chip.test.ts,0.0
 wait-chip.spec.ts,19.647,19,6,C,web/src/lib/wait-chip.test.ts,13.4
-waiting-for-ci-once.spec.ts,,12,3,C,,0.0
+waiting-for-ci-once.spec.ts,,15,5,C,,0.0
 webhooks-clear-filters.spec.ts,4.29,7,6,A,,0.6
 webhooks-failing-repo.spec.ts,2.099,3,1,C,,1.4
 webhooks-filter-choices.spec.ts,1.331,10,1,C,web/src/lib/webhooks-filter.test.ts,1.2
@@ -318,8 +320,10 @@ webhooks-page-size-stays.spec.ts,1.696,4,2,A,,0.8
 webhooks-page.spec.ts,17.391,58,8,C,,15.0
 webhooks-pager-focus.spec.ts,0.841,3,3,A,,0.0
 webhooks-phone-sort.spec.ts,5.355,8,7,A,,0.7
+webhooks-reasons.spec.ts,,2,2,A,,0.0
 webhooks-rebase-bots.spec.ts,1.999,4,0,C,,2.0
 webhooks-status-line.spec.ts,1.041,3,0,C,,1.0
 webhooks-table-tablet.spec.ts,1.917,6,4,A,,0.6
+webhooks-unknown-forge.spec.ts,,1,1,A,,0.0
 webmcp.spec.ts,2.219,7,6,A,web/src/lib/webmcp-parity.test.ts;web/src/lib/webmcp-tools.test.ts,0.3
 wide-screen-title.spec.ts,,6,3,A,,0.0

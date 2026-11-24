@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Route } from '@playwright/test';
+import { type Forge as ForgeName, forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // After a restart the page shows the last run's rows before any forge has been
@@ -9,22 +10,20 @@ import { test } from './server-fixture';
 const savedAt = () => new Date(Date.now() - 5 * 60_000).toISOString();
 
 type Forge = Record<string, unknown>;
-const starting = (forge: string): Forge => ({
-  forge,
-  reachable: false,
-  starting: true,
-  repoCount: 1,
-  staleSince: savedAt(),
-});
-const outage = (forge: string): Forge => ({
-  forge,
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp: i/o timeout',
-  staleSince: savedAt(),
-});
-const up = (forge: string): Forge => ({ forge, reachable: true, repoCount: 1 });
+const starting = (forge: ForgeName): Forge =>
+  forgeHealth(forge, {
+    reachable: false,
+    starting: true,
+    staleSince: savedAt(),
+  });
+const outage = (forge: ForgeName): Forge =>
+  forgeHealth(forge, {
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp: i/o timeout',
+    staleSince: savedAt(),
+  });
+const up = (forge: ForgeName): Forge => forgeHealth(forge);
 
 async function serve(
   page: import('@playwright/test').Page,

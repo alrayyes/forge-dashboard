@@ -1,20 +1,20 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // #3554: a restart (an OOM kill, a deploy) empties the server's memory and the
 // first full refresh is the heaviest moment. A forge that has not answered in
 // the first minutes is starting up, and the banner must not call it down.
 
-const down = (extra: Record<string, unknown> = {}) => ({
-  forge: 'github',
-  capabilities: { label: 'GitHub' },
-  reachable: false,
-  repoCount: 1,
-  errorKind: 'unreachable',
-  error: 'dial tcp 140.82.121.6:443: i/o timeout',
-  staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
-  ...extra,
-});
+const down = (extra: Record<string, unknown> = {}) =>
+  forgeHealth('github', {
+    capabilities: { label: 'GitHub' },
+    reachable: false,
+    errorKind: 'unreachable',
+    error: 'dial tcp 140.82.121.6:443: i/o timeout',
+    staleSince: new Date(Date.now() - 5 * 60_000).toISOString(),
+    ...extra,
+  });
 
 function mockDashboard(
   page: Page,

@@ -201,6 +201,18 @@ for (const sc of scenarios) {
       // to the chip that stands in for Cancel auto-merge, which has no action of its own.
       await page.keyboard.press('Enter');
 
+      // From the reply on, every focus change is written down, so a control
+      // focused for a few milliseconds still shows (#4729).
+      await page.evaluate(() => {
+        const w = window as unknown as { __focused: string[] };
+        w.__focused = [];
+        document.addEventListener('focusin', (e) => {
+          const t = e.target as HTMLElement;
+          w.__focused.push(
+            `${t.closest('.wait-chip') ? 'chip' : 'other'}:${t.id || t.textContent?.trim()}`,
+          );
+        });
+      });
       release();
       // f2 is taken once the route has answered, not at a fixed delay.
       await expect.poll(() => replied).toBe(true);
@@ -210,11 +222,18 @@ for (const sc of scenarios) {
       await expect(
         scope.locator('button').filter({ hasText: sc.pending }),
       ).toHaveCount(0);
-      if (status === 204)
+      if (status === 204) {
         await expect(
           scope.locator('button').filter({ hasText: sc.label }),
         ).toHaveCount(0);
-      else
+        // While the request runs, a feedback chip stands in on the row and the
+        // row's own chip, with its button, is detached, so the two counts above
+        // hold before the reply is handled. When the reply lands the stale chip
+        // comes back until the refreshed board replaces it. The row has no chip
+        // of its own once that board is in, which is the settled state.
+        if (!sc.inDialog)
+          await expect(row.locator('.wait-chip')).toHaveCount(0);
+      } else
         await expect(
           scope.locator('button').filter({ hasText: sc.label }),
         ).toBeVisible();
@@ -227,6 +246,16 @@ for (const sc of scenarios) {
       // (a chip saying "Cancelling" stands in), so focus is on that chip.
       expect(f1.text, trace).toMatch(/Cancelling|Enabling…/);
       expect(posted).toHaveLength(1);
+      if (status === 204 && !sc.inDialog) {
+        // A 204 never puts focus on the stale chip the reply re-attaches.
+        const focused = await page.evaluate(
+          () => (window as unknown as { __focused: string[] }).__focused,
+        );
+        expect(
+          focused.filter((f) => f.startsWith('chip:')),
+          trace,
+        ).toEqual([]);
+      }
       if (status === 429) {
         // A rate limit locks the button (aria-disabled, with its reason), but
         // it stays in place and focused.
@@ -323,3 +352,74 @@ for (const kind of ['merge', 'close'] as const) {
     for (const s of [f0, f1, f3]) expect(s.tag, trace).not.toBe('BODY');
   });
 }
+
+// #4735: an earlier finished action on the row must not make a later failed
+// Cancel read as a success. Focus goes back to the restored chip's button.
+test('a failed Cancel after an earlier finished one returns focus to the chip', async ({
+  page,
+}) => {
+  const current = makePR(ARMED);
+  const replies = [429];
+  await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
+  for (const glob of ['**/api/v1/dashboard*', '**/api/v1/dashboard/refresh*'])
+    await page.route(glob, (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('forgejo')],
+          pullRequests: [current],
+          issues: [],
+          openIssueCount: 0,
+          navCounts: navCountsFor([current], 0),
+        }),
+      }),
+    );
+  await page.route(
+    '**/api/v1/pull-requests/auto-merge/cancel',
+    (route: Route) => {
+      replies.shift();
+      return route.fulfill({
+        status: 429,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'rate limit exceeded',
+          code: 'rate_limited',
+          message: "The forge's API rate limit is reached. Try again later.",
+        }),
+      });
+    },
+  );
+  await page.goto('/pull-requests.html');
+  const row = page.locator('#pr-rows .row').first();
+  await expect(row).toBeVisible();
+  const cancel = row.getByRole('button', { name: /^Cancel auto-merge$/ });
+
+  // An earlier close on the row finished and left a done entry behind.
+  let closed = false;
+  await page.route('**/api/v1/pull-requests/close', (route: Route) => {
+    closed = true;
+    return route.fulfill({ status: 204 });
+  });
+  const footer = actionsFooter(await openActionsDialog(row));
+  await footer
+    .getByRole('button', { name: 'Close pull request', exact: true })
+    .click();
+  const confirm = footer.getByRole('button', {
+    name: 'Confirm close pull request?',
+  });
+  await expect(confirm).toBeVisible();
+  await page.waitForTimeout(500);
+  await confirm.click();
+  await expect.poll(() => closed).toBe(true);
+  await page.keyboard.press('Escape');
+  await expect(cancel).toBeVisible();
+
+  // Second Cancel fails: focus belongs on the restored chip's button.
+  await cancel.focus();
+  await page.keyboard.press('Enter');
+  await expect.poll(() => replies.length).toBe(0);
+  await expect(cancel).toBeVisible();
+  await expect(cancel).toBeFocused();
+});

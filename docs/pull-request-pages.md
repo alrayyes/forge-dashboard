@@ -7,8 +7,9 @@ the button that does it, stretched over the row; the CI pill, the labels, and
 the row's own buttons stay clickable on top of it. Pointing at a part of the CI
 pill, or focusing the pill with the keyboard, shows what that part counts, such
 as "7 checks passed". The arrow keys move between the parts, Escape closes the
-text, and scrolling closes it too. On a touch screen a tap on a count shows its
-text, and a tap on the word or the pill's body opens the pipeline. The Main
+text, and scrolling closes it too. On a touch screen a tap anywhere on the pill,
+a count included, opens the pipeline; a badge that opens nothing shows the
+count's text on a tap. The Main
 branches page and the issue and bot rows show the same text. On a phone the
 row's buttons
 (Merge, and Update branch when the pull request is behind) are the last tier of

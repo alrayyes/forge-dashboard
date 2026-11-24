@@ -30,6 +30,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			RateLimitDocsURL:           "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api",
 			IssueRefSyntax:             "hash_or_gh_prefix",
 			ReportsRepoPermissions:     false,
+			PullRequestPathSegment:     "pull",
 			Label:                      "GitHub",
 			ImageHosts: []string{
 				"github.com",
@@ -57,6 +58,7 @@ func TestCapabilitiesOf_EveryForgeAnswersEveryCapability(t *testing.T) {
 			RateLimitDocsURL:           "",
 			IssueRefSyntax:             "hash",
 			ReportsRepoPermissions:     true,
+			PullRequestPathSegment:     "pulls",
 			Label:                      "Forgejo",
 			ImageHosts:                 []string{},
 			AvatarHosts:                []string{},

@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
@@ -9,7 +10,7 @@ import { settle } from './settle-helper';
 function snapshot(forge: Record<string, unknown> = {}) {
   return {
     generatedAt: new Date().toISOString(),
-    forges: [{ forge: 'github', repoCount: 1, reachable: true, ...forge }],
+    forges: [forgeHealth('github', forge)],
     pullRequests: [],
     issues: [],
     repos: [],

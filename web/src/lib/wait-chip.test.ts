@@ -298,8 +298,34 @@ describe('autoMergeChip wording', () => {
     expect(chip?.detail).toBe('Codeberg merges it when checks pass');
   });
 
-  test('a stopped auto-merge is not a wait', () => {
-    expect(autoMergeChip(waiting({ state: 'stopped' }))).toBeNull();
+  test('a status that is neither waiting nor stopped draws no chip', () => {
+    expect(
+      autoMergeChip({
+        state: undefined as unknown as 'waiting',
+        code: '',
+        message: '',
+        draft: false,
+        forge: 'github',
+      }),
+    ).toBeNull();
+  });
+
+  test('a stopped auto-merge is a chip that says so, with no button and the whole sentence (#4601)', () => {
+    const chip = autoMergeChip(
+      waiting({
+        state: 'stopped',
+        message:
+          'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.',
+      }),
+    );
+    expect(chip).toMatchObject({
+      state: 'stopped',
+      icon: 'alert',
+      label: 'Auto-merge stopped',
+      detail: '',
+    });
+    expect(chip?.action).toBeUndefined();
+    expect(chip?.tooltip).toContain('Resolve it on');
   });
 });
 
@@ -434,6 +460,25 @@ describe('mergeWaitChip', () => {
     expect(chip.detail).toBe('');
     expect(chip.tooltip).toBe(
       "Updating from the latest CI results. Still locked after a refresh? The forge counts a check the pipeline doesn't list. Open the pull request on the forge to see it.",
+    );
+  });
+
+  test('a refresh names the check the forge waits on when the server says which', () => {
+    const chip = mergeWaitChip('refresh', false, true, ['deploy/gate']);
+    expect(chip.label).toBe('Waiting for the forge');
+    expect(chip.tooltip).toBe(
+      "The forge is waiting on deploy/gate, a check the pipeline doesn't list. Merge unlocks when it reports.",
+    );
+  });
+
+  test('a refresh names several checks, in the order the server sent them', () => {
+    const chip = mergeWaitChip('refresh', false, true, ['a', 'b', 'c']);
+    expect(chip.tooltip).toContain('a, b and c');
+  });
+
+  test('a refresh with no names keeps the pointer to the forge', () => {
+    expect(mergeWaitChip('refresh', false, true, []).tooltip).toContain(
+      'Open the pull request on the forge',
     );
   });
 
