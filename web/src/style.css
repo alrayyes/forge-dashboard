@@ -1733,6 +1733,22 @@ select.col-filter {
 .result-bar .clear-filters {
   margin-inline-start: auto;
 }
+/* The select stays 32px; on a phone the label around it carries the rest of
+   the 44px tap target, and a tap on it focuses the select. */
+.result-sort-wrap {
+  display: inline-flex;
+}
+@media (max-width: 760px) {
+  .result-sort-wrap {
+    padding-block: 6px;
+  }
+  :root body .filter-bar .result-sort-wrap select.result-sort {
+    min-height: 32px;
+  }
+  .result-bar .filters-trigger {
+    margin-inline-end: 4px;
+  }
+}
 
 /* Always visible (#354's own "Design decisions" section, not this file's
    own restraint elsewhere for e.g. mergeStatusPill): hiding it would

@@ -9656,11 +9656,9 @@
       if (hadFocus && !offered) {
         focusFilterBar();
         // A phone draws no pills in the bar, so the Filters button takes it.
-        if (
-          document.activeElement === document.body ||
-          document.activeElement === input
-        )
-          document.getElementById("filters-button")?.focus();
+        // It is drawn only there, and leads the result bar, after the sort.
+        const trigger = document.getElementById("filters-button");
+        if (trigger && trigger.getClientRects().length > 0) trigger.focus();
       }
     }
 
@@ -11622,16 +11620,6 @@
         </button>
       </span>
       <datalist id="shared-title-options"></datalist>
-      <button
-        type="button"
-        class="filters-trigger"
-        id="filters-button"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-controls="filter-sheet"
-      >
-        Filters
-      </button>
     </div>
     <div
       class="active-filters"
@@ -11737,19 +11725,32 @@
          folds into the Filters sheet. The polite region says "N of M" when the
          count changes, since the count line itself is redrawn on every render. -->
     <div class="result-bar" id="result-bar">
+      <!-- Phone only: the Filters button leads the line, as in the draft. -->
+      <button
+        type="button"
+        class="filters-trigger"
+        id="filters-button"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="filter-sheet"
+      >
+        Filters
+      </button>
       <p class="result-count" id="result-count"></p>
       <span class="result-tag" id="result-tag" hidden>Filtered</span>
-      <select
-        class="group-select result-sort"
-        id="pr-sort-select"
-        aria-label={view === "issues"
-          ? "Sort issues by"
-          : "Sort pull requests by"}
-      >
-        <option value="">Sorted by Last activity</option>
-        <option value="created">Sorted by Created</option>
-        <option value="repo">Sorted by Repository</option>
-      </select>
+      <label class="result-sort-wrap">
+        <select
+          class="group-select result-sort"
+          id="pr-sort-select"
+          aria-label={view === "issues"
+            ? "Sort issues by"
+            : "Sort pull requests by"}
+        >
+          <option value="">Sorted by Last activity</option>
+          <option value="created">Sorted by Created</option>
+          <option value="repo">Sorted by Repository</option>
+        </select>
+      </label>
       <button
         type="button"
         class="clear-filters"

@@ -144,18 +144,21 @@ has the same button and Escape, and so does the search box on Main branches
 ## The result bar
 
 The last row of the filter bar is one line with the count, whether a filter is
-With no filter it reads "42 pull
-requests" and draws no **Filtered** tag and no **Clear filters** button. With a
-filter on it reads "12 of 42 pull requests", draws the **Filtered** tag (text,
-so the state is never colour alone) and the button, which resets every group.
-The sort select is 32px high and its options read "Sorted by Last activity",
-"Sorted by Created" and "Sorted by Repository". On a phone this row stays in
-the bar while the rest of the filters fold into the Filters sheet, and the
-select keeps a 44px tap target. A polite live region says the same "N of M" when
-a filter or a refresh changes the count; it says nothing on first load. The
-menu pill is not part of this: it keeps the unfiltered totals, and its link keeps
-the numbers in its name. The Issues, Releases and Bots pages draw the same bar
-with their own noun, and the board header's own count is unchanged.
+on, the sort and **Clear filters**. With no filter it reads "42 pull requests"
+and draws no **Filtered** tag and no **Clear filters** button. With a filter on
+it reads "12 of 42 pull requests", draws the **Filtered** tag (text, so the
+state is never colour alone, and over 4.5:1 in light and dark) and the button,
+which resets every group. The sort select is 32px high and its options read
+"Sorted by Last activity", "Sorted by Created" and "Sorted by Repository". On a
+phone this row stays in the bar while the rest of the filters fold into the
+Filters sheet. The **Filters** button leads the line, beside the count, and the
+sort and **Clear filters** wrap to a second line. The select stays 32px and the
+label around it carries the 44px tap target. A polite live region says the same
+"N of M" when a filter or a refresh changes the count; it says nothing on first
+load. The menu pill is not part of this: it keeps the unfiltered totals, and its
+link keeps the numbers in its name. The Issues, Releases, and Bots pages draw the
+same bar with their own noun. The board header's own count ("4 open", "Showing 1
+of 2") is a separate line that the bulk actions use, and is unchanged.
 
 ## Short lists
 

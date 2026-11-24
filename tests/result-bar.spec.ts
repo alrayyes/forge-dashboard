@@ -97,7 +97,7 @@ for (const [name, width, height] of [
       await expect(page.locator('.row')).toHaveCount(4);
     });
 
-    test('the sort select sits in the bar, is 32px high (44px on a phone) and reads "Sorted by <choice>"', async ({
+    test('the sort select sits in the bar, is 32px high on every width and reads "Sorted by <choice>"', async ({
       page,
     }) => {
       const sort = bar(page).locator('#pr-sort-select');
@@ -107,13 +107,36 @@ for (const [name, width, height] of [
         'Sorted by Last activity',
       );
       const box = await sort.boundingBox();
-      // A phone keeps its 44px tap target (the bar's own rule for controls).
-      expect(Math.round(box?.height ?? 0)).toBe(width > 760 ? 32 : 44);
+      expect(Math.round(box?.height ?? 0)).toBe(32);
+      // A phone's 44px target is the label around it, not a taller select.
+      const wrap = await bar(page).locator('.result-sort-wrap').boundingBox();
+      expect(Math.round(wrap?.height ?? 0)).toBe(width > 760 ? 32 : 44);
       await sort.selectOption('created');
       await expect(sort.locator('option:checked')).toHaveText(
         'Sorted by Created',
       );
     });
+
+    if (width <= 760) {
+      test('the Filters button leads the same line as the count', async ({
+        page,
+      }) => {
+        const trigger = await bar(page)
+          .locator('#filters-button')
+          .boundingBox();
+        const count = await bar(page).locator('#result-count').boundingBox();
+        expect(trigger).not.toBeNull();
+        expect(count).not.toBeNull();
+        expect(
+          Math.abs(
+            (trigger?.y ?? 0) +
+              (trigger?.height ?? 0) / 2 -
+              ((count?.y ?? 0) + (count?.height ?? 0) / 2),
+          ),
+        ).toBeLessThan(8);
+        expect(trigger?.x ?? 0).toBeLessThan(count?.x ?? 0);
+      });
+    }
 
     test('the menu pill keeps the unfiltered total and its name says the numbers', async ({
       page,
@@ -140,8 +163,15 @@ for (const [name, width, height] of [
       await expect(live).toHaveText('4 pull requests');
     });
 
-    test('axe finds nothing in the bar, filtered or not', async ({ page }) => {
-      for (const text of ['', 'Alpha']) {
+    test('axe finds nothing in the bar, filtered or not, light and dark (the Filtered tag keeps 4.5:1)', async ({
+      page,
+    }) => {
+      for (const [text, scheme] of [
+        ['', 'light'],
+        ['Alpha', 'light'],
+        ['Alpha', 'dark'],
+      ] as const) {
+        await page.emulateMedia({ colorScheme: scheme });
         await filterTo(page, text);
         await expect(bar(page).locator('#result-count')).toContainText(
           text ? '2 of 4' : '4 pull',
