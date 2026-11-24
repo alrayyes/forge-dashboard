@@ -17,7 +17,7 @@ import (
 // its repoStatus{} literal by naming only Forge/FullName/HasWebhook/
 // Ignored, silently dropping dashboard.Repo's own URL and
 // CanManageWebhooks even though both are documented in
-// api/openapi.yaml's RepoStatus schema and read by the webhooks page.
+// api/openapi.yaml's RepoStatus schema and read by Settings, Repositories.
 // Every other test covering this page mocks /api/v1/dashboard's response
 // directly with hand-crafted JSON that already includes these fields,
 // which is exactly why the real backend's gap went unnoticed — this one

@@ -101,24 +101,6 @@ test.describe('a forge named like an inherited key (#4179)', () => {
     );
   });
 
-  test('the webhooks table badges the id with no colour class', async ({
-    page,
-  }) => {
-    await mockDashboard(page, {
-      repos: IDS.map((id) => ({
-        forge: id,
-        fullName: `lab/${id}`,
-        hasWebhook: true,
-      })),
-    });
-    await page.goto('/webhooks.html');
-
-    const badges = page.locator('#webhooks-rows .forge-badge');
-    await expect(badges).toHaveText(IDS_ANY_ORDER);
-    for (const badge of await badges.all())
-      await expect(badge).toHaveAttribute('class', /^forge-badge\s*$/);
-  });
-
   test('the Branches page names the id, and an unknown reason shows the unknown wording', async ({
     page,
   }) => {

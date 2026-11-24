@@ -2,18 +2,18 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// Insights, Settings and Webhooks take their data from the layout's one
+// Insights and Settings take their data from the layout's one
 // /api/v1/dashboard read (#1801). While the first refresh runs the server answers
 // with an empty `firstRefreshDone:false` snapshot, so the pages must follow the
 // later answers until one is done. A read that was aborted or hit a 5xx must
 // not freeze a page on its empty state; a 4xx is final.
 
 // Every page runs the same layout code for this read, so the full set (the
-// abort and the 401 too) runs on Insights. Settings and Webhooks each have their
-// own effect that follows the layout's answers, so each keeps the two cases that
+// abort and the 401 too) runs on Insights. Settings has its
+// own effect that follows the layout's answers, so it keeps the two cases that
 // effect decides: following a not-done snapshot until a done one, and recovering
-// from a 500. Settings' 401 and Webhooks' poll-versus-edited-rows case are at the
-// end.
+// from a 500. Settings' 401 and the Repositories poll-versus-edited-rows case
+// are at the end.
 const PAGES = [
   {
     name: 'Insights',
@@ -26,20 +26,11 @@ const PAGES = [
   },
   {
     name: 'Settings',
-    url: '/settings.html',
-    shows: '#webhook-coverage-count',
-    text: '1 of 2 confirmed',
+    url: '/settings.html#repositories',
+    shows: '#repositories-rows',
+    text: 'alrayyes/held',
     empty: undefined,
     redirects: false,
-    full: false,
-  },
-  {
-    name: 'Webhooks',
-    url: '/webhooks.html',
-    shows: '#webhooks-table',
-    text: 'alrayyes/held',
-    empty: 'Nothing tracked yet',
-    redirects: true,
     full: false,
   },
 ];

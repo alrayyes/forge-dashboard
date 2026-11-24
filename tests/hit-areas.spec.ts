@@ -1035,11 +1035,10 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
     expectNone(problems);
   });
 
-  test('webhooks, changelog, disclaimer and privacy', async ({ page }) => {
+  test('changelog, disclaimer and privacy', async ({ page }) => {
     const problems: string[] = [];
     await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
     for (const path of [
-      '/webhooks.html',
       '/changelog.html',
       '/disclaimer.html',
       '/privacy.html',
@@ -1048,89 +1047,6 @@ test.describe('hit areas on the pages that read the server (#1753)', () => {
       await page.waitForLoadState('networkidle');
       await sweepAll(page, path, problems);
     }
-    expectNone(problems);
-  });
-
-  // https://github.com/alrayyes/forge-dashboard/issues/1825
-  // The sweep above loads Webhooks with no repos, so it never saw the table.
-  test('webhooks with repos loaded, the whole page', async ({ page }) => {
-    const problems: string[] = [];
-    const repo = (name: string, extra: Record<string, unknown> = {}) => ({
-      forge: 'github',
-      fullName: `alrayyes/${name}`,
-      url: `https://github.com/alrayyes/${name}`,
-      hasWebhook: true,
-      canManageWebhooks: true,
-      ignored: false,
-      ignoredPRs: false,
-      ignoredIssues: false,
-      autoUpdateBranch: false,
-      rebaseBots: false,
-      ...extra,
-    });
-    // A filter that keeps every repo, so Clear filters is enabled and swept.
-    await page.route('**/api/v1/settings/filter-state', (route) =>
-      route.request().method() === 'GET'
-        ? route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ webhooks: { repo: 'alrayyes' } }),
-          })
-        : route.fulfill({ status: 204 }),
-    );
-    await mockDashboard(page, PULL_REQUESTS, [
-      repo('one'),
-      repo('two', { autoUpdateBranch: true, rebaseBots: true }),
-      repo('three', { hasWebhook: false }),
-      repo('four', { hasWebhook: false, canManageWebhooks: false }),
-      repo('five', { ignored: true, ignoredPRs: true }),
-    ]);
-    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/webhooks.html');
-    await ready(page, '#webhooks-table tbody tr');
-    await expect(
-      page.getByRole('button', { name: 'Clear filters' }),
-    ).toBeEnabled();
-    await sweepAll(page, '/webhooks.html with repos', problems);
-    expectNone(problems);
-  });
-
-  test('webhooks with repos and a filter set, so Clear filters is enabled', async ({
-    page,
-  }) => {
-    const problems: string[] = [];
-    await page.route('**/api/v1/settings/filter-state', (route) =>
-      route.request().method() === 'GET'
-        ? route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body: JSON.stringify({ webhooks: { repo: 'acme' } }),
-          })
-        : route.fulfill({ status: 204 }),
-    );
-    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/v1/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [],
-          pullRequests: [],
-          issues: [],
-          repos: [{ forge: 'github', fullName: 'acme/app', hasWebhook: true }],
-        }),
-      }),
-    );
-    await page.setViewportSize({ width: PHONE.width, height: PHONE.height });
-    await page.goto('/webhooks.html');
-    await expect(
-      page.getByRole('button', { name: 'Clear filters' }),
-    ).toBeEnabled();
-    // Scoped to the filter bar; the whole page is swept in the case above.
-    await sweepAll(page, '/webhooks.html (filtered)', problems, {
-      within: '#webhooks-filter-bar',
-    });
     expectNone(problems);
   });
 

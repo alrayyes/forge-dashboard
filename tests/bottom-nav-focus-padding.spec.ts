@@ -68,7 +68,6 @@ async function mock(page: Page) {
 const PAGES = [
   ['/pull-requests.html', '.row'],
   ['/issues.html', '.row'],
-  ['/webhooks.html', '#webhooks-table tbody tr'],
 ] as const;
 
 test.describe('focus clears the bottom nav at 390px', () => {

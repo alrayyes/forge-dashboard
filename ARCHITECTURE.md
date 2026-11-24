@@ -248,8 +248,8 @@ max-age=31536000, immutable`; every other file gets `no-cache` and a weak
   thing. What it writes: the pull request actions you press (merge, enable
   or cancel auto-merge, update branch, close, re-run failed checks, the
   Dependabot and Renovate rebase), the same actions it runs for you when you
-  queue them or turn on auto-update or auto-merge, and the webhook it adds
-  when you click "Add a webhook", plus the events it adds to a webhook it
+  queue them or turn on auto-update or auto-merge, and the webhooks it
+  creates on its own, plus the events it adds to a webhook it
   created earlier (a Forgejo token needs write access for that, since its
   hooks API has no separate read-only scope).
 - **Every forge request is counted.** A counting transport sits under each

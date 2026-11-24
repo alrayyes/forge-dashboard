@@ -12,97 +12,67 @@ you're tracking shows up within seconds instead of at the next poll. Nothing
 about this is required for the dashboard to work; skip this page entirely and
 everything still functions exactly as it did before.
 
-Settings' own Webhooks card shows a "Webhook coverage" summary once
-you're tracking any repos, linking to its own page (`/webhooks.html`)
-that lists every tracked repo and whether this dashboard has confirmed
-a webhook for it — setup status lives with the rest of setup, not on
-the main dashboard next to the pull request/issue boards it has
-nothing to do with. It checks the forge's own webhook list directly, so a
-repo with one already pointed at this dashboard shows as confirmed
-immediately, not once something happens to trigger it — no waiting on
-a real event to arrive. That live check can fail (rate limiting, an
-unreachable forge, a token missing the webhook-list scope — see
-Settings' own field hints for what that is per forge), in which case it
-falls back to whether this app has ever actually received a
-signature-verified delivery for that repo, the same passive signal this
-whole page is otherwise about. For why a forge refuses requests,
-see [Rate limits](rate-limits.md).
+Which repos have a confirmed webhook isn't a page of its own. A repo without
+one says so where you already work: Branches marks it with a "Polling only"
+chip, and Settings, Repositories gives its row the reason and the fix (see
+[Polling only](#polling-only)). The dashboard checks the forge's own webhook
+list directly, so a repo with one already pointed at this dashboard counts as
+confirmed immediately, not once something happens to trigger it. That live check
+can fail (rate limiting, an unreachable forge, a token missing the webhook-list
+scope; Settings' own field hints say what that is per forge), in which case it
+falls back to whether this app has ever received a signature-verified delivery
+for that repo. For why a forge refuses requests, see
+[Rate limits](rate-limits.md).
 
-The page remembers its forge buttons, repo search, status select, and sort
-the way the pull request and issue pages remember theirs: they are still set
-when you come back, and on another browser once you sign in. The page you were
-on and the page size are not remembered. A "Clear filters" button is on
-the page as on the other lists. It is enabled while any of them differs from
-its default, and puts them all back, including after a saved repo search that
-matches nothing.
+The old Webhooks page (`/webhooks.html`) is gone. Its address, and `/webhooks`,
+send you to Settings, Repositories. The per-repo controls (Auto-update,
+bot-rebase and Ignore) live in that group, described under
+[Pull request actions](pull-request-actions.md). Settings' Webhooks card is
+still there for the manual steps below: it holds this dashboard's webhook URL
+and secret.
 
-The per-repo controls moved to Settings, in the Repositories group
-(`/settings.html#repositories`). Each row there has an Auto-update toggle, a
-bot-rebase toggle and an Ignore select; the header buttons `Rebase bots on for
-N repos` and `Rebase bots off for N repos` switch every repo that needs it. See
-[Pull request actions](pull-request-actions.md) for what each one does. A repo
-whose forge is a GitHub App with no saved personal access token has its
-bot-rebase toggle greyed, with the reason beside it.
-
-On a phone the table turns into cards and its header is hidden. A "Sort by"
-select over the cards takes over, with the same choices as the column
-headers: repo, forge or webhook, in either direction. It is the same saved
-sort, so a choice made on a phone shows in the column headers on a wide screen.
-
-A repo the dashboard can't fetch gets a "Failing since" badge next to its name,
-with the time its fetch first failed. Its pull requests and issues are then the
-last ones the dashboard could read. Once a repo has failed past the cutoff
-described under [Rate limits](rate-limits.md), the badge reads "Still failing
-since" and the note says retrying hasn't helped. The page learns that at the
-next refresh, so a repo crossing the cutoff keeps the shorter wording until
-then. The badge goes when a fetch succeeds, and the time starts again after a
-restart.
-
-## The retry path: "Add a webhook"
+## When the dashboard can't create a hook
 
 The dashboard creates and repairs hooks itself (see
 [What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)).
-On the Webhooks page, a repo still without a confirmed webhook, because the
-forge refused it or the dashboard is waiting out its retry wait, gets an "Add a
-webhook" button. It creates one via the forge's own API, pointed at
-this dashboard's URL and secret, subscribed to every event the table
-below recommends. If a forge-dashboard webhook already exists there but
-is turned off, has a different secret or is missing an event, clicking it fixes
-that one up in place rather than creating a second, duplicate hook.
+It creates one via the forge's own API, pointed at this dashboard's URL and
+secret, subscribed to every event the table below recommends. If a
+forge-dashboard webhook already exists there but is turned off, has a different
+secret or is missing an event, it is fixed in place rather than duplicated. A
+repo the forge refused, or one the dashboard is waiting out a retry on, is
+tried again on its own, with nothing to press: a refusal after an hour, a
+rate-limited or unreachable forge on a later refresh.
 
-This needs a broader token scope than just reading your repos — GitHub's
-fine-grained tokens need the Webhooks permission set to **Read and
-write**, and Forgejo's `write:repository` (already required just to
-check coverage, since Forgejo's webhook API has no separate read-only
-scope). See Settings' own field hints for the exact scope per forge. If
-your token can't or won't take that scope, the manual steps below are
-still the fallback — nothing here requires the button.
+This needs a broader token scope than just reading your repos. GitHub's
+fine-grained tokens need the Webhooks permission set to **Read and write**, and
+Forgejo's `write:repository` (already required just to check coverage, since
+Forgejo's webhook API has no separate read-only scope). See Settings' own field
+hints for the exact scope per forge. If your token can't or won't take that
+scope, the manual steps below are the fallback.
 
-A GitHub App connection has no role on a repo, so the button shows wherever
-listing that repo's webhooks works. That needs the App's **Repository
-permissions → Webhooks** set to **Read and write** (not the organization-level
-Webhooks permission). Listing only proves read access: an App with read-only
-Webhooks shows the button, and the click is refused with a message naming the
-permission. After you change an installed App's permissions, accept the change
-on the installation's page, or GitHub keeps the old ones.
+A GitHub App connection has no role on a repo, so it needs the App's
+**Repository permissions → Webhooks** set to **Read and write** (not the
+organization-level Webhooks permission). Listing only proves read access: an App
+with read-only Webhooks lists fine, and the create is refused with a message
+naming the permission. After you change an installed App's permissions, accept
+the change on the installation's page, or GitHub keeps the old ones.
 
-A row is locked, with the missing permission named, only when GitHub refuses
-the listing outright ("Resource not accessible by integration", or the repo
-isn't in the installation). A server error, a rate limit, or a bad credential
-says nothing about the permission, so it leaves the row as it was.
+A repo is skipped with the missing permission named only when GitHub refuses the
+listing outright ("Resource not accessible by integration", or the repo isn't in
+the installation). A server error, a rate limit, or a bad credential says
+nothing about the permission, so it leaves the repo as it was.
 
-On Forgejo the button needs admin on the repo. The dashboard reads that from
-the `permissions` object Forgejo sends with each repo. Forgejo and Gitea set
-it on every repo, so a missing one is rare; when it happens the row says
-Forgejo didn't report your access, instead of telling you to ask an owner,
-because nothing says you aren't an admin.
+On Forgejo the dashboard needs admin on the repo. It reads that from the
+`permissions` object Forgejo sends with each repo. Forgejo and Gitea set it on
+every repo, so a missing one is rare; when it happens the reason says Forgejo
+didn't report your access, instead of telling you to ask an owner, because
+nothing says you aren't an admin.
 
-With no Forgejo token saved, the dashboard lists your public repos by
-username and Forgejo answers as an anonymous caller, so it reports no admin
-rights on any of them. Those rows say a saved token is needed and link to
-Settings, instead of telling you to ask an owner. Once a token is saved, a
-row that says it needs admin access means the account isn't an admin on
-that repo, or the saved token lacks admin scope.
+With no Forgejo token saved, the dashboard lists your public repos by username
+and Forgejo answers as an anonymous caller, so it reports no admin rights on any
+of them. Those repos say a saved token is needed and link to Settings. Once a
+token is saved, a repo that says it needs admin access means the account isn't
+an admin on that repo, or the saved token lacks admin scope.
 
 A GitHub fine-grained token also gates _which_ repos it can see at all,
 separately from the preceding permissions — set at token creation, either
@@ -154,8 +124,8 @@ the same refresh in case that doesn't fire.
 
 ## Why a repo has no webhook
 
-A repo without a hook says why on its row in the Webhooks page, in one line,
-with the longer text on hover or keyboard focus. The reason comes from the
+A repo without a hook says why on its row in Settings, Repositories, in one
+line, with the longer text on hover or keyboard focus. The reason comes from the
 server as `webhookReason`, and the page words it:
 
 - `no_permission`: the token can't administer hooks on that repo. The row's
@@ -179,9 +149,8 @@ of the dashboard, not the moment the pass ends.
 
 A public address that can't receive hooks (localhost, a private network
 address, or plain HTTP on a public name) is the same problem for every repo, so
-it is said once at the top of the list rather than on each row. It shows only while
-some repo could have a hook created and doesn't. Fix `RP_ORIGIN` and the next
-refresh creates them.
+each repo without a hook says the forge can't reach this dashboard. Fix
+`RP_ORIGIN` and the next refresh creates them.
 
 ## Polling only
 
@@ -244,7 +213,7 @@ was accepted.
    Review Approved**, **Pull Request Review Rejected**, **Pull Request
    Review Comment**, **Push**, **Status**, **Action Run Failure** and
    **Action Run Success**. ("All Events" works too, same
-   reasoning as the preceding GitHub section.) A webhook the button creates
+   reasoning as the preceding GitHub section.) A webhook the dashboard creates
    through the API needs no extra ticks: Forgejo's **Pull Request** and
    **Issue** types already deliver comments and reviews on those items.
 6. Leave it **Active**, then **Add Webhook**.
@@ -331,13 +300,13 @@ with admin on the repo.
   after that makes no extra write. A forge that is rate limited or unreachable
   is asked again on a later refresh, and the fingerprint waits for it. A repo
   the forge refuses, or answers with an authorization error, is logged and
-  left to the "Add a webhook" button. Which repos are done is kept in memory,
+  tried again later. Which repos are done is kept in memory,
   so a restart in the middle of a rotation edits them again, which is safe.
 - **A secret changed before this existed isn't detected.** The first start
   after this was introduced records the secret in use as the baseline and
   rewrites nothing, since there is nothing to compare against. A hook whose
   secret was replaced earlier still holds the old one, and its repo needs
-  "Add a webhook" once.
+  its hook fixed by hand once (see the manual steps).
 - **A repo the token can't administer**, a forge that is unreachable or out of
   REST budget, and a repo the forge refuses are skipped without failing the
   refresh. The dashboard asks a refused repo again after an hour, with no
@@ -348,8 +317,8 @@ with admin on the repo.
   reason changes.
 
 Requests run at most four at a time, each after a short random pause, and are
-logged under the hook-maintenance kind. The "Add a webhook" button remains the
-manual retry for a locked or skipped row.
+logged under the hook-maintenance kind. A locked or skipped repo is
+tried again on a later refresh.
 
 ## Troubleshooting
 
@@ -396,5 +365,5 @@ manual retry for a locked or skipped row.
 - **You want to rotate the secret**: there's no button for it. The secret is
   generated once, the first time the Settings page is opened. If it is
   replaced in the database, the next refresh rewrites it on every hook the
-  dashboard made (see "What the dashboard checks on its own"); no clicking
-  "Add a webhook" per repo.
+  dashboard made (see "What the dashboard checks on its own"), with nothing to
+  click per repo.

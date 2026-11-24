@@ -8,7 +8,6 @@ import {
   forgeNameList,
   noReposCopy,
   pageDescription,
-  permissionsNotReportedCopy,
   scheduledOnCopy,
   settingsDescription,
 } from './forge-copy';
@@ -96,32 +95,9 @@ describe('forge copy comes from the label', () => {
   });
 });
 
-describe('permissionsNotReportedCopy', () => {
-  test('names the forge by its label', () => {
-    expect(permissionsNotReportedCopy('forgejo')).toBe(
-      "Forgejo didn't report your access on this repo, so the dashboard can't tell if you can manage its webhooks.",
-    );
-  });
-
-  test('a registered third forge reads with its own label', () => {
-    registerForgeCapabilities([
-      {
-        forge: 'gitea',
-        capabilities: { label: 'Gitea', reportsRepoPermissions: true },
-      },
-    ]);
-
-    expect(permissionsNotReportedCopy('gitea')).toStartWith(
-      "Gitea didn't report your access",
-    );
-  });
-});
-
 describe('appConnectionCopy', () => {
   test('keeps the GitHub wording for GitHub', () => {
     expect(appConnectionCopy('github')).toEqual({
-      missingWebhookPermission:
-        'Give your GitHub App the Webhooks (read and write) permission, then accept it on the installation, or ',
       dependabotNeedsToken:
         'Dependabot needs a personal access token when a GitHub App is connected.',
     });
@@ -132,7 +108,6 @@ describe('appConnectionCopy', () => {
       { forge: 'gitea', capabilities: { label: 'Gitea' } },
     ]);
     const copy = appConnectionCopy('gitea');
-    expect(copy.missingWebhookPermission).toContain('Give your Gitea App');
     expect(copy.dependabotNeedsToken).toContain(
       'when a Gitea App is connected',
     );

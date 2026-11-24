@@ -37,7 +37,7 @@ describe('currentFooterLink', () => {
       '/login.html',
       '/settings.html',
       '/insights',
-      '/webhooks.html',
+      '/issues.html',
       '/some/crashed/address',
       '/privacy/extra',
     ]) {

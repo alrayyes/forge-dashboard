@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount, tick, untrack } from "svelte";
+  import { onDestroy, onMount, tick } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import Disclosure from "#lib/Disclosure.svelte";
   import { installationIdPayload } from "#lib/installation-id.js";
@@ -559,9 +559,6 @@
   let webhookCopyStatus = $state("");
   let webhookCopyStatusKind = $state<"" | "error" | "ok">("");
 
-  let webhookCoverageVisible = $state(false);
-  let webhookCoverageCount = $state("");
-
   function copyToClipboard(
     value: string,
     onResult: (message: string, kind: "ok" | "error") => void,
@@ -1115,25 +1112,6 @@
       clearInterval(clock);
       window.removeEventListener("hashchange", openFromHash);
     };
-  });
-
-  // The webhook coverage summary: the summary-only view of the layout's one
-  // /api/v1/dashboard read (#1801), following its answers until one is done.
-  // /webhooks.html has the per-repo detail. A final failure leaves the summary
-  // hidden; this page's own settings form is where a real error banner belongs.
-  $effect(() => {
-    const { state, data } = dashboardRead;
-    if (state === "pending") return;
-    untrack(() => {
-      const repos = (data?.repos as { hasWebhook: boolean }[]) || [];
-      if (!repos.length) {
-        webhookCoverageVisible = false;
-        return;
-      }
-      const withWebhook = repos.filter((r) => r.hasWebhook).length;
-      webhookCoverageCount = `${withWebhook} of ${repos.length} confirmed`;
-      webhookCoverageVisible = true;
-    });
   });
 </script>
 
@@ -1870,8 +1848,7 @@
                   Needs read-only access to your repos, their issues, pull
                   requests, and commit status, plus read/write access to each
                   repo's webhooks — to show whether one's already pointed at
-                  this dashboard, and to create or fix one up when you click
-                  "Add a webhook" (see the Webhooks page).
+                  this dashboard, and to create or fix one up on its own.
                   <a
                     href="https://github.com/settings/tokens/new?scopes=repo&amp;description=forge-dashboard"
                     target="_blank"
@@ -1955,7 +1932,7 @@
                   rate-limit pool instead of your account's shared budget.
                   Install the App, then paste the installation ID GitHub shows
                   you here. Your token above stays saved as a fallback but is
-                  ignored while this is set. For "Add a webhook" the App also
+                  ignored while this is set. To create webhooks the App also
                   needs Repository permissions, Webhooks (Read and write);
                   accept the change on the installation if you added it later.
                 {:else}
@@ -2082,8 +2059,7 @@
                 <p>
                   Needs your repos and their issues/pull requests, plus each
                   repo's webhooks — to show whether one's already pointed at
-                  this dashboard, and to create or fix one up when you click
-                  "Add a webhook" (see the Webhooks page).
+                  this dashboard, and to create or fix one up on its own.
                   {#if forgejoTokenLink}
                     <a
                       id="forgejo-token-link"
@@ -2506,17 +2482,6 @@
             aria-live="polite"
           >
             {webhookCopyStatus}
-          </p>
-          <p
-            class="hint"
-            id="webhook-coverage-summary"
-            hidden={!webhookCoverageVisible}
-          >
-            <span id="webhook-coverage-count">{webhookCoverageCount}</span>
-            &middot;
-            <a href="/webhooks.html">
-              See which repos, and add a webhook &rarr;
-            </a>
           </p>
         </div>
 

@@ -288,7 +288,6 @@ async function routeRich(page: Page) {
 const WIDE_PAGES = [
   '/pull-requests.html',
   '/issues.html',
-  '/webhooks.html',
   '/insights.html',
   '/bots.html',
   '/releases.html',

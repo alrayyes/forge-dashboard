@@ -6,13 +6,13 @@ import { test } from './server-fixture';
 // https://github.com/alrayyes/forge-dashboard/issues/3830
 //
 // At a 125% root font size on a 390px phone the bottom tab bar stayed on one
-// row, so "Insights" and "Webhooks" collided and "Branches" and "Settings"
+// row, so neighbouring labels collided and "Branches" and "Settings"
 // ran off the viewport edges. Every tab must keep clear of its neighbours and
 // inside the viewport at each text size, and the bar stays one row with 44px
 // hit areas at the default size.
 
 async function open(page: Page, width: number, pct: number) {
-  // Every tab is drawn only for a known count above zero (#4276), so all eight
+  // Every tab is drawn only for a known count above zero (#4276), so all seven
   // show once each page has something to list.
   await page.route('**/api/v1/dashboard/stream*', (r) => r.abort());
   await page.route('**/api/v1/dashboard*', (r) =>
@@ -40,7 +40,7 @@ async function open(page: Page, width: number, pct: number) {
       content: `html { font-size: ${pct}% !important; }`,
     });
   }
-  await expect(page.locator('.bottom-nav-label')).toHaveCount(8);
+  await expect(page.locator('.bottom-nav-label')).toHaveCount(7);
   await page.evaluate(() => document.fonts.ready);
 }
 
@@ -117,8 +117,8 @@ test.describe('bottom nav at larger text sizes (#3830)', () => {
       const m = await measure(page);
       expect(m.problems).toEqual([]);
       expect(m.minHeight).toBeGreaterThanOrEqual(44);
-      // 44px wide from 360px up; 32px below it, over WCAG 2.5.8's 24px.
-      expect(m.minWidth).toBeGreaterThanOrEqual(width >= 360 ? 44 : 32);
+      // 44px wide from 322px up; 32px below it, over WCAG 2.5.8's 24px.
+      expect(m.minWidth).toBeGreaterThanOrEqual(width >= 322 ? 44 : 32);
     });
   }
 

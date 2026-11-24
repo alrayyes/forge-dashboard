@@ -17,7 +17,6 @@ import {
   touchAll,
   touchKey,
 } from './filters';
-import { type WebhooksFilter, webhooksFilterToState } from './webhooks-filter';
 
 // A shared control (title, forge, repo, author, label) was changed. A pick held
 // back for it is let go, since this is the user's own change.
@@ -136,48 +135,4 @@ export function releaseHeldPick(
   touchKey(pick.group, pick.key);
   saveState(state);
   return heldPicks();
-}
-
-// The Webhooks filter changed. The keys are touched before the save, so a
-// server copy still loading does not overwrite them (#1713). Another tab may
-// have saved its own filters since this page loaded; the cookie is shared, so
-// start from it and change only this page's group. Returns the state to keep.
-export function saveWebhooksFilter(
-  saved: SharedFilterState,
-  filter: WebhooksFilter,
-  keys: string[],
-  freeText = false,
-): SharedFilterState {
-  for (const key of keys) touchKey('webhooks', key);
-  let next = saved;
-  if (document.cookie.includes('forge-board-filters='))
-    next = { ...readCookieState(), webhooks: {} };
-  next.webhooks = webhooksFilterToState(filter);
-  saveState(next, freeText ? 'title' : undefined);
-  return next;
-}
-
-export type WebhooksControl = 'forge' | 'repo' | 'status' | 'sort' | 'clear';
-
-const WEBHOOKS_KEYS: Record<WebhooksControl, string[]> = {
-  forge: ['forge'],
-  repo: ['repo'],
-  status: ['status'],
-  sort: ['sort', 'dir'],
-  clear: ['forge', 'repo', 'status', 'sort', 'dir'],
-};
-
-// A Webhooks control changed: the keys it owns are touched and saved. The repo
-// box is free text, so its save waits for a pause in typing.
-export function saveWebhooksControl(
-  saved: SharedFilterState,
-  filter: WebhooksFilter,
-  control: WebhooksControl,
-): SharedFilterState {
-  return saveWebhooksFilter(
-    saved,
-    filter,
-    WEBHOOKS_KEYS[control],
-    control === 'repo',
-  );
 }

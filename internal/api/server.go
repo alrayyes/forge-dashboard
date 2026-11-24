@@ -266,8 +266,6 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /issues.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /insights.js", requireAuthPage(deps.AuthStore, privateFiles))
-	mux.Handle("GET /webhooks.html", requireAuthPage(deps.AuthStore, privateFiles))
-	mux.Handle("GET /webhooks.js", requireAuthPage(deps.AuthStore, privateFiles))
 	// Release pull requests, with their own actions (#1107). This was the
 	// changelog's address until #1108, which redirected it; the redirect is
 	// gone now that the name means this page.
@@ -285,6 +283,13 @@ func NewMux(deps Deps) http.Handler {
 	mux.HandleFunc("GET /main-branches.html", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/", http.StatusMovedPermanently)
 	})
+	// The Webhooks page's old addresses, kept so a bookmark still lands on its
+	// per-repo controls (#4029).
+	for _, old := range []string{"GET /webhooks.html", "GET /webhooks"} {
+		mux.HandleFunc(old, func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "/settings.html#repositories", http.StatusMovedPermanently)
+		})
+	}
 	mux.Handle("GET /", publicFiles)
 	// An unknown API path is JSON, never the page for people (#1175). It covers
 	// all of /api/, so a wrong-method webhook call and a bare /api/v1 answer

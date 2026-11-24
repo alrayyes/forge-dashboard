@@ -158,12 +158,7 @@ test.describe('empty pages leave the navigation (#1228)', () => {
       await expect(header(page, href)).toHaveCount(0);
       await expect(tab(page, href)).toHaveCount(0);
     }
-    for (const href of [
-      '/',
-      '/insights.html',
-      '/webhooks.html',
-      '/settings.html',
-    ]) {
+    for (const href of ['/', '/insights.html', '/settings.html']) {
       await expect(header(page, href)).toHaveCount(1);
       await expect(tab(page, href)).toHaveCount(1);
     }

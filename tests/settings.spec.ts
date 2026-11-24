@@ -474,17 +474,10 @@ test.describe('settings page', () => {
     expect(clipboardText).toBe(expected);
   });
 
-  test('webhook coverage summary is hidden with no tracked repos', async ({
+  test('the Webhooks card keeps the manual URL and secret, with no coverage line or link to the removed page (#4029)', async ({
     page,
   }) => {
-    await page.goto('/settings.html#integrations');
-
-    await expect(page.locator('#webhook-coverage-summary')).toBeHidden();
-  });
-
-  test('webhook coverage summary shows the count and links to the webhooks page', async ({
-    page,
-  }) => {
+    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await page.route('**/api/v1/dashboard*', (route) =>
       route.fulfill({
         status: 200,
@@ -496,23 +489,15 @@ test.describe('settings page', () => {
           issues: [],
           repos: [
             { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-            { forge: 'github', fullName: 'alrayyes/b', hasWebhook: false },
-            { forge: 'forgejo', fullName: 'alrayyes/c', hasWebhook: false },
           ],
         }),
       }),
     );
     await page.goto('/settings.html#integrations');
 
-    const summary = page.locator('#webhook-coverage-summary');
-    await expect(summary).toBeVisible();
-    await expect(page.locator('#webhook-coverage-count')).toHaveText(
-      '1 of 3 confirmed',
-    );
-    await expect(summary.getByRole('link')).toHaveAttribute(
-      'href',
-      '/webhooks.html',
-    );
+    await expect(page.locator('#webhook-url-github')).toHaveValue(/.+/);
+    await expect(page.locator('#webhook-coverage-summary')).toHaveCount(0);
+    await expect(page.locator('a[href="/webhooks.html"]')).toHaveCount(0);
   });
 
   test.describe('Passkeys (#355)', () => {
@@ -1042,7 +1027,7 @@ test.describe('settings page', () => {
 
   // One scan for the whole Integrations group (#1381): the fixture shows
   // everything its former one-off scans covered at once. That is the webhook
-  // coverage summary, a second passkey, a freshly revealed token that is also
+  // a second passkey, a freshly revealed token that is also
   // listed, and the custom expiry date field.
   test('has no axe-core violations on Integrations with every section populated', async ({
     page,
@@ -1065,7 +1050,7 @@ test.describe('settings page', () => {
       }),
     );
     await page.goto('/settings.html#integrations');
-    await expect(page.locator('#webhook-coverage-summary')).toBeVisible();
+    await expect(page.locator('#passkey-label')).toBeVisible();
 
     await page.fill('#passkey-label', 'YubiKey');
     await page.click('#passkey-form button[type="submit"]');

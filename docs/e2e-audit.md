@@ -136,7 +136,7 @@ class B in the CSV until one does.
 ### UI over state a component test could cover (class C)
 
 144 specs, 798 s. No lower test exists for most. Where a lib test partly matches
-(`dashboard`, `settings`, `webhooks-filter-choices`), the CSV names it.
+(`dashboard`, `settings`), the CSV names it.
 Confidence is low wherever no lower test was found.
 
 ### Browser-only (class A)
@@ -155,7 +155,7 @@ CSV, so the table is the state at its last regeneration.
 | 2   | `cancel-run`                | 24.5 s   | 22    | 7            | 16.7 s       | `cancel-run.test.ts` (proven); missing: dialog wording  |
 | 3   | `settings`                  | 21.5 s   | 49    | 11           | 16.7 s       | Go settings tests for server rules; missing: form state |
 | 4   | `settings-groups`           | 27.7 s   | 22    | 10           | 15.1 s       | `settings-groups.test.ts` (proven, hash routing only)   |
-| 5   | `webhooks-page`             | 17.4 s   | 58    | 8            | 15.0 s       | Missing: page state tests                               |
+| 5   | `webhooks-page` (deleted)   | 17.4 s   | 58    | 8            | 15.0 s       | Missing: page state tests                               |
 | 6   | `main-branches-page`        | 24.9 s   | 41    | 19           | 13.4 s       | `main-branch-snapshot-runs` partly; missing: page state |
 | 7   | `wait-chip`                 | 19.6 s   | 19    | 6            | 13.4 s       | `wait-chip.test.ts` (proven)                            |
 | 8   | `copy-failure`              | 15.0 s   | 16    | 3            | 12.2 s       | `CopyDetails` stories (proven); missing: row wiring     |

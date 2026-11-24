@@ -462,11 +462,11 @@ header,
 
 .bottom-nav-link {
   /* Sized by its word, then the spare width shared out evenly. Equal widths
-     left "Webhooks" wider than its tab on a phone, running into its
+     left a long word wider than its tab on a phone, running into its
      neighbours (#3288). min-width keeps a short word like "PRs" a wide
-     target: 44px from 360px up (hit-areas.spec.ts), and 32px below it,
-     over WCAG 2.5.8's 24px. 360px is seven 44px tabs plus the 50px
-     Webhooks tab (its 48px label and padding), rounded up. */
+     target: 44px from 322px up (hit-areas.spec.ts), and 32px below it,
+     over WCAG 2.5.8's 24px. 322px is the seven tabs measured at 319px
+     (PRs and Bots at 44px, the other five by their word), rounded up. */
   flex: 1 1 auto;
   min-width: 32px;
   display: flex;
@@ -486,7 +486,7 @@ header,
   border-radius: var(--radius);
 }
 
-@media (min-width: 360px) {
+@media (min-width: 322px) {
   .bottom-nav-link {
     min-width: 44px;
   }
@@ -494,7 +494,7 @@ header,
 
 /* Larger text (#3816, #3830). The width is in text sizes (em), so it follows
    the browser's font size: 304px at the default size and 608px at 200% for
-   19 of them. The eight tabs fit one row down to 320px at the default size,
+   19 of them. The seven tabs fit one row down to 320px at the default size,
    but their words grow with the text and the tabs don't, so at larger sizes
    the labels ran into each other. Here the tabs size by their word and drop to
    another row when a word no longer fits.
@@ -691,8 +691,8 @@ header,
   font-size: 0.6875rem;
   font-weight: 500;
 }
-/* Eight tabs share a 360px bar: a little smaller, and the tab's own padding
-   gives its room to the word (#1315). */
+/* Seven tabs share a bar of 380px or less: a little smaller, and the tab's
+   own padding gives its room to the word (#1315). */
 @media (max-width: 380px) {
   .bottom-nav-link {
     padding-inline: 1px;
@@ -1917,8 +1917,7 @@ select.col-filter {
    specificity, ballooning each input past its own label and over its
    neighbors' — confirmed live as exactly that: each input measuring
    120px wide regardless of its label's real size. */
-.filter-bar .forge-segmented input,
-.webhooks-filter-bar .forge-segmented input {
+.filter-bar .forge-segmented input {
   position: absolute;
   inset: 0;
   margin: 0;

@@ -24,7 +24,6 @@ const SIGNED_IN: Record<string, string | undefined> = {
   '/insights.html': undefined,
   '/bots.html': undefined,
   '/settings.html': undefined,
-  '/webhooks.html': undefined,
   '/changelog.html': 'v1.2.3',
   '/disclaimer.html': 'Disclaimer',
   '/privacy.html': 'Privacy',

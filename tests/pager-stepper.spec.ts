@@ -69,7 +69,6 @@ async function mock(page: Page) {
 const boards = [
   { name: 'pull requests', path: '/pull-requests.html', id: 'pr-pagination' },
   { name: 'issues', path: '/issues.html', id: 'issue-pagination' },
-  { name: 'webhooks', path: '/webhooks.html', id: 'webhooks-pagination' },
 ];
 
 for (const b of boards) {
@@ -250,31 +249,4 @@ test('pull requests pager stays quiet on a filter or size change (#3569)', async
   expect(
     await page.evaluate(() => (window as unknown as { __said: number }).__said),
   ).toBe(0);
-});
-
-// #3569: a filter on Webhooks sends the list back to page 1 and leaves the
-// last announcement ("Page 2 of 3") in the region. That is intentional: the
-// region only speaks on a person's page move, a screen reader ignores an
-// unchanged live region, and clearing it would be a second, unprompted
-// announcement of its own. This test pins that the text is left alone.
-test('webhooks keeps its last announcement when a filter resets the page', async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 390, height: 800 });
-  await mock(page);
-  await page.goto('/webhooks.html');
-
-  const root = '#webhooks-pagination';
-  const live = page.locator(`${root} [role="status"][aria-live="polite"]`);
-  await page
-    .locator(`${root} .pagination-nav`)
-    .filter({ hasText: 'Next' })
-    .click();
-  await expect(live).toHaveText('Page 2 of 3');
-
-  await page.locator('#webhooks-repo-filter').fill('repo-');
-  await expect(page.locator(`${root} .pagination-status`)).toHaveText(
-    'Page 1 of 3',
-  );
-  await expect(live).toHaveText('Page 2 of 3');
 });
