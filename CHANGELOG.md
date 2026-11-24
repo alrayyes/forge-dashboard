@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.117.1](https://github.com/alrayyes/forge-dashboard/compare/v9.117.0...v9.117.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **web:** align the locked Merge and Close notes with the status pills on desktop ([#4796](https://github.com/alrayyes/forge-dashboard/issues/4796)) ([b36f826](https://github.com/alrayyes/forge-dashboard/commit/b36f82670569bd4c809170508353b737767105e7)), closes [#4602](https://github.com/alrayyes/forge-dashboard/issues/4602)
+
 ## [9.117.0](https://github.com/alrayyes/forge-dashboard/compare/v9.116.0...v9.117.0) (2026-11-24)
 
 
