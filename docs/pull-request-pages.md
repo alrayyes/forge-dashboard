@@ -153,7 +153,7 @@ which resets every group. The sort select is 32px high and its options read
 phone this row stays in the bar while the rest of the filters fold into the
 Filters sheet. The **Filters** button leads the line, beside the count, and the
 sort and **Clear filters** wrap to a second line. The select stays 32px and the
-label around it carries the 44px tap target. A polite live region says the same
+surrounding label carries the 44px tap target. A polite live region says the same
 "N of M" when a filter or a refresh changes the count; it says nothing on first
 load. The menu pill is not part of this: it keeps the unfiltered totals, and its
 link keeps the numbers in its name. The Issues, Releases, and Bots pages draw the
