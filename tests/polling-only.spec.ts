@@ -155,6 +155,32 @@ test.describe('settings, repositories: polling only', () => {
     await expect(pill).toHaveAttribute('aria-pressed', 'false');
   });
 
+  test('the filter lets go when the last polling repo is ignored (#4786)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      repo('github', 'live'),
+      repo('github', 'poll', { hasWebhook: false }),
+    ]);
+    await page.route('**/api/v1/repos/ignore', (route) =>
+      route.fulfill({ status: 204 }),
+    );
+    await page.goto('/settings.html#repositories');
+    const rows = page.locator('#repositories-rows tr');
+    await page.getByRole('button', { name: 'Show only these' }).click();
+    await expect(rows).toHaveCount(1);
+    await page
+      .getByRole('combobox', { name: 'Ignore demo/poll' })
+      .selectOption('both');
+    await expect(page.locator('#repositories-polling')).toHaveCount(0);
+    await expect(rows).toHaveCount(1);
+    await expect(rows).toContainText('demo/live');
+    await expect(page.locator('#repositories-no-results')).toHaveCount(0);
+    await expectNoAxeViolations(page);
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await expectNoAxeViolations(page);
+  });
+
   test('each polling row says why and where to fix it', async ({ page }) => {
     await mockDashboard(page, REPOS);
     await page.goto('/settings.html#repositories');

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   isPollingOnly,
+  pollingFilterHolds,
   pollingOnlyCount,
   pollingOnlyKeys,
   pollingOnlyNotice,
@@ -89,5 +90,17 @@ describe('pollingOnlyReason', () => {
       'Polling only: no webhook is set up for this repo yet.',
     );
     expect(r.link.text).toBe('See the guide');
+  });
+});
+
+describe('pollingFilterHolds', () => {
+  test('stays on while a repo still polls', () => {
+    expect(pollingFilterHolds(true, 2)).toBe(true);
+  });
+  test('lets go when the last polling repo is gone, so no empty list is left', () => {
+    expect(pollingFilterHolds(true, 0)).toBe(false);
+  });
+  test('is off when the pill was never pressed', () => {
+    expect(pollingFilterHolds(false, 3)).toBe(false);
   });
 });
