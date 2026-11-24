@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -177,4 +178,68 @@ func TestMulti_RepoLessCallsUseTheFirstInstallation(t *testing.T) {
 	assert.Equal(t, "app:one", m.CredentialLabel())
 	assert.Equal(t, "no dependabot", m.DependabotCommandsBlockedReason())
 	assert.Equal(t, status, m.ProviderStatus(t.Context()))
+}
+
+func TestMulti_RefreshPendingWithNoMembersFailsEveryRef(t *testing.T) {
+	m := github.NewMulti(nil)
+	refs := []dashboard.PullRequestRef{{Owner: "acme", Name: "b", Number: 1}}
+
+	res, err := m.RefreshPending(t.Context(), refs)
+
+	require.NoError(t, err)
+	assert.Equal(t, refs, res.Failed)
+}
+
+func TestMulti_WritesToARepoNoInstallationHasReportedAreRefused(t *testing.T) {
+	m := twoActing(t)
+
+	err := m.MergePullRequest(t.Context(), "stranger", "repo", 1)
+	require.ErrorIs(t, err, github.ErrUnknownRepository)
+	require.ErrorIs(t, m.CommentPullRequest(t.Context(), "stranger", "repo", 1, "hi"), github.ErrUnknownRepository)
+	require.ErrorIs(t, m.CloseIssue(t.Context(), "stranger", "repo", 1), github.ErrUnknownRepository)
+	assert.Equal(t, dashboard.BranchDeleteFailed, m.DeletePullRequestBranch(t.Context(), "stranger", "repo", 1).Outcome)
+}
+
+func TestMulti_ReadsOfAnUnknownRepoStillTryTheFirstInstallation(t *testing.T) {
+	m := twoActing(t)
+
+	log, err := m.JobLog(t.Context(), "stranger", "repo", 9)
+
+	require.NoError(t, err)
+	assert.Equal(t, "one", log.Text)
+}
+
+func TestMulti_RefreshPendingKeepsGoingAndNamesEachFailingInstallation(t *testing.T) {
+	a := refreshing{fakeInstallation: fakeInstallation{answered("alice/a", 1)}, err: errors.New("boom a")}
+	b := refreshing{fakeInstallation: fakeInstallation{answered("acme/b", 1)}, pull: "acme/b"}
+	c := refreshing{fakeInstallation: fakeInstallation{answered("zed/c", 1)}, err: errors.New("boom c")}
+	m := github.NewMulti([]github.Member{{ID: 11, Source: a}, {ID: 22, Source: b}, {ID: 33, Source: c}})
+	m.Fetch(t.Context())
+
+	res, err := m.RefreshPending(t.Context(), []dashboard.PullRequestRef{
+		{Owner: "alice", Name: "a", Number: 1}, {Owner: "acme", Name: "b", Number: 2}, {Owner: "zed", Name: "c", Number: 3},
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "installation 11")
+	assert.Contains(t, err.Error(), "boom a")
+	assert.Contains(t, err.Error(), "installation 33")
+	assert.Contains(t, err.Error(), "boom c")
+	assert.NotContains(t, err.Error(), "installation 22")
+	require.Len(t, res.Pulls, 1, "the healthy installation still answered")
+}
+
+// refreshing answers RefreshPending with its own pull request, or its error.
+type refreshing struct {
+	fakeInstallation
+	pull string
+	err  error
+}
+
+func (r refreshing) RefreshPending(context.Context, []dashboard.PullRequestRef) (dashboard.PendingResult, error) {
+	if r.err != nil {
+		return dashboard.PendingResult{}, r.err
+	}
+
+	return dashboard.PendingResult{Pulls: []dashboard.PullRequest{{Repo: r.pull}}}, nil
 }

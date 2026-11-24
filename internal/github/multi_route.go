@@ -18,6 +18,23 @@ import (
 // it. The message names the installation.
 var errCannot = errors.New("cannot do this")
 
+// ErrUnknownRepository is what a write answers for a repo no installation has
+// reported. A read may fall back to the first installation; a write must not
+// act through an installation that may not own the repo.
+var ErrUnknownRepository = errors.New("github: unknown repository")
+
+// routeWrite is routeTo for a call that changes something: it refuses a repo
+// no installation has reported.
+func routeWrite[T any](m *Multi, owner, name string) (T, error) {
+	if _, known := m.lookup(owner, name); !known || len(m.members) == 0 {
+		var zero T
+
+		return zero, fmt.Errorf("%w: %s/%s", ErrUnknownRepository, owner, name)
+	}
+
+	return routeTo[T](m, owner, name)
+}
+
 // routeTo is the owner of owner/name as the capability T, or an error naming
 // the installation when it cannot do that.
 func routeTo[T any](m *Multi, owner, name string) (T, error) {
@@ -34,7 +51,7 @@ func routeTo[T any](m *Multi, owner, name string) (T, error) {
 
 // CancelRun implements dashboard.RunCanceler.
 func (m *Multi) CancelRun(ctx context.Context, owner, name string, runID int64) error {
-	t, err := routeTo[dashboard.RunCanceler](m, owner, name)
+	t, err := routeWrite[dashboard.RunCanceler](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -74,7 +91,7 @@ func (m *Multi) PullRequestBody(ctx context.Context, owner, name string, number 
 
 // SetPullRequestBody implements dashboard.PullRequestBodyEditor.
 func (m *Multi) SetPullRequestBody(ctx context.Context, owner, name string, number int, body string) error {
-	t, err := routeTo[dashboard.PullRequestBodyEditor](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestBodyEditor](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -104,7 +121,7 @@ func (m *Multi) GetPullRequestDetails(ctx context.Context, owner, name string, n
 
 // RerunFailedChecks implements dashboard.ChecksRerunner.
 func (m *Multi) RerunFailedChecks(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.ChecksRerunner](m, owner, name)
+	t, err := routeWrite[dashboard.ChecksRerunner](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -124,7 +141,7 @@ func (m *Multi) CanRerunFailedChecks(ctx context.Context, owner, name string, nu
 
 // RerunFailedDefaultBranchChecks implements dashboard.DefaultBranchRerunner.
 func (m *Multi) RerunFailedDefaultBranchChecks(ctx context.Context, owner, name, branch string) error {
-	t, err := routeTo[dashboard.DefaultBranchRerunner](m, owner, name)
+	t, err := routeWrite[dashboard.DefaultBranchRerunner](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -154,7 +171,7 @@ func (m *Multi) HasWebhook(ctx context.Context, owner, name string) (bool, error
 
 // EnsureWebhook implements dashboard.WebhookManager.
 func (m *Multi) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
-	t, err := routeTo[dashboard.WebhookManager](m, owner, name)
+	t, err := routeWrite[dashboard.WebhookManager](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -164,7 +181,7 @@ func (m *Multi) EnsureWebhook(ctx context.Context, owner, name, targetURL, secre
 
 // UpgradeWebhook implements dashboard.WebhookUpgrader.
 func (m *Multi) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
-	t, err := routeTo[dashboard.WebhookUpgrader](m, owner, name)
+	t, err := routeWrite[dashboard.WebhookUpgrader](m, owner, name)
 	if err != nil {
 		return false, err
 	}
@@ -174,7 +191,7 @@ func (m *Multi) UpgradeWebhook(ctx context.Context, owner, name, targetURL, secr
 
 // RewriteWebhookSecret implements dashboard.WebhookSecretRewriter.
 func (m *Multi) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL, secret string) (bool, error) {
-	t, err := routeTo[dashboard.WebhookSecretRewriter](m, owner, name)
+	t, err := routeWrite[dashboard.WebhookSecretRewriter](m, owner, name)
 	if err != nil {
 		return false, err
 	}
@@ -184,7 +201,7 @@ func (m *Multi) RewriteWebhookSecret(ctx context.Context, owner, name, targetURL
 
 // MergePullRequest implements dashboard.PullRequestMerger.
 func (m *Multi) MergePullRequest(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.PullRequestMerger](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestMerger](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -204,7 +221,7 @@ func (m *Multi) ReadPullRequestState(ctx context.Context, owner, name string, nu
 
 // ClosePullRequest implements dashboard.PullRequestCloser.
 func (m *Multi) ClosePullRequest(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.PullRequestCloser](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestCloser](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -214,7 +231,7 @@ func (m *Multi) ClosePullRequest(ctx context.Context, owner, name string, number
 
 // ReopenPullRequest implements dashboard.PullRequestReopener.
 func (m *Multi) ReopenPullRequest(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.PullRequestReopener](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestReopener](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -224,7 +241,7 @@ func (m *Multi) ReopenPullRequest(ctx context.Context, owner, name string, numbe
 
 // EnableAutoMerge implements dashboard.PullRequestAutoMerger.
 func (m *Multi) EnableAutoMerge(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.PullRequestAutoMerger](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestAutoMerger](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -234,7 +251,7 @@ func (m *Multi) EnableAutoMerge(ctx context.Context, owner, name string, number 
 
 // DisableAutoMerge implements dashboard.PullRequestAutoMergeDisabler.
 func (m *Multi) DisableAutoMerge(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.PullRequestAutoMergeDisabler](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestAutoMergeDisabler](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -244,7 +261,7 @@ func (m *Multi) DisableAutoMerge(ctx context.Context, owner, name string, number
 
 // UpdateBranch implements dashboard.BranchUpdater.
 func (m *Multi) UpdateBranch(ctx context.Context, owner, name string, number int) (bool, error) {
-	t, err := routeTo[dashboard.BranchUpdater](m, owner, name)
+	t, err := routeWrite[dashboard.BranchUpdater](m, owner, name)
 	if err != nil {
 		return false, err
 	}
@@ -254,7 +271,7 @@ func (m *Multi) UpdateBranch(ctx context.Context, owner, name string, number int
 
 // CommentPullRequest implements dashboard.PullRequestCommenter.
 func (m *Multi) CommentPullRequest(ctx context.Context, owner, name string, number int, body string) error {
-	t, err := routeTo[dashboard.PullRequestCommenter](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestCommenter](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -264,7 +281,7 @@ func (m *Multi) CommentPullRequest(ctx context.Context, owner, name string, numb
 
 // AddLabel implements dashboard.PullRequestLabeler.
 func (m *Multi) AddLabel(ctx context.Context, owner, name string, number int, label string) error {
-	t, err := routeTo[dashboard.PullRequestLabeler](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestLabeler](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -324,7 +341,7 @@ func (m *Multi) JobLog(ctx context.Context, owner, name string, id int64) (dashb
 
 // CloseIssue implements dashboard.IssueCloser.
 func (m *Multi) CloseIssue(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.IssueCloser](m, owner, name)
+	t, err := routeWrite[dashboard.IssueCloser](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -334,7 +351,7 @@ func (m *Multi) CloseIssue(ctx context.Context, owner, name string, number int) 
 
 // ReopenIssue implements dashboard.IssueReopener.
 func (m *Multi) ReopenIssue(ctx context.Context, owner, name string, number int) error {
-	t, err := routeTo[dashboard.IssueReopener](m, owner, name)
+	t, err := routeWrite[dashboard.IssueReopener](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -344,7 +361,7 @@ func (m *Multi) ReopenIssue(ctx context.Context, owner, name string, number int)
 
 // CommentIssue implements dashboard.IssueCommenter.
 func (m *Multi) CommentIssue(ctx context.Context, owner, name string, number int, body string) error {
-	t, err := routeTo[dashboard.IssueCommenter](m, owner, name)
+	t, err := routeWrite[dashboard.IssueCommenter](m, owner, name)
 	if err != nil {
 		return err
 	}
@@ -374,7 +391,7 @@ func (m *Multi) GetReleaseDetails(ctx context.Context, owner, name, tag string) 
 
 // DeletePullRequestBranch implements dashboard.PullRequestBranchDeleter.
 func (m *Multi) DeletePullRequestBranch(ctx context.Context, owner, name string, number int) dashboard.BranchDeletion {
-	t, err := routeTo[dashboard.PullRequestBranchDeleter](m, owner, name)
+	t, err := routeWrite[dashboard.PullRequestBranchDeleter](m, owner, name)
 	if err != nil {
 		return dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed}
 	}

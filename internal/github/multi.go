@@ -68,12 +68,22 @@ func (m *Multi) Owner(owner, name string) Member {
 	return m.members[m.ownerIndex(owner, name)]
 }
 
-// ownerIndex is Owner's place in the members.
+// ownerIndex is Owner's place in the members. A repo none has reported yet is
+// the first member's, which is right for reads: they cost nothing if wrong.
 func (m *Multi) ownerIndex(owner, name string) int {
+	i, _ := m.lookup(owner, name)
+
+	return i
+}
+
+// lookup is the member that reported owner/name and whether any has.
+func (m *Multi) lookup(owner, name string) (int, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	return m.owner[strings.ToLower(owner+"/"+name)].member
+	r, ok := m.owner[strings.ToLower(owner+"/"+name)]
+
+	return r.member, ok
 }
 
 // Fetch implements dashboard.Source. It reads every member at once and merges

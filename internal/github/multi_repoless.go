@@ -2,6 +2,7 @@ package github
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -78,8 +79,14 @@ func (m *Multi) RefreshPending(ctx context.Context, refs []dashboard.PullRequest
 		byOwner[i] = append(byOwner[i], ref)
 	}
 
+	var errs []error
 	for _, i := range order {
 		group := byOwner[i]
+		if i >= len(m.members) {
+			out.Failed = append(out.Failed, group...)
+
+			continue
+		}
 		r, ok := m.members[i].Source.(dashboard.PendingCheckRefresher)
 		if !ok {
 			out.Failed = append(out.Failed, group...)
@@ -91,9 +98,9 @@ func (m *Multi) RefreshPending(ctx context.Context, refs []dashboard.PullRequest
 		out.Closed = append(out.Closed, res.Closed...)
 		out.Failed = append(out.Failed, res.Failed...)
 		if err != nil {
-			return out, fmt.Errorf("refresh pending: %w", err)
+			errs = append(errs, fmt.Errorf("installation %d: refresh pending: %w", m.members[i].ID, err))
 		}
 	}
 
-	return out, nil
+	return out, errors.Join(errs...)
 }
