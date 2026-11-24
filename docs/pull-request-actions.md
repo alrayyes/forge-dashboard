@@ -146,16 +146,19 @@ pull request last. The status block under the pop-up's header is the same
 it. Their ids carry a `dlg-` prefix, so the row and the pop-up never repeat one.
 
 A pull request stacked on another open one shows a chip with its place and what
-it waits for: `Stack 2 of 3 · waits for #840` (the number is the pull
-request it is stacked on), or `Stack 1 of 3 · merges first` for the bottom.
+it waits for: `Stack 2 of 3` beside `waits for #840` (the number is the pull
+request it is stacked on), or `Stack 1 of 3` beside `merges first` for the bottom.
 The members sit together in position order, at the slot of the
 first one in the list, as a plain nested list with a thin rule beside each row.
 A filter that matches any member keeps the whole stack and dims the rest. A
 child says it targets its parent's branch, not main, so auto-merge isn't
 offered, and its Merge shows the server's reason. Tapping the chip lists the
-stack. On a phone the chip is short, what it waits for goes on a second line,
-and the title is what gets cut. The server works out stacks from the branches
-(`stack`, `stackedOn` and `stackChildren` on each pull request).
+stack. Above a phone the chip, what it waits for and the note sit under the row,
+across its title and status tracks, so the note reads at its own measure (up to
+72 characters) and not in the narrow title track. On a phone they stay under the
+title, the chip is short, and the title is what gets cut. The server works out
+stacks from the branches (`stack`, `stackedOn` and `stackChildren` on each
+pull request).
 
 On Forgejo, while a run that is still going has jobs the counts leave out (it
 has none yet, or no status points at it), the server sets `checksIncomplete` on

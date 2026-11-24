@@ -5749,17 +5749,26 @@ button.pipeline-check-link:disabled {
   font-weight: 400;
 }
 
-/* On a phone the indentation gives way to the rule, the chip stays short with
-   what it waits for on a second line, and the title is what gets cut. */
+/* #4775: above a phone the chip and its note sit under the row, across its
+   title and status tracks (placeNotes in Dashboard.svelte moves them there),
+   so the note reads at a measure of its own and not in the title track's 200px.
+   The cap keeps a line short enough to scan on a wide list. */
+@media (min-width: 761px) {
+  .row > .stack-info {
+    grid-column: 2 / -1;
+    /* After every cell, so it takes the line under them whatever the order
+       the row was built in. */
+    order: 1;
+    margin-top: 0;
+    max-width: 72ch;
+  }
+}
+
+/* On a phone the indentation gives way to the rule, and the title is what
+   gets cut. The chip and what it waits for share a line. */
 @media (max-width: 760px) {
   .stack-member {
     margin-left: 0;
-  }
-  .stack-sep {
-    display: none;
-  }
-  .stack-wait {
-    flex-basis: 100%;
   }
   .stack-member .row .title-cell .title-text {
     white-space: nowrap;
