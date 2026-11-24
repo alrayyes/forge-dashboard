@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { rateLimit } from './rate-limit-mock';
 import { test } from './server-fixture';
 
@@ -16,7 +17,7 @@ async function open(page: Page, health: Record<string, unknown>) {
       contentType: 'application/json',
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
-        forges: [{ forge: 'github', repoCount: 1, ...health }],
+        forges: [forgeHealth('github', { repoCount: 1, ...health })],
         pullRequests: [],
         issues: [],
         repos: [],

@@ -11,7 +11,6 @@ const stillByHand: string[] = [
   'branch-rerun-checks.spec.ts',
   'nav-count-reads.spec.ts',
   'shared-dashboard-read.spec.ts',
-  'stale-data-notice.spec.ts',
 ];
 
 const dir = join(import.meta.dir, '..', 'tests');
