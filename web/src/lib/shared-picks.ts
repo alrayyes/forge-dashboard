@@ -68,15 +68,28 @@ function focusableIn(
 }
 
 // Hides or shows a pick filter's host. When it hides with focus inside, focus
-// goes to the nearest control before it (else after it), not the page body.
-function setVisible(host: HTMLElement | null | undefined, visible: boolean) {
+// goes to the nearest control before it (else after it), then to `fallback`
+// (the filter bar), not the page body. `hadFocus` is whether focus was inside
+// before the control redrew: a redraw that replaces the focused button has
+// already dropped it to the body by the time this runs (#4748).
+function setVisible(
+  host: HTMLElement | null | undefined,
+  visible: boolean,
+  hadFocus: boolean,
+  fallback?: (from: Element) => void,
+) {
   if (!host || host.hidden === !visible) return;
-  if (!visible && host.contains(document.activeElement))
-    (
-      focusableIn(host.previousElementSibling, 'previousElementSibling') ??
-      focusableIn(host.nextElementSibling, 'nextElementSibling')
-    )?.focus({ preventScroll: true });
+  const handOff =
+    !visible && (hadFocus || host.contains(document.activeElement));
+  const next = handOff
+    ? (focusableIn(host.previousElementSibling, 'previousElementSibling') ??
+      focusableIn(host.nextElementSibling, 'nextElementSibling'))
+    : null;
   host.hidden = !visible;
+  // After the host is hidden, so the bar's search for a control that is drawn
+  // does not land on this one.
+  if (next) next.focus({ preventScroll: true });
+  else if (handOff) fallback?.(host);
 }
 
 export class SharedPicks {
@@ -92,6 +105,9 @@ export class SharedPicks {
   constructor(
     // A repo's logo by forge-qualified key.
     private readonly logoFor: (key: string) => string | undefined,
+    // Where focus goes when a control hides under it and has no neighbour to
+    // hand it to: the page's filter bar.
+    private readonly focusBar?: (from: Element) => void,
   ) {}
 
   private hosts: PickHosts = {};
@@ -178,6 +194,8 @@ export class SharedPicks {
     const signature = JSON.stringify([choices, picked, rows > 1]);
     if (this.drawn[key] === signature) return;
     this.drawn[key] = signature;
+    const host = this.hosts[key];
+    const hadFocus = host?.contains(document.activeElement) ?? false;
     if (key === 'label')
       this.label?.render(
         choices.map((c) => c.value),
@@ -186,8 +204,10 @@ export class SharedPicks {
       );
     else this[key]?.render(choices, picked);
     setVisible(
-      this.hosts[key],
+      host,
       pickFilterVisible(choices.length, picked.length, rows),
+      hadFocus,
+      this.focusBar,
     );
   }
 }

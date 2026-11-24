@@ -3,6 +3,7 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { clearPicks, togglePicks } from './label-filter-helper';
 import { test } from './server-fixture';
+import { settle } from './settle-helper';
 
 // #3496: a Repository, Author or Label filter that offers one value, with
 // nothing picked, can't narrow the list, so it leaves the bar. A pick keeps it.
@@ -95,6 +96,9 @@ test.describe('a filter with one option leaves the bar (#3496)', () => {
     // focus lands on a control still in the bar.
     await clearPicks(page, 'repo');
     await expect(repoFilter(page)).toBeHidden();
+    // The browser drops focus from a control that went away at the next frame,
+    // so read it after the page has settled, not in the frame it hid in (#4748).
+    await settle(page);
     const focus = await page.evaluate(
       () => document.activeElement?.tagName ?? '',
     );

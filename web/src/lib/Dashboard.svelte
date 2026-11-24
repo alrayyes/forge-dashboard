@@ -8542,7 +8542,10 @@
     // that does (#1620). A later change that makes a pick stale is the
     // user's own, and clears it for good.
     // The Label filter's control, mounted once the shared bar exists.
-    const picks = new SharedPicks((key) => reposByKey.get(key)?.logoUrl);
+    const picks = new SharedPicks(
+      (key) => reposByKey.get(key)?.logoUrl,
+      (from) => focusFilterBar(from),
+    );
 
     function offerTitles() {
       Filters.populateDatalist(
