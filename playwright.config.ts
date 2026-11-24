@@ -73,6 +73,7 @@ const singleUserSpecs = [
   '**/review-requested-pill.spec.ts',
   '**/linked-pull-request-pipeline.spec.ts',
   '**/stacked-prs.spec.ts',
+  '**/stack-note-width.spec.ts',
   '**/webhooks-page.spec.ts',
   '**/webhooks-phone-sort.spec.ts',
   '**/bottom-nav-focus-order.spec.ts',

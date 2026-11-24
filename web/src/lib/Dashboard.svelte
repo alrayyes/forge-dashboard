@@ -1785,12 +1785,7 @@
         : (item.stackChildren?.length ?? 0) > 0
           ? "merges first"
           : "";
-      if (waits) {
-        const sep = el("span", "stack-sep", "·");
-        sep.setAttribute("aria-hidden", "true");
-        info.appendChild(sep);
-        info.appendChild(el("span", "stack-wait", waits));
-      }
+      if (waits) info.appendChild(el("span", "stack-wait", waits));
 
       if (item.stackedOn) {
         const n = item.stackedOn.number;
@@ -3242,6 +3237,12 @@
         ciSlot: HTMLElement;
         waitSlot: HTMLElement;
         titleCell: HTMLElement;
+        // The stack chip and its note, where the row has them (#4775).
+        row: HTMLElement;
+        stack: HTMLElement | null;
+        // Holds the stack block and the stacked reason side by side above a
+        // phone, so the row grows by one band and not two (#4775).
+        band: HTMLElement | null;
       }
     >();
     function oneLineList(): boolean {
@@ -3267,9 +3268,30 @@
     function placeNotes(statusCell: HTMLElement, oneLine: boolean) {
       const parts = notePlacements.get(statusCell);
       if (!parts) return;
+      // The stack note is a sentence: on a wider screen it sits under the
+      // row across its title and status tracks, where it reads at a measure
+      // of its own instead of in the narrow title track. On a phone the
+      // title cell is as wide as the card, so it stays there (#4775).
+      const stackedArea =
+        parts.area?.classList.contains("status-area-stacked") ?? false;
+      if (parts.stack && parts.band) {
+        const focused = parts.stack.contains(document.activeElement)
+          ? (document.activeElement as HTMLElement)
+          : null;
+        if (onPhone()) {
+          parts.titleCell.appendChild(parts.stack);
+          parts.band.remove();
+        } else {
+          parts.band.appendChild(parts.stack);
+          if (stackedArea && parts.area) parts.band.appendChild(parts.area);
+          parts.row.appendChild(parts.band);
+        }
+        focused?.focus();
+      }
       if (oneLine || onPhone()) parts.titleCell.appendChild(parts.cluster);
       else parts.ciSlot.after(parts.cluster);
       if (!parts.area) return;
+      if (stackedArea && parts.band && !onPhone()) return;
       if (oneLine) parts.titleCell.appendChild(parts.area);
       else statusCell.insertBefore(parts.area, parts.waitSlot);
     }
@@ -3350,8 +3372,11 @@
         );
         if (referenced) titleCellEl.appendChild(referenced);
       }
-      if (isPR && (item as PullRequestItem).stack)
-        titleCellEl.appendChild(stackInfo(item as PullRequestItem));
+      const stackEl =
+        isPR && (item as PullRequestItem).stack
+          ? stackInfo(item as PullRequestItem)
+          : null;
+      if (stackEl) titleCellEl.appendChild(stackEl);
       // The Releases page shows the version being released, and says why a
       // behind release needs Update branch from a person (#1107).
       if (isPR && view === "releases") {
@@ -3502,6 +3527,9 @@
           ciSlot,
           waitSlot,
           titleCell: titleCellEl,
+          row,
+          stack: stackEl,
+          band: stackEl ? el("div", "stack-band") : null,
         });
         placeNotes(statusCell, oneLineKnown);
         // The row draws one control: the action the server marked primary,
@@ -3537,6 +3565,10 @@
       }
       row.appendChild(meta);
       row.appendChild(el("div", "go", "→"));
+      // The stack block goes after the cells it follows in tab order, the
+      // same place a resize puts it.
+      const builtStatus = row.querySelector<HTMLElement>(".status-cell");
+      if (isPR && builtStatus) placeNotes(builtStatus, oneLineKnown);
       if (isPR) feedbackUI.decorateRow(row, prKey(item as PullRequestItem));
       return row;
     }
@@ -4198,6 +4230,9 @@
       // The pill already says it, and holds the reason (#3965).
       if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
+      // A stacked pull request's reason is a sentence, and the row gives it
+      // the width of the row (#4775).
+      if (status.code === "stacked") area.classList.add("status-area-stacked");
       const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
       svg.setAttribute("width", "14");
       svg.setAttribute("height", "14");

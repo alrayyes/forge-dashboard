@@ -203,7 +203,7 @@ test.describe('stacked pull requests (#861)', () => {
     await expect(members.nth(2)).toContainText('#840');
   });
 
-  test('on a phone the chip is short, the dependency is on a second line, the title gives way and a rule replaces indentation', async ({
+  test('on a phone the chip is short, the dependency shares its line (#4775), the title gives way and a rule replaces indentation', async ({
     page,
   }) => {
     await open(page, { width: 390, height: 844 });
@@ -213,7 +213,7 @@ test.describe('stacked pull requests (#861)', () => {
     const chipBox = await chip.boundingBox();
     const waitBox = await wait.boundingBox();
     expect(chipBox?.width ?? 999).toBeLessThan(140);
-    expect(waitBox?.y ?? 0).toBeGreaterThan((chipBox?.y ?? 0) + 8);
+    expect(Math.abs((waitBox?.y ?? 0) - (chipBox?.y ?? 0))).toBeLessThan(8);
 
     await expect(rowFor(page, 840)).toHaveCSS('border-left-width', '2px');
     await expect(rowFor(page, 840)).toHaveCSS('margin-left', '0px');
