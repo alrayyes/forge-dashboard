@@ -5,9 +5,8 @@ import { join } from 'node:path';
 import { writesForgeEntryByHand } from './forge-entries-by-hand';
 
 // Every mocked `forges` entry comes from forgeHealth() (#4030), so `capabilities`
-// is filled in one place. A file that still writes an entry by hand is listed
-// here. The list only shrinks: converting a file means deleting its line, and a
-// new hand-written entry in any other file fails this test.
+// is filled in one place. The list of files still writing an entry by hand is
+// empty (#4030), and a new hand-written entry in any file fails this test.
 const stillByHand: string[] = [];
 
 const dir = join(import.meta.dir, '..', 'tests');
