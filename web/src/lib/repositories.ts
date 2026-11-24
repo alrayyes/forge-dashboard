@@ -11,12 +11,16 @@ export type RepoRow = {
   ignored: boolean;
   autoUpdateBranch: boolean;
   rebaseBots: boolean;
+  // Set by the dashboard read; the polling-only filter reads it (#4028).
+  hasWebhook?: boolean;
 };
 
 export type RepositoriesFilter = {
   // '' is every forge.
   forge: string;
   search: string;
+  // Only repos with no confirmed webhook (#4028).
+  pollingOnly?: boolean;
 };
 
 export type RepoSortKey = 'forge' | 'fullName';
@@ -24,7 +28,7 @@ export type RepoSortKey = 'forge' | 'fullName';
 export const NO_FILTER: RepositoriesFilter = { forge: '', search: '' };
 
 export function filtersAreClear(filter: RepositoriesFilter): boolean {
-  return filter.forge === '' && filter.search === '';
+  return filter.forge === '' && filter.search === '' && !filter.pollingOnly;
 }
 
 function matchesForge(r: RepoRow, filter: RepositoriesFilter): boolean {
@@ -42,7 +46,11 @@ export function filterRepos<T extends RepoRow>(
   filter: RepositoriesFilter,
 ): T[] {
   return repos.filter(
-    (r) => !r.ignored && matchesForge(r, filter) && matchesSearch(r, filter),
+    (r) =>
+      !r.ignored &&
+      matchesForge(r, filter) &&
+      matchesSearch(r, filter) &&
+      (!filter.pollingOnly || r.hasWebhook === false),
   );
 }
 
