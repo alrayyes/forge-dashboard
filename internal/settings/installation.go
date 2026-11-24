@@ -136,6 +136,24 @@ func upsertInstallation(ctx context.Context, q queryer, in Installation) error {
 	return nil
 }
 
+// enabledInstallations is the ID of every enabled row, in the order they were
+// added.
+func enabledInstallations(ctx context.Context, q queryer) ([]int64, error) {
+	all, err := listInstallations(ctx, q)
+	if err != nil {
+		return nil, err
+	}
+
+	var ids []int64
+	for _, in := range all {
+		if in.Enabled {
+			ids = append(ids, in.ID)
+		}
+	}
+
+	return ids, nil
+}
+
 // firstEnabledInstallation is the ID reads use, 0 when no row is enabled.
 func firstEnabledInstallation(ctx context.Context, q queryer) (int64, error) {
 	var id int64

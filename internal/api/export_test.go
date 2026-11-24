@@ -73,3 +73,6 @@ func (c *checkWatches) Find(id string) *CheckWatch     { return c.find(id) }
 func PullRequestRowSignatureForTest(snap dashboard.Snapshot, forge, fullName string, number int) (string, bool) {
 	return rowSignature(snap, checkSubject{Kind: subjectPullRequest, Forge: forge, FullName: fullName, Number: number})
 }
+
+// ClientErrorStatus is clientErrorStatus, for the external tests.
+var ClientErrorStatus = clientErrorStatus

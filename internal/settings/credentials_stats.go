@@ -9,8 +9,12 @@ import "github.com/alrayyes/forge-dashboard/internal/apistats"
 // whether the server has the App configured.
 func (c Credentials) StatsCredentials() []apistats.CredentialRef {
 	var refs []apistats.CredentialRef
-	if c.GitHubAppInstallationID != 0 {
-		refs = append(refs, apistats.CredentialRef{Forge: "github", Credential: apistats.AppCredential(c.GitHubAppInstallationID)})
+	ids := c.GitHubAppInstallationIDs
+	if len(ids) == 0 && c.GitHubAppInstallationID != 0 {
+		ids = []int64{c.GitHubAppInstallationID}
+	}
+	for _, id := range ids {
+		refs = append(refs, apistats.CredentialRef{Forge: "github", Credential: apistats.AppCredential(id)})
 	}
 	switch {
 	case c.GitHubToken != "":

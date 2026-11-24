@@ -553,23 +553,15 @@ func serve(ctx context.Context, srv *http.Server, ln net.Listener, drain *api.Dr
 // baseURL is always "" (the real GitHub API) from buildSources;
 // it's a parameter purely so a test can override it, the same testability
 // NewClient/NewAppClient's own baseURL parameters already provide.
-func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, bodies *github.RenderedBodyCache) dashboard.Source {
-	appConnected := githubAppID != 0 && c.GitHubAppInstallationID != 0
+func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPrivateKey []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, shared githubShared) dashboard.Source {
+	ids := c.GitHubAppInstallationIDs
+	if len(ids) == 0 && c.GitHubAppInstallationID != 0 {
+		ids = []int64{c.GitHubAppInstallationID}
+	}
+	appConnected := githubAppID != 0 && len(ids) > 0
 	if appConnected {
-		client, err := github.NewAppClient(githubAppID, c.GitHubAppInstallationID, githubAppPrivateKey, baseURL, recorder)
-		if err != nil {
-			slog.Error("github app installation client failed, falling back", "installationId", c.GitHubAppInstallationID, "error", err)
-		} else {
-			if c.WebhookToken != "" {
-				client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
-			}
-			// Dependabot ignores GitHub Apps, so its commands go out as the
-			// saved personal token when there is one (#666).
-			client.SetCommentToken(c.GitHubToken)
-			client.SetStats(stats, apistats.AppCredential(c.GitHubAppInstallationID))
-			shareBodies(client, bodies)
-
-			return client
+		if src := buildAppSource(c, ids, githubAppID, githubAppPrivateKey, baseURL, recorder, stats, shared); src != nil {
+			return src
 		}
 	}
 
@@ -577,7 +569,7 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	case c.GitHubToken != "":
 		client := github.NewClient(c.GitHubToken, "", baseURL, recorder)
 		client.SetStats(stats, apistats.TokenCredential(c.GitHubToken))
-		shareBodies(client, bodies)
+		shared.apply(client)
 		if c.WebhookToken != "" {
 			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
 		}
@@ -586,16 +578,72 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	case c.GitHubUsername != "":
 		client := github.NewClient("", c.GitHubUsername, baseURL, recorder)
 		client.SetStats(stats, apistats.AccountCredential(c.GitHubUsername))
-		shareBodies(client, bodies)
+		shared.apply(client)
 
 		return client
 	case appConnected:
 		// The App branch above failed and there's nothing to fall back to
 		// — surface it as a real forge-health error rather than silently
 		// never adding a GitHub source at all.
-		return github.NewUnreachableClient(fmt.Sprintf("github: app installation %d failed and no personal access token is saved as a fallback", c.GitHubAppInstallationID))
+		return github.NewUnreachableClient(fmt.Sprintf("github: app installation %d failed and no personal access token is saved as a fallback", ids[0]))
 	default:
 		return nil
+	}
+}
+
+// buildAppSource reads each installation with its own token. One installation
+// is a plain client; two or more are members of a composite source (#4586).
+// An installation whose client cannot be built is logged and left out, and the
+// rest still read. It is nil when none could be built.
+func buildAppSource(c settings.Credentials, ids []int64, appID int64, key []byte, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, shared githubShared) dashboard.Source {
+	var members []github.Member
+	for _, id := range ids {
+		client, err := github.NewAppClient(appID, id, key, baseURL, recorder)
+		if err != nil {
+			slog.Error("github app installation client failed", "installationId", id, "error", err)
+
+			continue
+		}
+		if c.WebhookToken != "" {
+			client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+		}
+		// Dependabot ignores GitHub Apps, so its commands go out as the
+		// saved personal token when there is one (#666).
+		client.SetCommentToken(c.GitHubToken)
+		client.SetStats(stats, apistats.AppCredential(id))
+		shared.apply(client)
+		members = append(members, github.Member{ID: id, Source: client})
+	}
+
+	switch len(members) {
+	case 0:
+		return nil
+	case 1:
+		if client, ok := members[0].Source.(*github.Client); ok {
+			return client
+		}
+	}
+
+	return github.NewMulti(members)
+}
+
+// githubShared is what every GitHub client one settings load builds shares:
+// the rendered-body cache, the advisory cache and the status page reader. Any
+// of them may be nil (tests). It goes to every installation's client, so a
+// composite source reads the same caches as a single one.
+type githubShared struct {
+	bodies     *github.RenderedBodyCache
+	advisories *github.AdvisoryCache
+	status     dashboard.ProviderStatusSource
+}
+
+func (g githubShared) apply(client *github.Client) {
+	shareBodies(client, g.bodies)
+	if g.advisories != nil {
+		client.ShareAdvisoryCache(g.advisories)
+	}
+	if g.status != nil {
+		client.SetStatusChecker(g.status)
 	}
 }
 
@@ -636,11 +684,7 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, renderedBodies); src != nil {
-			if gh, ok := src.(*github.Client); ok {
-				gh.SetStatusChecker(status)
-				gh.ShareAdvisoryCache(githubAdvisories)
-			}
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, status: status}); src != nil {
 			sources = append(sources, src)
 		}
 

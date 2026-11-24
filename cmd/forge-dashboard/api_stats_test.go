@@ -32,7 +32,7 @@ func TestBuildGitHubSource_CountsATokenClientUnderItsLabel(t *testing.T) {
 	defer srv.Close()
 	counters := apistats.New()
 
-	source := buildGitHubSource(settings.Credentials{GitHubToken: "pat-value"}, 0, nil, srv.URL, nil, counters, nil)
+	source := buildGitHubSource(settings.Credentials{GitHubToken: "pat-value"}, 0, nil, srv.URL, nil, counters, githubShared{})
 	require.NotNil(t, source)
 	source.Fetch(t.Context())
 

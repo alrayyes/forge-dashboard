@@ -75,6 +75,11 @@ type Credentials struct {
 	// are set and the server has an App configured — see
 	// cmd/forge-dashboard's buildSources.
 	GitHubAppInstallationID int64
+	// GitHubAppInstallationIDs is every enabled installation, in the order they
+	// were added (#4586), and starts with GitHubAppInstallationID. Get fills it;
+	// Set ignores it, since the installations table is the source. Reads use
+	// one token per ID.
+	GitHubAppInstallationIDs []int64
 	// Instances holds the own-instance address and token of self-hosted forges
 	// other than Forgejo, keyed by forge name. Read it through InstanceFor.
 	// Nothing saves it yet: a forge that needs it adds its own storage (#4574).
@@ -264,12 +269,15 @@ func (s *Store) Get(ctx context.Context) (Credentials, error) {
 
 	// The installations table is the source; the saved column is only what an
 	// older release left, and still answers when the table has no enabled row.
-	first, err := firstEnabledInstallation(ctx, s.db)
+	ids, err := enabledInstallations(ctx, s.db)
 	if err != nil {
 		return Credentials{}, err
 	}
-	if first != 0 {
-		c.GitHubAppInstallationID = first
+	if len(ids) > 0 {
+		c.GitHubAppInstallationID = ids[0]
+		c.GitHubAppInstallationIDs = ids
+	} else if c.GitHubAppInstallationID != 0 {
+		c.GitHubAppInstallationIDs = []int64{c.GitHubAppInstallationID}
 	}
 
 	if c.GitHubToken, err = s.cipher.Decrypt(encGitHubToken); err != nil {
