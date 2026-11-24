@@ -6,6 +6,7 @@ import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 // between tests (tests/server-fixture.ts). Every spec must be listed here.
 const singleUserSpecs = [
   '**/main-branches-header-400.spec.ts',
+  '**/webhooks-hint-400.spec.ts',
   '**/merged-pr-pill.spec.ts',
   '**/page-tops.spec.ts',
   '**/filter-stale-forge-pick.spec.ts',

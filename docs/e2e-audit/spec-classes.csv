@@ -281,7 +281,7 @@ settings-ignore-issues.spec.ts,8.008,19,6,C,,5.5
 settings-mcp-help.spec.ts,4.532,3,2,A,,1.5
 settings-repositories-rebase-bots.spec.ts,,4,0,C,,0.0
 settings-repositories-status-line.spec.ts,,3,0,C,,0.0
-settings-repositories.spec.ts,,14,5,C,,0.0
+settings-repositories.spec.ts,,16,5,C,,0.0
 settings.spec.ts,16.859,49,11,C,web/src/lib/settings-groups.test.ts,13.1
 shared-dashboard-read.spec.ts,5.171,6,0,C,,5.2
 show-drafts-by-page.spec.ts,5.164,2,2,A,,0.0
@@ -319,6 +319,7 @@ waiting-for-ci-once.spec.ts,15.073,15,5,C,,10.0
 webhooks-clear-filters.spec.ts,4.2,7,6,A,,0.6
 webhooks-failing-repo.spec.ts,2.449,3,1,C,,1.6
 webhooks-filter-choices.spec.ts,2.363,10,1,C,web/src/lib/webhooks-filter.test.ts,2.1
+webhooks-hint-400.spec.ts,,1,1,A,,0.0
 webhooks-not-yet-status.spec.ts,3.826,2,2,A,,0.0
 webhooks-page-size-stays.spec.ts,1.672,4,2,A,,0.8
 webhooks-page.spec.ts,13.694,42,7,C,,11.4
