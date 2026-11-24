@@ -120,3 +120,134 @@ type swapSource struct{ res dashboard.Result }
 
 func (s *swapSource) Fetch(context.Context) dashboard.Result { return s.res }
 func (*swapSource) Forge() dashboard.Forge                   { return dashboard.ForgeGitHub }
+
+func TestMulti_UnchangedIsSorted(t *testing.T) {
+	src := &swapSource{res: dashboard.Result{
+		Health: dashboard.ForgeHealth{Reachable: true},
+		Repos:  []dashboard.Repo{{FullName: "acme/c"}, {FullName: "acme/a"}, {FullName: "acme/b"}},
+	}}
+	m := multiOf(
+		github.Member{ID: 1, Source: fakeInstallation{answered("alice/a", 1)}},
+		github.Member{ID: 2, Source: src},
+	)
+	m.Fetch(t.Context())
+	src.res = failed(dashboard.ForgeErrorUnreachable)
+
+	for range 20 {
+		assert.Equal(t, []string{"acme/a", "acme/b", "acme/c"}, m.Fetch(t.Context()).Unchanged)
+	}
+}
+
+func TestMulti_AllFailedKeepsTheEarlierRoutesAndReportsNothingUnchanged(t *testing.T) {
+	a := &swapSource{res: answered("alice/a", 1)}
+	b := &swapSource{res: answered("acme/b", 100)}
+	m := multiOf(github.Member{ID: 1, Source: a}, github.Member{ID: 2, Source: b})
+	m.Fetch(t.Context())
+	a.res = failed(dashboard.ForgeErrorUnreachable)
+	b.res = failed(dashboard.ForgeErrorUnreachable)
+
+	res := m.Fetch(t.Context())
+
+	assert.False(t, res.Health.Reachable)
+	assert.Empty(t, res.Unchanged)
+	assert.Empty(t, res.Health.FailedInstallations)
+	assert.Equal(t, int64(2), m.Owner("acme", "b").ID, "the routes learned before survive")
+	assert.Equal(t, int64(1), m.Owner("alice", "a").ID)
+}
+
+func TestMulti_RESTBudgetShowsTheTighterAndToleratesNil(t *testing.T) {
+	rest := func(remaining int) dashboard.Result {
+		r := answered("x/"+string(rune('a'+remaining%26)), 1)
+		if remaining >= 0 {
+			r.Health.RateLimitREST = &dashboard.RateLimit{Limit: 5000, Remaining: remaining}
+		}
+		r.Health.RateLimitGraphQL = nil
+
+		return r
+	}
+	m := multiOf(
+		github.Member{ID: 1, Source: fakeInstallation{rest(-1)}},
+		github.Member{ID: 2, Source: fakeInstallation{rest(300)}},
+		github.Member{ID: 3, Source: fakeInstallation{rest(900)}},
+		github.Member{ID: 4, Source: fakeInstallation{rest(-1)}},
+	)
+
+	res := m.Fetch(t.Context())
+
+	require.NotNil(t, res.Health.RateLimitREST)
+	assert.Equal(t, 300, res.Health.RateLimitREST.Remaining)
+	assert.Nil(t, res.Health.RateLimitGraphQL)
+}
+
+func TestMulti_ARepoTwoInstallationsSeeIsReadOnceFromTheFirst(t *testing.T) {
+	first := answered("acme/shared", 100)
+	first.PullRequests[0].Title = "first"
+	second := answered("acme/shared", 100)
+	second.PullRequests[0].Title = "second"
+	m := multiOf(
+		github.Member{ID: 1, Source: fakeInstallation{first}},
+		github.Member{ID: 2, Source: fakeInstallation{second}},
+	)
+
+	res := m.Fetch(t.Context())
+
+	require.Len(t, res.PullRequests, 1)
+	assert.Equal(t, "first", res.PullRequests[0].Title)
+	assert.Len(t, res.Issues, 1)
+	assert.Len(t, res.Repos, 1)
+	assert.Len(t, res.MainBranches, 1)
+	assert.Equal(t, 1, res.Health.RepoCount)
+	assert.Equal(t, int64(1), m.Owner("acme", "shared").ID)
+}
+
+func TestMulti_AFailedInstallationDoesNotKeepARepoAHealthyOneReported(t *testing.T) {
+	failing := &swapSource{res: answered("acme/shared", 100)}
+	m := multiOf(
+		github.Member{ID: 1, Source: failing},
+		github.Member{ID: 2, Source: fakeInstallation{answered("acme/shared", 100)}},
+	)
+	m.Fetch(t.Context())
+	failing.res = failed(dashboard.ForgeErrorUnreachable)
+
+	res := m.Fetch(t.Context())
+
+	assert.Empty(t, res.Unchanged)
+	assert.Len(t, res.PullRequests, 1)
+	assert.Equal(t, int64(2), m.Owner("acme", "shared").ID)
+}
+
+func TestMulti_OwnerWithNoMembersDoesNotPanic(t *testing.T) {
+	m := multiOf()
+
+	assert.Equal(t, github.Member{}, m.Owner("a", "b"))
+	assert.Equal(t, dashboard.ForgeGitHub, m.Fetch(t.Context()).Health.Forge)
+	assert.False(t, m.Fetch(t.Context()).Health.Reachable)
+}
+
+func TestMulti_MembersIsACopy(t *testing.T) {
+	m := multiOf(github.Member{ID: 1, Source: fakeInstallation{}}, github.Member{ID: 2, Source: fakeInstallation{}})
+
+	got := m.Members()
+	got[0], got[1] = got[1], got[0]
+
+	assert.Equal(t, int64(1), m.Members()[0].ID)
+}
+
+func TestMulti_OwnerIsSafeWhileFetchRuns(t *testing.T) {
+	m := multiOf(
+		github.Member{ID: 1, Source: fakeInstallation{answered("alice/a", 1)}},
+		github.Member{ID: 2, Source: fakeInstallation{answered("acme/b", 1)}},
+	)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for range 200 {
+			m.Fetch(context.Background())
+		}
+	}()
+	for range 2000 {
+		assert.Contains(t, []int64{1, 2}, m.Owner("acme", "b").ID)
+	}
+	<-done
+}

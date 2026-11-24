@@ -28,6 +28,11 @@ type Member struct {
 //
 // Every fetch records which member reported which repo, and Owner answers from
 // that, so a call about one repo reaches the installation that can see it.
+//
+// A repo is read through one installation. An installation sees only its own
+// account's repos, so two seldom report the same one; when they do, the first
+// member in order keeps it and the later member's rows for it are dropped, so
+// nothing is counted twice.
 type Multi struct {
 	members []Member
 
@@ -51,11 +56,15 @@ func NewMulti(members []Member) *Multi {
 func (*Multi) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
 
 // Members returns the installations, in order.
-func (m *Multi) Members() []Member { return m.members }
+func (m *Multi) Members() []Member { return slices.Clone(m.members) }
 
 // Owner is the member that reported owner/name on a fetch. A repo none has
 // reported yet goes to the first member.
 func (m *Multi) Owner(owner, name string) Member {
+	if len(m.members) == 0 {
+		return Member{}
+	}
+
 	m.mu.Lock()
 	r := m.owner[strings.ToLower(owner+"/"+name)]
 	m.mu.Unlock()
@@ -95,19 +104,16 @@ func (m *Multi) merge(results []dashboard.Result) dashboard.Result {
 
 	for i, r := range results {
 		out.Spent = addSpend(out.Spent, r.Spent)
-
 		if !r.Health.Reachable {
 			if first == nil {
 				first = &results[i].Health
 			}
 			failed = append(failed, dashboard.FailedInstallation{InstallationID: m.members[i].ID, Account: m.members[i].Account, ErrorKind: r.Health.ErrorKind})
-			// A failed member says nothing about its repos, so the repos it had
-			// last time are named as unchanged and the aggregator keeps their rows.
-			out.Unchanged = append(out.Unchanged, m.keepRoutes(previous, i)...)
 
 			continue
 		}
 
+		r = m.withoutOwned(r)
 		if healthy {
 			joinHealth(&out.Health, r.Health)
 		} else {
@@ -125,15 +131,49 @@ func (m *Multi) merge(results []dashboard.Result) dashboard.Result {
 			out.Health = *first
 		}
 		out.Health.Reachable = false
-		out.Unchanged = nil
 		m.owner = previous
 
 		return out
 	}
 
+	// A failed member says nothing about its repos, so the repos it had last
+	// time are named as unchanged and the aggregator keeps their rows. A repo a
+	// healthy member reported this time is not one of them.
+	for i, r := range results {
+		if !r.Health.Reachable {
+			out.Unchanged = append(out.Unchanged, m.keepRoutes(previous, i)...)
+		}
+	}
+	slices.Sort(out.Unchanged)
+
 	out.Health.FailedInstallations = failed
 
 	return out
+}
+
+// withoutOwned is r without the rows of repos an earlier member already
+// reported this fetch.
+func (m *Multi) withoutOwned(r dashboard.Result) dashboard.Result {
+	taken := map[string]bool{}
+	for _, repo := range r.Repos {
+		if _, ok := m.owner[strings.ToLower(repo.FullName)]; ok {
+			taken[strings.ToLower(repo.FullName)] = true
+		}
+	}
+	if len(taken) == 0 {
+		return r
+	}
+
+	drop := func(name string) bool { return taken[strings.ToLower(name)] }
+	r.Repos = slices.DeleteFunc(slices.Clone(r.Repos), func(x dashboard.Repo) bool { return drop(x.FullName) })
+	r.PullRequests = slices.DeleteFunc(slices.Clone(r.PullRequests), func(x dashboard.PullRequest) bool { return drop(x.Repo) })
+	r.Issues = slices.DeleteFunc(slices.Clone(r.Issues), func(x dashboard.Issue) bool { return drop(x.Repo) })
+	r.MainBranches = slices.DeleteFunc(slices.Clone(r.MainBranches), func(x dashboard.MainBranch) bool { return drop(x.FullName) })
+	r.FailedRepos = slices.DeleteFunc(slices.Clone(r.FailedRepos), func(x dashboard.FailedRepo) bool { return drop(x.FullName) })
+	r.Unchanged = slices.DeleteFunc(slices.Clone(r.Unchanged), drop)
+	r.Health.RepoCount -= len(taken)
+
+	return r
 }
 
 // keepRoutes carries member i's earlier routes into the new table and returns
@@ -141,7 +181,7 @@ func (m *Multi) merge(results []dashboard.Result) dashboard.Result {
 func (m *Multi) keepRoutes(previous map[string]route, i int) []string {
 	var names []string
 	for key, rt := range previous {
-		if rt.member == i {
+		if _, taken := m.owner[key]; rt.member == i && !taken {
 			m.owner[key] = rt
 			names = append(names, rt.name)
 		}
@@ -192,7 +232,9 @@ func addSpend(a, b *dashboard.Spend) *dashboard.Spend {
 }
 
 // tighter is whichever budget has less left. Each installation has its own, and
-// the one closest to running out is the one worth showing.
+// the one closest to running out is the one worth showing. Remaining is compared
+// as it is: every installation belongs to the same App, so their limits are
+// GitHub's same per-installation allowance, and absolute counts compare.
 func tighter(a, b *dashboard.RateLimit) *dashboard.RateLimit {
 	switch {
 	case a == nil:
