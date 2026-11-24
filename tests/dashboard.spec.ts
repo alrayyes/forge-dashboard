@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { forgeHealth } from './forge-health-helper';
 import {
   clearLabels,
   labelButton,
@@ -145,13 +146,12 @@ test.describe('dashboard page', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
+            forgeHealth('github', {
               reachable: false,
               repoCount: 0,
               error: 'github: GET /user/repos: 401 Bad credentials',
               errorKind: 'unauthorized',
-            },
+            }),
           ],
           pullRequests: [],
           issues: [],
@@ -190,14 +190,13 @@ test.describe('dashboard page', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
+            forgeHealth('github', {
               reachable: false,
               repoCount: 0,
               error:
                 'github: GET /user/repos: API rate limit exceeded for user ID 511318. (resets 2026-09-14T14:00:00Z)',
               errorKind: 'rate_limited',
-            },
+            }),
           ],
           pullRequests: [],
           issues: [],
@@ -207,14 +206,14 @@ test.describe('dashboard page', () => {
 
     await landOnPullRequests(page);
 
-    const forgeHealth = page.locator('#forge-health');
+    const healthArea = page.locator('#forge-health');
     await expect(page.locator('#unreachable-banner')).toContainText(
       'GitHub is unreachable.',
     );
-    await expect(forgeHealth).not.toContainText('Rate limit exceeded');
-    await expect(
-      forgeHealth.locator('details.forge-health-detail'),
-    ).toHaveCount(0);
+    await expect(healthArea).not.toContainText('Rate limit exceeded');
+    await expect(healthArea.locator('details.forge-health-detail')).toHaveCount(
+      0,
+    );
   });
 
   test('an unreachable forge with no recognized error kind still shows a friendly, forge-named reason', async ({
@@ -227,13 +226,12 @@ test.describe('dashboard page', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'forgejo',
+            forgeHealth('forgejo', {
               reachable: false,
               repoCount: 0,
               error: 'forgejo: GET /user/repos: unexpected EOF',
               errorKind: 'unknown',
-            },
+            }),
           ],
           pullRequests: [],
           issues: [],
@@ -260,12 +258,10 @@ test.describe('dashboard page', () => {
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
           forges: [
-            {
-              forge: 'github',
-              reachable: true,
+            forgeHealth('github', {
               repoCount: 3,
               rateLimitREST: rateLimit(5000, 4922, resetsAt),
-            },
+            }),
           ],
           pullRequests: [],
           issues: [],
@@ -294,12 +290,10 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitREST: rateLimit(5000, 0, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -342,13 +336,11 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitGraphQL: rateLimit(5000, 0, resetsAt),
                 rateLimitREST: rateLimit(5000, 0, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -374,12 +366,10 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitREST: rateLimit(5000, 0, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -397,16 +387,14 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitREST: rateLimit(
                   5000,
                   5000,
                   new Date(Date.now() + 3600 * 1000).toISOString(),
                 ),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -429,12 +417,10 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitGraphQL: rateLimit(5000, 40, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -462,12 +448,10 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitGraphQL: rateLimit(5000, 250, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -491,13 +475,11 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              {
-                forge: 'github',
-                reachable: true,
+              forgeHealth('github', {
                 repoCount: 3,
                 rateLimitGraphQL: rateLimit(5000, 0, resetsAt),
                 rateLimitREST: rateLimit(5000, 40, resetsAt),
-              },
+              }),
             ],
             pullRequests: [],
             issues: [],
@@ -562,7 +544,7 @@ test.describe('dashboard page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [
             {
@@ -619,7 +601,7 @@ test.describe('dashboard page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [
             {
@@ -658,7 +640,7 @@ test.describe('dashboard page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [],
           issues: [
             {
@@ -694,10 +676,7 @@ test.describe('dashboard page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [
-            { forge: 'github', reachable: true, repoCount: 1 },
-            { forge: 'forgejo', reachable: true, repoCount: 1 },
-          ],
+          forges: [forgeHealth('github'), forgeHealth('forgejo')],
           pullRequests: [
             {
               forge: 'github',
@@ -748,10 +727,7 @@ test.describe('dashboard page', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date().toISOString(),
-          forges: [
-            { forge: 'github', reachable: true, repoCount: 1 },
-            { forge: 'forgejo', reachable: true, repoCount: 1 },
-          ],
+          forges: [forgeHealth('github'), forgeHealth('forgejo')],
           pullRequests: [
             {
               forge: 'github',
@@ -805,10 +781,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [
-              { forge: 'github', reachable: true, repoCount: 1 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
-            ],
+            forges: [forgeHealth('github'), forgeHealth('forgejo')],
             pullRequests: [
               {
                 forge: 'github',
@@ -852,10 +825,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [
-              { forge: 'github', reachable: true, repoCount: 1 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
-            ],
+            forges: [forgeHealth('github'), forgeHealth('forgejo')],
             pullRequests: [
               {
                 forge: 'github',
@@ -1069,7 +1039,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [
               {
                 forge: 'github',
@@ -1172,10 +1142,7 @@ test.describe('dashboard page', () => {
             contentType: 'application/json',
             body: JSON.stringify({
               generatedAt: new Date().toISOString(),
-              forges: [
-                { forge: 'github', reachable: true, repoCount: 1 },
-                { forge: 'forgejo', reachable: true, repoCount: 1 },
-              ],
+              forges: [forgeHealth('github'), forgeHealth('forgejo')],
               pullRequests: [
                 {
                   forge: 'github',
@@ -1268,7 +1235,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [
               {
                 forge: 'github',
@@ -1364,8 +1331,8 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              { forge: 'github', reachable: true, repoCount: 2 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
+              forgeHealth('github', { repoCount: 2 }),
+              forgeHealth('forgejo'),
             ],
             pullRequests: [
               {
@@ -1626,8 +1593,8 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              { forge: 'github', reachable: true, repoCount: 2 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
+              forgeHealth('github', { repoCount: 2 }),
+              forgeHealth('forgejo'),
             ],
             pullRequests: [
               pr(1, 'github', 'shared/tools', 'claude'),
@@ -1664,8 +1631,8 @@ test.describe('dashboard page', () => {
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
             forges: [
-              { forge: 'github', reachable: true, repoCount: 2 },
-              { forge: 'forgejo', reachable: true, repoCount: 1 },
+              forgeHealth('github', { repoCount: 2 }),
+              forgeHealth('forgejo'),
             ],
             pullRequests: [
               {
@@ -1725,7 +1692,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [
               {
                 forge: 'github',
@@ -1802,7 +1769,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [makePR(1), makePR(2)],
             issues: [],
           }),
@@ -1826,7 +1793,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: prs,
             issues: [],
           }),
@@ -1874,7 +1841,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: prs,
             issues: [],
           }),
@@ -1900,7 +1867,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [
               {
                 forge: 'github',
@@ -2000,7 +1967,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests,
             issues: [],
           }),
@@ -2236,7 +2203,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [],
             issues: [],
           }),
@@ -2253,7 +2220,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [
               {
                 forge: 'github',
@@ -2370,7 +2337,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [],
             issues: [
               {
@@ -2458,7 +2425,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [
               {
                 forge: 'github',
@@ -2584,7 +2551,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [],
             issues: [
               {
@@ -2646,7 +2613,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests: [],
             issues: [
               {
@@ -2732,7 +2699,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+            forges: [forgeHealth('github')],
             pullRequests,
             issues,
           }),
@@ -2872,7 +2839,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [PR_ONE, PR_TWO],
             issues: [DEPENDENCY_DASHBOARD_ISSUE],
           }),
@@ -2924,7 +2891,7 @@ test.describe('dashboard page', () => {
           contentType: 'application/json',
           body: JSON.stringify({
             generatedAt: new Date().toISOString(),
-            forges: [{ forge: 'github', reachable: true, repoCount: 2 }],
+            forges: [forgeHealth('github', { repoCount: 2 })],
             pullRequests: [PR_ONE, PR_TWO, PR_THREE],
             issues: [DEPENDENCY_DASHBOARD_ISSUE],
           }),
@@ -3173,10 +3140,7 @@ test.describe('quick filter pills and "/" shortcut (#678)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: now,
-          forges: [
-            { forge: 'github', reachable: true, repoCount: 1 },
-            { forge: 'forgejo', reachable: true, repoCount: 1 },
-          ],
+          forges: [forgeHealth('github'), forgeHealth('forgejo')],
           pullRequests: PRS,
           issues: ISSUES,
         }),
@@ -3407,8 +3371,8 @@ test.describe('repo group headers: host and sync status (#679)', () => {
         body: JSON.stringify({
           generatedAt: now,
           forges: [
-            { forge: 'github', reachable: true, repoCount: 2 },
-            { forge: 'forgejo', reachable: true, repoCount: 1 },
+            forgeHealth('github', { repoCount: 2 }),
+            forgeHealth('forgejo'),
           ],
           repos: REPOS,
           pullRequests: PRS,
@@ -3524,7 +3488,7 @@ test.describe('time cells say what they are (#1109)', () => {
         contentType: 'application/json',
         body: JSON.stringify({
           generatedAt: new Date(now).toISOString(),
-          forges: [{ forge: 'github', reachable: true, repoCount: 1 }],
+          forges: [forgeHealth('github')],
           pullRequests: [
             { ...item, draft: false, ci: 'success', mergeStatus: 'mergeable' },
           ],
