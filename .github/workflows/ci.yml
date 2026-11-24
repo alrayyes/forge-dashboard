@@ -75,6 +75,8 @@ jobs:
         run: scripts/test-gitleaks-pin.sh
       - name: check the Playwright image matches the library
         run: scripts/test-playwright-image.sh
+      - name: check the e2e shard timeout message
+        run: scripts/test-e2e-shard-timeout.sh
       - name: check the audit gate and scan shape
         run: scripts/test-audit-workflows.sh
       - name: check the spec has no ticket references
@@ -369,6 +371,9 @@ jobs:
       matrix:
         shard: ${{ fromJSON(needs.changes.outputs.e2e_shards) }}
     steps:
+      # Read by the cancelled() step to tell the timeout from a newer push.
+      - name: record when this shard started
+        run: echo "E2E_SHARD_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
@@ -386,6 +391,18 @@ jobs:
         run: |
           bun scripts/e2e-shards.ts shard "${{ matrix.shard }}" "${{ strategy.job-total }}" > shard-specs.txt
           xargs -a shard-specs.txt bunx playwright test
+      # The log of a shard cancelled by its timeout ends at "The operation was
+      # canceled." like one cancelled by a newer push. Say which it was.
+      # LIMIT_MINUTES must equal timeout-minutes above;
+      # scripts/test-e2e-shard-timeout.sh checks that.
+      - name: say why a cancelled shard was cancelled
+        if: ${{ cancelled() }}
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARD_TOTAL: ${{ strategy.job-total }}
+          LIMIT_MINUTES: 10
+          STARTED: ${{ env.E2E_SHARD_STARTED }}
+        run: bash scripts/e2e-shard-cancelled.sh
       - name: upload this shard's blob report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
