@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // Insights, Settings and Webhooks take their data from the layout's one
@@ -53,7 +54,7 @@ const REPOS = [
 const body = (done: boolean, full: boolean) => ({
   readIntervalSeconds: 2,
   firstRefreshDone: done,
-  forges: full ? [{ forge: 'github', repoCount: 3 }] : [],
+  forges: full ? [forgeHealth('github', { repoCount: 3 })] : [],
   repos: full ? REPOS : [],
   pullRequests: [],
   issues: [],
