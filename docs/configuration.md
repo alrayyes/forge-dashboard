@@ -246,8 +246,11 @@ installations (`GET /user/installations`). With no linked account, or an ID
 that isn't listed, nothing is stored. Each installation is one row, so you
 never paste an ID. Reads use every enabled installation, each with its own
 installation token, and the results are merged into one GitHub board. If one
-installation fails, the others still load, its last rows stay on the board, and
-the health response names it under `failedInstallations`. A repo is read through
+installation fails to read, the others still load, its last rows stay on the
+board, and the health response names it under `failedInstallations`. All the
+installations share the App's one private key, so a key that can't be read
+fails them all together: the dashboard then falls back to a saved token, and
+with none it reports GitHub as unreachable. A repo is read through
 one installation: if two see the same repo, the first one added keeps it. An
 action on a repo no installation has reported yet is refused with a 404. The
 "waiting for owner approval" state and webhook updates are not built yet, and

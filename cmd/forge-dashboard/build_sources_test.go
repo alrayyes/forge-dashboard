@@ -101,7 +101,7 @@ func TestBuildGitHubSource_BothAppInstallationAndToken_AppWins(t *testing.T) {
 
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, testGitHubAppPrivateKeyPEM, srv.URL, nil, nil, nil,
+		1, testGitHubAppPrivateKeyPEM, srv.URL, nil, nil, githubShared{},
 	)
 	require.NotNil(t, source)
 
@@ -120,7 +120,7 @@ func TestBuildGitHubSource_AppConstructionFails_FallsBackToToken(t *testing.T) {
 	// up being used.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), srv.URL, nil, nil, nil,
+		1, []byte("not a pem"), srv.URL, nil, nil, githubShared{},
 	)
 	require.NotNil(t, source)
 
@@ -140,7 +140,7 @@ func TestBuildGitHubSource_InstallationIdSetButNoServerApp_FallsBackToToken(t *t
 	// the existing PAT from working.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42},
-		0, nil, srv.URL, nil, nil, nil,
+		0, nil, srv.URL, nil, nil, githubShared{},
 	)
 	require.NotNil(t, source)
 
@@ -156,7 +156,7 @@ func TestBuildGitHubSource_AppFailsWithNoFallback_ReportsHealthError(t *testing.
 	// the (deliberately broken) App branch fails.
 	source := buildGitHubSource(
 		settings.Credentials{GitHubAppInstallationID: 42},
-		1, []byte("not a pem"), "", nil, nil, nil,
+		1, []byte("not a pem"), "", nil, nil, githubShared{},
 	)
 	require.NotNil(t, source)
 
@@ -179,7 +179,7 @@ func TestBuildGitHubSource_ClientsOnOneCacheShareAnItemsRenderedBody(t *testing.
 
 	// A request builds its own client, as buildSources does.
 	for range 2 {
-		source := buildGitHubSource(creds, 0, nil, srv.URL, nil, nil, cache)
+		source := buildGitHubSource(creds, 0, nil, srv.URL, nil, nil, githubShared{bodies: cache})
 		resolver, ok := source.(dashboard.ImageLinkResolver)
 		require.True(t, ok)
 		_, err := resolver.SignedImageURL(t.Context(), "octo", "repo", item, "https://github.com/user-attachments/assets/a")
@@ -302,7 +302,7 @@ func TestBuildGitHubSource_SeveralInstallations_EachReadsWithItsOwnToken(t *test
 	seen, url := twoInstallationServer(t)
 	source := buildGitHubSource(
 		settings.Credentials{GitHubAppInstallationID: 42, GitHubAppInstallationIDs: []int64{42, 43}},
-		1, testGitHubAppPrivateKeyPEM, url, nil, nil, nil,
+		1, testGitHubAppPrivateKeyPEM, url, nil, nil, githubShared{},
 	)
 	require.NotNil(t, source)
 	multi, ok := source.(*github.Multi)
@@ -323,9 +323,27 @@ func TestBuildGitHubSource_OneInstallation_IsAPlainClient(t *testing.T) {
 	_, url := twoInstallationServer(t)
 	source := buildGitHubSource(
 		settings.Credentials{GitHubAppInstallationID: 42, GitHubAppInstallationIDs: []int64{42}},
-		1, testGitHubAppPrivateKeyPEM, url, nil, nil, nil,
+		1, testGitHubAppPrivateKeyPEM, url, nil, nil, githubShared{},
 	)
 
 	_, isClient := source.(*github.Client)
 	assert.True(t, isClient)
+}
+
+func TestBuildGitHubSource_EveryInstallationFailingToBuild_FallsBackToTheToken(t *testing.T) {
+	t.Parallel()
+
+	srv, lastAuthHeader := githubAppTestServer(t)
+
+	source := buildGitHubSource(
+		settings.Credentials{GitHubToken: "pat-value", GitHubAppInstallationID: 42, GitHubAppInstallationIDs: []int64{42, 43}},
+		1, []byte("not a pem"), srv.URL, nil, nil, githubShared{},
+	)
+	require.NotNil(t, source)
+	_, isClient := source.(*github.Client)
+	assert.True(t, isClient, "no installation could build, so the saved token is read instead")
+
+	source.Fetch(t.Context())
+
+	assert.Contains(t, *lastAuthHeader, "pat-value")
 }
