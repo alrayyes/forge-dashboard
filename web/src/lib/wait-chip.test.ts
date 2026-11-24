@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { afterEach, describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
@@ -7,6 +8,8 @@ import {
   autoMergeWording,
   mergeWaitChip,
   queuedChip,
+  REVIEW_DECISIONS,
+  reviewDecisionOf,
   SETTLED_MS,
   STILL_WAITING_MS,
   settledChip,
@@ -285,6 +288,53 @@ describe('autoMergeChip wording', () => {
       const chip = held({ review: 'review_required' });
       expect(chip?.tooltip).toBe(
         'Auto-merge is waiting for checks to finish. Forgejo requires a review before it merges.',
+      );
+    });
+
+    test('a review outranks a check, and a check outranks a rule', () => {
+      const both = autoMergeChip(
+        waiting({
+          code: 'blocked_by_protection',
+          holds: { review: 'review_required', pendingChecks: ['lint'] },
+        }),
+      );
+      expect(both?.label).toBe('Waiting for review');
+      const checkAndRule = autoMergeChip(
+        waiting({
+          code: 'blocked_by_protection',
+          holds: { pendingChecks: ['lint'] },
+        }),
+      );
+      expect(checkAndRule?.label).toBe('Waiting for check');
+    });
+
+    test('an approved or unchecked review names nothing, so a check still shows', () => {
+      for (const review of ['approved', 'none'] as const) {
+        const chip = held({ review, pendingChecks: ['lint'] });
+        expect(chip?.label).toBe('Waiting for check');
+      }
+    });
+
+    test('a review decision the page does not know is no reason', () => {
+      expect(reviewDecisionOf('something_new')).toBeUndefined();
+      expect(reviewDecisionOf(undefined)).toBeUndefined();
+      const chip = held({ review: reviewDecisionOf('something_new') });
+      expect(chip?.label).toBe('Waiting for forge');
+      expect(chip?.detail).toBe('The forge gave no reason');
+    });
+
+    test('the decisions the page knows are the ones the API documents', () => {
+      const yaml = readFileSync(
+        new URL('../../../api/openapi.yaml', import.meta.url),
+        'utf8',
+      );
+      const block = yaml.slice(yaml.indexOf('    ReviewState:'));
+      const listed = /decision:\s+type: string\s+enum: \[([^\]]+)\]/
+        .exec(block)?.[1]
+        .split(',')
+        .map((v) => v.trim());
+      expect([...REVIEW_DECISIONS].map(String).sort()).toEqual(
+        [...(listed ?? [])].sort(),
       );
     });
 

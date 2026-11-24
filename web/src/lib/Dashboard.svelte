@@ -243,6 +243,7 @@
   } from "#lib/hidden-pull-requests.js";
   import {
     autoMergeChip,
+    reviewDecisionOf,
     MERGE_AVAILABLE,
     type MergeWait,
     mergeWaitChip,
@@ -1681,7 +1682,7 @@
             forge: pr.forge,
             heldBy: pr.autoMergeHeldBy,
             holds: {
-              review: pr.review?.decision,
+              review: reviewDecisionOf(pr.review?.decision),
               pendingChecks: pr.pendingChecks,
             },
           });

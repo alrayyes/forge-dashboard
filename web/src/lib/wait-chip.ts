@@ -241,6 +241,21 @@ export function queuedChip(input: {
   };
 }
 
+// The review decisions the API documents (ReviewState.decision in
+// api/openapi.yaml; a test keeps the two in step). A decision the page doesn't
+// know reads as no reason.
+export const REVIEW_DECISIONS = [
+  'approved',
+  'changes_requested',
+  'review_required',
+  'none',
+] as const;
+export type ReviewDecision = (typeof REVIEW_DECISIONS)[number];
+
+export function reviewDecisionOf(value?: string): ReviewDecision | undefined {
+  return REVIEW_DECISIONS.find((decision) => decision === value);
+}
+
 export type AutoMergeInput = {
   state: 'waiting' | 'stopped';
   code?: string;
@@ -255,7 +270,7 @@ export type AutoMergeInput = {
   // What the row already knows about why the forge won't merge a green pull
   // request yet. Read only where the server's code names nothing (#4434).
   holds?: {
-    review?: string;
+    review?: ReviewDecision;
     pendingChecks?: readonly string[];
   };
 };
@@ -346,7 +361,8 @@ function heldWords(
     tooltip: `${autoMergeWording(input.message, input.forge)} ${reason}`,
   });
   const checks = input.holds?.pendingChecks ?? [];
-  switch (input.holds?.review) {
+  const review = input.holds?.review;
+  switch (review) {
     case 'review_required':
       return named(
         'Waiting for review',
@@ -359,6 +375,14 @@ function heldWords(
         'Needs a new review',
         `A reviewer asked for changes. ${forge} merges it after a new review.`,
       );
+    case 'approved':
+    case 'none':
+    case undefined:
+      break;
+    default:
+      // A new decision in REVIEW_DECISIONS is a compile error until it is
+      // handled here.
+      return review satisfies never;
   }
   if (checks.length > 0)
     return named(
