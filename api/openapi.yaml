@@ -6488,8 +6488,35 @@ components:
             nothing there, when it can't be read, and for Forgejo, which has no
             such page. A client says "GitHub reports an incident" and leaves
             the cause of a failure with no incident to the forge's own error.
+        failedInstallations:
+          type: array
+          items:
+            $ref: "#/components/schemas/FailedInstallation"
+          description: >-
+            The GitHub App installations that did not answer this refresh while
+            the forge itself did (reachable is true). Each one's pull requests
+            and issues keep the last rows read, and the other installations
+            load as usual. Set only for GitHub, and only when more than one
+            installation is read. Omitted when every installation answered.
         capabilities:
           $ref: "#/components/schemas/ForgeCapabilities"
+
+    FailedInstallation:
+      type: object
+      description: One GitHub App installation that did not answer a refresh.
+      required: [installationId, errorKind]
+      properties:
+        installationId:
+          type: integer
+          format: int64
+          description: GitHub's ID for the installation.
+        account:
+          type: string
+          description: >-
+            The account or org the App is installed on. Omitted when it was
+            never recorded.
+        errorKind:
+          $ref: "#/components/schemas/ForgeErrorKind"
 
     ForgeCapabilities:
       type: object

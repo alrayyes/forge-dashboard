@@ -582,9 +582,19 @@ type ForgeHealth struct {
 	// while the forge is unreachable and the page names an incident on
 	// something the dashboard uses (#3633). Absent otherwise.
 	ProviderStatus *ProviderStatus `json:"providerStatus,omitempty"`
+	// FailedInstallations names the GitHub App installations that did not
+	// answer while the forge did (#4586). Their rows are the last good ones.
+	FailedInstallations []FailedInstallation `json:"failedInstallations,omitempty"`
 	// Capabilities is what this forge can do, filled in when a response is
 	// built (WithCapabilities), so no refresh path has to set it.
 	Capabilities ForgeCapabilities `json:"capabilities"`
+}
+
+// FailedInstallation matches components.schemas.FailedInstallation.
+type FailedInstallation struct {
+	InstallationID int64          `json:"installationId"`
+	Account        string         `json:"account,omitempty"`
+	ErrorKind      ForgeErrorKind `json:"errorKind"`
 }
 
 // ProviderStatus matches components.schemas.ProviderStatus: facts from a
