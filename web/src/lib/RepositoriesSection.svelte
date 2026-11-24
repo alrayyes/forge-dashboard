@@ -5,6 +5,7 @@
   import FilterPill from "./FilterPill.svelte";
   import FirstRefreshStatus from "./FirstRefreshStatus.svelte";
   import ListSkeleton from "./ListSkeleton.svelte";
+  import PollingOnlyNotice from "./PollingOnlyNotice.svelte";
   import ReadFailureAlert from "./ReadFailureAlert.svelte";
   import RepoControlIcon from "./RepoControlIcon.svelte";
   import RepoLogo from "./RepoLogo.svelte";
@@ -14,6 +15,7 @@
   import { appConnectionCopy, noReposCopy } from "./forge-copy.js";
   import { dependabotBlockedReason } from "./forge-lock.js";
   import { forgeClassOf, forgeLabelOf } from "./forges.js";
+  import { pollingOnlyCount, pollingOnlyReason } from "./polling-only.js";
   import {
     autoUpdateName,
     bulkTargets,
@@ -38,6 +40,11 @@
     ignoredIssues: boolean;
     autoUpdateBranch: boolean;
     rebaseBots: boolean;
+    hasWebhook: boolean;
+    canManageWebhooks?: boolean;
+    webhookReason?: string;
+    webhookReasonDetail?: string;
+    webhookNextAttemptAt?: string;
   };
   type ForgeHealthEntry = {
     forge: string;
@@ -64,6 +71,7 @@
   let repos = $state<Repo[]>([]);
   let forges = $state<ForgeHealthEntry[]>([]);
   let loaded = $state(false);
+  let originProblem = $state("");
   // Until the first read has an answer worth drawing, the list must not say
   // "Nothing tracked yet" (#3367).
   const awaiting = $derived(
@@ -91,6 +99,7 @@
   const sortedRepos = $derived(
     sortRepos(filterRepos(repos, filter), sortKey, sortDir),
   );
+  const pollingCount = $derived(pollingOnlyCount(repos));
   const ignoredRepos = $derived(repos.filter((r) => r.ignored));
   const offeredForges = $derived(forgeChoices(repos, filter));
   const filtersClear = $derived(filtersAreClear(filter));
@@ -125,6 +134,23 @@
     page = 1;
     setStatus("");
   }
+  function togglePolling() {
+    filter.pollingOnly = !filter.pollingOnly;
+    changeFilter();
+  }
+  // A link to #repositories lands on the notice's pill, so the one action the
+  // notice offers is in view.
+  let pollingScrolled = false;
+  $effect(() => {
+    if (pollingScrolled || !loaded || pollingCount === 0) return;
+    if (window.location.hash !== "#repositories") return;
+    pollingScrolled = true;
+    tick().then(() =>
+      document
+        .querySelector("#repositories-polling [aria-pressed]")
+        ?.scrollIntoView({ block: "center" }),
+    );
+  });
   function pickForge(forge: string) {
     filter.forge = forge;
     changeFilter();
@@ -183,6 +209,7 @@
     untrack(() => {
       repos = (data?.repos as Repo[]) || [];
       forges = (data?.forges as ForgeHealthEntry[]) || [];
+      originProblem = data?.webhookOriginProblem ?? "";
       loaded = true;
     });
   });
@@ -437,6 +464,13 @@
       {statusMessage}
     </p>
 
+    <PollingOnlyNotice
+      id="repositories-polling"
+      count={pollingCount}
+      pressed={filter.pollingOnly === true}
+      onpress={togglePolling}
+    />
+
     <div class="filter-bar" role="search" aria-label="Filter repositories">
       <div class="forge-scroll">
         <FilterGroup label="Forge" id="repositories-forge">
@@ -570,6 +604,46 @@
                   >
                     {repo.fullName}
                   </a>{:else}{repo.fullName}{/if}
+                {#if !repo.ignored && !repo.hasWebhook}
+                  {@const why = pollingOnlyReason(repo, originProblem)}
+                  <span class="polling-reason" data-testid="polling-reason">
+                    <svg
+                      viewBox="0 0 16 16"
+                      width="14"
+                      height="14"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <path
+                        d="M8 1.75 14.5 13.5h-13z"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linejoin="round"
+                      />
+                      <path
+                        d="M8 6.5v3.25M8 11.5v.5"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                      />
+                    </svg>
+                    {why.line}
+                    <a
+                      class="polling-link"
+                      href={why.link.href}
+                      target={why.link.href.startsWith("http")
+                        ? "_blank"
+                        : undefined}
+                      rel={why.link.href.startsWith("http")
+                        ? "noopener noreferrer"
+                        : undefined}
+                    >
+                      {why.link.text}
+                    </a>
+                  </span>
+                {/if}
               </td>
               <td role="cell" class="control-cell" data-label="Auto-update">
                 <RepoToggle
@@ -775,6 +849,25 @@
   .bulk-button:disabled {
     opacity: 0.6;
     cursor: default;
+  }
+  .polling-reason {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 6px;
+    margin-top: 4px;
+    font-size: 0.8125rem;
+    color: var(--text);
+  }
+  .polling-reason svg {
+    flex: none;
+    color: var(--warning);
+  }
+  .polling-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    color: var(--accent);
   }
   .filter-bar {
     display: flex;

@@ -82,6 +82,7 @@ const singleUserSpecs = [
   '**/bottom-nav-focus-padding.spec.ts',
   '**/bottom-nav-labels.spec.ts',
   '**/bottom-nav-text-size.spec.ts',
+  '**/polling-only.spec.ts',
   '**/settings-repositories.spec.ts',
   '**/settings-repositories-status-line.spec.ts',
   '**/settings-repositories-rebase-bots.spec.ts',
