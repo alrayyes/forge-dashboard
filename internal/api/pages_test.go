@@ -25,7 +25,6 @@ func TestPages_RequireASession(t *testing.T) {
 		"/bots.html",
 		"/pull-requests.html",
 		"/settings.html",
-		"/webhooks.html",
 		"/changelog.html",
 		"/changelog.json",
 	} {
@@ -103,4 +102,26 @@ func TestMainBranchesPage_OldAddressRedirectsToTheIndex(t *testing.T) {
 
 	assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
 	assert.Equal(t, "/", resp.Header.Get("Location"))
+}
+
+// The Webhooks page is gone (#4029); its controls are in Settings, under
+// Repositories. A saved link to either spelling lands there, not on a 404.
+func TestWebhooksPage_OldAddressesRedirectToSettingsRepositories(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	client := &http.Client{Transport: testClient(t).Transport, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
+
+	for _, path := range []string{"/webhooks.html", "/webhooks"} {
+		t.Run(path, func(t *testing.T) {
+			t.Parallel()
+
+			resp, err := client.Get(srv.URL + path)
+			require.NoError(t, err)
+			defer func() { _ = resp.Body.Close() }()
+
+			assert.Equal(t, http.StatusMovedPermanently, resp.StatusCode)
+			assert.Equal(t, "/settings.html#repositories", resp.Header.Get("Location"))
+		})
+	}
 }
