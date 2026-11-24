@@ -244,6 +244,57 @@ test.describe('branches: polling only', () => {
     );
   });
 
+  test('each "See why in Settings" link names its repo and is 28px tall', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      repo('forgejo', 'one', { hasWebhook: false }),
+      repo('github', 'two', { hasWebhook: false }),
+    ]);
+    await mockBranches(page, [
+      branch('forgejo', 'one'),
+      branch('github', 'two'),
+    ]);
+    await page.goto('/');
+    const links = page.getByTestId('polling-only-chip').getByRole('link');
+    await expect(links).toHaveCount(2);
+    const names = await links.evaluateAll((els) =>
+      els.map((e) => (e.textContent ?? '').replace(/\s+/g, ' ').trim()),
+    );
+    expect(new Set(names).size).toBe(2);
+    for (const name of names) expect(name).toContain('See why in Settings');
+    await expect(
+      page.getByRole('link', {
+        name: 'See why in Settings for demo/one',
+      }),
+    ).toBeVisible();
+    for (const box of await links.evaluateAll((els) =>
+      els.map((e) => e.getBoundingClientRect().height),
+    ))
+      expect(box).toBeGreaterThanOrEqual(28);
+  });
+
+  for (const [mode, width] of [
+    ['light', 390],
+    ['dark', 1280],
+    ['dark', 390],
+  ] as const) {
+    test(`Branches with polling-only rows has no axe violations at ${width}px in ${mode}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: mode });
+      await page.setViewportSize({ width, height: 900 });
+      await mockDashboard(page, REPOS);
+      await mockBranches(page, [
+        branch('github', 'live'),
+        branch('forgejo', 'unreachable'),
+      ]);
+      await page.goto('/');
+      await expect(page.getByTestId('polling-only-chip')).toBeVisible();
+      await expectNoAxeViolations(page);
+    });
+  }
+
   test('Show only these narrows the list, Clear filters undoes it, axe is clean', async ({
     page,
   }) => {

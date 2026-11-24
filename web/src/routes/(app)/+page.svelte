@@ -897,7 +897,7 @@
     .mb-polling-link {
       display: inline-flex;
       align-items: center;
-      min-height: 24px;
+      min-height: 28px;
       color: inherit;
       text-decoration: underline;
     }
@@ -1303,7 +1303,9 @@
                         class="mb-polling-link"
                         href="/settings.html#repositories"
                       >
-                        See why in Settings
+                        See why in Settings<span class="sr-only">
+                          for {b.fullName}
+                        </span>
                       </a>
                     </span>{/if}
                   {#if isStale(b)}<span
