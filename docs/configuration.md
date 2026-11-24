@@ -276,7 +276,7 @@ To use it:
    permissions**, grant Contents, Issues, and Pull requests (read and
    write) for repo discovery, and for closing an issue or commenting on one
    from its pop-up (the Issues write permission), plus
-   **Webhooks (Read and write)** for "Add a webhook", plus
+   **Webhooks (Read and write)** so the dashboard can create webhooks, plus
    **Dependabot alerts (Read-only)** for the advisories on the Branches
    page (optional, see
    [When advisories can't be read](main-branches.md#when-advisories-cant-be-read)),
@@ -285,9 +285,9 @@ To use it:
    Metadata (read)
    comes along automatically. (GitHub also
    has an _organization_ Webhooks permission; that is not the one.) An
-   installation has no role on a repo, so the Webhooks page offers the Add
-   button wherever listing that repo's webhooks works. That proves read
-   access only; write is confirmed when Add is used. If you add or change
+   installation has no role on a repo, so the dashboard tries a repo
+   wherever listing its webhooks works. That proves read access only; write
+   is confirmed when it creates one. If you add or change
    a permission on an App that is already installed, GitHub holds the change
    until the owner accepts it on the installation's page, and the App has
    the old permissions until then. A refused action reads "Resource not

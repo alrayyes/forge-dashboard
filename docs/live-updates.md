@@ -188,15 +188,15 @@ Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one
 polite line that names the page's own subject, not their empty states: "Loading
 your pull requests…", "Loading your release pull requests…", "Loading your bot
 pull requests…", "Loading your issues…" or "Loading your branches…". Insights
-and Webhooks say "Loading your insights…" and "Loading your webhooks…" to a
-screen reader only. The page picks the words; the server sends the same flag for
-every page. The navigation shows a dash where a count would be. After about
-ten seconds the line
-says the first refresh can take a while. The placeholder doesn't animate under
-reduced motion. A snapshot without the flag counts as loaded. An unreachable
-forge still shows in the forge health banner. While the flag is `false` the
-server also advises a short `readIntervalSeconds` of 2, so the rows appear
-soon after the refresh ends, not up to 30 seconds later.
+and Settings' Repositories say "Loading your insights…" and "Loading your
+repositories…" to a screen reader only. The page picks the words; the server
+sends the same flag for every page. The navigation shows a dash where a count
+would be. After about ten seconds the line says the first refresh can take a
+while. The placeholder doesn't animate under reduced motion. A snapshot without
+the flag counts as loaded. An unreachable forge still shows in the forge health
+banner. While the flag is `false` the server also advises a short
+`readIntervalSeconds` of 2, so the rows appear soon after the refresh ends, not
+up to 30 seconds later.
 
 ## The first refresh
 
@@ -477,8 +477,7 @@ What is deliberately not remembered: the page you were on and the page size,
 the open Filters sheet on a phone, held updates, open menus and pop-ups, the
 hidden pull requests panel, and the expanded rows on Branches. The Branches
 status, forge, advisories and search follow you to another browser the same
-way, and so do the Webhooks forge buttons, repo search, status select, and sort.
-The Webhooks page size is not remembered, as on the other pages.
+way.
 
 ## Filters on a phone
 
