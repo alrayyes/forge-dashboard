@@ -2344,9 +2344,14 @@ button.title {
   white-space: nowrap;
   font-family: inherit;
   border: none;
-  cursor: pointer;
   /* The pill opens the pipeline (#1139): WCAG 2.5.8's 24px minimum. */
   min-height: 24px;
+}
+
+/* Only the button reads as one. A badge opens nothing (the no-checks pill,
+   the details header, the Related band), so it keeps the default cursor. */
+button.ci-pill {
+  cursor: pointer;
 }
 
 a.ci-pill {
