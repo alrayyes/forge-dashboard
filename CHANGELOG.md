@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.112.1](https://github.com/alrayyes/forge-dashboard/compare/v9.112.0...v9.112.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **web:** keep focus on Undo and hand it on when a pick filter hides ([#4769](https://github.com/alrayyes/forge-dashboard/issues/4769)) ([a9bce0f](https://github.com/alrayyes/forge-dashboard/commit/a9bce0f4f3bb4e96f9ca49fbdfb4aa209e2b8ce1)), closes [#4748](https://github.com/alrayyes/forge-dashboard/issues/4748)
+
 ## [9.112.0](https://github.com/alrayyes/forge-dashboard/compare/v9.111.3...v9.112.0) (2026-11-24)
 
 
