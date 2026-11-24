@@ -2,7 +2,7 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page } from '@playwright/test';
 import { test } from './server-fixture';
 
-// Settings is four groups, one shown at a time, the choice in the URL hash.
+// Settings is five groups, one shown at a time, the choice in the URL hash.
 // https://github.com/alrayyes/forge-dashboard/issues/1680
 
 const GROUPS = [
@@ -29,6 +29,12 @@ const GROUPS = [
     label: 'Integrations and security',
     cards: ['Webhooks', 'Passkeys', 'API tokens'],
     absent: ['Issues', 'Appearance'],
+  },
+  {
+    id: 'repositories',
+    label: 'Repositories',
+    cards: ['Repositories'],
+    absent: ['Issues', 'Appearance', 'Passkeys'],
   },
 ] as const;
 
@@ -251,7 +257,7 @@ test.describe('settings groups', () => {
     await expect(link).not.toBeFocused();
   });
 
-  test('360px: all four groups are reachable, 44px high, with no sideways scroll', async ({
+  test('360px: all five groups are reachable, 44px high, with no sideways scroll', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 360, height: 740 });
@@ -420,7 +426,7 @@ test.describe('settings groups', () => {
   test(`axe passes in every group, light and dark, every width`, async ({
     page,
   }) => {
-    // Four passes over four groups, each scanned twice.
+    // Five passes over five groups, each scanned twice.
     test.setTimeout(90_000);
     for (const scheme of ['light', 'dark'] as const) {
       for (const width of [1280, 360]) {
