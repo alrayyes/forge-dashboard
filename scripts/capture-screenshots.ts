@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Regenerates docs/screenshots/<page>-{light,dark}.png for every page in the
 // menu (branches, pull requests, issues, releases, bots, insights, webhooks,
-// settings), the pipeline checks panel, the pull request dialogs
+// settings, and its Repositories group, with a phone shot of the last and of
+// branches), the pipeline checks panel, the pull request dialogs
 // (a pull request, a release, a bot, and the phone sheet) and the login page
 // (the footer pages are left out) against a real build of the binary, run by
 // the release workflow's screenshots job — not a Playwright *test*
@@ -492,7 +493,15 @@ const PAGES = [
   { name: 'insights', url: '/insights.html', ready: '.insights-header h1' },
   { name: 'webhooks', url: '/webhooks.html', ready: '#webhooks-rows tr' },
   { name: 'settings', url: '/settings.html', ready: 'h1' },
+  {
+    name: 'repositories',
+    url: '/settings.html#repositories',
+    ready: '#repositories-rows tr',
+  },
 ];
+
+// Pages shot again at phone width (390px), named <page>-phone-<theme>.png.
+const PHONE_PAGES = ['branches', 'repositories'];
 
 const THEMES = ['light', 'dark'] as const;
 
@@ -638,6 +647,16 @@ async function main() {
       }
       if (name === 'bots') {
         await shootDialog(page, 88, 'bot-dialog', theme, '.details-collapsed');
+      }
+      if (PHONE_PAGES.includes(name)) {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await page.goto(`${BASE_URL}${url}`);
+        await page.locator(ready).first().waitFor();
+        await page.waitForLoadState('networkidle');
+        await page.screenshot({
+          path: path.join(OUT_DIR, `${name}-phone-${theme}.png`),
+        });
+        await page.setViewportSize({ width: 1280, height: 900 });
       }
     }
   }
