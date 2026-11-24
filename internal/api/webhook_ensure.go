@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/github"
 )
 
 // splitFullName splits "owner/repo" into its two halves. false for
@@ -40,6 +41,9 @@ func safeRepoSegment(s string) bool {
 // write instead of a whole snapshot. Shared by every endpoint that writes
 // to a forge (webhook ensure, pull-request actions), not just this one.
 func clientErrorStatus(err error) int {
+	if errors.Is(err, github.ErrUnknownRepository) {
+		return http.StatusNotFound
+	}
 	var clientErr *dashboard.ClientError
 	if !errors.As(err, &clientErr) {
 		return http.StatusBadGateway
