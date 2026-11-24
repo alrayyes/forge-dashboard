@@ -138,6 +138,10 @@ shows the cancel in the row. Once Renovate has taken the request and is
 rebasing, the cancel goes too: clearing the box then withdraws nothing, so the
 row keeps only the waiting chip.
 
+On a list from 761px to 1190px wide the status block takes only the height of
+its words and the fix button's 30px target, with 4px of padding above and
+below. The phone card and the one-line row keep their own spacing.
+
 The details pop-up (see Pull request pages) draws the same actions in its
 footer, built by the same code as the row's buttons so the two cannot disagree.
 The order in the footer is the primary action first, then the others, then Close

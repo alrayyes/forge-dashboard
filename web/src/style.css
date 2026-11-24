@@ -2773,6 +2773,22 @@ a.ci-pill:hover {
   margin-top: 4px;
 }
 
+/* #4600: on a list narrower than the one-line row the block sits in the 280px
+   status cell, between the pills and the actions, where it read as a banner
+   two lines taller than its words. It keeps its words, icon and the fix
+   button's 30px target, with 4px above and below and no gap between the words
+   and the button. The phone card and the wide row are left alone. */
+@media (min-width: 761px) {
+  @container not (min-width: max(1191px, 74.5rem)) {
+    .row:not(.issue-row) .status-cell .status-area {
+      padding-block: 4px;
+    }
+    .row:not(.issue-row) .status-cell .status-area-fix {
+      margin-top: 0;
+    }
+  }
+}
+
 /* Plain badges, not buttons like .ci-pill — there's no filter dimension
    for these, just a fact about the row, so no cursor:pointer and no
    focus-visible ring to imply an interaction that isn't there. */
