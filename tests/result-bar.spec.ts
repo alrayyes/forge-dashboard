@@ -97,6 +97,23 @@ for (const [name, width, height] of [
       await expect(page.locator('.row')).toHaveCount(4);
     });
 
+    test('Enter on a focused Clear filters hands focus to the filter bar, not the page', async ({
+      page,
+    }) => {
+      await filterTo(page, 'Alpha');
+      const clear = bar(page).locator('#clear-filters-button');
+      await clear.focus();
+      await expect(clear).toBeFocused();
+      await page.keyboard.press('Enter');
+      await expect(clear).toBeHidden();
+      const where = await page.evaluate(() => ({
+        tag: document.activeElement?.tagName,
+        inBar: !!document.activeElement?.closest('.filter-bar'),
+      }));
+      expect(where.tag).not.toBe('BODY');
+      expect(where.inBar).toBe(true);
+    });
+
     test('the sort select sits in the bar, is 32px high on every width and reads "Sorted by <choice>"', async ({
       page,
     }) => {
@@ -118,6 +135,23 @@ for (const [name, width, height] of [
     });
 
     if (width <= 760) {
+      test('with no filter on, Filters, the count and the sort share one 44px line', async ({
+        page,
+      }) => {
+        const boxes = await Promise.all(
+          ['#filters-button', '#result-count', '.result-sort-wrap'].map((sel) =>
+            bar(page).locator(sel).boundingBox(),
+          ),
+        );
+        expect(boxes.every(Boolean)).toBe(true);
+        const mids = boxes.map((b) => (b?.y ?? -99) + (b?.height ?? 0) / 2);
+        expect(Math.max(...mids) - Math.min(...mids)).toBeLessThanOrEqual(4);
+        const barBox = await bar(page).boundingBox();
+        expect(barBox?.height ?? 999).toBeLessThanOrEqual(46);
+        const right = (boxes[2]?.x ?? 0) + (boxes[2]?.width ?? 0);
+        expect(right).toBeLessThanOrEqual(390 - 16);
+      });
+
       test('the Filters button leads the same line as the count', async ({
         page,
       }) => {

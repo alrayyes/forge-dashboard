@@ -101,10 +101,13 @@ for (const size of [
       // Visible without scrolling: its top is well inside the viewport.
       expect(first?.y ?? 9999).toBeLessThan(size.height - 60);
 
-      // The search row, then the result bar: Filters and the count, the sort and
-      // Clear filters on a second line (#4288).
+      // The search row, then one result-bar line with Filters, the count and
+      // the sort (#4288). Two pixels of slack, so a wrapped line fails. At
+      // 360px the sort wraps to a second 44px line, so that width gets one.
       const bar = await page.locator('.filter-bar').boundingBox();
-      expect(bar?.height ?? 9999).toBeLessThanOrEqual(190);
+      expect(bar?.height ?? 9999).toBeLessThanOrEqual(
+        size.width >= 390 ? 120 : 172,
+      );
     });
 
     test('closed, it is a search row and the Filters button, with no pill groups in the bar (#3734)', async ({

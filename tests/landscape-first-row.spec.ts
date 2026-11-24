@@ -280,9 +280,9 @@ const EXPECTED: Record<
     activityPosition: 'sticky',
     header: 84,
     toolbar: 24,
-    // The result bar adds the count and, on a phone, a Filters line and a
-    // sort line of 44px each (#4288).
-    filterBar: 170,
+    // The result bar adds one 44px line with Filters, the count and the sort
+    // (#4288).
+    filterBar: 118,
   },
   // The header is one row here, not two: Releases and Bots draw 2 passing
   // without a repeated total (#3489), so the nav pills fit beside the brand.

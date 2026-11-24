@@ -10027,6 +10027,9 @@
 
     const clearFiltersButton = document.getElementById("clear-filters-button");
     clearFiltersButton?.addEventListener("click", () => {
+      // The button hides once the filters are default, so a keyboard user
+      // who pressed it would lose focus to the page.
+      const hadFocus = document.activeElement === clearFiltersButton;
       // Emptied in place: createBoard's own extraState closures captured
       // these objects at setup time.
       resetFilters(sharedState, {
@@ -10063,6 +10066,7 @@
       issueBoard.resetPage();
       Filters.saveState(sharedState);
       renderBoth();
+      if (hadFocus && clearFiltersButton.hidden) focusFilterBar();
     });
 
     // ---- forge health ----

@@ -1745,8 +1745,14 @@ select.col-filter {
   :root body .filter-bar .result-sort-wrap select.result-sort {
     min-height: 32px;
   }
-  .result-bar .filters-trigger {
-    margin-inline-end: 4px;
+  /* Filters, the count and the sort share one line while no filter is on
+     (#4288); Clear filters and the Filtered tag wrap to a second line. */
+  .result-bar {
+    column-gap: 8px;
+  }
+  :root body .filter-bar .result-sort-wrap select.result-sort {
+    padding-inline: 6px;
+    font-size: 0.75rem;
   }
 }
 

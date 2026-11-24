@@ -93,6 +93,13 @@ for (const [name, path] of [
         for (const selector of [...TRIGGERS.slice(1), ...SELECTS]) {
           expect(await look(page, selector), selector).toEqual(reference);
         }
+        // The sort select is 32px by design (#4288, result-bar.spec pins it);
+        // everything else about it matches the other controls.
+        if (name === 'pull requests') {
+          const { height: _h, ...rest } = await look(page, '#pr-sort-select');
+          const { height: _r, ...want } = reference;
+          expect(rest, '#pr-sort-select').toEqual(want);
+        }
       }).toPass();
     });
   }
