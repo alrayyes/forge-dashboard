@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // The pages that draw no dashboard snapshot of their own take their numbers
@@ -114,7 +115,7 @@ for (const { name, url, shows, text } of FROM_READ) {
         body: JSON.stringify({
           readIntervalSeconds: 30,
           firstRefreshDone: true,
-          forges: [{ forge: 'github', repoCount: 3 }],
+          forges: [forgeHealth('github', { repoCount: 3 })],
           repos: [
             { forge: 'github', fullName: 'alrayyes/held', hasWebhook: true },
             { forge: 'github', fullName: 'alrayyes/other', hasWebhook: false },

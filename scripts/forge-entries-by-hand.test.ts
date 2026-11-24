@@ -9,7 +9,6 @@ import { writesForgeEntryByHand } from './forge-entries-by-hand';
 // (#4030), and a new hand-written entry in any file fails this test.
 const stillByHand: string[] = [
   'branch-rerun-checks.spec.ts',
-  'nav-count-reads.spec.ts',
   'shared-dashboard-read.spec.ts',
 ];
 
