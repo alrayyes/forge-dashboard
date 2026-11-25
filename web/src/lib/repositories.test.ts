@@ -254,6 +254,15 @@ describe('the ignored filter', () => {
     const keep = new Set(['github:demo/web']);
     expect(names(filterRepos(rows, none, keep))).toContain('demo/web');
   });
+  test('a kept repo still obeys the forge and search filters', () => {
+    const keep = new Set(['github:demo/web']);
+    expect(
+      names(filterRepos(rows, { ...none, forge: 'forgejo' }, keep)),
+    ).not.toContain('demo/web');
+    expect(
+      names(filterRepos(rows, { ...none, search: 'infra' }, keep)),
+    ).toEqual(['sandbox/infra']);
+  });
   test('a kept repo that is active drops out of the ignored-only view', () => {
     const keep = new Set(['github:demo/api']);
     expect(

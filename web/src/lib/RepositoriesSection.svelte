@@ -644,7 +644,10 @@
 
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
-        No repos match these filters.
+        No repos match these filters.{filter.ignored === "only" &&
+        !repos.some((r) => r.ignored)
+          ? " No repo is ignored."
+          : ""}
       </p>
     {:else}
       <!-- The card layout sets display: block on every table element, which drops
