@@ -98,6 +98,44 @@ for (const [name, path] of [
   ['pull requests', '/pull-requests.html'],
   ['issues', '/issues.html'],
 ] as const) {
+  // The 2px of clearance between label and arrow is the margin that decides
+  // whether the select still fits beside Filters and the count; 390px is the
+  // narrowest phone where all three fit one line (320px wraps by design).
+  // https://github.com/alrayyes/forge-dashboard/issues/4874
+  test(`${name}: the sort select stays on the count's line at 390px (4874)`, async ({
+    page,
+  }) => {
+    await open(page, path, 390, 'light', 100);
+    await expect(page.locator('#pr-sort-select')).toBeVisible();
+    const boxes = await page.evaluate(() => {
+      const count = document
+        .querySelector('#result-count')
+        ?.getBoundingClientRect();
+      const sort = document
+        .querySelector('#pr-sort-select')
+        ?.getBoundingClientRect();
+      return {
+        count: count ? [count.top, count.bottom] : [0, 0],
+        sort: sort ? [sort.top, sort.bottom] : [0, 0],
+      };
+    });
+    // The boxes overlap vertically: one line, not a wrapped second one.
+    expect(boxes.sort[0]).toBeLessThan(boxes.count[1]);
+    expect(boxes.sort[1]).toBeGreaterThan(boxes.count[0]);
+  });
+
+  test(`${name}: forced colors leave the phone sort select its native end padding (4874)`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await open(page, path, 390, 'light', 100);
+    await expect(page.locator('#pr-sort-select')).toBeVisible();
+    const padding = await page
+      .locator('#pr-sort-select')
+      .evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
+    expect(padding).toBeLessThan(16);
+  });
+
   for (const width of [320, 390, 768, 1280]) {
     for (const scheme of ['light', 'dark'] as const) {
       for (const text of [100, 175]) {

@@ -1812,15 +1812,25 @@ select.col-filter {
   }
   :root body .filter-bar .result-sort-wrap select.result-sort {
     /* The label keeps clear of the drawn chevron (#4849); a plain 6px put it
-       underneath. A phone line is tight, so the chevron sits 9px and 4px from
-       the padding edge (base: 13px and 8px) and its left tip is 14px in. The
-       16px end padding leaves 2px between the label and that tip. Physical
-       padding, to match the physical background-position. */
-    padding: 0 16px 0 4px;
+       underneath. A phone line is tight, so the chevron sits closer to the
+       edge than the base 13px and 8px. One number, the left arm's inset from
+       the padding edge, sets both the chevron and the end padding: the right
+       arm is 5px nearer the edge, and the padding is the inset plus the 5px
+       arm plus 2px clear of the label. Physical padding, to match the
+       physical background-position. */
+    --sort-arrow-inset: 9px;
+    padding: 0 calc(var(--sort-arrow-inset) + 7px) 0 4px;
     background-position:
-      calc(100% - 9px) 55%,
-      calc(100% - 4px) 55%;
+      calc(100% - var(--sort-arrow-inset)) 55%,
+      calc(100% - var(--sort-arrow-inset) + 5px) 55%;
     font-size: 0.75rem;
+  }
+  /* Forced colors swaps the drawn chevron for the native arrow, which brings
+     its own room; the end padding reserved above would only leave a gap. */
+  @media (forced-colors: active) {
+    :root body .filter-bar .result-sort-wrap select.result-sort {
+      padding-right: revert;
+    }
   }
 }
 
