@@ -92,14 +92,24 @@ test.describe('on a phone, tapping a CI pill opens its checks (#4753)', () => {
         const pill = page.locator('#pr-rows .row .ci-pill').first();
         await expect(pill).toBeVisible();
 
-        const parts = await pill
-          .locator('.ci-word:visible, .ci-seg:visible')
-          .count();
-        for (let i = 0; i < parts; i++) {
-          await pill
-            .locator('.ci-word:visible, .ci-seg:visible')
-            .nth(i)
-            .tap({ force: true });
+        // A poll redraws a pill's parts in place, and button.ci-pill > * has
+        // pointer-events: none, so a tap needs `force`, which also turns off
+        // Playwright's wait for the node to be actionable. A tap on a node
+        // the redraw just replaced fails with 'Element is not visible'. So
+        // read where every visible part sits once, in one call, and tap those
+        // points: the redraw keeps the layout, and the press lands on the
+        // button, as a thumb's does.
+        const partsLocator = pill.locator('.ci-word:visible, .ci-seg:visible');
+        await expect(partsLocator.first()).toBeVisible();
+        const points = await partsLocator.evaluateAll((els) =>
+          els.map((el) => {
+            const r = el.getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+          }),
+        );
+        expect(points.length).toBeGreaterThan(0);
+        for (const point of points) {
+          await page.touchscreen.tap(point.x, point.y);
           await expect(dialog(page)).toBeVisible();
           await expect(page.locator('.ci-pill-tip')).toBeHidden();
           await page.keyboard.press('Escape');
