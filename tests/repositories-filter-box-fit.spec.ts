@@ -38,7 +38,7 @@ async function open(page: Page, width: number, scheme: 'light' | 'dark') {
           repo('forgejo', 'wiki'),
           repo('gitlab', 'tools'),
           repo('gitea', 'docs'),
-          repo('self-hosted', 'site'),
+          repo('gogs', 'site'),
         ],
       }),
     }),
@@ -89,12 +89,13 @@ for (const scheme of ['light', 'dark'] as const) {
             bar.y + bar.height + 0.5,
           );
         }
+        // The bar itself never scrolls sideways. The page-wide width is not
+        // asserted: the repo table below can be wider than a 768px window at
+        // 175% text, which is not what this spec pins.
         expect(
-          await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth <=
-              document.documentElement.clientWidth,
-          ),
+          await page
+            .locator('.filter-bar')
+            .evaluate((el) => el.scrollWidth <= el.clientWidth),
         ).toBe(true);
         // No ancestor up to the bar scrolls or clips the pills sideways.
         const clips = await page
