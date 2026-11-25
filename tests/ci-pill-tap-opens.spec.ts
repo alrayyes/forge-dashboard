@@ -92,14 +92,26 @@ test.describe('on a phone, tapping a CI pill opens its checks (#4753)', () => {
         const pill = page.locator('#pr-rows .row .ci-pill').first();
         await expect(pill).toBeVisible();
 
-        const parts = await pill
-          .locator('.ci-word:visible, .ci-seg:visible')
-          .count();
-        for (let i = 0; i < parts; i++) {
-          await pill
-            .locator('.ci-word:visible, .ci-seg:visible')
-            .nth(i)
-            .tap({ force: true });
+        // Key each visible part by its own class once, after the pill has
+        // rendered its parts, instead of re-resolving an index into a
+        // `:visible` list that shifts under a re-render.
+        const partsLocator = pill.locator('.ci-word:visible, .ci-seg:visible');
+        await expect(partsLocator.first()).toBeVisible();
+        const parts = await partsLocator.evaluateAll((els) =>
+          els.map((el) => {
+            const cls = el.classList.contains('ci-word')
+              ? 'ci-word'
+              : (Array.from(el.classList).find(
+                  (c) => c.startsWith('ci-seg-') && c !== 'ci-seg-label',
+                ) ?? 'ci-seg-label');
+            return `.${cls}`;
+          }),
+        );
+        expect(parts.length).toBeGreaterThan(0);
+        for (const selector of parts) {
+          const part = pill.locator(selector).first();
+          await expect(part).toBeVisible();
+          await part.tap({ force: true });
           await expect(dialog(page)).toBeVisible();
           await expect(page.locator('.ci-pill-tip')).toBeHidden();
           await page.keyboard.press('Escape');
