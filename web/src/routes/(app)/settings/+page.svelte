@@ -27,6 +27,7 @@
     MAX_IGNORED_TITLES,
     MAX_PATTERN_LENGTH,
   } from "#lib/issue-settings.js";
+  import { tokenizeRegex } from "#lib/regex-tokens.js";
   import {
     skippedAvatarHosts,
     skippedAvatarLead,
@@ -1525,6 +1526,34 @@
       gap: 4px 10px;
       min-width: 0;
     }
+    /* Token styles for a saved pattern (#4852). Each class has a text style as
+       well as a colour, so colour is never the only carrier and the styles
+       still show with forced colours on. Weight and slant keep a monospace
+       glyph the same width, so a row wraps exactly as before. */
+    #issue-settings .rx-literal {
+      color: var(--ink);
+    }
+    #issue-settings .rx-anchor {
+      color: var(--merged);
+      font-weight: 700;
+    }
+    #issue-settings .rx-escape {
+      color: var(--warning);
+      font-style: italic;
+    }
+    #issue-settings .rx-group {
+      color: var(--queued);
+      text-decoration: underline;
+    }
+    #issue-settings .rx-class {
+      color: var(--good);
+      text-decoration: underline dotted;
+    }
+    #issue-settings .rx-quantifier {
+      color: var(--critical);
+      font-weight: 700;
+      font-style: italic;
+    }
     #issue-settings .pattern-count {
       font-size: 0.75rem;
       line-height: 1.4;
@@ -2287,7 +2316,13 @@
                       )}
                 <li>
                   <span class="pattern-text">
-                    <code>{pattern}</code>
+                    <code>
+                      {#each tokenizeRegex(pattern) as token}<span
+                          class={`rx-${token.kind}`}
+                        >
+                          {token.text}
+                        </span>{/each}
+                    </code>
                     {#if countText}
                       <span class="pattern-count" id={`ignored-count-${i}`}>
                         {countText}
