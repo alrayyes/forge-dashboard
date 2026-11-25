@@ -56,11 +56,13 @@ message that says why.
   runs need approval, the forge is rate limited, or the forge hasn't said it
   can merge. The chip names it. When that clears, auto-merge carries on without
   you.
-- **Stopped.** A check failed, there is a merge conflict, nothing is left to
-  merge, or the forge refused the merge, for example over a permission. The
-  message reads "Auto-merge stopped:" and the cause. Auto-merge stays armed and
-  carries on once checks pass or the conflict is resolved. A refusal needs
-  whatever the forge said to be fixed first.
+- **Stopped.** A check failed, there is a merge conflict, or the forge refused
+  the merge, for example over a permission. The message reads "Auto-merge
+  stopped:" and the cause. Auto-merge stays armed. After a failed check or a
+  conflict it carries on once checks pass or the conflict is resolved. A refusal
+  needs whatever the forge said to be fixed first. If the pull request goes
+  empty because its branch landed some other way, nothing is left to merge, so
+  the app cancels the auto-merge instead.
 
 Once checks have passed, the state is still `waiting`, with the message "Checks
 passed". The merge is next. GitHub holds an armed pull request and merges it
