@@ -10,8 +10,9 @@ import (
 	"unicode/utf8"
 )
 
-// ActionCode is why a pull request action was refused, from a fixed set
-// every client shares. Matches components.schemas.ActionError.code.
+// ActionCode is why a pull request action was refused. The set grows, so a
+// client treats a code it doesn't know like unknown. Every constant here is
+// listed in components.schemas.ActionError.code (a test checks).
 type ActionCode string
 
 // The codes, one per reason a client can act on differently.
