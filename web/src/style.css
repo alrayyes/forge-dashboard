@@ -511,7 +511,7 @@ header,
     flex-basis: min-content;
   }
 }
-@media (min-width: 381px) {
+@media (width > 380px) {
   @container (max-width: 23.5em) {
     .bottom-nav-row {
       flex-wrap: wrap;
@@ -693,7 +693,7 @@ header,
 }
 /* Seven tabs share a bar of 380px or less: a little smaller, and the tab's
    own padding gives its room to the word (#1315). */
-@media (max-width: 380px) {
+@media (width <= 380px) {
   .bottom-nav-link {
     padding-inline: 1px;
   }
@@ -1015,7 +1015,7 @@ section.board {
    ready for review to unlock Merge") and the Out of date chip, so a row is
    up to 40px taller. Above this width the track stays 280px and rows keep
    the height they had. */
-@media (width > 760px) and (max-width: 860px) {
+@media (width > 760px) and (width <= 860px) {
   .row {
     grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
   }
@@ -1116,7 +1116,7 @@ section.board {
 }
 /* The band rule above sets a 280px status track, which would undo the 232px
    one the 761-860px range needs to keep label chips off the CI pill (#3261). */
-@media (width > 760px) and (max-width: 860px) {
+@media (width > 760px) and (width <= 860px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
     .row:not(.issue-row) {
       grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
@@ -1130,7 +1130,7 @@ section.board {
    Merge button. A chip with a detail line is wider than the title can spare,
    so that row keeps the stacked cell. The 761-860px range keeps its narrower
    track. */
-@media (min-width: 861px) {
+@media (width > 860px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
     .row:not(.issue-row) {
       /* The wider track is 25rem, but never more than leaves the title 200px
