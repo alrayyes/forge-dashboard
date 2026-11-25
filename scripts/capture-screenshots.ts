@@ -4,7 +4,7 @@
 // settings, and its Repositories group, with a phone shot of the last and of
 // branches), the pipeline checks panel, the pull request dialogs
 // (a pull request, a release, a bot, and the phone sheet) and the login page
-// (the footer pages are left out) against a real build of the binary, run by
+// and the first-login setup page in two states, each at 1280px and 390px (the footer pages are left out) against a real build of the binary, run by
 // the release workflow's screenshots job — not a Playwright *test*
 // (playwright.config.js only looks in tests/), so the main e2e suite never
 // picks this up.
@@ -24,6 +24,42 @@ import { addVirtualAuthenticator } from '../tests/webauthn-helper';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:8080';
 const OUT_DIR = path.join(__dirname, '..', 'docs', 'screenshots');
+
+// What GET /api/v1/setup answers in the demo: the facts, never a verdict. The
+// setup page works out its own steps from them (#4026).
+const SETUP_FACTS = {
+  refreshed: true,
+  github: {
+    configured: true,
+    installUrl: 'https://github.com/apps/demo-board/installations/new',
+    authorized: true,
+    account: 'demo-user',
+    installations: [{ id: 1, accountLogin: 'demo-user', saved: true }],
+    installationsUnavailable: false,
+    repositoryCount: 4,
+  },
+  forgejo: {
+    redirectUri:
+      'https://board.example.com/api/v1/connections/forgejo/callback',
+    scopes: ['read:user', 'read:repository'],
+    instanceUrl: '',
+    linked: false,
+    account: '',
+    repositoryCount: 0,
+    reachable: true,
+  },
+};
+
+const SETUP_SHOTS = [
+  {
+    name: 'setup-install-app',
+    facts: {
+      ...SETUP_FACTS,
+      github: { ...SETUP_FACTS.github, installations: [], repositoryCount: 0 },
+    },
+  },
+  { name: 'setup-ready', facts: SETUP_FACTS },
+];
 
 function daysAgo(n: number) {
   return new Date(Date.now() - n * 24 * 60 * 60 * 1000).toISOString();
@@ -564,6 +600,11 @@ async function main() {
   await page.click('#register-submit');
   await page.waitForURL(`${BASE_URL}/`, { timeout: 10000 });
 
+  // The demo board counts as linked, so no page here sends the shot to /setup.
+  await page.route('**/api/v1/setup', (route) =>
+    route.fulfill({ json: SETUP_FACTS }),
+  );
+
   // The live stream is aborted so nothing replaces the fixture after the
   // page loads.
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -656,6 +697,51 @@ async function main() {
           path: path.join(OUT_DIR, `${name}-phone-${theme}.png`),
         });
         await page.setViewportSize({ width: 1280, height: 900 });
+      }
+    }
+  }
+
+  // The setup page, in two states, at desktop and phone width. The answer is
+  // the demo's own; the page works out the steps from it.
+  for (const theme of THEMES) {
+    await page.evaluate(
+      (t) =>
+        fetch('/api/v1/settings/theme', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'same-origin',
+          body: JSON.stringify({ theme: t }),
+        }),
+      theme,
+    );
+    // The page sits outside the app layout, so the theme reaches it through
+    // the cookie the layout writes when it syncs from the server: visit a page
+    // under the layout first and wait for it to have done that.
+    await page.goto(`${BASE_URL}/issues.html`);
+    await page.waitForFunction(
+      (t) => document.documentElement.getAttribute('data-theme') === t,
+      theme,
+    );
+    for (const { name, facts } of SETUP_SHOTS) {
+      await page.unroute('**/api/v1/setup');
+      await page.route('**/api/v1/setup', (route) =>
+        route.fulfill({ json: facts }),
+      );
+      for (const [suffix, width, height] of [
+        ['', 1280, 900],
+        ['-phone', 390, 844],
+      ] as const) {
+        await page.setViewportSize({ width, height });
+        await page.goto(`${BASE_URL}/setup`);
+        await page
+          .getByRole('heading', { level: 1, name: 'Set up your board' })
+          .waitFor();
+        await page.locator('[aria-current="step"]').first().waitFor();
+        await page.waitForLoadState('networkidle');
+        await page.screenshot({
+          path: path.join(OUT_DIR, `${name}${suffix}-${theme}.png`),
+          fullPage: true,
+        });
       }
     }
   }
