@@ -343,14 +343,15 @@ jobs:
     runs-on: ubuntu-24.04
     # Four shards ran 5.1 to 6.9 minutes of tests plus about 70 seconds of
     # setup (run 43007742117), and a loaded runner pushed shard 2 past 10 (#3477).
-    # The suite is about 25 minutes of tests in all, so six shards put the
-    # slowest near 6 minutes. Playwright's own --shard splits by test count, not
-    # duration, and left the six shards 2m25s apart (#3492), so each shard runs
-    # the spec files scripts/e2e-shards.ts assigns it from tests/e2e-durations.json
-    # (a new spec counts as the average one). Six shards, evenly balanced, still
-    # varied by up to 40 percent between runs on the same specs (6m55s to 9m58s
-    # for shard 3 across the runs of 24 to 25 November), so the slowest reached
-    # 9m59s: eight shards cut that to about 7.5 (#3477). Refresh that file from a green run
+    # The suite is about 25 minutes of tests in all. Playwright's own --shard
+    # splits by test count, not duration, and left six shards 2m25s apart
+    # (#3492), so each shard runs the spec files scripts/e2e-shards.ts assigns
+    # it from tests/e2e-durations.json (a new spec counts as the average one).
+    # Balanced six-way, the same shard's test step still took 526s in run
+    # 45578193434 and 368s in run 45582471951, and the slowest shard job ran
+    # 599s, 598s and 597s in runs 45569093304, 45503741725 and 45573746412,
+    # about three seconds under this limit. Eight shards cut each shard's
+    # share by a quarter. Refresh the durations file from a green run
     # (CONTRIBUTING.md), and raise the shard list (the `changes` job's
     # `e2e_shards` step is the only place) before this limit, never to hide a
     # suite growing back toward it.
