@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.124.1](https://github.com/alrayyes/forge-dashboard/compare/v9.124.0...v9.124.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** toggle repo ignore in place, filter by ignored ([#4884](https://github.com/alrayyes/forge-dashboard/issues/4884)) ([0d62d2d](https://github.com/alrayyes/forge-dashboard/commit/0d62d2de9129892c5dce9918d541944e408e14dc))
+
 ## [9.124.0](https://github.com/alrayyes/forge-dashboard/compare/v9.123.1...v9.124.0) (2026-11-25)
 
 
