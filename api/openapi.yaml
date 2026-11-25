@@ -4945,6 +4945,14 @@ components:
           format: uri
           maxLength: 2048
           example: https://git.example.com
+        clientId:
+          type: string
+          maxLength: 256
+          description: |-
+            The Client ID of a public OAuth client (Confidential client unticked,
+            PKCE, no secret) the owner created on their own Forgejo. Required
+            when the server has no Forgejo OAuth client configured. The id is
+            public, and is kept so refreshes can name it.
     ConnectionAuthorizeResponse:
       type: object
       required: [authorizeUrl]

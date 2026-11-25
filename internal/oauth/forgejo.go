@@ -40,6 +40,21 @@ type TokenStore interface {
 	DeleteOAuthToken(ctx context.Context, forge string) error
 }
 
+// ClientStore remembers the client id of a public client the owner registered
+// on their own Forgejo, since a refresh has to name it. settings.Store
+// implements it.
+type ClientStore interface {
+	SaveOAuthClientID(ctx context.Context, forge, clientID string) error
+	OAuthClientID(ctx context.Context, forge string) (string, error)
+	DeleteOAuthClientID(ctx context.Context, forge string) error
+}
+
+// ForgejoScopes are what the dashboard asks Forgejo for. A grant with no API
+// scope is given all of them, so they are requested explicitly.
+func ForgejoScopes() []string {
+	return []string{"write:repository", "write:issue", "read:user"}
+}
+
 // Forgejo links one owner's Forgejo account with OAuth (#3951). It starts and
 // finishes the sign-in, keeps the token pair in the store, and hands the
 // Forgejo client a bearer token that refreshes itself. One Forgejo per
@@ -50,6 +65,9 @@ type Forgejo struct {
 	cfg   oauth2.Config
 	flow  *Flow
 	store TokenStore
+	// clients holds a public client's id. Nil when only a server-configured
+	// client is in use.
+	clients ClientStore
 
 	// mu guards the fields below, and every write to the store, so a refresh
 	// that was already running can't save its pair after Disconnect deleted it.
@@ -66,6 +84,20 @@ func NewForgejo(ctx context.Context, clientID, clientSecret, redirectURL string,
 	cfg := oauth2.Config{ClientID: clientID, ClientSecret: clientSecret, RedirectURL: redirectURL}
 
 	return &Forgejo{ctx: ctx, cfg: cfg, flow: NewFlow(cfg, attemptTTL, time.Now), store: store}
+}
+
+// UseClientStore turns on public clients: the owner names a Client ID on the
+// setup page and it is kept here, with no secret, for refreshes.
+func (f *Forgejo) UseClientStore(c ClientStore) {
+	f.clients = c
+}
+
+// BeginPublic starts a sign-in with a public client the owner registered on
+// instance, and returns the consent page URL. There is no secret.
+func (f *Forgejo) BeginPublic(instance, clientID string) string {
+	instance = strings.TrimSuffix(instance, "/")
+
+	return f.flow.BeginAs(endpoint(instance), instance, clientID, ForgejoScopes())
 }
 
 // Configured reports whether this server has an OAuth client to sign in with.
@@ -97,7 +129,7 @@ func (f *Forgejo) Begin(instance string) string {
 // stores the token pair. It returns the instance the attempt named and the
 // account's login. On any error nothing has been stored.
 func (f *Forgejo) Finish(ctx context.Context, state, code string) (instance, account string, err error) {
-	token, instance, err := f.flow.CompleteWith(ctx, state, code)
+	token, instance, clientID, err := f.flow.complete(ctx, state, code)
 	if err != nil {
 		return "", "", err
 	}
@@ -112,6 +144,13 @@ func (f *Forgejo) Finish(ctx context.Context, state, code string) (instance, acc
 
 	f.gen++
 	f.source = nil
+
+	// A public client's id goes first: a token with no id could not refresh.
+	if f.clients != nil && clientID != "" {
+		if err := f.clients.SaveOAuthClientID(ctx, forgejoForge, clientID); err != nil {
+			return "", "", fmt.Errorf("oauth: store client id: %w", err)
+		}
+	}
 
 	if err := f.store.SaveOAuthToken(ctx, forgejoForge, instance, token); err != nil {
 		return "", "", fmt.Errorf("oauth: store token: %w", err)
@@ -131,6 +170,12 @@ func (f *Forgejo) Disconnect(ctx context.Context) error {
 
 	if err := f.store.DeleteOAuthToken(ctx, forgejoForge); err != nil {
 		return fmt.Errorf("oauth: delete token: %w", err)
+	}
+
+	if f.clients != nil {
+		if err := f.clients.DeleteOAuthClientID(ctx, forgejoForge); err != nil {
+			return fmt.Errorf("oauth: delete client id: %w", err)
+		}
 	}
 
 	return nil
@@ -171,6 +216,13 @@ func (f *Forgejo) Bearer(ctx context.Context, instance string) (func() (string, 
 
 		cfg := f.cfg
 		cfg.Endpoint = endpoint(instance)
+
+		// A public client refreshes under its own id, with no secret.
+		if f.clients != nil {
+			if id, err := f.clients.OAuthClientID(ctx, forgejoForge); err == nil && id != "" {
+				cfg.ClientID, cfg.ClientSecret = id, ""
+			}
+		}
 		f.source = NewSource(f.ctx, cfg, stored, guardedSaver{f: f, gen: f.gen, instance: instance})
 		f.instance = instance
 	}

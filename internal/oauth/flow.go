@@ -84,17 +84,48 @@ func (f *Flow) Complete(ctx context.Context, state, code string) (*oauth2.Token,
 // CompleteWith is Complete for an attempt started with BeginWith. It also
 // returns the instance that attempt named.
 func (f *Flow) CompleteWith(ctx context.Context, state, code string) (*oauth2.Token, string, error) {
+	token, instance, _, err := f.complete(ctx, state, code)
+
+	return token, instance, err
+}
+
+// complete is CompleteWith that also returns the client id the attempt used
+// when it was a public one (no secret), and "" otherwise.
+func (f *Flow) complete(ctx context.Context, state, code string) (*oauth2.Token, string, string, error) {
 	a, ok := f.take(state)
 	if !ok {
-		return nil, "", ErrInvalidState
+		return nil, "", "", ErrInvalidState
 	}
 
 	token, err := a.cfg.Exchange(withClient(ctx), code, oauth2.VerifierOption(a.verifier))
 	if err != nil {
-		return nil, "", fmt.Errorf("%w: %s", ErrExchange, redact(err))
+		return nil, "", "", fmt.Errorf("%w: %s", ErrExchange, redact(err))
 	}
 
-	return token, a.instance, nil
+	publicID := ""
+	if a.cfg.ClientSecret == "" {
+		publicID = a.cfg.ClientID
+	}
+
+	return token, a.instance, publicID, nil
+}
+
+// BeginAs is BeginWith for a client the owner named for this attempt only. It
+// has no secret and asks for scopes; the attempt remembers the client id.
+func (f *Flow) BeginAs(endpoint oauth2.Endpoint, instance, clientID string, scopes []string) string {
+	state := rand.Text()
+	verifier := oauth2.GenerateVerifier()
+
+	cfg := f.cfg
+	cfg.Endpoint, cfg.ClientID, cfg.ClientSecret, cfg.Scopes = endpoint, clientID, "", scopes
+
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	f.dropExpired()
+	f.pending[state] = attempt{cfg: cfg, instance: instance, verifier: verifier, expires: f.now().Add(f.ttl)}
+
+	return cfg.AuthCodeURL(state, oauth2.S256ChallengeOption(verifier))
 }
 
 // take removes and returns the attempt issued for state. The comparison runs
