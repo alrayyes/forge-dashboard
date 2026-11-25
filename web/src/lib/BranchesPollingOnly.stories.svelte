@@ -2,14 +2,17 @@
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import { expect, userEvent, waitFor, within } from "storybook/test";
   import { mockFetch } from "../../.storybook/mock-fetch";
+  // The page under test is a route; it is mounted from src/lib so it sits
+  // beside the other stories.
   import BranchesPage from "../routes/(app)/+page.svelte";
+  import type { MainBranch, MainBranches } from "./main-branches";
   import {
     dashboardRead,
     resetDashboardRead,
   } from "./dashboard-read.svelte.js";
 
   const { Story } = defineMeta({
-    title: "Branches page/Polling only",
+    title: "BranchesPollingOnly",
     component: BranchesPage,
     parameters: { layout: "fullscreen" },
   });
@@ -27,7 +30,7 @@
     rebaseBots: false,
   });
 
-  const branch = (name: string) => ({
+  const branch = (name: string): MainBranch => ({
     forge: "github",
     fullName: `demo/${name}`,
     url: `https://example.com/demo/${name}`,
@@ -46,10 +49,17 @@
     checks: { passed: 0, running: 0, waiting: 0, failed: 0 },
     latestRelease: null,
     staleSince: null,
-    advisories: { state: "unknown", count: 0, highest: null, url: "" },
+    advisories: { state: "unknown", count: 0 },
   });
 
   const rows = [branch("live"), branch("poll")];
+
+  // Typed as the API's answer, so a field the type gains is a check error here.
+  const page = (): MainBranches => ({
+    generatedAt: new Date().toISOString(),
+    forges: [{ forge: "github", reachable: true }],
+    branches: rows,
+  });
 </script>
 
 <!-- "Show only these" narrows the list to the polling repos. When the last
@@ -69,20 +79,11 @@
     const restore = mockFetch([
       {
         match: /^\/api\/v1\/main-branches$/,
-        body: {
-          generatedAt: new Date().toISOString(),
-          counts: {
-            failed: 0,
-            passed: rows.length,
-            running: 0,
-            cancelled: 0,
-            awaitingApproval: 0,
-            none: 0,
-            total: rows.length,
-          },
-          branches: rows,
-        },
+        body: page(),
       },
+      // The page's other requests: filter-state saves and the check stream.
+      { match: /^\/api\/v1\/settings\/filter-state$/, status: 204 },
+      { match: /^\/api\/v1\/dashboard\/stream\/watch$/, status: 204 },
     ]);
     return () => {
       restore();
