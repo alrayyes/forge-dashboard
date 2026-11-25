@@ -984,13 +984,15 @@ var githubAppSlugPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
 // resolveGitHubAppSlug checks GITHUB_APP_SLUG, the App's URL name. The setup
 // page builds a link from it, so only what GitHub itself allows in a slug gets
 // through. Unset is fine: the page then has no install link.
+var errBadGitHubAppSlug = errors.New("GITHUB_APP_SLUG must be the App's URL name: letters, digits and hyphens")
+
 func resolveGitHubAppSlug(raw string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
 
 	if !githubAppSlugPattern.MatchString(raw) {
-		return "", errors.New("GITHUB_APP_SLUG must be the App's URL name: letters, digits and hyphens")
+		return "", errBadGitHubAppSlug
 	}
 
 	return raw, nil

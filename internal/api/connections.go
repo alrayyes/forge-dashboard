@@ -31,6 +31,26 @@ type connectionAuthorizeResponse struct {
 	AuthorizeURL string `json:"authorizeUrl"`
 }
 
+// forgejoStartProblem names the first field of a start request that is
+// unusable, with why, or returns an empty message when both are fine.
+func forgejoStartProblem(deps Deps, clientID, raw string) (field, msg string) {
+	if len(clientID) > maxClientIDLen {
+		return "clientId", "clientId is too long"
+	}
+
+	// A Client ID the owner names wins; without one the server's own client
+	// is used, and without that there is nothing to sign in with.
+	if clientID == "" && !deps.ForgejoOAuth.Configured() {
+		return "clientId", "clientId is the Client ID of the app you created on your Forgejo"
+	}
+
+	if raw == "" || len(raw) > maxInstanceURLLen {
+		return "instanceUrl", "instanceUrl must be the address of your Forgejo"
+	}
+
+	return "instanceUrl", forgejoURLProblem("instanceUrl", raw)
+}
+
 // handleForgejoConnectionStart answers POST /api/v1/connections/forgejo.
 func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -44,29 +64,10 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 		}
 
 		clientID := strings.TrimSpace(req.ClientID)
-		if len(clientID) > maxClientIDLen {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("clientId", "clientId is too long"))
-
-			return
-		}
-
-		// A Client ID the owner names wins; without one the server's own client
-		// is used, and without that there is nothing to sign in with.
-		if clientID == "" && !deps.ForgejoOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("clientId", "clientId is the Client ID of the app you created on your Forgejo"))
-
-			return
-		}
-
 		raw := strings.TrimSpace(req.InstanceURL)
-		if raw == "" || len(raw) > maxInstanceURLLen {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", "instanceUrl must be the address of your Forgejo"))
 
-			return
-		}
-
-		if msg := forgejoURLProblem("instanceUrl", raw); msg != "" {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", msg))
+		if field, msg := forgejoStartProblem(deps, clientID, raw); msg != "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody(field, msg))
 
 			return
 		}

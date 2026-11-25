@@ -214,15 +214,7 @@ func (f *Forgejo) Bearer(ctx context.Context, instance string) (func() (string, 
 			return nil, false
 		}
 
-		cfg := f.cfg
-		cfg.Endpoint = endpoint(instance)
-
-		// A public client refreshes under its own id, with no secret.
-		if f.clients != nil {
-			if id, err := f.clients.OAuthClientID(ctx, forgejoForge); err == nil && id != "" {
-				cfg.ClientID, cfg.ClientSecret = id, ""
-			}
-		}
+		cfg := f.refreshConfig(ctx, instance)
 		f.source = NewSource(f.ctx, cfg, stored, guardedSaver{f: f, gen: f.gen, instance: instance})
 		f.instance = instance
 	}
@@ -295,4 +287,19 @@ func readAccount(ctx context.Context, instance, accessToken string) (string, err
 	}
 
 	return body.Login, nil
+}
+
+// refreshConfig is the client config a refresh for instance runs under. A
+// public client refreshes under its own id, with no secret.
+func (f *Forgejo) refreshConfig(ctx context.Context, instance string) oauth2.Config {
+	cfg := f.cfg
+	cfg.Endpoint = endpoint(instance)
+
+	if f.clients != nil {
+		if id, err := f.clients.OAuthClientID(ctx, forgejoForge); err == nil && id != "" {
+			cfg.ClientID, cfg.ClientSecret = id, ""
+		}
+	}
+
+	return cfg
 }

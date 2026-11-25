@@ -140,25 +140,32 @@ func handleGitHubInstalled(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		for _, in := range listed {
-			if in.ID != id {
-				continue
-			}
-
-			if err := deps.SettingsStore.SaveInstallation(r.Context(), settings.Installation{ID: id, AccountLogin: in.AccountLogin}); err != nil {
-				slog.Warn("github app: could not save the installation")
-				redirectSetupError(w, r, setupErrSaveFailed)
-
-				return
-			}
-
-			http.Redirect(w, r, setupPath, http.StatusSeeOther)
+		login, found := installationLogin(listed, id)
+		if !found {
+			redirectSetupError(w, r, setupErrInstallationUnverified)
 
 			return
 		}
 
-		redirectSetupError(w, r, setupErrInstallationUnverified)
+		if err := deps.SettingsStore.SaveInstallation(r.Context(), settings.Installation{ID: id, AccountLogin: login}); err != nil {
+			slog.Warn("github app: could not save the installation")
+			redirectSetupError(w, r, setupErrSaveFailed)
+
+			return
+		}
+
+		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
+}
+
+func installationLogin(listed []oauth.UserInstallation, id int64) (string, bool) {
+	for _, in := range listed {
+		if in.ID == id {
+			return in.AccountLogin, true
+		}
+	}
+
+	return "", false
 }
 
 func redirectGitHubInstalledError(w http.ResponseWriter, r *http.Request, err error) {

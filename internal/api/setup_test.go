@@ -143,7 +143,7 @@ func TestSetupGet_WithoutASlug_HasNoInstallURL(t *testing.T) {
 
 	gh := section(t, newSetupFixture(t, "").read(t), "github")
 
-	assert.Equal(t, "", gh["installUrl"])
+	assert.Empty(t, gh["installUrl"])
 }
 
 func TestSetupGet_AfterGitHubAuthorizes_ListsTheAccountsInstallations(t *testing.T) {

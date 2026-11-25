@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -120,12 +121,12 @@ func handleSetupVerifyInstance() http.HandlerFunc {
 func buildSetup(ctx context.Context, deps Deps) (SetupResponse, error) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil && !errors.Is(err, settings.ErrNotFound) {
-		return SetupResponse{}, err
+		return SetupResponse{}, fmt.Errorf("read settings: %w", err)
 	}
 
 	forgejoLinked, err := deps.SettingsStore.HasOAuthToken(ctx, forgejoForge)
 	if err != nil {
-		return SetupResponse{}, err
+		return SetupResponse{}, fmt.Errorf("read forgejo link: %w", err)
 	}
 
 	snap := dashboard.Snapshot{}
@@ -172,7 +173,7 @@ func setupGitHub(ctx context.Context, deps Deps, snap dashboard.Snapshot) (Setup
 
 	authorized, err := deps.SettingsStore.HasOAuthToken(ctx, githubForge)
 	if err != nil {
-		return gh, err
+		return gh, fmt.Errorf("read github link: %w", err)
 	}
 
 	if !authorized || !gh.Configured {
@@ -196,7 +197,7 @@ func setupGitHub(ctx context.Context, deps Deps, snap dashboard.Snapshot) (Setup
 
 	stored, err := deps.SettingsStore.Installations(ctx)
 	if err != nil {
-		return gh, err
+		return gh, fmt.Errorf("read installations: %w", err)
 	}
 
 	saved := map[int64]bool{}
