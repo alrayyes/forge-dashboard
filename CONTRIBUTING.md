@@ -379,7 +379,10 @@ where Vitest takes 0.4 s or more and a dependency.
   minor SDK release (`oasdiff` calls a new value in a closed `enum` breaking).
   Every other list stays closed. `kin-openapi` doesn't check an extension, so
   `internal/api/openapi_extensible_enums_test.go` holds the Go list. Add a
-  new action or code there, in the spec, and where the server emits it.
+  new action or code there, in the spec, and where the server emits it. For
+  `ActionError.code` the test also reads the `ActionCode` constants from
+  `internal/dashboard/action_refusal.go`, so a constant missing from the spec
+  fails the build.
 - `internal/dashboard` is the domain: the `PullRequest`/`Issue`/`Snapshot`
   model, the `Source`/`ForgeClient` interfaces, the `Aggregator` that
   refreshes the snapshot in the background so a request never
