@@ -1,6 +1,11 @@
 package api_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -8,16 +13,48 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// knownSetupErrorCodes is the Go side of SetupErrorCode (#4026): the codes a
-// callback may put in its redirect to /setup. A new one is added here, in the
-// spec and where the server emits it. The page treats an unknown one as a
-// generic failure, so a new code is an additive release.
-var knownSetupErrorCodes = []string{
-	"access_denied", "invalid_state", "exchange_failed", "account_unreadable", "save_failed",
-	"not_connected", "installation_unverified", "installations_unavailable",
+// setupErrorConstants reads the setupErr* constants out of setup_redirect.go:
+// the codes a callback may put in its redirect to /setup (#4026). Reading the
+// source means a new constant with no spec entry fails here, instead of
+// depending on someone updating a second list by hand. The page treats an
+// unknown code as a generic failure, so a new code is an additive release.
+func setupErrorConstants(t *testing.T) []string {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "setup_redirect.go", nil, 0)
+	require.NoError(t, err)
+
+	var codes []string
+
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+
+		for _, spec := range gen.Specs {
+			vs := spec.(*ast.ValueSpec)
+
+			for i, name := range vs.Names {
+				if !strings.HasPrefix(name.Name, "setupErr") {
+					continue
+				}
+
+				lit, ok := vs.Values[i].(*ast.BasicLit)
+				require.True(t, ok, "%s must be a string literal", name.Name)
+
+				value, err := strconv.Unquote(lit.Value)
+				require.NoError(t, err)
+
+				codes = append(codes, value)
+			}
+		}
+	}
+
+	return codes
 }
 
-func TestSetupSpec_ErrorCodeIsExtensibleAndMatchesTheGoList(t *testing.T) {
+func TestSetupSpec_ErrorCodeIsExtensibleAndMatchesTheGoConstants(t *testing.T) {
 	t.Parallel()
 
 	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
@@ -29,8 +66,13 @@ func TestSetupSpec_ErrorCodeIsExtensibleAndMatchesTheGoList(t *testing.T) {
 		assert.Empty(t, schema.Enum, "a closed enum would make every new code a major release")
 	})
 
-	t.Run("lists what the server knows", func(t *testing.T) {
+	t.Run("lists exactly the codes the server can send", func(t *testing.T) {
 		t.Parallel()
-		assert.ElementsMatch(t, knownSetupErrorCodes, extensibleEnum(t, schema))
+		assert.ElementsMatch(t, setupErrorConstants(t), extensibleEnum(t, schema))
+	})
+
+	t.Run("finds the constants at all", func(t *testing.T) {
+		t.Parallel()
+		assert.NotEmpty(t, setupErrorConstants(t))
 	})
 }
