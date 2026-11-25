@@ -637,39 +637,45 @@
           {/each}
         </FilterGroup>
       </div>
-      <FilterGroup label="Ignored" id="repositories-ignored-filter">
-        {#each IGNORED_VIEWS as { view, label } (view)}
-          <FilterPill
-            pressed={(filter.ignored ?? "active") === view}
-            data-ignored-view={view}
-            onclick={() => pickIgnored(view)}
-          >
-            {label}
-          </FilterPill>
-        {/each}
-      </FilterGroup>
-      <FilterGroup label="Auto-update" id="repositories-auto-update-filter">
-        {#each TOGGLE_VIEWS as { view, label } (view)}
-          <FilterPill
-            pressed={(filter.autoUpdate ?? "all") === view}
-            data-view={view}
-            onclick={() => pickToggle("autoUpdate", view)}
-          >
-            {label}
-          </FilterPill>
-        {/each}
-      </FilterGroup>
-      <FilterGroup label="Rebase bots" id="repositories-rebase-bots-filter">
-        {#each TOGGLE_VIEWS as { view, label } (view)}
-          <FilterPill
-            pressed={(filter.rebaseBots ?? "all") === view}
-            data-view={view}
-            onclick={() => pickToggle("rebaseBots", view)}
-          >
-            {label}
-          </FilterPill>
-        {/each}
-      </FilterGroup>
+      <div class="forge-scroll">
+        <FilterGroup label="Ignored" id="repositories-ignored-filter">
+          {#each IGNORED_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.ignored ?? "active") === view}
+              data-ignored-view={view}
+              onclick={() => pickIgnored(view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
+      <div class="forge-scroll">
+        <FilterGroup label="Auto-update" id="repositories-auto-update-filter">
+          {#each TOGGLE_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.autoUpdate ?? "all") === view}
+              data-view={view}
+              onclick={() => pickToggle("autoUpdate", view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
+      <div class="forge-scroll">
+        <FilterGroup label="Rebase bots" id="repositories-rebase-bots-filter">
+          {#each TOGGLE_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.rebaseBots ?? "all") === view}
+              data-view={view}
+              onclick={() => pickToggle("rebaseBots", view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
       <div class="search-field">
         <input
           class="col-filter"
@@ -707,7 +713,10 @@
 
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
-        No repos match these filters.
+        No repos match these filters.{filter.ignored === "only" &&
+        !repos.some((r) => r.ignored)
+          ? " No repo is ignored."
+          : ""}
       </p>
     {:else}
       <!-- The card layout sets display: block on every table element, which drops

@@ -57,7 +57,7 @@ async function axe(page: Page) {
 }
 
 for (const scheme of ['light', 'dark'] as const) {
-  for (const width of [390, 1280]) {
+  for (const width of [320, 390, 1280]) {
     test.describe(`${width}px, ${scheme}`, () => {
       test('Ignore flips in place, says the scope in words, and flips back', async ({
         page,
@@ -91,6 +91,17 @@ for (const scheme of ['light', 'dark'] as const) {
         ).toBeGreaterThanOrEqual(heightBefore);
         await expect(page.locator('#repositories-ignored')).toHaveCount(0);
         await axe(page);
+
+        // Nothing spills sideways and the control is a reachable target.
+        const fit = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          inner: window.innerWidth,
+        }));
+        expect(fit.scroll).toBeLessThanOrEqual(fit.inner);
+        const box = (await select.boundingBox())!;
+        expect(box.width).toBeGreaterThanOrEqual(24);
+        expect(box.height).toBeGreaterThanOrEqual(24);
+        expect(box.x + box.width).toBeLessThanOrEqual(fit.inner);
 
         // Another scope is reachable from the row, in place.
         await select.selectOption('both');
@@ -161,6 +172,56 @@ for (const scheme of ['light', 'dark'] as const) {
         await group.getByRole('button', { name: 'Show' }).click();
         await group.getByRole('button', { name: 'Hide' }).click();
         await expect(rows).toHaveText([/owner\/b/]);
+      });
+
+      test('a refresh lets go of the kept row', async ({ page }) => {
+        const saved = new Set<string>();
+        await page.route('**/api/v1/repos/ignore', async (route) => {
+          saved.add('owner/a');
+          await route.fulfill({ status: 204 });
+        });
+        await open(page, width, scheme, [repo('a'), repo('b')]);
+        // The server now reports what was saved.
+        await page.unroute('**/api/v1/dashboard*');
+        await page.route('**/api/v1/dashboard*', (route: Route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              generatedAt: new Date().toISOString(),
+              forges: [],
+              pullRequests: [],
+              issues: [],
+              repos: [
+                repo('a', {
+                  ignored: saved.has('owner/a'),
+                  ignoredPRs: saved.has('owner/a'),
+                }),
+                repo('b'),
+              ],
+            }),
+          }),
+        );
+        const rows = page.locator('#repositories-rows tr');
+        await page
+          .getByRole('combobox', { name: 'Ignore owner/a' })
+          .selectOption('prs');
+        await expect(rows).toHaveCount(2);
+        await page.reload();
+        await expect(rows).toHaveText([/owner\/b/]);
+      });
+
+      test('the Only view with nothing ignored names the filter', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, [repo('a')]);
+        await page
+          .getByRole('group', { name: 'Ignored' })
+          .getByRole('button', { name: 'Only' })
+          .click();
+        await expect(page.locator('#repositories-no-results')).toHaveText(
+          'No repos match these filters. No repo is ignored.',
+        );
       });
     });
   }

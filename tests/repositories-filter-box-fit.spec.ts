@@ -60,7 +60,9 @@ for (const scheme of ['light', 'dark'] as const) {
           });
         }
         const pills = page.locator('.filter-bar .filter-pill');
-        expect(await pills.count()).toBe(6);
+        // Six Forge pills and the three each of Ignored, Auto-update and
+        // Rebase bots.
+        expect(await pills.count()).toBe(15);
         for (const pill of await pills.all()) {
           // Re-read both boxes each time: focusing a pill can scroll the page.
           const bar = (await page.locator('.filter-bar').boundingBox())!;
@@ -100,26 +102,31 @@ for (const scheme of ['light', 'dark'] as const) {
         // No ancestor up to the bar scrolls or clips the pills sideways.
         const clips = await page
           .locator('.filter-bar .filter-group')
-          .evaluate((el) => {
-            for (let n: Element | null = el; n; n = n.parentElement) {
-              if (n.classList.contains('filter-bar')) return false;
-              if (n.scrollWidth > n.clientWidth + 1) return true;
-              if (getComputedStyle(n).overflowX !== 'visible') return true;
-            }
-            return false;
-          });
+          .evaluateAll((els) =>
+            els.some((el) => {
+              for (let n: Element | null = el; n; n = n.parentElement) {
+                if (n.classList.contains('filter-bar')) return false;
+                if (n.scrollWidth > n.clientWidth + 1) return true;
+                if (getComputedStyle(n).overflowX !== 'visible') return true;
+              }
+              return false;
+            }),
+          );
         expect(clips).toBe(false);
       });
     }
 
-    test(`${width}px, ${scheme}: three controls share one width, axe clean`, async ({
+    test(`${width}px, ${scheme}: six controls share one width, axe clean`, async ({
       page,
     }) => {
       await open(page, width, scheme);
       if (width <= 760) {
         const boxes = await Promise.all(
           [
-            '.filter-bar .filter-group',
+            '.filter-bar .forge-scroll >> nth=0',
+            '.filter-bar .forge-scroll >> nth=1',
+            '.filter-bar .forge-scroll >> nth=2',
+            '.filter-bar .forge-scroll >> nth=3',
             '.filter-bar .search-field',
             '.filter-bar .repositories-sort',
           ].map(async (s) => (await page.locator(s).boundingBox())!),
