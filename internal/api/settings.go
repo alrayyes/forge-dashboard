@@ -659,8 +659,9 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 }
 
 // SettingsSummary matches components.schemas.SettingsSummary, and is the
-// output of the get_settings MCP tool: SettingsResponse plus whether the webhook
-// token and secret exist. Kept in step with SettingsResponse by a test that compares the two.
+// output of the get_settings MCP tool: SettingsResponse plus whether the
+// webhook token and secret exist. Kept in step with SettingsResponse by a test
+// that compares the two.
 type SettingsSummary struct {
 	GitHubUsername            string   `json:"githubUsername"`
 	GitHubTokenSet            bool     `json:"githubTokenSet"`

@@ -321,10 +321,10 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 }
 
 // forgejoWebhookEvents is the event list of the webhook this dashboard creates
-// and maintains on each repository. Forgejo's "pull_request" and "issues" types already cover comments
-// and reviews on the items they name (routers/api/v1/utils/hook.go), so the
-// comment and review names below are explicit rather than the fix; the fix for
-// a stale "Last activity" sort (#1552) is on GitHub, whose "issues" and
+// and maintains on each repository. Forgejo's "pull_request" and "issues"
+// types already cover comments and reviews on the items they name
+// (routers/api/v1/utils/hook.go), so the comment and review names below are
+// explicit rather than the fix; the fix for a stale "Last activity" sort (#1552) is on GitHub, whose "issues" and
 // "pull_request" events do not carry comments. Names are Forgejo's own hook
 // event types (modules/webhook/type.go). The two action_run names are what
 // make a rerun of an Actions run reach us: a rerun posts no commit status of

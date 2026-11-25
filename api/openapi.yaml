@@ -553,10 +553,10 @@ paths:
       operationId: getSettingsSummary
       summary: The signed-in user's settings, read without side effects
       description: |
-        The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It never provisions webhook
-        credentials: for a user who has none yet it answers
-        `webhookConfigured: false` and creates nothing. Forge tokens are
-        never returned, only whether one is set. It returns exactly what
+        The same data as `GET /api/v1/settings`, plus `webhookConfigured`. It
+        never provisions webhook credentials: for a user who has none yet it
+        answers `webhookConfigured: false` and creates nothing. Forge tokens
+        are never returned, only whether one is set. It returns exactly what
         the `get_settings` MCP tool returns.
       tags: [settings]
       security: [{ bearerAuth: [] }]

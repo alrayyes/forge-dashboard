@@ -613,9 +613,9 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 }
 
 // githubWebhookEvents is the event list of the webhook this dashboard creates
-// and maintains on each repository. The comment events matter for the "Last activity" sort: a comment,
-// or a review, moves an item's updated_at, and without one of these the
-// snapshot only learns of it at the next poll (#1552). issue_comment covers
+// and maintains on each repository. The comment events matter for the "Last
+// activity" sort: a comment, or a review, moves an item's updated_at, and
+// without one of these the snapshot only learns of it at the next poll (#1552). issue_comment covers
 // conversation comments on issues and on pull requests alike.
 // pull_request_review_thread fires when a thread is resolved or unresolved,
 // which bumps no comment, so the unresolved count would otherwise wait for the
