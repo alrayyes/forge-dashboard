@@ -75,8 +75,8 @@ type verifyForgejoInstanceRequest struct {
 	InstanceURL string `json:"instanceUrl"`
 }
 
-// VerifyForgejoInstanceResponse matches components.schemas.VerifyForgejoInstanceResponse.
-type VerifyForgejoInstanceResponse struct {
+// ForgejoInstanceCheck matches components.schemas.ForgejoInstanceCheck.
+type ForgejoInstanceCheck struct {
 	InstanceURL string `json:"instanceUrl"`
 }
 
@@ -114,7 +114,7 @@ func handleSetupVerifyInstance() http.HandlerFunc {
 			return
 		}
 
-		writeJSON(w, http.StatusOK, VerifyForgejoInstanceResponse{InstanceURL: instance})
+		writeJSON(w, http.StatusOK, ForgejoInstanceCheck{InstanceURL: instance})
 	}
 }
 
