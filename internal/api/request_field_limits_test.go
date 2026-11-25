@@ -106,7 +106,6 @@ func TestRequestFields_AStringOverItsBoundIsRefusedWithAFieldError(t *testing.T)
 		"rebase label":     {http.MethodPut, "/api/v1/settings", `{"renovateRebaseLabel":"` + over("SettingsRequest", "renovateRebaseLabel") + `"}`, "renovateRebaseLabel", true},
 		"timezone":         {http.MethodPut, "/api/v1/settings/timezone", `{"timezone":"` + over("TimezoneRequest", "timezone") + `"}`, "timezone", true},
 		"api token label":  {http.MethodPost, "/api/v1/tokens", `{"label":"` + over("APITokenCreateRequest", "label") + `","expiresAt":"2999-01-01T00:00:00Z"}`, "label", true},
-		"webhook repo":     {http.MethodPost, "/api/v1/webhooks/ensure", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
 		"ignore repo":      {http.MethodPost, "/api/v1/repos/ignore", `{"forge":"github","fullName":"` + repo() + `/x","prs":true,"issues":false}`, "fullName", true},
 		"unignore repo":    {http.MethodPost, "/api/v1/repos/unignore", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},
 		"auto update repo": {http.MethodPost, "/api/v1/repos/auto-update-branch/enable", `{"forge":"github","fullName":"` + repo() + `/x"}`, "fullName", true},

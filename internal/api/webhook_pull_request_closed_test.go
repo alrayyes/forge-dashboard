@@ -158,7 +158,7 @@ func postGitHubDelivery(t *testing.T, srvURL, token, secret string, body []byte)
 func boardServer(t *testing.T, fake *fakeGitHub) (srvURL string, cookie *http.Cookie, token, secret string) {
 	t.Helper()
 	gh := fake.serve(t)
-	srvURL, cookie = newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, githubpkg.NewClient("test-token", "", gh.URL))
+	srvURL, cookie = newTestServerWithForgeSource(t, dashboard.ForgeGitHub, githubpkg.NewClient("test-token", "", gh.URL))
 	require.Eventually(t, func() bool {
 		return len(prNumbers(t, fetchDashboardWith(t, srvURL, cookie, ""))) == 1
 	}, pollBudget, 10*time.Millisecond, "the first refresh should list #78")

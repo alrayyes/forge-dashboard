@@ -80,7 +80,7 @@ func TestIssueDetails_ReturnsTheDescriptionAndTheConversation(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: sampleIssueDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getIssueDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -108,7 +108,7 @@ func TestIssueDetails_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getIssueDetails(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -120,7 +120,7 @@ func TestIssueDetails_MalformedInput_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	badName := getIssueDetails(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = badName.Body.Close() }()
@@ -156,7 +156,7 @@ func TestIssueDetails_FetchFails_ClassifiesByError(t *testing.T) {
 				forge:      dashboard.ForgeGitHub,
 				detailsErr: &dashboard.ClientError{Kind: tc.kind, Err: assert.AnError},
 			}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := getIssueDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 			defer func() { _ = resp.Body.Close() }()
@@ -170,7 +170,7 @@ func TestIssueDetails_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getIssueDetails(t, srvURL, nil, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -194,7 +194,7 @@ func TestContract_IssueDetails(t *testing.T) {
 	details.CommentCount = 70
 	details.CommentsTruncated = true
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: details}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
@@ -223,7 +223,7 @@ func TestIssueDetails_ReferencesCarryTheirDashboardAddress(t *testing.T) {
 		},
 	}
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: details}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
@@ -261,7 +261,7 @@ func TestContract_IssueDetailsHoldsIncomingAndOutgoingReferences(t *testing.T) {
 		})
 	}
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: details}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
@@ -274,7 +274,7 @@ func TestIssueDetails_NothingReferringIsAnEmptyList(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: sampleIssueDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "number": {"7"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?"+q.Encode(), sessionCookie)
@@ -297,7 +297,7 @@ func TestIssueDetails_CommentersCarryTheirProfileURL(t *testing.T) {
 		}},
 		details: sampleIssueDetails(),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	require.Eventually(t, func() bool {
 		issues, _ := fetchDashboard(t, srvURL, sessionCookie)["issues"].([]any)
 
@@ -337,7 +337,7 @@ func TestIssueDetails_APullRequestAuthorCarriesTheirProfileURL(t *testing.T) {
 		}},
 		details: details,
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	require.Eventually(t, func() bool {
 		issues, _ := fetchDashboard(t, srvURL, sessionCookie)["issues"].([]any)
 

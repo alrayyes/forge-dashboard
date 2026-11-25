@@ -344,10 +344,9 @@ var forgejoWebhookEvents = []string{
 // back to active with the right config rather than creating a second,
 // duplicate hook.
 //
-// It always writes an existing hook, because the "Add a webhook" button relies
-// on that to replace a changed secret. The post-refresh pass calls it only for
-// a repo whose snapshot shows no hook, so a write there means the snapshot was
-// stale: one idempotent PATCH, after which the next refresh sees the hook and
+// It always writes an existing hook, so a changed secret gets replaced. The
+// post-refresh pass calls it only for a repo whose snapshot shows no hook, so a
+// write there means the snapshot was stale: one idempotent PATCH, after which the next refresh sees the hook and
 // leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	c = c.withContext(ctx)

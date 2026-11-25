@@ -2,7 +2,6 @@ package api
 
 import (
 	"errors"
-	"log/slog"
 	"net/http"
 	"strings"
 
@@ -39,7 +38,7 @@ func safeRepoSegment(s string) bool {
 // should see — the same coarse categories ForgeHealth.ErrorKind already
 // classifies forge failures into elsewhere, applied here to a single
 // write instead of a whole snapshot. Shared by every endpoint that writes
-// to a forge (webhook ensure, pull-request actions), not just this one.
+// to a forge (pull-request actions, issue actions), not just one.
 func clientErrorStatus(err error) int {
 	if errors.Is(err, github.ErrUnknownRepository) {
 		return http.StatusNotFound
@@ -59,53 +58,5 @@ func clientErrorStatus(err error) int {
 		return http.StatusTooManyRequests
 	default:
 		return http.StatusBadGateway
-	}
-}
-
-// handleWebhookEnsure creates a webhook on the named repo, pointed at
-// the signed-in user's own webhook URL and secret, or brings an
-// existing forge-dashboard one back to active with the right config —
-// dashboard.WebhookManager's own EnsureWebhook decides which, per
-// forge. Unlike the passive coverage GET /api/v1/dashboard reports, this
-// is the one place forge-dashboard actually writes to a forge.
-func handleWebhookEnsure(deps Deps) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		t, ok := readActionTarget(w, r)
-		if !ok {
-			return
-		}
-
-		creds, err := deps.SettingsStore.Get(r.Context())
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load settings"))
-
-			return
-		}
-
-		token, secret, err := deps.SettingsStore.EnsureWebhookCredentials(r.Context())
-		if err != nil {
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load webhook credentials"))
-
-			return
-		}
-
-		src, ok := findForgeSource(w, deps, creds, t.req.Forge)
-		if !ok {
-			return
-		}
-		manager, ok := capabilityOf[dashboard.WebhookManager](w, src, t.req.Forge, "doesn't support creating webhooks")
-		if !ok {
-			return
-		}
-
-		targetURL := deps.PublicOrigin + "/api/webhooks/" + t.req.Forge + "/" + token
-		if err := manager.EnsureWebhook(r.Context(), t.owner, t.name, targetURL, secret); err != nil {
-			slog.Warn("webhook ensure failed", "forge", t.req.Forge, "repo", t.req.FullName, "error", err)
-			writeRefusal(w, clientErrorStatus(err), dashboard.ClassifyForgeRefusal(err), err, "forge", t.req.Forge, "repo", t.req.FullName)
-
-			return
-		}
-
-		w.WriteHeader(http.StatusNoContent)
 	}
 }

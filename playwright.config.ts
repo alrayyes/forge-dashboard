@@ -261,6 +261,7 @@ const singleUserSpecs = [
   '**/revoke-button-phone.spec.ts',
   '**/settings-ignore-counts.spec.ts',
   '**/settings-ignore-issues.spec.ts',
+  '**/settings-ignore-regex-colour.spec.ts',
   '**/settings.spec.ts',
   '**/filter-dropped-pick-notice.spec.ts',
   '**/filter-save-refused.spec.ts',

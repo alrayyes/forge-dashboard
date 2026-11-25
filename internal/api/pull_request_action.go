@@ -121,21 +121,6 @@ func forgeSource(w http.ResponseWriter, r *http.Request, deps Deps, forge string
 	return src, creds, true
 }
 
-// findForgeSource picks the source for forge out of the ones creds builds, and
-// answers 400 itself when the user has none. It is forgeSource's second half,
-// for a handler that has to do something between loading the settings and
-// looking for the source.
-func findForgeSource(w http.ResponseWriter, deps Deps, creds settings.Credentials, forge string) (dashboard.Source, bool) {
-	src, serr := pickForgeSource(deps, creds, forge)
-	if serr != nil {
-		serr.write(w)
-
-		return nil, false
-	}
-
-	return src, true
-}
-
 // capabilityFor asks src for the one optional capability a caller needs, or a
 // 400 with unsupported (what the forge can't do) when it lacks it.
 func capabilityFor[T any](src dashboard.Source, forge, unsupported string) (T, *statusError) {

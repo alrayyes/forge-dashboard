@@ -100,7 +100,6 @@ const PENDING_OPERATIONS = [
   'setTheme',
   'getTimezone',
   'setTimezone',
-  'ensureWebhook',
   'ignoreRepo',
   'unignoreRepo',
   'enableAutoUpdateBranch',

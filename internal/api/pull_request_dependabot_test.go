@@ -53,7 +53,7 @@ func TestPullRequestDependabotAction_Rebase_PostsExactCommentText(t *testing.T) 
 	t.Parallel()
 
 	source := &fakeCommenterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42, "rebase")
 	defer func() { _ = resp.Body.Close() }()
@@ -69,7 +69,7 @@ func TestPullRequestDependabotAction_Recreate_PostsExactCommentText(t *testing.T
 	t.Parallel()
 
 	source := &fakeCommenterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1, "recreate")
 	defer func() { _ = resp.Body.Close() }()
@@ -82,7 +82,7 @@ func TestPullRequestDependabotAction_UnknownAction_Returns400AndPostsNothing(t *
 	t.Parallel()
 
 	source := &fakeCommenterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1, "close")
 	defer func() { _ = resp.Body.Close() }()
@@ -95,7 +95,7 @@ func TestPullRequestDependabotAction_ForgeWithNoSupport_Returns400(t *testing.T)
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1, "rebase")
 	defer func() { _ = resp.Body.Close() }()
@@ -113,7 +113,7 @@ func TestPullRequestDependabotAction_CommentFails_ClassifiesByError(t *testing.T
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1, "rebase")
 	defer func() { _ = resp.Body.Close() }()
@@ -125,7 +125,7 @@ func TestPullRequestDependabotAction_MalformedFullName_Returns400(t *testing.T) 
 	t.Parallel()
 
 	source := &fakeCommenterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1, "rebase")
 	defer func() { _ = resp.Body.Close() }()
@@ -137,7 +137,7 @@ func TestPullRequestDependabotAction_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeCommenterSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1, "action": "rebase"})
 	require.NoError(t, err)
@@ -160,7 +160,7 @@ func TestPullRequestDependabotAction_CommandsBlocked_Returns409WithReasonAndPost
 	t.Parallel()
 
 	source := &blockedCommenterSource{fakeCommenterSource{forge: dashboard.ForgeGitHub}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postDependabotAction(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1, "rebase")
 	defer func() { _ = resp.Body.Close() }()

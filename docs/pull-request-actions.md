@@ -123,8 +123,8 @@ this page, the chip changes at the next refresh to "Still waiting", "Over 2 min"
 and its tooltip says to open the pull request on the forge, since a forge that
 never reports (a pull request with no checks, say) shouldn't look as if it is
 about to. The count starts again if the forge reports a status or the pull
-request leaves the page. Auto-merge stays in the chip throughout. A draft keeps
-its locked Merge.
+request leaves this page's list. Auto-merge stays in the chip throughout. A
+draft keeps its locked Merge.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row keeps the chip but says "Waiting for the forge", with
 "Updating from the latest CI results" in its tooltip, and the Merge button stays

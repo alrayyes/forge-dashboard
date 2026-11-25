@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.124.0](https://github.com/alrayyes/forge-dashboard/compare/v9.123.1...v9.124.0) (2026-11-25)
+
+
+### Features
+
+* **web:** colour the regex in the Ignored issue titles list ([#4893](https://github.com/alrayyes/forge-dashboard/issues/4893)) ([eec9f7c](https://github.com/alrayyes/forge-dashboard/commit/eec9f7c824beaaf575dada808e726d084327ca83))
+
 ## [9.123.1](https://github.com/alrayyes/forge-dashboard/compare/v9.123.0...v9.123.1) (2026-11-25)
 
 
