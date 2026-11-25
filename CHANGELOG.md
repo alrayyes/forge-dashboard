@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.125.2](https://github.com/alrayyes/forge-dashboard/compare/v9.125.1...v9.125.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** even spacing inside the wait chip on a desktop ([#4919](https://github.com/alrayyes/forge-dashboard/issues/4919)) ([49fd1a0](https://github.com/alrayyes/forge-dashboard/commit/49fd1a0a58626edc5f2e8fc0f5e9eedddc9f7911))
+
 ## [9.125.1](https://github.com/alrayyes/forge-dashboard/compare/v9.125.0...v9.125.1) (2026-11-25)
 
 
