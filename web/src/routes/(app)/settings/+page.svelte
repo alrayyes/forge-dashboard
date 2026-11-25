@@ -1368,7 +1368,9 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      margin-top: 4px;
+      /* The row ends a block like a card does, so it leaves the same room
+         under it as the cards' margin (#4851). */
+      margin: 4px 0 18px;
     }
     .btn {
       font-family: inherit;

@@ -307,6 +307,7 @@ const singleUserSpecs = [
   '**/ambiguous-action-outcome.spec.ts',
   '**/shared-dashboard-read.spec.ts',
   '**/card-spacing.spec.ts',
+  '**/settings-save-gap.spec.ts',
   '**/page-widths.spec.ts',
   '**/auth.spec.ts',
   '**/author-name-ellipsis.spec.ts',
