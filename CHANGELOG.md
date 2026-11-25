@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.121.4](https://github.com/alrayyes/forge-dashboard/compare/v9.121.3...v9.121.4) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** say Auto-update in the page's words and summarise bulk runs ([#4870](https://github.com/alrayyes/forge-dashboard/issues/4870)) ([0601b3b](https://github.com/alrayyes/forge-dashboard/commit/0601b3b33517105f05322928e21a30f8276d6eb1))
+
 ## [9.121.3](https://github.com/alrayyes/forge-dashboard/compare/v9.121.2...v9.121.3) (2026-11-25)
 
 
