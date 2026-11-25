@@ -8,6 +8,7 @@
   import PollingOnlyNotice from "./PollingOnlyNotice.svelte";
   import ReadFailureAlert from "./ReadFailureAlert.svelte";
   import RepoControlIcon from "./RepoControlIcon.svelte";
+  import { tipDismiss } from "./tip-dismiss";
   import RepoLogo from "./RepoLogo.svelte";
   import RepoToggle from "./RepoToggle.svelte";
   import { failingBadge } from "./failing-repo.js";
@@ -24,6 +25,8 @@
   } from "./polling-only.js";
   import {
     autoUpdateName,
+    IGNORE_TIP,
+    toggleTip,
     bulkTargets,
     type BulkControl,
     filterRepos,
@@ -452,8 +455,10 @@
   <FirstRefreshStatus pending={showSkeleton} subject="repositories" srOnly />
 
   <p class="hint">
-    Every tracked repo, and what the dashboard does for it. Webhooks are set up
-    on their own; a repo without one says why on its row, and the guide covers
+    Every tracked repo, and what the dashboard does for it. On each row the
+    icons are Auto-update (merge arrows), Rebase bots (robot) and Ignore
+    (crossed-out eye). Webhooks are set up on their own; a repo without one says
+    why on its row, and the guide covers
     <a
       href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md#polling-only"
       target="_blank"
@@ -624,15 +629,17 @@
                   forge={repo.forge}
                   url={repo.logoUrl}
                   name={repo.fullName}
-                />{#if repo.url}<a
-                    class="repo-link"
-                    href={repo.url}
-                    title={repo.fullName}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    {repo.fullName}
-                  </a>{:else}{repo.fullName}{/if}
+                /><span class="repo-name">
+                  {#if repo.url}<a
+                      class="repo-link"
+                      href={repo.url}
+                      title={repo.fullName}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {repo.fullName}
+                    </a>{:else}{repo.fullName}{/if}
+                </span>
                 {#if repo.failingSince}
                   {@const failing = failingBadge(repo, formatTime)}
                   <span class="failing-live">
@@ -690,6 +697,7 @@
                 <RepoToggle
                   kind="auto-update"
                   name={autoUpdateName(repo.fullName)}
+                  tip={toggleTip("Auto-update", repo.autoUpdateBranch)}
                   pressed={repo.autoUpdateBranch}
                   busy={busy[busyKey("auto", repo)]}
                   onclick={() => setAutoUpdate(repo, !repo.autoUpdateBranch)}
@@ -699,6 +707,7 @@
                 <RepoToggle
                   kind="rebase-bots"
                   name={rebaseBotsName(repo.fullName)}
+                  tip={toggleTip("Rebase bots", repo.rebaseBots)}
                   pressed={repo.rebaseBots}
                   busy={busy[busyKey("rebase", repo)]}
                   disabled={lockedOff}
@@ -719,7 +728,8 @@
               <td role="cell" class="control-cell" data-label="Ignore">
                 <span
                   class="repo-control ignore-control"
-                  data-tip={ignoreName(repo.fullName)}
+                  data-tip={IGNORE_TIP}
+                  use:tipDismiss
                 >
                   <select
                     class="ignore-select"
@@ -1173,35 +1183,61 @@
       overflow-wrap: anywhere;
       text-align: left;
     }
-    /* Left text label, right icon control, centred on the row. */
-    .repo-table td.control-cell {
+    /* One line per repo (#4858): forge marker, logo, name (cut with an
+       ellipsis), then the three icons. The cells give up their boxes so the
+       row's pieces are its flex items, and the failing, polling and lock
+       notes drop below on a line of their own. Where the icons and the name
+       can't share a line, the icons take one line under the name. */
+    #repositories-rows {
+      container: repo-rows / inline-size;
+    }
+    .repo-table tbody tr {
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      justify-content: space-between;
-      gap: 4px 12px;
-      min-height: 44px;
+      gap: 2px 8px;
+    }
+    .repo-table td.name-cell,
+    .repo-table td.control-cell {
+      display: contents;
     }
     .repo-table td.control-cell::before {
-      content: attr(data-label);
-      font-size: 0.8125rem;
-      color: var(--ink-2);
+      content: none;
     }
+    .repo-table td[data-label="Forge"] {
+      flex: none;
+      padding: 0;
+    }
+    .repo-name {
+      flex: 1 1 0;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .repo-table .failing-live,
+    .repo-table .polling-reason,
     .repo-table td.control-cell .lock-note {
-      flex-basis: 100%;
+      flex: 0 0 100%;
+      order: 3;
       max-width: none;
-      margin: 0;
+      margin: 2px 0 0;
+      text-align: left;
     }
     .ignore-select {
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
     }
-    .repo-table td[data-label="Forge"]::before,
-    .repo-table td[data-label="Repo"]::before {
-      content: attr(data-label);
-      display: block;
-      font-size: 0.6875rem;
-      color: var(--ink-2);
+    @container repo-rows (width <= 18rem) {
+      .repo-table tbody tr::before {
+        content: "";
+        flex: 0 0 100%;
+        height: 0;
+        order: 1;
+      }
+      .repo-table td.control-cell > :global(.repo-control) {
+        order: 2;
+      }
     }
   }
 </style>

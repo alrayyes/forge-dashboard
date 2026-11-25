@@ -388,7 +388,7 @@ test.describe('settings, repositories', () => {
     await expect(toggle).toHaveCSS('outline-style', 'solid');
     await expect(toggle.locator('xpath=..')).toHaveAttribute(
       'data-tip',
-      'Auto-update on alrayyes/a',
+      'Auto-update: off. Press to turn on',
     );
     await page.keyboard.press('Space');
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
@@ -412,7 +412,7 @@ test.describe('settings, repositories', () => {
     await expectNoAxeViolations(page);
   });
 
-  test('phone 390px: cards with text labels, 40px controls, no sideways scroll, axe clean', async ({
+  test('phone 390px: one-line cards, 44px controls, no sideways scroll, axe clean', async ({
     page,
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
@@ -422,16 +422,11 @@ test.describe('settings, repositories', () => {
     ]);
     await open(page);
     const row = page.locator('#repositories-rows tr').first();
-    // The label is drawn by CSS beside the icon, left of the control.
-    const label = await row
-      .locator('td[data-label="Auto-update"]')
-      .evaluate((td) => getComputedStyle(td, '::before').content);
-    expect(label).toBe('"Auto-update"');
     const box = await row
       .getByRole('button', { name: /^Auto-update on/ })
       .boundingBox();
-    expect(box?.width).toBe(40);
-    expect(box?.height).toBe(40);
+    expect(box?.width).toBe(44);
+    expect(box?.height).toBe(44);
     await expect
       .poll(() =>
         page.evaluate(

@@ -7483,3 +7483,9 @@ footer a[aria-current="page"] {
   opacity: 1;
   visibility: visible;
 }
+/* Escape dismisses the tooltip until the pointer or focus leaves (WCAG
+   1.4.13). */
+.repo-control[data-tip-dismissed]::after {
+  opacity: 0;
+  visibility: hidden;
+}

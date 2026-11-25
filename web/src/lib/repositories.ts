@@ -90,6 +90,12 @@ export const rebaseBotsName = (fullName: string) =>
   `Rebase bots on ${fullName}`;
 export const ignoreName = (fullName: string) => `Ignore ${fullName}`;
 
+// A control's tooltip: what it does, its state, and what a press does. The
+// accessible name stays fixed; this is the sighted hover and focus text.
+export const toggleTip = (label: string, on: boolean) =>
+  `${label}: ${on ? 'on. Press to turn off' : 'off. Press to turn on'}`;
+export const IGNORE_TIP = 'Ignore: off. Choose what to ignore';
+
 export type BulkControl = 'autoUpdate' | 'rebaseBots';
 
 // Every tracked repo on the wrong side of the target state, whatever the

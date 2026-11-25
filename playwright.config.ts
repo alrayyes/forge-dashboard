@@ -86,6 +86,7 @@ const singleUserSpecs = [
   '**/settings-repositories-status-line.spec.ts',
   '**/settings-repositories-failing.spec.ts',
   '**/settings-repositories-rebase-bots.spec.ts',
+  '**/settings-repositories-one-line.spec.ts',
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',

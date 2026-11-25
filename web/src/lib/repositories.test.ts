@@ -7,10 +7,12 @@ import {
   filterRepos,
   filtersAreClear,
   forgeChoices,
+  IGNORE_TIP,
   ignoreName,
   type RepoRow,
   rebaseBotsName,
   sortRepos,
+  toggleTip,
 } from './repositories';
 
 function repo(
@@ -171,5 +173,19 @@ describe('the polling-only filter (#4028)', () => {
   });
   test('a missing flag means off', () => {
     expect(filtersAreClear({ forge: '', search: '' })).toBe(true);
+  });
+});
+
+describe('tooltips', () => {
+  test('a toggle tip names the control, its state and what a press does', () => {
+    expect(toggleTip('Auto-update', true)).toBe(
+      'Auto-update: on. Press to turn off',
+    );
+    expect(toggleTip('Rebase bots', false)).toBe(
+      'Rebase bots: off. Press to turn on',
+    );
+  });
+  test('the Ignore tip points at the scope choice', () => {
+    expect(IGNORE_TIP).toBe('Ignore: off. Choose what to ignore');
   });
 });
