@@ -41,7 +41,6 @@ for (const scheme of ['light', 'dark'] as const) {
         await page.setViewportSize({ width, height: 900 });
         let checked = 0;
         let toggles = 0;
-        let pairs = 0;
         let revealed = false;
         let sawReveal = false;
 
@@ -105,13 +104,6 @@ for (const scheme of ['light', 'dark'] as const) {
               )
                 toggles++;
             }
-            if (boxes.length === 2) {
-              pairs++;
-              expect(
-                boxes[0].x + boxes[0].width <= boxes[1].x,
-                `${url} field ${i} buttons overlap`,
-              ).toBe(true);
-            }
             // The room kept for the buttons: text in the field must end before
             // the first button starts (#4863). A long value can't be hidden
             // under a button.
@@ -140,11 +132,11 @@ for (const scheme of ['light', 'dark'] as const) {
             .analyze();
           expect(results.violations).toEqual([]);
         }
-        // Show on GitHub and Forgejo, Copy on both webhook URLs, and the
-        // Secret with its two buttons: the test must have seen them all.
-        expect(checked).toBeGreaterThanOrEqual(6);
-        expect(toggles).toBeGreaterThanOrEqual(3);
-        expect(pairs).toBeGreaterThanOrEqual(1);
+        // Show on the GitHub and Forgejo token fields, Copy on the MCP address
+        // and on the new-token field: four fields, two of them toggles. Each
+        // holds one button, so there is no pair to keep apart.
+        expect(checked).toBeGreaterThanOrEqual(4);
+        expect(toggles).toBeGreaterThanOrEqual(2);
         expect(revealed).toBe(true);
         expect(sawReveal).toBe(true);
       });

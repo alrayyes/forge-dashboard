@@ -154,17 +154,8 @@ test.describe('mono face and tabular figures (#1754)', () => {
     for (let i = 0; i < 2; i++) await expectMono(shas.nth(i));
   });
 
-  test('settings: webhook URLs, the secret and a new API token are mono', async ({
-    page,
-  }) => {
+  test('settings: a new API token is mono', async ({ page }) => {
     await page.goto('/settings.html#integrations');
-    for (const id of [
-      'webhook-url-github',
-      'webhook-url-forgejo',
-      'webhook-secret',
-    ]) {
-      await expectMono(page.locator(`#${id}`));
-    }
     await page.locator('#token-label').fill('laptop');
     await page.getByRole('button', { name: 'Generate' }).click();
     await expect(page.locator('#token-reveal-value')).not.toHaveValue('');

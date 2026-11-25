@@ -303,7 +303,7 @@ settings-repositories-status-line.spec.ts,,3,0,C,,0.0
 settings-repositories-toggle-filters.spec.ts,,5,2,C,,0.0
 settings-repositories.spec.ts,,16,5,C,,0.0
 settings-save-gap.spec.ts,,4,3,A,,0.0
-settings.spec.ts,16.859,48,11,C,web/src/lib/settings-groups.test.ts,13.0
+settings.spec.ts,16.859,44,9,C,web/src/lib/settings-groups.test.ts,13.4
 shared-dashboard-read.spec.ts,5.171,6,0,C,,5.2
 show-drafts-by-page.spec.ts,5.164,2,2,A,,0.0
 show-drafts.spec.ts,5.541,8,4,A,,2.8

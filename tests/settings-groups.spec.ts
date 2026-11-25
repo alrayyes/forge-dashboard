@@ -27,7 +27,7 @@ const GROUPS = [
   {
     id: 'integrations',
     label: 'Integrations and security',
-    cards: ['Webhooks', 'Passkeys', 'API tokens'],
+    cards: ['Passkeys', 'API tokens'],
     absent: ['Issues', 'Appearance'],
   },
   {
@@ -216,12 +216,6 @@ test.describe('settings groups', () => {
     }
     await page.goto('/settings.html#integrations');
     await expect(page.locator('#save-connections-button')).toBeEnabled();
-    const how = page.getByRole('button', {
-      name: 'How do I add these to a repo?',
-    });
-    await expect(how).toHaveAttribute('aria-expanded', 'false');
-    await how.click();
-    await expect(page.locator('#webhook-howto')).toBeVisible();
   });
 
   test('unsaved edits survive switching groups', async ({ page }) => {

@@ -1,16 +1,19 @@
 # Webhooks
 
-The dashboard creates and repairs its own webhook on every repo your token can
-administer, so you rarely set one up by hand (see
+The dashboard registers and repairs its own webhook on every repo your token can
+administer, and only the dashboard does (see
 [What the dashboard checks on its own](#what-the-dashboard-checks-on-its-own)).
+There is no URL or secret to copy into a forge. A hook made by hand would
+carry a secret the dashboard didn't write, and it would be rewritten or
+duplicated, so don't add one.
 Without one, the dashboard still refreshes on its own schedule
 (`REFRESH_INTERVAL`, 20 minutes by default, longer while every repo has a
 healthy webhook, every forge's last fetch worked and every repo was fully
 fetched) and the browser tab polls it every 30 seconds — a webhook just closes
 that gap, so a new pull request, a closed issue, or a CI status change on a repo
 you're tracking shows up within seconds instead of at the next poll. Nothing
-about this is required for the dashboard to work; skip this page entirely and
-everything still functions exactly as it did before.
+about this is required for the dashboard to work; without a webhook everything
+still functions on the poll.
 
 Which repos have a confirmed webhook isn't a page of its own. A repo without
 one says so where you already work: Branches marks it with a "Polling only"
@@ -27,9 +30,8 @@ for that repo. For why a forge refuses requests, see
 The old Webhooks page (`/webhooks.html`) is gone. Its address, and `/webhooks`,
 send you to Settings, Repositories. The per-repo controls (Auto-update,
 bot-rebase and Ignore) live in that group, described under
-[Pull request actions](pull-request-actions.md). Settings' Webhooks card is
-still there for the manual steps below: it holds this dashboard's webhook URL
-and secret.
+[Pull request actions](pull-request-actions.md). Settings has no Webhooks card,
+and old `#webhooks` and `#webhook-howto` links open Integrations and security.
 
 ## When the dashboard can't create a hook
 
@@ -47,8 +49,9 @@ This needs a broader token scope than just reading your repos. GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and write**, and
 Forgejo's `write:repository` (already required just to check coverage, since
 Forgejo's webhook API has no separate read-only scope). See Settings' own field
-hints for the exact scope per forge. If your token can't or won't take that
-scope, the manual steps below are the fallback.
+hints for the exact scope per forge. A repo the token
+can't administer stays on polling, and its row in Settings, Repositories says
+which scope is missing.
 
 A GitHub App connection has no role on a repo, so it needs the App's
 **Repository permissions → Webhooks** set to **Read and write** (not the
@@ -82,10 +85,11 @@ permission granted correctly, which reads like a scope problem but isn't
 one. This is easy to hit for a repo created after the token, or a token
 deliberately scoped to a subset of repos.
 
-**A webhook is only as complete as the events you tell your forge to
-send.** Ticking too few doesn't break anything — it just leaves part of
+**A webhook is only as complete as the events it subscribes to.** The
+dashboard subscribes to every event below. A hook missing one leaves part of
 the dashboard on the slower, polling-only path while the rest updates
-live. The one people miss is CI: a pull request's status colour is driven
+live, and the dashboard edits it back. The one people miss is CI: a pull
+request's status colour is driven
 by a _different_ event than the one that shows the pull request existing
 at all, so it's easy to end up with a webhook that reacts to a new pull
 request or a comment but never to that pull request's checks finishing.
@@ -104,9 +108,9 @@ request or a comment but never to that pull request's checks finishing.
 GitHub splits CI into two separate events because it has two separate
 CI mechanisms with two separate APIs — **Statuses** is the older
 commit-status API (what most third-party CI still posts to), **Check
-runs** is GitHub Actions and any GitHub App-based check. Skip either one
-and a pull request whose only checks come from the mechanism you didn't
-select won't update its CI colour until the next poll — everything else
+runs** is GitHub Actions and any GitHub App-based check. Without either
+one, a pull request whose only checks come from the other mechanism won't
+update its CI colour until the next poll — everything else
 about that pull request still updates live. Forgejo doesn't have this
 split: its own Actions runs post to the same combined commit-status
 endpoint external CI does, so **Status** covers both. A rerun is the
@@ -184,59 +188,14 @@ Each such row in Repositories says why, and links to the fix:
 On Branches the repo carries a "Polling only" chip, and "See why in Settings"
 opens Repositories.
 
-## Find your webhook URL and secret
-
-Open **Settings** (`/settings.html`, linked from the dashboard header) —
-the **Webhooks** card there shows a ready-to-paste URL for each forge and
-one shared secret, generated the first time you open the page. Both stay
-the same across visits, so a webhook configured against them keeps
-working; there's no separate step to "save" them.
-
-## GitHub
-
-1. On the repository you want live updates from, open **Settings →
-   Webhooks → Add webhook**.
-2. **Payload URL**: the GitHub webhook URL from Settings.
-3. **`Content type`**: `application/json`.
-4. **Secret**: the secret from Settings.
-5. **Which events would you like to trigger this webhook?** → "Let me
-   select individual events", then check **Pull requests**, **Issues**,
-   **Issue comments**, **Pull request reviews**, **Pull request review
-   comments**, **Pull request review threads**, **Statuses**, and **Check
-   runs**. (Selecting "Send me everything" works too, see below — it's just
-   more traffic than needed.)
-6. Leave **Active** checked, then **Add webhook**.
-
-GitHub sends a `ping` event via POST immediately to confirm the URL is reachable;
-a green checkmark next to the webhook in that same settings page means it
-was accepted.
-
-## Forgejo
-
-1. On the repository, open **Settings → Webhooks → Add Webhook**, then choose
-   **Forgejo** (choose **Gitea** instead if that's the only option your
-   instance offers — both work the same way here).
-2. **Target URL**: the Forgejo webhook URL from Settings.
-3. **HTTP Method**: `POST`. **`POST Content Type`**: `application/json`.
-4. **Secret**: the secret from Settings.
-5. **Trigger On**: "Custom Events", then check **Pull Request**,
-   **Issue**, **Issue Comment**, **Pull Request Comment**, **Pull Request
-   Review Approved**, **Pull Request Review Rejected**, **Pull Request
-   Review Comment**, **Push**, **Status**, **Action Run Failure** and
-   **Action Run Success**. ("All Events" works too, same
-   reasoning as the preceding GitHub section.) A webhook the dashboard creates
-   through the API needs no extra ticks: Forgejo's **Pull Request** and
-   **Issue** types already deliver comments and reviews on those items.
-6. Leave it **Active**, then **Add Webhook**.
-
 ## How a delivery is verified
 
-Every delivery's signature is checked against your secret before
+Every delivery's signature is checked against the dashboard's secret before
 anything acts on it — an unsigned or wrongly signed request is refused
 outright, not just ignored. GitHub signs with `X-Hub-Signature-256`;
 Forgejo signs with `X-Forgejo-Signature` (or `X-Gitea-Signature` on an
 instance whose webhook was set up with the legacy "Gitea" type) — both
-are an HMAC-SHA256 of the raw request body, keyed with your secret. Once
+are an HMAC-SHA256 of the raw request body, keyed with the dashboard's secret. Once
 verified, the payload's `repository` field is read to refresh just that
 one repo instead of everything you track — a delivery whose payload
 doesn't carry one (the initial "ping", most concretely) falls back to a
@@ -316,8 +275,8 @@ with admin on the repo.
 - **A secret changed before this existed isn't detected.** The first start
   after this was introduced records the secret in use as the baseline and
   rewrites nothing, since there is nothing to compare against. A hook whose
-  secret was replaced earlier still holds the old one, and its repo needs
-  its hook fixed by hand once (see the manual steps).
+  secret was replaced earlier still holds the old one until the secret
+  changes again, which rewrites every hook the dashboard made.
 - **A repo the token can't administer**, a forge that is unreachable or out of
   REST budget, and a repo the forge refuses are skipped without failing the
   refresh. The dashboard asks a refused repo again after an hour, with no
@@ -334,13 +293,12 @@ tried again on a later refresh.
 ## Troubleshooting
 
 - **Everything about a pull request updates live except its CI colour**:
-  the webhook is working, it's just missing the CI-specific event — see
-  the preceding table. Re-open the webhook on your forge and check
-  **Statuses**/**Check runs** (GitHub) or **Status**, **Action Run
-  Failure** and **Action Run Success** (Forgejo); nothing else about the
-  webhook needs changing.
-- **A Forgejo webhook's `status` event won't stick, however it's
-  created**: confirmed live against two separate real instances
+  the hook is working, it's just missing the CI-specific event — see
+  the preceding table. The dashboard adds a missing event on its next hook
+  check (see "What the dashboard checks on its own"), so wait for a refresh
+  rather than editing the hook on the forge.
+- **A Forgejo webhook's `status` event won't stick**: confirmed live against
+  two separate real instances
   (`16.0.4+gitea-1.22.0` among them) — both the settings form's own
   `POST`/`PATCH` and a direct API call can report success while the
   hook's persisted event list simply never includes `status`, with
@@ -358,10 +316,13 @@ tried again on a later refresh.
   `status` event costs at most that interval's own staleness instead of
   the full `REFRESH_INTERVAL`.
 - **The forge shows the delivery failing, or your dashboard never
-  updates from it**: re-check the secret was pasted exactly, with no
-  extra whitespace — a mismatched secret is indistinguishable from an
-  attacker's forged request from this endpoint's point of view, so both
-  are refused the same way.
+  updates from it**: the hook's secret doesn't match the dashboard's. A
+  mismatched secret is indistinguishable from an attacker's forged request
+  from this endpoint's point of view, so both are refused the same way. Look
+  for `webhook signature invalid` in the log. The dashboard rewrites the
+  secret on its own hooks when its secret changes, and a hook it didn't make
+  can't be repaired, so delete that one on the forge and let the dashboard
+  create its own.
 - **A delivery arrives but the dashboard doesn't seem to reflect it**:
   every delivery is logged, each line naming the forge, the event type,
   and the delivery ID — `webhook accepted`, `webhook signature invalid`,
