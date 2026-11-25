@@ -6,3 +6,7 @@ api/openapi.yaml:
     - "#/paths/~1api~1v1~1connections~1forgejo~1callback/get/responses"
     - "#/paths/~1api~1v1~1connections~1github~1callback/get/responses"
     - "#/paths/~1api~1v1~1connections~1github~1installed/get/responses"
+  # The code rides in the query of a redirect to the /setup page, which OpenAPI
+  # cannot reference from a response; the schema documents it for page authors.
+  no-unused-components:
+    - "#/components/schemas/SetupErrorCode"
