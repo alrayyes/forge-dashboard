@@ -33,6 +33,8 @@ type coalescer struct {
 	// call.
 	startedEpoch   int64
 	completedEpoch int64
+	// parked is how many callers are blocked waiting on a trailing run.
+	parked int
 }
 
 func newCoalescer() *coalescer {
@@ -42,6 +44,16 @@ func newCoalescer() *coalescer {
 	return c
 }
 
+// waiting is how many callers are parked on the in-flight run. It only counts
+// a caller once it holds its place in the queue, which is what a test needs to
+// know before it lets that run finish.
+func (c *coalescer) waiting() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	return c.parked
+}
+
 // do runs fn, or waits for a run guaranteed to have started after do was
 // called. See the type's own doc comment for the guarantee this provides.
 func (c *coalescer) do(fn func()) {
@@ -49,9 +61,11 @@ func (c *coalescer) do(fn func()) {
 	if c.running {
 		c.pending = true
 		arrivedAfter := c.startedEpoch
+		c.parked++
 		for c.completedEpoch <= arrivedAfter {
 			c.cond.Wait()
 		}
+		c.parked--
 		c.mu.Unlock()
 
 		return

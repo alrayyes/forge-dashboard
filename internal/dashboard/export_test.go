@@ -30,6 +30,17 @@ func (s *Service) UserRefreshesForTest() int {
 	return int(agg.userRefreshes.Load())
 }
 
+// ParkedRefreshesForTest is how many refresh calls are queued behind the
+// in-flight one.
+func (s *Service) ParkedRefreshesForTest() int {
+	agg := s.aggregator()
+	if agg == nil {
+		return 0
+	}
+
+	return agg.refresh.waiting()
+}
+
 // EndSentenceForTest exposes endSentence.
 func EndSentenceForTest(msg string) string { return endSentence(msg) }
 
