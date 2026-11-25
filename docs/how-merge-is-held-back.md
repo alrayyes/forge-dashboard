@@ -25,10 +25,12 @@ A reason is one of two kinds.
 - **Someone has to act.** The branch is behind its base, the pull request is a
   draft, a check failed, there is a merge conflict, or workflow runs are
   waiting for approval. The reason names the fix:
-  - Behind the base branch: use Update branch, beside Merge.
+  - Behind the base branch: use Update branch, beside Merge. A Dependabot or
+    Renovate pull request offers that bot's rebase instead.
   - Draft: mark it ready for review on the forge.
   - A failing check: fix it. The CI pill and the list of checks show which.
-  - A merge conflict: resolve it on the forge.
+  - A merge conflict: resolve it on the forge. "Conflict not confirmed" means
+    the forge hasn't confirmed it yet. Update the branch to find out.
   - Workflow runs waiting for approval: approve them on the forge. They report
     nothing until then, so a failing pill would point you the wrong way.
   - The only run was cancelled: run the checks again.
@@ -44,24 +46,30 @@ row says only that.
 ## Armed pull requests
 
 Auto-merge asks the forge to merge a pull request once it can. An armed row
-shows a wait chip in place of Merge, and Cancel auto-merge takes the button's
-place. It has three states:
+shows a wait chip where a locked Merge would be, with a Cancel auto-merge
+button. The server reports one of two states, `waiting` or `stopped`, and a
+message that says why.
 
 - **Waiting.** Something short of the forge's go-ahead is missing: checks are
-  running, the branch must be updated, the draft isn't ready, the parent hasn't
-  merged, or the forge hasn't said it can merge. The chip names it. When that
-  clears, auto-merge carries on without you.
-- **Stopped.** A check failed or there is a merge conflict. Auto-merge stays
-  armed but does nothing until the cause is fixed. Once checks pass or the
-  conflict is resolved, it carries on. If nothing is left to merge, it stops
-  for good.
-- **Checks passed.** The merge is next. GitHub holds an armed pull request and
-  merges it itself. Forgejo has no such hold here, so the dashboard merges it at
-  the next refresh.
+  running, no check has reported yet, the only run was cancelled, the branch
+  must be updated, the draft isn't ready, the parent hasn't merged, workflow
+  runs need approval, the forge is rate limited, or the forge hasn't said it
+  can merge. The chip names it. When that clears, auto-merge carries on without
+  you.
+- **Stopped.** A check failed, there is a merge conflict, nothing is left to
+  merge, or the forge refused the merge, for example over a permission. The
+  message reads "Auto-merge stopped:" and the cause. Auto-merge stays armed and
+  carries on once checks pass or the conflict is resolved. A refusal needs
+  whatever the forge said to be fixed first.
+
+Once checks have passed, the state is still `waiting`, with the message "Checks
+passed". The merge is next. GitHub holds an armed pull request and merges it
+itself. Forgejo has no such hold here, so the dashboard merges it at the next
+refresh.
 
 When the base branch must be current before a merge, an armed pull request that
 is behind waits for someone to update it. The forge doesn't update it for you,
-so use Update branch.
+so update the branch.
 
 ## What a row keeps
 
