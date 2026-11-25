@@ -640,6 +640,9 @@
       align-items: center;
       justify-content: space-between;
       gap: 8px 12px;
+      /* The same gap as under the filter card, so the pill never sits on the
+         card below it (#4927). */
+      margin-bottom: 14px;
     }
     .mb-header-controls {
       max-width: 100%;

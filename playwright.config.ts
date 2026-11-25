@@ -7,6 +7,7 @@ import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 const singleUserSpecs = [
   '**/locked-note-align.spec.ts',
   '**/main-branches-header-400.spec.ts',
+  '**/main-branches-live-pill-gap.spec.ts',
   '**/merged-pr-pill.spec.ts',
   '**/page-tops.spec.ts',
   '**/filter-stale-forge-pick.spec.ts',
