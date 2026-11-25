@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
   import Disclosure from "#lib/Disclosure.svelte";
+  import { reserveButtons } from "#lib/reserve-buttons.js";
   import { installationIdPayload } from "#lib/installation-id.js";
   import {
     appHeldAutoMergeCopy,
@@ -1260,19 +1261,22 @@
     .token-input {
       position: relative;
     }
+    /* --reserved is measured from the buttons by reserveButtons, so it
+       follows the text size. The pixel values are the first-paint fallback. */
     .token-input input {
       font-family: "IBM Plex Mono", ui-monospace, monospace;
       font-variant-numeric: tabular-nums;
-      padding-right: 58px;
+      padding-right: var(--reserved, 58px);
     }
     .token-input--dual input {
-      padding-right: 112px;
+      padding-right: var(--reserved, 112px);
     }
     /* A phone gives each button a 44px hit area (--tap), as tall as the
        field itself, so the button would cover the field's border. The field
        grows to hold the button, its 5px margin and the focus ring. The
-       shared min-height rule in style.css has three classes' worth of
-       specificity, so the repeated class here is what outranks it. */
+       shared min-height rule in style.css has (0,3,3) specificity, because
+       :is() takes its most specific argument, so the repeated class here is
+       what outranks it. */
     @media (width <= 760px) {
       :root
         body
@@ -1819,7 +1823,7 @@
                   Configured
                 </span>
               </label>
-              <div class="token-input">
+              <div class="token-input" use:reserveButtons>
                 <input
                   id="github-token"
                   name="githubToken"
@@ -2031,7 +2035,7 @@
                   Configured
                 </span>
               </label>
-              <div class="token-input">
+              <div class="token-input" use:reserveButtons>
                 <input
                   id="forgejo-token"
                   name="forgejoToken"
@@ -2400,7 +2404,7 @@
           </p>
           <div class="field">
             <label for="webhook-url-github">GitHub webhook URL</label>
-            <div class="token-input">
+            <div class="token-input" use:reserveButtons>
               <input
                 id="webhook-url-github"
                 type="text"
@@ -2420,7 +2424,7 @@
           </div>
           <div class="field">
             <label for="webhook-url-forgejo">Forgejo webhook URL</label>
-            <div class="token-input">
+            <div class="token-input" use:reserveButtons>
               <input
                 id="webhook-url-forgejo"
                 type="text"
@@ -2440,7 +2444,7 @@
           </div>
           <div class="field">
             <label for="webhook-secret">Secret</label>
-            <div class="token-input token-input--dual">
+            <div class="token-input token-input--dual" use:reserveButtons>
               <input
                 id="webhook-secret"
                 type={webhookSecretShown ? "text" : "password"}
@@ -2699,7 +2703,7 @@
             <label for="token-reveal-value">
               New token &mdash; copy it now
             </label>
-            <div class="token-input">
+            <div class="token-input" use:reserveButtons>
               <input
                 id="token-reveal-value"
                 type="text"
@@ -2767,7 +2771,7 @@
             </p>
             <div class="field">
               <label for="mcp-url">MCP endpoint address</label>
-              <div class="token-input">
+              <div class="token-input" use:reserveButtons>
                 <input id="mcp-url" type="text" readonly value={mcpUrl} />
                 <button
                   type="button"
