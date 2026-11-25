@@ -26,6 +26,16 @@ var (
 	}
 )
 
+// knownActionErrorCodes is ActionError.code's list (#4907): a new refusal code
+// is an additive SDK release too.
+var knownActionErrorCodes = []string{
+	"already_merged", "already_closed", "not_mergeable", "conflict", "behind",
+	"checks_pending", "checks_failing", "blocked_by_protection", "already_up_to_date",
+	"auto_merge_not_allowed", "ready_to_merge", "permission", "rate_limited",
+	"forge_error", "forge_unreachable", "status_unknown", "not_rate_limited",
+	"not_open", "not_reopenable", "unknown",
+}
+
 // knownAutoMergeHolders is PullRequest.autoMergeHeldBy's list (#1596): a new
 // holder is an additive SDK release too.
 var knownAutoMergeHolders = []string{"dashboard", "forge"}
@@ -90,6 +100,25 @@ func TestPullRequestSpec_AutoMergeHeldByIsExtensible(t *testing.T) {
 		t.Parallel()
 
 		assert.ElementsMatch(t, knownAutoMergeHolders, extensibleEnum(t, prop))
+	})
+}
+
+func TestActionErrorSpec_CodeIsExtensible(t *testing.T) {
+	t.Parallel()
+
+	doc, err := openapi3.NewLoader().LoadFromFile("../../api/openapi.yaml")
+	require.NoError(t, err)
+	prop := doc.Components.Schemas["ActionError"].Value.Properties["code"].Value
+
+	t.Run("is not a closed enum", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Empty(t, prop.Enum, "a closed enum would make every new code a major release")
+	})
+	t.Run("lists what the server knows", func(t *testing.T) {
+		t.Parallel()
+
+		assert.ElementsMatch(t, knownActionErrorCodes, extensibleEnum(t, prop))
 	})
 }
 
