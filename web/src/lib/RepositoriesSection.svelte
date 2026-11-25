@@ -600,17 +600,19 @@
           {/each}
         </FilterGroup>
       </div>
-      <FilterGroup label="Ignored" id="repositories-ignored-filter">
-        {#each IGNORED_VIEWS as { view, label } (view)}
-          <FilterPill
-            pressed={(filter.ignored ?? "active") === view}
-            data-ignored-view={view}
-            onclick={() => pickIgnored(view)}
-          >
-            {label}
-          </FilterPill>
-        {/each}
-      </FilterGroup>
+      <div class="forge-scroll">
+        <FilterGroup label="Ignored" id="repositories-ignored-filter">
+          {#each IGNORED_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.ignored ?? "active") === view}
+              data-ignored-view={view}
+              onclick={() => pickIgnored(view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
       <div class="search-field">
         <input
           class="col-filter"
