@@ -88,7 +88,45 @@ for (const scheme of SCHEMES) {
             return !m.followed && Math.abs(m.below - m.cardGap) <= 0.5;
           })
           .toBe(true);
+        const results = await new AxeBuilder({ page })
+          .include('#connections')
+          .analyze();
+        expect(results.violations).toEqual([]);
       });
     }
   }
 }
+
+test('Save and the cards share one gap: changing it moves both', async ({
+  page,
+}) => {
+  await open(page, 'connections', 1280, 100, 'light');
+  await page.addStyleTag({
+    content: '.settings-panels { --card-gap: 40px !important; }',
+  });
+  await expect
+    .poll(async () => {
+      const m = await measure(page, 'connections');
+      return m.cardGap === 40 && Math.abs(m.below - 40) <= 0.5;
+    })
+    .toBe(true);
+});
+
+test('a status message in the Save row keeps the card gap below it', async ({
+  page,
+}) => {
+  await open(page, 'connections', 390, 100, 'light');
+  await page.evaluate(() => {
+    const status = document.querySelector(
+      '#connections .actions .status',
+    ) as HTMLElement;
+    status.textContent =
+      'Could not save settings. Check the highlighted fields and try again.';
+  });
+  await expect
+    .poll(async () => {
+      const m = await measure(page, 'connections');
+      return !m.followed && Math.abs(m.below - m.cardGap) <= 0.5;
+    })
+    .toBe(true);
+});
