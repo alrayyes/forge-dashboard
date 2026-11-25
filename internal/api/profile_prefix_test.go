@@ -23,7 +23,7 @@ func TestDashboard_AuthorURLKeepsAForgejosPathPrefix(t *testing.T) {
 			{Forge: dashboard.ForgeForgejo, Repo: "team/app", Number: 4, URL: "https://host.example.org/forgejo/team/app/pulls/4", Author: "Ghost"},
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
@@ -53,7 +53,7 @@ func TestPullRequestDetails_PeopleUseTheRepositorysOwnForge(t *testing.T) {
 		},
 		details: sampleDetails(),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 

@@ -67,7 +67,7 @@ func TestPullRequestRenovateRebase_UsesDefaultLabelWhenNoneConfigured(t *testing
 	t.Parallel()
 
 	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -83,7 +83,7 @@ func TestPullRequestRenovateRebase_UsesTheConfiguredLabel(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	putRenovateRebaseLabel(t, srvURL, sessionCookie, "retry")
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
@@ -97,7 +97,7 @@ func TestPullRequestRenovateRebase_ForgejoDispatchesToTheForgejoSource(t *testin
 	t.Parallel()
 
 	source := &fakeLabelerSource{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
 	defer func() { _ = resp.Body.Close() }()
@@ -117,7 +117,7 @@ func TestPullRequestRenovateRebase_LabelingFails_ClassifiesByError(t *testing.T)
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -129,7 +129,7 @@ func TestPullRequestRenovateRebase_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -141,7 +141,7 @@ func TestPullRequestRenovateRebase_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -153,7 +153,7 @@ func TestPullRequestRenovateRebase_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeLabelerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)

@@ -79,7 +79,7 @@ func TestJobLog_ReturnsTheText(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "step 1\nstep 2\n", Truncated: true}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", "4242")
 	defer func() { _ = resp.Body.Close() }()
@@ -98,7 +98,7 @@ func TestJobLog_BadInput_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for name, args := range map[string][3]string{
 		"malformed full name": {"github", "no-slash", "1"},
@@ -121,7 +121,7 @@ func TestJobLog_BadJobID_SaysWhichRuleItBroke(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for name, tc := range map[string]struct{ id, want string }{
 		"empty":     {"", "jobId is required"},
@@ -150,7 +150,7 @@ func TestJobLog_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "forgejo", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -170,7 +170,7 @@ func TestJobLog_ForgeRefuses_MapsTheStatusAndKeepsAPlainMessage(t *testing.T) {
 			t.Parallel()
 
 			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, err: &dashboard.ClientError{Kind: kind, Err: assert.AnError}}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 			defer func() { _ = resp.Body.Close() }()
@@ -189,7 +189,7 @@ func TestJobLog_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, nil, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -219,7 +219,7 @@ func TestJobLog_ForgejoViaGenericSource_ReturnsTheText(t *testing.T) {
 
 	client := &fakeForgeClientWithJobLog{}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "forgejo", "a/b", "7")
 	defer func() { _ = resp.Body.Close() }()
@@ -232,7 +232,7 @@ func TestJobLog_HostileInput_Returns400AndNeverReachesTheForge(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for name, args := range map[string][2]string{
 		"dot-dot owner":          {"../b", "1"},
@@ -265,7 +265,7 @@ func TestJobLog_ErrorsNeverCarryTheUpstreamError(t *testing.T) {
 
 	const signed = "https://blob.example/log?sig=SECRETSIGNATURE"
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, err: &url.Error{Op: "Get", URL: signed, Err: assert.AnError}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -281,7 +281,7 @@ func TestJobLog_ResponseIsNotCachedOrSniffed(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "x"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -294,7 +294,7 @@ func TestJobLog_ADotRepoLikeDotGithubIsAccepted(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/.github"}, log: dashboard.JobLog{Text: "ok\n"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "alrayyes/.github", "7")
 	defer func() { _ = resp.Body.Close() }()
@@ -307,7 +307,7 @@ func TestJobLog_AConflictKindIsABadGatewayNotA409(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -319,7 +319,7 @@ func TestJobLog_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "secret\n"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "someone/private-thing", "4242")
 	defer func() { _ = resp.Body.Close() }()
@@ -333,7 +333,7 @@ func TestJobLog_RepoNameCaseIsIgnoredWhenMatchingTrackedRepos(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "ok\n"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "AlRayyes/Tempus-Fugit", "4242")
 	defer func() { _ = resp.Body.Close() }()
@@ -345,7 +345,7 @@ func TestJobLog_NothingLoadedYet_Returns503AndNeverReachesTheForge(t *testing.T)
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, log: dashboard.JobLog{Text: "secret\n"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobLog(t, srvURL, sessionCookie, "github", "a/b", "1")
 	defer func() { _ = resp.Body.Close() }()
@@ -408,7 +408,7 @@ func TestJobLog_Excerpt_ReturnsTheExcerptWithoutReadingTheWholeLog(t *testing.T)
 	t.Parallel()
 
 	source := newExcerptSource("FAIL: boom", nil)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
 	defer func() { _ = resp.Body.Close() }()
@@ -428,7 +428,7 @@ func TestJobLog_Excerpt_FalseIsTheWholeLog(t *testing.T) {
 
 	source := newExcerptSource("x", nil)
 	source.log = dashboard.JobLog{Text: "all\n"}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "false")
 	defer func() { _ = resp.Body.Close() }()
@@ -443,7 +443,7 @@ func TestJobLog_Excerpt_ForgeWithoutExcerptReads_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getJobExcerpt(t, srvURL, sessionCookie, "github", "a/b", "true")
 	defer func() { _ = resp.Body.Close() }()
@@ -455,7 +455,7 @@ func TestJobLog_Excerpt_BadValue_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := newExcerptSource("", nil)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "maybe")
 	defer func() { _ = resp.Body.Close() }()
@@ -474,7 +474,7 @@ func TestJobLog_Excerpt_ForgeRefuses_MapsTheStatus(t *testing.T) {
 			t.Parallel()
 
 			source := newExcerptSource("", &dashboard.ClientError{Kind: kind, Err: assert.AnError})
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 			resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "a/b", "true")
 			defer func() { _ = resp.Body.Close() }()
@@ -488,7 +488,7 @@ func TestJobLog_Excerpt_UntrackedRepo_Returns404AndNeverReachesTheForge(t *testi
 	t.Parallel()
 
 	source := newExcerptSource("x", nil)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getJobExcerpt(t, srvURL, sessionCookie, "forgejo", "c/d", "true")
 	defer func() { _ = resp.Body.Close() }()
@@ -528,7 +528,7 @@ func TestJobLog_FinishedJob_SecondOpenComesFromMemory(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "done\n"}}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	q := url.Values{"attempt": {"1"}, "finishedAt": {finishedAgo(time.Hour)}}
 
 	_, first := openLog(t, srvURL, c, q)
@@ -543,7 +543,7 @@ func TestJobLog_RerunReadsFresh(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	finished := finishedAgo(time.Hour)
 
 	openLog(t, srvURL, c, url.Values{"attempt": {"1"}, "finishedAt": {finished}})
@@ -574,7 +574,7 @@ func TestJobLog_NeverCachesWithoutASettledFinishTime(t *testing.T) {
 			q := query()
 
 			source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, log: dashboard.JobLog{Text: "x"}}
-			srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			openLog(t, srvURL, c, q)
 			openLog(t, srvURL, c, q)
@@ -588,7 +588,7 @@ func TestJobLog_FailedReadIsNotKept(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}, err: errors.New("boom")}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	q := url.Values{"finishedAt": {finishedAgo(time.Hour)}}
 
 	resp := getJobLogWith(t, srvURL, c, q)
@@ -606,7 +606,7 @@ func TestJobLog_BadFinishTime_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit"}}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for name, q := range map[string]url.Values{
 		"finishedAt":   {"finishedAt": {"yesterday"}},
@@ -628,7 +628,7 @@ func TestJobLog_RepoDroppedFromTheBoardIsRefusedEvenWhenItsLogIsKept(t *testing.
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"alrayyes/tempus-fugit", "alrayyes/other"}, log: dashboard.JobLog{Text: "x"}}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	q := url.Values{"finishedAt": {finishedAgo(time.Hour)}}
 	openLog(t, srvURL, c, q)
 	require.EqualValues(t, 1, source.calls.Load())

@@ -458,7 +458,7 @@ func TestMCP_GetPullRequestDetails_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testin
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	result := callDetailsTool(t, srvURL, cookie, map[string]any{"forge": "github", "fullName": "alrayyes/tempus-fugit", "number": 42})
 
@@ -483,7 +483,7 @@ func TestMCP_GetPullRequestDetails_AListedReleasePullRequestCarriesReleaseNotes(
 		}},
 		details: sampleDetails(),
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, cookie)["pullRequests"].([]any)
 
@@ -503,7 +503,7 @@ func TestMCP_GetPullRequestDetails_RefusesBadInput(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	for name, args := range map[string]map[string]any{
@@ -553,7 +553,7 @@ func TestMCP_GetMainBranchChecks_ReturnsTheChecks(t *testing.T) {
 			{Name: "build", State: dashboard.CheckSuccess, URL: "https://github.com/alrayyes/tempus-fugit/runs/1"},
 		},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -572,7 +572,7 @@ func TestMCP_GetMainBranchChecks_RefusesBadInput(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchCheckerSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	for name, args := range map[string]map[string]any{
@@ -595,8 +595,8 @@ func TestMCP_GetRepositoryAdvisories_RefusalCarriesTheEndpointsMessage(t *testin
 
 	githubSource := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
 	forgejoSource := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	githubURL, githubCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, githubSource)
-	forgejoURL, forgejoCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, forgejoSource)
+	githubURL, githubCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, githubSource)
+	forgejoURL, forgejoCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, forgejoSource)
 
 	for name, tc := range map[string]struct {
 		srvURL   string
@@ -662,7 +662,7 @@ func TestMCP_GetPullRequestChecks_ReturnsTheChecks(t *testing.T) {
 			{Name: "test", State: dashboard.CheckRunning, URL: "https://github.com/alrayyes/tempus-fugit/runs/2"},
 		},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -689,7 +689,7 @@ func TestMCP_GetPullRequestChecks_ForgejoViaGenericSource_ReturnsChecks(t *testi
 		checks: []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/runs/1"}},
 	}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -708,7 +708,7 @@ func TestMCP_GetMainBranchChecks_ForgejoViaGenericSource_ReturnsChecks(t *testin
 	client := &fakeForgeClientWithBranchChecker{}
 	client.checks = []dashboard.Check{{Name: "build", State: dashboard.CheckSuccess, URL: "https://git.example/runs/1"}}
 	source := dashboard.NewGenericSource(dashboard.ForgeForgejo, client, 4)
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -724,7 +724,7 @@ func TestMCP_GetMainBranchChecks_NoChecks_ReturnsAnEmptyArray(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchCheckerSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -740,7 +740,7 @@ func TestMCP_GetPullRequestChecks_RefusesBadInput(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeCheckerSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	for name, args := range map[string]map[string]any{
@@ -765,7 +765,7 @@ func TestMCP_GetPullRequestChecks_ForgeErrorCarriesTheForgesMessage(t *testing.T
 
 	forgeErr := &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: rate limit exceeded")}
 	source := &fakeCheckerSource{forge: dashboard.ForgeGitHub, checksErr: forgeErr}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -806,7 +806,7 @@ func TestMCP_GetRepositoryAdvisories_ReturnsTheSameJSONAsTheHTTPEndpoint(t *test
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -830,7 +830,7 @@ func TestMCP_GetRepositoryAdvisories_SaysUnknownRatherThanEmpty(t *testing.T) {
 		forge: dashboard.ForgeGitHub,
 		list:  dashboard.AdvisoryList{State: dashboard.AdvisoriesUnknown, Reason: dashboard.ReasonRefused, Advisories: []dashboard.AdvisoryItem{}},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -850,7 +850,7 @@ func TestMCP_GetRepositoryAdvisories_RefusesBadInput(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	for name, args := range map[string]map[string]any{

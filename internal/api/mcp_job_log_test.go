@@ -14,7 +14,7 @@ func TestMCP_GetCheckLog_ReturnsTheSameJSONAsTheHTTPEndpoint(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "boom\n", Truncated: true}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{
@@ -56,7 +56,7 @@ func TestMCP_GetCheckLog_RefusesBadInput(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeJobLogSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	for name, args := range map[string]map[string]any{

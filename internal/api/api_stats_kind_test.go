@@ -52,7 +52,7 @@ func TestAPIStats_AUserActionIsTaggedUserAction(t *testing.T) {
 	t.Parallel()
 
 	spy := &kindSpy{}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, spy)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, spy)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -65,7 +65,7 @@ func TestAPIStats_ADetailsReadIsTaggedDetails(t *testing.T) {
 	t.Parallel()
 
 	spy := &kindSpy{}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, spy)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, spy)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()

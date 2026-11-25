@@ -59,7 +59,7 @@ func TestPullRequestRenovateRebase_TicksTheCheckboxOnEachForge(t *testing.T) {
 			t.Parallel()
 
 			source := newBodyEditorSource(forge, untickedBody)
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, forge, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, forge, source)
 
 			resp := postRenovateRebase(t, srvURL, sessionCookie, string(forge), "alrayyes/tempus-fugit", 3)
 			defer func() { _ = resp.Body.Close() }()
@@ -75,7 +75,7 @@ func TestPullRequestRenovateRebase_AlreadyTicked_IsAlreadyRequested(t *testing.T
 	t.Parallel()
 
 	source := newBodyEditorSource(dashboard.ForgeGitHub, tickedBody)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 3)
 	defer func() { _ = resp.Body.Close() }()
@@ -92,7 +92,7 @@ func TestPullRequestRenovateRebase_NoCheckbox_FallsBackToTheLabel(t *testing.T) 
 	t.Parallel()
 
 	source := newBodyEditorSource(dashboard.ForgeForgejo, "no checkbox here")
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postRenovateRebase(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 3)
 	defer func() { _ = resp.Body.Close() }()
@@ -124,7 +124,7 @@ func TestPullRequestRenovateRebaseCancel_UnticksTheCheckboxOnEachForge(t *testin
 			t.Parallel()
 
 			source := newBodyEditorSource(forge, tickedBody)
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, forge, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, forge, source)
 
 			resp := postRenovateRebaseCancel(t, srvURL, sessionCookie, string(forge), "alrayyes/tempus-fugit", 3)
 			defer func() { _ = resp.Body.Close() }()
@@ -139,7 +139,7 @@ func TestPullRequestRenovateRebaseCancel_AnUntickedBoxIsLeftAlone(t *testing.T) 
 	t.Parallel()
 
 	source := newBodyEditorSource(dashboard.ForgeGitHub, untickedBody)
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postRenovateRebaseCancel(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 3)
 	defer func() { _ = resp.Body.Close() }()

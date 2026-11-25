@@ -49,7 +49,7 @@ func TestMainBranchRerunChecks_RerunsTheDefaultBranch_AndAnswers204(t *testing.T
 	t.Parallel()
 
 	source := &fakeBranchRerunSource{forge: dashboard.ForgeGitHub, tracked: []string{"alrayyes/tempus-fugit"}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, _ := postMainBranchRerun(t, srvURL, cookie, `{"forge":"github","fullName":"alrayyes/tempus-fugit"}`)
 
@@ -65,7 +65,7 @@ func TestMainBranchRerunChecks_NothingFailed_Answers409WithTheForgeReason(t *tes
 		forge: dashboard.ForgeGitHub, tracked: []string{"alrayyes/tempus-fugit"},
 		err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, body := postMainBranchRerun(t, srvURL, cookie, `{"forge":"github","fullName":"alrayyes/tempus-fugit"}`)
 
@@ -77,7 +77,7 @@ func TestMainBranchRerunChecks_ForgeWithNoSupport_Answers400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	status, _ := postMainBranchRerun(t, srvURL, cookie, `{"forge":"forgejo","fullName":"alrayyes/tempus-fugit"}`)
 
@@ -88,7 +88,7 @@ func TestMainBranchRerunChecks_MalformedFullName_Answers400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchRerunSource{forge: dashboard.ForgeGitHub, tracked: []string{"alrayyes/tempus-fugit"}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, _ := postMainBranchRerun(t, srvURL, cookie, `{"forge":"github","fullName":"nope"}`)
 
@@ -101,7 +101,7 @@ func TestMainBranchRerunChecks_UnsafeFullName_Answers400AndNeverReachesTheForge(
 
 	for _, full := range []string{"alrayyes/..", "../tempus-fugit", "alrayyes/tempus?x=1", "alrayyes/tempus#frag", "alrayyes/tempus%2Ffugit", "alrayyes/tempus fugit"} {
 		source := &fakeBranchRerunSource{forge: dashboard.ForgeGitHub, tracked: []string{full}}
-		srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+		srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 		body, err := json.Marshal(map[string]string{"forge": "github", "fullName": full})
 		require.NoError(t, err)
@@ -116,7 +116,7 @@ func TestMainBranchRerunChecks_UntrackedRepo_Answers404AndNeverReachesTheForge(t
 	t.Parallel()
 
 	source := &fakeBranchRerunSource{forge: dashboard.ForgeGitHub, tracked: []string{"alrayyes/tempus-fugit"}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, _ := postMainBranchRerun(t, srvURL, cookie, `{"forge":"github","fullName":"someone/else"}`)
 
@@ -131,7 +131,7 @@ func TestMainBranchRerunChecks_RefusalNamesTheBranchAction(t *testing.T) {
 		forge: dashboard.ForgeGitHub, tracked: []string{"alrayyes/tempus-fugit"},
 		err: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, body := postMainBranchRerun(t, srvURL, cookie, `{"forge":"github","fullName":"alrayyes/tempus-fugit"}`)
 

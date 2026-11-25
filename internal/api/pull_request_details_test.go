@@ -78,7 +78,7 @@ func TestPullRequestDetails_ReturnsTheDescriptionAndTheConversation(t *testing.T
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -116,7 +116,7 @@ func TestPullRequestDetails_AReleasePullRequestCarriesItsReleaseNotes(t *testing
 		}},
 		details: sampleDetails(),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
@@ -164,7 +164,7 @@ func TestPullRequestDetails_ListedButNoReleaseNotes(t *testing.T) {
 			details := sampleDetails()
 			details.Description.Text = tc.body
 			source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, prs: []dashboard.PullRequest{tc.pr}, details: details}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 			require.Eventually(t, func() bool {
 				prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
@@ -186,7 +186,7 @@ func TestPullRequestDetails_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -198,7 +198,7 @@ func TestPullRequestDetails_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -227,7 +227,7 @@ func TestPullRequestDetails_FetchFails_ClassifiesByError(t *testing.T) {
 				forge:      dashboard.ForgeGitHub,
 				detailsErr: &dashboard.ClientError{Kind: tc.kind, Err: assert.AnError},
 			}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 			defer func() { _ = resp.Body.Close() }()
@@ -241,7 +241,7 @@ func TestPullRequestDetails_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getPullRequestDetails(t, srvURL, nil, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -273,7 +273,7 @@ func TestContract_PullRequestDetails(t *testing.T) {
 		}},
 		details: details,
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 

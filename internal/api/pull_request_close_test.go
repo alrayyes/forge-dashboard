@@ -63,7 +63,7 @@ func TestPullRequestClose_CallsClosePullRequestWithOwnerNameAndNumber(t *testing
 	t.Parallel()
 
 	source := &fakePullRequestCloserSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -78,7 +78,7 @@ func TestPullRequestClose_ForgejoDispatchesToTheForgejoSource(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestCloserSource{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
 	defer func() { _ = resp.Body.Close() }()
@@ -97,7 +97,7 @@ func TestPullRequestClose_ForgeRejects_ClassifiesAsItsOwnStatus(t *testing.T) {
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -112,7 +112,7 @@ func TestPullRequestClose_ForgeWithNoCloseSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -124,7 +124,7 @@ func TestPullRequestClose_NoCredentialsSavedForThatForge_Returns400(t *testing.T
 	t.Parallel()
 
 	source := &fakePullRequestCloserSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -136,7 +136,7 @@ func TestPullRequestClose_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestCloserSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postClosePullRequest(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -148,7 +148,7 @@ func TestPullRequestClose_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestCloserSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)

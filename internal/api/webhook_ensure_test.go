@@ -3,23 +3,15 @@ package api_test
 import (
 	"bytes"
 	"context"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/http/httptest"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/alrayyes/forge-dashboard/internal/api"
-	authpkg "github.com/alrayyes/forge-dashboard/internal/auth"
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
-	"github.com/alrayyes/forge-dashboard/internal/dbdsn"
-	settingspkg "github.com/alrayyes/forge-dashboard/internal/settings"
-	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -60,80 +52,6 @@ func (f *fakeSourceWithoutWebhookSupport) Fetch(_ context.Context) dashboard.Res
 	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: f.forge, Reachable: true}}
 }
 
-const testPublicOrigin = "https://dashboard.example"
-
-// newTestServerForWebhookEnsure registers a user, saves credentials for
-// forge (so BuildSources actually returns source), and returns the
-// server URL and session cookie — PublicOrigin fixed at
-// testPublicOrigin so a test can assert the exact URL EnsureWebhook was
-// called with.
-func newTestServerForWebhookEnsure(t *testing.T, forge dashboard.Forge, source dashboard.Source) (srv string, sessionCookie *http.Cookie) {
-	t.Helper()
-	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
-		if forge == dashboard.ForgeGitHub && c.GitHubToken == "" {
-			return nil
-		}
-		if forge == dashboard.ForgeForgejo && c.ForgejoToken == "" {
-			return nil
-		}
-
-		return []dashboard.Source{source}
-	}
-
-	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "app.db")))
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = db.Close() })
-
-	authStore := authpkg.NewStore(db)
-	require.NoError(t, authStore.Init(t.Context()))
-
-	wa, err := webauthn.New(&webauthn.Config{
-		RPID:          testRPID,
-		RPDisplayName: "Forge Board Test",
-		RPOrigins:     []string{testOrigin},
-	})
-	require.NoError(t, err)
-	authService := authpkg.NewService(wa, authStore)
-
-	cipher, err := settingspkg.NewCipher(testEncryptionKey(t))
-	require.NoError(t, err)
-	settingsStore := settingspkg.NewStore(db, cipher)
-	require.NoError(t, settingsStore.Init(t.Context()))
-
-	service := dashboard.NewService(time.Hour)
-	t.Cleanup(service.Stop)
-
-	appCtx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	mux := api.NewMux(api.Deps{
-		Version:       testVersion,
-		AuthService:   authService,
-		AuthStore:     authStore,
-		SettingsStore: settingsStore,
-		Service:       service,
-		BuildSources:  buildSources,
-		AppContext:    appCtx,
-		PublicOrigin:  testPublicOrigin,
-	})
-	testSrv := httptest.NewServer(mux)
-	t.Cleanup(testSrv.Close)
-
-	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
-
-	body := `{"githubToken":"placeholder-token","forgejoUrl":"https://git.example","forgejoToken":"placeholder-token"}`
-	putReq, err := http.NewRequest(http.MethodPut, testSrv.URL+"/api/v1/settings", strings.NewReader(body))
-	require.NoError(t, err)
-	putReq.AddCookie(sessionCookie)
-	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := testClient(t).Do(putReq)
-	require.NoError(t, err)
-	_ = putResp.Body.Close()
-	require.Equal(t, http.StatusOK, putResp.StatusCode)
-
-	return testSrv.URL, sessionCookie
-}
-
 func postEnsureWebhook(t *testing.T, srvURL string, sessionCookie *http.Cookie, forge, fullName string) *http.Response {
 	t.Helper()
 	body, err := json.Marshal(map[string]string{"forge": forge, "fullName": fullName})
@@ -152,7 +70,7 @@ func TestWebhookEnsure_CallsEnsureWebhookWithTheAccountsOwnURLAndSecret(t *testi
 	t.Parallel()
 
 	source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	token, secret := webhookCredentials(t, srvURL, sessionCookie)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
@@ -169,7 +87,7 @@ func TestWebhookEnsure_ForgejoDispatchesToTheForgejoSource(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeWebhookManagerSource{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 	token, _ := webhookCredentials(t, srvURL, sessionCookie)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit")
@@ -189,7 +107,7 @@ func TestWebhookEnsure_ClientErrorPropagatesAsASpecificMessage(t *testing.T) {
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -249,7 +167,7 @@ func TestWebhookEnsure_Refusals_AnswerWithTheSharedActionError(t *testing.T) {
 			t.Parallel()
 
 			source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub, ensureErr: tc.err}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/a")
 			defer func() { _ = resp.Body.Close() }()
@@ -288,7 +206,7 @@ func TestWebhookEnsure_EnsureWebhookFails_LogsTheError(t *testing.T) {
 		forge:     dashboard.ForgeGitHub,
 		ensureErr: errors.New("github: GET /repos/alrayyes/a/hooks: Requires authentication"),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/a")
 	defer func() { _ = resp.Body.Close() }()
@@ -304,7 +222,7 @@ func TestWebhookEnsure_ForgeWithNoWebhookSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutWebhookSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -316,7 +234,7 @@ func TestWebhookEnsure_NoCredentialsSavedForThatForge_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -328,7 +246,7 @@ func TestWebhookEnsure_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postEnsureWebhook(t, srvURL, sessionCookie, "github", "not-owner-slash-repo")
 	defer func() { _ = resp.Body.Close() }()
@@ -340,7 +258,7 @@ func TestWebhookEnsure_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeWebhookManagerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]string{"forge": "github", "fullName": "alrayyes/a"})
 	require.NoError(t, err)

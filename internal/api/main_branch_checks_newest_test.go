@@ -22,7 +22,7 @@ func TestMCP_GetMainBranchChecks_ListsTheNewestRunOfEachWorkflow(t *testing.T) {
 			{Name: "scan", State: dashboard.CheckSuccess, RunID: 30, RunName: "gitleaks", RunNumber: 1, RunAttempt: 1},
 		},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	session := connectMCP(t, srvURL, createAPIToken(t, srvURL, cookie))
 
 	result, err := session.CallTool(t.Context(), &mcp.CallToolParams{

@@ -66,7 +66,7 @@ func TestPullRequestUpdateBranch_CallsUpdateBranchWithOwnerNameAndNumber(t *test
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -81,7 +81,7 @@ func TestPullRequestUpdateBranch_Accepted_Returns202NotAFailure(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub, accepted: true}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -93,7 +93,7 @@ func TestPullRequestUpdateBranch_ForgejoDispatchesToTheForgejoSource(t *testing.
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
 	defer func() { _ = resp.Body.Close() }()
@@ -112,7 +112,7 @@ func TestPullRequestUpdateBranch_CantMergeCleanly_ClassifiesAs409(t *testing.T) 
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -127,7 +127,7 @@ func TestPullRequestUpdateBranch_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -139,7 +139,7 @@ func TestPullRequestUpdateBranch_NoCredentialsSavedForThatForge_Returns400(t *te
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -151,7 +151,7 @@ func TestPullRequestUpdateBranch_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postUpdatePullRequestBranch(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -163,7 +163,7 @@ func TestPullRequestUpdateBranch_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeBranchUpdaterSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)

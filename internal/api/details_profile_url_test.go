@@ -27,7 +27,7 @@ func TestPullRequestDetails_PeopleCarryTheirProfileURL(t *testing.T) {
 		}},
 		details: details,
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		prs, _ := fetchDashboard(t, srvURL, sessionCookie)["pullRequests"].([]any)
 
@@ -63,7 +63,7 @@ func TestPullRequestDetails_NoBoardNoProfileURL(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getPullRequestDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -87,7 +87,7 @@ func TestContract_DetailsPeople(t *testing.T) {
 		t.Parallel()
 
 		source := &fakeDetailerSource{forge: dashboard.ForgeGitHub, details: sampleDetails()}
-		srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+		srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 		req, got := record(t, http.MethodGet, srvURL+"/api/v1/pull-requests/details?forge=github&fullName=alrayyes/tempus-fugit&number=42", sessionCookie)
 
@@ -98,7 +98,7 @@ func TestContract_DetailsPeople(t *testing.T) {
 		t.Parallel()
 
 		source := &fakeIssueDetailerSource{forge: dashboard.ForgeGitHub, details: sampleIssueDetails()}
-		srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+		srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 		req, got := record(t, http.MethodGet, srvURL+"/api/v1/issues/details?forge=github&fullName=alrayyes/tempus-fugit&number=3", sessionCookie)
 

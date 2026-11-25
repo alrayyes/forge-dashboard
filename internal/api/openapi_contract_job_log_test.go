@@ -52,7 +52,7 @@ func TestContract_JobLog(t *testing.T) {
 		t.Parallel()
 
 		source := &fakeJobLogSource{forge: dashboard.ForgeGitHub, repos: []string{"a/b"}, log: dashboard.JobLog{Text: "ok\n", Truncated: true}}
-		srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+		srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 		req, got := record(t, http.MethodGet, srvURL+"/api/v1/checks/log?forge=github&fullName=a/b&jobId=5", cookie)
 		require.Equal(t, http.StatusOK, got.status, string(got.body))
