@@ -10,6 +10,7 @@ advisory-detail-scroll-share.spec.ts,3.954,1,1,A,,0.0
 allowed-actions.spec.ts,3.143,15,0,C,web/src/lib/allowed-actions.test.ts,3.1
 ambiguous-action-outcome.spec.ts,6.131,7,4,A,,2.6
 armed-behind-status.spec.ts,4.07,4,1,C,,3.1
+armed-update-branch-one-line.spec.ts,,2,2,A,,0.0
 armed-wait-reason.spec.ts,,4,1,C,,0.0
 auth-single-user.spec.ts,8.341,13,1,C,,7.7
 auth.spec.ts,0.833,2,2,A,,0.0
@@ -308,7 +309,7 @@ show-row-clears-filters.spec.ts,0.997,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.956,9,2,C,,1.5
 sort-select-arrow.spec.ts,,3,3,A,,0.0
 stable-rows.spec.ts,10.214,26,15,A,,4.3
-stack-note-width.spec.ts,,7,7,A,,0.0
+stack-note-width.spec.ts,,15,14,A,,0.0
 stacked-prs.spec.ts,2.66,7,2,C,,1.9
 stale-dashboard-instance.spec.ts,0.347,1,0,C,,0.3
 stale-data-notice.spec.ts,1.23,4,1,C,,0.9
@@ -334,7 +335,7 @@ update-all.spec.ts,6.188,18,6,C,web/src/lib/update-all.test.ts,4.1
 update-branch-on-row.spec.ts,4.504,13,5,C,,2.8
 update-branch-request.spec.ts,3.033,8,0,C,,3.0
 upstream-error-banner.spec.ts,1.289,2,1,A,,0.6
-wait-chip-desktop.spec.ts,13.418,9,6,A,web/src/lib/wait-chip.test.ts,4.5
+wait-chip-desktop.spec.ts,13.418,10,7,A,web/src/lib/wait-chip.test.ts,4.0
 wait-chip.spec.ts,19.484,19,6,C,web/src/lib/wait-chip.test.ts,13.3
 waiting-for-ci-once.spec.ts,15.073,15,5,C,,10.0
 webmcp.spec.ts,1.519,7,6,A,web/src/lib/webmcp-parity.test.ts;web/src/lib/webmcp-tools.test.ts,0.2

@@ -287,3 +287,88 @@ for (const width of [761, 1000, 1190, 1191, 1280, 1600]) {
     });
   }
 }
+
+// #4909: the chip's inner spacing. The hourglass, the label and the button
+// sit the same distance apart, and the chip's right edge is as far from its
+// last part as its left edge is from the icon, in every state, with and
+// without the button.
+async function gaps(page: Page) {
+  const chip = row(page).locator('.wait-chip');
+  const c = await box(chip);
+  const icon = await box(chip.locator('.wait-chip-icon'));
+  const text = await box(chip.locator('.wait-chip-text'));
+  const button = chip.getByRole('button');
+  const hasButton = (await button.count()) > 0;
+  const b = hasButton ? await box(button) : null;
+  const last = b ?? text;
+  return {
+    left: icon.x - c.x - 1,
+    right: c.x + c.width - 1 - (last.x + last.width),
+    iconToText: text.x - (icon.x + icon.width),
+    textToButton: b ? b.x - (text.x + text.width) : null,
+    chipRight: c.x + c.width,
+  };
+}
+
+const spacingStates: [string, () => MockPR, MockPR, string][] = [
+  ['waiting with a button', () => armed(), {}, 'waiting'],
+  ['settled with a button', () => armed(), {}, 'settled'],
+  ['stalled with a button', () => armed('rate_limited'), {}, 'stalled'],
+  [
+    'waiting without a button',
+    () =>
+      makePR({ behind: true, mergeStatus: 'blocked', queued: queuedItem() }),
+    { queuedActions: [queuedItem()] },
+    'waiting',
+  ],
+  [
+    'settled without a button',
+    () =>
+      makePR({ behind: true, mergeStatus: 'blocked', queued: queuedItem() }),
+    { queuedActions: [queuedItem()] },
+    'settled',
+  ],
+];
+
+for (const width of [1280, 390]) {
+  test.describe(`chip spacing at ${width}px`, () => {
+    for (const [name, pr, extra, state] of spacingStates) {
+      test(`${name} is evenly spaced`, async ({ page }) => {
+        await open(page, width, pr(), extra);
+        const chip = row(page).locator('.wait-chip');
+        await expect(chip).toBeVisible();
+        await chip.evaluate((el, s) => el.setAttribute('data-state', s), state);
+        if (name.endsWith('without a button')) {
+          await chip.getByRole('button').evaluate((el) => el.remove());
+        }
+        const g = await gaps(page);
+        const rowBox = await box(row(page));
+        expect(g.chipRight).toBeLessThanOrEqual(rowBox.x + rowBox.width + 0.5);
+        expect(Math.abs(g.right - g.left), 'right equals left').toBeLessThan(
+          0.5,
+        );
+        expect(
+          Math.abs(g.iconToText - g.left),
+          'icon to label equals the edge gap',
+        ).toBeLessThan(0.5);
+        if (g.textToButton !== null) {
+          expect(
+            Math.abs(g.textToButton - g.iconToText),
+            'label to button equals icon to label',
+          ).toBeLessThan(0.5);
+        }
+        expect(
+          await page.evaluate(
+            () =>
+              document.documentElement.scrollWidth <=
+              document.documentElement.clientWidth,
+          ),
+        ).toBe(true);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
+  });
+}

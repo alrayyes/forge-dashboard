@@ -77,6 +77,7 @@ const singleUserSpecs = [
   '**/linked-pull-request-pipeline.spec.ts',
   '**/stacked-prs.spec.ts',
   '**/stack-note-width.spec.ts',
+  '**/armed-update-branch-one-line.spec.ts',
   '**/status-block-height.spec.ts',
   '**/bottom-nav-focus-order.spec.ts',
   '**/bottom-nav-focus-padding.spec.ts',

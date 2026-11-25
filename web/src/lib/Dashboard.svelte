@@ -3557,6 +3557,7 @@
           stack: stackEl,
           band: stackEl ? el("div", "stack-band") : null,
         });
+        // Runs again at the end of buildRow on a first render; placeNotes is idempotent.
         placeNotes(statusCell, oneLineKnown);
         // The row draws one control: the action the server marked primary,
         // or, while Merge is locked, the greyed Merge with its reason. Every
