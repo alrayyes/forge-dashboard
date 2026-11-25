@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.121.2](https://github.com/alrayyes/forge-dashboard/compare/v9.121.1...v9.121.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep Settings field buttons inside the input border ([#4861](https://github.com/alrayyes/forge-dashboard/issues/4861)) ([6c0473e](https://github.com/alrayyes/forge-dashboard/commit/6c0473eb6647a9ab971364bbd3f8fedfac6e674e)), closes [#4850](https://github.com/alrayyes/forge-dashboard/issues/4850)
+* **web:** wrap the Forge pills and align the Repositories filter controls on phones ([#4862](https://github.com/alrayyes/forge-dashboard/issues/4862)) ([98e7833](https://github.com/alrayyes/forge-dashboard/commit/98e783325f06abe46bb9a986661a2c950a813c04))
+
+## [9.121.1](https://github.com/alrayyes/forge-dashboard/compare/v9.121.0...v9.121.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** leave the card gap under Save on Settings ([#4860](https://github.com/alrayyes/forge-dashboard/issues/4860)) ([d5a79c5](https://github.com/alrayyes/forge-dashboard/commit/d5a79c5b0bfe2f6224049c53e471deddc5273a1f)), closes [#4851](https://github.com/alrayyes/forge-dashboard/issues/4851)
+
 ## [9.121.0](https://github.com/alrayyes/forge-dashboard/compare/v9.120.2...v9.121.0) (2026-11-25)
 
 

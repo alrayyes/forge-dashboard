@@ -204,6 +204,7 @@ const singleUserSpecs = [
   '**/branches-skeleton-contrast.spec.ts',
   '**/filter-control-border.spec.ts',
   '**/settings-control-border.spec.ts',
+  '**/settings-field-buttons-inside.spec.ts',
   '**/timezone-select-phone.spec.ts',
   '**/focus-ring-consistent.spec.ts',
   '**/placeholder-contrast.spec.ts',
@@ -308,6 +309,7 @@ const singleUserSpecs = [
   '**/ambiguous-action-outcome.spec.ts',
   '**/shared-dashboard-read.spec.ts',
   '**/card-spacing.spec.ts',
+  '**/settings-save-gap.spec.ts',
   '**/page-widths.spec.ts',
   '**/auth.spec.ts',
   '**/author-name-ellipsis.spec.ts',
@@ -336,6 +338,7 @@ const singleUserSpecs = [
   '**/issues-dialog-close-focus.spec.ts',
   '**/pulls-dialog-close-fallback.spec.ts',
   '**/popup-focus-fallback-sites.spec.ts',
+  '**/repositories-filter-box-fit.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
