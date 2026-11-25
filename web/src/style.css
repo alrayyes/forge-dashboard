@@ -3869,7 +3869,7 @@ a.ci-pill:hover {
     height: auto;
     min-height: 30px;
     gap: 6px;
-    padding: 0 3px 0 8px;
+    padding: 0 6px;
     border-radius: 15px;
   }
   .wait-chip-text {
