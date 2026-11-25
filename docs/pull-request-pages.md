@@ -162,7 +162,8 @@ load. The menu pill is not part of this: it keeps the unfiltered totals, and its
 link keeps the numbers in its name. The Issues, Releases, and Bots pages draw the
 same bar with their own noun. The pull request pages draw no count in the board
 header, so the bar's line is the one count on screen, and it is the count a
-screen reader reads.
+screen reader reads. A list with no rows, or one unfiltered row, draws no bar and
+so shows no count: the empty state and the row itself say it.
 
 ## Short lists
 

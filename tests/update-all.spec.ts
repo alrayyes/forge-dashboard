@@ -271,8 +271,8 @@ test(`the confirm fits a phone in light and dark and passes axe`, async ({
 });
 
 // The strip is the button alone (#3635). The count sits in its label, and the
-// page header counts the listed rows ("12 open", or "Showing 4 of 12" under a
-// filter), so no chip repeats either.
+// result bar counts the listed rows ("12 pull requests", or "4 of 12 pull
+// requests" under a filter), so no chip repeats either.
 const noChip = (page: Page) => page.getByText(/ready to update/);
 
 test('the strip is the button alone, with no ready chip', async ({ page }) => {

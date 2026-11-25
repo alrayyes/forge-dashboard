@@ -215,10 +215,11 @@ test.describe('result count prominence (#3867)', () => {
     const count = page.locator('#result-count');
     await expect(count).toHaveText('4 pull requests');
     const box = await count.boundingBox();
-    const head = await page.locator('#result-bar').boundingBox();
+    const bar = await page.locator('.filter-bar').boundingBox();
     expect(box?.height).toBeLessThan(40);
+    expect(box?.x).toBeGreaterThanOrEqual(bar?.x ?? 0);
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-      (head?.x ?? 0) + (head?.width ?? 0),
+      Math.min((bar?.x ?? 0) + (bar?.width ?? 0), 820),
     );
   });
 

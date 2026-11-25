@@ -2212,7 +2212,9 @@ test.describe('dashboard page', () => {
         }),
       );
       await page.goto('/pull-requests.html');
-      await expect(page.locator('#result-count')).toHaveText('0 pull requests');
+      // A list with no rows draws no result bar; the empty state says it.
+      await expect(page.locator('#pr-empty')).toBeVisible();
+      await expect(page.locator('#result-bar')).toBeHidden();
 
       let refreshCalled = false;
       await page.route('**/api/v1/dashboard/refresh', (route) => {
@@ -2244,8 +2246,10 @@ test.describe('dashboard page', () => {
 
       await page.click('#force-refresh-button');
       expect(refreshCalled).toBe(true);
-      await expect(page.locator('#result-count')).toHaveText('1 pull request');
+      // One unfiltered row draws no result bar; the row itself is the count.
+      await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
       await expect(page.locator('#pr-rows > .row')).toContainText('A fresh PR');
+      await expect(page.locator('#result-bar')).toBeHidden();
     });
 
     test('disables itself immediately, and re-enables after the Retry-After the server gave once the response has landed', async ({
