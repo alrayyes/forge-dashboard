@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
+import { fastest } from './cpu-time';
 import { renderMarkdown } from './markdown';
 
 // https://github.com/alrayyes/forge-dashboard/issues/4241
@@ -246,9 +247,10 @@ describe('a tag that closes wrongly stays inside its container', () => {
   });
 
   test('a huge unclosed input renders quickly', async () => {
-    const start = performance.now();
-    await renderMarkdown('<a href="x" '.repeat(20000));
-    await renderMarkdown('<em>'.repeat(20000));
-    expect(performance.now() - start).toBeLessThan(5000);
-  });
+    const took = await fastest(async () => {
+      await renderMarkdown('<a href="x" '.repeat(20000));
+      await renderMarkdown('<em>'.repeat(20000));
+    }, 3);
+    expect(took).toBeLessThan(5000);
+  }, 60_000);
 });

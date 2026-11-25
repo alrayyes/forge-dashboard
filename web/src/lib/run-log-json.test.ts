@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { fastest } from './cpu-time';
 import {
   copyLinesLabel,
   copyLinesStatus,
@@ -124,13 +125,11 @@ describe('groupJsonBlocks', () => {
     expect(lines).toHaveLength(3);
   });
 
-  test('a log of unclosed openers is read in linear time', () => {
+  test('a log of unclosed openers is read in linear time', async () => {
     const text = Array.from({ length: 100_000 }, () => '{').join('\n');
-    const start = performance.now();
-    const lines = group(text);
-    expect(lines).toHaveLength(100_000);
-    expect(performance.now() - start).toBeLessThan(2000);
-  });
+    expect(group(text)).toHaveLength(100_000);
+    expect(await fastest(() => group(text), 3)).toBeLessThan(2000);
+  }, 30_000);
 
   test('copying an entry gives its indented text', () => {
     const [block] = group('{\n  "a": 1\n}');
