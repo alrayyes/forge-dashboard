@@ -168,8 +168,8 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
 - [Deployment](docs/deployment.md): where the project's own instance runs.
 - [The changelog page](docs/changelog-page.md): the page the footer version
   links to.
-- [Webhooks](docs/webhooks.md): registering the forge webhook and the checks the
-  dashboard runs on its own.
+- [Webhooks](docs/webhooks.md): how the dashboard registers and repairs its own
+  forge webhooks, and the checks it runs.
 - [Error pages](docs/error-pages.md): the app's own 404 and 500 pages and what they
   show.
 - [Component catalogue](docs/storybook.md): the Storybook stories, and the
