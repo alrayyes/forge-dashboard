@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { fastest, growth } from './cpu-time';
 import { renderMarkdown } from './markdown';
 
 // https://github.com/alrayyes/forge-dashboard/issues/4241
@@ -201,16 +202,10 @@ describe('the HTML allow-list under random input', () => {
 
   test('a large input takes linear time', async () => {
     const unit = '<a href="https://e.example"><p><em><details>[x](y)\n\n';
-    const time = async (n: number) => {
-      const start = performance.now();
-      await renderMarkdown(unit.repeat(n));
-      return performance.now() - start;
-    };
-    await time(10);
-    const small = await time(500);
-    const large = await time(4000);
-    // 8x the input: a quadratic renderer would take about 64x as long.
-    expect(large).toBeLessThan(Math.max(small, 5) * 24);
-    expect(large).toBeLessThan(5000);
-  });
+    const render = (n: number) => renderMarkdown(unit.repeat(n));
+    // 8x the input: a quadratic renderer would take about 64x as long. Each
+    // size is the fastest of several runs, so a busy machine can't fake it.
+    expect(await growth(render, 500, 4000)).toBeLessThan(24);
+    expect(await fastest(() => render(4000), 3)).toBeLessThan(5000);
+  }, 60_000);
 });
