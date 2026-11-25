@@ -1128,25 +1128,20 @@
      explicit table roles on the markup keep the table semantics once display
      moves off table cells. */
   @media (width <= 760px) {
-    /* A pill row wider than the screen scrolls sideways; the fade on the
-       right edge says there is more. The tab bar's clearance comes from the
-       body padding in the stylesheet. */
-    .forge-scroll {
+    /* Each control takes the bar's full width, so the Forge row, the search
+       field and the Sort select share both edges. The pills wrap, never
+       scroll or clip (#4855). The tab bar's clearance comes from the body
+       padding in the stylesheet. */
+    .forge-scroll,
+    .search-field,
+    .repositories-sort {
       flex: 0 0 auto;
-      overflow-x: auto;
-      mask-image: linear-gradient(
-        to right,
-        #000 calc(100% - 28px),
-        transparent
-      );
-    }
-    /* The bar is a column here, so a flex-basis would be a height. */
-    .search-field {
-      flex: 0 0 auto;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
     }
     .repositories-sort {
       display: block;
-      flex: 0 0 auto;
       width: 100%;
     }
     .repo-table,
