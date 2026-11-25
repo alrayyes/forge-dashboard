@@ -182,13 +182,13 @@ test('Repositories: after a done answer a later poll does not replace the rows t
     .first()
     .getByRole('combobox', { name: 'Ignore alrayyes/held' })
     .selectOption('both');
-  await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
+  await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
   const before = seen.started;
   await advance(page, 5);
   await expect.poll(() => seen.started).toBeGreaterThan(before);
   await page.waitForTimeout(300);
-  await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
-  await expect(page.locator('#repositories-ignored summary')).toContainText(
-    'Ignored (1)',
+  await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
+  await expect(page.locator('#repositories-rows tr').first()).toContainText(
+    'Ignored: pull requests and issues',
   );
 });

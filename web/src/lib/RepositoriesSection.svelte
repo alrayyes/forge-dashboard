@@ -25,7 +25,6 @@
   } from "./polling-only.js";
   import {
     autoUpdateName,
-    IGNORE_TIP,
     lockedTip,
     toggleTip,
     bulkTargets,
@@ -34,6 +33,11 @@
     filtersAreClear,
     forgeChoices,
     ignoreName,
+    ignoreScopeOf,
+    ignoreScopeWords,
+    ignoreTip,
+    type IgnoredView,
+    repoKey,
     NO_FILTER,
     type RepoSortKey,
     rebaseBotsName,
@@ -95,6 +99,13 @@
   );
 
   let filter = $state({ ...NO_FILTER });
+  // Repos toggled since the page opened or the filter last changed: they stay
+  // in the list even when the Ignored filter would hide them, so a tap can be
+  // undone and the row never jumps under the finger (#4854).
+  let kept = $state<Set<string>>(new Set());
+  function keep(repo: Repo) {
+    kept = new Set(kept).add(repoKey(repo));
+  }
   let sortKey = $state<RepoSortKey>("fullName");
   let sortDir = $state<"asc" | "desc">("asc");
   let page = $state(1);
@@ -109,10 +120,9 @@
   }
 
   const sortedRepos = $derived(
-    sortRepos(filterRepos(repos, filter), sortKey, sortDir),
+    sortRepos(filterRepos(repos, filter, kept), sortKey, sortDir),
   );
   const pollingCount = $derived(pollingOnlyCount(repos));
-  const ignoredRepos = $derived(repos.filter((r) => r.ignored));
   const offeredForges = $derived(forgeChoices(repos, filter));
   const filtersClear = $derived(filtersAreClear(filter));
   const totalPages = $derived(
@@ -142,7 +152,10 @@
       prevButton?.focus({ preventScroll: true });
   }
 
-  function changeFilter() {
+  // A person's filter change lets go of the rows kept after a toggle; the
+  // automatic reset below keeps them.
+  function changeFilter(releaseKept = true) {
+    if (releaseKept) kept = new Set();
     page = 1;
     setStatus("");
   }
@@ -156,7 +169,7 @@
       untrack(() => {
         if (filter.pollingOnly) {
           filter.pollingOnly = false;
-          changeFilter();
+          changeFilter(false);
         }
       });
   });
@@ -177,6 +190,15 @@
         ?.scrollIntoView({ block: "center" }),
     );
   });
+  const IGNORED_VIEWS: { view: IgnoredView; label: string }[] = [
+    { view: "active", label: "Hide" },
+    { view: "all", label: "Show" },
+    { view: "only", label: "Only" },
+  ];
+  function pickIgnored(view: IgnoredView) {
+    filter.ignored = view;
+    changeFilter();
+  }
   function pickForge(forge: string) {
     filter.forge = forge;
     changeFilter();
@@ -359,6 +381,7 @@
       setStatus(`Couldn't ignore ${repo.fullName}: ${failed}`, "error");
       return;
     }
+    keep(repo);
     repo.ignored = true;
     repo.ignoredPRs = scope === "prs" || scope === "both";
     repo.ignoredIssues = scope === "issues" || scope === "both";
@@ -381,6 +404,7 @@
       setStatus(`Couldn't un-ignore ${repo.fullName}: ${failed}`, "error");
       return;
     }
+    keep(repo);
     repo.ignored = false;
     repo.ignoredPRs = false;
     repo.ignoredIssues = false;
@@ -575,6 +599,19 @@
           {/each}
         </FilterGroup>
       </div>
+      <div class="forge-scroll">
+        <FilterGroup label="Ignored" id="repositories-ignored-filter">
+          {#each IGNORED_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.ignored ?? "active") === view}
+              data-ignored-view={view}
+              onclick={() => pickIgnored(view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
       <div class="search-field">
         <input
           class="col-filter"
@@ -584,7 +621,7 @@
           aria-label="Filter by repo name"
           autocomplete="off"
           bind:value={filter.search}
-          oninput={changeFilter}
+          oninput={() => changeFilter()}
         />
         {#if !filtersClear}
           <button type="button" class="clear-filters" onclick={clearFilters}>
@@ -608,7 +645,10 @@
 
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
-        No repos match these filters.
+        No repos match these filters.{filter.ignored === "only" &&
+        !repos.some((r) => r.ignored)
+          ? " No repo is ignored."
+          : ""}
       </p>
     {:else}
       <!-- The card layout sets display: block on every table element, which drops
@@ -666,6 +706,7 @@
           {#each pageItems as repo (rowKey(repo))}
             {@const lock = rebaseBotsLock(repo)}
             {@const lockedOff = lock !== null && !repo.rebaseBots}
+            {@const scope = ignoreScopeOf(repo)}
             <!-- svelte-ignore a11y_no_redundant_roles -->
             <tr role="row">
               <td role="cell" data-label="Forge">
@@ -700,6 +741,11 @@
                       {failing?.label}
                     </span>
                     <span class="failing-note">{failing?.note}</span>
+                  </span>
+                {/if}
+                {#if repo.ignored}
+                  <span class="ignored-scope" data-testid="ignored-scope">
+                    {ignoreScopeWords(scope)}
                   </span>
                 {/if}
                 {#if !repo.ignored && !repo.hasWebhook}
@@ -780,31 +826,54 @@
               <td role="cell" class="control-cell" data-label="Ignore">
                 <span
                   class="repo-control ignore-control"
-                  data-tip={IGNORE_TIP}
+                  data-tip={ignoreTip(scope)}
                   use:tipDismiss
                 >
                   <select
                     class="ignore-select"
+                    data-ignored={scope ? "true" : undefined}
                     aria-busy={busy[busyKey("ignore", repo)]
                       ? "true"
                       : undefined}
                     aria-label={ignoreName(repo.fullName)}
                     disabled={busy[busyKey("ignore", repo)]}
-                    value=""
-                    onchange={(e) => {
-                      const scope = e.currentTarget.value as IgnoreScope;
-                      e.currentTarget.value = "";
-                      if (scope) ignoreRepo(repo, scope);
+                    value={scope}
+                    onchange={async (e) => {
+                      const select = e.currentTarget;
+                      const next = select.value as IgnoreScope | "";
+                      if (next) await ignoreRepo(repo, next);
+                      else await unignoreRepo(repo);
+                      // A failed save leaves the saved scope showing.
+                      select.value = ignoreScopeOf(repo);
                     }}
                   >
-                    <option value="" disabled selected>Ignore…</option>
-                    {#each Object.entries(IGNORE_SCOPE_LABELS) as [scope, label] (scope)}
-                      <option value={scope}>{label}</option>
+                    <option value="">Not ignored</option>
+                    {#each Object.entries(IGNORE_SCOPE_LABELS) as [value, label] (value)}
+                      <option {value}>{label}</option>
                     {/each}
                   </select>
                   <span class="ignore-glyph">
                     <RepoControlIcon kind="ignore" />
                   </span>
+                  {#if scope}
+                    <svg
+                      class="repo-check"
+                      viewBox="0 0 16 16"
+                      width="14"
+                      height="14"
+                      aria-hidden="true"
+                      focusable="false"
+                    >
+                      <circle cx="8" cy="8" r="8" />
+                      <path
+                        d="m4.5 8.3 2.3 2.3 4.7-4.9"
+                        fill="none"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      />
+                    </svg>
+                  {/if}
                 </span>
               </td>
             </tr>
@@ -872,54 +941,6 @@
           </label>
         </div>
       {/if}
-    {/if}
-
-    {#if ignoredRepos.length > 0}
-      <details class="ignored-disclosure" id="repositories-ignored">
-        <summary>Ignored ({ignoredRepos.length})</summary>
-        <ul>
-          {#each ignoredRepos as repo (rowKey(repo))}
-            <li>
-              <span class={`forge-badge ${forgeClassOf(repo.forge)}`}>
-                <span class="dot"></span>
-                {forgeLabelOf(repo.forge)}
-              </span>
-              <RepoLogo
-                forge={repo.forge}
-                url={repo.logoUrl}
-                name={repo.fullName}
-              />
-              {#if repo.url}
-                <a
-                  class="repo-link"
-                  href={repo.url}
-                  title={repo.fullName}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {repo.fullName}
-                </a>
-              {:else}
-                {repo.fullName}
-              {/if}
-              <span class="ignored-scope">
-                {repo.ignoredPRs && repo.ignoredIssues
-                  ? "(PRs, issues)"
-                  : repo.ignoredPRs
-                    ? "(PRs)"
-                    : "(issues)"}
-              </span>
-              <button
-                type="button"
-                disabled={busy[busyKey("ignore", repo)]}
-                onclick={() => unignoreRepo(repo)}
-              >
-                {busy[busyKey("ignore", repo)] ? "Un-ignoring…" : "Un-ignore"}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      </details>
     {/if}
   {/if}
 </div>
@@ -1142,49 +1163,24 @@
     color: var(--ink);
     pointer-events: none;
   }
-  .ignored-disclosure {
-    margin-top: 18px;
-    font-size: 0.78125rem;
-    color: var(--ink-2);
+  .ignore-select[data-ignored="true"] {
+    border-color: var(--pill-active);
+    background: var(--pill-active);
   }
-  .ignored-disclosure summary {
-    cursor: pointer;
-    font-weight: 500;
-    min-height: 28px;
+  .ignore-select[data-ignored="true"] + .ignore-glyph {
+    color: var(--accent-ink);
   }
-  .ignored-disclosure ul {
-    list-style: none;
-    margin: 10px 0 0;
-    padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .ignored-disclosure li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    flex-wrap: wrap;
+  .repo-check {
+    position: absolute;
+    right: 1px;
+    bottom: 1px;
+    fill: var(--accent-ink);
+    stroke: var(--pill-active);
+    pointer-events: none;
   }
   .ignored-scope {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     color: var(--ink-2);
-  }
-  .ignored-disclosure button {
-    min-height: 28px;
-    font-size: 0.78125rem;
-    color: var(--accent);
-    background: none;
-    border: none;
-    padding: 0 4px;
-    cursor: pointer;
-    text-decoration: underline;
-    margin-left: auto;
-  }
-  .ignored-disclosure button:disabled {
-    color: var(--ink-3);
-    cursor: default;
-    text-decoration: none;
   }
 
   /* Cards up to 760px, the width the app's 44px phone rule also stops at. The
@@ -1279,6 +1275,7 @@
     }
     .repo-table .failing-live,
     .repo-table .polling-reason,
+    .repo-table .ignored-scope,
     .repo-table td.control-cell .lock-note {
       flex: 0 0 100%;
       order: 3;

@@ -7,8 +7,10 @@ import {
   filterRepos,
   filtersAreClear,
   forgeChoices,
-  IGNORE_TIP,
   ignoreName,
+  ignoreScopeOf,
+  ignoreScopeWords,
+  ignoreTip,
   lockedTip,
   type RepoRow,
   rebaseBotsName,
@@ -191,7 +193,84 @@ describe('tooltips', () => {
       'Rebase bots: off, locked. The reason is below',
     );
   });
-  test('the Ignore tip points at the scope choice', () => {
-    expect(IGNORE_TIP).toBe('Ignore: off. Choose what to ignore');
+  test('the Ignore tip says what is ignored and what the control offers', () => {
+    expect(ignoreTip('')).toBe('Ignore: off. Choose what to ignore');
+    expect(ignoreTip('prs')).toBe(
+      'Ignore: pull requests. Choose another scope, or turn it off',
+    );
+    expect(ignoreTip('issues')).toBe(
+      'Ignore: issues. Choose another scope, or turn it off',
+    );
+    expect(ignoreTip('both')).toBe(
+      'Ignore: pull requests and issues. Choose another scope, or turn it off',
+    );
+  });
+});
+
+describe('the ignore scope of a row', () => {
+  test('is read from the two flags the dashboard read carries', () => {
+    expect(ignoreScopeOf({ ignored: false })).toBe('');
+    expect(
+      ignoreScopeOf({ ignored: true, ignoredPRs: true, ignoredIssues: false }),
+    ).toBe('prs');
+    expect(
+      ignoreScopeOf({ ignored: true, ignoredPRs: false, ignoredIssues: true }),
+    ).toBe('issues');
+    expect(
+      ignoreScopeOf({ ignored: true, ignoredPRs: true, ignoredIssues: true }),
+    ).toBe('both');
+  });
+  test('is said in words on the row', () => {
+    expect(ignoreScopeWords('')).toBe('');
+    expect(ignoreScopeWords('prs')).toBe('Ignored: pull requests');
+    expect(ignoreScopeWords('issues')).toBe('Ignored: issues');
+    expect(ignoreScopeWords('both')).toBe('Ignored: pull requests and issues');
+  });
+});
+
+describe('the ignored filter', () => {
+  const none = { forge: '', search: '' };
+  const names = (r: RepoRow[]) => r.map((x) => x.fullName);
+
+  test('active hides ignored repos and is the default', () => {
+    expect(names(filterRepos(rows, { ...none, ignored: 'active' }))).toEqual(
+      names(filterRepos(rows, none)),
+    );
+  });
+  test('all shows ignored and active repos together', () => {
+    expect(names(filterRepos(rows, { ...none, ignored: 'all' }))).toEqual([
+      'demo/api',
+      'demo/web',
+      'sandbox/infra',
+      'sandbox/API-docs',
+    ]);
+  });
+  test('only shows the ignored repos', () => {
+    expect(names(filterRepos(rows, { ...none, ignored: 'only' }))).toEqual([
+      'demo/web',
+    ]);
+  });
+  test('a repo just ignored stays while its key is kept', () => {
+    const keep = new Set(['github:demo/web']);
+    expect(names(filterRepos(rows, none, keep))).toContain('demo/web');
+  });
+  test('a kept repo still obeys the forge and search filters', () => {
+    const keep = new Set(['github:demo/web']);
+    expect(
+      names(filterRepos(rows, { ...none, forge: 'forgejo' }, keep)),
+    ).not.toContain('demo/web');
+    expect(
+      names(filterRepos(rows, { ...none, search: 'infra' }, keep)),
+    ).toEqual(['sandbox/infra']);
+  });
+  test('a kept repo that is active drops out of the ignored-only view', () => {
+    const keep = new Set(['github:demo/api']);
+    expect(
+      names(filterRepos(rows, { ...none, ignored: 'only' }, keep)),
+    ).toEqual(['demo/api', 'demo/web']);
+  });
+  test('a non-default choice is a filter that Clear filters can undo', () => {
+    expect(filtersAreClear({ ...none, ignored: 'all' })).toBe(false);
+    expect(filtersAreClear({ ...none, ignored: 'active' })).toBe(true);
   });
 });

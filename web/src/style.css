@@ -6243,9 +6243,7 @@ footer a[aria-current="page"] {
     .sort-button,
     .repo-link,
     .ignore-scope-select,
-    .data-table td.action button,
-    .ignored-disclosure summary,
-    .ignored-disclosure button
+    .data-table td.action button
   ) {
   box-sizing: border-box;
   min-height: var(--tap-floor);
@@ -6353,8 +6351,6 @@ footer a[aria-current="page"] {
       .release-head h2 a,
       .repo-link,
       .data-table td.action button,
-      .ignored-disclosure summary,
-      .ignored-disclosure button,
       .forge-health-detail summary,
       .pipeline-check-copy .pipeline-check-link,
       select,

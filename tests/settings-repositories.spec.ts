@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // Settings, Repositories: the per-repo controls moved here from the Webhooks
 // page (#4028). Auto-update and Rebase bots are icon toggles with a fixed name
-// and aria-pressed; Ignore stays a native select.
+// and aria-pressed; Ignore stays a native select that shows its scope (#4854).
 
 function repo(name: string, extra: Record<string, unknown> = {}) {
   return {
@@ -190,7 +190,7 @@ test.describe('settings, repositories', () => {
     ).toBeVisible();
   });
 
-  test('Ignore is a native select with the three scopes, and the repo moves to Ignored', async ({
+  test('Ignore is a native select with the three scopes and a way back', async ({
     page,
   }) => {
     await mockDashboard(page, [repo('a'), repo('b')]);
@@ -205,28 +205,28 @@ test.describe('settings, repositories', () => {
     await open(page);
 
     const select = page.getByRole('combobox', { name: 'Ignore alrayyes/a' });
-    await expect(select.locator('option:not([disabled])')).toHaveText([
+    await expect(select.locator('option')).toHaveText([
+      'Not ignored',
       'Ignore PRs',
       'Ignore issues',
       'Ignore both',
     ]);
     await select.selectOption('issues');
-    await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
+    await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
     expect(body).toEqual({
       forge: 'github',
       fullName: 'alrayyes/a',
       prs: false,
       issues: true,
     });
-    await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
-    const disclosure = page.locator('#repositories-ignored');
-    await expect(disclosure.locator('summary')).toContainText('Ignored (1)');
-    await disclosure.locator('summary').click();
-    await expect(disclosure).toContainText('(issues)');
+    await expect(page.locator('#repositories-rows tr').first()).toContainText(
+      'Ignored: issues',
+    );
     await expectNoAxeViolations(page);
-    await disclosure.getByRole('button', { name: 'Un-ignore' }).click();
-    await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
-    await expect(page.locator('#repositories-ignored')).toHaveCount(0);
+    await select.selectOption('');
+    await expect(
+      page.locator('#repositories-rows tr').first(),
+    ).not.toContainText('Ignored:');
   });
 
   for (const [scope, prs, issues] of [
@@ -247,7 +247,9 @@ test.describe('settings, repositories', () => {
       await page
         .getByRole('combobox', { name: 'Ignore alrayyes/a' })
         .selectOption(scope);
-      await expect(page.locator('#repositories-ignored')).toBeVisible();
+      await expect(page.locator('#repositories-rows tr')).toContainText(
+        'Ignored:',
+      );
       expect(body).toEqual({
         forge: 'github',
         fullName: 'alrayyes/a',
@@ -275,10 +277,14 @@ test.describe('settings, repositories', () => {
     await expect(select).toHaveAttribute('aria-busy', 'true');
     await expect(page.locator('.ignore-control[aria-busy]')).toHaveCount(0);
     release();
-    await expect(page.locator('#repositories-ignored')).toBeVisible();
+    await expect(page.locator('#repositories-rows tr')).toContainText(
+      'Ignored:',
+    );
   });
 
-  test('a failed ignore keeps the repo in the table', async ({ page }) => {
+  test('a failed ignore keeps the repo in the table, not ignored', async ({
+    page,
+  }) => {
     await mockDashboard(page, [repo('a')]);
     await page.route('**/api/v1/repos/ignore', (route) =>
       route.fulfill({
@@ -295,6 +301,12 @@ test.describe('settings, repositories', () => {
       "Couldn't ignore alrayyes/a",
     );
     await expect(page.locator('#repositories-rows tr')).toHaveCount(1);
+    await expect(page.locator('#repositories-rows tr')).not.toContainText(
+      'Ignored:',
+    );
+    await expect(
+      page.getByRole('combobox', { name: 'Ignore alrayyes/a' }),
+    ).toHaveValue('');
   });
 
   test('forge pills, search and Clear filters narrow the list', async ({

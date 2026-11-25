@@ -173,8 +173,9 @@ test.describe('settings, repositories: polling only', () => {
       .getByRole('combobox', { name: 'Ignore demo/poll' })
       .selectOption('both');
     await expect(page.locator('#repositories-polling')).toHaveCount(0);
-    await expect(rows).toHaveCount(1);
-    await expect(rows).toContainText('demo/live');
+    // The ignored row stays until the next filter change, beside the rest.
+    await expect(rows).toHaveCount(2);
+    await expect(rows).toContainText(['demo/live', 'demo/poll']);
     await expect(page.locator('#repositories-no-results')).toHaveCount(0);
     await expectNoAxeViolations(page);
     await page.emulateMedia({ colorScheme: 'dark' });
