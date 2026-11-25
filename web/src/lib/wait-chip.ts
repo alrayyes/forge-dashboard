@@ -413,7 +413,17 @@ function heldWords(
 // that fits: Auto-merge when nothing is armed, Cancel auto-merge when it is.
 // The longer explanation is the chip's tooltip and accessible description
 // (#4663, which replaced #4531's bare "Merge after CI" text).
-export type MergeWait = 'ci' | 'conflict-check' | 'refresh';
+//
+// A status the forge hasn't reported (#4666) is the same wait. Past
+// STILL_WAITING_MS it turns into 'status-unknown-late': a forge that keeps
+// answering unknown (a release pull request with no checks, say) shouldn't
+// look like it is about to answer.
+export type MergeWait =
+  | 'ci'
+  | 'conflict-check'
+  | 'refresh'
+  | 'status-unknown'
+  | 'status-unknown-late';
 
 // canArm is whether the row draws an Auto-merge button: the server may not
 // offer it, or the forge may be locked or rate limited. The tooltip only
@@ -446,6 +456,21 @@ export function mergeWaitChip(
         'Checking for conflicts',
         `The forge is still working out whether it merges cleanly. Merge unlocks when it knows${orArm}.`,
       );
+    case 'status-unknown':
+      return words(
+        'Status unknown',
+        `The forge hasn't said yet whether it merges cleanly. Merge unlocks once it does${orArm}.`,
+      );
+    case 'status-unknown-late':
+      return {
+        ...words(
+          'Still waiting',
+          `The forge still hasn't said whether it merges cleanly. Open the pull request on the forge to see why${canArm ? ', or turn on Auto-merge to merge it once it does' : ''}.`,
+        ),
+        state: 'stalled',
+        icon: 'retry',
+        detail: 'Over 2 min',
+      };
     case 'refresh':
       return words(
         'Waiting for the forge',

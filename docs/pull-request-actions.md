@@ -93,7 +93,8 @@ The row shows `status` in one place: a block with an icon and words ahead of its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.
 
-A wait that passes by itself, CI running or Forgejo checking for conflicts, is
+A wait that passes by itself, CI running, Forgejo checking for conflicts or a
+merge status the forge hasn't reported yet, is
 said once, as the same one-line chip an armed auto-merge uses: "Waiting for CI"
 or "Checking for conflicts", with an Auto-merge button inside it where the
 server offers auto-merge (it does while CI runs). Armed, the button reads Cancel
@@ -116,6 +117,13 @@ tooltip only suggests turning on Auto-merge when the chip has the button; a row
 where the server doesn't offer it, or the forge is rate limited, says only that
 Merge unlocks by itself. A queued action (Update branch waiting for a rate limit
 to reset) keeps its own chip and Cancel in place of the waiting chip.
+A merge status the forge hasn't reported reads "Status unknown", with the code
+`status_unknown` behind it. If the forge still says unknown after two minutes on
+the page, the chip changes at the next refresh to "Still waiting", "Over 2 min",
+and its tooltip says to open the pull request on the forge, since a forge that
+never reports (a pull request with no checks, say) shouldn't look as if it is
+about to. Auto-merge stays in the chip throughout. A draft keeps its locked
+Merge.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row keeps the chip but says "Waiting for the forge", with
 "Updating from the latest CI results" in its tooltip, and the Merge button stays

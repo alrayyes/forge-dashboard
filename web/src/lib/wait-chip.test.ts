@@ -591,6 +591,33 @@ describe('mergeWaitChip', () => {
     );
   });
 
+  test('a status the forge has not reported is a wait, with Auto-merge inside', () => {
+    const chip = mergeWaitChip('status-unknown');
+    expect(chip.label).toBe('Status unknown');
+    expect(chip.state).toBe('waiting');
+    expect(chip.detail).toBe('');
+    expect(chip.action).toBe('arm');
+    expect(chip.tooltip).toBe(
+      "The forge hasn't said yet whether it merges cleanly. Merge unlocks once it does, or turn on Auto-merge to merge it then.",
+    );
+  });
+
+  test('past two minutes the unknown status says Still waiting and points at the forge', () => {
+    const chip = mergeWaitChip('status-unknown-late');
+    expect(chip.label).toBe('Still waiting');
+    expect(chip.detail).toBe('Over 2 min');
+    expect(chip.state).toBe('stalled');
+    expect(chip.action).toBe('arm');
+    expect(chip.tooltip).toContain('Open the pull request on the forge');
+  });
+
+  test('an unknown status the row cannot arm never mentions Auto-merge', () => {
+    for (const wait of ['status-unknown', 'status-unknown-late'] as const)
+      expect(mergeWaitChip(wait, false, false).tooltip).not.toMatch(
+        /auto-merge/i,
+      );
+  });
+
   test('a row that cannot arm never tells the person to turn on Auto-merge', () => {
     for (const wait of ['ci', 'conflict-check'] as const) {
       const chip = mergeWaitChip(wait, false, false);
