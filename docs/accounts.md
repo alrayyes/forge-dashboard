@@ -212,7 +212,8 @@ only this app's own setting. Several of the reads spend forge request budget;
 
 A signed-in board with nothing linked sends every page to `/setup`, "Set up
 your board". It has one block per forge and one is enough. Continue opens once
-a forge has repositories to show, and Sign out is always there.
+a forge has repositories to show, or is still counting them, and Sign out is
+always there, even when the page cannot load its details.
 
 ![First-login setup, waiting on the GitHub install](screenshots/setup-install-app-light.png)
 
