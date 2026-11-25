@@ -1348,29 +1348,35 @@ section.board {
        merge-state pill has nothing to break and keeps the one line. With the
        pill and an action too, the chip, the pill and the action leave the
        title 70px at 1280px (0px with Cancel auto-merge), so it stacks the
-       chip as well (#4795). */
-    .row:not(.issue-row):has(> .title-cell > .label-chip)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):is(
-        :has(> .row-action-bar):not(:has(> .status-flags)),
-        :has(> .status-flags)
-      ),
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags):has(> .row-action-bar) {
-      grid-template-columns: min-content 7.5rem 9.25rem;
-      > .wait-slot {
-        grid-column: 1 / -1;
-        grid-row: auto;
-        justify-self: end;
-      }
-      > .status-flags {
-        grid-column: 2;
-      }
-      > .row-action-bar {
-        grid-column: 3;
+       chip as well (#4795). From 94rem it is one line again (#4784). */
+    /* #4784: from 94rem (1504px at the default text size) the title keeps
+       well over 200px with the chip beside the pills and the action, so the
+       row stays one line there. The rem term keeps the stack at a large text
+       size, where the tracks are as wide as they are at 1280px. */
+    @container not (min-width: 94rem) {
+      .row:not(.issue-row):has(> .title-cell > .label-chip)
+        .status-cell:has(> .wait-slot:not(:empty)):not(
+          :has(> .wait-slot .wait-chip-detail:not(:empty))
+        ):is(
+          :has(> .row-action-bar):not(:has(> .status-flags)),
+          :has(> .status-flags)
+        ),
+      .row:not(.issue-row)
+        .status-cell:has(> .wait-slot:not(:empty)):not(
+          :has(> .wait-slot .wait-chip-detail:not(:empty))
+        ):has(> .status-flags):has(> .row-action-bar) {
+        grid-template-columns: min-content 7.5rem 9.25rem;
+        > .wait-slot {
+          grid-column: 1 / -1;
+          grid-row: auto;
+          justify-self: end;
+        }
+        > .status-flags {
+          grid-column: 2;
+        }
+        > .row-action-bar {
+          grid-column: 3;
+        }
       }
     }
 
@@ -5928,6 +5934,28 @@ button.pipeline-check-link:disabled {
     min-width: 0;
     max-width: 72ch;
     margin-top: 0;
+  }
+}
+
+/* #4784: on a tablet the band is 430 to 650px wide. Wrapping the note and
+   the "Stacked on" reason onto two bands made the row 2.3 times a plain one,
+   so they stay side by side, an even share each. */
+@media (760px < width <= 1100px) {
+  .row > .stack-band {
+    /* Under the repo cell too: the first track is 240px of empty space
+       below the row's own line. */
+    grid-column: 1 / -1;
+  }
+  /* Each block keeps 28ch, so at a large text size, where two of them no
+     longer fit, the reason wraps under the note instead of shrinking. */
+  .stack-band > .stack-info {
+    flex: 1 1 28ch;
+    min-width: 28ch;
+  }
+  .stack-band > .status-area-stacked {
+    flex: 1 1 28ch;
+    min-width: 28ch;
+    padding-block: 4px;
   }
 }
 

@@ -95,6 +95,147 @@ async function open(page: Page, width: number) {
 const rowFor = (page: Page, n: number) =>
   page.locator(`#pr-rows .row[data-pr-key$="#${n}"]`);
 
+// A tablet or a narrow desktop window: the note and the reason used to wrap
+// into two bands of about 430px, so a dependent row was 2.3 times a plain one.
+// https://github.com/alrayyes/forge-dashboard/issues/4784
+for (const width of [761, 900, 1000, 1100]) {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    test.describe(`stacked row height at ${width}px, ${colorScheme} (#4784)`, () => {
+      test.use({ colorScheme });
+
+      test('a dependent row is a plain row plus a chip line plus two note lines at most', async ({
+        page,
+      }) => {
+        await open(page, width);
+        const plain = (await rowFor(page, 900).boundingBox())!.height;
+        const dependent = (await rowFor(page, 839).boundingBox())!.height;
+        // Chip line (26px) and a gap, then two lines of the note at 0.75rem,
+        // and the 4px of padding above and below the reason beside it.
+        expect(dependent).toBeLessThanOrEqual(plain + 26 + 8 + 2 * 18 + 8);
+      });
+
+      test('the note and the reason share one band that starts under the repo cell', async ({
+        page,
+      }) => {
+        await open(page, width);
+        const row = rowFor(page, 839);
+        const info = (await row.locator('.stack-info').boundingBox())!;
+        const reason = (await row
+          .locator('.status-area-stacked')
+          .boundingBox())!;
+        const title = (await row.locator('.title-cell').boundingBox())!;
+        expect(Math.abs(info.y - reason.y)).toBeLessThan(2);
+        expect(info.x).toBeLessThan(title.x);
+      });
+
+      test('at 175% text each block keeps 28ch or wraps to its own line', async ({
+        page,
+      }) => {
+        await page.addInitScript(() => {
+          document.addEventListener('DOMContentLoaded', () => {
+            const st = document.createElement('style');
+            st.textContent = 'html { font-size: 175% !important; }';
+            document.head.appendChild(st);
+          });
+        });
+        await open(page, width);
+        const row = rowFor(page, 839);
+        for (const sel of ['.stack-info', '.status-area-stacked']) {
+          const m = await row.locator(sel).evaluate((el) => {
+            // 28ch in the element's own font, measured inside it.
+            const probe = document.createElement('div');
+            probe.style.cssText =
+              'position:absolute;visibility:hidden;width:28ch;height:0';
+            el.appendChild(probe);
+            const ch28 = probe.getBoundingClientRect().width;
+            probe.remove();
+            return { width: el.getBoundingClientRect().width, ch28 };
+          });
+          expect(m.width, sel).toBeGreaterThanOrEqual(m.ch28 - 1);
+        }
+      });
+
+      test('the note still wraps at 28ch or more and nothing overflows', async ({
+        page,
+      }) => {
+        await open(page, width);
+        const row = rowFor(page, 839);
+        const m = await row.locator('.stack-note').evaluate((el) => {
+          const cs = getComputedStyle(el);
+          const probe = document.createElement('span');
+          probe.style.cssText = `position:absolute;visibility:hidden;font:${cs.font}`;
+          probe.textContent = '0'.repeat(28);
+          document.body.appendChild(probe);
+          const ch28 = probe.getBoundingClientRect().width;
+          probe.remove();
+          return { width: el.getBoundingClientRect().width, ch28 };
+        });
+        expect(m.width).toBeGreaterThanOrEqual(m.ch28);
+        const overflow = await row.evaluate(
+          (el) => el.scrollWidth - el.clientWidth,
+        );
+        expect(overflow).toBeLessThanOrEqual(0);
+      });
+
+      test('tab order is title, CI pill, Merge, then the chip, before and after a resize', async ({
+        page,
+      }) => {
+        await open(page, width);
+        const follows = () =>
+          rowFor(page, 839).evaluate((row) => {
+            const chip = row.querySelector('.stack-chip')!;
+            const after = (sel: string) =>
+              !!(
+                row.querySelector(sel)!.compareDocumentPosition(chip) &
+                Node.DOCUMENT_POSITION_FOLLOWING
+              );
+            return after('.title') && after('.ci-pill') && after('.row-action');
+          });
+        expect(await follows()).toBe(true);
+        await page.setViewportSize({ width: width + 40, height: 900 });
+        await page.setViewportSize({ width, height: 900 });
+        await expect.poll(follows).toBe(true);
+      });
+
+      test('has no axe violations', async ({ page }) => {
+        await open(page, width);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    });
+  }
+}
+
+// The tablet layout ends where it should: nothing moves at 760px (the phone
+// card) or at 1101px (the wide rules).
+test.describe('stacked row boundaries (#4784)', () => {
+  test('at 1101px the band keeps its wide-row wrapping and starts at the title track', async ({
+    page,
+  }) => {
+    await open(page, 1101);
+    const band = rowFor(page, 839).locator('.stack-band');
+    expect(await band.evaluate((el) => getComputedStyle(el).flexWrap)).toBe(
+      'wrap',
+    );
+    const b = (await band.boundingBox())!;
+    const title = (await rowFor(page, 839)
+      .locator('.title-cell')
+      .boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(title.x - 1);
+  });
+
+  test('at 760px the stack block sits in the title cell, with no band', async ({
+    page,
+  }) => {
+    await open(page, 760);
+    const row = rowFor(page, 839);
+    await expect(row.locator('.title-cell .stack-info')).toHaveCount(1);
+    await expect(row.locator('.stack-band')).toHaveCount(0);
+  });
+});
+
 for (const width of [1280, 390]) {
   test.describe(`stack note at ${width}px (#4775)`, () => {
     test('the note reads at a measure of at least 28ch in at most four lines', async ({
