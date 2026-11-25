@@ -5488,13 +5488,17 @@
       const hadFocus = focusWasOnConfirm || document.activeElement === button;
       renderPRBoard();
       if (hadFocus) {
+        let focused = false;
         for (const id of focusIds) {
           const target = id ? document.getElementById(id) : null;
           if (target) {
             target.focus();
+            focused = true;
             break;
           }
         }
+        // The row draws no button for a request made; the chip holds focus.
+        if (!focused) focusWaitChip(prKey(item));
       }
 
       // Stays "queued" — Dependabot acts on its own schedule, so the button
@@ -5614,6 +5618,13 @@
       }
 
       const queued = decision.queued;
+      // The row's wait chip says the request is made; a dead button beside it
+      // says it twice (#4548). The pop-up lists it as locked with its reason.
+      if (queued)
+        return requestedActionCell(
+          action === "rebase",
+          `${idScope}dependabot-${action}-${domSafeId(prKey(item))}`,
+        );
       const button = buttonEl(
         "row-action",
         queued
@@ -6682,6 +6693,10 @@
         (slot
           ? buttons.find((b) => b.dataset.focusSlot === slot)
           : undefined) ??
+        // A requested Renovate rebase turns into its cancel under the chip.
+        (inChip
+          ? buttons.find((b) => b.dataset.focusSlot === "renovate-rebase")
+          : undefined) ??
         (inChip
           ? row?.querySelector<HTMLElement>(".wait-chip:not([hidden])")
           : undefined) ??
@@ -6912,6 +6927,7 @@
         phase: "queued",
         queued: queuedRequestInfo(item),
       };
+      const hadFocus = document.activeElement === button;
       markPending(button, true);
       button.textContent = queuedBotLabel(true);
       const fkey = `renovate:${key}`;
@@ -6936,6 +6952,8 @@
           announce: requestedAnnouncement("bot-rebase", "Renovate"),
         });
         keepFocusAcross(renderPRBoard);
+        // The row draws no button for a request made; the chip holds focus.
+        if (hadFocus) focusWaitChip(key);
       };
 
       return fetch("/api/v1/pull-requests/renovate-rebase", {
@@ -7675,10 +7693,8 @@
 
       const queued = entry.phase === "queued" || entry.phase === "rebasing";
 
-      const button = buttonEl(
-        "row-action",
-        queued ? queuedBotLabel(true) : "Renovate: Rebase",
-      );
+      if (queued) return requestedActionCell(true);
+      const button = buttonEl("row-action", "Renovate: Rebase");
       markPending(button, queued);
       button.addEventListener("click", () => {
         if (isPending(button)) return;
@@ -10648,6 +10664,23 @@
     // what was asked for (#792).
     function queuedBotLabel(rebase: boolean): string {
       return rebase ? "Rebase requested" : "Recreate requested";
+    }
+
+    // A bot request that is already made. The row draws nothing: its wait chip
+    // is the one place that says so, and a disabled button would be a dead tab
+    // stop. The pop-up's footer lists it locked, with the reason printed.
+    function requestedActionCell(
+      rebase: boolean,
+      id?: string,
+    ): HTMLElement | null {
+      if (idScope === "") return null;
+      const cell = lockedActionButton(
+        queuedBotLabel(rebase),
+        "The bot has your request. No need to ask again.",
+      );
+      // The id focus returns to once the confirm or the click is gone.
+      if (id) cell.querySelector("button")?.setAttribute("id", id);
+      return cell;
     }
 
     function queuedRequestInfo(item: PullRequestItem) {

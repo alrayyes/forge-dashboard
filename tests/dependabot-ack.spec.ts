@@ -120,9 +120,12 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
 
   async function request(page: Page) {
     await row(page).getByRole('button', { name: 'Dependabot: Rebase' }).click();
+    await expect(row(page).locator('.wait-chip')).toContainText(
+      'Rebase requested',
+    );
     await expect(
       row(page).getByRole('button', { name: 'Rebase requested' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     // The server has answered 204, so nothing later overwrites the live region.
     await expect(page.locator('#feedback-toasts')).toContainText(
       'rebase requested.',
@@ -183,9 +186,12 @@ test.describe('Dependabot acknowledgment (#1082)', () => {
     await expect(page.locator('#feedback-live')).toContainText(
       'Dependabot acknowledged your rebase.',
     );
+    await expect(row(page).locator('.wait-chip')).toContainText(
+      'Rebase requested',
+    );
     await expect(
       row(page).getByRole('button', { name: 'Rebase requested' }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
     await expectNoViolations(page);
 
     // The same record on the next snapshot changes nothing and says nothing.

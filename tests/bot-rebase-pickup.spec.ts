@@ -166,9 +166,12 @@ for (const b of bots) {
 
     async function request(page: Page) {
       await row(page).getByRole('button', { name: b.button }).click();
+      await expect(row(page).locator('.wait-chip')).toContainText(
+        'Rebase requested',
+      );
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
       // The request itself has been accepted before a test plays the bot.
       await expect(page.locator('#feedback-toasts')).toContainText(
         'rebase requested.',
@@ -204,7 +207,7 @@ for (const b of bots) {
       );
     }
 
-    test('a requested rebase shows a disabled button, what happens next and how long ago', async ({
+    test('a requested rebase shows the chip and no button, what happens next and how long ago', async ({
       page,
     }) => {
       await page.goto('/bots.html');
@@ -247,9 +250,12 @@ for (const b of bots) {
       await request(page);
       await page.reload();
 
+      await expect(row(page).locator('.wait-chip')).toContainText(
+        'Rebase requested',
+      );
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
       await expect(label(page)).toHaveText('Rebase requested');
       await expect(chip(page).locator('.wait-chip-tip')).toHaveText(b.tip);
     });
@@ -325,9 +331,12 @@ for (const b of bots) {
         await request(page);
         await push(page, current);
         await expect(label(page)).toHaveText('Rebase requested');
+        await expect(row(page).locator('.wait-chip')).toContainText(
+          'Rebase requested',
+        );
         await expect(
           row(page).getByRole('button', { name: 'Rebase requested' }),
-        ).toBeDisabled();
+        ).toHaveCount(0);
         await expect(
           page.locator('#feedback-toasts .feedback-toast'),
         ).toHaveCount(1);
@@ -385,9 +394,12 @@ for (const b of bots) {
       // The refresh starts first and stays in flight across the click.
       await page.locator('#force-refresh-button').click();
       await row(page).getByRole('button', { name: b.button }).click();
+      await expect(row(page).locator('.wait-chip')).toContainText(
+        'Rebase requested',
+      );
       await expect(
         row(page).getByRole('button', { name: 'Rebase requested' }),
-      ).toBeDisabled();
+      ).toHaveCount(0);
 
       const answered = page.waitForResponse('**/api/v1/dashboard/refresh');
       release();
@@ -558,9 +570,12 @@ test.describe('bot rebase pickup with another row still queued', () => {
       await rowFor(n)
         .getByRole('button', { name: 'Dependabot: Rebase' })
         .click();
+      await expect(rowFor(n).locator('.wait-chip')).toContainText(
+        'Rebase requested',
+      );
       await expect(
         rowFor(n).getByRole('button', { name: 'Rebase requested' }),
-      ).toBeVisible();
+      ).toHaveCount(0);
     }
 
     // Only the first one was picked up.
