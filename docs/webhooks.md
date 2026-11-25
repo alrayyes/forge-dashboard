@@ -122,6 +122,17 @@ a pull request's head branch is normally caught by the preceding
 pull-request events already, and Push is a harmless second trigger for
 the same refresh in case that doesn't fire.
 
+## A repo the dashboard can't fetch
+
+A repo whose fetch failed gets a "Failing since" badge under its name in
+Settings, Repositories, with the time its fetch first failed. Its pull requests
+and issues are then the last ones the dashboard could read. Once a repo has
+failed past the cutoff described under [Rate limits](rate-limits.md), the badge
+reads "Still failing since" and the note says retrying hasn't helped. The page
+learns that at the next refresh, so a repo crossing the cutoff keeps the
+shorter wording until then. The badge goes when a fetch succeeds, and the time
+starts again after a restart.
+
 ## Why a repo has no webhook
 
 A repo without a hook says why on its row in Settings, Repositories, in one

@@ -1,0 +1,136 @@
+import AxeBuilder from '@axe-core/playwright';
+import { expect, type Page, type Route } from '@playwright/test';
+import { test } from './server-fixture';
+
+// A repo whose fetch keeps failing says so on its row in Settings,
+// Repositories, with the time it began, so a long outage is not silent.
+// https://github.com/alrayyes/forge-dashboard/issues/4803
+
+const HOURS_AGO = (n: number) =>
+  new Date(Date.now() - n * 3_600_000).toISOString();
+
+const repo = (name: string, extra: Record<string, unknown> = {}) => ({
+  forge: 'github',
+  fullName: `alrayyes/${name}`,
+  hasWebhook: true,
+  canManageWebhooks: true,
+  ignored: false,
+  ignoredPRs: false,
+  ignoredIssues: false,
+  autoUpdateBranch: false,
+  rebaseBots: false,
+  ...extra,
+});
+
+async function open(page: Page, repos: Record<string, unknown>[]) {
+  await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
+    route.abort(),
+  );
+  await page.route('**/api/v1/dashboard*', (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        generatedAt: new Date().toISOString(),
+        forges: [],
+        pullRequests: [],
+        issues: [],
+        repos,
+      }),
+    }),
+  );
+  await page.goto('/settings.html#repositories');
+}
+
+test.describe('failing repo badge in Settings, Repositories', () => {
+  test.use({ locale: 'en-GB', timezoneId: 'UTC' });
+
+  test('the badge names the time of the first failure', async ({ page }) => {
+    await open(page, [
+      repo('broken', { failingSince: '2025-03-02T08:05:00Z' }),
+    ]);
+
+    await expect(page.locator('.failing-badge')).toHaveText(
+      /^\s*Failing since 2 Mar 2025, 08:05 UTC\s*$/,
+    );
+  });
+
+  test('a failing repo shows the badge, a healthy one does not', async ({
+    page,
+  }) => {
+    await open(page, [
+      repo('broken', { failingSince: HOURS_AGO(3) }),
+      repo('fine'),
+    ]);
+
+    const broken = page.locator('tr', { hasText: 'alrayyes/broken' });
+    await expect(broken.locator('.failing-badge')).toContainText(
+      'Failing since',
+    );
+    await expect(broken.locator('.failing-note')).toBeVisible();
+    await expect(
+      page
+        .locator('tr', { hasText: 'alrayyes/fine' })
+        .locator('.failing-badge'),
+    ).toHaveCount(0);
+  });
+
+  test('past the cutoff the badge reads Still failing since', async ({
+    page,
+  }) => {
+    await open(page, [
+      repo('old', { failingSince: HOURS_AGO(30), failingForGood: true }),
+    ]);
+
+    const old = page.locator('tr', { hasText: 'alrayyes/old' });
+    await expect(old.locator('.failing-badge')).toContainText(
+      'Still failing since',
+    );
+    await expect(old.locator('.failing-note')).toContainText(
+      "Retrying hasn't helped",
+    );
+  });
+
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [1280, 390, 320]) {
+      test(`axe and layout are clean, ${scheme} ${width}px`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 800 });
+        await open(page, [
+          repo('broken', { failingSince: HOURS_AGO(3) }),
+          repo('old-and-a-very-long-repository-name', {
+            failingSince: HOURS_AGO(30),
+            failingForGood: true,
+          }),
+        ]);
+
+        await expect(page.locator('.failing-badge')).toHaveCount(2);
+
+        // The badge wraps inside its cell instead of clipping at the edge.
+        for (const badge of await page.locator('.failing-badge').all()) {
+          const box = await badge.boundingBox();
+          expect(box).not.toBeNull();
+          expect(box!.x).toBeGreaterThanOrEqual(0);
+          expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+        }
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+
+        await expect
+          .poll(() =>
+            page.evaluate(
+              () =>
+                document.documentElement.scrollWidth >
+                document.documentElement.clientWidth,
+            ),
+          )
+          .toBe(false);
+      });
+    }
+  }
+});

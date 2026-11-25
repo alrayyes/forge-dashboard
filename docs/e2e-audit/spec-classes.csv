@@ -285,6 +285,7 @@ settings-hint-size.spec.ts,1.415,1,1,A,,0.0
 settings-ignore-counts.spec.ts,2.663,8,2,C,,2.0
 settings-ignore-issues.spec.ts,8.008,19,6,C,,5.5
 settings-mcp-help.spec.ts,4.532,3,2,A,,1.5
+settings-repositories-failing.spec.ts,,4,1,C,,0.0
 settings-repositories-rebase-bots.spec.ts,,4,0,C,,0.0
 settings-repositories-status-line.spec.ts,,3,0,C,,0.0
 settings-repositories.spec.ts,,16,5,C,,0.0
