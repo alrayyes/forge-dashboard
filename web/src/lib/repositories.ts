@@ -9,6 +9,8 @@ export type RepoRow = {
   forge: string;
   fullName: string;
   ignored: boolean;
+  ignoredPRs?: boolean;
+  ignoredIssues?: boolean;
   autoUpdateBranch: boolean;
   rebaseBots: boolean;
   // Set by the dashboard read; the polling-only filter reads it (#4028).
@@ -21,14 +23,24 @@ export type RepositoriesFilter = {
   search: string;
   // Only repos with no confirmed webhook (#4028).
   pollingOnly?: boolean;
+  // Which ignore state the list shows; unset is 'active', today's view (#4854).
+  ignored?: IgnoredView;
 };
+
+export type IgnoredView = 'active' | 'all' | 'only';
+export type IgnoreScope = '' | 'prs' | 'issues' | 'both';
 
 export type RepoSortKey = 'forge' | 'fullName';
 
 export const NO_FILTER: RepositoriesFilter = { forge: '', search: '' };
 
 export function filtersAreClear(filter: RepositoriesFilter): boolean {
-  return filter.forge === '' && filter.search === '' && !filter.pollingOnly;
+  return (
+    filter.forge === '' &&
+    filter.search === '' &&
+    !filter.pollingOnly &&
+    (filter.ignored ?? 'active') === 'active'
+  );
 }
 
 function matchesForge(r: RepoRow, filter: RepositoriesFilter): boolean {
@@ -40,14 +52,25 @@ function matchesSearch(r: RepoRow, filter: RepositoriesFilter): boolean {
   return !needle || r.fullName.toLowerCase().includes(needle);
 }
 
-// The repos the table shows: ignored ones live in their own disclosure.
+export const repoKey = (r: Pick<RepoRow, 'forge' | 'fullName'>) =>
+  `${r.forge}:${r.fullName}`;
+
+function matchesIgnored(r: RepoRow, filter: RepositoriesFilter): boolean {
+  const view = filter.ignored ?? 'active';
+  return view === 'all' || (view === 'only') === !!r.ignored;
+}
+
+// The repos the table shows. A repo whose key is in `keep` was just toggled,
+// so it stays where it is, whatever the ignored view says, until the person
+// refreshes or changes a filter.
 export function filterRepos<T extends RepoRow>(
   repos: T[],
   filter: RepositoriesFilter,
+  keep: ReadonlySet<string> = new Set(),
 ): T[] {
   return repos.filter(
     (r) =>
-      !r.ignored &&
+      (keep.has(repoKey(r)) || matchesIgnored(r, filter)) &&
       matchesForge(r, filter) &&
       matchesSearch(r, filter) &&
       (!filter.pollingOnly || r.hasWebhook === false),
@@ -62,7 +85,9 @@ export function forgeChoices(
 ): Set<string> {
   const found = new Set<string>(filter.forge ? [filter.forge] : []);
   for (const r of repos) {
-    if (!r.ignored && matchesSearch(r, filter)) found.add(r.forge);
+    if (matchesIgnored(r, filter) && matchesSearch(r, filter)) {
+      found.add(r.forge);
+    }
   }
   // Registry order, then any forge the registry doesn't know.
   const known = forgeIds().filter((f) => found.has(f));
@@ -96,8 +121,28 @@ export const toggleTip = (label: string, on: boolean) =>
   `${label}: ${on ? 'on. Press to turn off' : 'off. Press to turn on'}`;
 export const lockedTip = (label: string) =>
   `${label}: off, locked. The reason is below`;
-// Always "off" until #4854 gives the control an ignored state.
-export const IGNORE_TIP = 'Ignore: off. Choose what to ignore';
+const SCOPE_NOUN: Record<Exclude<IgnoreScope, ''>, string> = {
+  prs: 'pull requests',
+  issues: 'issues',
+  both: 'pull requests and issues',
+};
+
+export function ignoreScopeOf(
+  r: Pick<RepoRow, 'ignored' | 'ignoredPRs' | 'ignoredIssues'>,
+): IgnoreScope {
+  if (!r.ignored) return '';
+  if (r.ignoredPRs && r.ignoredIssues) return 'both';
+  return r.ignoredIssues ? 'issues' : 'prs';
+}
+
+// The row's own words for what is ignored, so the state is never colour alone.
+export const ignoreScopeWords = (scope: IgnoreScope) =>
+  scope ? `Ignored: ${SCOPE_NOUN[scope]}` : '';
+
+export const ignoreTip = (scope: IgnoreScope) =>
+  scope
+    ? `Ignore: ${SCOPE_NOUN[scope]}. Choose another scope, or turn it off`
+    : 'Ignore: off. Choose what to ignore';
 
 export type BulkControl = 'autoUpdate' | 'rebaseBots';
 

@@ -195,9 +195,9 @@ test('each icon toggles and the row keeps its place', async ({ page }) => {
     await expect(button).toHaveAttribute('aria-pressed', 'true');
     expect(await place()).toEqual(before);
   }
-  // Ignore keeps its scope choice: prs, issues, both.
+  // Ignore keeps its scope choice (prs, issues, both) beside Not ignored.
   const ignore = row.getByRole('combobox', { name: /^Ignore / });
-  await expect(ignore.locator('option:not([disabled])')).toHaveCount(3);
+  await expect(ignore.locator('option')).toHaveCount(4);
 });
 
 test('the tooltip shows on hover and keyboard focus, names the state, and Escape dismisses it (WCAG 1.4.13)', async ({
