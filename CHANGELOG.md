@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.120.1](https://github.com/alrayyes/forge-dashboard/compare/v9.120.0...v9.120.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep the title readable on a no-label row with a waiting chip at 1280px ([#4834](https://github.com/alrayyes/forge-dashboard/issues/4834)) ([10b4b68](https://github.com/alrayyes/forge-dashboard/commit/10b4b682ede8d882807280614a04e957ada931e0)), closes [#4795](https://github.com/alrayyes/forge-dashboard/issues/4795)
+
 ## [9.120.0](https://github.com/alrayyes/forge-dashboard/compare/v9.119.0...v9.120.0) (2026-11-25)
 
 
