@@ -139,9 +139,7 @@ for (const width of [360, 1280]) {
       await open(page, width);
     });
 
-    test('AC1: a requested rebase shows only the wait chip', async ({
-      page,
-    }) => {
+    test('a requested rebase shows only the wait chip', async ({ page }) => {
       const r = row(page, 'Requested rebase');
       await expect(r.locator('.wait-chip')).toContainText('Rebase requested');
       await expect(r.locator('.attr-chip.behind')).toHaveCount(0);
@@ -204,7 +202,7 @@ for (const width of [360, 1280]) {
       await expect(merge).toHaveAccessibleDescription(/Bring it up to date/);
     });
 
-    test('AC3: a timed out request brings the chip and message back', async ({
+    test('a timed out request brings the chip and message back', async ({
       page,
     }) => {
       const r = row(page, 'Timed out rebase');
@@ -214,7 +212,7 @@ for (const width of [360, 1280]) {
       );
     });
 
-    test('AC4: with no request the row is as it was', async ({ page }) => {
+    test('with no request the row is as it was', async ({ page }) => {
       const r = row(page, 'No rebase asked');
       await expect(r.locator('.attr-chip.behind')).toHaveText(/Out of date/);
       await expect(r.locator('.status-area')).toContainText(
@@ -224,7 +222,7 @@ for (const width of [360, 1280]) {
   });
 }
 
-test('AC2: the Out of date quick filter keeps the requested row', async ({
+test('the Out of date quick filter keeps the requested row', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -233,7 +231,7 @@ test('AC2: the Out of date quick filter keeps the requested row', async ({
   await expect(row(page, 'Requested rebase')).toHaveCount(1);
 });
 
-test('AC5: the pop-up footer lists Merge locked with its reason', async ({
+test('the pop-up footer lists Merge locked with its reason', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -246,7 +244,7 @@ test('AC5: the pop-up footer lists Merge locked with its reason', async ({
   );
 });
 
-test('AC2: the pop-up lists the requested rebase as locked with its reason', async ({
+test('the pop-up lists the requested rebase as locked with its reason', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -260,7 +258,7 @@ test('AC2: the pop-up lists the requested rebase as locked with its reason', asy
 
 for (const width of [390, 1280]) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`AC4: axe is clean on requested rows at ${width}px, ${theme}`, async ({
+    test(`axe is clean on requested rows at ${width}px, ${theme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: theme });
