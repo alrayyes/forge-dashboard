@@ -218,9 +218,9 @@ a forge has repositories to show, and Sign out is always there.
 
 - **GitHub**: authorize with GitHub, install the App on your account or an
   organization you belong to, then see the repositories it can reach. If an
-  organization owner has to approve the install, the page shows it as waiting
+  organization owner has to approve the installation, the page shows it as waiting
   for approval until they do. Use **Check again** after any step done on
-  GitHub. The install link needs `GITHUB_APP_SLUG`
+  GitHub. The installation link needs `GITHUB_APP_SLUG`
   ([configuration](configuration.md)).
 - **Forgejo**: register an OAuth app on your own Forgejo (Settings,
   Applications), leave **Confidential client** off, set the redirect URI
@@ -235,7 +235,7 @@ a forge has repositories to show, and Sign out is always there.
 The page reads `GET /api/v1/setup`, which states facts only. Which step is
 current and whether Continue is open are worked out in the browser. The
 callbacks of both forges land back on `/setup`, with `?error=<code>` after a
-failure and `?install=requested` after an install request.
+failure and `?install=requested` after an installation request.
 
 ## Credentials
 
