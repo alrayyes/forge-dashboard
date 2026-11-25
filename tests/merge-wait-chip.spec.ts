@@ -611,6 +611,22 @@ test.describe('a status that stays unknown', () => {
     await axeClean(page);
   });
 
+  test('a pull request that leaves the snapshot and comes back starts the clock again', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+    const label = row(page, 'Unknown').locator('.wait-chip-label');
+    await page.clock.fastForward(130_000);
+    await push(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+    await expect(label).toHaveText('Still waiting');
+
+    await push(page, [ready(2, 'Ready')]);
+    await expect(row(page, 'Unknown')).toHaveCount(0);
+    await push(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+    await expect(label).toHaveText('Status unknown');
+  });
+
   test('a flip to ready and back to unknown starts the clock again', async ({
     page,
   }) => {

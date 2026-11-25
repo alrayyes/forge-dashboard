@@ -11239,6 +11239,11 @@
       }
       const issues = data.issues || [];
       allPRs = prs;
+      // A pull request that left the snapshot starts its wait afresh if it
+      // comes back unknown (#4843).
+      const present = new Set(prs.map(prKey));
+      for (const key of statusUnknownSince.keys())
+        if (!present.has(key)) statusUnknownSince.delete(key);
       followOpenPipeline();
       evictRerunState();
       allIssues = issues;
