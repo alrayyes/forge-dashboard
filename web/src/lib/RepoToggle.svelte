@@ -1,5 +1,6 @@
 <script lang="ts">
   import RepoControlIcon from "./RepoControlIcon.svelte";
+  import { tipDismiss } from "./tip-dismiss";
 
   // An icon toggle for one per-repo setting. The accessible name is fixed
   // ("Auto-update on <repo>") and `aria-pressed` carries the state, so a screen
@@ -12,6 +13,7 @@
   let {
     kind,
     name,
+    tip = name,
     pressed,
     busy = false,
     disabled = false,
@@ -20,6 +22,7 @@
   }: {
     kind: "auto-update" | "rebase-bots";
     name: string;
+    tip?: string;
     pressed: boolean;
     busy?: boolean;
     disabled?: boolean;
@@ -28,7 +31,7 @@
   } = $props();
 </script>
 
-<span class="repo-control" data-tip={name}>
+<span class="repo-control" data-tip={tip} use:tipDismiss>
   <button
     type="button"
     class="repo-toggle"
@@ -136,8 +139,8 @@
   }
   @media (width <= 760px) {
     .repo-toggle {
-      width: 40px;
-      height: 40px;
+      width: 44px;
+      height: 44px;
     }
   }
 </style>

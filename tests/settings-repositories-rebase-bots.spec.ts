@@ -215,6 +215,15 @@ test.describe('rebase bots setting in Settings, Repositories', () => {
       row.getByRole('button', { name: 'Rebase bots on alrayyes/a' }),
     ).toBeDisabled();
     await expect(row).toContainText(LOCK_TEXT);
+    // The tooltip says it is locked, not that a press turns it on.
+    await expect(
+      row.locator('.repo-control', {
+        has: page.getByRole('button', { name: 'Rebase bots on alrayyes/a' }),
+      }),
+    ).toHaveAttribute(
+      'data-tip',
+      'Rebase bots: off, locked. The reason is below',
+    );
     await expect(
       page.getByRole('button', { name: /^Rebase bots on for/ }),
     ).toHaveCount(0);
