@@ -8,6 +8,7 @@ const singleUserSpecs = [
   '**/first-login-setup.spec.ts',
   '**/locked-note-align.spec.ts',
   '**/main-branches-header-400.spec.ts',
+  '**/main-branches-live-pill-gap.spec.ts',
   '**/merged-pr-pill.spec.ts',
   '**/page-tops.spec.ts',
   '**/filter-stale-forge-pick.spec.ts',
