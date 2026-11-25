@@ -254,10 +254,14 @@ test.describe('phone row status gap (#3834)', () => {
 
       await row.getByRole('button', { name: 'Update branch' }).click();
       await expect(row.locator('.wait-chip')).toBeVisible();
-      const after = await marks();
-
-      expect({ ...after, height: 0 }).toEqual({ ...before, height: 0 });
-      expect(after.height).toBeGreaterThanOrEqual(before.height);
+      // The row is drawn again as the request lands, and for a frame its
+      // boxes read as empty. Wait for the settled card, then compare.
+      await expect
+        .poll(async () => {
+          const m = await marks();
+          return { ...m, grew: m.height >= before.height, height: 0 };
+        })
+        .toEqual({ ...before, grew: true, height: 0 });
     });
   }
 
