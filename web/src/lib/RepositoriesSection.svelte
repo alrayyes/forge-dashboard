@@ -26,6 +26,7 @@
   import {
     autoUpdateName,
     IGNORE_TIP,
+    lockedTip,
     toggleTip,
     bulkTargets,
     type BulkControl,
@@ -629,7 +630,7 @@
                   forge={repo.forge}
                   url={repo.logoUrl}
                   name={repo.fullName}
-                /><span class="repo-name">
+                /><span class="repo-line-name">
                   {#if repo.url}<a
                       class="repo-link"
                       href={repo.url}
@@ -707,7 +708,9 @@
                 <RepoToggle
                   kind="rebase-bots"
                   name={rebaseBotsName(repo.fullName)}
-                  tip={toggleTip("Rebase bots", repo.rebaseBots)}
+                  tip={lockedOff
+                    ? lockedTip("Rebase bots")
+                    : toggleTip("Rebase bots", repo.rebaseBots)}
                   pressed={repo.rebaseBots}
                   busy={busy[busyKey("rebase", repo)]}
                   disabled={lockedOff}
@@ -1195,7 +1198,13 @@
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 2px 8px;
+      gap: 2px 4px;
+    }
+    /* The logo and the badge's dot are decoration; on a phone the room goes
+       to the name, which keeps at least 12 characters. */
+    .repo-table .repo-logo,
+    .repo-table .forge-badge .dot {
+      display: none;
     }
     .repo-table td.name-cell,
     .repo-table td.control-cell {
@@ -1208,12 +1217,16 @@
       flex: none;
       padding: 0;
     }
-    .repo-name {
+    .repo-line-name {
       flex: 1 1 0;
-      min-width: 0;
+      min-width: 12ch;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+    }
+    /* The ellipsis clips to the name, so the link's focus ring goes inside it. */
+    .repo-line-name :global(.repo-link:focus-visible) {
+      outline-offset: -2px;
     }
     .repo-table .failing-live,
     .repo-table .polling-reason,
@@ -1228,7 +1241,7 @@
       width: 44px;
       height: 44px;
     }
-    @container repo-rows (width <= 18rem) {
+    @container repo-rows (width <= 18.5rem) {
       .repo-table tbody tr::before {
         content: "";
         flex: 0 0 100%;

@@ -89,7 +89,7 @@ for (const scheme of ['light', 'dark'] as const) {
         for (const row of await rows.all()) {
           const tr = await rect(row);
           const badge = await rect(row.locator('.forge-badge'));
-          const name = await rect(row.locator('.repo-name'));
+          const name = await rect(row.locator('.repo-line-name'));
           const buttons = [
             row.getByRole('button', { name: /^Auto-update on / }),
             row.getByRole('button', { name: /^Rebase bots on / }),
@@ -112,14 +112,29 @@ for (const scheme of ['light', 'dark'] as const) {
           }
           // The icons share one line, and the name has room for a few letters.
           expect(new Set(boxes.map((b) => Math.round(b.y))).size).toBe(1);
+          // The name keeps at least 12 characters on a phone, in either layout.
+          const twelveCh = await row.evaluate((el) => {
+            const probe = document.createElement('i');
+            probe.style.cssText = 'display:block;width:12ch;height:1px';
+            el.querySelector('.repo-line-name')?.appendChild(probe);
+            const w = probe.getBoundingClientRect().width;
+            probe.remove();
+            return w;
+          });
           expect(name.width).toBeGreaterThan(24);
+          if (width <= 760)
+            expect(name.width).toBeGreaterThanOrEqual(twelveCh - 1);
           // One line, or two when the icons drop under the name; the icons
           // are never stacked.
           const sameLine =
             Math.abs(
               boxes[0].y + boxes[0].height / 2 - (name.y + name.height / 2),
             ) < 12;
-          if (width >= 390 && zoom === 100) expect(sameLine).toBe(true);
+          // One line at 390px at normal text; the fallback at 320px and at
+          // 175% text on a phone.
+          if (width === 390 && zoom === 100) expect(sameLine).toBe(true);
+          if (width === 320 || (width === 390 && zoom === 175))
+            expect(sameLine).toBe(false);
           if (width <= 760 && !sameLine)
             expect(boxes[0].y).toBeGreaterThanOrEqual(name.y + name.height - 1);
           // Tap targets: 44px on a phone.
@@ -151,7 +166,7 @@ for (const scheme of ['light', 'dark'] as const) {
     page,
   }) => {
     await open(page, 320, scheme);
-    const name = rowOf(page, LONG).locator('.repo-name');
+    const name = rowOf(page, LONG).locator('.repo-line-name');
     expect(await name.evaluate((el) => getComputedStyle(el).textOverflow)).toBe(
       'ellipsis',
     );
@@ -246,4 +261,105 @@ test('extra lines stay below the icons and only appear when needed', async ({
   const note = await rect(noisy.getByTestId('polling-reason'));
   const ignore = await rect(noisy.getByRole('combobox', { name: /^Ignore / }));
   expect(note.y).toBeGreaterThanOrEqual(ignore.y + ignore.height - 1);
+});
+
+test('a focused repo link keeps its whole focus ring inside the cut-off name', async ({
+  page,
+}) => {
+  await open(page, 390, 'light');
+  const link = rowOf(page, 'owner/app').locator('.repo-link');
+  await link.focus();
+  await expect(link).toBeFocused();
+  const ring = await link.evaluate((a) => {
+    const s = getComputedStyle(a);
+    const box = a.getBoundingClientRect();
+    const name = (
+      a.closest('.repo-line-name') as HTMLElement
+    ).getBoundingClientRect();
+    return {
+      style: s.outlineStyle,
+      offset: parseFloat(s.outlineOffset),
+      width: parseFloat(s.outlineWidth),
+      insideLeft: box.left - name.left,
+      insideTop: box.top - name.top,
+      insideBottom: name.bottom - box.bottom,
+    };
+  });
+  expect(ring.style).toBe('solid');
+  // A negative offset draws the ring inside the link's box, which the name
+  // contains, so overflow: hidden cannot clip it.
+  expect(ring.offset).toBeLessThanOrEqual(-ring.width);
+  expect(ring.insideLeft).toBeGreaterThanOrEqual(0);
+  expect(ring.insideTop).toBeGreaterThanOrEqual(0);
+  expect(ring.insideBottom).toBeGreaterThanOrEqual(0);
+});
+
+test('a phone row is five cells and every control has a name', async ({
+  page,
+}) => {
+  await open(page, 390, 'light');
+  const row = rowOf(page, 'owner/app');
+  await expect(row.getByRole('cell')).toHaveCount(5);
+  await expect(
+    row.getByRole('button', { name: 'Auto-update on owner/app' }),
+  ).toBeVisible();
+  await expect(
+    row.getByRole('button', { name: 'Rebase bots on owner/app' }),
+  ).toBeVisible();
+  await expect(
+    row.getByRole('combobox', { name: 'Ignore owner/app' }),
+  ).toBeVisible();
+  await expect(row.getByRole('link', { name: 'owner/app' })).toBeVisible();
+});
+
+test('the tooltip is hoverable: the pointer can cross onto it without it closing (WCAG 1.4.13)', async ({
+  page,
+}) => {
+  await open(page, 1280, 'light');
+  const row = rowOf(page, 'owner/app');
+  const toggle = row.getByRole('button', { name: /^Auto-update on / });
+  const host = row.locator('.repo-control').first();
+  const shown = () =>
+    host.evaluate((el) => {
+      const s = getComputedStyle(el, '::after');
+      return s.visibility === 'visible' && s.opacity !== '0';
+    });
+  const box = await rect(host);
+  await toggle.hover();
+  expect(await shown()).toBe(true);
+  // Up through the 6px gap and onto the tip, in small steps.
+  await page.mouse.move(box.x + box.width - 3, box.y - 12, { steps: 20 });
+  expect(await shown()).toBe(true);
+  // The tip floats above the control, so it never reaches the neighbouring
+  // icons, which share the control's line.
+  const placed = await host.evaluate((el) => ({
+    bottom: parseFloat(getComputedStyle(el, '::after').bottom),
+    height: el.getBoundingClientRect().height,
+  }));
+  expect(placed.bottom).toBe(placed.height + 6);
+  await page.mouse.move(0, 0);
+  expect(await shown()).toBe(false);
+});
+
+test('Escape closes the tooltip and is left alone for a dialog', async ({
+  page,
+}) => {
+  await open(page, 1280, 'light');
+  const toggle = rowOf(page, 'owner/app').getByRole('button', {
+    name: /^Auto-update on /,
+  });
+  type Win = { escapes: boolean[] };
+  await page.evaluate(() => {
+    (window as unknown as Win).escapes = [];
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape')
+        (window as unknown as Win).escapes.push(e.defaultPrevented);
+    });
+  });
+  await toggle.focus();
+  await page.keyboard.press('Escape');
+  // The key still bubbles unprevented, so an open dialog still sees it.
+  expect(await page.evaluate(() => (window as unknown as Win).escapes)).toEqual(
+    [false],
+  );
 });

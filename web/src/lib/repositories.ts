@@ -94,6 +94,9 @@ export const ignoreName = (fullName: string) => `Ignore ${fullName}`;
 // accessible name stays fixed; this is the sighted hover and focus text.
 export const toggleTip = (label: string, on: boolean) =>
   `${label}: ${on ? 'on. Press to turn off' : 'off. Press to turn on'}`;
+export const lockedTip = (label: string) =>
+  `${label}: off, locked. The reason is below`;
+// Always "off" until #4854 gives the control an ignored state.
 export const IGNORE_TIP = 'Ignore: off. Choose what to ignore';
 
 export type BulkControl = 'autoUpdate' | 'rebaseBots';

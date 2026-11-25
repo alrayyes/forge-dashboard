@@ -7491,9 +7491,32 @@ footer a[aria-current="page"] {
   opacity: 1;
   visibility: visible;
 }
+/* Hoverable (WCAG 1.4.13), as .wait-chip-tip: the tip and a transparent bridge
+   over the 6px gap take the pointer only while the tip is open, so moving
+   from the control onto it never closes it. Both are pseudo-elements of the
+   control, so the control stays :hover over them. */
+.repo-control::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 6px;
+  pointer-events: none;
+}
+.repo-control:hover::before,
+.repo-control:hover::after,
+.repo-control:has(:focus-visible)::before,
+.repo-control:has(:focus-visible)::after {
+  pointer-events: auto;
+}
 /* Escape dismisses the tooltip until the pointer or focus leaves (WCAG
    1.4.13). */
 .repo-control[data-tip-dismissed]::after {
   opacity: 0;
   visibility: hidden;
+  pointer-events: none;
+}
+.repo-control[data-tip-dismissed]::before {
+  pointer-events: none;
 }

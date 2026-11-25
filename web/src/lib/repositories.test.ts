@@ -9,6 +9,7 @@ import {
   forgeChoices,
   IGNORE_TIP,
   ignoreName,
+  lockedTip,
   type RepoRow,
   rebaseBotsName,
   sortRepos,
@@ -183,6 +184,11 @@ describe('tooltips', () => {
     );
     expect(toggleTip('Rebase bots', false)).toBe(
       'Rebase bots: off. Press to turn on',
+    );
+  });
+  test('a locked toggle says it is locked, not that a press turns it on', () => {
+    expect(lockedTip('Rebase bots')).toBe(
+      'Rebase bots: off, locked. The reason is below',
     );
   });
   test('the Ignore tip points at the scope choice', () => {
