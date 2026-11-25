@@ -55,6 +55,15 @@ describe('boardNeedsSetup', () => {
     ).toBe(false);
   });
 
+  test('a username-only board still works, so it stays put', async () => {
+    expect(
+      await boardNeedsSetup(answering(unlinked, { githubUsername: 'octo' })),
+    ).toBe(false);
+    expect(
+      await boardNeedsSetup(answering(unlinked, { forgejoUsername: ' ' })),
+    ).toBe(true);
+  });
+
   test('an answer that is not the setup facts, or a failure: no', async () => {
     expect(await boardNeedsSetup(answering({ pullRequests: [] }))).toBe(false);
     expect(
