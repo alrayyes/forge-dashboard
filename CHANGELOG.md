@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.125.4](https://github.com/alrayyes/forge-dashboard/compare/v9.125.3...v9.125.4) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** decide what stacked, forge_unreachable, not_rate_limited and not_open do ([#4925](https://github.com/alrayyes/forge-dashboard/issues/4925)) ([d077ecc](https://github.com/alrayyes/forge-dashboard/commit/d077eccc5083fb56d694468da652dbb0573de7fe))
+
 ## [9.125.3](https://github.com/alrayyes/forge-dashboard/compare/v9.125.2...v9.125.3) (2026-11-25)
 
 
