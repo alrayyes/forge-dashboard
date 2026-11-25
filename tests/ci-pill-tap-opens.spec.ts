@@ -92,26 +92,24 @@ test.describe('on a phone, tapping a CI pill opens its checks (#4753)', () => {
         const pill = page.locator('#pr-rows .row .ci-pill').first();
         await expect(pill).toBeVisible();
 
-        // Key each visible part by its own class once, after the pill has
-        // rendered its parts, instead of re-resolving an index into a
-        // `:visible` list that shifts under a re-render.
+        // A poll redraws a pill's parts in place, and button.ci-pill > * has
+        // pointer-events: none, so a tap needs `force`, which also turns off
+        // Playwright's wait for the node to be actionable. A tap on a node
+        // the redraw just replaced fails with 'Element is not visible'. So
+        // read where every visible part sits once, in one call, and tap those
+        // points: the redraw keeps the layout, and the press lands on the
+        // button, as a thumb's does.
         const partsLocator = pill.locator('.ci-word:visible, .ci-seg:visible');
         await expect(partsLocator.first()).toBeVisible();
-        const parts = await partsLocator.evaluateAll((els) =>
+        const points = await partsLocator.evaluateAll((els) =>
           els.map((el) => {
-            const cls = el.classList.contains('ci-word')
-              ? 'ci-word'
-              : (Array.from(el.classList).find(
-                  (c) => c.startsWith('ci-seg-') && c !== 'ci-seg-label',
-                ) ?? 'ci-seg-label');
-            return `.${cls}`;
+            const r = el.getBoundingClientRect();
+            return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
           }),
         );
-        expect(parts.length).toBeGreaterThan(0);
-        for (const selector of parts) {
-          const part = pill.locator(selector).first();
-          await expect(part).toBeVisible();
-          await part.tap({ force: true });
+        expect(points.length).toBeGreaterThan(0);
+        for (const point of points) {
+          await page.touchscreen.tap(point.x, point.y);
           await expect(dialog(page)).toBeVisible();
           await expect(page.locator('.ci-pill-tip')).toBeHidden();
           await page.keyboard.press('Escape');
