@@ -1,4 +1,5 @@
 import { expect, type Page, type Route } from '@playwright/test';
+import { linkedSetupFacts } from './fixtures';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -113,14 +114,22 @@ test.describe('the Branches filter follows the account (#1620)', () => {
       storageState: await page.context().storageState(),
     });
     await other.clearCookies({ name: 'forge-board-filters' });
+    // browser.newContext() skips the shared test's context, so the page would
+    // ask the real server, which has no forge linked, and be sent to /setup
+    // (#4026) a moment after its rows first draw (#4939).
+    await other.route(
+      (url) => url.pathname === '/api/v1/setup',
+      (route) => route.fulfill({ json: linkedSetupFacts }),
+    );
     const second = await other.newPage();
     await mock(second);
     await second.goto('/');
-    await expect(rows(second)).toHaveCount(2);
+    // The pill is the sign the copy was applied; the rows follow it.
     await expect(status(second, 'Failing')).toHaveAttribute(
       'aria-pressed',
       'true',
     );
+    await expect(rows(second)).toHaveCount(2);
     await other.close();
   });
 
