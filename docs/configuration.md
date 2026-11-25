@@ -120,7 +120,7 @@ always report false.
 
 The **Conflicting** pill keeps the pull requests with a merge conflict, so
 they can be fixed in one pass. It reads the `mergeStatus` of each pull request,
-`conflicting`, the same field behind the row's own Conflicting pill, so the page
+`conflicting`, the same field behind the row's conflict warning, so the page
 holds no rule of its own. A draft that conflicts is listed too.
 
 The **Out of date** pill keeps the pull requests whose base branch has

@@ -1987,15 +1987,17 @@ test.describe('dashboard page', () => {
       await expect(page.locator('.merge-pill')).toHaveCount(0);
     });
 
-    test('a conflicting pull request shows the blocked/conflict pill', async ({
+    test('a conflicting pull request shows the conflict block, not a pill', async ({
       page,
     }) => {
       await mockDashboard(page, [pr({ mergeStatus: 'conflicting' })]);
       await page.goto('/pull-requests.html');
 
-      const pill = page.locator('#pr-rows .merge-pill.conflicting');
-      await expect(pill).toHaveCount(1);
-      await expect(pill).toContainText('Conflicting');
+      // The status block says it once, so there is no pill (#4655).
+      await expect(page.locator('#pr-rows .merge-pill')).toHaveCount(0);
+      await expect(page.locator('#pr-rows .status-area')).toContainText(
+        'Merge conflict',
+      );
     });
 
     test('a blocked pull request shows the blocked pill', async ({ page }) => {
@@ -2052,7 +2054,7 @@ test.describe('dashboard page', () => {
       await expect(pill).toContainText('Blocked');
     });
 
-    test('a conflicting pull request shows the conflict pill even while CI is still running — a real conflict, not a completion gate', async ({
+    test('a conflicting pull request shows the conflict block even while CI is still running — a real conflict, not a completion gate', async ({
       page,
     }) => {
       await mockDashboard(page, [
@@ -2060,9 +2062,11 @@ test.describe('dashboard page', () => {
       ]);
       await page.goto('/pull-requests.html');
 
-      const pill = page.locator('#pr-rows .merge-pill.conflicting');
-      await expect(pill).toHaveCount(1);
-      await expect(pill).toContainText('Conflicting');
+      // The status block says it once, so there is no pill (#4655).
+      await expect(page.locator('#pr-rows .merge-pill')).toHaveCount(0);
+      await expect(page.locator('#pr-rows .status-area')).toContainText(
+        'Merge conflict',
+      );
     });
 
     test('a pull request with auto-merge enabled shows the auto-merge pill', async ({

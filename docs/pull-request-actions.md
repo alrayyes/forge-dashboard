@@ -274,15 +274,18 @@ its reason again. The Out of date
 quick filter and the Update all count still read `behind`. It is drawn in the
 warning colour on a tinted fill with a larger icon and heavier text, so a stale
 pull request stands out. It is readable in both themes (4.5:1 for the words,
-3:1 for the outline). Conflicts and Blocked stay as merge pills, since they say
-what the merge needs.
+3:1 for the outline). Blocked stays a merge pill, since it says what the merge
+needs. A confirmed conflict draws no pill on the row or in the pop-up: the
+"Merge conflict" status block says it, and the file names of a refused merge stay
+as a line of text. A row with no status block keeps the Conflicting pill, as the
+sole statement.
 Forgejo has one `mergeable` flag. It is false for a conflict and also while the
 forge rechecks after a base push, so a Forgejo pull request that is false with a
 moved base says "Checking for conflicts" (`mergeStatus: checking`) for about 90
 seconds, two refresh intervals. The row prints no "Checking for conflicts" pill
 beside it: the waiting chip says it once.
 A Forgejo row is Conflicting in one of two ways. If a merge or update of it was
-refused with a conflict (HTTP 409 naming one), the row says "Conflicting" at
+refused with a conflict (HTTP 409 naming one), the row says "Merge conflict" at
 once, even inside the window, and names the files git reported ("In a.txt,
 docs/b.md"). If the flag is still false for the same head and base after the
 window and no refusal named a conflict, the row says "Conflict not confirmed",
@@ -300,7 +303,7 @@ that, and the banner says how old the data is. The API's blocked reason for
 Merge follows the same rule: it names Update branch only when the pull request
 lists it. None of this depends on the forge: the words come from the one rule
 below. Either way the status is `conflicting` for the
-Conflicting pill, and the server sends `conflictConfirmed` and `conflictFiles`
+Conflicting filter, and the server sends `conflictConfirmed` and `conflictFiles`
 for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.

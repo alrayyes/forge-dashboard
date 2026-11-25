@@ -76,8 +76,9 @@ for (const theme of ['light', 'dark'] as const) {
           1,
         );
         await expect(checking).not.toContainText('Conflicting');
+        // A confirmed conflict is the status block's words, not a pill.
         await expect(row(page, 'Base moved, conflict')).toContainText(
-          'Conflicting',
+          'Merge conflict',
         );
       });
     });

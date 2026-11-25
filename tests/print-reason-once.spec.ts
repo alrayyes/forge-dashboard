@@ -151,7 +151,7 @@ for (const scheme of ['light', 'dark'] as const) {
         await open(page, [confirmed]);
         const dialog = await openActionsDialog(row(page, 'Confirmed'));
 
-        await expect(dialog.locator('.merge-pill.conflicting')).toHaveCount(1);
+        await expect(dialog.locator('.merge-pill')).toHaveCount(0);
         await expect(dialog.getByText('Out of date')).toHaveCount(0);
         await expect(dialog.getByText(CONFLICT_NEXT)).toHaveCount(1);
         await expect(

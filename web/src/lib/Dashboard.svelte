@@ -1218,6 +1218,8 @@
       forge: string,
       // The wait chip already says "Checking for conflicts" (#4663).
       lineSaysChecking = false,
+      // The status block already says "Merge conflict" (#4655).
+      blockSaysConflict = false,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
@@ -1232,6 +1234,11 @@
         return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
+      // The block says the conflict; only the files it adds stay (#4655).
+      if (status === "conflicting" && blockSaysConflict) {
+        const where = conflictWhere(conflict.files ?? []);
+        return where ? el("span", "merge-where", where) : null;
+      }
       const pill = el("span", `merge-pill ${status}`);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
@@ -1356,6 +1363,16 @@
     function conflictShown(item: PullRequestItem): boolean {
       return (
         item.mergeStatus === "conflicting" && item.conflictConfirmed !== false
+      );
+    }
+
+    // The status block draws the conflict, so no pill repeats it (#4655).
+    function conflictBlockShown(item: PullRequestItem, withFix: boolean) {
+      return (
+        conflictShown(item) &&
+        item.status?.code === "conflict" &&
+        !isSettled(item) &&
+        statusArea(item, withFix) !== null
       );
     }
 
@@ -1855,6 +1872,7 @@
           conflictFacts(item),
           item.forge,
           checkingLineShown(item),
+          conflictBlockShown(item, false),
         );
       } finally {
         idScope = "";
@@ -3484,6 +3502,7 @@
           conflictFacts(pr),
           pr.forge,
           checkingLineShown(pr),
+          conflictBlockShown(pr, true),
         );
         const reviewActivity = reviewPill(pr, (triggerId) =>
           openDetailsDialog(pr, triggerId),
@@ -4299,7 +4318,9 @@
         text.appendChild(slot);
       }
       area.appendChild(text);
-      return area;
+      // The block took the Conflicting pill's place, so it carries the same
+      // earlier-answer claim while the forge can't be asked (#3994, #4655).
+      return status.code === "conflict" ? claimed(area, item) : area;
     }
 
     // The action the server says clears this pull request's status, or null.

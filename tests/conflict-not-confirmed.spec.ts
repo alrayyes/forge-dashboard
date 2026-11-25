@@ -72,7 +72,9 @@ for (const theme of ['light', 'dark'] as const) {
         page,
       }) => {
         const r = row(page, 'Refused naming files');
-        await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+        // The status block says the conflict, so no pill repeats it.
+        await expect(r.locator('.merge-pill')).toHaveCount(0);
+        await expect(r.locator('.status-area')).toContainText('Merge conflict');
         await expect(r.locator('.merge-where')).toHaveText(
           'In a.txt, docs/b.md',
         );
@@ -97,7 +99,8 @@ for (const theme of ['light', 'dark'] as const) {
 
       test('a GitHub conflict is unchanged', async ({ page }) => {
         const r = row(page, 'GitHub conflict');
-        await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+        await expect(r.locator('.merge-pill')).toHaveCount(0);
+        await expect(r.locator('.status-area')).toContainText('Merge conflict');
         await expect(r.locator('.merge-where')).toHaveCount(0);
       });
     });

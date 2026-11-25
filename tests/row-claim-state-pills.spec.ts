@@ -108,7 +108,8 @@ async function open(page: Page, forge: Forge, reachable: boolean) {
 
 const PILLS = [
   '.ci-pill',
-  '.merge-pill',
+  // A confirmed conflict is the status block's words, not a pill (#4655).
+  '.status-area',
   '.attr-chip.behind',
   '.attr-chip.auto-merge',
 ];
