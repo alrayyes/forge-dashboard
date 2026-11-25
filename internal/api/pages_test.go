@@ -25,6 +25,8 @@ func TestPages_RequireASession(t *testing.T) {
 		"/bots.html",
 		"/pull-requests.html",
 		"/settings.html",
+		"/setup",
+		"/setup.html",
 		"/changelog.html",
 		"/changelog.json",
 	} {

@@ -174,6 +174,11 @@ no budget, so nothing is held back there. See [Rate limits](rate-limits.md).
 Instead of pasting a Forgejo token you can link your account from Settings. The
 dashboard then holds a short-lived access token and a refresh token, encrypted
 with the same key as the other saved credentials, and renews the pair itself.
+Without these variables an owner can still link an account from the
+[setup page](accounts.md#first-login-setup), with the Client ID of an OAuth app
+they register on their own Forgejo (**Confidential client** turned off). The Client
+ID is public and is kept so refreshes can name it.
+
 A linked account is used in place of a pasted token. Disconnecting deletes the
 pair and the dashboard goes back to the pasted token, if there is one.
 
@@ -185,6 +190,9 @@ To turn it on:
    `/api/v1/connections/forgejo/callback`, for example
    `https://dash.example.com/api/v1/connections/forgejo/callback`. The match is
    exact, so a different scheme, host or port is refused.
+   The same redirect lands on the [first-login setup page](accounts.md#first-login-setup)
+   when the link is made or fails (`/setup`, with `?error=<code>` after a
+   failure).
 3. Set `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` and restart.
    With either missing the feature stays off and `forgejoOAuthConfigured` in
    `GET /api/v1/settings` is `false`.
@@ -221,6 +229,9 @@ To turn it on, on the App's settings page:
    `/api/v1/connections/github/callback`, for example
    `https://dash.example.com/api/v1/connections/github/callback`. The match is
    exact, so a different scheme, host or port is refused.
+   After the sign-in the browser is sent to `/setup`, with `?error=<code>` after
+   a failure. Set `GITHUB_APP_SLUG` so that page can link to the App's install
+   page.
 3. Leave **Expire user authorization tokens** on. GitHub then issues a token
    that lasts eight hours with a refresh token, and the dashboard relies on it.
 4. Set `GITHUB_APP_CLIENT_ID` and `GITHUB_APP_CLIENT_SECRET` and restart. With
