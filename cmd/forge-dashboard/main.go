@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -384,6 +385,11 @@ func run() error {
 		return fmt.Errorf("github app setup failed: %w", err)
 	}
 
+	githubAppSlug, err := resolveGitHubAppSlug(os.Getenv("GITHUB_APP_SLUG"))
+	if err != nil {
+		return err
+	}
+
 	service := newService(settingsStore, refreshInterval, ciPollInterval)
 	service.SetWebhookMinInterval(webhookMinInterval)
 	defer service.Stop()
@@ -418,6 +424,7 @@ func run() error {
 		// Deps.PublicOrigin.
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
+		GitHubAppSlug:       githubAppSlug,
 	}
 	// Forgejo links with a public client the owner names on the setup page.
 	// A server-wide client from the environment still works and wins when the
@@ -970,6 +977,23 @@ func buildGitHubApp() (appID int64, privateKeyPEM []byte, err error) {
 	}
 
 	return appID, privateKeyPEM, nil
+}
+
+var githubAppSlugPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9-]*$`)
+
+// resolveGitHubAppSlug checks GITHUB_APP_SLUG, the App's URL name. The setup
+// page builds a link from it, so only what GitHub itself allows in a slug gets
+// through. Unset is fine: the page then has no install link.
+func resolveGitHubAppSlug(raw string) (string, error) {
+	if raw == "" {
+		return "", nil
+	}
+
+	if !githubAppSlugPattern.MatchString(raw) {
+		return "", errors.New("GITHUB_APP_SLUG must be the App's URL name: letters, digits and hyphens")
+	}
+
+	return raw, nil
 }
 
 func envOr(key, fallback string) string {
