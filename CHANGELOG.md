@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.120.2](https://github.com/alrayyes/forge-dashboard/compare/v9.120.1...v9.120.2) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** switch the row layout at one width so 760.5px gets one of the two ([#4779](https://github.com/alrayyes/forge-dashboard/issues/4779)) ([#4837](https://github.com/alrayyes/forge-dashboard/issues/4837)) ([18f9de2](https://github.com/alrayyes/forge-dashboard/commit/18f9de2268e4153805582c77b7cc6d9542f2eb16))
+
 ## [9.120.1](https://github.com/alrayyes/forge-dashboard/compare/v9.120.0...v9.120.1) (2026-11-25)
 
 
