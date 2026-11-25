@@ -5933,20 +5933,22 @@ button.pipeline-check-link:disabled {
 
 /* #4784: on a tablet the band is 430 to 650px wide. Wrapping the note and
    the "Stacked on" reason onto two bands made the row 2.3 times a plain one,
-   so they stay side by side: the note takes the larger share, and the
-   reason, which is short, keeps the rest. */
+   so they stay side by side, an even share each. */
 @media (760px < width <= 1100px) {
   .row > .stack-band {
     /* Under the repo cell too: the first track is 240px of empty space
        below the row's own line. */
     grid-column: 1 / -1;
-    flex-wrap: nowrap;
   }
+  /* Each block keeps 28ch, so at a large text size, where two of them no
+     longer fit, the reason wraps under the note instead of shrinking. */
   .stack-band > .stack-info {
     flex: 1 1 28ch;
+    min-width: 28ch;
   }
   .stack-band > .status-area-stacked {
     flex: 1 1 28ch;
+    min-width: 28ch;
     padding-block: 4px;
   }
 }
