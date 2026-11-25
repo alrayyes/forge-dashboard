@@ -293,6 +293,7 @@
     spentLimit,
   } from "#lib/forge-lock.js";
   import { LockRedraw } from "#lib/lock-redraw.js";
+  import { clearStaleLocks } from "#lib/stale-locks.js";
   import { bannerCopy, type ProviderStatus } from "#lib/unreachable-banner.js";
   import {
     chipClass,
@@ -3875,12 +3876,19 @@
     // until a full page reload. Leaves in-flight phases
     // ('confirming', 'merging', 'queued') alone; those track a request
     // actually in progress, not a stale conclusion from a previous one.
-    function clearStaleLocks(stateMap: Record<string, ActionState>) {
-      for (const key of Object.keys(stateMap)) {
-        const entry = stateMap[key];
-        if (entry.phase === "locked" && !holdsPermissionLock(entry))
-          delete stateMap[key];
-      }
+    function clearStaleLocksOnSnapshot() {
+      clearStaleLocks(
+        [
+          mergeState,
+          closeState,
+          updateBranchState,
+          autoMergeState,
+          dependabotActionState,
+          renovateRebaseState,
+          cancelRenovateRebaseState,
+        ],
+        holdsPermissionLock,
+      );
     }
 
     // A permission refusal doesn't come from the snapshot, so a snapshot
@@ -11201,9 +11209,7 @@
       // lastForges fresh every time from the
       // values just updated above — while one that's resolved simply
       // doesn't.
-      clearStaleLocks(mergeState);
-      clearStaleLocks(closeState);
-      clearStaleLocks(updateBranchState);
+      clearStaleLocksOnSnapshot();
       announceAutoMerged(data.autoMerged ?? []);
       // Release pull requests have their own page: the pull request board
       // shows none of them and the Releases board only them. The server says
