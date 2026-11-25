@@ -64,6 +64,10 @@ describe('boardNeedsSetup', () => {
     ).toBe(true);
   });
 
+  test('settings that cannot be read: no, an upgraded owner is not bounced', async () => {
+    expect(await boardNeedsSetup(answering(unlinked, {}, false))).toBe(false);
+  });
+
   test('an answer that is not the setup facts, or a failure: no', async () => {
     expect(await boardNeedsSetup(answering({ pullRequests: [] }))).toBe(false);
     expect(
