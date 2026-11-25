@@ -143,6 +143,8 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
 
 - [Pull request actions](docs/pull-request-actions.md): what a row offers, and
   why a blocked action is blocked.
+- [How Merge is held back](docs/how-merge-is-held-back.md): what each block
+  means, what an armed pull request does, and what waiting and stopped mean.
 - [Pull request pages](docs/pull-request-pages.md): the details pop-up, the
   Releases and Bots pages and hiding one pull request.
 - [Issues](docs/issues.md): the issues page and the settings that hide issues.

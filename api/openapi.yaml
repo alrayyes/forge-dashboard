@@ -4403,7 +4403,7 @@ components:
             With any other code it is the forge's own text, for logs.
         code:
           type: string
-          enum:
+          x-extensible-enum:
             - already_merged
             - already_closed
             - not_mergeable
@@ -4425,6 +4425,11 @@ components:
             - not_reopenable
             - unknown
           description: |
+            One of the values above today, and the server may learn more.
+            A client should treat a code it doesn't know like `unknown`
+            and show `message`, not fail to decode. Declared with
+            `x-extensible-enum` so adding a value is a minor SDK release.
+
             Why the action was refused, from a re-read of the pull
             request's real state. `already_merged` and `already_closed`
             mean the dashboard's row was stale: the pull request has

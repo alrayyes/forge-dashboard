@@ -1,5 +1,8 @@
 # Pull request actions
 
+For what each block means, in plain words, see
+[How Merge is held back](how-merge-is-held-back.md).
+
 Which actions a row offers, and why a blocked one is blocked, come from the
 server: each pull request in `GET /api/v1/dashboard` carries a list named
 `allowedActions`, and the page renders what is listed without any rules of its
