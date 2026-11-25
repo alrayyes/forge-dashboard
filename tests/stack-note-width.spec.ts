@@ -98,7 +98,7 @@ const rowFor = (page: Page, n: number) =>
 // A tablet or a narrow desktop window: the note and the reason used to wrap
 // into two bands of about 430px, so a dependent row was 2.3 times a plain one.
 // https://github.com/alrayyes/forge-dashboard/issues/4784
-for (const width of [761, 900, 1000]) {
+for (const width of [761, 900, 1000, 1100]) {
   for (const colorScheme of ['light', 'dark'] as const) {
     test.describe(`stacked row height at ${width}px, ${colorScheme} (#4784)`, () => {
       test.use({ colorScheme });
@@ -110,8 +110,49 @@ for (const width of [761, 900, 1000]) {
         const plain = (await rowFor(page, 900).boundingBox())!.height;
         const dependent = (await rowFor(page, 839).boundingBox())!.height;
         // Chip line (26px) and a gap, then two lines of the note at 0.75rem,
-        // and the 4px of padding the reason beside it carries.
+        // and the 4px of padding above and below the reason beside it.
         expect(dependent).toBeLessThanOrEqual(plain + 26 + 8 + 2 * 18 + 8);
+      });
+
+      test('the note and the reason share one band that starts under the repo cell', async ({
+        page,
+      }) => {
+        await open(page, width);
+        const row = rowFor(page, 839);
+        const info = (await row.locator('.stack-info').boundingBox())!;
+        const reason = (await row
+          .locator('.status-area-stacked')
+          .boundingBox())!;
+        const title = (await row.locator('.title-cell').boundingBox())!;
+        expect(Math.abs(info.y - reason.y)).toBeLessThan(2);
+        expect(info.x).toBeLessThan(title.x);
+      });
+
+      test('at 175% text each block keeps 28ch or wraps to its own line', async ({
+        page,
+      }) => {
+        await page.addInitScript(() => {
+          document.addEventListener('DOMContentLoaded', () => {
+            const st = document.createElement('style');
+            st.textContent = 'html { font-size: 175% !important; }';
+            document.head.appendChild(st);
+          });
+        });
+        await open(page, width);
+        const row = rowFor(page, 839);
+        for (const sel of ['.stack-info', '.status-area-stacked']) {
+          const m = await row.locator(sel).evaluate((el) => {
+            // 28ch in the element's own font, measured inside it.
+            const probe = document.createElement('div');
+            probe.style.cssText =
+              'position:absolute;visibility:hidden;width:28ch;height:0';
+            el.appendChild(probe);
+            const ch28 = probe.getBoundingClientRect().width;
+            probe.remove();
+            return { width: el.getBoundingClientRect().width, ch28 };
+          });
+          expect(m.width, sel).toBeGreaterThanOrEqual(m.ch28 - 1);
+        }
       });
 
       test('the note still wraps at 28ch or more and nothing overflows', async ({
@@ -166,6 +207,34 @@ for (const width of [761, 900, 1000]) {
     });
   }
 }
+
+// The tablet layout ends where it should: nothing moves at 760px (the phone
+// card) or at 1101px (the wide rules).
+test.describe('stacked row boundaries (#4784)', () => {
+  test('at 1101px the band keeps its wide-row wrapping and starts at the title track', async ({
+    page,
+  }) => {
+    await open(page, 1101);
+    const band = rowFor(page, 839).locator('.stack-band');
+    expect(await band.evaluate((el) => getComputedStyle(el).flexWrap)).toBe(
+      'wrap',
+    );
+    const b = (await band.boundingBox())!;
+    const title = (await rowFor(page, 839)
+      .locator('.title-cell')
+      .boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(title.x - 1);
+  });
+
+  test('at 760px the stack block sits in the title cell, with no band', async ({
+    page,
+  }) => {
+    await open(page, 760);
+    const row = rowFor(page, 839);
+    await expect(row.locator('.title-cell .stack-info')).toHaveCount(1);
+    await expect(row.locator('.stack-band')).toHaveCount(0);
+  });
+});
 
 for (const width of [1280, 390]) {
   test.describe(`stack note at ${width}px (#4775)`, () => {

@@ -308,7 +308,7 @@ show-row-clears-filters.spec.ts,0.997,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.956,9,2,C,,1.5
 sort-select-arrow.spec.ts,,3,3,A,,0.0
 stable-rows.spec.ts,10.214,26,15,A,,4.3
-stack-note-width.spec.ts,,11,11,A,,0.0
+stack-note-width.spec.ts,,15,14,A,,0.0
 stacked-prs.spec.ts,2.66,7,2,C,,1.9
 stale-dashboard-instance.spec.ts,0.347,1,0,C,,0.3
 stale-data-notice.spec.ts,1.23,4,1,C,,0.9
