@@ -306,9 +306,11 @@ wide as its content, up to the room there is, and one line tall. On a row with n
 action and no merge-state or comment pill it sits after the CI pill on the
 pill's own line, in the rest of the cell (the cell is the CI pill and that
 remainder, so the pill's slot gives up its minimum width), and the row is no
-taller than one without a chip. Otherwise
-it has a line at the cell's right edge, 36px more than the row would be without
-it. Its room is only there while a chip is. A narrower list
+taller than one without a chip. A row with an armed chip (Cancel auto-merge
+makes it 259px wide), a comment or merge-state pill and an action has the chip
+on a line of its own too, so the title keeps at least 200px at 1280px.
+Otherwise it has a line at the cell's right edge, 36px more than the row
+would be without it. Its room is only there while a chip is. A narrower list
 keeps the wrapping status cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is

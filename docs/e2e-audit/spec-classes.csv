@@ -177,6 +177,7 @@ nav-pills.spec.ts,4.33,20,7,C,,2.8
 nav-public-pages.spec.ts,1.396,3,1,C,,0.9
 nav-telemetry-pills.spec.ts,3.594,15,6,C,,2.2
 nav.spec.ts,4.142,12,7,A,web/src/lib/nav-counts-next.test.ts;web/src/lib/nav-labels.test.ts;web/src/lib/nav-link-shown.test.ts;web/src/lib/nav-pill-contrast.test.ts,1.7
+no-label-wait-title.spec.ts,,1,1,A,,0.0
 one-line-wait.spec.ts,,4,2,A,,0.0
 out-of-date-chip-fit.spec.ts,3.486,1,1,A,,0.0
 out-of-date-filter.spec.ts,6.316,10,3,C,,4.4

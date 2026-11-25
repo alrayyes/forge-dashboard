@@ -554,6 +554,9 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   root.className = 'wait-chip';
   root.dataset.state = chip.state;
   root.dataset.source = drawing.source;
+  // CSS sizes a row's status track by it: Cancel auto-merge is a wider
+  // button than Auto-merge (#4795).
+  if (chip.action) root.dataset.action = chip.action;
   // Focusable so the tooltip opens from the keyboard, as it does on hover.
   root.tabIndex = 0;
   root.setAttribute('role', 'group');

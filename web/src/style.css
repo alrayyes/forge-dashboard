@@ -1345,13 +1345,22 @@ section.board {
        width. This holds at every width, because the one-line row has no room
        to spare even where it fits, and costs a row with labels one 18px line
        against the one-line row. A row with no label has nothing to break and
-       keeps the one line. */
+       keeps the one line, unless the chip holds Cancel auto-merge (the chip
+       is then 259px, against 162px with Auto-merge) beside a comment or merge-state pill and an
+       action: the status track took the whole row and the title track was
+       0px at 1280px (#4795). */
     .row:not(.issue-row):has(> .title-cell > .label-chip)
       .status-cell:has(> .wait-slot:not(:empty)):not(
         :has(> .wait-slot .wait-chip-detail:not(:empty))
       ):is(
         :has(> .row-action-bar):not(:has(> .status-flags)),
         :has(> .status-flags)
+      ),
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags):has(> .row-action-bar):has(
+        > .wait-slot > .wait-chip[data-action="disarm"]
       ) {
       grid-template-columns: min-content 7.5rem 9.25rem;
       > .wait-slot {
