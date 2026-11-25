@@ -1,5 +1,20 @@
 # Changelog
 
+## [9.126.1](https://github.com/alrayyes/forge-dashboard/compare/v9.126.0...v9.126.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep a gap between the Live pill and the filter card ([#4932](https://github.com/alrayyes/forge-dashboard/issues/4932)) ([5952adb](https://github.com/alrayyes/forge-dashboard/commit/5952adbfcfe3c93398a186899583bcab6643b33f)), closes [#4927](https://github.com/alrayyes/forge-dashboard/issues/4927)
+
+## [9.126.0](https://github.com/alrayyes/forge-dashboard/compare/v9.125.4...v9.126.0) (2026-11-25)
+
+
+### Features
+
+* **api:** serve the first-login setup read, the instance check and the setup redirects ([#4917](https://github.com/alrayyes/forge-dashboard/issues/4917)) ([87d9afa](https://github.com/alrayyes/forge-dashboard/commit/87d9afa4a3608ad888491e7ab6adeaed1982f537))
+* **web:** add the first-login setup page ([#4921](https://github.com/alrayyes/forge-dashboard/issues/4921)) ([530455f](https://github.com/alrayyes/forge-dashboard/commit/530455f75adbcd65f9a885b88771180c4eedb2f3)), closes [#4026](https://github.com/alrayyes/forge-dashboard/issues/4026)
+
 ## [9.125.4](https://github.com/alrayyes/forge-dashboard/compare/v9.125.3...v9.125.4) (2026-11-25)
 
 

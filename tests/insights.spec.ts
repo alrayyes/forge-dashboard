@@ -151,6 +151,8 @@ test.describe('insights page', () => {
       '/api/v1/settings/filter-state',
       // The layout's heartbeat saying the tab is visible: plumbing, not a data read.
       '/api/v1/presence',
+      // The layout's first-login setup gate: plumbing, not a data read.
+      '/api/v1/setup',
     ]);
     expect([...apiPaths].filter((p) => !layout.has(p))).toEqual([]);
   });

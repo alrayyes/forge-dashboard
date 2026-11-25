@@ -208,6 +208,36 @@ The endpoint offers these tools:
 only this app's own setting. Several of the reads spend forge request budget;
 [Architecture](../ARCHITECTURE.md#design) has the cost of each.
 
+## First-login setup
+
+A signed-in board with nothing linked sends every page to `/setup`, "Set up
+your board". It has one block per forge and one is enough. Continue opens once
+a forge has repositories to show, or is still counting them, and Sign out is
+always there, even when the page cannot load its details.
+
+![First-login setup, waiting on the GitHub install](screenshots/setup-install-app-light.png)
+
+- **GitHub**: authorize with GitHub, install the App on your account or an
+  organization you belong to, then see the repositories it can reach. If an
+  organization owner has to approve the installation, the page shows it as waiting
+  for approval until they do. Use **Check again** after any step done on
+  GitHub. The installation link needs `GITHUB_APP_SLUG`
+  ([configuration](configuration.md)).
+- **Forgejo**: register an OAuth app on your own Forgejo (Settings,
+  Applications), leave **Confidential client** off, set the redirect URI
+  the page shows, then paste the instance address and the app's Client ID. The
+  Client ID is public. Nothing on this page takes a token.
+- **When it fails**, the page names the cause and says nothing was saved. A
+  wrong Client ID or a redirect URI that does not match what the page shows
+  are the usual causes on Forgejo: fix the app on Forgejo, then try again.
+- **Why the board is not empty on upgrade**: a board that already reads a
+  saved token, a username, or an installation is never sent here.
+
+The page reads `GET /api/v1/setup`, which states facts only. Which step is
+current and whether Continue is open are worked out in the browser. The
+callbacks of both forges land back on `/setup`, with `?error=<code>` after a
+failure and `?install=requested` after an installation request.
+
 ## Credentials
 
 Set from the Settings page (`/settings.html`, linked from the dashboard

@@ -34,9 +34,11 @@ test('the capture script writes every image the README links', () => {
     const page = name.replace(/-phone$/, '');
     expect(script).toContain(page);
     if (name !== page) {
-      expect(script).toMatch(
-        new RegExp(`PHONE_PAGES = \\[[^\\]]*'${page}'[^\\]]*\\]`),
+      // The setup page shoots both widths itself, from SETUP_SHOTS.
+      const phoneList = new RegExp(
+        `(PHONE_PAGES|SETUP_SHOTS) = \\[[\\s\\S]*?name: '${page}'|PHONE_PAGES = \\[[^\\]]*'${page}'[^\\]]*\\]`,
       );
+      expect(script).toMatch(phoneList);
     }
   }
 });
