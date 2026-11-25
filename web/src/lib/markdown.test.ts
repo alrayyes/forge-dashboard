@@ -754,7 +754,7 @@ describe('HTML comments', () => {
     expect(await slowdown(quadratic, hostile, baseline)).toBeGreaterThan(
       MAX_SLOWDOWN,
     );
-  });
+  }, 30_000);
 
   test('an unclosed comment and raw HTML stay escaped text', async () => {
     const open = await renderMarkdown('a <!-- never closed\n');

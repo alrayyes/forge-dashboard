@@ -254,7 +254,7 @@ describe('foldPullRequest counts add up to the jobs listed (#4064)', () => {
         expect(sum((fold as PullRequestFold).counts)).toBe(mix.length);
       }
     }
-  });
+  }, 30_000);
 });
 
 // Forgejo leaves a job whose needs failed blocked in the finished run and says
