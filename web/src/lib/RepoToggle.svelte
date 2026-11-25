@@ -134,7 +134,7 @@
       animation: none;
     }
   }
-  @media (max-width: 760px) {
+  @media (width <= 760px) {
     .repo-toggle {
       width: 40px;
       height: 40px;

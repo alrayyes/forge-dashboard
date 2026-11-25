@@ -229,6 +229,7 @@ const singleUserSpecs = [
   '**/label-chip-pill-overlap.spec.ts',
   '**/label-chip-one-line.spec.ts',
   '**/no-label-wait-title.spec.ts',
+  '**/row-layout-fractional-width.spec.ts',
   '**/inline-feedback.spec.ts',
   '**/label-in-name.spec.ts',
   '**/mono-figures.spec.ts',

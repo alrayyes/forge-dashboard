@@ -3269,7 +3269,7 @@
     // card; the status note only on the one-line row, since on a phone it
     // stays below the pills, on the side of the pill the waiting chip is on.
     function onPhone(): boolean {
-      return window.matchMedia("(max-width: 760px)").matches;
+      return window.matchMedia("(width <= 760px)").matches;
     }
     function placeNotes(statusCell: HTMLElement, oneLine: boolean) {
       const parts = notePlacements.get(statusCell);
@@ -9827,7 +9827,7 @@
     // always had. Filters apply as you change them, and the sheet's "Show
     // N results" says what you'd see, so a refresh can't disturb an edit.
     const phoneQuery = window.matchMedia(
-      "(max-width: 760px), (max-height: 440px) and (orientation: landscape)",
+      "(width <= 760px), (max-height: 440px) and (orientation: landscape)",
     );
     const filtersButton = document.getElementById(
       "filters-button",
