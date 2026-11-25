@@ -363,14 +363,12 @@ describe('autoMergeChip wording', () => {
       waiting({
         code: undefined,
         forge: 'github',
-        message: 'Checks passed. The forge merges it as soon as it can.',
+        message: 'Checks passed.',
       }),
     );
     expect(chip?.label).toBe('Merging');
     expect(chip?.detail).toBe('GitHub merges it as soon as it can');
-    expect(chip?.tooltip).toBe(
-      'Checks passed. GitHub merges it as soon as it can.',
-    );
+    expect(chip?.tooltip).toBe('Checks passed.');
   });
 
   test('the tooltip names the forge from its label, not from the server (#4072)', () => {

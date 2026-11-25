@@ -36,7 +36,7 @@ function pr(number: number, title: string, over: Record<string, unknown> = {}) {
   };
 }
 
-const blocked = (code: string, message: string, next: string) => ({
+const blocked = (code: string, message: string, next?: string) => ({
   status: { code, message, next },
   allowedActions: [
     { action: 'merge', blocked: { code, message, next } },
@@ -52,7 +52,6 @@ const READY_ACTIONS = {
 const CI_BLOCK = {
   code: 'checks_pending',
   message: 'Waiting for CI to finish',
-  next: 'Merge unlocks automatically',
 };
 // The same wait, where the server offers auto-merge (it does while CI runs).
 const offered = (n: number, title: string, extra: unknown[] = []) =>
@@ -85,7 +84,6 @@ const ready = (n: number, title: string) =>
 const CHECK_BLOCK = {
   code: 'checks_pending',
   message: 'Checking for conflicts',
-  next: 'Merge unlocks once the forge finishes',
 };
 const checking = pr(5, 'Checking', {
   ci: 'success',
@@ -117,7 +115,6 @@ const notMergeable = pr(7, 'Refused', {
 const UNKNOWN_BLOCK = {
   code: 'status_unknown',
   message: 'Merge status not known yet',
-  next: 'Merge unlocks once the forge reports it',
 };
 // The forge hasn't reported whether it merges (#4666). The server offers
 // auto-merge in this state.
@@ -135,11 +132,7 @@ const unknownStatus = (n: number, title: string) =>
 const draftBlock = pr(8, 'Draft', {
   ci: 'success',
   draft: true,
-  ...blocked(
-    'not_mergeable',
-    'Draft pull request',
-    'Mark it ready for review to unlock Merge',
-  ),
+  ...blocked('not_mergeable', 'Draft pull request'),
 });
 
 function snapshot(pullRequests: unknown[]) {
@@ -237,7 +230,6 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(mergeButton(r)).toHaveCount(0);
         await expect(r.locator('.merge-wait')).toHaveCount(0);
         await expect(r.locator('[aria-disabled="true"]')).toHaveCount(0);
-        await expect(r.getByText('Merge unlocks automatically')).toHaveCount(0);
         await expect(r.getByText('Waiting for CI to finish')).toHaveCount(0);
         await expect(r.locator('.status-area')).toHaveCount(0);
         await expect(r.locator('.row-action-locked-hint')).toHaveCount(0);

@@ -88,7 +88,6 @@ const checking = pr(3, 'Checking conflicts', {
   status: {
     code: 'checks_pending',
     message: 'Checking for conflicts',
-    next: 'Merge unlocks once the forge finishes',
   },
   allowedActions: [
     {
@@ -96,7 +95,6 @@ const checking = pr(3, 'Checking conflicts', {
       blocked: {
         code: 'checks_pending',
         message: 'Checking for conflicts',
-        next: 'Merge unlocks once the forge finishes',
       },
     },
     { action: 'close' },

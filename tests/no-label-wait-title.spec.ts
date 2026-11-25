@@ -39,7 +39,6 @@ function makePR(number: number, overrides: Record<string, unknown> = {}) {
     status: {
       code: 'checks_pending',
       message: 'Waiting for CI to finish',
-      next: 'Merge unlocks automatically',
     },
     allowedActions: [
       {

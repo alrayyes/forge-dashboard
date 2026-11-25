@@ -82,7 +82,10 @@ and Update branch is primary again.
 Each pull request also carries `status`: the one reason it is waiting on
 something or can't be merged (a check still running, a conflict, a draft, a
 parent it is stacked on), with the same `code`, `message` and `next` as a
-blocked action. It is null when nothing holds the pull request back. An empty
+blocked action. `next` is left out where
+[How Merge is held back](how-merge-is-held-back.md) already explains the
+mechanics, so a row shows the headline alone. It is null when nothing holds the
+pull request back. An empty
 pull request, whose branch is already on the target, offers `close` and no
 `merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
 is nothing to merge.

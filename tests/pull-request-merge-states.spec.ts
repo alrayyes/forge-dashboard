@@ -85,7 +85,6 @@ test.describe('Merge states on a pull request row', () => {
     const row = rowOf(page);
     await expect(row.getByText('Waiting for CI')).toBeVisible();
     await expect(row.getByText('Waiting for CI to finish')).toHaveCount(0);
-    await expect(row.getByText('Merge unlocks automatically')).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);

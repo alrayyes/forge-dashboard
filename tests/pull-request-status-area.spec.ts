@@ -142,9 +142,6 @@ test.describe('the status area on a pull request row (#1375)', () => {
     const waiting = row(page, 'Waiting');
 
     await expect(waiting.locator('.status-area')).toHaveCount(0);
-    await expect(waiting.getByText('Merge unlocks automatically')).toHaveCount(
-      0,
-    );
   });
 
   test('a pull request nothing holds back has no status area', async ({

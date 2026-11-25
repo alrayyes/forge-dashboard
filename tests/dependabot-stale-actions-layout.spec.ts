@@ -21,7 +21,6 @@ const HELD = {
 const BEHIND = {
   code: 'behind',
   message: 'Behind the base branch',
-  next: 'Bring it up to date to unlock Merge',
 };
 
 // What the server sends for a stale forge: every action blocked, Merge's
