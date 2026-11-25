@@ -963,7 +963,9 @@ paths:
       description: |
         Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
         sign-in, with a short timeout. The same address rules as
-        `POST /api/v1/connections/forgejo` apply. Stores nothing.
+        `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+        loopback addresses are allowed on purpose: a Forgejo on a home or office
+        network is the normal case, so the address is not filtered.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       requestBody:

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
@@ -146,17 +147,52 @@ func (f *Forgejo) Finish(ctx context.Context, state, code string) (instance, acc
 	f.source = nil
 
 	// A public client's id goes first: a token with no id could not refresh.
-	if f.clients != nil && clientID != "" {
-		if err := f.clients.SaveOAuthClientID(ctx, forgejoForge, clientID); err != nil {
-			return "", "", fmt.Errorf("oauth: store client id: %w", err)
-		}
+	if err := f.rememberClient(ctx, clientID); err != nil {
+		return "", "", err
 	}
 
 	if err := f.store.SaveOAuthToken(ctx, forgejoForge, instance, token); err != nil {
+		// An id with no token behind it would be used by the next refresh.
+		f.forgetClient(ctx)
+
 		return "", "", fmt.Errorf("oauth: store token: %w", err)
 	}
 
 	return instance, account, nil
+}
+
+// rememberClient keeps the public client id this sign-in used. A sign-in
+// through the server's own client has none, so any id left from an earlier
+// link goes: a refresh must not pair an old id with the server's secret.
+func (f *Forgejo) rememberClient(ctx context.Context, clientID string) error {
+	if f.clients == nil {
+		return nil
+	}
+
+	if clientID == "" {
+		if err := f.clients.DeleteOAuthClientID(ctx, forgejoForge); err != nil {
+			return fmt.Errorf("oauth: forget client id: %w", err)
+		}
+
+		return nil
+	}
+
+	if err := f.clients.SaveOAuthClientID(ctx, forgejoForge, clientID); err != nil {
+		return fmt.Errorf("oauth: store client id: %w", err)
+	}
+
+	return nil
+}
+
+// forgetClient drops the stored client id after a sign-in that could not finish.
+func (f *Forgejo) forgetClient(ctx context.Context) {
+	if f.clients == nil {
+		return
+	}
+
+	if err := f.clients.DeleteOAuthClientID(ctx, forgejoForge); err != nil {
+		slog.Warn("oauth: could not remove a client id left by a failed sign-in")
+	}
 }
 
 // Disconnect deletes the token pair. A refresh already under way can no longer
@@ -296,7 +332,14 @@ func (f *Forgejo) refreshConfig(ctx context.Context, instance string) oauth2.Con
 	cfg.Endpoint = endpoint(instance)
 
 	if f.clients != nil {
-		if id, err := f.clients.OAuthClientID(ctx, forgejoForge); err == nil && id != "" {
+		id, err := f.clients.OAuthClientID(ctx, forgejoForge)
+
+		switch {
+		case err != nil:
+			// Falling back to the server's client is the only way to try at all,
+			// but a refresh under the wrong client will fail: say why.
+			slog.Warn("oauth: could not read the stored client id, refreshing as the server's client")
+		case id != "":
 			cfg.ClientID, cfg.ClientSecret = id, ""
 		}
 	}
