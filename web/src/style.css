@@ -1812,10 +1812,11 @@ select.col-filter {
   }
   :root body .filter-bar .result-sort-wrap select.result-sort {
     /* The label keeps clear of the drawn chevron (#4849); a plain 6px put it
-       underneath. A phone line is tight, so the chevron moves 4px closer to
-       the edge and the end padding shrinks to match: 14px holds the 5px
-       chevron's 9px inset. */
-    padding-inline: 4px 14px;
+       underneath. A phone line is tight, so the chevron sits 9px and 4px from
+       the padding edge (base: 13px and 8px) and its left tip is 14px in. The
+       16px end padding leaves 2px between the label and that tip. Physical
+       padding, to match the physical background-position. */
+    padding: 0 16px 0 4px;
     background-position:
       calc(100% - 9px) 55%,
       calc(100% - 4px) 55%;

@@ -65,25 +65,26 @@ async function overlap(page: Page): Promise<string[]> {
       const r = sel.getBoundingClientRect();
       if (r.width === 0) continue;
       const cs = getComputedStyle(sel);
-      const textRight =
-        r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
+      const border = parseFloat(cs.borderRightWidth);
+      const textRight = r.right - border - parseFloat(cs.paddingRight);
       const textLeft =
         r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
-      // The first gradient is the chevron's left arm: 5px wide, inset by the
-      // calc(100% - Npx) in its background-position.
+      // The first gradient is the chevron's left arm: 5px wide, inset from the
+      // padding box (inside the border) by the calc(100% - Npx) in its
+      // background-position.
       const inset = Number(
         /calc\(100% - ([\d.]+)px\)/.exec(cs.backgroundPosition)?.[1] ?? 0,
       );
-      const arrowLeft = r.right - inset - 5;
-      if (textRight > arrowLeft + 0.5)
+      const arrowLeft = r.right - border - inset - 5;
+      if (textRight + 2 > arrowLeft)
         out.push(
-          `${sel.id}: text box ends ${textRight} past arrow at ${arrowLeft}`,
+          `${sel.id}: text box ends ${textRight}, under 2px short of arrow at ${arrowLeft}`,
         );
       const ctx = document.createElement('canvas').getContext('2d');
       if (ctx) {
         ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
         const w = ctx.measureText(sel.selectedOptions[0]?.text ?? '').width;
-        if (textLeft + w > arrowLeft + 0.5)
+        if (textLeft + w + 2 > arrowLeft)
           out.push(
             `${sel.id}: label ends ${textLeft + w} past arrow at ${arrowLeft}`,
           );
