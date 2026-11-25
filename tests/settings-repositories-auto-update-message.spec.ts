@@ -186,6 +186,16 @@ for (const size of SIZES) {
           el.clientWidth,
         ]);
         expect(scroll).toBeLessThanOrEqual(client);
+        // A flex or grid parent that grew with the token would widen the
+        // element too, so on a phone also check the page doesn't scroll
+        // sideways. (The repo table's own long name widens a desktop page.)
+        if (size.name === 'phone') {
+          const [docScroll, inner] = await page.evaluate(() => [
+            document.documentElement.scrollWidth,
+            window.innerWidth,
+          ]);
+          expect(docScroll).toBeLessThanOrEqual(inner);
+        }
       });
 
       test('many skipped repos are capped, with long reasons trimmed and no sideways scroll', async ({

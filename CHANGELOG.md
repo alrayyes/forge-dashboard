@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.123.1](https://github.com/alrayyes/forge-dashboard/compare/v9.123.0...v9.123.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep Settings field text clear of the inline buttons ([#4883](https://github.com/alrayyes/forge-dashboard/issues/4883)) ([7528f3f](https://github.com/alrayyes/forge-dashboard/commit/7528f3f445e1a15336c180c9f2c4f026c5989259)), closes [#4863](https://github.com/alrayyes/forge-dashboard/issues/4863)
+
 ## [9.123.0](https://github.com/alrayyes/forge-dashboard/compare/v9.122.0...v9.123.0) (2026-11-25)
 
 
