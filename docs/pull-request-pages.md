@@ -160,8 +160,9 @@ bar, since the button hides. A polite live region says the same
 "N of M" when a filter or a refresh changes the count; it says nothing on first
 load. The menu pill is not part of this: it keeps the unfiltered totals, and its
 link keeps the numbers in its name. The Issues, Releases, and Bots pages draw the
-same bar with their own noun. The board header's own count ("4 open", "Showing 1
-of 2") is a separate line that the bulk actions use, and is unchanged.
+same bar with their own noun. The pull request pages draw no count in the board
+header, so the bar's line is the one count on screen, and it is the count a
+screen reader reads.
 
 ## Short lists
 

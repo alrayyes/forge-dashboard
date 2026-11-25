@@ -187,7 +187,9 @@ test.describe('Out of date badge and quick filter', () => {
       page.locator('.quick-pills[data-group="merge"] [aria-pressed="true"]'),
     ).toHaveCount(1);
     await expect(rows(page)).toHaveCount(2);
-    await expect(page.locator('#pr-count')).toHaveText('Showing 2 of 4');
+    await expect(page.locator('#result-count')).toHaveText(
+      '2 of 4 pull requests',
+    );
     await expect(page.locator('#pr-rows')).toContainText('Alpha behind');
     await expect(page.locator('#pr-rows')).toContainText('Delta draft behind');
     await expect(page.locator('#pr-rows')).not.toContainText('Bravo current');

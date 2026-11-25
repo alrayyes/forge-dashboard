@@ -154,7 +154,7 @@ test.describe('one line says how many are shown (#1325)', () => {
     await serve(page, [makePR(1), makePR(2)]);
     await page.goto('/pull-requests.html');
 
-    await expect(page.locator('#pr-count')).toHaveText('2 open');
+    await expect(page.locator('#result-count')).toHaveText('2 pull requests');
   });
 
   test('a filter that hides rows says "Showing 1 of 2"', async ({ page }) => {
@@ -163,7 +163,9 @@ test.describe('one line says how many are shown (#1325)', () => {
     await page.locator('.quick-pills .quick-pill[data-pill="failing"]').click();
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
-    await expect(page.locator('#pr-count')).toHaveText('Showing 1 of 2');
+    await expect(page.locator('#result-count')).toHaveText(
+      '1 of 2 pull requests',
+    );
   });
 
   test('the Failing pill filters to failing pull requests, and All clears it', async ({

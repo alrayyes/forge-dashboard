@@ -6876,11 +6876,6 @@ footer a[aria-current="page"] {
 .rebase-all-reason[hidden] {
   display: none;
 }
-/* The divider between the actions and the count. */
-.bulk-actions:has(> .bulk-action:not([hidden])) ~ .count {
-  padding-left: 12px;
-  border-left: 1px solid var(--border-strong);
-}
 /* Secondary weight: white fill, accent border and text. The idle and the
    in-progress state are one box, so "Updating 2 of 4" doesn't move anything. */
 .rebase-all-button,
@@ -6959,10 +6954,6 @@ footer a[aria-current="page"] {
     flex: 1 1 100%;
     flex-direction: column;
     align-items: stretch;
-  }
-  .bulk-actions:has(> .bulk-action:not([hidden])) ~ .count {
-    padding-left: 0;
-    border-left: 0;
   }
   .bulk-action > button {
     flex: 1 1 auto;

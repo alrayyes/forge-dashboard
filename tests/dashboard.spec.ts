@@ -74,7 +74,7 @@ test.describe('dashboard page', () => {
   }) => {
     await landOnPullRequests(page);
     await expect(page.locator('h1')).toHaveText('Forge Board');
-    await expect(page.locator('#pr-count')).not.toHaveText('–');
+    await expect(page.locator('#result-count')).toHaveText(/\d/);
     // Issues have their own page (#827).
     await expect(page.locator('.board')).toHaveCount(1);
 
@@ -503,7 +503,7 @@ test.describe('dashboard page', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await landOnPullRequests(page);
-    await expect(page.locator('#pr-count')).not.toHaveText('–');
+    await expect(page.locator('#result-count')).toHaveText(/\d/);
 
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -521,7 +521,7 @@ test.describe('dashboard page', () => {
     // The dark scheme at the same width, loaded fresh with it emulated.
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.reload();
-    await expect(page.locator('#pr-count')).not.toHaveText('–');
+    await expect(page.locator('#result-count')).toHaveText(/\d/);
 
     const dark = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
@@ -762,15 +762,17 @@ test.describe('dashboard page', () => {
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 
     // Unfiltered: just the total.
-    await expect(page.locator('#pr-count')).toHaveText('2 open');
+    await expect(page.locator('#result-count')).toHaveText('2 pull requests');
 
     await selectForge(page, 'forgejo');
     await expect(page.locator('#pr-rows > .row')).toHaveCount(1);
     // Filtered: the one line says how many of how many, not silently still "2".
-    await expect(page.locator('#pr-count')).toHaveText('Showing 1 of 2');
+    await expect(page.locator('#result-count')).toHaveText(
+      '1 of 2 pull requests',
+    );
 
     await selectForge(page, '');
-    await expect(page.locator('#pr-count')).toHaveText('2 open');
+    await expect(page.locator('#result-count')).toHaveText('2 pull requests');
   });
 
   test.describe('theme and filters persist across a reload', () => {
@@ -2210,7 +2212,7 @@ test.describe('dashboard page', () => {
         }),
       );
       await page.goto('/pull-requests.html');
-      await expect(page.locator('#pr-count')).toHaveText('0 open');
+      await expect(page.locator('#result-count')).toHaveText('0 pull requests');
 
       let refreshCalled = false;
       await page.route('**/api/v1/dashboard/refresh', (route) => {
@@ -2242,7 +2244,7 @@ test.describe('dashboard page', () => {
 
       await page.click('#force-refresh-button');
       expect(refreshCalled).toBe(true);
-      await expect(page.locator('#pr-count')).toHaveText('1 open');
+      await expect(page.locator('#result-count')).toHaveText('1 pull request');
       await expect(page.locator('#pr-rows > .row')).toContainText('A fresh PR');
     });
 

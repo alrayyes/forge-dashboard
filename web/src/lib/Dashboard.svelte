@@ -9203,8 +9203,8 @@
           updateRerunAll();
         }
         const count = document.getElementById(`${idPrefix}-count`);
-        // The nav icons carry the totals, so the page has no tiles repeating
-        // them; this is the one place a filtered total shows (#1325, #3867).
+        // Only the issues board still has a header count; the pull request
+        // boards leave it to the result bar below (#4788).
         if (count) renderShownCount(count, visible.length, state.items.length);
         if (isPR === pullsView)
           renderResultBar(visible.length, state.items.length);
@@ -11973,7 +11973,6 @@
               </div>
             {/if}
           </div>
-          <span class="count" id="pr-count">&ndash;</span>
         </div>
       </div>
 
