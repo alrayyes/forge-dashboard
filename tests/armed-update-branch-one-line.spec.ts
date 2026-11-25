@@ -7,7 +7,9 @@ import { test } from './server-fixture';
 // on a second line under the button, so its row was two lines tall while the
 // rows around it were one. On a wide list the two now share a line; a
 // narrower one keeps the chip on a line of its own so the title keeps its
-// width (#4789).
+// width (#4789). From 94rem of list width (1504px at the default text size)
+// the row is one line, 55px; below it the chip is on a line of its own and the
+// row is 89px, one 34px line more. The boundary is pinned both ways.
 // https://github.com/alrayyes/forge-dashboard/issues/4784
 
 const base = fixture.pullRequests.notStrict as Record<string, unknown>;
@@ -92,3 +94,21 @@ for (const width of [1700, 1970]) {
     });
   });
 }
+
+test.describe('armed row with Update branch below 94rem of list width (#4784)', () => {
+  test('the chip keeps a line of its own, so the title keeps its width, and the row is one line taller at most', async ({
+    page,
+  }) => {
+    await open(page, 1280);
+    const rows = page.locator('#pr-rows > .row');
+    const u = (await rows
+      .nth(1)
+      .getByRole('button', { name: 'Update branch', exact: true })
+      .boundingBox())!;
+    const c = (await rows.nth(1).locator('.wait-chip').boundingBox())!;
+    expect(c.y).toBeGreaterThan(u.y + u.height - 4);
+    const plain = (await rows.nth(0).boundingBox())!.height;
+    const armed = (await rows.nth(1).boundingBox())!.height;
+    expect(armed).toBeLessThanOrEqual(plain + 40);
+  });
+});
