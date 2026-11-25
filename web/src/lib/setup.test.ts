@@ -2,6 +2,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   continueState,
+  forgejoAppsUrl,
   forgejoView,
   githubView,
   installRows,
@@ -222,5 +223,28 @@ describe('the gate', () => {
     expect(readSetupFacts(null)).toBeNull();
     expect(readSetupFacts({ branches: [] })).toBeNull();
     expect(readSetupFacts(empty)).toEqual(empty);
+  });
+});
+
+describe('forgejoAppsUrl', () => {
+  test("points at the instance's applications page", () => {
+    expect(forgejoAppsUrl('https://git.example.com')).toBe(
+      'https://git.example.com/user/settings/applications',
+    );
+    expect(forgejoAppsUrl(' https://git.example.com/ ')).toBe(
+      'https://git.example.com/user/settings/applications',
+    );
+  });
+
+  test('keeps a path prefix the instance is served under', () => {
+    expect(forgejoAppsUrl('https://example.com/forge')).toBe(
+      'https://example.com/forge/user/settings/applications',
+    );
+  });
+
+  test('is empty for anything that is not an http or https address', () => {
+    expect(forgejoAppsUrl('')).toBe('');
+    expect(forgejoAppsUrl('git.example.com')).toBe('');
+    expect(forgejoAppsUrl('javascript:alert(1)')).toBe('');
   });
 });

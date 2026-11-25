@@ -259,3 +259,16 @@ export function readSetupFacts(body: unknown): SetupFacts | null {
     refreshed: b.refreshed === true,
   };
 }
+
+// Where the person creates the OAuth app on their own Forgejo, from the
+// address they typed. Empty for anything that is not an http(s) address, so a
+// link is never built from text like `javascript:`.
+export function forgejoAppsUrl(instanceUrl: string): string {
+  try {
+    const u = new URL(instanceUrl.trim());
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+    return `${u.origin}${u.pathname.replace(/\/+$/, '')}/user/settings/applications`;
+  } catch {
+    return '';
+  }
+}
