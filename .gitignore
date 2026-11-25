@@ -46,6 +46,7 @@ CHANGELOG.md
 # compile time; not committed, same as any other build output. A page not
 # yet migrated has no entry here and stays a tracked, hand-written file.
 /internal/api/static/settings.html
+/internal/api/static/setup.html
 /internal/api/static/privacy.html
 /internal/api/static/disclaimer.html
 /internal/api/static/changelog.html

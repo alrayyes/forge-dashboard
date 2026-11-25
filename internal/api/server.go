@@ -268,6 +268,10 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /{$}", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /app.js", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /settings.html", requireAuthPage(deps.AuthStore, privateFiles))
+	// The first-login setup page. The connect callbacks send the browser to
+	// the bare /setup (#4026); the build writes setup.html.
+	mux.Handle("GET /setup", requireAuthPage(deps.AuthStore, servePage("/setup.html", privateFiles)))
+	mux.Handle("GET /setup.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /settings.js", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /issues.html", requireAuthPage(deps.AuthStore, privateFiles))
 	mux.Handle("GET /insights.html", requireAuthPage(deps.AuthStore, privateFiles))
@@ -377,6 +381,17 @@ func requireAuthPage(store *auth.Store, next http.Handler) http.Handler {
 			}
 		}
 		http.Redirect(w, r, "/login.html", http.StatusFound)
+	})
+}
+
+// servePage answers a request for one address with the file of another, the
+// way a built page is reached at its extensionless address.
+func servePage(file string, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		clone := r.Clone(r.Context())
+		clone.URL.Path = file
+		clone.URL.RawPath = ""
+		next.ServeHTTP(w, clone)
 	})
 }
 

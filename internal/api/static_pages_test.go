@@ -19,7 +19,7 @@ import (
 
 var (
 	publicPages   = []string{"login.html", "disclaimer.html", "privacy.html"}
-	signedInPages = []string{"index.html", "pull-requests.html", "issues.html", "insights.html", "settings.html", "changelog.html"}
+	signedInPages = []string{"index.html", "pull-requests.html", "issues.html", "insights.html", "settings.html", "setup.html", "changelog.html"}
 
 	metaDescription = regexp.MustCompile(`<meta name="description" content="([^"]*)"`)
 	fontPreload     = regexp.MustCompile(`<link[^>]*rel="preload"[^>]*as="font"[^>]*>`)

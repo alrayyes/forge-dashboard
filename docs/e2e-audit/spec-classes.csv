@@ -96,6 +96,7 @@ filter-sheet-forced-colors.spec.ts,2.611,1,1,A,,0.0
 filter-sheet-layout.spec.ts,6.178,3,3,A,,0.0
 filter-single-option.spec.ts,2.339,5,3,A,,0.9
 filter-stale-forge-pick.spec.ts,1.233,6,0,C,,1.2
+first-login-setup.spec.ts,,21,5,C,,0.0
 first-refresh-first-paint.spec.ts,10.124,15,2,C,web/src/lib/first-refresh.test.ts,8.8
 first-refresh-loading.spec.ts,18.061,9,5,A,web/src/lib/first-refresh.test.ts;FirstRefreshStatus.stories.svelte (proven);NavPills.stories.svelte (proven),8.0
 focus-ring-consistent.spec.ts,2.712,1,1,A,,0.0
@@ -160,6 +161,7 @@ main-branches-choices.spec.ts,2.014,7,1,C,,1.7
 main-branches-clear-filters.spec.ts,7.364,9,6,A,,2.5
 main-branches-empty-400.spec.ts,7.282,3,3,A,,0.0
 main-branches-header-400.spec.ts,5.493,3,3,A,,0.0
+main-branches-live-pill-gap.spec.ts,,1,1,A,,0.0
 main-branches-page.spec.ts,19.717,41,19,C,,10.6
 main-branches-refetch-on-flag.spec.ts,6.346,4,0,C,,6.3
 main-branches-server-copy.spec.ts,4.208,7,0,B,,4.2
