@@ -32,6 +32,10 @@ export type ActionCode =
   | 'permission'
   | 'rate_limited'
   | 'forge_error'
+  | 'forge_unreachable'
+  | 'not_rate_limited'
+  | 'not_open'
+  | 'stacked'
   | 'unknown';
 
 export type ActionFailure = {
@@ -86,6 +90,10 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'permission',
   'rate_limited',
   'forge_error',
+  'forge_unreachable',
+  'not_rate_limited',
+  'not_open',
+  'stacked',
   'unknown',
 ]);
 
@@ -196,6 +204,25 @@ export function interpretActionFailure(
       // The forge failed on its own side, so nothing is wrong with the
       // request: keep the action clickable, and let the line clear by itself.
       return { kind: 'failed', reason: err.message, transient: true };
+    // The table answers for every code in the spec, but only `stacked` comes
+    // back as the body of a refused action. The three below arrive elsewhere.
+    case 'forge_unreachable':
+      // Only a row's blocked code on an allowed action. If one did arrive: the
+      // forge can't be asked right now, so no lock, and the line clears by
+      // itself.
+      return { kind: 'failed', reason: err.message, transient: true };
+    case 'not_rate_limited':
+      // Only POST /queued-actions answers it, and the queue request shows the
+      // message through its own error line. If one did arrive: the action can
+      // be taken now, so no lock.
+      return { kind: 'failed', reason: err.message };
+    case 'not_open':
+      // Only the skip result of a queued item whose pull request left the
+      // board. If one did arrive: the row goes on the next snapshot, so a lock
+      // would outlive what it guards. Show the sentence.
+      return { kind: 'failed', reason: err.message };
+    // `stacked` locks with the server's sentence (the default below). It waits
+    // on its parent, and the next snapshot frees the lock (stale-locks.ts).
     case 'unknown':
       return {
         kind: 'failed',
