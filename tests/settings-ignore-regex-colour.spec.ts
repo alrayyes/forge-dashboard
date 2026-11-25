@@ -84,7 +84,10 @@ test.describe('Settings: regex colours in ignored titles (#4852)', () => {
           clone.remove();
           return [own.width, own.height, plain.width, plain.height];
         });
-        expect(sizes[0]).toBeCloseTo(sizes[2], 1);
+        // Bold and italic faces can differ by a fraction of a pixel in
+        // advance width, so the width has a pixel of slack. The height is what
+        // shows a changed wrap, so it is exact.
+        expect(Math.abs(sizes[0] - sizes[2])).toBeLessThan(1);
         expect(sizes[1]).toBeCloseTo(sizes[3], 1);
       }
     }
