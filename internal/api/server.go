@@ -123,6 +123,11 @@ type Deps struct {
 	// on a server with no App configured.
 	GitHubAppConfigured bool
 
+	// GitHubAppSlug is the App's URL name (GITHUB_APP_SLUG), which the setup
+	// page needs to link to its install page. Empty means the page has no
+	// install link to offer.
+	GitHubAppSlug string
+
 	// AppContext is the process's own long-lived context (canceled on
 	// shutdown), not any one request's — a handler that starts a
 	// Service-owned background refresh goroutine has to root it here, not
@@ -187,6 +192,8 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("DELETE /api/v1/connections/github", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionDelete(deps)))
 	mux.Handle("GET /api/v1/connections/github/callback", auth.RequireAuth(deps.AuthStore)(handleGitHubConnectionCallback(deps)))
 	mux.Handle("GET /api/v1/connections/github/installed", auth.RequireAuth(deps.AuthStore)(handleGitHubInstalled(deps)))
+	mux.Handle("GET /api/v1/setup", auth.RequireAuth(deps.AuthStore)(handleSetupGet(deps)))
+	mux.Handle("POST /api/v1/setup/forgejo-instance", auth.RequireAuth(deps.AuthStore)(handleSetupVerifyInstance()))
 	mux.Handle("GET /api/v1/settings/summary", auth.RequireAuth(deps.AuthStore)(handleSettingsSummaryGet(deps)))
 	mux.Handle("PUT /api/v1/settings", auth.RequireAuth(deps.AuthStore)(handleSettingsPut(deps)))
 	mux.Handle("GET /api/v1/settings/theme", auth.RequireAuth(deps.AuthStore)(handleThemeGet(deps.SettingsStore)))

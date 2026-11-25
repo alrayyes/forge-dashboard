@@ -714,8 +714,11 @@ paths:
         instance is already connected: the instance is locked until
         `DELETE /api/v1/connections/forgejo`, and `PUT /api/v1/settings`
         refuses to change `forgejoUrl` meanwhile. Replaces pasting a Forgejo
-        token. Needs `FORGEJO_OAUTH_CLIENT_ID` and
-        `FORGEJO_OAUTH_CLIENT_SECRET` on the server; see
+        token. The owner creates a public OAuth client on their own instance
+        and names its Client ID in `clientId`: no secret, PKCE only, scopes
+        asked for explicitly (`SetupForgejo.scopes`). A server that has
+        `FORGEJO_OAUTH_CLIENT_ID` and `FORGEJO_OAUTH_CLIENT_SECRET` set uses
+        that client when `clientId` is omitted; see
         `SettingsResponse.forgejoOAuthConfigured`.
       tags: [settings]
       security: [{ bearerAuth: [] }]
@@ -733,7 +736,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/ConnectionAuthorizeResponse"
         "400":
-          description: The instance URL isn't a valid http(s) URL, or OAuth isn't configured on this server.
+          description: The instance URL isn't a valid http(s) URL, or there is neither a `clientId` nor a server-configured client.
           content:
             application/json:
               schema:
@@ -777,10 +780,10 @@ paths:
       description: |
         Checks `state` (single use, ten minutes), exchanges `code` with the
         PKCE verifier, stores the token pair encrypted, and redirects the
-        browser to `/settings`. A missing, wrong, used or expired `state`
-        answers 400 and stores nothing. So does a refused code, a bad PKCE
-        verifier, or an error the forge sent back in the query. Nothing is
-        stored when the account name can't be read either (502).
+        browser to `/setup`. Anything that goes wrong stores nothing and
+        redirects to `/setup?error=<code>` (`SetupErrorCode`): the person is
+        in a browser tab, and a JSON body would be a dead end. The forge's own
+        error text is never echoed.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -789,21 +792,9 @@ paths:
         - { name: error, in: query, required: false, schema: { type: string } }
       responses:
         "303":
-          description: Linked. Redirects to `/settings`.
-        "400":
-          description: Unknown, used or expired state, or the code exchange failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          description: Linked, or not. Redirects to `/setup`, with `?error=<code>` when nothing was stored.
         "401":
           description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "502":
-          description: The token was granted but the instance wouldn't say whose account it is. Nothing is stored.
           content:
             application/json:
               schema:
@@ -876,10 +867,9 @@ paths:
       description: |
         Checks `state` (single use, ten minutes), exchanges `code` with the
         PKCE verifier, reads the account's login, stores the token pair
-        encrypted, and redirects the browser to `/settings`. A missing, wrong,
-        used or expired `state` answers 400 and stores nothing. So does a
-        refused code, a bad PKCE verifier, or an error GitHub sent back in the
-        query. Nothing is stored when the account can't be read either (502).
+        encrypted, and redirects the browser to `/setup`. Anything that goes
+        wrong stores nothing and redirects to `/setup?error=<code>`
+        (`SetupErrorCode`).
       tags: [settings]
       security: [{ bearerAuth: [] }]
       parameters:
@@ -888,21 +878,9 @@ paths:
         - { name: error, in: query, required: false, schema: { type: string } }
       responses:
         "303":
-          description: Linked. Redirects to `/settings`.
-        "400":
-          description: Unknown, used or expired state, or the code exchange failed.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          description: Linked, or not. Redirects to `/setup`, with `?error=<code>` when nothing was stored.
         "401":
           description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "502":
-          description: The token was granted but GitHub wouldn't say whose account it is. Nothing is stored.
           content:
             application/json:
               schema:
@@ -918,15 +896,18 @@ paths:
         `installation_id` and `setup_action`. The redirect is not trusted: the
         ID is stored as an installation only when it is in the connected
         user's own `GET /user/installations`, read with the linked account's
-        token. Otherwise nothing is stored (403). Without a linked account
-        nothing is stored either (409).
+        token. Otherwise nothing is stored. Redirects to `/setup`, with
+        `?error=<code>` when nothing was stored. An owner who may not install
+        the App sends a request to the organisation's owners instead, and
+        GitHub then sends the browser here with `setup_action=request` and no
+        `installation_id`: that redirects to `/setup?install=requested`.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       parameters:
         - {
             name: installation_id,
             in: query,
-            required: true,
+            required: false,
             schema: { type: integer, format: int64, minimum: 1 },
           }
         - {
@@ -937,33 +918,77 @@ paths:
           }
       responses:
         "303":
-          description: Stored. Redirects to `/settings`.
-        "400":
-          description: No valid `installation_id`, or this server has no GitHub App OAuth client.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
+          description: Stored, or not. Redirects to `/setup`, with `?error=<code>` when nothing was stored.
         "401":
           description: No valid session cookie was presented.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "403":
-          description: The ID is not one of the connected account's installations. Nothing is stored.
+  /api/v1/setup:
+    get:
+      operationId: getSetup
+      x-mcp-excluded: "The first-login screen's own read; it carries consent URLs and install links for a browser."
+      summary: What the first-login setup page needs to draw itself
+      description: |
+        Facts only, never a verdict. The page decides which step is current,
+        which state a forge is in and whether Continue is enabled. Reads no
+        secret: a Forgejo Client ID is public, tokens are never returned.
+        `github.installations` is the signed-in GitHub account's own
+        installations of the App, read live with its token; when GitHub can't
+        be asked it is empty and `installationsUnavailable` is true.
+        Repository counts come from the last refresh of the board, and
+        `refreshed` says whether one has finished since this process started,
+        so zero before that means "not known yet", not "none".
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: The setup facts.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SetupResponse"
+        "401":
+          description: No valid session cookie was presented.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "409":
-          description: No GitHub account is connected.
+  /api/v1/setup/forgejo-instance:
+    post:
+      operationId: verifyForgejoInstance
+      x-mcp-excluded: "A step of the first-login screen; an agent has no use for probing an address."
+      summary: Check that an address is a reachable Forgejo
+      description: |
+        Asks `<instanceUrl>/api/v1/version`, which a Forgejo answers without a
+        sign-in, with a short timeout. The same address rules as
+        `POST /api/v1/connections/forgejo` apply. Stores nothing. Private and
+        loopback addresses are allowed on purpose: a Forgejo on a home or office
+        network is the normal case, so the address is not filtered.
+      tags: [settings]
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyForgejoInstanceRequest"
+      responses:
+        "200":
+          description: It answered like a Forgejo. `instanceUrl` is the address without a trailing slash.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyForgejoInstanceResponse"
+        "400":
+          description: Not a usable http(s) address, or it did not answer like a Forgejo. `field` is `instanceUrl`.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-        "502":
-          description: GitHub would not list the account's installations. Nothing is stored.
+        "401":
+          description: No valid session cookie was presented.
           content:
             application/json:
               schema:
@@ -4948,6 +4973,14 @@ components:
           format: uri
           maxLength: 2048
           example: https://git.example.com
+        clientId:
+          type: string
+          maxLength: 256
+          description: |-
+            The Client ID of a public OAuth client (Confidential client unticked,
+            PKCE, no secret) the owner created on their own Forgejo. Required
+            when the server has no Forgejo OAuth client configured. The id is
+            public, and is kept so refreshes can name it.
     ConnectionAuthorizeResponse:
       type: object
       required: [authorizeUrl]
@@ -4955,6 +4988,126 @@ components:
         authorizeUrl:
           type: string
           format: uri
+    VerifyForgejoInstanceRequest:
+      type: object
+      required: [instanceUrl]
+      properties:
+        instanceUrl:
+          type: string
+          format: uri
+          maxLength: 2048
+          example: https://git.example.com
+    VerifyForgejoInstanceResponse:
+      type: object
+      required: [instanceUrl]
+      properties:
+        instanceUrl:
+          type: string
+          format: uri
+    SetupErrorCode:
+      type: string
+      description: |
+        Why a sign-in or an install came back without storing anything, as the
+        `error` query of the redirect to `/setup`. A client treats a value it
+        doesn't know as a generic failure.
+      x-extensible-enum:
+        - access_denied
+        - invalid_state
+        - exchange_failed
+        - account_unreadable
+        - save_failed
+        - not_connected
+        - installation_unverified
+        - installations_unavailable
+    SetupInstallation:
+      type: object
+      required: [id, accountLogin, saved]
+      properties:
+        id:
+          type: integer
+          format: int64
+        accountLogin:
+          type: string
+        saved:
+          type: boolean
+          description: Whether this installation is the one the board reads.
+    SetupGitHub:
+      type: object
+      required:
+        - configured
+        - installUrl
+        - authorized
+        - account
+        - installations
+        - installationsUnavailable
+        - repositoryCount
+      properties:
+        configured:
+          type: boolean
+          description: Whether this server has the GitHub App's OAuth client. Without it nothing here can start.
+        installUrl:
+          type: string
+          description: Where the App is installed (`github.com/apps/<slug>/installations/new`). Empty when the server doesn't know the App's slug (`GITHUB_APP_SLUG`).
+        authorized:
+          type: boolean
+        account:
+          type: string
+          description: The authorized account's login, or empty.
+        installations:
+          type: array
+          items:
+            $ref: "#/components/schemas/SetupInstallation"
+        installationsUnavailable:
+          type: boolean
+        repositoryCount:
+          type: integer
+          minimum: 0
+          description: Repositories the board sees on GitHub as of its last refresh.
+    SetupForgejo:
+      type: object
+      required:
+        - redirectUri
+        - scopes
+        - instanceUrl
+        - linked
+        - account
+        - repositoryCount
+        - reachable
+      properties:
+        redirectUri:
+          type: string
+          format: uri
+          description: What the owner enters as the Redirect URI of the app they create on their Forgejo.
+        scopes:
+          type: array
+          items:
+            type: string
+          description: The permissions the dashboard asks for, as Forgejo names them.
+        instanceUrl:
+          type: string
+          description: The linked instance, or empty.
+        linked:
+          type: boolean
+        account:
+          type: string
+        repositoryCount:
+          type: integer
+          minimum: 0
+          description: Repositories the board sees on Forgejo as of its last refresh.
+        reachable:
+          type: boolean
+          description: Whether the last refresh reached the instance. True while there has been none.
+    SetupResponse:
+      type: object
+      required: [github, forgejo, refreshed]
+      properties:
+        github:
+          $ref: "#/components/schemas/SetupGitHub"
+        forgejo:
+          $ref: "#/components/schemas/SetupForgejo"
+        refreshed:
+          type: boolean
+          description: Whether the board has finished a refresh since the process started.
     ThemeResponse:
       type: object
       description: See GET /api/v1/settings/theme's own description.

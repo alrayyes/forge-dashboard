@@ -61,7 +61,7 @@ func TestGitHubInstalled_AnIDInTheUsersInstallations_IsStoredWithItsAccountAndRe
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	assert.Equal(t, "/settings", resp.Header.Get("Location"))
+	assert.Equal(t, "/setup", resp.Header.Get("Location"))
 	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
 	assert.Equal(t, []int64{200}, c.installationRows(t))
 
@@ -94,7 +94,21 @@ func TestGitHubInstalled_AnIDNotInTheUsersInstallations_StoresNothing(t *testing
 	resp := c.installed(t, "installation_id=999&setup_action=install")
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+	assert.Equal(t, "installation_unverified", setupErrorOf(t, resp))
+	assert.Empty(t, c.installationRows(t))
+}
+
+func TestGitHubInstalled_ARequestForApproval_SendsTheBrowserBackToSayWaiting(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+
+	resp := c.installed(t, "setup_action=request")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	assert.Equal(t, "/setup?install=requested", resp.Header.Get("Location"))
 	assert.Empty(t, c.installationRows(t))
 }
 
@@ -116,7 +130,7 @@ func TestGitHubInstalled_BadInput_StoresNothing(t *testing.T) {
 			resp := c.installed(t, query)
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Equal(t, "installation_unverified", setupErrorOf(t, resp))
 			assert.Empty(t, c.installationRows(t))
 		})
 	}
@@ -130,11 +144,11 @@ func TestGitHubInstalled_WithoutAConnectedAccount_StoresNothing(t *testing.T) {
 	resp := c.installed(t, "installation_id=100&setup_action=install")
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusConflict, resp.StatusCode)
+	assert.Equal(t, "not_connected", setupErrorOf(t, resp))
 	assert.Empty(t, c.installationRows(t))
 }
 
-func TestGitHubInstalled_WithoutAnOAuthClient_Is400(t *testing.T) {
+func TestGitHubInstalled_WithoutAnOAuthClient_SaysNotConnected(t *testing.T) {
 	t.Parallel()
 
 	c := newGHConnFixture(t, false)
@@ -142,6 +156,6 @@ func TestGitHubInstalled_WithoutAnOAuthClient_Is400(t *testing.T) {
 	resp := c.installed(t, "installation_id=100&setup_action=install")
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "not_connected", setupErrorOf(t, resp))
 	assert.Empty(t, c.installationRows(t))
 }
