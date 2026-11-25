@@ -25,7 +25,12 @@ export type RepositoriesFilter = {
   pollingOnly?: boolean;
   // Which ignore state the list shows; unset is 'active', today's view (#4854).
   ignored?: IgnoredView;
+  // The per-repo settings the row toggles change; unset is 'all' (#4857).
+  autoUpdate?: ToggleView;
+  rebaseBots?: ToggleView;
 };
+
+export type ToggleView = 'all' | 'on' | 'off';
 
 export type IgnoredView = 'active' | 'all' | 'only';
 export type IgnoreScope = '' | 'prs' | 'issues' | 'both';
@@ -39,7 +44,9 @@ export function filtersAreClear(filter: RepositoriesFilter): boolean {
     filter.forge === '' &&
     filter.search === '' &&
     !filter.pollingOnly &&
-    (filter.ignored ?? 'active') === 'active'
+    (filter.ignored ?? 'active') === 'active' &&
+    (filter.autoUpdate ?? 'all') === 'all' &&
+    (filter.rebaseBots ?? 'all') === 'all'
   );
 }
 
@@ -60,9 +67,26 @@ function matchesIgnored(r: RepoRow, filter: RepositoriesFilter): boolean {
   return view === 'all' || (view === 'only') === !!r.ignored;
 }
 
+function matchesToggles(r: RepoRow, filter: RepositoriesFilter): boolean {
+  const auto = filter.autoUpdate ?? 'all';
+  const rebase = filter.rebaseBots ?? 'all';
+  return (
+    (auto === 'all' || (auto === 'on') === r.autoUpdateBranch) &&
+    (rebase === 'all' || (rebase === 'on') === r.rebaseBots)
+  );
+}
+
+// "Showing 12 of 78 repos", or "Showing all 78 repos" when nothing is cut.
+export function repoCountText(shown: number, total: number): string {
+  const noun = total === 1 ? 'repo' : 'repos';
+  return shown === total
+    ? `Showing all ${total} ${noun}`
+    : `Showing ${shown} of ${total} ${noun}`;
+}
+
 // The repos the table shows. A repo whose key is in `keep` was just toggled,
-// so it stays where it is, whatever the ignored view says, until the person
-// refreshes or changes a filter.
+// so it stays where it is, whatever the ignored view and the Auto-update and
+// Rebase bots filters say, until the person refreshes or changes a filter.
 export function filterRepos<T extends RepoRow>(
   repos: T[],
   filter: RepositoriesFilter,
@@ -70,7 +94,8 @@ export function filterRepos<T extends RepoRow>(
 ): T[] {
   return repos.filter(
     (r) =>
-      (keep.has(repoKey(r)) || matchesIgnored(r, filter)) &&
+      (keep.has(repoKey(r)) ||
+        (matchesIgnored(r, filter) && matchesToggles(r, filter))) &&
       matchesForge(r, filter) &&
       matchesSearch(r, filter) &&
       (!filter.pollingOnly || r.hasWebhook === false),

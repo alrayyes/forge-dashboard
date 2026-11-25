@@ -14,6 +14,7 @@ import {
   lockedTip,
   type RepoRow,
   rebaseBotsName,
+  repoCountText,
   sortRepos,
   toggleTip,
 } from './repositories';
@@ -263,5 +264,102 @@ describe('the ignored filter', () => {
   test('a non-default choice is a filter that Clear filters can undo', () => {
     expect(filtersAreClear({ ...none, ignored: 'all' })).toBe(false);
     expect(filtersAreClear({ ...none, ignored: 'active' })).toBe(true);
+  });
+});
+
+describe('the Auto-update and Rebase bots filters', () => {
+  const none = { forge: '', search: '' };
+  const list = [
+    repo('github', 'a', { autoUpdateBranch: true, rebaseBots: true }),
+    repo('github', 'b', { autoUpdateBranch: true }),
+    repo('github', 'c', { rebaseBots: true }),
+    repo('github', 'd'),
+  ];
+  const names = (r: RepoRow[]) => r.map((x) => x.fullName);
+
+  test('unset and all keep every repo', () => {
+    expect(names(filterRepos(list, none))).toEqual(['a', 'b', 'c', 'd']);
+    expect(
+      names(
+        filterRepos(list, { ...none, autoUpdate: 'all', rebaseBots: 'all' }),
+      ),
+    ).toEqual(['a', 'b', 'c', 'd']);
+  });
+  test('Auto-update on and off split the list', () => {
+    expect(names(filterRepos(list, { ...none, autoUpdate: 'on' }))).toEqual([
+      'a',
+      'b',
+    ]);
+    expect(names(filterRepos(list, { ...none, autoUpdate: 'off' }))).toEqual([
+      'c',
+      'd',
+    ]);
+  });
+  test('Rebase bots on and off split the list', () => {
+    expect(names(filterRepos(list, { ...none, rebaseBots: 'on' }))).toEqual([
+      'a',
+      'c',
+    ]);
+    expect(names(filterRepos(list, { ...none, rebaseBots: 'off' }))).toEqual([
+      'b',
+      'd',
+    ]);
+  });
+  test('they combine with each other, the search and the forge', () => {
+    expect(
+      names(
+        filterRepos(list, { ...none, autoUpdate: 'on', rebaseBots: 'off' }),
+      ),
+    ).toEqual(['b']);
+    expect(
+      names(filterRepos(list, { ...none, autoUpdate: 'off', search: 'd' })),
+    ).toEqual(['d']);
+    expect(
+      names(filterRepos(list, { ...none, forge: 'forgejo', autoUpdate: 'on' })),
+    ).toEqual([]);
+  });
+  test('they combine with the ignored view', () => {
+    const withIgnored = [...list, repo('github', 'e', { ignored: true })];
+    expect(
+      names(
+        filterRepos(withIgnored, {
+          ...none,
+          ignored: 'all',
+          rebaseBots: 'off',
+        }),
+      ),
+    ).toEqual(['b', 'd', 'e']);
+    expect(
+      names(filterRepos(withIgnored, { ...none, rebaseBots: 'off' })),
+    ).toEqual(['b', 'd']);
+  });
+  test('a toggled repo stays while its key is kept, others still filter', () => {
+    const keep = new Set(['github:a']);
+    expect(
+      names(filterRepos(list, { ...none, autoUpdate: 'off' }, keep)),
+    ).toEqual(['a', 'c', 'd']);
+    expect(
+      names(
+        filterRepos(
+          list,
+          { ...none, forge: 'forgejo', autoUpdate: 'off' },
+          keep,
+        ),
+      ),
+    ).toEqual([]);
+  });
+  test('a non-default choice is a filter that Clear filters can undo', () => {
+    expect(filtersAreClear({ ...none, autoUpdate: 'all' })).toBe(true);
+    expect(filtersAreClear({ ...none, autoUpdate: 'on' })).toBe(false);
+    expect(filtersAreClear({ ...none, rebaseBots: 'off' })).toBe(false);
+  });
+});
+
+describe('the repo count', () => {
+  test('says how many rows match out of those tracked', () => {
+    expect(repoCountText(12, 78)).toBe('Showing 12 of 78 repos');
+    expect(repoCountText(78, 78)).toBe('Showing all 78 repos');
+    expect(repoCountText(1, 1)).toBe('Showing all 1 repo');
+    expect(repoCountText(0, 5)).toBe('Showing 0 of 5 repos');
   });
 });
