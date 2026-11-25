@@ -95,6 +95,14 @@ const PRS = [
       { action: 'close' },
     ],
   }),
+  pr(
+    8,
+    'Requested recreate',
+    { ...request('queued'), action: 'recreate' },
+    {
+      allowedActions: [{ action: 'close' }],
+    },
+  ),
   pr(7, 'Merge first', request('queued'), { allowedActions: MERGE_FIRST }),
   { ...pr(4, 'Up to date'), behind: false, status: undefined },
 ];
@@ -145,14 +153,22 @@ for (const width of [360, 1280]) {
       expect(results.violations).toEqual([]);
     });
 
-    test('the requested row keeps its disabled Rebase requested button', async ({
+    test('the requested row draws no Rebase requested button', async ({
       page,
     }) => {
-      const button = row(page, 'Requested rebase').getByRole('button', {
-        name: 'Rebase requested',
-      });
-      await expect(button).toHaveCount(1);
-      await expect(button).toBeDisabled();
+      const r = row(page, 'Requested rebase');
+      await expect(r.getByRole('button', { name: /requested/ })).toHaveCount(0);
+      await expect(r.locator('.wait-chip')).toContainText('Rebase requested');
+      await expect(r.getByText('Rebase requested')).toHaveCount(1);
+    });
+
+    test('a requested Recreate says Recreate requested once', async ({
+      page,
+    }) => {
+      const r = row(page, 'Requested recreate');
+      await expect(r.locator('.wait-chip')).toContainText('Recreate requested');
+      await expect(r.getByText('Recreate requested')).toHaveCount(1);
+      await expect(r.getByRole('button', { name: /requested/ })).toHaveCount(0);
     });
 
     test('a picked up rebase hides the pill and block too', async ({
@@ -213,7 +229,7 @@ test('AC2: the Out of date quick filter keeps the requested row', async ({
 }) => {
   await open(page, 1280);
   await quickPill(page, 'Out of date').click();
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(6);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(7);
   await expect(row(page, 'Requested rebase')).toHaveCount(1);
 });
 
@@ -229,3 +245,31 @@ test('AC5: the pop-up footer lists Merge locked with its reason', async ({
     'Behind the base branch',
   );
 });
+
+test('AC2: the pop-up lists the requested rebase as locked with its reason', async ({
+  page,
+}) => {
+  await open(page, 1280);
+  const dialog = await openActionsDialog(row(page, 'Requested rebase'));
+  const locked = actionsFooter(dialog).getByRole('button', {
+    name: 'Rebase requested',
+  });
+  await expect(locked).toHaveAttribute('aria-disabled', 'true');
+  await expect(locked).toHaveAccessibleDescription(/No need to ask again/);
+});
+
+for (const width of [390, 1280]) {
+  for (const theme of ['light', 'dark'] as const) {
+    test(`AC4: axe is clean on requested rows at ${width}px, ${theme}`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await open(page, width);
+      await expect(row(page, 'Requested recreate')).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+}

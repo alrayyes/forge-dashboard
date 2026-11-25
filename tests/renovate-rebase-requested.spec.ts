@@ -472,9 +472,8 @@ test.describe('A requested Renovate rebase offers only the cancel (#2748)', () =
 
     await row.getByRole('button', { name: REQUEST_NAME }).focus();
     await page.keyboard.press('Enter');
-    await expect(
-      row.getByRole('button', { name: /Rebase requested/ }),
-    ).toBeVisible();
+    // The row's chip says it; focus moved there when the button went.
+    await expect(row.locator('.wait-chip')).toBeFocused();
 
     const pr = makePR(CANCEL, {
       behind: true,

@@ -762,7 +762,7 @@ is in it. It has an icon, a bold label of at most three words and a lighter line
 naming the actor or the reason. The fuller explanation is a hint that opens on
 hover and on keyboard focus (the chip takes focus), and a button shows only
 where one exists. The states: `Rebase requested` and then `Rebasing` for a
-Dependabot or Renovate `rebase`, `Recreating` for a Dependabot recreate,
+Dependabot or Renovate `rebase`, `Recreate requested` for a Dependabot recreate,
 `Updating branch`, `Merging` and `Closing` while the forge answers, `Arming` and
 `Cancelling` for auto-merge, and `Waiting for CI` (or `Waiting for parent`,
 `Rate limited`, `Waiting for ready`, `Waiting for forge`) for an armed
@@ -940,16 +940,18 @@ server restart forgets it and a browser reload doesn't. The page shows the
 request as queued the moment you click, until the next snapshot says otherwise.
 
 A queued Dependabot request names itself: `Rebase requested` or `Recreate
-requested` on the button. While either command is pending the server lists
+requested` on the chip. While either command is pending the server lists
 neither `dependabot_rebase` nor `dependabot_recreate`, so the page draws no
 button for the other one. Recreating over a pending rebase would throw its work
 away, and rebasing during a pending Recreate is pointless since recreating
 rebuilds the whole pull request. Dependabot has no command to withdraw a
 request, so Recreate stays held back for the whole wait, on purpose, not only
-for a few seconds after the click. The command you just sent keeps its
-`requested` button unavailable until the server lists the request, so the row
-never goes
-blank. If another tab already sent the same command, the server answers 409
+for a few seconds after the click. The command you just sent shows as
+`Rebase requested` or `Recreate requested` in the row's wait chip and nowhere
+else: the row draws no disabled button beside it, so it has no dead stop when
+tabbing. The pop-up's footer lists the command as locked, with its reason ("The
+bot has your request. No need to ask again."), until the server lists the
+request. If another tab already sent the same command, the server answers 409
 with the `already_requested` code and the page shows the command as requested,
 not as a failure. Both commands come back once the bot has acted or the request
 has expired.

@@ -322,6 +322,9 @@ test.describe('the waiting chip on a bot rebase', () => {
     // The click left the pointer where the chip now is.
     await page.mouse.move(0, 0);
     const chip = chipOf(page);
+    // The row draws no button for the request, so the click's focus moved to
+    // the chip; leave it so the tip starts closed.
+    await chip.evaluate((e) => (e as HTMLElement).blur());
     const tip = chip.locator('.wait-chip-tip');
     await expect(tip).toHaveCSS('opacity', '0');
 

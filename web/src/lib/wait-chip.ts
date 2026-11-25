@@ -125,7 +125,10 @@ export function waitChip(input: WaitInput): Chip {
       const how = input.trigger === 'label' ? ' The rebase label is set.' : '';
       return {
         ...base,
-        label: input.kind === 'bot-rebase' ? 'Rebase requested' : 'Recreating',
+        label:
+          input.kind === 'bot-rebase'
+            ? 'Rebase requested'
+            : 'Recreate requested',
         detail: input.acknowledged ? `${bot} got it` : bot,
         tooltip: input.acknowledged
           ? `${bot} has seen your ${noun} command and hasn't pushed yet. No need to ask again.`
