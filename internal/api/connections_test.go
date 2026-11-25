@@ -65,6 +65,9 @@ func newFakeForgejoInstance(t *testing.T) *fakeForgejoInstance {
 			"access_token": connAccessTok, "refresh_token": connRefreshTk, "token_type": "bearer", "expires_in": 3600,
 		})
 	})
+	mux.HandleFunc("/api/v1/version", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": "11.0.0"})
+	})
 	mux.HandleFunc("/api/v1/user", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+connAccessTok {
 			http.Error(w, "no", http.StatusUnauthorized)

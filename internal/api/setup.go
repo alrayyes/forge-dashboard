@@ -2,10 +2,12 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/oauth"
@@ -64,6 +66,54 @@ func handleSetupGet(deps Deps) http.HandlerFunc {
 		}
 
 		writeJSON(w, http.StatusOK, resp)
+	}
+}
+
+// verifyForgejoInstanceRequest matches components.schemas.VerifyForgejoInstanceRequest.
+type verifyForgejoInstanceRequest struct {
+	InstanceURL string `json:"instanceUrl"`
+}
+
+// VerifyForgejoInstanceResponse matches components.schemas.VerifyForgejoInstanceResponse.
+type VerifyForgejoInstanceResponse struct {
+	InstanceURL string `json:"instanceUrl"`
+}
+
+// handleSetupVerifyInstance answers POST /api/v1/setup/forgejo-instance. The
+// page calls it before it shows the owner what to register, so a mistyped
+// address is caught while they can still fix it.
+func handleSetupVerifyInstance() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+
+		var req verifyForgejoInstanceRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("request body must be JSON with an instanceUrl"))
+
+			return
+		}
+
+		raw := strings.TrimSpace(req.InstanceURL)
+		if raw == "" || len(raw) > maxInstanceURLLen {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", "instanceUrl must be the address of your Forgejo"))
+
+			return
+		}
+
+		if msg := forgejoURLProblem("instanceUrl", raw); msg != "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", msg))
+
+			return
+		}
+
+		instance, err := oauth.CheckForgejoInstance(r.Context(), raw)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", "nothing at that address answered like a Forgejo"))
+
+			return
+		}
+
+		writeJSON(w, http.StatusOK, VerifyForgejoInstanceResponse{InstanceURL: instance})
 	}
 }
 
