@@ -41,7 +41,7 @@ const SETUP_FACTS = {
   forgejo: {
     redirectUri:
       'https://board.example.com/api/v1/connections/forgejo/callback',
-    scopes: ['read:user', 'read:repository'],
+    scopes: ['write:repository', 'write:issue', 'read:user'],
     instanceUrl: '',
     linked: false,
     account: '',
