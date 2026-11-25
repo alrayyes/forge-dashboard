@@ -66,7 +66,7 @@ func TestReleaseDetails_ReturnsTheTitleAndTheNotes(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeReleaseDetailerSource{forge: dashboard.ForgeGitHub, details: sampleReleaseDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getReleaseDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", "v1.2.3")
 	defer func() { _ = resp.Body.Close() }()
@@ -87,7 +87,7 @@ func TestReleaseDetails_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getReleaseDetails(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", "v1")
 	defer func() { _ = resp.Body.Close() }()
@@ -99,7 +99,7 @@ func TestReleaseDetails_MalformedInput_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeReleaseDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	badName := getReleaseDetails(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", "v1")
 	defer func() { _ = badName.Body.Close() }()
@@ -128,7 +128,7 @@ func TestReleaseDetails_FetchFails_ClassifiesByError(t *testing.T) {
 				forge:      dashboard.ForgeGitHub,
 				detailsErr: &dashboard.ClientError{Kind: tc.kind, Err: assert.AnError},
 			}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := getReleaseDetails(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", "v1")
 			defer func() { _ = resp.Body.Close() }()
@@ -142,7 +142,7 @@ func TestReleaseDetails_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeReleaseDetailerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getReleaseDetails(t, srvURL, nil, "github", "alrayyes/a", "v1")
 	defer func() { _ = resp.Body.Close() }()
@@ -154,7 +154,7 @@ func TestContract_ReleaseDetails(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeReleaseDetailerSource{forge: dashboard.ForgeGitHub, details: sampleReleaseDetails()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "tag": {"v1.2.3"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/releases/details?"+q.Encode(), sessionCookie)

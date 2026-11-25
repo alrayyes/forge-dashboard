@@ -58,7 +58,7 @@ func TestPullRequestReopen_CallsReopenPullRequestWithOwnerNameAndNumber(t *testi
 	t.Parallel()
 
 	source := &fakePullRequestReopenerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postReopenPullRequest(t, srvURL, sessionCookie, 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -77,7 +77,7 @@ func TestPullRequestReopen_ForgeRefusesAClosedBranch_AnswersNotReopenable(t *tes
 		reopenErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: assert.AnError},
 		state:     dashboard.PullRequestState{Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postReopenPullRequest(t, srvURL, sessionCookie, 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -96,7 +96,7 @@ func TestPullRequestReopen_AlreadyMerged_AnswersConflict(t *testing.T) {
 		reopenErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorUnknown, Err: assert.AnError},
 		state:     dashboard.PullRequestState{Merged: true, Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postReopenPullRequest(t, srvURL, sessionCookie, 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -111,7 +111,7 @@ func TestPullRequestReopen_ForgeWithNoReopenSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postReopenPullRequest(t, srvURL, sessionCookie, 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -123,7 +123,7 @@ func TestPullRequestReopen_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestReopenerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)

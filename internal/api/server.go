@@ -109,10 +109,10 @@ type Deps struct {
 	// PublicOrigin is this instance's own externally-reachable origin
 	// (RP_ORIGIN — the same value WebAuthn's relying-party config
 	// already requires be set correctly, reused rather than adding a
-	// second "what's my own address" env var). handleWebhookEnsure uses
-	// it to build the exact URL a webhook it creates should target;
-	// nothing else here needs it, since matching an existing hook
-	// (dashboard.WebhookTargetsPath) only ever compares by path.
+	// second "what's my own address" env var). The dashboard
+	// summary uses it to flag a webhook aimed at the wrong origin;
+	// matching an existing hook (dashboard.WebhookTargetsPath) only
+	// ever compares by path.
 	PublicOrigin string
 
 	// GitHubAppConfigured is whether this deployment has a GitHub App set
@@ -203,7 +203,6 @@ func NewMux(deps Deps) http.Handler {
 	mux.Handle("GET /api/v1/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensGet(deps.AuthStore)))
 	mux.Handle("POST /api/v1/tokens", auth.RequireAuth(deps.AuthStore)(handleTokensPost(deps.AuthStore)))
 	mux.Handle("DELETE /api/v1/tokens/{id}", auth.RequireAuth(deps.AuthStore)(handleTokensDelete(deps.AuthStore)))
-	mux.Handle("POST /api/v1/webhooks/ensure", auth.RequireAuth(deps.AuthStore)(tagKind(apistats.KindHookMaintenance, handleWebhookEnsure(deps))))
 	mux.Handle("POST /api/v1/repos/ignore", auth.RequireAuth(deps.AuthStore)(handleRepoIgnore(deps)))
 	mux.Handle("POST /api/v1/repos/unignore", auth.RequireAuth(deps.AuthStore)(handleRepoUnignore(deps)))
 	mux.Handle("POST /api/v1/repos/auto-update-branch/enable", auth.RequireAuth(deps.AuthStore)(handleAutoUpdateBranchEnable(deps)))

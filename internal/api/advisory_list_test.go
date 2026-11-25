@@ -68,7 +68,7 @@ func TestAdvisoryList_ReturnsTheOpenAdvisories(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getAdvisoryList(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -91,7 +91,7 @@ func TestAdvisoryList_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutBranchUpdateSupport{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getAdvisoryList(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -103,7 +103,7 @@ func TestAdvisoryList_MalformedName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getAdvisoryList(t, srvURL, sessionCookie, "github", "not-owner-slash-repo")
 	defer func() { _ = resp.Body.Close() }()
@@ -118,7 +118,7 @@ func TestAdvisoryList_FetchFails_ClassifiesByError(t *testing.T) {
 		forge: dashboard.ForgeGitHub,
 		err:   &dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: assert.AnError},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getAdvisoryList(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit")
 	defer func() { _ = resp.Body.Close() }()
@@ -130,7 +130,7 @@ func TestAdvisoryList_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := getAdvisoryList(t, srvURL, nil, "github", "alrayyes/a")
 	defer func() { _ = resp.Body.Close() }()
@@ -142,7 +142,7 @@ func TestContract_AdvisoryList(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}}
 	req, got := record(t, http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), sessionCookie)
@@ -162,7 +162,7 @@ func TestAdvisoryList_ForgejoLister_ReturnsOSVMatchesAndPartial(t *testing.T) {
 			PatchedVersion: "4.17.21", URL: "https://osv.dev/vulnerability/GHSA-aaaa-bbbb-cccc",
 		}},
 	}}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := getAdvisoryList(t, srvURL, sessionCookie, "forgejo", "acme/lockfiles")
 	defer func() { _ = resp.Body.Close() }()
@@ -190,7 +190,7 @@ func TestAdvisoryList_RefreshTrueAsksTheSourceForAFreshRead(t *testing.T) {
 		t.Run("refresh="+refresh, func(t *testing.T) {
 			t.Parallel()
 			source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
-			srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 			q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}}
 			if refresh != "" {
 				q.Set("refresh", refresh)
@@ -212,7 +212,7 @@ func TestAdvisoryList_RefreshTrueAsksTheSourceForAFreshRead(t *testing.T) {
 func TestAdvisoryList_ABadRefreshIsA400(t *testing.T) {
 	t.Parallel()
 	source := &fakeAdvisoryListerSource{forge: dashboard.ForgeGitHub, list: sampleAdvisoryList()}
-	srvURL, c := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, c := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	q := url.Values{"forge": {"github"}, "fullName": {"alrayyes/tempus-fugit"}, "refresh": {"maybe"}}
 	req, err := http.NewRequest(http.MethodGet, srvURL+"/api/v1/main-branches/advisories?"+q.Encode(), nil)
 	require.NoError(t, err)

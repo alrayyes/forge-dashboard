@@ -86,13 +86,11 @@ tags:
   - name: webhooks
     description: |
       Where GitHub/Forgejo push repository events, for an immediate refresh
-      instead of waiting on the next poll, and the one endpoint that
-      creates or updates a webhook on the user's behalf. The two delivery
+      instead of waiting on the next poll. The two delivery
       endpoints aren't session-authenticated like everything else here —
       the path's token is the instance's webhook token, and the request's HMAC
       signature (computed with its webhook secret) is what proves
-      it actually came from their forge; `POST /api/v1/webhooks/ensure` is a
-      normal session-authenticated endpoint like the rest of this API.
+      it actually came from their forge.
   - name: pull-requests
     description: |
       Actions against a pull request already listed on the dashboard,
@@ -1150,82 +1148,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-
-  /api/v1/webhooks/ensure:
-    post:
-      operationId: ensureWebhook
-      summary: Create or fix up a webhook on one tracked repo, on the signed-in user's behalf
-      description: |
-        Creates a webhook on the named repo, pointed at the signed-in
-        user's own webhook URL and secret, subscribed to the events
-        docs/webhooks.md's manual steps recommend. If one already exists
-        there (found the same way GET /api/v1/dashboard's own `hasWebhook`
-        does — matching by URL path, not object identity) it's brought
-        back to active with the right events instead of creating a
-        duplicate.
-
-        One of a small number of endpoints in this API that write to a
-        forge rather than just reading from it — see also the
-        pull-requests tag.
-
-        A refusal from the forge (403, 404, 429 and 502) answers with the
-        same `ActionError` a refused pull request action does, so a client
-        reads one shape: `code` is `permission` or `rate_limited` where
-        the forge said so (with `resetsAt` for a rate limit), and
-        `unknown` otherwise, with a plain `message` either way. No new
-        code is needed: a repo the forge can't find is `unknown` with its
-        own message. 400 and 401 stay a plain `Error`, since they are
-        about the request, not a refusal by the forge.
-      tags: [webhooks]
-      security: [{ bearerAuth: [] }]
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WebhookEnsureRequest"
-      responses:
-        "204":
-          description: The webhook now exists and is correctly configured.
-        "400":
-          description: |
-            The request body wasn't valid JSON, `fullName` wasn't
-            "owner/repo", no credentials are saved for that forge, or
-            that forge's client doesn't support managing webhooks at all.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "401":
-          description: No valid session cookie was presented.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        "403":
-          description: The forge rejected the request as unauthorized — the saved token's scope doesn't cover managing webhooks, or it isn't an admin on that repo.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionError"
-        "404":
-          description: The forge reported the repo itself doesn't exist (or isn't visible to this token).
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionError"
-        "429":
-          description: The forge rate-limited the request.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionError"
-        "502":
-          description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/ActionError"
 
   /api/v1/repos/ignore:
     post:
@@ -5165,7 +5087,7 @@ components:
     WebhookEnsureRequest:
       type: object
       required: [forge, fullName]
-      description: Which repo to create or fix up a webhook on.
+      description: Which repo a repo-level action targets.
       properties:
         forge:
           $ref: "#/components/schemas/Forge"
@@ -8649,8 +8571,8 @@ components:
             is its own admin permission flag. Always false for a repo
             reached through an unauthenticated, username-only listing.
             A point-in-time snapshot: a permission change since the last
-            refresh can still make a following ensure-webhook call fail
-            despite this having said true. For a GitHub App connection
+            refresh can still make a later hook write fail despite this having
+            said true. For a GitHub App connection
             there is no user role to read, so this is true when listing
             the repo's webhooks worked on the last refresh.
         webhookLockedByConnection:

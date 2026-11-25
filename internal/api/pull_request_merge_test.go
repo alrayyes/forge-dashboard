@@ -76,7 +76,7 @@ func TestPullRequestMerge_CallsMergePullRequestWithOwnerNameAndNumber(t *testing
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 42)
 	defer func() { _ = resp.Body.Close() }()
@@ -91,7 +91,7 @@ func TestPullRequestMerge_ForgejoDispatchesToTheForgejoSource(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeForgejo}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 7)
 	defer func() { _ = resp.Body.Close() }()
@@ -110,7 +110,7 @@ func TestPullRequestMerge_NotMergeable_ClassifiesAs409(t *testing.T) {
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -131,7 +131,7 @@ func TestPullRequestMerge_RateLimited_ClassifiesAs429(t *testing.T) {
 			Err:  assert.AnError,
 		},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -143,7 +143,7 @@ func TestPullRequestMerge_ForgeWithNoMergeSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutMergeSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -155,7 +155,7 @@ func TestPullRequestMerge_NoCredentialsSavedForThatForge_Returns400(t *testing.T
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/tempus-fugit", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -167,7 +167,7 @@ func TestPullRequestMerge_MalformedFullName_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "not-owner-slash-repo", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -179,7 +179,7 @@ func TestPullRequestMerge_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	body, err := json.Marshal(map[string]any{"forge": "github", "fullName": "alrayyes/a", "number": 1})
 	require.NoError(t, err)
@@ -213,7 +213,7 @@ func TestPullRequestMerge_RefusedOnAnAlreadyMergedPR_AnswersAlreadyMerged(t *tes
 		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT /repos/alrayyes/a/pulls/1/merge: Pull Request is not mergeable"),
 		state:    dashboard.PullRequestState{Merged: true, Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -234,7 +234,7 @@ func TestPullRequestMerge_RefusedOnAClosedPR_AnswersAlreadyClosed(t *testing.T) 
 		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "forgejo: POST x: not mergeable"),
 		state:    dashboard.PullRequestState{Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -253,7 +253,7 @@ func TestPullRequestMerge_RefusedWithAConflict_AnswersConflictFromTheReRead(t *t
 		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Pull Request is not mergeable"),
 		state:    dashboard.PullRequestState{Conflicting: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -274,7 +274,7 @@ func TestPullRequestMerge_ReReadFails_ReturnsTheOriginalErrorWithCodeUnknown(t *
 		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Head branch was modified. Review and try the merge again."),
 		stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -295,7 +295,7 @@ func TestPullRequestMerge_UncodedFailure_KeepsTheRawTextOutOfTheResponse(t *test
 		mergeErr: mergeRefusal(dashboard.ForgeErrorUnknown, "dashboard: merge pull request: forgejo: PUT /repos/alrayyes/a/pulls/1/merge: 422 see https://git.example/api/swagger"),
 		stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -311,7 +311,7 @@ func TestPullRequestMerge_SourceWithoutStateReader_AnswersUnknownWithTheOriginal
 	t.Parallel()
 
 	source := &mergeOnlySource{forge: dashboard.ForgeGitHub, err: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Pull Request is not mergeable")}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -343,7 +343,7 @@ func TestPullRequestMerge_PermissionAndRateLimit_KeepTheirStatus(t *testing.T) {
 			t.Parallel()
 
 			source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub, mergeErr: tc.err}
-			srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 			defer func() { _ = resp.Body.Close() }()
@@ -387,7 +387,7 @@ func TestPullRequestMerge_ForgejoEmptyRefusalOnMergedPR_AnswersAlreadyMergedFrom
 		mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "forgejo: POST /repos/alrayyes/a/pulls/1/merge: 405 Method Not Allowed"),
 		state:    dashboard.PullRequestState{Merged: true, Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "forgejo", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -410,7 +410,7 @@ func TestPullRequestMerge_PermissionRefusalOnAMergedPullRequest_AnswersAlreadyMe
 		mergeErr: mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration"),
 		state:    dashboard.PullRequestState{Merged: true, Closed: true},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergePullRequest(t, srvURL, sessionCookie, "github", "alrayyes/a", 1)
 	defer func() { _ = resp.Body.Close() }()
@@ -459,7 +459,7 @@ func TestPullRequestMerge_DeleteBranch_DeletesAfterTheMergeAndReportsIt(t *testi
 		forge:    dashboard.ForgeGitHub,
 		deletion: dashboard.BranchDeletion{Outcome: dashboard.BranchDeleted},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", 42, true)
 	defer func() { _ = resp.Body.Close() }()
@@ -479,7 +479,7 @@ func TestPullRequestMerge_DeleteBranch_ReportsWhyABranchWasLeftAlone(t *testing.
 		forge:    dashboard.ForgeForgejo,
 		deletion: dashboard.BranchDeletion{Outcome: dashboard.BranchSkipped, Reason: dashboard.SkipFork},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "forgejo", 7, true)
 	defer func() { _ = resp.Body.Close() }()
@@ -497,7 +497,7 @@ func TestPullRequestMerge_DeleteBranch_AFailedDeletionIsNotAFailedMerge(t *testi
 		forge:    dashboard.ForgeGitHub,
 		deletion: dashboard.BranchDeletion{Outcome: dashboard.BranchDeleteFailed},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", 42, true)
 	defer func() { _ = resp.Body.Close() }()
@@ -514,7 +514,7 @@ func TestPullRequestMerge_WithoutDeleteBranch_AnswersNoContentAndKeepsTheBranch(
 	source := &fakeBranchDeleterSource{
 		forge: dashboard.ForgeGitHub,
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", 42, false)
 	_ = resp.Body.Close()
@@ -530,7 +530,7 @@ func TestPullRequestMerge_DeleteBranch_AFailedMergeDeletesNothing(t *testing.T) 
 		forge:    dashboard.ForgeGitHub,
 		mergeErr: &dashboard.ClientError{Kind: dashboard.ForgeErrorConflict, Err: assert.AnError},
 	}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", 42, true)
 	defer func() { _ = resp.Body.Close() }()
@@ -543,7 +543,7 @@ func TestPullRequestMerge_DeleteBranch_ASourceThatCannotDeleteReportsItSkipped(t
 	t.Parallel()
 
 	source := &fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postMergeDeletingBranch(t, srvURL, sessionCookie, "github", 42, true)
 	defer func() { _ = resp.Body.Close() }()

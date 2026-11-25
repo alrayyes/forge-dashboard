@@ -133,7 +133,7 @@ func TestPullRequestActions_RefusedOnAMergedOrClosedPR_AnswerTheStaleCode(t *tes
 			t.Parallel()
 
 			source := &refusalSource{forge: tc.forge, err: tc.err, state: tc.state}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, tc.forge, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, tc.forge, source)
 
 			status, body := postAction(t, srvURL, cookie, endpointFor(tc.endpoint), string(tc.forge))
 
@@ -158,7 +158,7 @@ func TestPullRequestActions_PermissionAndRateLimit_KeepTheirStatus(t *testing.T)
 			t.Parallel()
 
 			source := &refusalSource{forge: dashboard.ForgeGitHub, err: mergeRefusal(dashboard.ForgeErrorUnauthorized, "github: PUT x: Resource not accessible by integration")}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, ep, "github")
 
@@ -170,7 +170,7 @@ func TestPullRequestActions_PermissionAndRateLimit_KeepTheirStatus(t *testing.T)
 			t.Parallel()
 
 			source := &refusalSource{forge: dashboard.ForgeGitHub, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorRateLimited, Err: errors.New("github: PUT x: rate limit exceeded"), RateLimit: &dashboard.RateLimit{ResetsAt: reset}}}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, ep, "github")
 
@@ -188,7 +188,7 @@ func TestPullRequestActions_PermissionAndRateLimit_KeepTheirStatus(t *testing.T)
 				err:      mergeRefusal(dashboard.ForgeErrorUnknown, "github: PUT x: Something odd"),
 				stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
 			}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, ep, "github")
 
@@ -200,7 +200,7 @@ func TestPullRequestActions_PermissionAndRateLimit_KeepTheirStatus(t *testing.T)
 			t.Parallel()
 
 			source := &refusalSource{forge: dashboard.ForgeGitHub, err: mergeRefusal(dashboard.ForgeErrorUnknown, "github: PUT x: Something odd")}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, ep, "github")
 
@@ -221,7 +221,7 @@ func TestPullRequestActions_MergeOnlyStateDoesNotExplainOtherActions(t *testing.
 		err:   mergeRefusal(dashboard.ForgeErrorUnknown, "github: PATCH x: Something odd"),
 		state: dashboard.PullRequestState{Conflicting: true, Behind: true, Draft: true},
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	_, body := postAction(t, srvURL, cookie, endpointFor("close"), "github")
 
@@ -263,7 +263,7 @@ func TestPullRequestUpdateBranch_Refusals(t *testing.T) {
 			t.Parallel()
 
 			source := &refusalSource{forge: tc.forge, err: tc.err, state: tc.state}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, tc.forge, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, tc.forge, source)
 
 			status, body := postAction(t, srvURL, cookie, endpointFor("update-branch"), string(tc.forge))
 
@@ -282,7 +282,7 @@ func TestPullRequestUpdateBranch_ConflictIsAnsweredEvenWhenTheReReadFails(t *tes
 		err:      mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: merge conflict between base and head"),
 		stateErr: mergeRefusal(dashboard.ForgeErrorUnreachable, "github: GET x: timeout"),
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, body := postAction(t, srvURL, cookie, endpointFor("update-branch"), "github")
 
@@ -309,7 +309,7 @@ func TestPullRequestActions_ForgeServerError_AnswersForgeErrorWithTheUpstreamDet
 					RequestID:      "DC37:31D3AC:5E7D4F9:83EE23F:6AD77763",
 				},
 			}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, endpointFor(name), "github")
 
@@ -340,7 +340,7 @@ func TestPullRequestAutoMerge_Refusals(t *testing.T) {
 			t.Parallel()
 
 			source := &refusalSource{forge: dashboard.ForgeGitHub, err: mergeRefusal(dashboard.ForgeErrorUnknown, "github: graphql: "+tc.text)}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			status, body := postAction(t, srvURL, cookie, endpointFor("auto-merge"), "github")
 
@@ -358,7 +358,7 @@ func TestPullRequestRenovateRebase_MissingLabelOnAnOpenPR_AnswersLabelMissing(t 
 		forge: dashboard.ForgeForgejo,
 		err:   mergeRefusal(dashboard.ForgeErrorNotFound, `forgejo: no label "rebase" on alrayyes/a — create it on the repo first`),
 	}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	status, body := postAction(t, srvURL, cookie, endpointFor("renovate-rebase"), "forgejo")
 
@@ -371,7 +371,7 @@ func TestPullRequestDependabotAction_BlockedAppAnswersPermissionWithTheReason(t 
 	t.Parallel()
 
 	source := &refusalSource{forge: dashboard.ForgeGitHub, blocked: "Dependabot ignores GitHub Apps"}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, body := postAction(t, srvURL, cookie, endpointFor("dependabot-action"), "github")
 

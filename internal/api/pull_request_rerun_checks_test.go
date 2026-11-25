@@ -181,7 +181,7 @@ func TestPullRequestRerunChecks_ForgeWithNoRerunSupport_Returns400(t *testing.T)
 	t.Parallel()
 
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-	srvURL, sessionCookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, sessionCookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, _ := postRerunChecks(t, srvURL, sessionCookie)
 
@@ -192,7 +192,7 @@ func TestPullRequestRerunChecks_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp, err := testClient(t).Post(srvURL+"/api/v1/pull-requests/rerun-checks", "application/json", strings.NewReader(`{}`))
 	require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestPullRequestRerunnable_ForgeWithNoSupport_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	status, _ := getRerunnable(t, srvURL, cookie)
 

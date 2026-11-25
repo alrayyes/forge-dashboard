@@ -62,7 +62,7 @@ func TestPullRequestActions_ASucceededMergeOrCloseLeavesTheBoardAtOnce(t *testin
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, &stubbornForge{fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}})
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, &stubbornForge{fakePullRequestMergerSource{forge: dashboard.ForgeGitHub}})
 			require.Eventually(t, func() bool {
 				return len(fetchDashboardWith(t, srvURL, cookie, "")["pullRequests"].([]any)) == 2
 			}, pollBudget, 10*time.Millisecond, "the background refresh should list both pull requests")
@@ -80,7 +80,7 @@ func TestPullRequestMerge_ARefusedMergeHidesNothing(t *testing.T) {
 	t.Parallel()
 
 	source := &stubbornForge{fakePullRequestMergerSource{forge: dashboard.ForgeGitHub, mergeErr: mergeRefusal(dashboard.ForgeErrorConflict, "github: PUT x: Pull Request is not mergeable")}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 	require.Eventually(t, func() bool {
 		return len(fetchDashboardWith(t, srvURL, cookie, "")["pullRequests"].([]any)) == 2
 	}, pollBudget, 10*time.Millisecond)

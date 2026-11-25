@@ -86,7 +86,7 @@ func TestIssueActions_CallTheForgeWithOwnerNameAndNumber(t *testing.T) {
 			t.Parallel()
 
 			source := &fakeIssueActionsSource{forge: dashboard.ForgeGitHub}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postIssueAction(t, srvURL, cookie, action, issuePayload(nil))
 			defer func() { _ = resp.Body.Close() }()
@@ -101,7 +101,7 @@ func TestIssueComment_PostsTheCommentOnTheForgejoIssue(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueActionsSource{forge: dashboard.ForgeForgejo}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeForgejo, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeForgejo, source)
 
 	resp := postIssueAction(t, srvURL, cookie, "comment", issuePayload(map[string]any{"forge": "forgejo", "body": "Fixed upstream."}))
 	defer func() { _ = resp.Body.Close() }()
@@ -123,7 +123,7 @@ func TestIssueComment_BlankOrTooLongBody_Returns400WithoutCallingTheForge(t *tes
 			t.Parallel()
 
 			source := &fakeIssueActionsSource{forge: dashboard.ForgeGitHub}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postIssueAction(t, srvURL, cookie, "comment", issuePayload(map[string]any{"body": body}))
 			defer func() { _ = resp.Body.Close() }()
@@ -149,7 +149,7 @@ func TestIssueActions_PermissionRefusal_AnswersTheMissingPermission(t *testing.T
 				Err:               assert.AnError,
 				PermissionMessage: "Changing an issue needs write access to issues.",
 			}}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postIssueAction(t, srvURL, cookie, action, issuePayload(map[string]any{"body": "hi"}))
 			defer func() { _ = resp.Body.Close() }()
@@ -172,7 +172,7 @@ func TestIssueActions_RateLimited_AnswersWhenItResets(t *testing.T) {
 		Err:       assert.AnError,
 		RateLimit: &dashboard.RateLimit{ResetsAt: resets},
 	}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postIssueAction(t, srvURL, cookie, "close", issuePayload(nil))
 	defer func() { _ = resp.Body.Close() }()
@@ -188,7 +188,7 @@ func TestIssueActions_ForgeDown_Answers502WithAPlainReason(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueActionsSource{forge: dashboard.ForgeGitHub, err: &dashboard.ClientError{Kind: dashboard.ForgeErrorUnreachable, Err: assert.AnError}}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	resp := postIssueAction(t, srvURL, cookie, "close", issuePayload(nil))
 	defer func() { _ = resp.Body.Close() }()
@@ -208,7 +208,7 @@ func TestIssueActions_ForgeWithNoSupport_Returns400(t *testing.T) {
 			t.Parallel()
 
 			source := &fakeSourceWithoutCloseSupport{forge: dashboard.ForgeGitHub}
-			srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+			srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 			resp := postIssueAction(t, srvURL, cookie, action, issuePayload(map[string]any{"body": "hi"}))
 			defer func() { _ = resp.Body.Close() }()
@@ -222,7 +222,7 @@ func TestIssueActions_MalformedFullNameOrUnknownForge_Returns400(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueActionsSource{forge: dashboard.ForgeGitHub}
-	srvURL, cookie := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, cookie := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for name, extra := range map[string]map[string]any{
 		"full name": {"fullName": "no-slash"},
@@ -239,7 +239,7 @@ func TestIssueActions_Unauthenticated_Returns401(t *testing.T) {
 	t.Parallel()
 
 	source := &fakeIssueActionsSource{forge: dashboard.ForgeGitHub}
-	srvURL, _ := newTestServerForWebhookEnsure(t, dashboard.ForgeGitHub, source)
+	srvURL, _ := newTestServerWithForgeSource(t, dashboard.ForgeGitHub, source)
 
 	for _, action := range []string{"close", "reopen", "comment"} {
 		body, err := json.Marshal(issuePayload(map[string]any{"body": "hi"}))
