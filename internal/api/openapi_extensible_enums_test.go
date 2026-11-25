@@ -1,6 +1,10 @@
 package api_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"strconv"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -33,7 +37,42 @@ var knownActionErrorCodes = []string{
 	"checks_pending", "checks_failing", "blocked_by_protection", "already_up_to_date",
 	"auto_merge_not_allowed", "ready_to_merge", "permission", "rate_limited",
 	"forge_error", "forge_unreachable", "status_unknown", "not_rate_limited",
-	"not_open", "not_reopenable", "unknown",
+	"not_open", "not_reopenable", "label_missing", "stacked", "already_requested",
+	"unknown",
+}
+
+// actionCodeConstants returns the value of every ActionCode constant declared
+// in the dashboard package, read from the source so a new constant can't be
+// missed by a hand-kept list (#4913).
+func actionCodeConstants(t *testing.T) []string {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "../dashboard/action_refusal.go", nil, 0)
+	require.NoError(t, err)
+
+	var codes []string
+	for _, decl := range file.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs := spec.(*ast.ValueSpec)
+			if id, ok := vs.Type.(*ast.Ident); !ok || id.Name != "ActionCode" {
+				continue
+			}
+			for _, v := range vs.Values {
+				lit, ok := v.(*ast.BasicLit)
+				require.True(t, ok, "ActionCode constants must be string literals")
+				val, err := strconv.Unquote(lit.Value)
+				require.NoError(t, err)
+				codes = append(codes, val)
+			}
+		}
+	}
+	require.NotEmpty(t, codes)
+
+	return codes
 }
 
 // knownAutoMergeHolders is PullRequest.autoMergeHeldBy's list (#1596): a new
@@ -119,6 +158,12 @@ func TestActionErrorSpec_CodeIsExtensible(t *testing.T) {
 		t.Parallel()
 
 		assert.ElementsMatch(t, knownActionErrorCodes, extensibleEnum(t, prop))
+	})
+	t.Run("lists every ActionCode constant the server defines", func(t *testing.T) {
+		t.Parallel()
+
+		assert.ElementsMatch(t, actionCodeConstants(t), extensibleEnum(t, prop),
+			"add the code to ActionError.code in api/openapi.yaml")
 	})
 }
 

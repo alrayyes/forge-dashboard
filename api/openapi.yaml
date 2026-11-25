@@ -4423,6 +4423,9 @@ components:
             - not_rate_limited
             - not_open
             - not_reopenable
+            - label_missing
+            - stacked
+            - already_requested
             - unknown
           description: |
             One of the values above today, and the server may learn more.
