@@ -174,7 +174,9 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(rows).toHaveText([/owner\/b/]);
       });
 
-      test('a refresh lets go of the kept row', async ({ page }) => {
+      test('a reload shows the saved state, not the kept row', async ({
+        page,
+      }) => {
         const saved = new Set<string>();
         await page.route('**/api/v1/repos/ignore', async (route) => {
           saved.add('owner/a');
