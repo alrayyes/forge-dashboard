@@ -419,11 +419,13 @@ func run() error {
 		PublicOrigin:        envOr("RP_ORIGIN", "http://localhost:8080"),
 		GitHubAppConfigured: githubAppID != 0,
 	}
-	// The OAuth client registered on the owner's Forgejo. Without both values
-	// the connection is simply not offered (see docs/configuration.md).
+	// Forgejo links with a public client the owner names on the setup page.
+	// A server-wide client from the environment still works and wins when the
+	// owner names none (see docs/configuration.md).
 	deps.ForgejoOAuth = oauth.NewForgejo(ctx,
 		os.Getenv("FORGEJO_OAUTH_CLIENT_ID"), os.Getenv("FORGEJO_OAUTH_CLIENT_SECRET"),
 		strings.TrimSuffix(deps.PublicOrigin, "/")+"/api/v1/connections/forgejo/callback", settingsStore)
+	deps.ForgejoOAuth.UseClientStore(settingsStore)
 	// The GitHub App's own OAuth client, for linking a GitHub account. Without
 	// both values the connection is simply not offered.
 	deps.GitHubOAuth = oauth.NewGitHub(ctx,

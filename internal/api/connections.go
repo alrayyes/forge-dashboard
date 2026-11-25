@@ -24,7 +24,11 @@ const maxInstanceURLLen = 2048
 // StartForgejoConnectionRequest matches components.schemas.StartForgejoConnectionRequest.
 type startForgejoConnectionRequest struct {
 	InstanceURL string `json:"instanceUrl"`
+	ClientID    string `json:"clientId"`
 }
+
+// maxClientIDLen caps the Client ID an owner can name.
+const maxClientIDLen = 256
 
 // ConnectionAuthorizeResponse matches components.schemas.ConnectionAuthorizeResponse.
 type connectionAuthorizeResponse struct {
@@ -43,8 +47,17 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if !deps.ForgejoOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no Forgejo OAuth client configured"))
+		clientID := strings.TrimSpace(req.ClientID)
+		if len(clientID) > maxClientIDLen {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("clientId", "clientId is too long"))
+
+			return
+		}
+
+		// A Client ID the owner names wins; without one the server's own client
+		// is used, and without that there is nothing to sign in with.
+		if clientID == "" && !deps.ForgejoOAuth.Configured() {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody("clientId", "clientId is the Client ID of the app you created on your Forgejo"))
 
 			return
 		}
@@ -75,6 +88,12 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		if clientID != "" {
+			writeJSON(w, http.StatusOK, connectionAuthorizeResponse{AuthorizeURL: deps.ForgejoOAuth.BeginPublic(raw, clientID)})
+
+			return
+		}
+
 		writeJSON(w, http.StatusOK, connectionAuthorizeResponse{AuthorizeURL: deps.ForgejoOAuth.Begin(raw)})
 	}
 }
@@ -87,8 +106,8 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		// The query holds a one-time code; no cache keeps it or the answer.
 		w.Header().Set("Cache-Control", "no-store")
 
-		if !deps.ForgejoOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no Forgejo OAuth client configured"))
+		if deps.ForgejoOAuth == nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("this server cannot link a Forgejo account"))
 
 			return
 		}
