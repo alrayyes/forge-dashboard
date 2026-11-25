@@ -91,13 +91,15 @@ func TestService_ConcurrentRefreshTriggersForSameUser_DoNotEachHitTheRealAPI(t *
 			service.RefreshNow(t.Context())
 		})
 	}
-	// Hold the fetch until it is in flight and every trigger has counted
-	// itself as a person's refresh, which Refresh does just before it queues
-	// on the coalescer. Yielding, not sleeping, so the wait follows the state
+	// Hold the fetch until it is in flight and every other trigger is parked
+	// on the coalescer. Counting triggers as they start would not do: Refresh
+	// counts a call before it reaches the coalescer, so a straggler could
+	// still be on its way when the fetch finished and then start a fetch of
+	// its own, the third call. Yielding, not sleeping, so the wait follows the state
 	// however slowly the runner schedules the goroutines. The wall-time bound
 	// only ends a hang.
 	giveUp := time.Now().Add(30 * time.Second)
-	for !burstGateEntered.Load() || service.UserRefreshesForTest() < triggers {
+	for !burstGateEntered.Load() || service.ParkedRefreshesForTest() < triggers-1 {
 		if !time.Now().Before(giveUp) {
 			close(release)
 			require.Fail(t, "the burst never reached the coalescer")
