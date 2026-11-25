@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.119.0](https://github.com/alrayyes/forge-dashboard/compare/v9.118.0...v9.119.0) (2026-11-25)
+
+
+### Features
+
+* **web:** show a failing repo's "Failing since" badge in Settings, Repositories ([#4827](https://github.com/alrayyes/forge-dashboard/issues/4827)) ([684c8ef](https://github.com/alrayyes/forge-dashboard/commit/684c8efed0d22a61a93b27c3bf1fe79f91f83338)), closes [#4803](https://github.com/alrayyes/forge-dashboard/issues/4803)
+
 ## [9.118.0](https://github.com/alrayyes/forge-dashboard/compare/v9.117.2...v9.118.0) (2026-11-24)
 
 
