@@ -1135,6 +1135,8 @@
     }
     .settings-panels {
       min-width: 0;
+      /* One gap under every card and under each Save row (#4851, #4864). */
+      --card-gap: 18px;
     }
     @media (width <= 760px) {
       .settings-layout {
@@ -1152,7 +1154,7 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       padding: 22px 22px 20px;
-      margin-bottom: 18px;
+      margin-bottom: var(--card-gap);
     }
     .card h2 {
       font-size: 0.8125rem;
@@ -1383,7 +1385,7 @@
       gap: 12px;
       /* The row ends a block like a card does, so it leaves the same room
          under it as the cards' margin (#4851). */
-      margin: 4px 0 18px;
+      margin: 4px 0 var(--card-gap);
     }
     .btn {
       font-family: inherit;
