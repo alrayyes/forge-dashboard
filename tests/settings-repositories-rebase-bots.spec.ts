@@ -124,6 +124,24 @@ test.describe('rebase bots setting in Settings, Repositories', () => {
     ).toBeVisible();
   });
 
+  test('a one-repo header run names the repo, with no "all"', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [repo('a')]);
+    await page.route('**/api/v1/repos/rebase-bots/*', (route) =>
+      route.fulfill({ status: 204 }),
+    );
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.goto('/settings.html#repositories');
+
+    await page
+      .getByRole('button', { name: 'Rebase bots on for 1 repo' })
+      .click();
+    await expect(page.locator('#repositories-status')).toHaveText(
+      'Rebase bots on for alrayyes/a.',
+    );
+  });
+
   test('a partial failure gives one summary naming the skipped repo', async ({
     page,
   }) => {

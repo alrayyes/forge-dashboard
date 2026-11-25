@@ -31,7 +31,7 @@ async function open(
   page: Page,
   failing: string[] = [],
   repos: ReturnType<typeof row>[] = REPOS,
-  reason = 'the forge refused the change',
+  reason: string | null = 'the forge refused the change',
 ) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -54,8 +54,8 @@ async function open(
     if (failing.includes(fullName))
       return route.fulfill({
         status: 409,
-        contentType: 'application/json',
-        body: JSON.stringify({ error: reason }),
+        contentType: reason === null ? 'text/plain' : 'application/json',
+        body: reason === null ? 'not json' : JSON.stringify({ error: reason }),
       });
     return route.fulfill({ status: 204 });
   });
@@ -136,6 +136,56 @@ for (const size of SIZES) {
         await expect(status(page)).toHaveText(
           "Couldn't turn auto-update on for example/one: the forge refused the change",
         );
+      });
+
+      test('a failure with no message says the server refused, with its status', async ({
+        page,
+      }) => {
+        await open(page, ['example/one'], [row('one')], null);
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 1 repo' })
+          .click();
+        await expect(status(page)).toHaveText(
+          "Couldn't turn auto-update on for example/one: the server refused the change (status 409)",
+        );
+      });
+
+      test('a long reason on one repo is trimmed by code points', async ({
+        page,
+      }) => {
+        await open(
+          page,
+          ['example/one'],
+          [row('one')],
+          '\u{1F600}'.repeat(100),
+        );
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 1 repo' })
+          .click();
+        await expect(status(page)).toContainText('example/one: ');
+        const text = (await status(page).innerText()).trim();
+        expect(text).toBe(
+          `Couldn't turn auto-update on for example/one: ${'\u{1F600}'.repeat(79)}…`,
+        );
+        expect(text).not.toMatch(
+          /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/,
+        );
+      });
+
+      test('one long unbroken token wraps instead of scrolling', async ({
+        page,
+      }) => {
+        const long = 'x'.repeat(120);
+        await open(page, [`example/${long}`], [row(long)], 'refused');
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 1 repo' })
+          .click();
+        await expect(status(page)).toContainText(long);
+        const [scroll, client] = await status(page).evaluate((el) => [
+          el.scrollWidth,
+          el.clientWidth,
+        ]);
+        expect(scroll).toBeLessThanOrEqual(client);
       });
 
       test('many skipped repos are capped, with long reasons trimmed and no sideways scroll', async ({

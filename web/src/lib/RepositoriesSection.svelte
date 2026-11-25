@@ -392,8 +392,11 @@
   const SKIP_LIST_MAX = 3;
   const REASON_MAX = 80;
   const shortReason = (reason: string) =>
-    reason.length > REASON_MAX
-      ? `${reason.slice(0, REASON_MAX - 1).trimEnd()}…`
+    Array.from(reason).length > REASON_MAX
+      ? `${Array.from(reason)
+          .slice(0, REASON_MAX - 1)
+          .join("")
+          .trimEnd()}…`
       : reason;
   const plural = (n: number) => `${n} repo${n === 1 ? "" : "s"}`;
   let bulkRunning = $state<string | null>(null);
@@ -438,7 +441,7 @@
       const [failed] = skipped;
       setStatus(
         failed
-          ? `Couldn't ${control === "autoUpdate" ? `turn auto-update ${verb}` : `turn ${verb} rebase bots`} for ${repo.fullName}: ${reasons[0]}`
+          ? `Couldn't ${control === "autoUpdate" ? `turn auto-update ${verb}` : `turn ${verb} rebase bots`} for ${repo.fullName}: ${shortReason(reasons[0])}`
           : `${done} for ${repo.fullName}.`,
         failed ? "error" : "",
       );
