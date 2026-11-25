@@ -330,13 +330,47 @@ test('the tooltip is hoverable: the pointer can cross onto it without it closing
   // Up through the 6px gap and onto the tip, in small steps.
   await page.mouse.move(box.x + box.width - 3, box.y - 12, { steps: 20 });
   expect(await shown()).toBe(true);
-  // The tip floats above the control, so it never reaches the neighbouring
-  // icons, which share the control's line.
-  const placed = await host.evaluate((el) => ({
-    bottom: parseFloat(getComputedStyle(el, '::after').bottom),
-    height: el.getBoundingClientRect().height,
-  }));
-  expect(placed.bottom).toBe(placed.height + 6);
+  // The open tip's box misses every control on the page, so it never covers a
+  // neighbouring icon.
+  const tip = await host.evaluate((el) => {
+    const s = getComputedStyle(el, '::after');
+    const h = el.getBoundingClientRect();
+    const extraX =
+      s.boxSizing === 'border-box'
+        ? 0
+        : parseFloat(s.paddingLeft) +
+          parseFloat(s.paddingRight) +
+          parseFloat(s.borderLeftWidth) +
+          parseFloat(s.borderRightWidth);
+    const extraY =
+      s.boxSizing === 'border-box'
+        ? 0
+        : parseFloat(s.paddingTop) +
+          parseFloat(s.paddingBottom) +
+          parseFloat(s.borderTopWidth) +
+          parseFloat(s.borderBottomWidth);
+    const width = parseFloat(s.width) + extraX;
+    const height = parseFloat(s.height) + extraY;
+    const bottom = h.top - (parseFloat(s.bottom) - h.height);
+    return {
+      x: h.right - parseFloat(s.right) - width,
+      y: bottom - height,
+      width,
+      height,
+    };
+  });
+  expect(tip.width).toBeGreaterThan(40);
+  const others = await page.locator('.repo-control').evaluateAll(
+    (els, mine) => {
+      return els
+        .map((e) => e.getBoundingClientRect())
+        .filter((r) => !(r.x === mine.x && r.y === mine.y))
+        .map((r) => ({ x: r.x, y: r.y, width: r.width, height: r.height }));
+    },
+    { x: box.x, y: box.y },
+  );
+  expect(others.length).toBeGreaterThan(1);
+  for (const o of others) expect(overlaps(tip, o)).toBe(false);
   await page.mouse.move(0, 0);
   expect(await shown()).toBe(false);
 });
