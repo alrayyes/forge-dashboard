@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.125.3](https://github.com/alrayyes/forge-dashboard/compare/v9.125.2...v9.125.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep a stacked row near plain-row height between 761px and 1100px ([#4914](https://github.com/alrayyes/forge-dashboard/issues/4914)) ([1c2ab4b](https://github.com/alrayyes/forge-dashboard/commit/1c2ab4b267258fe7f63b8236a0752844ac5da4ee)), closes [#4784](https://github.com/alrayyes/forge-dashboard/issues/4784)
+
 ## [9.125.2](https://github.com/alrayyes/forge-dashboard/compare/v9.125.1...v9.125.2) (2026-11-25)
 
 
