@@ -635,7 +635,7 @@
                   </a>{:else}{repo.fullName}{/if}
                 {#if repo.failingSince}
                   {@const failing = failingBadge(repo, formatTime)}
-                  <span class="failing-live" role="status">
+                  <span class="failing-live">
                     <span
                       class="failing-badge"
                       class:failing-for-good={failing?.forGood}

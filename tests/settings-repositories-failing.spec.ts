@@ -43,6 +43,18 @@ async function open(page: Page, repos: Record<string, unknown>[]) {
 }
 
 test.describe('failing repo badge in Settings, Repositories', () => {
+  test.use({ locale: 'en-GB', timezoneId: 'UTC' });
+
+  test('the badge names the time of the first failure', async ({ page }) => {
+    await open(page, [
+      repo('broken', { failingSince: '2025-03-02T08:05:00Z' }),
+    ]);
+
+    await expect(page.locator('.failing-badge')).toHaveText(
+      /^\s*Failing since 2 Mar 2025, 08:05 UTC\s*$/,
+    );
+  });
+
   test('a failing repo shows the badge, a healthy one does not', async ({
     page,
   }) => {
@@ -80,7 +92,7 @@ test.describe('failing repo badge in Settings, Repositories', () => {
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    for (const width of [1280, 390]) {
+    for (const width of [1280, 390, 320]) {
       test(`axe and layout are clean, ${scheme} ${width}px`, async ({
         page,
       }) => {
@@ -95,6 +107,14 @@ test.describe('failing repo badge in Settings, Repositories', () => {
         ]);
 
         await expect(page.locator('.failing-badge')).toHaveCount(2);
+
+        // The badge wraps inside its cell instead of clipping at the edge.
+        for (const badge of await page.locator('.failing-badge').all()) {
+          const box = await badge.boundingBox();
+          expect(box).not.toBeNull();
+          expect(box!.x).toBeGreaterThanOrEqual(0);
+          expect(box!.x + box!.width).toBeLessThanOrEqual(width);
+        }
 
         const results = await new AxeBuilder({ page })
           .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
