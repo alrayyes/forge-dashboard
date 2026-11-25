@@ -615,11 +615,11 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 // githubWebhookEvents is the event list of the webhook this dashboard creates
 // and maintains on each repository. The comment events matter for the "Last
 // activity" sort: a comment, or a review, moves an item's updated_at, and
-// without one of these the snapshot only learns of it at the next poll (#1552). issue_comment covers
-// conversation comments on issues and on pull requests alike.
-// pull_request_review_thread fires when a thread is resolved or unresolved,
-// which bumps no comment, so the unresolved count would otherwise wait for the
-// next poll.
+// without one of these the snapshot only learns of it at the next poll
+// (#1552). issue_comment covers conversation comments on issues and on pull
+// requests alike. pull_request_review_thread fires when a thread is resolved
+// or unresolved, which bumps no comment, so the unresolved count would
+// otherwise wait for the next poll.
 var githubWebhookEvents = []string{
 	"pull_request", "issues", "issue_comment",
 	"pull_request_review", "pull_request_review_comment",
@@ -636,9 +636,9 @@ var githubWebhookEvents = []string{
 // the identical URL, so nothing stops a duplicate except checking first.
 //
 // It always writes an existing hook, so a changed secret gets replaced. The
-// post-refresh pass calls it only for a repo whose snapshot shows no hook, so a
-// write there means the snapshot was stale: one idempotent PATCH, after which the next refresh sees the hook and
-// leaves the repo to UpgradeWebhook.
+// post-refresh pass calls it only for a repo whose snapshot shows no hook, so
+// a write there means the snapshot was stale: one idempotent PATCH, after
+// which the next refresh sees the hook and leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	u, err := url.Parse(targetURL)
 	if err != nil {
