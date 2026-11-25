@@ -3,12 +3,12 @@ import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
 
-// https://github.com/alrayyes/forge-dashboard/issues/4779
+// https://github.com/alrayyes/forge-dashboard/issues/4779 and #4838
 //
-// The phone rules ended at max-width: 760px and the desktop rules began at
-// min-width: 761px, so a list 760.5px wide matched neither and got the
-// bare row, with no phone card and no desktop grid. Both now use the range
-// syntax (width <= 760px, width > 760px), which leaves no gap.
+// A pair of queries written max-width: 760px and min-width: 761px leaves a
+// gap: a list 760.5px wide matches neither and gets the bare row, with no
+// phone card and no desktop rules. Every such pair now uses the range syntax
+// (width <= 760px, width > 760px), which leaves no gap.
 
 const PR = {
   forge: 'github',
@@ -50,9 +50,11 @@ function mockDashboard(page: Page) {
   );
 }
 
-// A viewport can't be fractional, but an iframe can: its media queries are
+// A viewport can't be fractional, and an iframe is snapped to whole pixels,
+// but a zoomed iframe is not: with zoom: 2 its inner width is the CSS width,
+// fractions kept, and its media queries are
 // evaluated against its own width.
-async function rowLayout(page: Page, width: number) {
+async function probe(page: Page, width: number) {
   await page.setViewportSize({ width: 1000, height: 900 });
   await page.goto('/bots.html');
   await page.evaluate((w) => {
@@ -60,14 +62,28 @@ async function rowLayout(page: Page, width: number) {
     const f = document.createElement('iframe');
     f.id = 'probe';
     f.src = '/bots.html';
-    f.style.cssText = `width:${w}px;height:800px;border:0`;
+    f.style.cssText = `zoom:2;width:${w}px;height:800px;border:0`;
     document.body.appendChild(f);
   }, width);
   const row = page.frameLocator('#probe').locator('#pr-rows > .row').first();
   await expect(row).toBeVisible();
-  // Every element in the row, by the properties the two layouts place with.
-  return row.evaluate((r) =>
-    [r, ...Array.from(r.querySelectorAll('*'))]
+  return row;
+}
+
+// The row's own layout, plus one thing only the desktop side sets. The bare
+// row reads like the desktop row in the properties the grid places with, so
+// this is what tells a width that fell through from one that matched.
+async function rowLayout(page: Page, width: number) {
+  const row = await probe(page, width);
+  return row.evaluate((r) => {
+    // .pipeline-run-button is centred in the base rules and starts its
+    // content only above 760px.
+    const button = document.createElement('a');
+    button.className = 'pipeline-run-button';
+    r.ownerDocument.body.appendChild(button);
+    const buttonJustify = getComputedStyle(button).justifyContent;
+    button.remove();
+    const tree = [r, ...Array.from(r.querySelectorAll('*'))]
       .map((el) => {
         const cs = getComputedStyle(el);
         return [
@@ -79,41 +95,69 @@ async function rowLayout(page: Page, width: number) {
           cs.flexDirection,
         ].join('/');
       })
-      .join('|'),
-  );
+      .join('|');
+    return { tree, buttonJustify };
+  });
 }
 
-test.describe('One width switches the row layout (#4779)', () => {
+test.describe('One width switches the row layout (#4779, #4838)', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
     await mockDashboard(page);
   });
 
-  test('760.5px takes the phone or the desktop row, never a third', async ({
+  test('760.5px takes the desktop row, as 761px does, not the bare row', async ({
     page,
   }) => {
     const phone = await rowLayout(page, 760);
     const desktop = await rowLayout(page, 761);
     expect(phone).not.toEqual(desktop);
-    const between = await rowLayout(page, 760.5);
-    expect([phone, desktop]).toContain(between);
+    expect(phone.buttonJustify).toBe('center');
+    expect(desktop.buttonJustify).not.toBe('center');
+    // Above 760px, so the desktop side. The bare row would read 'center'.
+    expect(await rowLayout(page, 760.5)).toEqual(desktop);
   });
 
-  // The desktop rules start where the phone rules end, not one pixel later:
-  // width > 760px, so a width between the two cannot fall through.
-  test('no media query starts at 761px', async ({ page }) => {
+  // The 761-860px range ends at 860px and the wider rules begin there, not
+  // one pixel later. Only the wider rules set --wide-status on a row.
+  test('860.5px takes the rules above 860px, not the bare row', async ({
+    page,
+  }) => {
+    const wide = async (w: number) => {
+      const row = await probe(page, w);
+      return row.evaluate((r) =>
+        getComputedStyle(r).getPropertyValue('--wide-status').trim(),
+      );
+    };
+    expect(await wide(860)).toBe('');
+    expect(await wide(861)).not.toBe('');
+    expect(await wide(860.5)).not.toBe('');
+  });
+
+  // A pair is a max-width: N and a min-width: N+1. A width between the two
+  // matches neither, so none may be left, at any N.
+  test('no max-width: Npx is paired with a min-width: N+1px', async ({
+    page,
+  }) => {
     await page.goto('/bots.html');
     const gaps = await page.evaluate(() => {
-      const found: string[] = [];
+      const conditions: string[] = [];
       const walk = (rules: CSSRuleList) => {
         for (const r of Array.from(rules)) {
-          if (r instanceof CSSMediaRule && /761px/.test(r.conditionText))
-            found.push(r.conditionText);
+          if (r instanceof CSSMediaRule) conditions.push(r.conditionText);
+          if (r instanceof CSSContainerRule) conditions.push(r.conditionText);
           if ('cssRules' in r) walk((r as CSSGroupingRule).cssRules);
         }
       };
       for (const s of Array.from(document.styleSheets)) walk(s.cssRules);
-      return found;
+      const num = (re: RegExp) =>
+        conditions.flatMap((c) =>
+          Array.from(c.matchAll(re), (m) => Number(m[1])),
+        );
+      const maxes = new Set(num(/(?:max-width:|width <=)\s*([\d.]+)px/g));
+      return num(/(?:min-width:|width >=)\s*([\d.]+)px/g)
+        .filter((n) => maxes.has(n - 1))
+        .map((n) => `max-width: ${n - 1}px / min-width: ${n}px`);
     });
     expect(gaps).toEqual([]);
   });
