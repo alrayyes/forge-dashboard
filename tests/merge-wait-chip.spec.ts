@@ -611,6 +611,22 @@ test.describe('a status that stays unknown', () => {
     await axeClean(page);
   });
 
+  test('a flip to ready and back to unknown starts the clock again', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Unknown')]);
+    const label = row(page, 'Unknown').locator('.wait-chip-label');
+    await page.clock.fastForward(130_000);
+    await push(page, [unknownStatus(1, 'Unknown')]);
+    await expect(label).toHaveText('Still waiting');
+
+    await push(page, [ready(1, 'Unknown')]);
+    await expect(mergeButton(row(page, 'Unknown'))).toBeVisible();
+    await push(page, [unknownStatus(1, 'Unknown')]);
+    await expect(label).toHaveText('Status unknown');
+  });
+
   test('gives Merge back when the forge reports, with no row jump', async ({
     page,
   }) => {
@@ -625,3 +641,38 @@ test.describe('a status that stays unknown', () => {
     );
   });
 });
+
+for (const scheme of ['light', 'dark'] as const) {
+  for (const width of [1280, 390]) {
+    test.describe(`a status that stays unknown, ${scheme}, ${width}px`, () => {
+      test.beforeEach(async ({ page }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 900 });
+      });
+
+      test('the Still waiting chip fits the row, keeps Auto-merge and passes axe', async ({
+        page,
+      }) => {
+        await page.clock.install({ time: new Date() });
+        await open(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+        const before = await heightOf(page, 'Unknown');
+        await page.clock.fastForward(130_000);
+        await push(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+
+        const chip = row(page, 'Unknown').locator('.wait-chip');
+        await expect(chip.locator('.wait-chip-label')).toHaveText(
+          'Still waiting',
+        );
+        await expect(
+          chip.getByRole('button', { name: 'Enable auto-merge' }),
+        ).toBeVisible();
+        expect(
+          Math.abs((await heightOf(page, 'Unknown')) - before),
+        ).toBeLessThan(2);
+        const box = await chip.boundingBox();
+        expect(box && box.x + box.width).toBeLessThanOrEqual(width);
+        await axeClean(page);
+      });
+    });
+  }
+}
