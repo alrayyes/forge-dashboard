@@ -40,6 +40,9 @@
     repoKey,
     NO_FILTER,
     type RepoSortKey,
+    repoCountText,
+    repoScope,
+    type ToggleView,
     rebaseBotsName,
     sortRepos,
   } from "./repositories.js";
@@ -199,6 +202,15 @@
     filter.ignored = view;
     changeFilter();
   }
+  const TOGGLE_VIEWS: { view: ToggleView; label: string }[] = [
+    { view: "all", label: "All" },
+    { view: "on", label: "On" },
+    { view: "off", label: "Off" },
+  ];
+  function pickToggle(control: BulkControl, view: ToggleView) {
+    filter[control] = view;
+    changeFilter();
+  }
   function pickForge(forge: string) {
     filter.forge = forge;
     changeFilter();
@@ -326,6 +338,7 @@
         );
       return failed;
     }
+    keep(repo);
     repo.autoUpdateBranch = enabled;
     if (!quiet)
       setStatus(
@@ -358,6 +371,7 @@
         );
       return failed;
     }
+    keep(repo);
     repo.rebaseBots = enabled;
     if (!quiet)
       setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
@@ -411,11 +425,26 @@
     setStatus(`${repo.fullName} is no longer ignored.`);
   }
 
+  // The bulk buttons act on the filtered list, every page of it, kept rows
+  // included: what the person sees is what the button acts on, so narrowing
+  // to "Auto-update off" and pressing "Turn on" does what it reads. With no
+  // filter set that is every repo, and the label says "filtered" only when a
+  // filter is cutting the list (#4857).
   const bulk = $derived({
-    autoUpdateOn: bulkTargets(repos, "autoUpdate", true, rebaseBotsLock),
-    autoUpdateOff: bulkTargets(repos, "autoUpdate", false, rebaseBotsLock),
-    rebaseBotsOn: bulkTargets(repos, "rebaseBots", true, rebaseBotsLock),
-    rebaseBotsOff: bulkTargets(repos, "rebaseBots", false, rebaseBotsLock),
+    autoUpdateOn: bulkTargets(sortedRepos, "autoUpdate", true, rebaseBotsLock),
+    autoUpdateOff: bulkTargets(
+      sortedRepos,
+      "autoUpdate",
+      false,
+      rebaseBotsLock,
+    ),
+    rebaseBotsOn: bulkTargets(sortedRepos, "rebaseBots", true, rebaseBotsLock),
+    rebaseBotsOff: bulkTargets(
+      sortedRepos,
+      "rebaseBots",
+      false,
+      rebaseBotsLock,
+    ),
   });
   const SKIP_LIST_MAX = 3;
   const REASON_MAX = 80;
@@ -426,7 +455,11 @@
           .join("")
           .trimEnd()}…`
       : reason;
-  const plural = (n: number) => `${n} repo${n === 1 ? "" : "s"}`;
+  const plural = (n: number, word = "repo") =>
+    `${n} ${word}${n === 1 ? "" : "s"}`;
+  // What a bulk button reaches, in the button's own words.
+  const reach = (n: number) =>
+    filtersClear ? plural(n) : plural(n, "filtered repo");
   let bulkRunning = $state<string | null>(null);
 
   async function runBulk(
@@ -435,6 +468,10 @@
     targets: Repo[],
   ) {
     if (targets.length === 0) return;
+    // Said as it was when pressed; a row toggled mid-run can't change it.
+    const noun = filtersClear
+      ? plural
+      : (n: number) => plural(n, "filtered repo");
     const verb = enabled ? "on" : "off";
     const done =
       control === "autoUpdate"
@@ -442,13 +479,13 @@
         : `Rebase bots ${verb}`;
     const ok = window.confirm(
       control === "autoUpdate"
-        ? `Turn ${verb} auto-update for ${plural(targets.length)}?`
-        : `Turn ${verb} rebase bots for ${plural(targets.length)}?`,
+        ? `Turn ${verb} auto-update for ${noun(targets.length)}?`
+        : `Turn ${verb} rebase bots for ${noun(targets.length)}?`,
     );
     if (!ok) return;
     bulkRunning = `${control}:${verb}`;
     setStatus(
-      `${control === "autoUpdate" ? `Turning auto-update ${verb}` : `Turning ${verb} rebase bots`} for ${plural(targets.length)}…`,
+      `${control === "autoUpdate" ? `Turning auto-update ${verb}` : `Turning ${verb} rebase bots`} for ${noun(targets.length)}…`,
     );
     const skipped: string[] = [];
     const reasons: string[] = [];
@@ -482,8 +519,8 @@
         : "";
     setStatus(
       skipped.length === 0
-        ? `${done} for all ${plural(succeeded)}.`
-        : `${done} for ${succeeded} of ${plural(targets.length)}. ${skipped.length} skipped: ${shown}${more}.`,
+        ? `${done} for all ${noun(succeeded)}.`
+        : `${done} for ${succeeded} of ${noun(targets.length)}. ${skipped.length} skipped: ${shown}${more}.`,
       skipped.length === 0 ? "" : "error",
     );
   }
@@ -494,7 +531,7 @@
       control: "autoUpdate",
       enabled: true,
       targets: bulk.autoUpdateOn,
-      text: `Turn on auto-update for ${plural(bulk.autoUpdateOn.length)}`,
+      text: `Turn on auto-update for ${reach(bulk.autoUpdateOn.length)}`,
       busyText: "Turning auto-update on…",
     },
     {
@@ -502,7 +539,7 @@
       control: "autoUpdate",
       enabled: false,
       targets: bulk.autoUpdateOff,
-      text: `Turn off auto-update for ${plural(bulk.autoUpdateOff.length)}`,
+      text: `Turn off auto-update for ${reach(bulk.autoUpdateOff.length)}`,
       busyText: "Turning auto-update off…",
     },
     {
@@ -510,7 +547,7 @@
       control: "rebaseBots",
       enabled: true,
       targets: bulk.rebaseBotsOn,
-      text: `Rebase bots on for ${plural(bulk.rebaseBotsOn.length)}`,
+      text: `Rebase bots on for ${reach(bulk.rebaseBotsOn.length)}`,
       busyText: "Turning rebase bots on…",
     },
     {
@@ -518,7 +555,7 @@
       control: "rebaseBots",
       enabled: false,
       targets: bulk.rebaseBotsOff,
-      text: `Rebase bots off for ${plural(bulk.rebaseBotsOff.length)}`,
+      text: `Rebase bots off for ${reach(bulk.rebaseBotsOff.length)}`,
       busyText: "Turning rebase bots off…",
     },
   ] as const);
@@ -612,6 +649,32 @@
           {/each}
         </FilterGroup>
       </div>
+      <div class="forge-scroll">
+        <FilterGroup label="Auto-update" id="repositories-auto-update-filter">
+          {#each TOGGLE_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.autoUpdate ?? "all") === view}
+              data-view={view}
+              onclick={() => pickToggle("autoUpdate", view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
+      <div class="forge-scroll">
+        <FilterGroup label="Rebase bots" id="repositories-rebase-bots-filter">
+          {#each TOGGLE_VIEWS as { view, label } (view)}
+            <FilterPill
+              pressed={(filter.rebaseBots ?? "all") === view}
+              data-view={view}
+              onclick={() => pickToggle("rebaseBots", view)}
+            >
+              {label}
+            </FilterPill>
+          {/each}
+        </FilterGroup>
+      </div>
       <div class="search-field">
         <input
           class="col-filter"
@@ -642,6 +705,10 @@
         <option value="forge:desc">Sort: Forge, Z to A</option>
       </select>
     </div>
+
+    <p class="repo-count" id="repositories-count" aria-live="polite">
+      {repoCountText(sortedRepos.length, repoScope(repos, filter, kept))}
+    </p>
 
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
@@ -1023,6 +1090,11 @@
     align-items: center;
     gap: 10px;
     margin-bottom: 14px;
+  }
+  .repo-count {
+    margin: 0 0 10px;
+    font-size: 0.78125rem;
+    color: var(--ink-2);
   }
   .search-field {
     position: relative;

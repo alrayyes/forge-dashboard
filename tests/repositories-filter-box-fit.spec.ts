@@ -60,8 +60,9 @@ for (const scheme of ['light', 'dark'] as const) {
           });
         }
         const pills = page.locator('.filter-bar .filter-pill');
-        // Six Forge pills and the three Ignored pills.
-        expect(await pills.count()).toBe(9);
+        // Six Forge pills and the three each of Ignored, Auto-update and
+        // Rebase bots.
+        expect(await pills.count()).toBe(15);
         for (const pill of await pills.all()) {
           // Re-read both boxes each time: focusing a pill can scroll the page.
           const bar = (await page.locator('.filter-bar').boundingBox())!;
@@ -115,7 +116,7 @@ for (const scheme of ['light', 'dark'] as const) {
       });
     }
 
-    test(`${width}px, ${scheme}: four controls share one width, axe clean`, async ({
+    test(`${width}px, ${scheme}: six controls share one width, axe clean`, async ({
       page,
     }) => {
       await open(page, width, scheme);
@@ -124,6 +125,8 @@ for (const scheme of ['light', 'dark'] as const) {
           [
             '.filter-bar .forge-scroll >> nth=0',
             '.filter-bar .forge-scroll >> nth=1',
+            '.filter-bar .forge-scroll >> nth=2',
+            '.filter-bar .forge-scroll >> nth=3',
             '.filter-bar .search-field',
             '.filter-bar .repositories-sort',
           ].map(async (s) => (await page.locator(s).boundingBox())!),
