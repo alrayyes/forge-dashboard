@@ -10,11 +10,13 @@
   import RepoControlIcon from "./RepoControlIcon.svelte";
   import RepoLogo from "./RepoLogo.svelte";
   import RepoToggle from "./RepoToggle.svelte";
+  import { failingBadge } from "./failing-repo.js";
   import { firstRefresh } from "./first-refresh.svelte.js";
   import { firstRefreshLoading, readPhase } from "./first-refresh.js";
   import { appConnectionCopy, noReposCopy } from "./forge-copy.js";
   import { dependabotBlockedReason } from "./forge-lock.js";
   import { forgeClassOf, forgeLabelOf } from "./forges.js";
+  import { formatTime } from "./time.svelte.js";
   import {
     pollingFilterHolds,
     pollingOnlyCount,
@@ -49,6 +51,8 @@
     webhookReason?: string;
     webhookReasonDetail?: string;
     webhookNextAttemptAt?: string;
+    failingSince?: string;
+    failingForGood?: boolean;
   };
   type ForgeHealthEntry = {
     forge: string;
@@ -629,6 +633,18 @@
                   >
                     {repo.fullName}
                   </a>{:else}{repo.fullName}{/if}
+                {#if repo.failingSince}
+                  {@const failing = failingBadge(repo, formatTime)}
+                  <span class="failing-live" role="status">
+                    <span
+                      class="failing-badge"
+                      class:failing-for-good={failing?.forGood}
+                    >
+                      {failing?.label}
+                    </span>
+                    <span class="failing-note">{failing?.note}</span>
+                  </span>
+                {/if}
                 {#if !repo.ignored && !repo.hasWebhook}
                   {@const why = pollingOnlyReason(repo, originProblem)}
                   <span class="polling-reason" data-testid="polling-reason">
@@ -887,6 +903,29 @@
   .polling-reason svg {
     flex: none;
     color: var(--warning);
+  }
+  .failing-live {
+    display: block;
+    margin-top: 4px;
+  }
+  .failing-badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    color: var(--warning);
+    background: var(--warning-bg);
+  }
+  .failing-badge.failing-for-good {
+    font-weight: 600;
+    color: var(--critical);
+    background: var(--critical-bg);
+  }
+  .failing-note {
+    display: block;
+    margin-top: 2px;
+    font-size: 0.75rem;
+    color: var(--ink-3);
   }
   .polling-link {
     display: inline-flex;
