@@ -1538,9 +1538,9 @@ has `Rebase all`. It counts the pull requests the filters leave whose `Update
 branch` action the server offers and doesn't block, so `Update all (4)` means
 four, and a filter that narrows the list narrows the count. The button is the
 whole control, with no chip repeating the count. How many pull requests are
-listed is the board header's job, as `6 open` or, under a filter, `Showing 4 of
-6`. On a phone the button runs full width, as every bulk action does. Bots have
-their own page and aren't listed here.
+listed is the result bar's job, as `6 pull requests` or, under a filter,
+`4 of 6 pull requests`. On a phone the button runs full width, as every bulk
+action does. Bots have their own page and aren't listed here.
 
 A pull request that the dashboard already updates by itself isn't counted,
 listed or updated: one in a repo with automatic branch updates switched on, or

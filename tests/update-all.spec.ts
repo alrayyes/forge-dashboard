@@ -271,8 +271,8 @@ test(`the confirm fits a phone in light and dark and passes axe`, async ({
 });
 
 // The strip is the button alone (#3635). The count sits in its label, and the
-// page header counts the listed rows ("12 open", or "Showing 4 of 12" under a
-// filter), so no chip repeats either.
+// result bar counts the listed rows ("12 pull requests", or "4 of 12 pull
+// requests" under a filter), so no chip repeats either.
 const noChip = (page: Page) => page.getByText(/ready to update/);
 
 test('the strip is the button alone, with no ready chip', async ({ page }) => {
@@ -284,7 +284,7 @@ test('the strip is the button alone, with no ready chip', async ({ page }) => {
   await expect(page.locator('.update-all-chips')).toHaveCount(0);
   await expect(page.locator('.update-all-headline')).toHaveCount(0);
   await expect(page.getByText('can be updated.')).toHaveCount(0);
-  await expect(page.locator('#pr-count')).toHaveText('4 open');
+  await expect(page.locator('#result-count')).toHaveText('4 pull requests');
 });
 
 test('on a phone the button fills the block and is its only item', async ({
@@ -396,7 +396,7 @@ test('the header counts the rows and the button only the ready ones', async ({
   page,
 }) => {
   await open(page, [pr(1), pr(2), pr(3, { allowedActions: [] })]);
-  await expect(page.locator('#pr-count')).toHaveText('3 open');
+  await expect(page.locator('#result-count')).toHaveText('3 pull requests');
   await expect(
     page.getByRole('button', { name: 'Update all (2)' }),
   ).toBeVisible();

@@ -45,7 +45,7 @@ const BOARDS: Record<
     url: '/pull-requests.html',
     name: 'pull-requests',
     rows: '#pr-rows > .row',
-    count: '#pr-count',
+    count: '#result-count',
     away: 'issues',
   },
   issues: {
@@ -59,14 +59,14 @@ const BOARDS: Record<
     url: '/releases.html',
     name: 'releases',
     rows: '#pr-rows > .row',
-    count: '#pr-count',
+    count: '#result-count',
     away: 'issues',
   },
   bots: {
     url: '/bots.html',
     name: 'bots',
     rows: '#pr-rows > .row',
-    count: '#pr-count',
+    count: '#result-count',
     away: 'issues',
   },
 };
@@ -169,7 +169,7 @@ const ISSUES = Array.from({ length: 32 }, (_, i) => ({
   updatedAt: new Date().toISOString(),
 }));
 
-// The count line shows a number once the first snapshot is drawn, even when
+// The result bar's count line shows a number once the first snapshot is drawn, even when
 // the filters leave no rows (a title filter on the other board's list).
 const loaded = (page: Page, board: Board) =>
   expect(page.locator(BOARDS[board].count)).toHaveText(/\d/);

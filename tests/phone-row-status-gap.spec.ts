@@ -254,14 +254,23 @@ test.describe('phone row status gap (#3834)', () => {
 
       await row.getByRole('button', { name: 'Update branch' }).click();
       await expect(row.locator('.wait-chip')).toBeVisible();
-      // The row is drawn again as the request lands, and for a frame its
-      // boxes read as empty. Wait for the settled card, then compare.
+      // The page keeps its scroll position. Read once, as soon as the chip
+      // shows: a shift that settles back later must still fail.
+      expect((await marks()).scrollY).toBe(before.scrollY);
+      // The offsets and height are read again until they settle. A read
+      // straight after the tap has come back with the title and pill at 0
+      // (CI, at 320, 360 and 390px), so a single read can't tell a late redraw from a shift.
       await expect
         .poll(async () => {
-          const m = await marks();
+          const { scrollY, ...m } = await marks();
           return { ...m, grew: m.height >= before.height, height: 0 };
         })
-        .toEqual({ ...before, grew: true, height: 0 });
+        .toEqual({
+          title: before.title,
+          pill: before.pill,
+          grew: true,
+          height: 0,
+        });
     });
   }
 
