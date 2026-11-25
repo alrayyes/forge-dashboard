@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.121.3](https://github.com/alrayyes/forge-dashboard/compare/v9.121.2...v9.121.3) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep the phone sort select's label clear of its arrow ([#4859](https://github.com/alrayyes/forge-dashboard/issues/4859)) ([a524c7e](https://github.com/alrayyes/forge-dashboard/commit/a524c7ef9f3e1d5f64f6df06c508986a5c84de2a)), closes [#4849](https://github.com/alrayyes/forge-dashboard/issues/4849)
+
 ## [9.121.2](https://github.com/alrayyes/forge-dashboard/compare/v9.121.1...v9.121.2) (2026-11-25)
 
 
