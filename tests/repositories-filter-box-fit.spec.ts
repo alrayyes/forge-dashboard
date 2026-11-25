@@ -5,6 +5,7 @@ import { test } from './server-fixture';
 // The Forge pills in Settings, Repositories are never clipped, and the Forge
 // row, the search field and the Sort select share one width.
 // https://github.com/alrayyes/forge-dashboard/issues/4855
+// https://github.com/alrayyes/forge-dashboard/issues/4868
 
 const repo = (forge: string, name: string) => ({
   forge,
@@ -63,6 +64,23 @@ for (const scheme of ['light', 'dark'] as const) {
         // Six Forge pills and the three each of Ignored, Auto-update and
         // Rebase bots.
         expect(await pills.count()).toBe(15);
+        if (width === 320 && zoom === 175) {
+          // Five forges at the narrowest width and largest text must wrap
+          // inside the Forge group, so the spec keeps exercising the wrapped
+          // layout. The groups stack anyway, so look at one group only.
+          const rows = new Set<number>();
+          const forgePills = page.locator(
+            '.filter-bar .forge-scroll >> nth=0 >> .filter-pill',
+          );
+          expect(await forgePills.count()).toBe(6);
+          for (const pill of await forgePills.all()) {
+            // Centre, not top: a pill whose label wraps is taller and the
+            // row centres it, so tops can differ within one row.
+            const b = (await pill.boundingBox())!;
+            rows.add(Math.round((b.y + b.height / 2) / 4));
+          }
+          expect(rows.size).toBeGreaterThan(1);
+        }
         for (const pill of await pills.all()) {
           // Re-read both boxes each time: focusing a pill can scroll the page.
           const bar = (await page.locator('.filter-bar').boundingBox())!;
