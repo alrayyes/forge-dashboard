@@ -1811,9 +1811,14 @@ select.col-filter {
     column-gap: 8px;
   }
   :root body .filter-bar .result-sort-wrap select.result-sort {
-    /* Start tighter on a phone, but keep the 22px at the end that the drawn
-       chevron sits in (#4849); a plain 6px put the label under it. */
-    padding-inline: 6px 22px;
+    /* The label keeps clear of the drawn chevron (#4849); a plain 6px put it
+       underneath. A phone line is tight, so the chevron moves 4px closer to
+       the edge and the end padding shrinks to match: 14px holds the 5px
+       chevron's 9px inset. */
+    padding-inline: 4px 14px;
+    background-position:
+      calc(100% - 9px) 55%,
+      calc(100% - 4px) 55%;
     font-size: 0.75rem;
   }
 }

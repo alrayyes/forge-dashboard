@@ -55,8 +55,7 @@ async function open(
 }
 
 // The select's text box ends left of where its arrow starts, and the shown
-// label fits that box. The arrow is two 5px gradients, the right-most 8px from
-// the border edge, so its left edge is 13px from it.
+// label fits that box. The arrow is two 5px gradients drawn in the padding.
 async function overlap(page: Page): Promise<string[]> {
   return page.evaluate(() => {
     const out: string[] = [];
@@ -70,7 +69,12 @@ async function overlap(page: Page): Promise<string[]> {
         r.right - parseFloat(cs.borderRightWidth) - parseFloat(cs.paddingRight);
       const textLeft =
         r.left + parseFloat(cs.borderLeftWidth) + parseFloat(cs.paddingLeft);
-      const arrowLeft = r.right - 13 - 5;
+      // The first gradient is the chevron's left arm: 5px wide, inset by the
+      // calc(100% - Npx) in its background-position.
+      const inset = Number(
+        /calc\(100% - ([\d.]+)px\)/.exec(cs.backgroundPosition)?.[1] ?? 0,
+      );
+      const arrowLeft = r.right - inset - 5;
       if (textRight > arrowLeft + 0.5)
         out.push(
           `${sel.id}: text box ends ${textRight} past arrow at ${arrowLeft}`,
