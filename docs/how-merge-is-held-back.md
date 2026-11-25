@@ -27,7 +27,7 @@ A reason is one of two kinds.
   waiting for approval. The reason names the fix:
   - Behind the base branch: use Update branch, beside Merge.
   - Draft: mark it ready for review on the forge.
-  - A failing check: fix it. The CI pill and the check list say which.
+  - A failing check: fix it. The CI pill and the list of checks show which.
   - A merge conflict: resolve it on the forge.
   - Workflow runs waiting for approval: approve them on the forge. They report
     nothing until then, so a failing pill would point you the wrong way.
