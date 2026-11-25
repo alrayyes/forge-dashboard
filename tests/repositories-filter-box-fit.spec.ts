@@ -90,9 +90,8 @@ for (const scheme of ['light', 'dark'] as const) {
             bar.y + bar.height + 0.5,
           );
         }
-        // The bar itself never scrolls sideways. The page-wide width is not
-        // asserted: the repo table below can be wider than a 768px window at
-        // 175% text, which is not what this spec pins.
+        // The bar itself never scrolls sideways. The page-wide width is pinned
+        // in repositories-table-reflow.spec.ts.
         expect(
           await page
             .locator('.filter-bar')

@@ -343,6 +343,7 @@ const singleUserSpecs = [
   '**/pulls-dialog-close-fallback.spec.ts',
   '**/popup-focus-fallback-sites.spec.ts',
   '**/repositories-filter-box-fit.spec.ts',
+  '**/repositories-table-reflow.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the
