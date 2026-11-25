@@ -98,7 +98,7 @@ export function repoCountText(shown: number, total: number): string {
 
 // The repos the table shows. A repo whose key is in `keep` was just toggled,
 // so it stays where it is, whatever the ignored view and the Auto-update and
-// Rebase bots filters say, until the person refreshes or changes a filter.
+// Rebase bots filters say, until the filter changes.
 export function filterRepos<T extends RepoRow>(
   repos: T[],
   filter: RepositoriesFilter,

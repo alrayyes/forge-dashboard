@@ -102,9 +102,9 @@
   );
 
   let filter = $state({ ...NO_FILTER });
-  // Repos toggled since the last refresh or filter change: they stay in the
-  // list even when the Ignored filter would hide them, so a tap can be undone
-  // and the row never jumps under the finger (#4854).
+  // Repos toggled since the page opened or the filter last changed: they stay
+  // in the list even when the Ignored filter would hide them, so a tap can be
+  // undone and the row never jumps under the finger (#4854).
   let kept = $state<Set<string>>(new Set());
   function keep(repo: Repo) {
     kept = new Set(kept).add(repoKey(repo));
@@ -268,7 +268,6 @@
     if (state === "pending") return;
     untrack(() => {
       repos = (data?.repos as Repo[]) || [];
-      kept = new Set();
       forges = (data?.forges as ForgeHealthEntry[]) || [];
       originProblem = data?.webhookOriginProblem ?? "";
       loaded = true;
