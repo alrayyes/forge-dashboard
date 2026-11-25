@@ -12,12 +12,10 @@ import { test } from './server-fixture';
 const BEHIND = {
   code: 'behind',
   message: 'Behind the base branch',
-  next: 'Bring it up to date to unlock Merge',
 };
 const CI_BLOCK = {
   code: 'checks_pending',
   message: 'Waiting for CI to finish',
-  next: 'Merge unlocks automatically',
 };
 
 function pr(overrides: Record<string, unknown> = {}) {
@@ -119,7 +117,6 @@ for (const width of [1280, 390]) {
         );
         await expect(row.locator('[aria-disabled="true"]')).toHaveCount(0);
         await expect(row).not.toContainText('Behind the base branch');
-        await expect(row).not.toContainText('Bring it up to date');
         await expect(row.locator('.wait-chip')).toBeVisible();
         // One line, and the row is no taller than it was with the button and
         // the message (measured: see the PR body).
@@ -165,7 +162,6 @@ for (const width of [1280, 390]) {
           row.getByRole('button', { name: 'Merge', exact: true }),
         ).toHaveCount(0);
         await expect(row.locator('[aria-disabled="true"]')).toHaveCount(0);
-        await expect(row).not.toContainText('Merge unlocks automatically');
         expect(await lines(row.locator('.wait-chip-label'))).toBe(1);
         await axeClean(page);
       });
@@ -182,7 +178,6 @@ for (const width of [1280, 390]) {
           status: {
             code: 'draft',
             message: 'Draft pull request',
-            next: 'Mark it ready to unlock Merge',
           },
           allowedActions: [
             {
@@ -190,7 +185,6 @@ for (const width of [1280, 390]) {
               blocked: {
                 code: 'draft',
                 message: 'Draft pull request',
-                next: 'Mark it ready to unlock Merge',
               },
             },
             { action: 'close' },

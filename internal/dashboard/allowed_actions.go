@@ -329,9 +329,9 @@ func mergeAvailability(pr PullRequest, renovateAuthors []string) ActionAvailabil
 	case pr.MergeStatus == MergeChecking:
 		// The forge's flag is false while it rechecks after a base push, the
 		// same as for a conflict, so Merge waits without calling it one (#3304).
-		return mergeBlocked(ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes")
+		return mergeBlocked(ActionChecksPending, "Checking for conflicts", "")
 	case pr.Draft:
-		return mergeBlocked(ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge")
+		return mergeBlocked(ActionNotMergeable, "Draft pull request", "")
 	case pr.MergeStatus == MergeUnstable:
 		// GitHub says it can merge: only checks branch protection doesn't
 		// require are failing or running (#955, #956). Required ones would
@@ -339,14 +339,7 @@ func mergeAvailability(pr PullRequest, renovateAuthors []string) ActionAvailabil
 		return ActionAvailability{Action: ActionMerge}
 	case pr.CI == CIPending:
 		// Overrides a forge that says mergeable while checks still run (#385).
-		// With auto-merge armed the wait chip already says what happens next,
-		// so a second line would repeat it (#1638).
-		next := "Merge unlocks automatically"
-		if pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled {
-			next = ""
-		}
-
-		return mergeBlocked(ActionChecksPending, "Waiting for CI to finish", next)
+		return mergeBlocked(ActionChecksPending, "Waiting for CI to finish", "")
 	case heldForApproval(pr):
 		// Held runs report nothing until a maintainer approves them (#1929),
 		// so "CI is failing" would send the user the wrong way. Bringing a
@@ -356,7 +349,7 @@ func mergeAvailability(pr PullRequest, renovateAuthors []string) ActionAvailabil
 
 		return mergeBlocked(r.Code, r.Message, r.Next)
 	case pr.Behind && pr.MergeStatus != MergeMergeable:
-		return mergeBlocked(ActionBehind, "Behind the base branch", "Bring it up to date to unlock Merge")
+		return mergeBlocked(ActionBehind, "Behind the base branch", "")
 	default:
 		return forgeMergeAvailability(pr)
 	}
@@ -373,13 +366,13 @@ func mergeBlocked(code ActionCode, message, next string) ActionAvailability {
 func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	switch {
 	case pr.MergeStatus == MergeBlocked && pr.CI == CIFailure:
-		return mergeBlocked(ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge")
+		return mergeBlocked(ActionChecksFailing, "Blocked, CI is failing", "")
 	case pr.MergeStatus == MergeBlocked && pr.CI == CICancelled:
 		return mergeBlocked(ActionBlockedByProtection, "Blocked, the only run was cancelled", "Run the checks again to unlock Merge")
 	case pr.MergeStatus == MergeBlocked:
 		return mergeBlocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
 	case pr.MergeStatus != MergeMergeable:
-		return mergeBlocked(ActionStatusUnknown, "Merge status not known yet", "Merge unlocks once the forge reports it")
+		return mergeBlocked(ActionStatusUnknown, "Merge status not known yet", "")
 	}
 
 	return ActionAvailability{Action: ActionMerge}

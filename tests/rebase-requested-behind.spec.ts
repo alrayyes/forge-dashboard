@@ -17,7 +17,6 @@ import { test } from './server-fixture';
 const BEHIND_STATUS = {
   code: 'behind',
   message: 'Behind the base branch',
-  next: 'Bring it up to date to unlock Merge',
   action: 'dependabot_rebase',
 };
 
@@ -27,7 +26,6 @@ const ALLOWED = [
     blocked: {
       code: 'behind',
       message: 'Behind the base branch',
-      next: 'Bring it up to date to unlock Merge',
     },
   },
   { action: 'dependabot_rebase', primary: true },
@@ -201,11 +199,11 @@ for (const width of [360, 1280]) {
       const merge = r.getByRole('button', { name: 'Merge', exact: true });
       await expect(merge).toHaveAttribute('aria-disabled', 'true');
       await expect(r.locator('.row-action-locked')).toContainText(
-        'Bring it up to date to unlock Merge',
+        'Behind the base branch',
       );
       const id = await merge.getAttribute('aria-describedby');
       if (id) await expect(page.locator(`[id="${id}"]`)).toHaveCount(1);
-      await expect(merge).toHaveAccessibleDescription(/Bring it up to date/);
+      await expect(merge).toHaveAccessibleDescription(/Behind the base branch/);
     });
 
     test('a timed out request brings the chip and message back', async ({

@@ -100,7 +100,6 @@ const BEHIND = pr(9, {
   status: {
     code: 'behind',
     message: 'Behind the base branch',
-    next: 'Bring it up to date to unlock Merge',
     action: 'update_branch',
   },
 });

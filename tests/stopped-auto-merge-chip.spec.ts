@@ -20,8 +20,7 @@ const WIDTHS = [1000, 1280, 1600] as const;
 // (53px without it).
 const SLACK = { 1000: 6, 1280: 0, 1600: 0 } as const;
 
-const CHECK_FAILED =
-  'Auto-merge stopped: a check failed. It carries on once checks pass.';
+const CHECK_FAILED = 'Auto-merge stopped: a check failed.';
 const CONFLICT =
   'Auto-merge stopped: merge conflict. Resolve it on the forge and it carries on.';
 // The longest kind of sentence the server builds: a forge's own refusal after

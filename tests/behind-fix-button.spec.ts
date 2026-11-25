@@ -164,7 +164,6 @@ test('a Renovate rebase that is already requested has no button in the warning a
   const behind = {
     code: 'behind',
     message: 'Behind the base branch',
-    next: 'Bring it up to date to unlock Merge',
   };
   const row = await open(
     page,
