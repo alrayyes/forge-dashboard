@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.125.0](https://github.com/alrayyes/forge-dashboard/compare/v9.124.1...v9.125.0) (2026-11-25)
+
+
+### Features
+
+* **web:** filter the Repositories list by Auto-update and Rebase bots ([#4890](https://github.com/alrayyes/forge-dashboard/issues/4890)) ([618f1ac](https://github.com/alrayyes/forge-dashboard/commit/618f1ac51e9b92e033dae4f27805a089b385f6da))
+
 ## [9.124.1](https://github.com/alrayyes/forge-dashboard/compare/v9.124.0...v9.124.1) (2026-11-25)
 
 
