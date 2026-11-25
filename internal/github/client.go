@@ -612,9 +612,8 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 	return nil, nil
 }
 
-// githubWebhookEvents mirrors what docs/webhooks.md's manual GitHub
-// steps have a user tick by hand, so a webhook created here covers the same
-// ground. The comment events matter for the "Last activity" sort: a comment,
+// githubWebhookEvents is the event list of the webhook this dashboard creates
+// and maintains on each repository. The comment events matter for the "Last activity" sort: a comment,
 // or a review, moves an item's updated_at, and without one of these the
 // snapshot only learns of it at the next poll (#1552). issue_comment covers
 // conversation comments on issues and on pull requests alike.
