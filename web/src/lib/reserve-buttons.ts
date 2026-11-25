@@ -5,6 +5,9 @@
 
 const GAP = 8; // px of air between the text and the first button
 
+// Only the buttons present when the action runs are observed (the wrapper is
+// observed too, but a button added later would not be). Every wrapper's
+// buttons are static today; a conditional one needs re-observing here.
 export function reserveButtons(node: HTMLElement) {
   const apply = () => {
     const box = node.getBoundingClientRect();
