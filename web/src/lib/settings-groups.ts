@@ -42,13 +42,19 @@ export const DEFAULT_GROUP: SettingsGroupId = 'display';
 // Card and field ids that existing links use, and the group each lives in.
 const ANCHOR_GROUPS: Record<string, SettingsGroupId> = {
   'issue-settings': 'behaviour',
-  webhooks: 'integrations',
   passkeys: 'integrations',
   'api-tokens': 'integrations',
   'github-token': 'connections',
   'forgejo-token': 'connections',
   'forgejo-url': 'connections',
   'timezone-select': 'display',
+};
+
+// Anchors of cards that no longer exist. An old link opens the closest
+// remaining group and scrolls nowhere, since there is no card to name.
+const REMOVED_ANCHOR_GROUPS: Record<string, SettingsGroupId> = {
+  webhooks: 'integrations',
+  'webhook-howto': 'integrations',
 };
 
 export function groupFromHash(hash: string): {
@@ -64,6 +70,8 @@ export function groupFromHash(hash: string): {
   }
   const direct = SETTINGS_GROUPS.find((g) => g.id === id);
   if (direct) return { group: direct.id };
+  const removed = REMOVED_ANCHOR_GROUPS[id];
+  if (removed) return { group: removed };
   // One auto-merge card per forge that holds the merge: `<forge>-auto-merge`.
   const group = /^[\w-]+-auto-merge$/.test(id)
     ? 'behaviour'

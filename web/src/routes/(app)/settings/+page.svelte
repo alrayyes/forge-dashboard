@@ -59,8 +59,6 @@
     forgejoUrl: string;
     forgejoUsername: string;
     forgejoTokenSet: boolean;
-    webhookToken: string;
-    webhookSecret: string;
     renovateRebaseLabel: string;
     theme: ThemePreference;
     // Optional until the server sends them (#1630): missing reads as off and
@@ -553,14 +551,6 @@
       });
   }
 
-  // ---- webhook URLs/secret ----
-  let webhookUrlGithub = $state("");
-  let webhookUrlForgejo = $state("");
-  let webhookSecret = $state("");
-  let webhookSecretShown = $state(false);
-  let webhookCopyStatus = $state("");
-  let webhookCopyStatusKind = $state<"" | "error" | "ok">("");
-
   function copyToClipboard(
     value: string,
     onResult: (message: string, kind: "ok" | "error") => void,
@@ -571,13 +561,6 @@
       .catch(() =>
         onResult("Could not copy — select and copy the URL by hand.", "error"),
       );
-  }
-
-  function copyWebhookField(value: string) {
-    copyToClipboard(value, (message, kind) => {
-      webhookCopyStatus = message;
-      webhookCopyStatusKind = kind;
-    });
   }
 
   // ---- passkeys ----
@@ -1073,9 +1056,6 @@
         githubAppConfigured = data.githubAppConfigured;
         forgejoTokenSet = data.forgejoTokenSet;
         skippedAvatarHostList = skippedAvatarHosts(data);
-        webhookUrlGithub = `${window.location.origin}/api/webhooks/github/${data.webhookToken}`;
-        webhookUrlForgejo = `${window.location.origin}/api/webhooks/forgejo/${data.webhookToken}`;
-        webhookSecret = data.webhookSecret;
         if (!renovateRebaseLabel)
           renovateRebaseLabel = data.renovateRebaseLabel || "";
         if (!issueSettingsTouched) {
@@ -1269,9 +1249,6 @@
       font-variant-numeric: tabular-nums;
       padding-right: var(--reserved, 58px);
     }
-    .token-input--dual input {
-      padding-right: var(--reserved, 112px);
-    }
     /* A phone gives each button a 44px hit area (--tap), as tall as the
        field itself, so the button would cover the field's border. The field
        grows to hold the button, its 5px margin and the focus ring. The
@@ -1285,19 +1262,6 @@
         input:not([type="checkbox"], [type="radio"]) {
         min-height: calc(var(--tap) + 12px);
       }
-    }
-    .token-input-actions {
-      position: absolute;
-      right: 5px;
-      top: 50%;
-      transform: translateY(-50%);
-      display: flex;
-      gap: 5px;
-    }
-    .token-input-actions .copy-button,
-    .token-input-actions .token-toggle {
-      position: static;
-      transform: none;
     }
     .token-toggle {
       position: absolute;
@@ -1679,7 +1643,6 @@
       padding: 4px 0;
       text-align: left;
     }
-    .copy-button,
     .token-copy-button {
       position: absolute;
       right: 5px;
@@ -1695,11 +1658,9 @@
       color: var(--ink-2);
       cursor: pointer;
     }
-    .copy-button:hover,
     .token-copy-button:hover {
       color: var(--ink);
     }
-    .copy-button:focus-visible,
     .token-copy-button:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 1px;
@@ -2423,124 +2384,6 @@
       </div>
 
       <div class="group" id="integrations" hidden={group !== "integrations"}>
-        <div class="card" id="webhooks">
-          <h2>Webhooks</h2>
-          <p class="hint">
-            Add these to a repo to update your dashboard the moment something
-            happens there, instead of waiting on the next poll. Optional —
-            polling every 30 seconds keeps running either way.
-            <a
-              href="https://github.com/alrayyes/forge-dashboard/blob/main/docs/webhooks.md"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Full setup steps &rarr;
-            </a>
-          </p>
-          <div class="field">
-            <label for="webhook-url-github">GitHub webhook URL</label>
-            <div class="token-input" use:reserveButtons>
-              <input
-                id="webhook-url-github"
-                type="text"
-                readonly
-                aria-describedby="webhook-url-github-hint"
-                value={webhookUrlGithub}
-              />
-              <button
-                type="button"
-                class="copy-button"
-                data-copy-target="webhook-url-github"
-                onclick={() => copyWebhookField(webhookUrlGithub)}
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div class="field">
-            <label for="webhook-url-forgejo">Forgejo webhook URL</label>
-            <div class="token-input" use:reserveButtons>
-              <input
-                id="webhook-url-forgejo"
-                type="text"
-                readonly
-                aria-describedby="webhook-url-forgejo-hint"
-                value={webhookUrlForgejo}
-              />
-              <button
-                type="button"
-                class="copy-button"
-                data-copy-target="webhook-url-forgejo"
-                onclick={() => copyWebhookField(webhookUrlForgejo)}
-              >
-                Copy
-              </button>
-            </div>
-          </div>
-          <div class="field">
-            <label for="webhook-secret">Secret</label>
-            <div class="token-input token-input--dual" use:reserveButtons>
-              <input
-                id="webhook-secret"
-                type={webhookSecretShown ? "text" : "password"}
-                readonly
-                value={webhookSecret}
-              />
-              <div class="token-input-actions">
-                <button
-                  type="button"
-                  class="copy-button"
-                  data-copy-target="webhook-secret"
-                  onclick={() => copyWebhookField(webhookSecret)}
-                >
-                  Copy
-                </button>
-                <button
-                  type="button"
-                  class="token-toggle"
-                  data-target="webhook-secret"
-                  aria-pressed={webhookSecretShown}
-                  aria-label={webhookSecretShown
-                    ? "Hide webhook secret"
-                    : "Show webhook secret"}
-                  onclick={() => (webhookSecretShown = !webhookSecretShown)}
-                >
-                  {webhookSecretShown ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-            <p class="field-hint">
-              The same secret goes in both webhooks above — it's what proves a
-              delivery actually came from your forge.
-            </p>
-          </div>
-          <div class="field">
-            <Disclosure
-              id="webhook-howto"
-              label="How do I add these to a repo?"
-            >
-              <p id="webhook-url-github-hint">
-                GitHub: repo &rarr; Settings &rarr; Webhooks &rarr; Add webhook.
-                Content type <code>application/json</code>, the secret above,
-                events: Pull requests, Issues, Statuses, Check runs.
-              </p>
-              <p id="webhook-url-forgejo-hint">
-                Forgejo: repo &rarr; Settings &rarr; Webhooks &rarr; Add Webhook
-                &rarr; Forgejo. The secret above, trigger on: Pull Request,
-                Issue, Push, Status.
-              </p>
-            </Disclosure>
-          </div>
-          <p
-            class={`status${webhookCopyStatusKind ? ` ${webhookCopyStatusKind}` : ""}`}
-            id="webhook-copy-status"
-            role="status"
-            aria-live="polite"
-          >
-            {webhookCopyStatus}
-          </p>
-        </div>
-
         <div class="card" id="passkeys">
           <h2>Passkeys</h2>
           <p class="hint">

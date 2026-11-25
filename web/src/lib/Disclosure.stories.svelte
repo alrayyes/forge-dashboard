@@ -10,9 +10,9 @@
 </script>
 
 {#snippet help()}
-  <p id="webhook-help-text">
-    Add a webhook in the repository's settings that points at this dashboard and
-    sends pull request and check run events.
+  <p id="token-help-text">
+    Read access to your repositories, their pull requests and their commit
+    status.
   </p>
 {/snippet}
 
@@ -20,8 +20,8 @@
 <Story
   name="Closed"
   args={{
-    id: "webhook-help",
-    label: "How do I add a webhook?",
+    id: "token-help",
+    label: "What does this token need?",
     children: help,
   }}
 />
@@ -30,8 +30,8 @@
 <Story
   name="Open"
   args={{
-    id: "webhook-help",
-    label: "How do I add a webhook?",
+    id: "token-help",
+    label: "What does this token need?",
     children: help,
   }}
   play={async ({ canvasElement }) => {
@@ -45,8 +45,8 @@
 <Story
   name="Open not focused"
   args={{
-    id: "webhook-help",
-    label: "How do I add a webhook?",
+    id: "token-help",
+    label: "What does this token need?",
     children: help,
   }}
   play={async ({ canvasElement }) => {
@@ -62,8 +62,8 @@
 <Story
   name="Focused"
   args={{
-    id: "webhook-help",
-    label: "How do I add a webhook?",
+    id: "token-help",
+    label: "What does this token need?",
     children: help,
   }}
   play={async ({ canvasElement }) => {

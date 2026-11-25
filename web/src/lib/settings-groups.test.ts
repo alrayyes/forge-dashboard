@@ -46,6 +46,12 @@ describe('settings groups', () => {
     }
   });
 
+  test('the removed Webhooks card anchors open Integrations and name no card', () => {
+    for (const id of ['webhooks', 'webhook-howto']) {
+      expect(groupFromHash(`#${id}`)).toEqual({ group: 'integrations' });
+    }
+  });
+
   test('an existing card anchor opens its group and names the card', () => {
     expect(groupFromHash('#issue-settings')).toEqual({
       group: 'behaviour',
@@ -55,7 +61,7 @@ describe('settings groups', () => {
       group: 'behaviour',
       anchor: 'forgejo-auto-merge',
     });
-    for (const id of ['webhooks', 'passkeys', 'api-tokens']) {
+    for (const id of ['passkeys', 'api-tokens']) {
       expect(groupFromHash(`#${id}`)).toEqual({
         group: 'integrations',
         anchor: id,

@@ -382,122 +382,21 @@ test.describe('settings page', () => {
     );
   });
 
-  test('webhook URLs and secret are populated, and the secret starts masked', async ({
+  test('there is no Webhooks card, and the old anchors open Integrations (#4801)', async ({
     page,
   }) => {
-    await page.goto('/settings.html#integrations');
-
-    // The webhook fields fill in only after the settings fetch resolves —
-    // an auto-retrying toHaveValue, not a one-shot inputValue, is what
-    // actually waits for that instead of racing it.
-    const githubURLLocator = page.locator('#webhook-url-github');
-    const forgejoURLLocator = page.locator('#webhook-url-forgejo');
-    await expect(githubURLLocator).toHaveValue(/\/api\/webhooks\/github\/.+/);
-    await expect(forgejoURLLocator).toHaveValue(/\/api\/webhooks\/forgejo\/.+/);
-    const githubURL = await githubURLLocator.inputValue();
-    const forgejoURL = await forgejoURLLocator.inputValue();
-    // Same token in both URLs, since they identify the same user.
-    expect(githubURL.split('/').pop()).toBe(forgejoURL.split('/').pop());
-
-    await expect(page.locator('#webhook-secret')).toHaveAttribute(
-      'type',
-      'password',
-    );
-    await expect(page.locator('#webhook-secret')).not.toHaveValue('');
-    const secret = await page.locator('#webhook-secret').inputValue();
-    expect(secret.length).toBeGreaterThan(0);
-
-    await page.reload();
-    await expect(page.locator('#webhook-url-github')).toHaveValue(githubURL);
-    await expect(page.locator('#webhook-secret')).toHaveValue(secret);
-  });
-
-  test('the webhook secret show/hide toggle works the same as the token fields', async ({
-    page,
-  }) => {
-    await page.goto('/settings.html#integrations');
-
-    const toggle = page.locator('.token-toggle[data-target="webhook-secret"]');
-    await expect(page.locator('#webhook-secret')).toHaveAttribute(
-      'type',
-      'password',
-    );
-    await toggle.click();
-    await expect(page.locator('#webhook-secret')).toHaveAttribute(
-      'type',
-      'text',
-    );
-    await toggle.click();
-    await expect(page.locator('#webhook-secret')).toHaveAttribute(
-      'type',
-      'password',
-    );
-  });
-
-  test('copying the GitHub webhook URL confirms it in the status line', async ({
-    page,
-    context,
-  }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/settings.html#integrations');
-
-    // Wait for the settings fetch to fill the field in before copying it —
-    // otherwise this can race the same fetch the field's own value does.
-    await expect(page.locator('#webhook-url-github')).toHaveValue(
-      /\/api\/webhooks\/github\/.+/,
-    );
-    await page.click('.copy-button[data-copy-target="webhook-url-github"]');
-    await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
-
-    const clipboardText = await page.evaluate(() =>
-      navigator.clipboard.readText(),
-    );
-    const expected = await page.locator('#webhook-url-github').inputValue();
-    expect(clipboardText).toBe(expected);
-  });
-
-  test('copying the webhook secret confirms it in the status line', async ({
-    page,
-    context,
-  }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-    await page.goto('/settings.html#integrations');
-
-    await expect(page.locator('#webhook-secret')).not.toHaveValue('');
-    await page.click('.copy-button[data-copy-target="webhook-secret"]');
-    await expect(page.locator('#webhook-copy-status')).toHaveText('Copied.');
-
-    const clipboardText = await page.evaluate(() =>
-      navigator.clipboard.readText(),
-    );
-    const expected = await page.locator('#webhook-secret').inputValue();
-    expect(clipboardText).toBe(expected);
-  });
-
-  test('the Webhooks card keeps the manual URL and secret, with no coverage line or link to the removed page (#4029)', async ({
-    page,
-  }) => {
-    await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
-    await page.route('**/api/v1/dashboard*', (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          generatedAt: new Date().toISOString(),
-          forges: [],
-          pullRequests: [],
-          issues: [],
-          repos: [
-            { forge: 'github', fullName: 'alrayyes/a', hasWebhook: true },
-          ],
-        }),
-      }),
-    );
-    await page.goto('/settings.html#integrations');
-
-    await expect(page.locator('#webhook-url-github')).toHaveValue(/.+/);
-    await expect(page.locator('#webhook-coverage-summary')).toHaveCount(0);
-    await expect(page.locator('a[href="/webhooks.html"]')).toHaveCount(0);
+    for (const hash of ['#integrations', '#webhooks', '#webhook-howto']) {
+      await page.goto(`/settings.html${hash}`);
+      await expect(
+        page.getByRole('heading', { level: 2, name: 'Passkeys', exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole('heading', { level: 2, name: 'Webhooks', exact: true }),
+      ).toHaveCount(0);
+      await expect(page.locator('#webhooks')).toHaveCount(0);
+      await expect(page.locator('#webhook-url-github')).toHaveCount(0);
+      await expect(page.locator('#webhook-secret')).toHaveCount(0);
+    }
   });
 
   test.describe('Passkeys (#355)', () => {
