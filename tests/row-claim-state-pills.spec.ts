@@ -19,11 +19,12 @@ function pr(forge: string) {
     url: 'https://example.com/pull/1',
     author: 'someone',
     draft: false,
-    ci: 'success',
+    ci: 'failure',
     labels: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    mergeStatus: 'blocked',
+    mergeStatus: 'conflicting',
+    conflictConfirmed: true,
     behind: false,
     autoMergeEnabled: true,
     kind: 'regular',
@@ -107,7 +108,8 @@ async function open(page: Page, forge: Forge, reachable: boolean) {
 
 const PILLS = [
   '.ci-pill',
-  '.merge-pill',
+  // A confirmed conflict is the status block's words, not a pill (#4655).
+  '.status-area',
   '.attr-chip.behind',
   '.attr-chip.auto-merge',
 ];

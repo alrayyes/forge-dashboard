@@ -1360,6 +1360,12 @@
     // on Forgejo, a refusal named it (or the flag was never in doubt). The
     // same test as the server's conflictKnown. The row then shows the warning
     // and no control it contradicts (#3770).
+    function conflictShown(item: PullRequestItem): boolean {
+      return (
+        item.mergeStatus === "conflicting" && item.conflictConfirmed !== false
+      );
+    }
+
     // The status block draws the conflict, so no pill repeats it (#4655).
     function conflictBlockShown(item: PullRequestItem, withFix: boolean) {
       return (
@@ -1367,12 +1373,6 @@
         item.status?.code === "conflict" &&
         !isSettled(item) &&
         statusArea(item, withFix) !== null
-      );
-    }
-
-    function conflictShown(item: PullRequestItem): boolean {
-      return (
-        item.mergeStatus === "conflicting" && item.conflictConfirmed !== false
       );
     }
 
@@ -4318,7 +4318,9 @@
         text.appendChild(slot);
       }
       area.appendChild(text);
-      return area;
+      // The block took the Conflicting pill's place, so it carries the same
+      // earlier-answer claim while the forge can't be asked (#3994, #4655).
+      return status.code === "conflict" ? claimed(area, item) : area;
     }
 
     // The action the server says clears this pull request's status, or null.

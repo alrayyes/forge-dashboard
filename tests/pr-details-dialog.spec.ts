@@ -1130,6 +1130,19 @@ test.describe('pull request details dialog', () => {
     await expect(dialog(page)).not.toContainText('Mergeable');
   });
 
+  test("a confirmed conflict is the pop-up's status block, with no pill", async ({
+    page,
+  }) => {
+    await mockDashboard(page, [
+      makePR({ mergeStatus: 'conflicting', conflictConfirmed: true }),
+    ]);
+    await mockDetails(page, details());
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    await expect(dialog(page).locator('.merge-pill')).toHaveCount(0);
+    await expect(dialog(page)).toContainText('Merge conflict');
+  });
+
   for (const [mergeStatus, ci] of [['blocked', 'success']] as const) {
     test(`the header's merge pill reads like the row's (${mergeStatus})`, async ({
       page,
