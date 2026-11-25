@@ -104,7 +104,7 @@ describe('every ActionError.code the spec lists', () => {
     label_missing: 'locked',
     not_reopenable: 'locked',
     stacked: 'locked',
-    not_open: 'locked',
+    not_open: 'failed',
     permission: 'locked',
     rate_limited: 'locked',
     forge_error: 'failed',

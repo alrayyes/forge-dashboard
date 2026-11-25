@@ -581,10 +581,12 @@ itself, one where the request never got an answer (it says "Couldn't reach the
 server"), a forge answered 502, 503 or 504, or the forge failed on its own side
 with a 5xx of its own. The last one has the code `forge_error` and says "The
 forge had a server error. Try again in a moment." instead of the forge's own
-words. `forge_unreachable` (the forge can't be asked) passes by itself the same
-way. `stacked` and `not_open` lock the action with the server's own sentence,
-and `not_rate_limited` (queueing while the forge isn't rate limited) shows it
-and leaves the action clickable, since it can be taken now. A code the page
+words. A refused action on a stacked pull request (`stacked`) locks with the
+server's sentence until the parent merges, and the next refresh frees it. Of the
+other codes in the spec, `forge_unreachable` is a blocked reason (see above),
+`not_rate_limited` answers a queue request and shows as that request's error
+line, and `not_open` is how a queued action that found its pull request gone is
+recorded; none of them comes back as a refused action's answer. A code the page
 doesn't know is shown like `unknown`: the server's sentence, action clickable.
 Update branch is tried a second time on the server first, after a short
 wait, since asking again changes nothing it shouldn't; every other action is
