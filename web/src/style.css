@@ -5945,6 +5945,26 @@ button.pipeline-check-link:disabled {
   }
 }
 
+/* #4784: on a tablet the band is 430 to 650px wide. Wrapping the note and
+   the "Stacked on" reason onto two bands made the row 2.3 times a plain one,
+   so they stay side by side: the note takes the larger share, and the
+   reason, which is short, keeps the rest. */
+@media (760px < width <= 1100px) {
+  .row > .stack-band {
+    /* Under the repo cell too: the first track is 240px of empty space
+       below the row's own line. */
+    grid-column: 1 / -1;
+    flex-wrap: nowrap;
+  }
+  .stack-band > .stack-info {
+    flex: 1 1 28ch;
+  }
+  .stack-band > .status-area-stacked {
+    flex: 1 1 28ch;
+    padding-block: 4px;
+  }
+}
+
 /* On a phone the indentation gives way to the rule, and the title is what
    gets cut. The chip and what it waits for share a line. */
 @media (width <= 760px) {
