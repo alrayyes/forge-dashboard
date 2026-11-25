@@ -7,9 +7,11 @@ import { test } from './server-fixture';
 // phone each button is a 44px target and the field was 44px tall, so a button
 // covered the right-hand border.
 // https://github.com/alrayyes/forge-dashboard/issues/4850
+// The field text also stops short of the first button at every text size, new-token field included.
+// https://github.com/alrayyes/forge-dashboard/issues/4863
 
 const WIDTHS = [320, 390, 768, 1280];
-const TEXT = [100, 175];
+const TEXT = [100, 150, 175];
 const RING = 3; // 2px outline plus 1px offset
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -40,6 +42,8 @@ for (const scheme of ['light', 'dark'] as const) {
         let checked = 0;
         let toggles = 0;
         let pairs = 0;
+        let revealed = false;
+        let sawReveal = false;
 
         await page.goto('/settings.html');
         const groups = await page
@@ -55,6 +59,13 @@ for (const scheme of ['light', 'dark'] as const) {
             for (const d of document.querySelectorAll('details')) d.open = true;
           });
           await page.addStyleTag({ content: `html { font-size: ${text}%; }` });
+          if (group === 'integrations') {
+            // The new-token field only exists once a token is made.
+            await page.fill('#token-label', 'ci script');
+            await page.click('#token-form button[type="submit"]');
+            await expect(page.locator('#token-reveal-field')).toBeVisible();
+            revealed = true;
+          }
           const fields = page.locator('.token-input:visible');
           const count = await fields.count();
           for (let i = 0; i < count; i++) {
@@ -65,12 +76,12 @@ for (const scheme of ['light', 'dark'] as const) {
             if (n === 0) continue;
             // Re-measured each time: focusing scrolls the page.
             const paddingBox = async (): Promise<Box> => {
-              const i = await box(field);
+              const f = await box(field);
               return {
-                x: i.x + 1,
-                y: i.y + 1,
-                width: i.width - 2,
-                height: i.height - 2,
+                x: f.x + 1,
+                y: f.y + 1,
+                width: f.width - 2,
+                height: f.height - 2,
               };
             };
             const boxes: Box[] = [];
@@ -101,6 +112,17 @@ for (const scheme of ['light', 'dark'] as const) {
                 `${url} field ${i} buttons overlap`,
               ).toBe(true);
             }
+            // The room kept for the buttons: text in the field must end before
+            // the first button starts (#4863). A long value can't be hidden
+            // under a button.
+            const room = await field.evaluate((el) =>
+              parseFloat(getComputedStyle(el).paddingRight),
+            );
+            const fb = await box(field);
+            expect(
+              fb.x + fb.width - 1 - room,
+              `${url} field ${i} text runs under a button`,
+            ).toBeLessThanOrEqual(boxes[0].x);
             await field.focus();
             const card = await box(
               field.locator('xpath=ancestor::*[contains(@class,"card")][1]'),
@@ -109,6 +131,8 @@ for (const scheme of ['light', 'dark'] as const) {
               inside(await box(field), card, RING),
               `${url} field ${i} ring`,
             ).toBe(true);
+            if ((await wrap.locator('#token-reveal-value').count()) > 0)
+              sawReveal = true;
             checked++;
           }
           const results = await new AxeBuilder({ page })
@@ -121,6 +145,8 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(checked).toBeGreaterThanOrEqual(6);
         expect(toggles).toBeGreaterThanOrEqual(3);
         expect(pairs).toBeGreaterThanOrEqual(1);
+        expect(revealed).toBe(true);
+        expect(sawReveal).toBe(true);
       });
     }
   }
