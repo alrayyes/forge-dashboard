@@ -1,8 +1,9 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import Footer from "#lib/Footer.svelte";
   import {
     continueState,
+    forgejoAppsUrl,
     forgejoView,
     githubView,
     installRows,
@@ -25,6 +26,10 @@
   let clientId = $state("");
   let forgejoProblem = $state("");
   let starting = $state<"" | "github" | "forgejo">("");
+  let problemEl = $state<HTMLElement | undefined>();
+  let copied = $state<"" | "yes" | "failed">("");
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+  const appsUrl = $derived(forgejoAppsUrl(instanceUrl));
 
   const gh = $derived(facts ? githubView(facts) : null);
   const fj = $derived(facts ? forgejoView(facts) : null);
@@ -93,6 +98,24 @@
     starting = "";
   }
 
+  async function copyRedirect(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      copied = "yes";
+    } catch {
+      copied = "failed";
+    }
+    clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => (copied = ""), 4000);
+  }
+
+  async function showForgejoProblem(message: string) {
+    forgejoProblem = message;
+    starting = "";
+    await tick();
+    problemEl?.focus();
+  }
+
   async function authorizeForgejo(e: SubmitEvent) {
     e.preventDefault();
     starting = "forgejo";
@@ -107,15 +130,16 @@
         window.location.href = data.authorizeUrl;
         return;
       }
-      forgejoProblem =
+      await showForgejoProblem(
         typeof data.error === "string"
           ? data.error
-          : "That did not work. Check the address and the Client ID.";
+          : "That did not work. Check the address and the Client ID.",
+      );
     } catch {
-      forgejoProblem =
-        "That did not work. Check the address and the Client ID.";
+      await showForgejoProblem(
+        "That did not work. Check the address and the Client ID.",
+      );
     }
-    starting = "";
   }
 
   function signOut() {
@@ -188,7 +212,7 @@
     }
     .step {
       display: grid;
-      grid-template-columns: 28px 1fr;
+      grid-template-columns: 28px minmax(0, 1fr);
       gap: 12px;
     }
     .step-num {
@@ -255,6 +279,45 @@
       padding: 1px 5px;
       border-radius: 4px;
     }
+    .copy-box {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 6px 8px;
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      background: var(--surface-sunken);
+    }
+    .copy-box code {
+      background: none;
+      padding: 0;
+    }
+    .btn-small {
+      min-height: 28px;
+      padding: 4px 10px;
+      font-size: 0.78125rem;
+    }
+    .copied {
+      margin-left: 8px;
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--good);
+    }
+    .problem:focus {
+      outline: 2px solid var(--critical);
+      outline-offset: 2px;
+    }
+    .setup-main a {
+      color: var(--accent);
+    }
+    .setup-main a.btn-primary {
+      color: var(--accent-ink);
+    }
+    .setup-main a.btn-secondary {
+      color: var(--ink);
+    }
     .field {
       display: flex;
       flex-direction: column;
@@ -267,6 +330,9 @@
     }
     .field input {
       font: inherit;
+      width: 100%;
+      min-width: 0;
+      box-sizing: border-box;
       font-size: 0.875rem;
       padding: 8px 10px;
       border: 1px solid var(--border-strong);
@@ -380,10 +446,13 @@
                 <button
                   type="button"
                   class="btn btn-primary"
+                  aria-busy={starting === "github"}
                   disabled={starting === "github"}
                   onclick={authorizeGitHub}
                 >
-                  Authorize with GitHub
+                  {starting === "github"
+                    ? "Authorizing…"
+                    : "Authorize with GitHub"}
                 </button>
               {:else}
                 <p>
@@ -409,7 +478,16 @@
                       {#if row.state === "connected"}
                         <span class="badge connected">Connected</span>
                       {:else if row.state === "waiting"}
-                        <span class="badge">Waiting for approval</span>
+                        <span class="badge">Waiting for owner approval</span>
+                        <button
+                          type="button"
+                          class="btn btn-secondary"
+                          disabled={checking}
+                          onclick={load}
+                          aria-label={`Check again for ${row.account}`}
+                        >
+                          Check again
+                        </button>
                       {:else}
                         <span class="badge">Not installed</span>
                       {/if}
@@ -427,9 +505,10 @@
                   <a
                     class="btn btn-primary"
                     href={facts.github.installUrl}
-                    rel="noreferrer"
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    Install on GitHub
+                    Install on GitHub (opens in a new tab)
                   </a>
                   <button
                     type="button"
@@ -455,18 +534,28 @@
               <h3>Repositories</h3>
               <p>{repoLine(facts.github.repositoryCount, gh.repos)}</p>
               {#if gh.repos === "none"}
-                <p>
+                <p role="alert">
                   The app can see none of them yet. Give it access to some on
                   GitHub, then check again.
                 </p>
-                <button
-                  type="button"
-                  class="btn btn-secondary"
-                  disabled={checking}
-                  onclick={load}
-                >
-                  Check again
-                </button>
+                <div class="actions">
+                  <a
+                    class="btn btn-secondary"
+                    href={facts.github.installUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Manage access on GitHub (opens in a new tab)
+                  </a>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    disabled={checking}
+                    onclick={load}
+                  >
+                    Check again
+                  </button>
+                </div>
               {/if}
             </div>
           </li>
@@ -491,13 +580,41 @@
                   In Forgejo, open Settings, Applications and create an OAuth2
                   application.
                 </p>
+                {#if appsUrl}
+                  <p>
+                    <a href={appsUrl} target="_blank" rel="noopener noreferrer">
+                      Create the app on your Forgejo (opens in a new tab)
+                    </a>
+                  </p>
+                {:else}
+                  <p class="hint">
+                    Enter your instance address below to get a link to its
+                    applications page.
+                  </p>
+                {/if}
                 <ul>
                   <li>
-                    Redirect URI: <code>{facts.forgejo.redirectUri}</code>
+                    Redirect URI:
+                    <span class="copy-box">
+                      <code>{facts.forgejo.redirectUri}</code>
+                      <button
+                        type="button"
+                        class="btn btn-secondary btn-small"
+                        onclick={() =>
+                          copyRedirect(facts?.forgejo.redirectUri ?? "")}
+                      >
+                        Copy redirect URI
+                      </button>
+                    </span>
+                    <span class="copied" role="status">
+                      {#if copied === "yes"}Copied{:else if copied === "failed"}Could
+                        not copy. Select the address and copy it by hand.{/if}
+                    </span>
                   </li>
                   <li>Leave Confidential client unticked.</li>
                   <li>
-                    Scopes: <code>{facts.forgejo.scopes.join(" ")}</code>
+                    Permissions requested:
+                    <code>{facts.forgejo.scopes.join(" ")}</code>
                   </li>
                   <li>
                     If Forgejo says the redirect does not match, the address
@@ -523,7 +640,10 @@
                     : ""}.
                 </p>
               {:else}
-                <form onsubmit={authorizeForgejo}>
+                <form
+                  onsubmit={authorizeForgejo}
+                  aria-busy={starting === "forgejo"}
+                >
                   <div class="field">
                     <label for="forgejo-url">Instance address</label>
                     <input
@@ -545,17 +665,31 @@
                       spellcheck="false"
                       bind:value={clientId}
                       required
+                      aria-invalid={forgejoProblem ? "true" : undefined}
+                      aria-describedby={forgejoProblem
+                        ? "forgejo-problem"
+                        : undefined}
                     />
                   </div>
                   {#if forgejoProblem}
-                    <p class="problem">{forgejoProblem}</p>
+                    <p
+                      class="problem"
+                      id="forgejo-problem"
+                      role="alert"
+                      tabindex="-1"
+                      bind:this={problemEl}
+                    >
+                      {forgejoProblem}
+                    </p>
                   {/if}
                   <button
                     type="submit"
                     class="btn btn-primary"
                     disabled={starting === "forgejo"}
                   >
-                    Authorize with Forgejo
+                    {starting === "forgejo"
+                      ? "Authorizing…"
+                      : "Authorize with Forgejo"}
                   </button>
                 </form>
               {/if}
