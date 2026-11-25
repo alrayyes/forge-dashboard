@@ -901,7 +901,7 @@
     color: var(--ink-2);
     margin-left: 6px;
   }
-  @media (max-width: 760px) {
+  @media (width <= 760px) {
     .adv-dialog {
       inset: auto 0 0 0;
       margin: 0;

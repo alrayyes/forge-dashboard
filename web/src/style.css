@@ -844,7 +844,7 @@ section.board {
 .text-filter input::placeholder {
   color: var(--ink-3);
 }
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .text-filter {
     flex-wrap: wrap;
   }
@@ -981,7 +981,7 @@ section.board {
   border-bottom: 1px solid var(--border);
   color: inherit;
 }
-@media (min-width: 761px) and (max-width: 1103px) {
+@media (width > 760px) and (max-width: 1103px) {
   /* Hiding the three cells is not enough: their 96 + 82 + 82 px tracks stay in
      the template and keep taking space, so the row still overflowed. The grid
      has to drop them too, and the status and go cells move up to match. The
@@ -1015,7 +1015,7 @@ section.board {
    ready for review to unlock Merge") and the Out of date chip, so a row is
    up to 40px taller. Above this width the track stays 280px and rows keep
    the height they had. */
-@media (min-width: 761px) and (max-width: 860px) {
+@media (width > 760px) and (max-width: 860px) {
   .row {
     grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
   }
@@ -1029,8 +1029,8 @@ section.board {
    It grows because the empty track is gone. minmax(0, 1fr) keeps the column
    from being sized by its content.
    https://css-tricks.com/preventing-a-grid-blowout/
-   The phone layout (max-width: 760px) is its own stacked grid and is left alone. */
-@media (min-width: 761px) {
+   The phone layout (width <= 760px) is its own stacked grid and is left alone. */
+@media (width > 760px) {
   .row.issue-row {
     grid-template-columns: 280px minmax(0, 1fr) 96px var(--dt) var(--dt) 22px;
   }
@@ -1038,7 +1038,7 @@ section.board {
     display: none;
   }
 }
-@media (min-width: 761px) and (max-width: 1103px) {
+@media (width > 760px) and (max-width: 1103px) {
   .row.issue-row {
     grid-template-columns: 240px minmax(0, 1fr) 22px;
   }
@@ -1056,7 +1056,7 @@ section.board {
    width. At 200% and 1280px the list is about 38rem wide, so all the
    columns stay; a pull request title is 200px or more from there up. This
    also keeps the row from scrolling sideways. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   @container (max-width: 37.5rem) {
     .row {
       grid-template-columns: 240px minmax(0, 1fr) 280px 22px;
@@ -1094,7 +1094,7 @@ section.board {
    the 37.5rem rule above still applies. Pull request rows only: an issue row
    has no status track, so its title is wide enough already. At a 16px root the
    threshold is under the list's width at 1104px, so 100% is unchanged. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
     .row:not(.issue-row) {
       grid-template-columns: 240px minmax(0, 1fr) 280px 22px;
@@ -1116,7 +1116,7 @@ section.board {
 }
 /* The band rule above sets a 280px status track, which would undo the 232px
    one the 761-860px range needs to keep label chips off the CI pill (#3261). */
-@media (min-width: 761px) and (max-width: 860px) {
+@media (width > 760px) and (max-width: 860px) {
   @container (max-width: min(calc(700px + 19rem), 1190px)) {
     .row:not(.issue-row) {
       grid-template-columns: 240px minmax(0, 1fr) 232px 22px;
@@ -1167,7 +1167,7 @@ section.board {
    full line of the cell. The rem in the query keeps it off at large root font
    sizes, where the slots would outgrow the list. Narrower lists keep the
    wrapping status cell above, with the chips and the note in it. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   @container (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
       /* #4596: the repo track is 168px, 16px narrower than the 184px it was,
@@ -1393,7 +1393,7 @@ section.board {
    is under either, at a large root font size as well. The rem term is
    tuned to the title's line height, not measured: tests/pr-row-centering.spec.ts
    holds it within 2px at 100% and 200%. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   @container not (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) {
       --pill-line: max(24px, 1.1rem);
@@ -1798,7 +1798,7 @@ select.col-filter {
 .result-sort-wrap {
   display: inline-flex;
 }
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .result-sort-wrap {
     padding-block: 6px;
   }
@@ -2707,7 +2707,7 @@ a.ci-pill:hover {
 .ci-seg-held {
   color: var(--queued);
 }
-@media (max-width: 760px) {
+@media (width <= 760px) {
   /* The word goes on a phone and the glyphs and counts stay, so the pill is as
      narrow as it can be and the title keeps its two lines; the link's name
      still says its word. */
@@ -2734,7 +2734,7 @@ a.ci-pill:hover {
 /* The Passed and Failed pills on a pull request row keep their word on the
    phone card, as the design shows them ("Passed" and then the counts, #4502).
    The other pills (Running, Cancelled, unknown) keep the narrow form above. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .row .ci-pill.success .ci-seg-label,
   .row .ci-pill.failure .ci-seg-label {
     display: inline-flex;
@@ -2803,7 +2803,7 @@ a.ci-pill:hover {
   outline: 2px solid var(--accent);
   outline-offset: 1px;
 }
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .approve-link {
     min-height: 44px;
     min-width: 44px;
@@ -2917,7 +2917,7 @@ a.ci-pill:hover {
    two lines taller than its words. It keeps its words, icon and the fix
    button's 30px target, with 4px above and below and no gap between the words
    and the button. The phone card and the wide row are left alone. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   @container not (min-width: max(1191px, 74.5rem)) {
     .row:not(.issue-row) .status-cell .status-area {
       padding-block: 4px;
@@ -3021,12 +3021,12 @@ a.ci-pill:hover {
 /* #4601: from 761px the same words are the wait chip's stopped state, which
    is content-sized and sits on the status pill's line. The phone card keeps
    the text line, and draws neither the chip nor its slot. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   .auto-merge-status:not(.no-chip) {
     display: none;
   }
 }
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .wait-chip[data-state="stopped"],
   .wait-slot:has(> .wait-chip[data-state="stopped"]) {
     display: none;
@@ -3521,7 +3521,7 @@ a.ci-pill:hover {
   cursor: pointer;
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .error-banner-retry {
     min-height: var(--tap);
   }
@@ -3563,7 +3563,7 @@ a.ci-pill:hover {
    paddings moves both together. The toolbar keeps its height and
    leaves the control's width clear at its end, in px so a larger text size
    doesn't widen it. The short-landscape layout below has its own. */
-@media (max-width: 760px) and (
+@media (width <= 760px) and (
     not ((max-height: 440px) and (orientation: landscape))
   ) {
   .activity-bar {
@@ -3851,7 +3851,7 @@ a.ci-pill:hover {
    tall, and the slot takes no room while it is empty at any width. The detail
    gives way first (an ellipsis; the tooltip has the full sentence). The phone
    card, 760px and narrower, keeps the full-width 59px slot above (#4590). */
-@media (min-width: 761px) {
+@media (width > 760px) {
   .wait-slot {
     flex: 0 1 auto;
     max-width: 100%;
@@ -3891,7 +3891,7 @@ a.ci-pill:hover {
 
 /* A touch screen wider than the phone card (a tablet) gets the 44px target
    the card has, and the chip grows to hold it (#4663). */
-@media (min-width: 761px) and (pointer: coarse) {
+@media (width > 760px) and (pointer: coarse) {
   .wait-chip {
     min-height: 46px;
   }
@@ -4430,7 +4430,7 @@ footer a.mono:focus-visible {
   color: var(--ink);
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .row {
     grid-template-columns: 1fr auto;
     grid-template-areas:
@@ -4796,7 +4796,7 @@ footer a.mono:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
-@media (min-width: 761px) {
+@media (width > 760px) {
   .pipeline-run-button {
     width: auto;
     justify-content: flex-start;
@@ -5062,7 +5062,7 @@ button.pipeline-check-link:disabled {
 }
 
 /* The phone floor (--tap): Close and the row links were 30px and 16px. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .pipeline-dialog-close {
     width: var(--tap);
     height: var(--tap);
@@ -5431,7 +5431,7 @@ button.pipeline-check-link:disabled {
   display: none;
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   /* A tap target on a phone (#1139). */
   button.ci-pill {
     min-height: 44px;
@@ -5442,7 +5442,7 @@ button.pipeline-check-link:disabled {
    search row, the Filters button and the active chips, with the pill groups and
    the rest in the sheet.
    The three rows of a desktop bar would fill a 390px-tall screen. */
-@media (max-width: 760px), (max-height: 440px) and (orientation: landscape) {
+@media (width <= 760px), (max-height: 440px) and (orientation: landscape) {
   .filter-bar {
     flex-direction: column;
     align-items: stretch;
@@ -5908,7 +5908,7 @@ button.pipeline-check-link:disabled {
    title and status tracks (placeNotes in Dashboard.svelte moves them there),
    so the note reads at a measure of its own and not in the title track's 200px.
    The cap keeps a line short enough to scan on a wide list. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   /* The stack block and the stacked reason sit side by side, each at least
      28ch wide, and wrap into two lines of the band when the row is narrow. */
   .row > .stack-band {
@@ -5929,7 +5929,7 @@ button.pipeline-check-link:disabled {
 
 /* On a phone the indentation gives way to the rule, and the title is what
    gets cut. The chip and what it waits for share a line. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .stack-member {
     margin-left: 0;
   }
@@ -6237,7 +6237,7 @@ footer a[aria-current="page"] {
    element answers for the control, and its inset is the line's own height
    less the floor, so it follows the text size and zoom. From 761px up only;
    a phone gets a real 44px box below. */
-@media (min-width: 761px) {
+@media (width > 760px) {
   :root
     body
     :is(
@@ -6289,7 +6289,7 @@ footer a[aria-current="page"] {
   }
 }
 
-@media (max-width: 760px) {
+@media (width <= 760px) {
   /* The pager (#3397): the buttons wrap, so 44px tall and wide fits at 320. */
   :root body :is(.pagination-nav, .pagination-page) {
     min-height: var(--tap);
@@ -6758,7 +6758,7 @@ footer a[aria-current="page"] {
 /* Up to 760px a line is a 44px touch target, as in the phone drawing: the
    number cell is 44 tall and the text is padded so its first line still sits
    level with the number. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .run-line-no {
     min-height: 44px;
     padding-top: 14px;
@@ -6938,7 +6938,7 @@ footer a[aria-current="page"] {
 }
 /* A phone or small screen (760px and narrower): the live control and the count share the first
    line and each action is a full-width 44px button below, one per line. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .board-head-controls {
     flex: 1 1 100%;
     justify-content: space-between;
@@ -6971,7 +6971,7 @@ footer a[aria-current="page"] {
 /* A phone held sideways is about 375px tall, and stacked buttons would push
    the first list row off the screen (#3406). The buttons sit on the controls'
    line when they fit, side by side, at their desktop 30px, which clears the 24px minimum of WCAG 2.5.8. */
-@media (max-width: 760px) and (max-height: 440px) and (orientation: landscape) {
+@media (width <= 760px) and (max-height: 440px) and (orientation: landscape) {
   .bulk-actions {
     flex: 0 1 auto;
     flex-direction: row;
@@ -7331,7 +7331,7 @@ footer a[aria-current="page"] {
    below it is part of the target. The inset is measured from the padding box,
    inside the 1px border, so 7px reaches 6px past the drawn edge. The rows are
    12px apart, so two targets never overlap. The label sits above its pills. */
-@media (max-width: 760px) {
+@media (width <= 760px) {
   .filter-group {
     flex-direction: column;
     align-items: flex-start;

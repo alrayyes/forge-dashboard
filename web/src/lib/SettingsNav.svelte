@@ -66,7 +66,7 @@
     font-size: 0.75rem;
     color: var(--ink-3);
   }
-  @media (max-width: 760px) {
+  @media (width <= 760px) {
     /* A wrapping row of pills: all five stay on screen, no sideways scroll. */
     .settings-nav ul {
       flex-direction: row;

@@ -1136,7 +1136,7 @@
     .settings-panels {
       min-width: 0;
     }
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       .settings-layout {
         grid-template-columns: minmax(0, 1fr);
         gap: 16px;
@@ -1459,7 +1459,7 @@
        236px at 13.5px, so this card alone trims its side padding to 14px and
        the select takes 12px type; tests/timezone-select-phone.spec.ts pins
        that the text fits (#3366). */
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       .card:has(#timezone-select) {
         padding-inline: 14px;
       }
@@ -1517,7 +1517,7 @@
       flex-shrink: 0;
     }
     /* Touch targets at phone width: 44px high (#1630). */
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       #issue-settings .entry-list .btn-remove,
       #issue-settings .pattern-row .btn {
         min-height: 44px;

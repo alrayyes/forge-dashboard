@@ -271,6 +271,7 @@ revoke-button-phone.spec.ts,2.735,5,3,A,,1.1
 root-font-size.spec.ts,10.748,7,7,A,,0.0
 row-claim-state-pills.spec.ts,4.065,7,1,C,web/src/lib/row-claim.test.ts,3.5
 row-failure-lines.spec.ts,4.352,9,1,C,,3.9
+row-layout-fractional-width.spec.ts,,2,1,A,,0.0
 row-opens-dialog.spec.ts,5.789,13,9,A,,1.8
 row-status-grammar.spec.ts,4.816,10,8,A,,1.0
 running-pill-counts.spec.ts,1.962,9,4,C,,1.1

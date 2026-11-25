@@ -216,7 +216,7 @@
   // header buttons then leave the tab order.
   let cardLayout = $state(false);
   onMount(() => {
-    const query = window.matchMedia("(max-width: 760px)");
+    const query = window.matchMedia("(width <= 760px)");
     const sync = () => (cardLayout = query.matches);
     sync();
     query.addEventListener("change", sync);
@@ -1127,7 +1127,7 @@
   /* Cards up to 760px, the width the app's 44px phone rule also stops at. The
      explicit table roles on the markup keep the table semantics once display
      moves off table cells. */
-  @media (max-width: 760px) {
+  @media (width <= 760px) {
     /* A pill row wider than the screen scrolls sideways; the fade on the
        right edge says there is more. The tab bar's clearance comes from the
        body padding in the stylesheet. */

@@ -58,7 +58,7 @@ describe('the shared filter pill', () => {
   });
 
   test('widens the hit area to 44px on a phone, and only there, without growing the pill', () => {
-    const phone = mediaBlocks(/\(max-width:\s*760px\)/);
+    const phone = mediaBlocks(/\(width\s*<=\s*760px\)/);
     expect(
       phone.some((b) =>
         /\.filter-pill::after\s*\{[^}]*inset:\s*-7px -1px/.test(b),

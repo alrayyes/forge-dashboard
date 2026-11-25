@@ -790,7 +790,7 @@
        goes below, over the meta text. The buttons that can wrap onto the line
        below are positioned too, so they paint over the extension and keep
        their own taps. */
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       .mb-repo::after {
         inset: -6px 0 -20px;
       }
@@ -841,7 +841,7 @@
     .mb-release .attr-icon {
       flex: none;
     }
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       .mb-release {
         min-height: 44px;
       }
@@ -884,7 +884,7 @@
       font-family: inherit;
       cursor: pointer;
     }
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       a.mb-advisory,
       button.mb-advisory {
         min-height: 44px;
@@ -1035,7 +1035,7 @@
         grid-row: 2;
       }
     }
-    @media (max-width: 760px) {
+    @media (width <= 760px) {
       .mb-row .ci-pill {
         min-height: 44px;
       }

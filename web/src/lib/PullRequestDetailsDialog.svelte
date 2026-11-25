@@ -1990,7 +1990,7 @@
 
   /* The 44px target applies under 761px, the same cut as style.css, so the
      centred dialog at 700px gets it too, not just the full-height sheet. */
-  @media (max-width: 760px) {
+  @media (width <= 760px) {
     .details-close {
       width: 44px;
       height: 44px;
