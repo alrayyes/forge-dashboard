@@ -373,8 +373,9 @@ where Vitest takes 0.4 s or more and a dependency.
 
 - `api/openapi.yaml` is the contract — handwritten and reviewed as the
   design — see `internal/api`'s handlers for what implements it.
-  Two value lists are open on purpose: `AllowedAction.action` and
-  `AllowedAction.blocked.code` use `x-extensible-enum`, so a new value is a
+  Three value lists are open on purpose: `AllowedAction.action`,
+  `AllowedAction.blocked.code` and `ActionError.code` use
+  `x-extensible-enum`, so a new value is a
   minor SDK release (`oasdiff` calls a new value in a closed `enum` breaking).
   Every other list stays closed. `kin-openapi` doesn't check an extension, so
   `internal/api/openapi_extensible_enums_test.go` holds the Go list. Add a
