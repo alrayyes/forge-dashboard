@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.121.0](https://github.com/alrayyes/forge-dashboard/compare/v9.120.2...v9.121.0) (2026-11-25)
+
+
+### Features
+
+* **web:** show an unreported merge status as one wait chip, no locked Merge ([#4842](https://github.com/alrayyes/forge-dashboard/issues/4842)) ([63e14aa](https://github.com/alrayyes/forge-dashboard/commit/63e14aa2b065e2e588a5bcb2f287eb17d73e97c2)), closes [#4666](https://github.com/alrayyes/forge-dashboard/issues/4666)
+
 ## [9.120.2](https://github.com/alrayyes/forge-dashboard/compare/v9.120.1...v9.120.2) (2026-11-25)
 
 
