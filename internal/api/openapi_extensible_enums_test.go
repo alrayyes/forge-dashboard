@@ -22,7 +22,7 @@ var (
 	knownBlockedCodes = []string{
 		"already_up_to_date", "conflict", "not_mergeable", "checks_pending",
 		"checks_failing", "behind", "blocked_by_protection", "stacked", "already_requested",
-		"forge_unreachable",
+		"forge_unreachable", "status_unknown",
 	}
 )
 

@@ -34,5 +34,5 @@ func TestDashboard_PullRequestsCarryTheirAllowedActions(t *testing.T) {
 	require.Contains(t, byAction, "merge")
 	blocked, ok := byAction["merge"]["blocked"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "not_mergeable", blocked["code"])
+	assert.Equal(t, "status_unknown", blocked["code"])
 }

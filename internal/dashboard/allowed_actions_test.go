@@ -85,7 +85,7 @@ func TestAllowedActions(t *testing.T) {
 		{"a failed job beside jobs waiting to start offers cancelling them", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure; p.Checks.Waiting = 1 }), []string{"auto_merge", "cancel_run", "close", "merge", "rerun_checks"}},
 		{"finished CI offers nothing to cancel", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CISuccess }), []string{"close", "merge"}},
 		{"blocked otherwise", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked }), []string{"auto_merge", "close", "merge:blocked_by_protection"}},
-		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:not_mergeable"}},
+		{"merge status not known yet", ghPR(func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }), []string{"auto_merge", "close", "merge:status_unknown"}},
 		{"auto-merge already on is not offered again, but can be cancelled", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeEnabled = new(true) }), []string{"cancel_auto_merge", "cancel_run", "close", "merge:checks_pending"}},
 		{"auto-merge refused by the forge for this PR", ghPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending; p.AutoMergeAllowed = new(false) }), []string{"cancel_run", "close", "merge:checks_pending"}},
 		{"Forgejo with CI pending offers the app's own auto-merge", ghPR(func(p *dashboard.PullRequest) { p.Forge = dashboard.ForgeForgejo; p.CI = dashboard.CIPending }), []string{"auto_merge", "cancel_run", "close", "merge:checks_pending"}},
@@ -210,7 +210,7 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		}, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
 		{"checking for conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeChecking; p.Behind = true }, dashboard.ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes"},
 		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge"},
-		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it"},
+		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionStatusUnknown, "Merge status not known yet", "Merge unlocks once the forge reports it"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

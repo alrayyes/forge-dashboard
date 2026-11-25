@@ -20,6 +20,7 @@ export type ActionCode =
   | 'conflict'
   | 'behind'
   | 'checks_pending'
+  | 'status_unknown'
   | 'checks_failing'
   | 'blocked_by_protection'
   | 'already_up_to_date'
@@ -73,6 +74,7 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'conflict',
   'behind',
   'checks_pending',
+  'status_unknown',
   'checks_failing',
   'blocked_by_protection',
   'already_up_to_date',

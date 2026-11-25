@@ -84,6 +84,11 @@ pull request, whose branch is already on the target, offers `close` and no
 `merge` or `auto_merge`, since nothing can unlock Merge; its `status` says there
 is nothing to merge.
 
+While the forge hasn't said yet whether a pull request merges, its `status` and
+the blocked entry on `merge` carry the code `status_unknown` ("Merge status not
+known yet"). It passes by itself, so a client can show it as a wait. A draft keeps
+`not_mergeable`, since a person has to act on it.
+
 The row shows `status` in one place: a block with an icon and words ahead of its
 actions, and a locked Merge is described by it, so the reason is read without
 hovering. A pull request with no status has no block.

@@ -35,6 +35,9 @@ const (
 	// is wrong with the request and asking again may work.
 	ActionForgeError ActionCode = "forge_error"
 	ActionStacked    ActionCode = "stacked"
+	// ActionStatusUnknown: the forge hasn't said yet whether the pull request
+	// merges. It passes by itself, so a client can show it as a wait (#4666).
+	ActionStatusUnknown ActionCode = "status_unknown"
 	// ActionForgeUnreachable: the forge can't be asked, so the row is an
 	// earlier answer and no action can run until it can (#3994).
 	ActionForgeUnreachable ActionCode = "forge_unreachable"
