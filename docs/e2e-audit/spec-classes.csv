@@ -294,7 +294,7 @@ settings-repositories-failing.spec.ts,,4,1,C,,0.0
 settings-repositories-rebase-bots.spec.ts,,6,0,C,,0.0
 settings-repositories-status-line.spec.ts,,3,0,C,,0.0
 settings-repositories.spec.ts,,16,5,C,,0.0
-settings-save-gap.spec.ts,,2,1,A,,0.0
+settings-save-gap.spec.ts,,4,3,A,,0.0
 settings.spec.ts,16.859,48,11,C,web/src/lib/settings-groups.test.ts,13.0
 shared-dashboard-read.spec.ts,5.171,6,0,C,,5.2
 show-drafts-by-page.spec.ts,5.164,2,2,A,,0.0
