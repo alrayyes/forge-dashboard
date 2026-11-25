@@ -1155,6 +1155,12 @@
   .repo-table .control-cell > :global(.repo-control) {
     vertical-align: middle;
   }
+  /* A locked Rebase bots cell is taller (its reason sits under the icon).
+     Top-aligned, the three icons stay on one line, so an open tip, which
+     floats above its icon, never lands on a neighbour. */
+  .repo-table td.control-cell {
+    vertical-align: top;
+  }
   .repo-link {
     color: inherit;
   }
