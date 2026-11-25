@@ -11,6 +11,7 @@ import {
   REVIEW_DECISIONS,
   reviewDecisionOf,
   SETTLED_MS,
+  STILL_WAITING,
   STILL_WAITING_MS,
   settledChip,
   settlesOnRow,
@@ -609,6 +610,19 @@ describe('mergeWaitChip', () => {
     expect(chip.state).toBe('stalled');
     expect(chip.action).toBe('arm');
     expect(chip.tooltip).toContain('Open the pull request on the forge');
+  });
+
+  test('both Still waiting chips share one label, detail, icon and state', () => {
+    const stalled = waitChip(
+      input({ kind: 'merge', sinceChangeMs: STILL_WAITING_MS }),
+    );
+    const late = mergeWaitChip('status-unknown-late');
+    for (const chip of [stalled, late]) {
+      expect(chip.label).toBe(STILL_WAITING.label);
+      expect(chip.detail).toBe(STILL_WAITING.detail);
+      expect(chip.icon).toBe(STILL_WAITING.icon);
+      expect(chip.state).toBe(STILL_WAITING.state);
+    }
   });
 
   test('an unknown status the row cannot arm never mentions Auto-merge', () => {
