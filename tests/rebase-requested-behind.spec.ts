@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { actionsFooter, openActionsDialog } from './actions-dialog-helper';
+import { waitOutConfirmGuard } from './confirm-guard-helper';
 import { forgeHealth } from './forge-health-helper';
 import { quickPill } from './quick-pills-helper';
 import { test } from './server-fixture';
@@ -107,7 +108,12 @@ const PRS = [
   { ...pr(4, 'Up to date'), behind: false, status: undefined },
 ];
 
-async function open(page: Page, width: number, path = '/bots.html') {
+async function open(
+  page: Page,
+  width: number,
+  path = '/bots.html',
+  prs: unknown[] = PRS,
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -119,7 +125,7 @@ async function open(page: Page, width: number, path = '/bots.html') {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -127,7 +133,7 @@ async function open(page: Page, width: number, path = '/bots.html') {
     }),
   );
   await page.goto(path);
-  await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
+  await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
 const row = (page: Page, title: string) =>
@@ -139,9 +145,7 @@ for (const width of [360, 1280]) {
       await open(page, width);
     });
 
-    test('AC1: a requested rebase shows only the wait chip', async ({
-      page,
-    }) => {
+    test('a requested rebase shows only the wait chip', async ({ page }) => {
       const r = row(page, 'Requested rebase');
       await expect(r.locator('.wait-chip')).toContainText('Rebase requested');
       await expect(r.locator('.attr-chip.behind')).toHaveCount(0);
@@ -204,7 +208,7 @@ for (const width of [360, 1280]) {
       await expect(merge).toHaveAccessibleDescription(/Bring it up to date/);
     });
 
-    test('AC3: a timed out request brings the chip and message back', async ({
+    test('a timed out request brings the chip and message back', async ({
       page,
     }) => {
       const r = row(page, 'Timed out rebase');
@@ -214,7 +218,7 @@ for (const width of [360, 1280]) {
       );
     });
 
-    test('AC4: with no request the row is as it was', async ({ page }) => {
+    test('with no request the row is as it was', async ({ page }) => {
       const r = row(page, 'No rebase asked');
       await expect(r.locator('.attr-chip.behind')).toHaveText(/Out of date/);
       await expect(r.locator('.status-area')).toContainText(
@@ -224,7 +228,7 @@ for (const width of [360, 1280]) {
   });
 }
 
-test('AC2: the Out of date quick filter keeps the requested row', async ({
+test('the Out of date quick filter keeps the requested row', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -233,7 +237,7 @@ test('AC2: the Out of date quick filter keeps the requested row', async ({
   await expect(row(page, 'Requested rebase')).toHaveCount(1);
 });
 
-test('AC5: the pop-up footer lists Merge locked with its reason', async ({
+test('the pop-up footer lists Merge locked with its reason', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -246,7 +250,7 @@ test('AC5: the pop-up footer lists Merge locked with its reason', async ({
   );
 });
 
-test('AC2: the pop-up lists the requested rebase as locked with its reason', async ({
+test('the pop-up lists the requested rebase as locked with its reason', async ({
   page,
 }) => {
   await open(page, 1280);
@@ -260,7 +264,7 @@ test('AC2: the pop-up lists the requested rebase as locked with its reason', asy
 
 for (const width of [390, 1280]) {
   for (const theme of ['light', 'dark'] as const) {
-    test(`AC4: axe is clean on requested rows at ${width}px, ${theme}`, async ({
+    test(`axe is clean on requested rows at ${width}px, ${theme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: theme });
@@ -272,4 +276,88 @@ for (const width of [390, 1280]) {
       expect(results.violations).toEqual([]);
     });
   }
+}
+
+// Focus is what the old disabled button held. A keyboard user who asks for a
+// rebase or a recreate stays on the row, on the chip that took the button's
+// place, not on the page body.
+test.describe('keyboard focus after a Dependabot request', () => {
+  const FRESH = pr(9, 'Fresh bump', undefined, {
+    allowedActions: [
+      ALLOWED[0],
+      { action: 'dependabot_rebase', primary: true },
+      { action: 'dependabot_recreate' },
+      { action: 'close' },
+    ],
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ allowBotPrUpdates: false }),
+      }),
+    );
+    await page.route(
+      '**/api/v1/pull-requests/dependabot-action',
+      (route: Route) => route.fulfill({ status: 204 }),
+    );
+    await open(page, 1280, '/bots.html', [FRESH]);
+  });
+
+  const chipHasFocus = (page: Page) =>
+    page.evaluate(() => !!document.activeElement?.closest('.wait-chip'));
+
+  test('Enter on Dependabot Rebase leaves focus on the wait chip', async ({
+    page,
+  }) => {
+    const r = row(page, 'Fresh bump');
+    await r.getByRole('button', { name: 'Dependabot: Rebase' }).focus();
+    await page.keyboard.press('Enter');
+    await expect(r.locator('.wait-chip')).toContainText('Rebase requested');
+    expect(await chipHasFocus(page)).toBe(true);
+  });
+
+  // The row keeps its details trigger, which is the first stop after the
+  // Recreate menu closes, so focus lands there and not on the chip.
+  test('Enter on a confirmed Dependabot Recreate keeps focus inside the row', async ({
+    page,
+  }) => {
+    const r = row(page, 'Fresh bump');
+    await r.getByRole('button', { name: 'More Dependabot actions' }).focus();
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Enter');
+    await expect(
+      r.getByRole('button', { name: 'Confirm recreate?' }),
+    ).toBeFocused();
+    await waitOutConfirmGuard(page);
+    await page.keyboard.press('Enter');
+    await expect(r.locator('.wait-chip')).toContainText('Recreate requested');
+    await expect(r.locator('[id^="details-trigger-"]')).toBeFocused();
+  });
+});
+
+// A chip that spills out of its row is clipped or overlaps the next one. The
+// phone and tablet widths are where it would show.
+for (const width of [360, 768]) {
+  test(`the wait chip sits inside its row at ${width}px`, async ({ page }) => {
+    await open(page, width);
+    const r = row(page, 'Requested rebase');
+    const chip = r.locator('.wait-chip');
+    await expect(chip).toContainText('Rebase requested');
+    const [rowBox, chipBox] = await Promise.all([
+      r.boundingBox(),
+      chip.boundingBox(),
+    ]);
+    if (!rowBox || !chipBox) throw new Error('row or chip not laid out');
+    expect(chipBox.x).toBeGreaterThanOrEqual(rowBox.x);
+    expect(chipBox.y).toBeGreaterThanOrEqual(rowBox.y);
+    expect(chipBox.x + chipBox.width).toBeLessThanOrEqual(
+      rowBox.x + rowBox.width,
+    );
+    expect(chipBox.y + chipBox.height).toBeLessThanOrEqual(
+      rowBox.y + rowBox.height,
+    );
+  });
 }
