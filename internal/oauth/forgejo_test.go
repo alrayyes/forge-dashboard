@@ -84,6 +84,9 @@ type fakeForgejo struct {
 	userCalls int
 	userFails bool
 	hits      int
+	// publicClient, when set, makes the instance expect that client id and no
+	// secret, as for a public client the owner registered by hand.
+	publicClient string
 }
 
 func newFakeForgejo(t *testing.T) *fakeForgejo {
@@ -126,14 +129,14 @@ func (f *fakeForgejo) token(w http.ResponseWriter, r *http.Request) {
 		sum := sha256.Sum256([]byte(form.Get("code_verifier")))
 		if form.Get("code") != goodCode ||
 			form.Get("redirect_uri") != testRedirect ||
-			form.Get("client_id") != "client-id" || form.Get("client_secret") != "client-secret" ||
+			!f.clientOK(form) ||
 			base64.RawURLEncoding.EncodeToString(sum[:]) != f.challenge {
 			deny()
 
 			return
 		}
 	case "refresh_token":
-		if form.Get("refresh_token") != f.valid {
+		if form.Get("refresh_token") != f.valid || (f.publicClient != "" && !f.clientOK(form)) {
 			deny()
 
 			return
@@ -147,6 +150,14 @@ func (f *fakeForgejo) token(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(map[string]any{
 		"access_token": f.access, "refresh_token": f.valid, "token_type": "bearer", "expires_in": 3600,
 	})
+}
+
+func (f *fakeForgejo) clientOK(form url.Values) bool {
+	if f.publicClient != "" {
+		return form.Get("client_id") == f.publicClient && form.Get("client_secret") == ""
+	}
+
+	return form.Get("client_id") == "client-id" && form.Get("client_secret") == "client-secret"
 }
 
 func (f *fakeForgejo) user(w http.ResponseWriter, r *http.Request) {

@@ -56,7 +56,21 @@ func TestAutoMergeStatusOf_BehindInAStrictRepo_WaitsForTheBranchUpdate(t *testin
 
 	assert.Equal(t, dashboard.AutoMergeWaiting, got.State)
 	assert.Equal(t, dashboard.ActionBehind, got.Code)
-	assert.Contains(t, got.Message, "branch to be updated")
+	assert.Equal(t, "Auto-merge is waiting for the branch to be updated.", got.Message)
+}
+
+// How auto-merge carries on is in docs/how-merge-is-held-back.md, so these
+// rows keep their first sentence only (#4672).
+func TestAutoMergeStatusOf_MechanicsAreLeftToTheDocs(t *testing.T) {
+	t.Parallel()
+
+	failing := dashboard.AutoMergeStatusOf(amPR(func(p *dashboard.PullRequest) { p.CI = dashboard.CIFailure }), nil)
+	assert.Equal(t, "Auto-merge stopped: a check failed.", failing.Message)
+
+	for _, forge := range []dashboard.Forge{dashboard.ForgeGitHub, dashboard.ForgeForgejo} {
+		passed := dashboard.AutoMergeStatusOf(amPR(func(p *dashboard.PullRequest) { p.Forge = forge }), nil)
+		assert.Equal(t, "Checks passed.", passed.Message, string(forge))
+	}
 }
 
 func TestAutoMergeStatusOf_BehindWithoutAStrictRule_DoesNotBlameBeingBehind(t *testing.T) {
@@ -260,7 +274,7 @@ func TestAutoMergeStatusOf_NeverNamesAForge(t *testing.T) {
 
 				assert.NotContains(t, got.Message, "GitHub")
 				assert.NotContains(t, got.Message, "Forgejo")
-				if name != "checks passed" || forge == dashboard.ForgeGitHub {
+				if name != "checks passed" && name != "behind" {
 					assert.Contains(t, strings.ToLower(got.Message), "the forge")
 				}
 			})

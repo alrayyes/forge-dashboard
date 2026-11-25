@@ -22,12 +22,7 @@ function armedBehind(overrides: MockPR = {}): MockPR {
   return { ...fixture.pullRequests.strict, ...overrides };
 }
 
-// The server says "the forge"; the page names it from the capability label
-// (#4072), and the fixture's pull request is on GitHub.
-const strictMessage = fixture.pullRequests.strict.autoMerge.message.replace(
-  'The forge',
-  'GitHub',
-);
+const strictMessage = fixture.pullRequests.strict.autoMerge.message;
 const cancelledMessage = fixture.pullRequests.notStrict.autoMerge.message;
 
 async function open(page: Page, pr: MockPR) {

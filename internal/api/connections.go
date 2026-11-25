@@ -8,15 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alrayyes/forge-dashboard/internal/oauth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // forgejoForge is the key of Forgejo's row in the OAuth token store.
 const forgejoForge = "forgejo"
-
-// settingsPath is where the browser lands once a connection is made.
-const settingsPath = "/settings"
 
 // maxInstanceURLLen caps the instance URL a sign-in can start against.
 const maxInstanceURLLen = 2048
@@ -24,11 +20,35 @@ const maxInstanceURLLen = 2048
 // StartForgejoConnectionRequest matches components.schemas.StartForgejoConnectionRequest.
 type startForgejoConnectionRequest struct {
 	InstanceURL string `json:"instanceUrl"`
+	ClientID    string `json:"clientId"`
 }
+
+// maxClientIDLen caps the Client ID an owner can name.
+const maxClientIDLen = 256
 
 // ConnectionAuthorizeResponse matches components.schemas.ConnectionAuthorizeResponse.
 type connectionAuthorizeResponse struct {
 	AuthorizeURL string `json:"authorizeUrl"`
+}
+
+// forgejoStartProblem names the first field of a start request that is
+// unusable, with why, or returns an empty message when both are fine.
+func forgejoStartProblem(deps Deps, clientID, raw string) (field, msg string) {
+	if len(clientID) > maxClientIDLen {
+		return "clientId", "clientId is too long"
+	}
+
+	// A Client ID the owner names wins; without one the server's own client
+	// is used, and without that there is nothing to sign in with.
+	if clientID == "" && !deps.ForgejoOAuth.Configured() {
+		return "clientId", "clientId is the Client ID of the app you created on your Forgejo"
+	}
+
+	if raw == "" || len(raw) > maxInstanceURLLen {
+		return "instanceUrl", "instanceUrl must be the address of your Forgejo"
+	}
+
+	return "instanceUrl", forgejoURLProblem("instanceUrl", raw)
 }
 
 // handleForgejoConnectionStart answers POST /api/v1/connections/forgejo.
@@ -43,21 +63,11 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 			return
 		}
 
-		if !deps.ForgejoOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no Forgejo OAuth client configured"))
-
-			return
-		}
-
+		clientID := strings.TrimSpace(req.ClientID)
 		raw := strings.TrimSpace(req.InstanceURL)
-		if raw == "" || len(raw) > maxInstanceURLLen {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", "instanceUrl must be the address of your Forgejo"))
 
-			return
-		}
-
-		if msg := forgejoURLProblem("instanceUrl", raw); msg != "" {
-			writeJSON(w, http.StatusBadRequest, fieldErrorBody("instanceUrl", msg))
+		if field, msg := forgejoStartProblem(deps, clientID, raw); msg != "" {
+			writeJSON(w, http.StatusBadRequest, fieldErrorBody(field, msg))
 
 			return
 		}
@@ -75,6 +85,12 @@ func handleForgejoConnectionStart(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		if clientID != "" {
+			writeJSON(w, http.StatusOK, connectionAuthorizeResponse{AuthorizeURL: deps.ForgejoOAuth.BeginPublic(raw, clientID)})
+
+			return
+		}
+
 		writeJSON(w, http.StatusOK, connectionAuthorizeResponse{AuthorizeURL: deps.ForgejoOAuth.Begin(raw)})
 	}
 }
@@ -87,8 +103,8 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		// The query holds a one-time code; no cache keeps it or the answer.
 		w.Header().Set("Cache-Control", "no-store")
 
-		if !deps.ForgejoOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no Forgejo OAuth client configured"))
+		if deps.ForgejoOAuth == nil {
+			writeJSON(w, http.StatusBadRequest, errorBody("this server cannot link a Forgejo account"))
 
 			return
 		}
@@ -98,18 +114,18 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 
 		switch {
 		case q.Get("error") != "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the Forgejo sign-in was not completed"))
+			redirectSetupError(w, r, setupErrAccessDenied)
 
 			return
 		case state == "" || code == "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is missing its state or code"))
+			redirectSetupError(w, r, setupErrInvalidState)
 
 			return
 		}
 
 		instance, account, err := deps.ForgejoOAuth.Finish(r.Context(), state, code)
 		if err != nil {
-			writeFinishError(w, err)
+			redirectSetupError(w, r, setupErrorFor("forgejo", err))
 
 			return
 		}
@@ -117,7 +133,7 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			undoConnection(r.Context(), deps)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+			redirectSetupError(w, r, setupErrSaveFailed)
 
 			return
 		}
@@ -132,29 +148,13 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		creds.ForgejoURL, creds.ForgejoUsername = instance, account
 		if err := deps.SettingsStore.Set(r.Context(), creds); err != nil {
 			undoConnection(r.Context(), deps)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not save the connection"))
+			redirectSetupError(w, r, setupErrSaveFailed)
 
 			return
 		}
 
 		deps.Service.Ensure(deps.AppContext, deps.BuildSources(creds))
-		http.Redirect(w, r, settingsPath, http.StatusSeeOther)
-	}
-}
-
-func writeFinishError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, oauth.ErrInvalidState):
-		writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is unknown, already used or expired; start again"))
-	case errors.Is(err, oauth.ErrExchange):
-		slog.Warn("forgejo oauth: code exchange refused")
-		writeJSON(w, http.StatusBadRequest, errorBody("Forgejo refused the sign-in; start again"))
-	case errors.Is(err, oauth.ErrAccount):
-		slog.Warn("forgejo oauth: could not read the account")
-		writeJSON(w, http.StatusBadGateway, errorBody("Forgejo granted access but would not say whose account it is"))
-	default:
-		slog.Warn("forgejo oauth: could not store the token")
-		writeJSON(w, http.StatusInternalServerError, errorBody("could not save the connection"))
+		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
 }
 

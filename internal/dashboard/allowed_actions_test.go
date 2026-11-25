@@ -158,7 +158,7 @@ func TestAllowedActions_BlockedMergeSaysWhatToDoNext(t *testing.T) {
 
 	if assert.NotNil(t, merge.Blocked) {
 		assert.Equal(t, "Waiting for CI to finish", merge.Blocked.Message)
-		assert.Equal(t, "Merge unlocks automatically", merge.Blocked.Next)
+		assert.Empty(t, merge.Blocked.Next)
 	}
 }
 
@@ -175,13 +175,13 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 		message  string
 		next     string
 	}{
-		{"CI pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.ActionChecksPending, "Waiting for CI to finish", "Merge unlocks automatically"},
+		{"CI pending", func(p *dashboard.PullRequest) { p.CI = dashboard.CIPending }, dashboard.ActionChecksPending, "Waiting for CI to finish", ""},
 		{"workflow runs awaiting approval", func(p *dashboard.PullRequest) {
 			p.MergeStatus = dashboard.MergeBlocked
 			p.CI = dashboard.CIFailure
 			p.AwaitingWorkflowApproval = true
 		}, dashboard.ActionBlockedByProtection, "Workflow runs are waiting for approval", "Approve them on GitHub to unlock Merge"},
-		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", "Fix the failing check to unlock Merge"},
+		{"blocked with a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CIFailure }, dashboard.ActionChecksFailing, "Blocked, CI is failing", ""},
 		{"blocked with only a cancelled run", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CICancelled }, dashboard.ActionBlockedByProtection, "Blocked, the only run was cancelled", "Run the checks again to unlock Merge"},
 		{"blocked with passing CI does not invent a failing check", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeBlocked; p.CI = dashboard.CISuccess }, dashboard.ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing"},
 		{"conflicting", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeConflicting }, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
@@ -208,9 +208,10 @@ func TestAllowedActions_BlockedMergeReasonPerState(t *testing.T) {
 			yes := true
 			p.ConflictConfirmed = &yes
 		}, dashboard.ActionConflict, "Merge conflict", "Resolve it on the forge to unlock Merge"},
-		{"checking for conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeChecking; p.Behind = true }, dashboard.ActionChecksPending, "Checking for conflicts", "Merge unlocks once the forge finishes"},
-		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", "Mark it ready for review to unlock Merge"},
-		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionStatusUnknown, "Merge status not known yet", "Merge unlocks once the forge reports it"},
+		{"checking for conflicts", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeChecking; p.Behind = true }, dashboard.ActionChecksPending, "Checking for conflicts", ""},
+		{"behind the base branch", func(p *dashboard.PullRequest) { p.Behind = true; p.MergeStatus = dashboard.MergeBlocked }, dashboard.ActionBehind, "Behind the base branch", ""},
+		{"draft", func(p *dashboard.PullRequest) { p.Draft = true }, dashboard.ActionNotMergeable, "Draft pull request", ""},
+		{"merge status not known yet", func(p *dashboard.PullRequest) { p.MergeStatus = dashboard.MergeUnknown }, dashboard.ActionStatusUnknown, "Merge status not known yet", ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -242,8 +243,8 @@ func TestAllowedActions_HeldRunsOnAMergeablePullRequest_DoNotLockMerge(t *testin
 	}
 }
 
-// With auto-merge armed the wait chip already says what happens next, so the
-// status area drops its second line (#1638).
+// Waiting for CI is the headline alone, armed or not: how Merge unlocks is
+// explained in docs/how-merge-is-held-back.md (#4672).
 func TestAllowedActions_ChecksPendingNextDependsOnAutoMerge(t *testing.T) {
 	t.Parallel()
 
@@ -252,8 +253,8 @@ func TestAllowedActions_ChecksPendingNextDependsOnAutoMerge(t *testing.T) {
 		on   bool
 		next string
 	}{
-		{"auto-merge off keeps the next step", false, "Merge unlocks automatically"},
-		{"auto-merge on omits it", true, ""},
+		{"auto-merge off prints the headline only", false, ""},
+		{"auto-merge on prints the headline only", true, ""},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

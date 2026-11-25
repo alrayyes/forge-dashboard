@@ -86,7 +86,7 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 	case pr.CI == CIFailure && pr.FailingOnlyForApproval:
 		return status(AutoMergeWaiting, ActionBlockedByProtection, "Auto-merge is waiting for workflow approval. Approve the runs on the forge and it carries on.")
 	case pr.CI == CIFailure:
-		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed. It carries on once checks pass.")
+		return status(AutoMergeStopped, ActionChecksFailing, "Auto-merge stopped: a check failed.")
 	case pr.Empty:
 		return status(AutoMergeStopped, ActionAlreadyUpToDate, "Auto-merge stopped: nothing left to merge.")
 	case pr.Draft:
@@ -97,18 +97,14 @@ func AutoMergeStatusOf(pr PullRequest, failure *AutoMergeFailure) AutoMergeStatu
 		// The forge won't merge a behind branch here, and doesn't update it
 		// itself, so it waits until someone does (#3428). Without the rule a
 		// behind branch merges as soon as checks pass, so it isn't blamed.
-		return status(AutoMergeWaiting, ActionBehind, "Auto-merge is waiting for the branch to be updated. The forge requires it to be up to date before it merges.")
+		return status(AutoMergeWaiting, ActionBehind, "Auto-merge is waiting for the branch to be updated.")
 	case waitingOnChecks(pr.CI) != "":
 		return status(AutoMergeWaiting, ActionChecksPending, waitingOnChecks(pr.CI))
 	case pr.MergeStatus != MergeMergeable:
 		return status(AutoMergeWaiting, ActionNotMergeable, "Auto-merge is waiting for the forge to say it can merge.")
 	}
 
-	if forgeMergesArmed(pr.Forge) {
-		return status(AutoMergeWaiting, "", "Checks passed. The forge merges it as soon as it can.")
-	}
-
-	return status(AutoMergeWaiting, "", "Checks passed. Auto-merge merges it on the next refresh.")
+	return status(AutoMergeWaiting, "", "Checks passed.")
 }
 
 // heldForBranchUpdate is true when the base branch needs a pull request to be

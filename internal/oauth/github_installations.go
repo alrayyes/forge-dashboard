@@ -101,3 +101,19 @@ func (g *GitHub) installationsPage(ctx context.Context, token string, page int) 
 
 	return out, nil
 }
+
+// Account is the login of the linked account, asked of GitHub with the user
+// token. ErrNotConnected means none is linked.
+func (g *GitHub) Account(ctx context.Context) (string, error) {
+	bearer, ok := g.Bearer(ctx)
+	if !ok {
+		return "", ErrNotConnected
+	}
+
+	token, err := bearer()
+	if err != nil {
+		return "", fmt.Errorf("%w: no usable token", ErrAccount)
+	}
+
+	return g.readAccount(ctx, token)
+}

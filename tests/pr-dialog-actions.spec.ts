@@ -774,7 +774,6 @@ for (const scheme of ['light', 'dark'] as const) {
     page,
   }) => {
     await page.emulateMedia({ colorScheme: scheme });
-    const next = 'Merge unlocks automatically';
     await start(page, [
       makePR({
         ci: 'pending',
@@ -782,7 +781,6 @@ for (const scheme of ['light', 'dark'] as const) {
         status: {
           code: 'blocked_by_protection',
           message: 'Waiting for CI to finish',
-          next,
         },
         allowedActions: [
           {
@@ -790,7 +788,6 @@ for (const scheme of ['light', 'dark'] as const) {
             blocked: {
               code: 'blocked_by_protection',
               message: 'Waiting for CI to finish',
-              next,
             },
           },
           { action: 'update_branch' },
@@ -832,7 +829,7 @@ for (const scheme of ['light', 'dark'] as const) {
       });
 
     // The reason is readable text: 4.5:1 or better against what is behind it.
-    for (const sel of ['.status-area-message', '.status-area-next']) {
+    for (const sel of ['.status-area-message']) {
       await expect
         .poll(async () => {
           const colours = await dialog.locator(sel).evaluate((e) => {
@@ -1064,7 +1061,6 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
               status: {
                 code: 'blocked_by_protection',
                 message: 'Waiting for CI to finish',
-                next: 'Merge unlocks automatically',
               },
               allowedActions: [
                 {
@@ -1072,7 +1068,6 @@ test(`has no axe-core violations in the open dialog (light and dark, every width
                   blocked: {
                     code: 'blocked_by_protection',
                     message: 'Waiting for CI to finish',
-                    next: 'Merge unlocks automatically',
                   },
                 },
                 { action: 'update_branch', primary: false },
