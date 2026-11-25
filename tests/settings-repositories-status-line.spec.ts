@@ -64,9 +64,9 @@ const seen = (page: Page) =>
   page.evaluate(() => (window as unknown as { seen: string[] }).seen);
 const text = (page: Page) => page.locator('#repositories-status').innerText();
 const enable = (page: Page) =>
-  page.getByRole('button', { name: /^Enable auto-update for/ });
+  page.getByRole('button', { name: /^Turn on auto-update for/ });
 const disable = (page: Page) =>
-  page.getByRole('button', { name: /^Disable auto-update for/ });
+  page.getByRole('button', { name: /^Turn off auto-update for/ });
 
 test.describe('repositories: status line', () => {
   test('the old text is gone as soon as the next action starts', async ({

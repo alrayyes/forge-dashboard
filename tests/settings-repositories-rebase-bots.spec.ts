@@ -124,6 +124,30 @@ test.describe('rebase bots setting in Settings, Repositories', () => {
     ).toBeVisible();
   });
 
+  test('a partial failure gives one summary naming the skipped repo', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [repo('a'), repo('b')]);
+    await page.route('**/api/v1/repos/rebase-bots/*', (route) =>
+      route.request().postDataJSON().fullName === 'alrayyes/b'
+        ? route.fulfill({
+            status: 500,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'could not save' }),
+          })
+        : route.fulfill({ status: 204 }),
+    );
+    page.on('dialog', (dialog) => void dialog.accept());
+    await page.goto('/settings.html#repositories');
+
+    await page
+      .getByRole('button', { name: 'Rebase bots on for 2 repos' })
+      .click();
+    await expect(page.locator('#repositories-status')).toHaveText(
+      'Rebase bots on for 1 of 2 repos. 1 skipped: alrayyes/b (could not save).',
+    );
+  });
+
   test('the header button skips a repo whose forge is locked', async ({
     page,
   }) => {

@@ -262,7 +262,9 @@
       }
       if (res.status === 204) return null;
       const failure = await res.json().catch(() => ({}));
-      return failure?.error || `backend answered ${res.status}`;
+      return (
+        failure?.error || `the server refused the change (status ${res.status})`
+      );
     } catch (err) {
       return (err as Error).message;
     }
@@ -387,6 +389,12 @@
     rebaseBotsOn: bulkTargets(repos, "rebaseBots", true, rebaseBotsLock),
     rebaseBotsOff: bulkTargets(repos, "rebaseBots", false, rebaseBotsLock),
   });
+  const SKIP_LIST_MAX = 3;
+  const REASON_MAX = 80;
+  const shortReason = (reason: string) =>
+    reason.length > REASON_MAX
+      ? `${reason.slice(0, REASON_MAX - 1).trimEnd()}…`
+      : reason;
   const plural = (n: number) => `${n} repo${n === 1 ? "" : "s"}`;
   let bulkRunning = $state<string | null>(null);
 
@@ -412,19 +420,39 @@
       `${control === "autoUpdate" ? `Turning auto-update ${verb}` : `Turning ${verb} rebase bots`} for ${plural(targets.length)}…`,
     );
     const skipped: string[] = [];
+    const reasons: string[] = [];
     for (const repo of targets) {
       const failed =
         control === "autoUpdate"
           ? await setAutoUpdate(repo, enabled, true)
           : await setRebaseBots(repo, enabled, true);
-      if (failed) skipped.push(`${repo.fullName} (${failed})`);
+      if (failed) {
+        reasons.push(failed);
+        skipped.push(`${repo.fullName} (${shortReason(failed)})`);
+      }
     }
     bulkRunning = null;
     const succeeded = targets.length - skipped.length;
+    if (targets.length === 1) {
+      const [repo] = targets;
+      const [failed] = skipped;
+      setStatus(
+        failed
+          ? `Couldn't ${control === "autoUpdate" ? `turn auto-update ${verb}` : `turn ${verb} rebase bots`} for ${repo.fullName}: ${reasons[0]}`
+          : `${done} for ${repo.fullName}.`,
+        failed ? "error" : "",
+      );
+      return;
+    }
+    const shown = skipped.slice(0, SKIP_LIST_MAX).join(", ");
+    const more =
+      skipped.length > SKIP_LIST_MAX
+        ? ` and ${skipped.length - SKIP_LIST_MAX} more`
+        : "";
     setStatus(
       skipped.length === 0
         ? `${done} for all ${plural(succeeded)}.`
-        : `${done} for ${succeeded} of ${plural(targets.length)}. ${skipped.length} skipped: ${skipped.join(", ")}.`,
+        : `${done} for ${succeeded} of ${plural(targets.length)}. ${skipped.length} skipped: ${shown}${more}.`,
       skipped.length === 0 ? "" : "error",
     );
   }
@@ -435,16 +463,16 @@
       control: "autoUpdate",
       enabled: true,
       targets: bulk.autoUpdateOn,
-      text: `Enable auto-update for ${plural(bulk.autoUpdateOn.length)}`,
-      busyText: "Enabling auto-update…",
+      text: `Turn on auto-update for ${plural(bulk.autoUpdateOn.length)}`,
+      busyText: "Turning auto-update on…",
     },
     {
       key: "autoUpdate:off",
       control: "autoUpdate",
       enabled: false,
       targets: bulk.autoUpdateOff,
-      text: `Disable auto-update for ${plural(bulk.autoUpdateOff.length)}`,
-      busyText: "Disabling auto-update…",
+      text: `Turn off auto-update for ${plural(bulk.autoUpdateOff.length)}`,
+      busyText: "Turning auto-update off…",
     },
     {
       key: "rebaseBots:on",
@@ -895,6 +923,7 @@
     font-size: 0.78125rem;
     min-height: 1.4em;
     margin: 0 0 12px;
+    overflow-wrap: anywhere;
   }
   .status.error {
     color: var(--critical);

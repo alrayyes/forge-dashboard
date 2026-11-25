@@ -171,7 +171,7 @@ test.describe('settings, repositories', () => {
     });
     await open(page);
     const bulk = page.getByRole('button', {
-      name: 'Enable auto-update for 2 repos',
+      name: 'Turn on auto-update for 2 repos',
     });
     await bulk.click();
     expect(prompts).toEqual(['Turn on auto-update for 2 repos?']);
@@ -186,7 +186,7 @@ test.describe('settings, repositories', () => {
       'Auto-update turned on for all 2 repos.',
     );
     await expect(
-      page.getByRole('button', { name: 'Disable auto-update for 3 repos' }),
+      page.getByRole('button', { name: 'Turn off auto-update for 3 repos' }),
     ).toBeVisible();
   });
 

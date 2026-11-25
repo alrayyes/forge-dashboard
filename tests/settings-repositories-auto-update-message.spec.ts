@@ -7,7 +7,7 @@ import { test } from './server-fixture';
 // what happened in one summary, and names any repo it couldn't change and why.
 // https://github.com/alrayyes/forge-dashboard/issues/4856
 
-const REPOS = ['one', 'two', 'three'].map((name) => ({
+const row = (name: string) => ({
   forge: 'github',
   fullName: `example/${name}`,
   hasWebhook: true,
@@ -16,7 +16,10 @@ const REPOS = ['one', 'two', 'three'].map((name) => ({
   ignoredIssues: false,
   autoUpdateBranch: false,
   rebaseBots: false,
-}));
+});
+const REPOS = ['one', 'two', 'three'].map(row);
+const LONG_REASON =
+  'the forge refused the change because the branch protection rules on this repository do not allow it';
 
 const SIZES = [
   { name: 'phone', width: 390, height: 800 },
@@ -24,7 +27,12 @@ const SIZES = [
 ] as const;
 const SCHEMES = ['light', 'dark'] as const;
 
-async function open(page: Page, failing: string[] = []) {
+async function open(
+  page: Page,
+  failing: string[] = [],
+  repos: ReturnType<typeof row>[] = REPOS,
+  reason = 'the forge refused the change',
+) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
@@ -37,7 +45,7 @@ async function open(page: Page, failing: string[] = []) {
         forges: [],
         pullRequests: [],
         issues: [],
-        repos: REPOS,
+        repos,
       }),
     }),
   );
@@ -47,7 +55,7 @@ async function open(page: Page, failing: string[] = []) {
       return route.fulfill({
         status: 409,
         contentType: 'application/json',
-        body: JSON.stringify({ error: 'the forge refused the change' }),
+        body: JSON.stringify({ error: reason }),
       });
     return route.fulfill({ status: 204 });
   });
@@ -97,7 +105,7 @@ for (const size of SIZES) {
       }) => {
         await open(page, ['example/two']);
         await page
-          .getByRole('button', { name: 'Enable auto-update for 3 repos' })
+          .getByRole('button', { name: 'Turn on auto-update for 3 repos' })
           .click();
         await expect(status(page)).toHaveText(
           'Auto-update turned on for 2 of 3 repos. 1 skipped: example/two (the forge refused the change).',
@@ -106,12 +114,63 @@ for (const size of SIZES) {
         await expectAccessible(page);
       });
 
+      test('a bulk run on one repo names it, with no "all" or "of"', async ({
+        page,
+      }) => {
+        await open(page, [], [row('one')]);
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 1 repo' })
+          .click();
+        await expect(status(page)).toHaveText(
+          'Auto-update turned on for example/one.',
+        );
+      });
+
+      test('a failed bulk run on one repo reads like a single failure', async ({
+        page,
+      }) => {
+        await open(page, ['example/one'], [row('one')]);
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 1 repo' })
+          .click();
+        await expect(status(page)).toHaveText(
+          "Couldn't turn auto-update on for example/one: the forge refused the change",
+        );
+      });
+
+      test('many skipped repos are capped, with long reasons trimmed and no sideways scroll', async ({
+        page,
+      }) => {
+        const names = ['a', 'b', 'c', 'd', 'e'].map((n) => `example/${n}`);
+        await open(
+          page,
+          names.slice(0, 5),
+          names.map((n) => row(n.slice(8))),
+          LONG_REASON,
+        );
+        await page
+          .getByRole('button', { name: 'Turn on auto-update for 5 repos' })
+          .click();
+        await expect(status(page)).toContainText('0 of 5 repos. 5 skipped:');
+        await expect(status(page)).toContainText('and 2 more.');
+        await expect(status(page)).not.toContainText('example/d');
+        await expect(status(page)).not.toContainText(LONG_REASON);
+        await expect(status(page)).toContainText('…)');
+        const overflow = await page.evaluate(
+          () =>
+            document.documentElement.scrollWidth >
+            document.documentElement.clientWidth,
+        );
+        expect(overflow).toBe(false);
+        await expectAccessible(page);
+      });
+
       test('a bulk run that changes everything says so once', async ({
         page,
       }) => {
         await open(page);
         await page
-          .getByRole('button', { name: 'Enable auto-update for 3 repos' })
+          .getByRole('button', { name: 'Turn on auto-update for 3 repos' })
           .click();
         await expect(status(page)).toHaveText(
           'Auto-update turned on for all 3 repos.',
