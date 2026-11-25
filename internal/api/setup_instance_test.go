@@ -3,6 +3,8 @@ package api_test
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -80,6 +82,33 @@ func TestSetupVerifyInstance_ASiteThatIsNotForgejo_Is400(t *testing.T) {
 		t.Parallel()
 		assert.Equal(t, "instanceUrl", body["field"])
 	})
+}
+
+func TestSetupVerifyInstance_UserinfoOrAQuery_Is400WithoutAsking(t *testing.T) {
+	t.Parallel()
+
+	for name, withIt := range map[string]func(host string) string{
+		"a password": func(host string) string { return "http://user:pw@" + host },
+		"a query":    func(host string) string { return "http://" + host + "/?next=/x" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var asked atomic.Int32
+
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				asked.Add(1)
+				_, _ = w.Write([]byte(`{"version":"11.0.0"}`))
+			}))
+			t.Cleanup(srv.Close)
+
+			status, body := newSetupFixture(t, "").verify(t, withIt(strings.TrimPrefix(srv.URL, "http://")))
+
+			require.Equal(t, http.StatusBadRequest, status)
+			assert.Equal(t, "instanceUrl", body["field"])
+			assert.Zero(t, asked.Load(), "the address is refused before anything is asked of it")
+		})
+	}
 }
 
 func TestSetupVerifyInstance_NotAnHTTPAddress_Is400WithoutAsking(t *testing.T) {
