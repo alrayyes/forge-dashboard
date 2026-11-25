@@ -581,7 +581,12 @@ itself, one where the request never got an answer (it says "Couldn't reach the
 server"), a forge answered 502, 503 or 504, or the forge failed on its own side
 with a 5xx of its own. The last one has the code `forge_error` and says "The
 forge had a server error. Try again in a moment." instead of the forge's own
-words. Update branch is tried a second time on the server first, after a short
+words. `forge_unreachable` (the forge can't be asked) passes by itself the same
+way. `stacked` and `not_open` lock the action with the server's own sentence,
+and `not_rate_limited` (queueing while the forge isn't rate limited) shows it
+and leaves the action clickable, since it can be taken now. A code the page
+doesn't know is shown like `unknown`: the server's sentence, action clickable.
+Update branch is tried a second time on the server first, after a short
 wait, since asking again changes nothing it shouldn't; every other action is
 left for you to retry. A request that gets no answer is not taken as a failure
 straight away. Update branch, Merge, Close, Enable auto-merge and Cancel

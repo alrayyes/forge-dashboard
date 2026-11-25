@@ -32,6 +32,10 @@ export type ActionCode =
   | 'permission'
   | 'rate_limited'
   | 'forge_error'
+  | 'forge_unreachable'
+  | 'not_rate_limited'
+  | 'not_open'
+  | 'stacked'
   | 'unknown';
 
 export type ActionFailure = {
@@ -86,6 +90,10 @@ const CODES: ReadonlySet<string> = new Set<ActionCode>([
   'permission',
   'rate_limited',
   'forge_error',
+  'forge_unreachable',
+  'not_rate_limited',
+  'not_open',
+  'stacked',
   'unknown',
 ]);
 
@@ -196,6 +204,18 @@ export function interpretActionFailure(
       // The forge failed on its own side, so nothing is wrong with the
       // request: keep the action clickable, and let the line clear by itself.
       return { kind: 'failed', reason: err.message, transient: true };
+    case 'forge_unreachable':
+      // The forge can't be asked right now. The row is an earlier answer, and
+      // the action works again once the forge does: no lock, and the line
+      // clears by itself.
+      return { kind: 'failed', reason: err.message, transient: true };
+    case 'not_rate_limited':
+      // Queueing was refused because the forge isn't rate limited, so the
+      // action can simply be taken now: keep it clickable, no lock.
+      return { kind: 'failed', reason: err.message };
+    // `stacked` and `not_open` lock with the server's sentence (default): a
+    // stacked pull request waits on its parent, and one that is no longer
+    // open has nothing left to retry.
     case 'unknown':
       return {
         kind: 'failed',
