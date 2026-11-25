@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.122.0](https://github.com/alrayyes/forge-dashboard/compare/v9.121.4...v9.122.0) (2026-11-25)
+
+
+### Features
+
+* **web:** one-line repo rows with icon toggles on Settings, Repositories ([#4872](https://github.com/alrayyes/forge-dashboard/issues/4872)) ([506e3f3](https://github.com/alrayyes/forge-dashboard/commit/506e3f37de2bc9ef1dcaa294c86734edf20ad3c2)), closes [#4858](https://github.com/alrayyes/forge-dashboard/issues/4858)
+
 ## [9.121.4](https://github.com/alrayyes/forge-dashboard/compare/v9.121.3...v9.121.4) (2026-11-25)
 
 
