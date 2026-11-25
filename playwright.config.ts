@@ -71,6 +71,7 @@ const singleUserSpecs = [
   '**/filter-bar-one-control.spec.ts',
   '**/hide-pull-request.spec.ts',
   '**/pull-request-action-refusals.spec.ts',
+  '**/stacked-auto-merge-lock.spec.ts',
   '**/pull-request-dependabot-action.spec.ts',
   '**/rate-limit-actions.spec.ts',
   '**/review-requested-pill.spec.ts',
