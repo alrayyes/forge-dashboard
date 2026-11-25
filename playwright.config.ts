@@ -203,6 +203,7 @@ const singleUserSpecs = [
   '**/branches-skeleton-contrast.spec.ts',
   '**/filter-control-border.spec.ts',
   '**/settings-control-border.spec.ts',
+  '**/settings-field-buttons-inside.spec.ts',
   '**/timezone-select-phone.spec.ts',
   '**/focus-ring-consistent.spec.ts',
   '**/placeholder-contrast.spec.ts',

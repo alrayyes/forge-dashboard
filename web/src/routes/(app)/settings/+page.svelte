@@ -1266,6 +1266,19 @@
     .token-input--dual input {
       padding-right: 112px;
     }
+    /* A phone gives each button a 44px hit area (--tap), as tall as the
+       field itself, so the button would cover the field's border. The field
+       grows to hold the button, its 5px margin and the focus ring. The
+       shared min-height rule in style.css has three classes' worth of
+       specificity, so the repeated class here is what outranks it. */
+    @media (width <= 760px) {
+      :root
+        body
+        .token-input.token-input
+        input:not([type="checkbox"], [type="radio"]) {
+        min-height: calc(var(--tap) + 12px);
+      }
+    }
     .token-input-actions {
       position: absolute;
       right: 5px;
