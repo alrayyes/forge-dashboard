@@ -379,7 +379,7 @@ func forgeMergeAvailability(pr PullRequest) ActionAvailability {
 	case pr.MergeStatus == MergeBlocked:
 		return mergeBlocked(ActionBlockedByProtection, "Blocked by the forge", "A required check or review is missing")
 	case pr.MergeStatus != MergeMergeable:
-		return mergeBlocked(ActionNotMergeable, "Merge status not known yet", "Merge unlocks once the forge reports it")
+		return mergeBlocked(ActionStatusUnknown, "Merge status not known yet", "Merge unlocks once the forge reports it")
 	}
 
 	return ActionAvailability{Action: ActionMerge}

@@ -114,6 +114,34 @@ const notMergeable = pr(7, 'Refused', {
   ),
 });
 
+const UNKNOWN_BLOCK = {
+  code: 'status_unknown',
+  message: 'Merge status not known yet',
+  next: 'Merge unlocks once the forge reports it',
+};
+// The forge hasn't reported whether it merges (#4666). The server offers
+// auto-merge in this state.
+const unknownStatus = (n: number, title: string) =>
+  pr(n, title, {
+    ci: 'success',
+    mergeStatus: 'unknown',
+    status: UNKNOWN_BLOCK,
+    allowedActions: [
+      { action: 'merge', blocked: UNKNOWN_BLOCK },
+      { action: 'auto_merge' },
+      { action: 'close' },
+    ],
+  });
+const draftBlock = pr(8, 'Draft', {
+  ci: 'success',
+  draft: true,
+  ...blocked(
+    'not_mergeable',
+    'Draft pull request',
+    'Mark it ready for review to unlock Merge',
+  ),
+});
+
 function snapshot(pullRequests: unknown[]) {
   return {
     generatedAt: new Date().toISOString(),
@@ -214,6 +242,42 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(r.locator('.status-area')).toHaveCount(0);
         await expect(r.locator('.row-action-locked-hint')).toHaveCount(0);
         await axeClean(page);
+      });
+
+      test('a status the forge has not reported is one chip with Auto-merge and no locked Merge', async ({
+        page,
+      }) => {
+        await open(page, [unknownStatus(1, 'Unknown'), ready(2, 'Ready')]);
+        const r = row(page, 'Unknown');
+        const chip = r.locator('.wait-chip');
+
+        await expect(chip).toHaveCount(1);
+        await expect(chip.locator('.wait-chip-label')).toHaveText(
+          'Status unknown',
+        );
+        await expect(
+          chip.getByRole('button', { name: 'Enable auto-merge' }),
+        ).toBeVisible();
+        await expect(mergeButton(r)).toHaveCount(0);
+        await expect(r.locator('[aria-disabled="true"]')).toHaveCount(0);
+        await expect(r.locator('.status-area')).toHaveCount(0);
+        await expect(r.getByText('Merge status not known yet')).toHaveCount(0);
+        await expect(chip).toHaveAccessibleDescription(
+          /hasn't said yet whether it merges/,
+        );
+        await axeClean(page);
+      });
+
+      test('a draft keeps its locked Merge and its reason', async ({
+        page,
+      }) => {
+        await open(page, [draftBlock]);
+        const r = row(page, 'Draft');
+        await expect(r.locator('.wait-chip')).toHaveCount(0);
+        await expect(
+          r.locator('[aria-disabled="true"]').filter({ hasText: 'Merge' }),
+        ).toHaveCount(1);
+        await expect(r.getByText('Draft pull request')).toBeVisible();
       });
 
       test('an armed row is the same chip with Cancel auto-merge', async ({
@@ -520,3 +584,44 @@ for (const width of [1280, 1024]) {
     );
   });
 }
+
+test.describe('a status that stays unknown', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  });
+
+  test('says Still waiting after two minutes and points at the forge', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Unknown')]);
+    const chip = row(page, 'Unknown').locator('.wait-chip');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Status unknown');
+
+    await page.clock.fastForward(130_000);
+    await push(page, [unknownStatus(1, 'Unknown')]);
+
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Still waiting');
+    await expect(chip).toHaveAccessibleDescription(
+      /Open the pull request on the forge/,
+    );
+    await expect(
+      chip.getByRole('button', { name: 'Enable auto-merge' }),
+    ).toBeVisible();
+    await axeClean(page);
+  });
+
+  test('gives Merge back when the forge reports, with no row jump', async ({
+    page,
+  }) => {
+    await open(page, [unknownStatus(1, 'Unknown')]);
+    const before = await heightOf(page, 'Unknown');
+    await push(page, [ready(1, 'Unknown')]);
+
+    await expect(mergeButton(row(page, 'Unknown'))).toBeVisible();
+    await expect(row(page, 'Unknown').locator('.wait-chip')).toHaveCount(0);
+    expect(Math.abs((await heightOf(page, 'Unknown')) - before)).toBeLessThan(
+      2,
+    );
+  });
+});

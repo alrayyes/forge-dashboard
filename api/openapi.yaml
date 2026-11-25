@@ -1521,7 +1521,7 @@ paths:
             refused and the re-read says why. `code` is one of
             `already_merged`, `already_closed`, `not_mergeable`, `conflict`,
             `behind`, `checks_pending`, `checks_failing`,
-            `blocked_by_protection` or `stacked`.
+            `blocked_by_protection`, `stacked` or `status_unknown`.
           content:
             application/json:
               schema:
@@ -4497,6 +4497,7 @@ components:
             - rate_limited
             - forge_error
             - forge_unreachable
+            - status_unknown
             - not_rate_limited
             - not_open
             - not_reopenable
@@ -7651,6 +7652,7 @@ components:
                 - stacked
                 - already_requested
                 - forge_unreachable
+                - status_unknown
             message:
               type: string
               description: Plain words, safe to show a person.
@@ -7691,6 +7693,7 @@ components:
             - stacked
             - already_requested
             - forge_unreachable
+            - status_unknown
         message:
           type: string
           description: Plain words, safe to show a person.

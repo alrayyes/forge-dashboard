@@ -250,6 +250,7 @@
     autoMergeChip,
     reviewDecisionOf,
     MERGE_AVAILABLE,
+    STILL_WAITING_MS,
     type MergeWait,
     mergeWaitChip,
     joinNames,
@@ -4188,14 +4189,31 @@
       return `${idScope}status-area-${domSafeId(prKey(item))}`;
     }
 
+    // When this page first saw each pull request's merge status unknown, so a
+    // forge that keeps saying so changes the chip after STILL_WAITING_MS.
+    const statusUnknownSince = new Map<string, number>();
+
+    function statusUnknownWait(item: PullRequestItem): MergeWait {
+      const key = prKey(item);
+      const since = statusUnknownSince.get(key) ?? Date.now();
+      statusUnknownSince.set(key, since);
+      return Date.now() - since >= STILL_WAITING_MS
+        ? "status-unknown-late"
+        : "status-unknown";
+    }
+
     // The only wait on this row is the forge's own, which passes by itself:
     // CI running, or Forgejo checking for conflicts. Nothing is for a person
     // to do, so Merge's slot says so in a line of text and holds no locked
     // button (#4528). A pill that has moved on keeps the locked Merge and its
     // pointer to the forge.
     function mergeWaitOf(item: PullRequestItem): MergeWait | null {
-      if (findAction(item, "merge")?.blocked?.code !== "checks_pending")
-        return null;
+      const code = findAction(item, "merge")?.blocked?.code;
+      // A status the forge hasn't reported is the same wait (#4666). Once it
+      // has run over two minutes the chip says Still waiting instead.
+      if (code === "status_unknown") return statusUnknownWait(item);
+      statusUnknownSince.delete(prKey(item));
+      if (code !== "checks_pending") return null;
       if (ciWaitIsStale(item)) return null;
       return item.mergeStatus === "checking" ? "conflict-check" : "ci";
     }
@@ -4222,7 +4240,12 @@
       if (!status) return null;
       if (ciWaitIsStale(item)) return null;
       // Merge's slot says it in one line (#4528).
-      if (status.code === "checks_pending" && mergeWaitOf(item)) return null;
+      if (
+        (status.code === "checks_pending" ||
+          status.code === "status_unknown") &&
+        mergeWaitOf(item)
+      )
+        return null;
       if (withFix && snapshotWaitsOnCi(item) && chipSaysCiWait(item))
         return null;
       // The requested rebase is the fix the message asks for (#4022).
