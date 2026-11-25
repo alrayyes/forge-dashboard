@@ -246,7 +246,7 @@ queued-for-reset.spec.ts,3.319,9,2,C,,2.6
 rate-limit-actions.spec.ts,2.035,4,1,C,web/src/lib/rate-limit.test.ts,1.5
 rate-limit-readonly.spec.ts,4.093,11,2,C,web/src/lib/rate-limit.test.ts,3.3
 rate-limit-severity.spec.ts,7.98,6,3,A,web/src/lib/rate-limit.test.ts,4.0
-rebase-requested-behind.spec.ts,4.664,9,1,C,,4.1
+rebase-requested-behind.spec.ts,4.664,12,2,C,,3.9
 reference-links-open-dialog.spec.ts,8.71,12,10,A,web/src/lib/reference-links.test.ts,1.5
 reference-to-pull-request.spec.ts,10.109,16,7,C,,5.7
 refresh-interval.spec.ts,0.763,3,1,C,,0.5
