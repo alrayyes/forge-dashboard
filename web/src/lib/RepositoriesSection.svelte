@@ -1143,6 +1143,11 @@
     color: var(--ink-2);
     font-weight: 500;
   }
+  /* A long repo name wraps rather than widening the table past a narrow
+     column (a tablet at large text, #4886). */
+  .repo-table .name-cell {
+    overflow-wrap: anywhere;
+  }
   .repo-table .icon-col,
   .repo-table .control-cell {
     text-align: center;
