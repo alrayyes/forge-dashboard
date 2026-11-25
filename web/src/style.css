@@ -1344,15 +1344,22 @@ section.board {
        line of its own, as it does with a detail line, and the title keeps its
        width. This holds at every width, because the one-line row has no room
        to spare even where it fits, and costs a row with labels one 18px line
-       against the one-line row. A row with no label has nothing to break and
-       keeps the one line. */
+       against the one-line row. A row with no label and no comment or
+       merge-state pill has nothing to break and keeps the one line. With the
+       pill and an action too, the chip, the pill and the action leave the
+       title 70px at 1280px (0px with Cancel auto-merge), so it stacks the
+       chip as well (#4795). */
     .row:not(.issue-row):has(> .title-cell > .label-chip)
       .status-cell:has(> .wait-slot:not(:empty)):not(
         :has(> .wait-slot .wait-chip-detail:not(:empty))
       ):is(
         :has(> .row-action-bar):not(:has(> .status-flags)),
         :has(> .status-flags)
-      ) {
+      ),
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags):has(> .row-action-bar) {
       grid-template-columns: min-content 7.5rem 9.25rem;
       > .wait-slot {
         grid-column: 1 / -1;

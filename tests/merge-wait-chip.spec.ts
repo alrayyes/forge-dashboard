@@ -328,9 +328,23 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(
           r.getByRole('button', { name: /^Update branch/ }),
         ).toBeVisible();
-        expect(await heightOf(page, 'Commented')).toBeLessThanOrEqual(
-          (await heightOf(page, 'Normal')) + 1,
-        );
+        // From 1280px the chip, the pill and the button on one line left the
+        // title 70px, so the chip takes a line of its own there (#4795): one
+        // 36px line taller than the Merge row, and the title keeps 200px.
+        const merge = await heightOf(page, 'Normal');
+        if (width >= 1280) {
+          expect(await heightOf(page, 'Commented')).toBeLessThanOrEqual(
+            merge + 37,
+          );
+          const title = await r
+            .locator('.title-cell')
+            .evaluate((e) => e.getBoundingClientRect().width);
+          expect(title).toBeGreaterThanOrEqual(200);
+        } else {
+          expect(await heightOf(page, 'Commented')).toBeLessThanOrEqual(
+            merge + 1,
+          );
+        }
       });
 
       test('a waiting row that cannot arm has no button and a tooltip that does not offer one', async ({
