@@ -1,5 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
+import { readFileSync } from 'node:fs';
 import { clearStaleLocks } from './stale-locks';
 
 // A snapshot re-derives a lock from what the server says now, so a lock left
@@ -30,5 +31,44 @@ describe('clearStaleLocks', () => {
     };
     clearStaleLocks([state], (e) => e.code === 'permission');
     expect(Object.keys(state)).toEqual(['a']);
+  });
+});
+
+// The snapshot clear, the permission-lock release and the rate-limit reset all
+// walk one list, `lockableStateMaps()` in Dashboard.svelte. A new action state
+// map has to join it, or its lock outlives the data that caused it.
+describe('the shared list of lockable state maps', () => {
+  const source = readFileSync(
+    new URL('./Dashboard.svelte', import.meta.url),
+    'utf8',
+  );
+  // These two only ever hold 'requesting' or 'confirming', so they never lock.
+  const neverLock = new Set(['cancelAutoMergeState', 'recreateState']);
+
+  test('holds every action state map that can lock', () => {
+    const declared = [
+      ...source.matchAll(/const (\w+): Record<string, ActionState> = \{\};/g),
+    ]
+      .map((m) => m[1])
+      .filter((name) => !neverLock.has(name));
+    const body = source.match(
+      /function lockableStateMaps\(\)[^{]*\{\s*return \[([^\]]*)\]/,
+    );
+    expect(body).not.toBeNull();
+    const listed = (body?.[1] ?? '')
+      .split(',')
+      .map((n) => n.trim())
+      .filter(Boolean);
+    expect(listed.sort()).toEqual(declared.sort());
+  });
+
+  test('is the only place the maps are listed', () => {
+    const uses = source.match(/lockableStateMaps\(\)/g) ?? [];
+    // The definition and the three callers.
+    expect(uses.length).toBe(4);
+    // No second copy of the list under another name.
+    expect(
+      source.match(/updateBranchState,\s*autoMergeState,/g) ?? [],
+    ).toHaveLength(1);
   });
 });
