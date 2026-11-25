@@ -49,8 +49,9 @@ This needs a broader token scope than just reading your repos. GitHub's
 fine-grained tokens need the Webhooks permission set to **Read and write**, and
 Forgejo's `write:repository` (already required just to check coverage, since
 Forgejo's webhook API has no separate read-only scope). See Settings' own field
-hints for the exact scope per forge. A repo the token can't administer stays on
-polling, and its row in Settings, Repositories says which scope is missing.
+hints for the exact scope per forge. A repo the token
+can't administer stays on polling, and its row in Settings, Repositories says
+which scope is missing.
 
 A GitHub App connection has no role on a repo, so it needs the App's
 **Repository permissions → Webhooks** set to **Read and write** (not the
@@ -84,13 +85,14 @@ permission granted correctly, which reads like a scope problem but isn't
 one. This is easy to hit for a repo created after the token, or a token
 deliberately scoped to a subset of repos.
 
-**A webhook is only as complete as the events it subscribes to.** The dashboard
-subscribes to every event below. A hook missing one leaves part of the dashboard
-on the slower, polling-only path while the rest updates live, and the dashboard
-edits it back. The one people miss is CI: a pull request's status colour is
-driven by a _different_ event than the one that shows the pull request existing
-at all, so it's easy to end up with a webhook that reacts to a new pull request
-or a comment but never to that pull request's checks finishing.
+**A webhook is only as complete as the events it subscribes to.** The
+dashboard subscribes to every event below. A hook missing one leaves part of
+the dashboard on the slower, polling-only path while the rest updates
+live, and the dashboard edits it back. The one people miss is CI: a pull
+request's status colour is driven
+by a _different_ event than the one that shows the pull request existing
+at all, so it's easy to end up with a webhook that reacts to a new pull
+request or a comment but never to that pull request's checks finishing.
 
 | Live update you want                                                                            | GitHub events                                      | Forgejo events                                                                          |
 | ----------------------------------------------------------------------------------------------- | -------------------------------------------------- | --------------------------------------------------------------------------------------- |
@@ -103,18 +105,20 @@ or a comment but never to that pull request's checks finishing.
 | A commit landing outside an open pull request                                                   | not tracked                                        | Push                                                                                    |
 | An Actions run finishing, including a rerun, so a branch's pill leaves the old result           | covered earlier                                    | Action Run Failure, Action Run Success                                                  |
 
-GitHub splits CI into two separate events because it has two separate CI
-mechanisms with two separate APIs — **Statuses** is the older commit-status API
-(what most third-party CI still posts to), **Check runs** is GitHub Actions and
-any GitHub App-based check. Without either one, a pull request whose only checks
-come from the other mechanism won't update its CI colour until the next poll —
-everything else about that pull request still updates live. Forgejo doesn't have
-this split: its own Actions runs post to the same combined commit-status
-endpoint external CI does, so **Status** covers both. A rerun is the exception.
-It posts nothing until a job ends, so **Action Run Failure** and **Action Run
-Success** are what refresh a branch's pill when a run finishes. Forgejo sends
-them on the final state only, so the pill can show the old result until then. A
-Forgejo that drops these names falls back to the next poll.
+GitHub splits CI into two separate events because it has two separate
+CI mechanisms with two separate APIs — **Statuses** is the older
+commit-status API (what most third-party CI still posts to), **Check
+runs** is GitHub Actions and any GitHub App-based check. Without either
+one, a pull request whose only checks come from the other mechanism won't
+update its CI colour until the next poll — everything else
+about that pull request still updates live. Forgejo doesn't have this
+split: its own Actions runs post to the same combined commit-status
+endpoint external CI does, so **Status** covers both. A rerun is the
+exception. It posts nothing until a job ends, so **Action Run Failure**
+and **Action Run Success** are what refresh a branch's pill when a run
+finishes. Forgejo sends them on the final state only, so the pill can
+show the old result until then. A Forgejo that drops these names falls
+back to the next poll.
 
 Forgejo's **Push** doesn't feed anything the dashboard displays on its
 own — there's no commit feed here — but it's cheap to include: a push to
@@ -288,43 +292,50 @@ tried again on a later refresh.
 
 ## Troubleshooting
 
-- **Everything about a pull request updates live except its CI colour**: the
-  hook is working, it's just missing the CI-specific event — see the preceding
-  table. The dashboard adds a missing event on its next hook check (see "What
-  the dashboard checks on its own"), so wait for a refresh rather than editing
-  the hook on the forge. - **A Forgejo webhook's `status` event won't stick**:
-  confirmed live against two separate real instances (`16.0.4+gitea-1.22.0`
-  among them) — both the settings form's own `POST`/`PATCH` and a direct API
-  call can report success while the hook's persisted event list simply never
-  includes `status`, with nothing in the response to say why. This looks like a
-  bug in how those instances accept or persist that specific event name, not
-  something forge-dashboard's own webhook-creation code is doing wrong — worth
-  reporting against your Forgejo instance if you hit it, but there's nothing to
-  configure differently here that fixes it. `CI_POLL_INTERVAL`
-  ([Configuration](configuration.md)) is the actual fix: forge-dashboard
-  re-checks CI directly, on its own short interval, for exactly the open pull
-  requests whose CI is still pending — scoped to just those, not every tracked
-  repo, and on GitHub skipped for a pull request while signed check events
-  naming its head commit arrive — so a broken `status` event costs at most that
-  interval's own staleness instead of the full `REFRESH_INTERVAL`. - **The forge
-  shows the delivery failing, or your dashboard never updates from it**: the
-  hook's secret doesn't match the dashboard's. A mismatched secret is
-  indistinguishable from an attacker's forged request from this endpoint's point
-  of view, so both are refused the same way. Look for `webhook signature
-invalid` in the log. The dashboard rewrites the secret on its own hooks when
-  its secret changes, and a hook it didn't make can't be repaired, so delete
-  that one on the forge and let the dashboard create its own. - **A delivery
-  arrives but the dashboard doesn't seem to reflect it**: every delivery is
-  logged, each line naming the forge, the event type, and the delivery ID —
-  `webhook accepted`, `webhook signature invalid`, or `webhook token unknown`,
-  followed by `webhook refresh dispatched` once the triggered refresh is queued,
-  which is up to 5 seconds before it runs (see "How a delivery is verified"). No
-  `LOG_LEVEL` change is needed to see them; each logs at its natural level
-  (`INFO` for a normal delivery, `WARN` for a rejected one) regardless of what
-  `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed` with
-  the repo, the delivery ID and, for a pull request event, the pull request
-  number. - **You want to rotate the secret**: there's no button for it. The
-  secret is generated once, the first time the Settings page is opened. If it is
+- **Everything about a pull request updates live except its CI colour**:
+  the hook is working, it's just missing the CI-specific event — see
+  the preceding table. The dashboard adds a missing event on its next hook
+  check (see "What the dashboard checks on its own"), so wait for a refresh
+  rather than editing the hook on the forge.
+- **A Forgejo webhook's `status` event won't stick**: confirmed live against
+  two separate real instances
+  (`16.0.4+gitea-1.22.0` among them) — both the settings form's own
+  `POST`/`PATCH` and a direct API call can report success while the
+  hook's persisted event list simply never includes `status`, with
+  nothing in the response to say why. This looks like a bug in how
+  those instances accept or persist that specific event name, not
+  something forge-dashboard's own webhook-creation code is doing
+  wrong — worth reporting against your Forgejo instance if you hit it,
+  but there's nothing to configure differently here that fixes it.
+  `CI_POLL_INTERVAL` ([Configuration](configuration.md)) is the actual
+  fix: forge-dashboard re-checks CI directly, on its own short
+  interval, for exactly the open pull requests whose CI is still
+  pending — scoped to just those, not every tracked repo, and on GitHub
+  skipped for a pull request while signed check events naming its head
+  commit arrive — so a broken
+  `status` event costs at most that interval's own staleness instead of
+  the full `REFRESH_INTERVAL`.
+- **The forge shows the delivery failing, or your dashboard never
+  updates from it**: the hook's secret doesn't match the dashboard's. A
+  mismatched secret is indistinguishable from an attacker's forged request
+  from this endpoint's point of view, so both are refused the same way. Look
+  for `webhook signature invalid` in the log. The dashboard rewrites the
+  secret on its own hooks when its secret changes, and a hook it didn't make
+  can't be repaired, so delete that one on the forge and let the dashboard
+  create its own.
+- **A delivery arrives but the dashboard doesn't seem to reflect it**:
+  every delivery is logged, each line naming the forge, the event type,
+  and the delivery ID — `webhook accepted`, `webhook signature invalid`,
+  or `webhook token unknown`, followed by `webhook refresh dispatched`
+  once the triggered refresh is queued, which is up to 5 seconds before it
+  runs (see "How a delivery is verified"). No `LOG_LEVEL` change is
+  needed to see them; each logs at its natural level (`INFO` for a
+  normal delivery, `WARN` for a rejected one) regardless of what
+  `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`
+  with the repo, the delivery ID and, for a pull request event, the pull
+  request number.
+- **You want to rotate the secret**: there's no button for it. The secret is
+  generated once, the first time the Settings page is opened. If it is
   replaced in the database, the next refresh rewrites it on every hook the
   dashboard made (see "What the dashboard checks on its own"), with nothing to
   click per repo.
