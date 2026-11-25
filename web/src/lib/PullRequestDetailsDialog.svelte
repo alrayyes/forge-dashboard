@@ -1520,7 +1520,7 @@
      top, so neither the swap nor a body that grows moves the header (#4194).
      A window too short for it scrolls the body inside the dialog. A phone's
      dialog already fills the screen. */
-  @media (min-width: 481px) {
+  @media (width > 480px) {
     .details-dialog[open] {
       margin: 4vh auto auto;
       max-height: min(92vh, 900px);
@@ -1906,7 +1906,7 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  @media (max-width: 480px) {
+  @media (width <= 480px) {
     .comment-person {
       min-height: 44px;
     }
@@ -2037,7 +2037,7 @@
     }
   }
 
-  @media (max-width: 480px) {
+  @media (width <= 480px) {
     .details-dialog {
       width: 100vw;
       height: 100dvh;
