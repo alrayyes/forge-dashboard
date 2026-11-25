@@ -90,6 +90,7 @@ const singleUserSpecs = [
   '**/settings-repositories-rebase-bots.spec.ts',
   '**/settings-repositories-one-line.spec.ts',
   '**/settings-repositories-ignore.spec.ts',
+  '**/settings-repositories-toggle-filters.spec.ts',
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',
