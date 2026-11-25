@@ -266,7 +266,9 @@
       }
       if (res.status === 204) return null;
       const failure = await res.json().catch(() => ({}));
-      return failure?.error || `backend answered ${res.status}`;
+      return (
+        failure?.error || `the server refused the change (status ${res.status})`
+      );
     } catch (err) {
       return (err as Error).message;
     }
@@ -275,52 +277,69 @@
   let busy = $state<Record<string, boolean>>({});
   const busyKey = (control: string, repo: Repo) => `${control}:${rowKey(repo)}`;
 
-  async function setAutoUpdate(repo: Repo, enabled: boolean): Promise<boolean> {
+  // A bulk run passes quiet and reports one summary itself; a per-repo line
+  // would be left over from an earlier repo in the batch. Both setters return
+  // the failure text, or null on success.
+  async function setAutoUpdate(
+    repo: Repo,
+    enabled: boolean,
+    quiet = false,
+  ): Promise<string | null> {
     const key = busyKey("auto", repo);
     busy[key] = true;
-    setStatus(
-      `${enabled ? "Enabling" : "Disabling"} auto-update-branch for ${repo.fullName}…`,
-    );
+    if (!quiet)
+      setStatus(
+        `Turning auto-update ${enabled ? "on" : "off"} for ${repo.fullName}…`,
+      );
     const failed = await post(
       `/api/v1/repos/auto-update-branch/${enabled ? "enable" : "disable"}`,
       { forge: repo.forge, fullName: repo.fullName },
     );
     delete busy[key];
     if (failed) {
-      setStatus(
-        `Couldn't ${enabled ? "enable" : "disable"} auto-update-branch for ${repo.fullName}: ${failed}`,
-        "error",
-      );
-      return false;
+      if (!quiet)
+        setStatus(
+          `Couldn't turn auto-update ${enabled ? "on" : "off"} for ${repo.fullName}: ${failed}`,
+          "error",
+        );
+      return failed;
     }
     repo.autoUpdateBranch = enabled;
-    setStatus(
-      `Auto-update-branch ${enabled ? "enabled" : "disabled"} for ${repo.fullName}.`,
-    );
-    return true;
+    if (!quiet)
+      setStatus(
+        `Auto-update turned ${enabled ? "on" : "off"} for ${repo.fullName}.`,
+      );
+    return null;
   }
 
-  async function setRebaseBots(repo: Repo, enabled: boolean): Promise<boolean> {
+  async function setRebaseBots(
+    repo: Repo,
+    enabled: boolean,
+    quiet = false,
+  ): Promise<string | null> {
     const key = busyKey("rebase", repo);
     busy[key] = true;
-    setStatus(
-      `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
-    );
+    if (!quiet)
+      setStatus(
+        `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
+      );
     const failed = await post(
       `/api/v1/repos/rebase-bots/${enabled ? "enable" : "disable"}`,
       { forge: repo.forge, fullName: repo.fullName },
     );
     delete busy[key];
     if (failed) {
-      setStatus(
-        `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${failed}`,
-        "error",
-      );
-      return false;
+      if (!quiet)
+        setStatus(
+          `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${failed}`,
+          "error",
+        );
+      return failed;
     }
     repo.rebaseBots = enabled;
-    setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
-    return true;
+    if (!quiet)
+      setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
+    return null;
   }
 
   // Reversible and local, so no confirm step. A repeat call with another scope
@@ -374,6 +393,15 @@
     rebaseBotsOn: bulkTargets(repos, "rebaseBots", true, rebaseBotsLock),
     rebaseBotsOff: bulkTargets(repos, "rebaseBots", false, rebaseBotsLock),
   });
+  const SKIP_LIST_MAX = 3;
+  const REASON_MAX = 80;
+  const shortReason = (reason: string) =>
+    Array.from(reason).length > REASON_MAX
+      ? `${Array.from(reason)
+          .slice(0, REASON_MAX - 1)
+          .join("")
+          .trimEnd()}…`
+      : reason;
   const plural = (n: number) => `${n} repo${n === 1 ? "" : "s"}`;
   let bulkRunning = $state<string | null>(null);
 
@@ -384,34 +412,55 @@
   ) {
     if (targets.length === 0) return;
     const verb = enabled ? "on" : "off";
-    const label = {
-      done:
-        control === "autoUpdate"
-          ? `${enabled ? "Enabled" : "Disabled"} auto-update-branch`
-          : `Rebase bots ${verb}`,
-    };
+    const done =
+      control === "autoUpdate"
+        ? `Auto-update turned ${verb}`
+        : `Rebase bots ${verb}`;
     const ok = window.confirm(
       control === "autoUpdate"
-        ? `${enabled ? "Enable" : "Disable"} auto-update-branch on ${plural(targets.length)}?`
+        ? `Turn ${verb} auto-update for ${plural(targets.length)}?`
         : `Turn ${verb} rebase bots for ${plural(targets.length)}?`,
     );
     if (!ok) return;
     bulkRunning = `${control}:${verb}`;
-    let succeeded = 0;
+    setStatus(
+      `${control === "autoUpdate" ? `Turning auto-update ${verb}` : `Turning ${verb} rebase bots`} for ${plural(targets.length)}…`,
+    );
+    const skipped: string[] = [];
+    const reasons: string[] = [];
     for (const repo of targets) {
-      const done =
+      const failed =
         control === "autoUpdate"
-          ? await setAutoUpdate(repo, enabled)
-          : await setRebaseBots(repo, enabled);
-      if (done) succeeded++;
+          ? await setAutoUpdate(repo, enabled, true)
+          : await setRebaseBots(repo, enabled, true);
+      if (failed) {
+        reasons.push(failed);
+        skipped.push(`${repo.fullName} (${shortReason(failed)})`);
+      }
     }
     bulkRunning = null;
-    const failed = targets.length - succeeded;
+    const succeeded = targets.length - skipped.length;
+    if (targets.length === 1) {
+      const [repo] = targets;
+      const [failed] = skipped;
+      setStatus(
+        failed
+          ? `Couldn't ${control === "autoUpdate" ? `turn auto-update ${verb}` : `turn ${verb} rebase bots`} for ${repo.fullName}: ${shortReason(reasons[0])}`
+          : `${done} for ${repo.fullName}.`,
+        failed ? "error" : "",
+      );
+      return;
+    }
+    const shown = skipped.slice(0, SKIP_LIST_MAX).join(", ");
+    const more =
+      skipped.length > SKIP_LIST_MAX
+        ? ` and ${skipped.length - SKIP_LIST_MAX} more`
+        : "";
     setStatus(
-      failed === 0
-        ? `${label.done} for all ${succeeded} repos.`
-        : `${label.done} for ${succeeded} of ${targets.length} repos — ${failed} failed, see status above.`,
-      failed === 0 ? "" : "error",
+      skipped.length === 0
+        ? `${done} for all ${plural(succeeded)}.`
+        : `${done} for ${succeeded} of ${plural(targets.length)}. ${skipped.length} skipped: ${shown}${more}.`,
+      skipped.length === 0 ? "" : "error",
     );
   }
 
@@ -421,16 +470,16 @@
       control: "autoUpdate",
       enabled: true,
       targets: bulk.autoUpdateOn,
-      text: `Enable auto-update for ${plural(bulk.autoUpdateOn.length)}`,
-      busyText: "Enabling auto-update…",
+      text: `Turn on auto-update for ${plural(bulk.autoUpdateOn.length)}`,
+      busyText: "Turning auto-update on…",
     },
     {
       key: "autoUpdate:off",
       control: "autoUpdate",
       enabled: false,
       targets: bulk.autoUpdateOff,
-      text: `Disable auto-update for ${plural(bulk.autoUpdateOff.length)}`,
-      busyText: "Disabling auto-update…",
+      text: `Turn off auto-update for ${plural(bulk.autoUpdateOff.length)}`,
+      busyText: "Turning auto-update off…",
     },
     {
       key: "rebaseBots:on",
@@ -890,6 +939,7 @@
     font-size: 0.78125rem;
     min-height: 1.4em;
     margin: 0 0 12px;
+    overflow-wrap: anywhere;
   }
   .status.error {
     color: var(--critical);

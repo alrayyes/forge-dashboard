@@ -94,7 +94,7 @@ test.describe('settings, repositories', () => {
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('#repositories-status')).toContainText(
-      'Auto-update-branch enabled for alrayyes/a',
+      'Auto-update turned on for alrayyes/a.',
     );
     await toggle.click();
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
@@ -148,7 +148,7 @@ test.describe('settings, repositories', () => {
     });
     await toggle.click();
     await expect(page.locator('#repositories-status')).toContainText(
-      "Couldn't enable auto-update-branch for alrayyes/a: could not save",
+      "Couldn't turn auto-update on for alrayyes/a: could not save",
     );
     await expect(toggle).toHaveAttribute('aria-pressed', 'false');
   });
@@ -171,10 +171,10 @@ test.describe('settings, repositories', () => {
     });
     await open(page);
     const bulk = page.getByRole('button', {
-      name: 'Enable auto-update for 2 repos',
+      name: 'Turn on auto-update for 2 repos',
     });
     await bulk.click();
-    expect(prompts).toEqual(['Enable auto-update-branch on 2 repos?']);
+    expect(prompts).toEqual(['Turn on auto-update for 2 repos?']);
     await expect(
       page.getByRole('button', { name: 'Auto-update on alrayyes/a' }),
     ).toHaveAttribute('aria-pressed', 'false');
@@ -183,10 +183,10 @@ test.describe('settings, repositories', () => {
     page.on('dialog', (d) => void d.accept());
     await bulk.click();
     await expect(page.locator('#repositories-status')).toContainText(
-      'Enabled auto-update-branch for all 2 repos.',
+      'Auto-update turned on for all 2 repos.',
     );
     await expect(
-      page.getByRole('button', { name: 'Disable auto-update for 3 repos' }),
+      page.getByRole('button', { name: 'Turn off auto-update for 3 repos' }),
     ).toBeVisible();
   });
 

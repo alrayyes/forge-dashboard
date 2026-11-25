@@ -85,6 +85,7 @@ const singleUserSpecs = [
   '**/polling-only.spec.ts',
   '**/settings-repositories.spec.ts',
   '**/settings-repositories-status-line.spec.ts',
+  '**/settings-repositories-auto-update-message.spec.ts',
   '**/settings-repositories-failing.spec.ts',
   '**/settings-repositories-rebase-bots.spec.ts',
   '**/settings-repositories-one-line.spec.ts',
