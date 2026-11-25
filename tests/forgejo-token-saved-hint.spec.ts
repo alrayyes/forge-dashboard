@@ -24,8 +24,6 @@ async function standIn(page: Page, forgejoTokenSet: boolean) {
           forgejoUrl: 'https://git.example.com',
           forgejoUsername: '',
           forgejoTokenSet,
-          webhookToken: 'webhook-token',
-          webhookSecret: 'webhook-secret',
           renovateRebaseLabel: '',
           renovateAuthors: [],
           theme: '',
