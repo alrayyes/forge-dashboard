@@ -28,6 +28,17 @@ func newPublicConnFixture(t *testing.T) *connFixture {
 	return &connFixture{srv: srv, cookie: cookie, forge: newFakeForgejoInstance(t), db: db}
 }
 
+// setupErrorOf is the error code a callback put in its redirect to /setup.
+func setupErrorOf(t *testing.T, resp *http.Response) string {
+	t.Helper()
+
+	loc, err := url.Parse(resp.Header.Get("Location"))
+	require.NoError(t, err)
+	assert.Equal(t, "/setup", loc.Path)
+
+	return loc.Query().Get("error")
+}
+
 func (c *connFixture) startPublic(t *testing.T, clientID string) (int, map[string]any) {
 	t.Helper()
 

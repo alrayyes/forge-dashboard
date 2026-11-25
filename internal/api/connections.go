@@ -8,15 +8,11 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/alrayyes/forge-dashboard/internal/oauth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
 
 // forgejoForge is the key of Forgejo's row in the OAuth token store.
 const forgejoForge = "forgejo"
-
-// settingsPath is where the browser lands once a connection is made.
-const settingsPath = "/settings"
 
 // maxInstanceURLLen caps the instance URL a sign-in can start against.
 const maxInstanceURLLen = 2048
@@ -117,18 +113,18 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 
 		switch {
 		case q.Get("error") != "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the Forgejo sign-in was not completed"))
+			redirectSetupError(w, r, setupErrAccessDenied)
 
 			return
 		case state == "" || code == "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is missing its state or code"))
+			redirectSetupError(w, r, setupErrInvalidState)
 
 			return
 		}
 
 		instance, account, err := deps.ForgejoOAuth.Finish(r.Context(), state, code)
 		if err != nil {
-			writeFinishError(w, err)
+			redirectSetupError(w, r, setupErrorFor("forgejo", err))
 
 			return
 		}
@@ -136,7 +132,7 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		creds, err := deps.SettingsStore.Get(r.Context())
 		if err != nil && !errors.Is(err, settings.ErrNotFound) {
 			undoConnection(r.Context(), deps)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not load existing settings"))
+			redirectSetupError(w, r, setupErrSaveFailed)
 
 			return
 		}
@@ -151,29 +147,13 @@ func handleForgejoConnectionCallback(deps Deps) http.HandlerFunc {
 		creds.ForgejoURL, creds.ForgejoUsername = instance, account
 		if err := deps.SettingsStore.Set(r.Context(), creds); err != nil {
 			undoConnection(r.Context(), deps)
-			writeJSON(w, http.StatusInternalServerError, errorBody("could not save the connection"))
+			redirectSetupError(w, r, setupErrSaveFailed)
 
 			return
 		}
 
 		deps.Service.Ensure(deps.AppContext, deps.BuildSources(creds))
-		http.Redirect(w, r, settingsPath, http.StatusSeeOther)
-	}
-}
-
-func writeFinishError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, oauth.ErrInvalidState):
-		writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is unknown, already used or expired; start again"))
-	case errors.Is(err, oauth.ErrExchange):
-		slog.Warn("forgejo oauth: code exchange refused")
-		writeJSON(w, http.StatusBadRequest, errorBody("Forgejo refused the sign-in; start again"))
-	case errors.Is(err, oauth.ErrAccount):
-		slog.Warn("forgejo oauth: could not read the account")
-		writeJSON(w, http.StatusBadGateway, errorBody("Forgejo granted access but would not say whose account it is"))
-	default:
-		slog.Warn("forgejo oauth: could not store the token")
-		writeJSON(w, http.StatusInternalServerError, errorBody("could not save the connection"))
+		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
 }
 

@@ -60,38 +60,22 @@ func handleGitHubConnectionCallback(deps Deps) http.HandlerFunc {
 
 		switch {
 		case q.Get("error") != "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the GitHub sign-in was not completed"))
+			redirectSetupError(w, r, setupErrAccessDenied)
 
 			return
 		case state == "" || code == "":
-			writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is missing its state or code"))
+			redirectSetupError(w, r, setupErrInvalidState)
 
 			return
 		}
 
 		if _, err := deps.GitHubOAuth.Finish(r.Context(), state, code); err != nil {
-			writeGitHubFinishError(w, err)
+			redirectSetupError(w, r, setupErrorFor("github", err))
 
 			return
 		}
 
-		http.Redirect(w, r, settingsPath, http.StatusSeeOther)
-	}
-}
-
-func writeGitHubFinishError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, oauth.ErrInvalidState):
-		writeJSON(w, http.StatusBadRequest, errorBody("the sign-in is unknown, already used or expired; start again"))
-	case errors.Is(err, oauth.ErrExchange):
-		slog.Warn("github oauth: code exchange refused")
-		writeJSON(w, http.StatusBadRequest, errorBody("GitHub refused the sign-in; start again"))
-	case errors.Is(err, oauth.ErrAccount):
-		slog.Warn("github oauth: could not read the account")
-		writeJSON(w, http.StatusBadGateway, errorBody("GitHub granted access but would not say whose account it is"))
-	default:
-		slog.Warn("github oauth: could not store the token")
-		writeJSON(w, http.StatusInternalServerError, errorBody("could not save the connection"))
+		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
 }
 
@@ -129,21 +113,29 @@ func handleGitHubInstalled(deps Deps) http.HandlerFunc {
 		w.Header().Set("Cache-Control", "no-store")
 
 		if !deps.GitHubOAuth.Configured() {
-			writeJSON(w, http.StatusBadRequest, errorBody("this server has no GitHub App OAuth client configured"))
+			redirectSetupError(w, r, setupErrNotConnected)
+
+			return
+		}
+
+		// An owner who may not install the App asks the organisation's owners
+		// to. GitHub still sends the browser back, with no installation yet.
+		if r.URL.Query().Get("installation_id") == "" && r.URL.Query().Get("setup_action") == "request" {
+			http.Redirect(w, r, setupPath+"?install=requested", http.StatusSeeOther)
 
 			return
 		}
 
 		id, err := strconv.ParseInt(r.URL.Query().Get("installation_id"), 10, 64)
 		if err != nil || id <= 0 || id > maxInstallationID {
-			writeJSON(w, http.StatusBadRequest, errorBody("the redirect carries no valid installation_id"))
+			redirectSetupError(w, r, setupErrInstallationUnverified)
 
 			return
 		}
 
 		listed, err := deps.GitHubOAuth.UserInstallations(r.Context())
 		if err != nil {
-			writeGitHubInstalledError(w, err)
+			redirectGitHubInstalledError(w, r, err)
 
 			return
 		}
@@ -155,27 +147,27 @@ func handleGitHubInstalled(deps Deps) http.HandlerFunc {
 
 			if err := deps.SettingsStore.SaveInstallation(r.Context(), settings.Installation{ID: id, AccountLogin: in.AccountLogin}); err != nil {
 				slog.Warn("github app: could not save the installation")
-				writeJSON(w, http.StatusInternalServerError, errorBody("could not save the installation"))
+				redirectSetupError(w, r, setupErrSaveFailed)
 
 				return
 			}
 
-			http.Redirect(w, r, settingsPath, http.StatusSeeOther)
+			http.Redirect(w, r, setupPath, http.StatusSeeOther)
 
 			return
 		}
 
-		writeJSON(w, http.StatusForbidden, errorBody("that installation is not one of the connected account's"))
+		redirectSetupError(w, r, setupErrInstallationUnverified)
 	}
 }
 
-func writeGitHubInstalledError(w http.ResponseWriter, err error) {
+func redirectGitHubInstalledError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, oauth.ErrNotConnected) {
-		writeJSON(w, http.StatusConflict, errorBody("connect a GitHub account first"))
+		redirectSetupError(w, r, setupErrNotConnected)
 
 		return
 	}
 
 	slog.Warn("github app: could not list the user's installations")
-	writeJSON(w, http.StatusBadGateway, errorBody("GitHub would not list the account's installations"))
+	redirectSetupError(w, r, setupErrInstallationsUnavailable)
 }

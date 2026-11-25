@@ -236,7 +236,7 @@ func TestGitHubConnectionsCallback_LinksTheAccountAndNeverShowsATokenAgain(t *te
 	assert.NotContains(t, stored, ghRefreshTok, "encrypted at rest")
 }
 
-func TestGitHubConnectionsCallback_RedirectsBackToSettingsAndIsNeverCached(t *testing.T) {
+func TestGitHubConnectionsCallback_RedirectsBackToTheSetupPageAndIsNeverCached(t *testing.T) {
 	t.Parallel()
 
 	c := newGHConnFixture(t, true)
@@ -244,7 +244,7 @@ func TestGitHubConnectionsCallback_RedirectsBackToSettingsAndIsNeverCached(t *te
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	assert.Equal(t, "/settings", resp.Header.Get("Location"))
+	assert.Equal(t, "/setup", resp.Header.Get("Location"))
 	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
 
 	refused := c.callback(t, "code=x&state=forged")
@@ -252,24 +252,28 @@ func TestGitHubConnectionsCallback_RedirectsBackToSettingsAndIsNeverCached(t *te
 	assert.Equal(t, "no-store", refused.Header.Get("Cache-Control"))
 }
 
-func TestGitHubConnectionsCallback_Is400AndStoresNothingWhenItCannotBeTrusted(t *testing.T) {
+func TestGitHubConnectionsCallback_SendsTheBrowserBackWithACodeAndStoresNothingWhenItCannotBeTrusted(t *testing.T) {
 	t.Parallel()
 
-	for name, query := range map[string]func(state string) string{
-		"a wrong state":           func(string) string { return "code=good-code&state=forged" },
-		"no state":                func(string) string { return "code=good-code" },
-		"no code":                 func(s string) string { return "state=" + s },
-		"an error from the forge": func(s string) string { return "error=access_denied&state=" + s },
-		"a refused code":          func(s string) string { return "code=stolen&state=" + s },
+	for name, tc := range map[string]struct {
+		query func(state string) string
+		code  string
+	}{
+		"a wrong state":           {func(string) string { return "code=good-code&state=forged" }, "invalid_state"},
+		"no state":                {func(string) string { return "code=good-code" }, "invalid_state"},
+		"no code":                 {func(s string) string { return "state=" + s }, "invalid_state"},
+		"an error from the forge": {func(s string) string { return "error=access_denied&state=" + s }, "access_denied"},
+		"a refused code":          {func(s string) string { return "code=stolen&state=" + s }, "exchange_failed"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			c := newGHConnFixture(t, true)
-			resp := c.callback(t, query(url.QueryEscape(c.begin(t))))
+			resp := c.callback(t, tc.query(url.QueryEscape(c.begin(t))))
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+			assert.Equal(t, tc.code, setupErrorOf(t, resp))
 			assert.Zero(t, c.rows(t))
 			assert.False(t, getSettings(t, c.srv.URL, c.cookie).GitHubOAuthConnected)
 		})
@@ -288,7 +292,7 @@ func TestGitHubConnectionsCallback_AStateCannotBeReplayedAndAVerifierMustMatch(t
 
 	replay := c.callback(t, "code=good-code&state="+state)
 	defer func() { _ = replay.Body.Close() }()
-	assert.Equal(t, http.StatusBadRequest, replay.StatusCode)
+	assert.Equal(t, "invalid_state", setupErrorOf(t, replay))
 
 	other := c.begin(t)
 	c.gh.mu.Lock()
@@ -296,7 +300,7 @@ func TestGitHubConnectionsCallback_AStateCannotBeReplayedAndAVerifierMustMatch(t
 	c.gh.mu.Unlock()
 	wrong := c.callback(t, "code=good-code&state="+url.QueryEscape(other))
 	defer func() { _ = wrong.Body.Close() }()
-	assert.Equal(t, http.StatusBadRequest, wrong.StatusCode)
+	assert.Equal(t, "exchange_failed", setupErrorOf(t, wrong))
 	assert.Zero(t, c.rows(t))
 }
 

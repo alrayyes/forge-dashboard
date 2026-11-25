@@ -252,7 +252,7 @@ func TestConnectionsCallback_LinksTheAccountAndNeverShowsATokenAgain(t *testing.
 	assert.NotContains(t, stored, connRefreshTk, "encrypted at rest")
 }
 
-func TestConnectionsCallback_RedirectsBackToSettings(t *testing.T) {
+func TestConnectionsCallback_RedirectsBackToTheSetupPage(t *testing.T) {
 	t.Parallel()
 
 	c := newConnFixture(t, true)
@@ -260,28 +260,32 @@ func TestConnectionsCallback_RedirectsBackToSettings(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
-	assert.Equal(t, "/settings", resp.Header.Get("Location"))
+	assert.Equal(t, "/setup", resp.Header.Get("Location"))
 }
 
-func TestConnectionsCallback_Is400AndStoresNothingWhenItCannotBeTrusted(t *testing.T) {
+func TestConnectionsCallback_SendsTheBrowserBackWithACodeAndStoresNothingWhenItCannotBeTrusted(t *testing.T) {
 	t.Parallel()
 
-	for name, query := range map[string]func(state string) string{
-		"a wrong state":           func(string) string { return "code=good-code&state=forged" },
-		"no state":                func(string) string { return "code=good-code" },
-		"no code":                 func(s string) string { return "state=" + s },
-		"an error from the forge": func(s string) string { return "error=access_denied&state=" + s },
-		"a refused code":          func(s string) string { return "code=stolen&state=" + s },
+	for name, tc := range map[string]struct {
+		query func(state string) string
+		code  string
+	}{
+		"a wrong state":           {func(string) string { return "code=good-code&state=forged" }, "invalid_state"},
+		"no state":                {func(string) string { return "code=good-code" }, "invalid_state"},
+		"no code":                 {func(s string) string { return "state=" + s }, "invalid_state"},
+		"an error from the forge": {func(s string) string { return "error=access_denied&state=" + s }, "access_denied"},
+		"a refused code":          {func(s string) string { return "code=stolen&state=" + s }, "exchange_failed"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
 			c := newConnFixture(t, true)
 			state := url.QueryEscape(c.begin(t))
-			resp := c.callback(t, query(state))
+			resp := c.callback(t, tc.query(state))
 			defer func() { _ = resp.Body.Close() }()
 
-			assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+			assert.Equal(t, http.StatusSeeOther, resp.StatusCode)
+			assert.Equal(t, tc.code, setupErrorOf(t, resp))
 			assert.Zero(t, c.storedRows(t), "nothing stored")
 			got := getSettings(t, c.srv.URL, c.cookie)
 			assert.False(t, got.ForgejoOAuthConnected)
@@ -290,7 +294,7 @@ func TestConnectionsCallback_Is400AndStoresNothingWhenItCannotBeTrusted(t *testi
 	}
 }
 
-func TestConnectionsCallback_ADifferentVerifierThanTheChallengeIs400(t *testing.T) {
+func TestConnectionsCallback_ADifferentVerifierThanTheChallengeIsAnExchangeFailure(t *testing.T) {
 	t.Parallel()
 
 	c := newConnFixture(t, true)
@@ -302,7 +306,7 @@ func TestConnectionsCallback_ADifferentVerifierThanTheChallengeIs400(t *testing.
 	resp := c.callback(t, "code=good-code&state="+url.QueryEscape(state))
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "exchange_failed", setupErrorOf(t, resp))
 	assert.Zero(t, c.storedRows(t))
 }
 
@@ -319,7 +323,7 @@ func TestConnectionsCallback_AStateCannotBeReplayed(t *testing.T) {
 	resp := c.callback(t, "code=good-code&state="+state)
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+	assert.Equal(t, "invalid_state", setupErrorOf(t, resp))
 	assert.Zero(t, c.storedRows(t))
 }
 
