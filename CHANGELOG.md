@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.126.1](https://github.com/alrayyes/forge-dashboard/compare/v9.126.0...v9.126.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** keep a gap between the Live pill and the filter card ([#4932](https://github.com/alrayyes/forge-dashboard/issues/4932)) ([5952adb](https://github.com/alrayyes/forge-dashboard/commit/5952adbfcfe3c93398a186899583bcab6643b33f)), closes [#4927](https://github.com/alrayyes/forge-dashboard/issues/4927)
+
 ## [9.126.0](https://github.com/alrayyes/forge-dashboard/compare/v9.125.4...v9.126.0) (2026-11-25)
 
 
