@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.120.0](https://github.com/alrayyes/forge-dashboard/compare/v9.119.0...v9.120.0) (2026-11-25)
+
+
+### Features
+
+* **web:** show a requested bot rebase once, in the wait chip ([#4819](https://github.com/alrayyes/forge-dashboard/issues/4819)) ([0e25cec](https://github.com/alrayyes/forge-dashboard/commit/0e25cec19dd41dbde4014c64669254476e8fa0c8))
+
 ## [9.119.0](https://github.com/alrayyes/forge-dashboard/compare/v9.118.0...v9.119.0) (2026-11-25)
 
 
