@@ -33,7 +33,13 @@ async function open(page: Page, width: number, scheme: 'light' | 'dark') {
         forges: [],
         pullRequests: [],
         issues: [],
-        repos: [repo('github', 'app'), repo('forgejo', 'wiki')],
+        repos: [
+          repo('github', 'app'),
+          repo('forgejo', 'wiki'),
+          repo('gitlab', 'tools'),
+          repo('gitea', 'docs'),
+          repo('gogs', 'site'),
+        ],
       }),
     }),
   );
@@ -53,10 +59,11 @@ for (const scheme of ['light', 'dark'] as const) {
             content: `html { font-size: ${zoom}% !important; }`,
           });
         }
-        const bar = (await page.locator('.filter-bar').boundingBox())!;
         const pills = page.locator('.filter-bar .filter-pill');
-        expect(await pills.count()).toBe(3);
+        expect(await pills.count()).toBe(6);
         for (const pill of await pills.all()) {
+          // Re-read both boxes each time: focusing a pill can scroll the page.
+          const bar = (await page.locator('.filter-bar').boundingBox())!;
           const box = (await pill.boundingBox())!;
           expect(box.x).toBeGreaterThanOrEqual(bar.x - 0.5);
           expect(box.x + box.width).toBeLessThanOrEqual(
@@ -64,13 +71,31 @@ for (const scheme of ['light', 'dark'] as const) {
           );
           await pill.focus();
           await expect(pill).toBeFocused();
+          // The focus ring (outline plus offset) stays inside the box too.
+          const reach = await pill.evaluate((el) => {
+            const cs = getComputedStyle(el);
+            return (
+              Number.parseFloat(cs.outlineWidth) +
+              Number.parseFloat(cs.outlineOffset)
+            );
+          });
+          expect(reach).toBeGreaterThan(0);
+          expect(box.x - reach).toBeGreaterThanOrEqual(bar.x - 0.5);
+          expect(box.x + box.width + reach).toBeLessThanOrEqual(
+            bar.x + bar.width + 0.5,
+          );
+          expect(box.y - reach).toBeGreaterThanOrEqual(bar.y - 0.5);
+          expect(box.y + box.height + reach).toBeLessThanOrEqual(
+            bar.y + bar.height + 0.5,
+          );
         }
+        // The bar itself never scrolls sideways. The page-wide width is not
+        // asserted: the repo table below can be wider than a 768px window at
+        // 175% text, which is not what this spec pins.
         expect(
-          await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth <=
-              document.documentElement.clientWidth,
-          ),
+          await page
+            .locator('.filter-bar')
+            .evaluate((el) => el.scrollWidth <= el.clientWidth),
         ).toBe(true);
         // No ancestor up to the bar scrolls or clips the pills sideways.
         const clips = await page

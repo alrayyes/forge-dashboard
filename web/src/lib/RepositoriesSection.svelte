@@ -1265,7 +1265,6 @@
     }
     .repositories-sort {
       display: block;
-      width: 100%;
     }
     .repo-table,
     .repo-table thead,
