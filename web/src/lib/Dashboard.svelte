@@ -3877,18 +3877,24 @@
     // ('confirming', 'merging', 'queued') alone; those track a request
     // actually in progress, not a stale conclusion from a previous one.
     function clearStaleLocksOnSnapshot() {
-      clearStaleLocks(
-        [
-          mergeState,
-          closeState,
-          updateBranchState,
-          autoMergeState,
-          dependabotActionState,
-          renovateRebaseState,
-          cancelRenovateRebaseState,
-        ],
-        holdsPermissionLock,
-      );
+      clearStaleLocks(lockableStateMaps(), holdsPermissionLock);
+    }
+
+    // Every action state map that can end up "locked". The snapshot clear, the
+    // permission-lock release and the rate-limit reset all walk this one list,
+    // so a new map joins it here and nowhere else (stale-locks.test.ts checks
+    // it against the declarations). cancelAutoMergeState and recreateState
+    // only hold in-flight phases, so they are not in it.
+    function lockableStateMaps(): Record<string, ActionState>[] {
+      return [
+        mergeState,
+        closeState,
+        updateBranchState,
+        autoMergeState,
+        dependabotActionState,
+        renovateRebaseState,
+        cancelRenovateRebaseState,
+      ];
     }
 
     // A permission refusal doesn't come from the snapshot, so a snapshot
@@ -3908,15 +3914,7 @@
     // next snapshot to redraw the row. (Subscribed below.)
     function releaseDismissedPermissionLocks(): boolean {
       let released = false;
-      for (const stateMap of [
-        mergeState,
-        closeState,
-        updateBranchState,
-        autoMergeState,
-        dependabotActionState,
-        renovateRebaseState,
-        cancelRenovateRebaseState,
-      ]) {
+      for (const stateMap of lockableStateMaps()) {
         for (const key of Object.keys(stateMap)) {
           const entry = stateMap[key];
           if (
@@ -10635,15 +10633,7 @@
     }
 
     function onRateLimitReset() {
-      for (const state of [
-        mergeState,
-        closeState,
-        updateBranchState,
-        autoMergeState,
-        dependabotActionState,
-        renovateRebaseState,
-        cancelRenovateRebaseState,
-      ]) {
+      for (const state of lockableStateMaps()) {
         for (const key of Object.keys(state)) {
           const entry = state[key];
           if (entry.phase === "locked" && entry.code === "rate_limited")
