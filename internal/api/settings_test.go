@@ -296,7 +296,7 @@ func TestSettingsGet_RenovateAuthorsDefaultToAnEmptyList(t *testing.T) {
 	assert.Empty(t, got.RenovateAuthors)
 }
 
-func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
+func TestSettingsGet_NeverCarriesTheWebhookTokenOrSecret(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -305,32 +305,40 @@ func TestSettingsGet_FirstVisit_GeneratesWebhookCredentials(t *testing.T) {
 	resp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
 	defer func() { _ = resp.Body.Close() }()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-
-	var got api.SettingsResponse
+	var got map[string]any
 	require.NoError(t, readJSON(resp, &got))
-	assert.NotEmpty(t, got.WebhookToken)
-	assert.NotEmpty(t, got.WebhookSecret)
-	assert.NotEqual(t, got.WebhookToken, got.WebhookSecret)
+
+	assert.NotContains(t, got, "webhookToken")
+	assert.NotContains(t, got, "webhookSecret")
 }
 
-func TestSettingsGet_SecondVisit_ReturnsTheSameWebhookCredentials(t *testing.T) {
+func TestSettingsGet_FirstVisit_StillGeneratesWebhookCredentialsInTheStore(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	getSettings(t, srv.URL, sessionCookie)
 
-	first := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
-	var firstGot api.SettingsResponse
-	require.NoError(t, readJSON(first, &firstGot))
-	_ = first.Body.Close()
+	token, secret := storedWebhookCredentials(t, srv.URL)
 
-	second := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
-	defer func() { _ = second.Body.Close() }()
-	var secondGot api.SettingsResponse
-	require.NoError(t, readJSON(second, &secondGot))
+	assert.NotEmpty(t, token)
+	assert.NotEmpty(t, secret)
+	assert.NotEqual(t, token, secret)
+}
 
-	assert.Equal(t, firstGot.WebhookToken, secondGot.WebhookToken)
-	assert.Equal(t, firstGot.WebhookSecret, secondGot.WebhookSecret)
+func TestSettingsGet_SecondVisit_KeepsTheSameWebhookCredentials(t *testing.T) {
+	t.Parallel()
+
+	srv := newTestServer(t)
+	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
+	getSettings(t, srv.URL, sessionCookie)
+	firstToken, firstSecret := storedWebhookCredentials(t, srv.URL)
+
+	getSettings(t, srv.URL, sessionCookie)
+	secondToken, secondSecret := storedWebhookCredentials(t, srv.URL)
+
+	assert.Equal(t, firstToken, secondToken)
+	assert.Equal(t, firstSecret, secondSecret)
 }
 
 func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing.T) {
@@ -338,20 +346,16 @@ func TestSettingsPut_DoesNotDisturbAlreadyGeneratedWebhookCredentials(t *testing
 
 	srv := newTestServer(t)
 	sessionCookie, _, _ := registerViaRealCeremony(t, srv)
-
-	getResp := doJSON(t, http.MethodGet, srv.URL+"/api/v1/settings", "", sessionCookie)
-	var before api.SettingsResponse
-	require.NoError(t, readJSON(getResp, &before))
-	_ = getResp.Body.Close()
+	getSettings(t, srv.URL, sessionCookie)
+	beforeToken, beforeSecret := storedWebhookCredentials(t, srv.URL)
 
 	putResp := doJSON(t, http.MethodPut, srv.URL+"/api/v1/settings", `{"githubUsername":"ryan"}`, sessionCookie)
 	defer func() { _ = putResp.Body.Close() }()
 	require.Equal(t, http.StatusOK, putResp.StatusCode)
 
-	var after api.SettingsResponse
-	require.NoError(t, readJSON(putResp, &after))
-	assert.Equal(t, before.WebhookToken, after.WebhookToken)
-	assert.Equal(t, before.WebhookSecret, after.WebhookSecret)
+	afterToken, afterSecret := storedWebhookCredentials(t, srv.URL)
+	assert.Equal(t, beforeToken, afterToken)
+	assert.Equal(t, beforeSecret, afterSecret)
 }
 
 // newTestServerWithGitHubAppConfigured is newTestServer with

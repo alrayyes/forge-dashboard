@@ -159,7 +159,9 @@ func newTestServerWithDatabase(tb testing.TB, buildSources func(settingspkg.Cred
 	srv := httptest.NewServer(mux)
 	tb.Cleanup(srv.Close)
 	testStores.Store(srv.URL, authStore)
+	testSettingsStores.Store(srv.URL, settingsStore)
 	tb.Cleanup(func() { testStores.Delete(srv.URL) })
+	tb.Cleanup(func() { testSettingsStores.Delete(srv.URL) })
 
 	return srv, service, authStore, settingsStore, db, dbPath
 }
@@ -227,6 +229,25 @@ func registerViaRealCeremony(tb testing.TB, srv *httptest.Server) (*http.Cookie,
 // access can add a second user the way no public flow can any more:
 // registration closes once the first user holds a passkey.
 var testStores sync.Map
+
+// testSettingsStores maps a test server's URL to its settings store, so a test
+// can read the webhook token and secret from where the receivers read them:
+// the settings payload no longer carries either.
+var testSettingsStores sync.Map
+
+// storedWebhookCredentials returns the webhook token and secret the server at
+// srvURL holds in its store. A settings read provisions them first.
+func storedWebhookCredentials(tb testing.TB, srvURL string) (token, secret string) {
+	tb.Helper()
+	store, ok := testSettingsStores.Load(srvURL)
+	require.True(tb, ok, "no settings store registered for %s", srvURL)
+	creds, err := store.(*settingspkg.Store).Get(tb.Context())
+	require.NoError(tb, err)
+	require.NotEmpty(tb, creds.WebhookToken)
+	require.NotEmpty(tb, creds.WebhookSecret)
+
+	return creds.WebhookToken, creds.WebhookSecret
+}
 
 func readAll(tb testing.TB, resp *http.Response) string {
 	tb.Helper()
