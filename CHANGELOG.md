@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.125.1](https://github.com/alrayyes/forge-dashboard/compare/v9.125.0...v9.125.1) (2026-11-25)
+
+
+### Bug Fixes
+
+* **web:** let the Repositories table fit a tablet at large text ([#4901](https://github.com/alrayyes/forge-dashboard/issues/4901)) ([d718caa](https://github.com/alrayyes/forge-dashboard/commit/d718caa4a9aee70c69790d7b5283f20ecce627ae)), closes [#4886](https://github.com/alrayyes/forge-dashboard/issues/4886)
+
 ## [9.125.0](https://github.com/alrayyes/forge-dashboard/compare/v9.124.1...v9.125.0) (2026-11-25)
 
 
