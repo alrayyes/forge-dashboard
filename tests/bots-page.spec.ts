@@ -121,7 +121,7 @@ test.describe('Bots page (#1192)', () => {
     await page.goto('/pull-requests.html');
 
     await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
-    await expect(page.locator('#pr-count')).toHaveText('2 open');
+    await expect(page.locator('#result-count')).toHaveText('2 pull requests');
     await expect(page.locator('#pr-rows')).not.toContainText('package-20');
     await expect(
       page

@@ -126,30 +126,30 @@ async function expectContrast(page: Page, id: string) {
 }
 
 test.describe('result count prominence (#3867)', () => {
-  test('pull requests: "4 open" with the 4 at 18px+, weight 600+, in --ink', async ({
+  test('pull requests: "4 pull requests" with the 4 at 18px+, weight 600+, in --ink', async ({
     page,
   }) => {
     await open(page, '/pull-requests.html');
-    const count = page.locator('#pr-count');
-    await expect(count).toHaveText('4 open');
+    const count = page.locator('#result-count');
+    await expect(count).toHaveText('4 pull requests');
     await expect(count.locator('strong')).toHaveText('4');
-    await expectEmphasised(page, 'pr-count');
-    await expectContrast(page, 'pr-count');
+    await expectEmphasised(page, 'result-count');
+    await expectContrast(page, 'result-count');
   });
 
   for (const scheme of ['light', 'dark'] as const) {
-    test(`a filter that leaves two of four reads "Showing 2 of 4" with the 2 emphasised, ${scheme}`, async ({
+    test(`a filter that leaves two of four reads "2 of 4 pull requests" with the 2 emphasised, ${scheme}`, async ({
       page,
     }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, '/pull-requests.html');
-      await expect(page.locator('#pr-count')).toHaveText('4 open');
+      await expect(page.locator('#result-count')).toHaveText('4 pull requests');
       await toggleLabels(page, 'bug');
-      const count = page.locator('#pr-count');
-      await expect(count).toHaveText('Showing 2 of 4');
+      const count = page.locator('#result-count');
+      await expect(count).toHaveText('2 of 4 pull requests');
       await expect(count.locator('strong')).toHaveText('2');
-      await expectEmphasised(page, 'pr-count', scheme);
-      await expectContrast(page, 'pr-count');
+      await expectEmphasised(page, 'result-count', scheme);
+      await expectContrast(page, 'result-count');
     });
   }
 
@@ -168,10 +168,10 @@ test.describe('result count prominence (#3867)', () => {
       const width = Math.round(390 / zoom);
       await page.setViewportSize({ width, height: 800 });
       await open(page, '/pull-requests.html');
-      await expect(page.locator('#pr-count')).toBeVisible();
-      await expect(page.locator('#pr-count')).toHaveText('4 open');
+      await expect(page.locator('#result-count')).toBeVisible();
+      await expect(page.locator('#result-count')).toHaveText('4 pull requests');
       await expect(page.locator('dialog#filter-sheet')).toBeHidden();
-      const box = await page.locator('#pr-count').boundingBox();
+      const box = await page.locator('#result-count').boundingBox();
       expect(box?.x).toBeGreaterThanOrEqual(0);
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
       expect(
@@ -191,13 +191,13 @@ test.describe('result count prominence (#3867)', () => {
   }) => {
     await page.setViewportSize({ width: 390, height: 800 });
     await open(page, '/pull-requests.html');
-    await expect(page.locator('#pr-count')).toHaveText('4 open');
+    await expect(page.locator('#result-count')).toHaveText('4 pull requests');
     await page.addStyleTag({ content: 'html { font-size: 175%; }' });
-    await expect(page.locator('#pr-count strong')).toHaveCSS(
+    await expect(page.locator('#result-count strong')).toHaveCSS(
       'font-size',
       '35px',
     );
-    await expect(page.locator('#pr-count')).toBeVisible();
+    await expect(page.locator('#result-count')).toBeVisible();
     expect(
       await page.evaluate(
         () =>
@@ -207,16 +207,19 @@ test.describe('result count prominence (#3867)', () => {
     ).toBe(true);
   });
 
-  test('820px: the count sits in the header on one line', async ({ page }) => {
+  test('820px: the count sits in the result bar on one line', async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 820, height: 800 });
     await open(page, '/pull-requests.html');
-    const count = page.locator('#pr-count');
-    await expect(count).toHaveText('4 open');
+    const count = page.locator('#result-count');
+    await expect(count).toHaveText('4 pull requests');
     const box = await count.boundingBox();
-    const head = await page.locator('.board-head').boundingBox();
+    const bar = await page.locator('.filter-bar').boundingBox();
     expect(box?.height).toBeLessThan(40);
+    expect(box?.x).toBeGreaterThanOrEqual(bar?.x ?? 0);
     expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(
-      (head?.x ?? 0) + (head?.width ?? 0),
+      Math.min((bar?.x ?? 0) + (bar?.width ?? 0), 820),
     );
   });
 
@@ -225,9 +228,9 @@ test.describe('result count prominence (#3867)', () => {
   }) => {
     await page.emulateMedia({ forcedColors: 'active' });
     await open(page, '/pull-requests.html');
-    await expect(page.locator('#pr-count')).toHaveText('4 open');
-    await expect(page.locator('#pr-count strong')).toBeVisible();
-    await expect(page.locator('#pr-count strong')).toHaveCSS(
+    await expect(page.locator('#result-count')).toHaveText('4 pull requests');
+    await expect(page.locator('#result-count strong')).toBeVisible();
+    await expect(page.locator('#result-count strong')).toHaveCSS(
       'font-weight',
       '600',
     );
@@ -237,8 +240,8 @@ test.describe('result count prominence (#3867)', () => {
     test(`the count is 4.5:1 in ${scheme}`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await open(page, '/pull-requests.html');
-      await expect(page.locator('#pr-count')).toHaveText('4 open');
-      await expectContrast(page, 'pr-count');
+      await expect(page.locator('#result-count')).toHaveText('4 pull requests');
+      await expectContrast(page, 'result-count');
     });
   }
 
@@ -246,8 +249,8 @@ test.describe('result count prominence (#3867)', () => {
     page,
   }) => {
     await open(page, '/pull-requests.html');
-    const count = page.locator('#pr-count');
-    await expect(count).toHaveText('4 open');
+    const count = page.locator('#result-count');
+    await expect(count).toHaveText('4 pull requests');
     expect(
       await count.evaluate((el) =>
         el.closest('[aria-live], [role="status"], [role="alert"]'),
@@ -256,6 +259,6 @@ test.describe('result count prominence (#3867)', () => {
     const live = page.locator('#shared-label-filter [role="status"]').first();
     await toggleLabels(page, 'bug');
     await expect(live).toHaveText('2 pull requests');
-    await expect(count).toHaveText('Showing 2 of 4');
+    await expect(count).toHaveText('2 of 4 pull requests');
   });
 });

@@ -272,11 +272,11 @@ refresh is running, and come back when it ends. The page still opens when typed
 into the address bar, and says it is empty.
 
 The pages start with their list, with no row of tiles repeating those numbers.
-One line near the list's heading says how many rows show: "12 open" with no
-filter, "Showing 1 of 12" when a filter narrows it. The Failing pill filters
-to failing pull requests, and All clears it. How many repositories are tracked
-is a quiet line under the Insights heading. A page with nothing open says so,
-even when its nav item is hidden.
+The result bar under the filter bar says how many rows show: "12 pull requests"
+with no filter, "1 of 12 pull requests" when a filter narrows it. The Failing
+pill filters to failing pull requests, and All clears it. How many repositories
+are tracked is a quiet line under the Insights heading. A page with nothing open
+says so, even when its nav item is hidden.
 
 On a phone the numbers sit on top of each tab's icon. An item's accessible name
 says

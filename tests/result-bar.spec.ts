@@ -80,6 +80,21 @@ for (const [name, width, height] of [
       await expect(bar(page).locator('#clear-filters-button')).toBeHidden();
     });
 
+    test('the board header draws no count of its own, so the bar is the only one (#4788)', async ({
+      page,
+    }) => {
+      await expect(page.locator('#pr-count')).toHaveCount(0);
+      const count = bar(page).locator('#result-count');
+      await expect(count).toHaveText('4 pull requests');
+      await expect(count).toBeVisible();
+      expect(
+        await count.evaluate((el) => el.closest('[aria-hidden="true"]')),
+      ).toBeNull();
+      await filterTo(page, 'Alpha');
+      await expect(page.locator('#pr-count')).toHaveCount(0);
+      await expect(count).toHaveText('2 of 4 pull requests');
+    });
+
     test('a filter reads "2 of 4 pull requests" with a Filtered tag, and Clear filters resets', async ({
       page,
     }) => {

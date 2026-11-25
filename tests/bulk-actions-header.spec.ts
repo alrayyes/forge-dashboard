@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 
 // One placement rule for the three bulk actions (#3755): Update all, Rerun
 // failed checks and Rebase all sit in the header's controls block, after the
-// live control and before the count, as secondary (outlined) buttons. No strip
+// live control, as secondary (outlined) buttons. No strip
 // under the header. On a phone they stack, one full-width 44px button a line.
 
 function pr(number: number, overrides: Record<string, unknown> = {}) {
@@ -125,7 +125,6 @@ for (const scheme of ['light', 'dark'] as const) {
             live: r('.live-control'),
             update: r('#update-all-button'),
             rerun: r('#rerun-all-button'),
-            count: r('#pr-count'),
             color: css('#update-all-button').color,
             bg: css('#update-all-button').backgroundColor,
             border: css('#update-all-button').borderTopColor,
@@ -155,19 +154,13 @@ for (const scheme of ['light', 'dark'] as const) {
               ['rerun under 44px', m.rerun.height >= 44],
               ['rerun not below update', m.rerun.top >= m.update.bottom],
               ['update not full width', m.update.width > width - 80],
-              // The live control is 261px wide, so the count follows it on
-              // the same line when there is room and on the next when there
-              // isn't; either way both come before the buttons.
-              ['count above the live control', m.count.top >= m.live.top],
-              ['update not below the count', m.update.top > m.count.bottom - 1],
               ['update not below live', m.update.top > m.live.bottom - 1],
             );
           } else {
-            // Desktop: live control, then the buttons, then the count.
+            // Desktop: live control, then the buttons.
             checks.push(
               ['update not after live', m.update.left > m.live.right - 1],
               ['rerun not after update', m.rerun.left > m.update.right - 1],
-              ['count not after rerun', m.count.left > m.rerun.right - 1],
               ['update under 28px', m.update.height >= 28],
             );
           }
@@ -294,7 +287,7 @@ for (const width of [820, 1280]) {
     await page.setViewportSize({ width, height: 900 });
     const quiet = pr(1, { ci: 'success', behind: false, allowedActions: [] });
     await open(page, '/pull-requests.html', [quiet, { ...quiet, number: 2 }]);
-    await expect(page.locator('#pr-count')).toHaveText(/open/);
+    await expect(page.locator('#result-count')).toHaveText(/pull requests/);
     await expect(page.locator('.bulk-action:not([hidden])')).toHaveCount(0);
     const without = (await page.locator('.board-head').boundingBox())?.height;
     const rowTop = (await page.locator('.row').first().boundingBox())?.y;
@@ -393,7 +386,6 @@ test('both actions and the Hidden toggle fit 320px without overlap', async ({
         [
           '.live-control',
           '#hidden-prs-toggle',
-          '#pr-count',
           '#update-all-button',
           '#rerun-all-button',
         ].map((s) => {
