@@ -97,11 +97,11 @@ test('the committed durations cover at least 90 percent of the specs', () => {
   expect(missing.length / specs.length).toBeLessThanOrEqual(0.1);
 });
 
-test('the committed durations split the suite into six shards within a minute', () => {
+test('the committed durations split the suite into eight shards within a minute', () => {
   const known = specs.filter((s) => s in committed);
   const mean = known.reduce((n, s) => n + committed[s], 0) / known.length;
-  const speeds = speedsFor(6);
-  const loads = assignShards(specs, committed, 6, speeds).map(
+  const speeds = speedsFor(8);
+  const loads = assignShards(specs, committed, 8, speeds).map(
     (shard, i) =>
       shard.reduce((n, s) => n + (committed[s] ?? mean), 0) / speeds[i],
   );

@@ -227,13 +227,13 @@ The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
 
-CI splits the suite over six shards by spec duration, not by test count.
+CI splits the suite over eight shards by spec duration, not by test count.
 `scripts/e2e-shards.ts` gives each shard the spec files it should run from
 `tests/e2e-durations.json` (seconds per spec): slow specs first, each into the
 shard with the least work so far. A new spec needs no entry: it counts as the
 average spec until the file is refreshed. To refresh it, download the
 `e2e-reports` artifact of a green run on `main` and run `bun
-scripts/e2e-shards.ts record <path>/e2e.xml`; `bun scripts/e2e-shards.ts plan 6`
+scripts/e2e-shards.ts record <path>/e2e.xml`; `bun scripts/e2e-shards.ts plan 8`
 prints the expected load per shard. Shard 1 runs about a quarter slower than
 the others, so `SHARD_SPEEDS` in the script gives it less work; drop that
 entry if it stops standing out. Each shard still builds its own binary and
