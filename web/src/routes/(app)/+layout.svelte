@@ -4,6 +4,7 @@
   import { syncThemeFromServer } from "#lib/theme.js";
   import { loadTimezone } from "#lib/time.svelte.js";
   import Footer from "#lib/Footer.svelte";
+  import { boardNeedsSetup } from "#lib/setup-gate.js";
   import type { DashboardReadData } from "#lib/dashboard-read.svelte.js";
   import {
     resetDashboardRead,
@@ -314,6 +315,13 @@
         }
         displayName = session.displayName;
         if (gone) return;
+        // A board with nothing linked has nothing to show: the first-login
+        // page is where it gets set up (#4026). Public pages stay put.
+        if (!isPublicRoute()) {
+          boardNeedsSetup(fetch).then((needs) => {
+            if (needs && !gone) window.location.href = "/setup";
+          });
+        }
         // From here on every read arms the next one, answered or not.
         polling = true;
         stopPresence = startPresence();
