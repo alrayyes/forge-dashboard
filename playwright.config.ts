@@ -67,6 +67,7 @@ const singleUserSpecs = [
   '**/stopped-auto-merge-chip.spec.ts',
   '**/filter-bar-widths.spec.ts',
   '**/filter-bar-overlap.spec.ts',
+  '**/sort-select-arrow.spec.ts',
   '**/filter-bar-one-control.spec.ts',
   '**/hide-pull-request.spec.ts',
   '**/pull-request-action-refusals.spec.ts',

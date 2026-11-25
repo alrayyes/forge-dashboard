@@ -1811,7 +1811,9 @@ select.col-filter {
     column-gap: 8px;
   }
   :root body .filter-bar .result-sort-wrap select.result-sort {
-    padding-inline: 6px;
+    /* Start tighter on a phone, but keep the 22px at the end that the drawn
+       chevron sits in (#4849); a plain 6px put the label under it. */
+    padding-inline: 6px 22px;
     font-size: 0.75rem;
   }
 }
