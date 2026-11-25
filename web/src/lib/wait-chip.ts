@@ -91,13 +91,19 @@ const SUBJECT: Record<WaitKind, (bot: string) => string> = {
   'cancel-bot-rebase': (bot) => `Cancelling the ${bot} rebase`,
 };
 
+// What both Still waiting chips say: the waitChip stall and the unknown merge
+// status that has run on. One place, so the wording can't drift.
+export const STILL_WAITING = {
+  state: 'stalled',
+  icon: 'retry',
+  label: 'Still waiting',
+  detail: 'Over 2 min',
+} as const;
+
 function stalled(input: WaitInput): Chip {
   const subject = SUBJECT[input.kind](input.bot ?? 'bot');
   return {
-    state: 'stalled',
-    icon: 'retry',
-    label: 'Still waiting',
-    detail: 'Over 2 min',
+    ...STILL_WAITING,
     tooltip: `${subject} has had no change for over two minutes. Check again reads this row from the forge now.`,
     showAgo: false,
     countdown: false,
@@ -464,12 +470,10 @@ export function mergeWaitChip(
     case 'status-unknown-late':
       return {
         ...words(
-          'Still waiting',
+          STILL_WAITING.label,
           `The forge still hasn't said whether it merges cleanly. Open the pull request on the forge to see why${canArm ? ', or turn on Auto-merge to merge it once it does' : ''}.`,
         ),
-        state: 'stalled',
-        icon: 'retry',
-        detail: 'Over 2 min',
+        ...STILL_WAITING,
       };
     case 'refresh':
       return words(
