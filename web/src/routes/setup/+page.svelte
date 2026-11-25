@@ -737,7 +737,13 @@
           Sign out
         </button>
       </div>
-    {:else if !loadFailed}
+    {:else if loadFailed}
+      <div class="setup-foot">
+        <button type="button" class="btn btn-secondary" onclick={signOut}>
+          Sign out
+        </button>
+      </div>
+    {:else}
       <p class="hint" role="status">Loading…</p>
     {/if}
   </main>

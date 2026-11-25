@@ -298,9 +298,11 @@ test('Forgejo: while Authorize is starting the form is busy and the button says 
   const busy = page.getByRole('button', { name: 'Authorizing…' });
   await expect(busy).toBeDisabled();
   await expect(page.locator('form[aria-busy="true"]')).toHaveCount(1);
+  // Once the refusal arrives the form is idle again under its own name.
   await expect(
     page.getByRole('button', { name: 'Authorize with Forgejo' }),
   ).toBeEnabled();
+  await expect(page.locator('form[aria-busy="true"]')).toHaveCount(0);
 });
 
 // Each state the sweep above does not reach gets its own scan, once per
@@ -372,6 +374,18 @@ test('reflow: at 320px wide and 175% text nothing scrolls sideways', async ({
 test('Sign out is on the page', async ({ page }) => {
   await answerWith(page, base);
   await page.goto('/setup');
+  await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
+});
+
+test('Sign out stays on the page when the setup details cannot be loaded', async ({
+  page,
+}) => {
+  await page.route(
+    (url) => url.pathname === '/api/v1/setup',
+    (route) => route.fulfill({ status: 500, body: 'nope' }),
+  );
+  await page.goto('/setup');
+  await expect(page.getByRole('button', { name: 'Try again' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Sign out' })).toBeVisible();
 });
 

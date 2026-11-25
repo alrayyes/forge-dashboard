@@ -95,7 +95,7 @@ filter-sheet-forced-colors.spec.ts,2.611,1,1,A,,0.0
 filter-sheet-layout.spec.ts,6.178,3,3,A,,0.0
 filter-single-option.spec.ts,2.339,5,3,A,,0.9
 filter-stale-forge-pick.spec.ts,1.233,6,0,C,,1.2
-first-login-setup.spec.ts,,20,5,C,,0.0
+first-login-setup.spec.ts,,21,5,C,,0.0
 first-refresh-first-paint.spec.ts,10.124,15,2,C,web/src/lib/first-refresh.test.ts,8.8
 first-refresh-loading.spec.ts,18.061,9,5,A,web/src/lib/first-refresh.test.ts;FirstRefreshStatus.stories.svelte (proven);NavPills.stories.svelte (proven),8.0
 focus-ring-consistent.spec.ts,2.712,1,1,A,,0.0
