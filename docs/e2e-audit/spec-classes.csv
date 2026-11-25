@@ -301,6 +301,7 @@ show-drafts-by-page.spec.ts,5.164,2,2,A,,0.0
 show-drafts.spec.ts,5.541,8,4,A,,2.8
 show-row-clears-filters.spec.ts,0.997,2,0,C,,1.0
 skipped-pill-counts.spec.ts,1.956,9,2,C,,1.5
+sort-select-arrow.spec.ts,,1,1,A,,0.0
 stable-rows.spec.ts,10.214,26,15,A,,4.3
 stack-note-width.spec.ts,,7,7,A,,0.0
 stacked-prs.spec.ts,2.66,7,2,C,,1.9
