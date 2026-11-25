@@ -41,6 +41,7 @@
     NO_FILTER,
     type RepoSortKey,
     repoCountText,
+    repoScope,
     type ToggleView,
     rebaseBotsName,
     sortRepos,
@@ -425,7 +426,8 @@
     setStatus(`${repo.fullName} is no longer ignored.`);
   }
 
-  // The bulk buttons act on the filtered list, every page of it, so narrowing
+  // The bulk buttons act on the filtered list, every page of it, kept rows
+  // included: what the person sees is what the button acts on, so narrowing
   // to "Auto-update off" and pressing "Turn on" does what it reads. With no
   // filter set that is every repo, and the label says "filtered" only when a
   // filter is cutting the list (#4857).
@@ -700,7 +702,7 @@
     </div>
 
     <p class="repo-count" id="repositories-count" aria-live="polite">
-      {repoCountText(sortedRepos.length, repos.length)}
+      {repoCountText(sortedRepos.length, repoScope(repos, filter, kept))}
     </p>
 
     {#if sortedRepos.length === 0}

@@ -76,6 +76,18 @@ function matchesToggles(r: RepoRow, filter: RepositoriesFilter): boolean {
   );
 }
 
+// How many repos the count is out of: those the Ignored view covers, plus any
+// kept row, so "shown" never exceeds it and the default view doesn't count
+// repos it hides.
+export function repoScope(
+  repos: RepoRow[],
+  filter: RepositoriesFilter,
+  keep: ReadonlySet<string> = new Set(),
+): number {
+  return repos.filter((r) => keep.has(repoKey(r)) || matchesIgnored(r, filter))
+    .length;
+}
+
 // "Showing 12 of 78 repos", or "Showing all 78 repos" when nothing is cut.
 export function repoCountText(shown: number, total: number): string {
   const noun = total === 1 ? 'repo' : 'repos';
@@ -110,7 +122,11 @@ export function forgeChoices(
 ): Set<string> {
   const found = new Set<string>(filter.forge ? [filter.forge] : []);
   for (const r of repos) {
-    if (matchesIgnored(r, filter) && matchesSearch(r, filter)) {
+    if (
+      matchesIgnored(r, filter) &&
+      matchesToggles(r, filter) &&
+      matchesSearch(r, filter)
+    ) {
       found.add(r.forge);
     }
   }

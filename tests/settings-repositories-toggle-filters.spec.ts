@@ -147,6 +147,24 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(rows).toHaveText([/owner\/b/]);
       });
 
+      test('a Rebase bots toggle keeps its row the same way', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, four());
+        await page.route('**/api/v1/repos/rebase-bots/disable', (route) =>
+          route.fulfill({ status: 204 }),
+        );
+        const rows = page.locator('#repositories-rows tr');
+        await pill(page, 'Rebase bots', 'On').click();
+        await expect(rows).toHaveText([/owner\/a/, /owner\/c/]);
+        await page
+          .getByRole('button', { name: 'Rebase bots on owner/a' })
+          .click();
+        await expect(rows).toHaveText([/owner\/a/, /owner\/c/]);
+        await pill(page, 'Rebase bots', 'On').click();
+        await expect(rows).toHaveText([/owner\/c/]);
+      });
+
       test('the bulk buttons act on the filtered set and say so', async ({
         page,
       }) => {

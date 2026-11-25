@@ -15,6 +15,7 @@ import {
   type RepoRow,
   rebaseBotsName,
   repoCountText,
+  repoScope,
   sortRepos,
   toggleTip,
 } from './repositories';
@@ -361,5 +362,47 @@ describe('the repo count', () => {
     expect(repoCountText(78, 78)).toBe('Showing all 78 repos');
     expect(repoCountText(1, 1)).toBe('Showing all 1 repo');
     expect(repoCountText(0, 5)).toBe('Showing 0 of 5 repos');
+  });
+});
+
+describe('the forge choices under the Auto-update and Rebase bots filters', () => {
+  const list = [
+    repo('github', 'a'),
+    repo('forgejo', 'b', { autoUpdateBranch: true }),
+    repo('github', 'c', { rebaseBots: true }),
+  ];
+  const none = { forge: '', search: '' };
+
+  test('offer only forges with a row the toggles keep', () => {
+    registerForgeCapabilities([
+      { forge: 'github', reachable: true },
+      { forge: 'forgejo', reachable: true },
+    ] as never);
+    expect([...forgeChoices(list, { ...none, autoUpdate: 'on' })]).toEqual([
+      'forgejo',
+    ]);
+    expect([...forgeChoices(list, { ...none, rebaseBots: 'on' })]).toEqual([
+      'github',
+    ]);
+  });
+});
+
+describe('what the repo count counts against', () => {
+  const list = [
+    repo('github', 'a'),
+    repo('github', 'b', { ignored: true }),
+    repo('github', 'c'),
+  ];
+  const none = { forge: '', search: '' };
+
+  test('the default view leaves ignored repos out of the total', () => {
+    expect(repoScope(list, none)).toBe(2);
+  });
+  test('showing or isolating ignored repos counts them', () => {
+    expect(repoScope(list, { ...none, ignored: 'all' })).toBe(3);
+    expect(repoScope(list, { ...none, ignored: 'only' })).toBe(1);
+  });
+  test('a kept row counts, so shown never exceeds the total', () => {
+    expect(repoScope(list, none, new Set(['github:b']))).toBe(3);
   });
 });
