@@ -20,7 +20,7 @@ const REPOS = [
   canManageWebhooks: true,
 }));
 
-const ENABLED = 'Enabled auto-update-branch for all 2 repos.';
+const ENABLED = 'Auto-update turned on for all 2 repos.';
 
 async function open(page: Page, hold?: Promise<void>) {
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -84,11 +84,11 @@ test.describe('repositories: status line', () => {
     // The disable calls are held, so this is the in-flight state.
     await expect
       .poll(() => text(page))
-      .toBe('Disabling auto-update-branch for acme/app…');
-    expect(await text(page)).not.toContain('Enabled');
+      .toBe('Turning auto-update off for 2 repos…');
+    expect(await text(page)).not.toContain('turned on');
     release();
     await expect(page.locator('#repositories-status')).toHaveText(
-      'Disabled auto-update-branch for all 2 repos.',
+      'Auto-update turned off for all 2 repos.',
     );
   });
 
@@ -102,7 +102,7 @@ test.describe('repositories: status line', () => {
       );
       await disable(page).click();
       await expect(page.locator('#repositories-status')).toContainText(
-        'Disabled',
+        'Auto-update turned off',
       );
     }
   });
@@ -119,7 +119,7 @@ test.describe('repositories: status line', () => {
 
     await disable(page).click();
     await expect(page.locator('#repositories-status')).toContainText(
-      'Disabled',
+      'Auto-update turned off',
     );
     await page.getByRole('button', { name: 'Forgejo', pressed: false }).click();
     await expect.poll(() => text(page)).toBe('');
