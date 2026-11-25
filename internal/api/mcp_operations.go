@@ -44,7 +44,6 @@ var mcpPending = []string{
 	"setTheme",
 	"getTimezone",
 	"setTimezone",
-	"ensureWebhook",
 	"ignoreRepo",
 	"unignoreRepo",
 	"enableAutoUpdateBranch",

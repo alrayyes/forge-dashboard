@@ -636,10 +636,9 @@ var githubWebhookEvents = []string{
 // duplicate hook — GitHub, unlike Forgejo, allows several hooks with
 // the identical URL, so nothing stops a duplicate except checking first.
 //
-// It always writes an existing hook, because the "Add a webhook" button relies
-// on that to replace a changed secret. The post-refresh pass calls it only for
-// a repo whose snapshot shows no hook, so a write there means the snapshot was
-// stale: one idempotent PATCH, after which the next refresh sees the hook and
+// It always writes an existing hook, so a changed secret gets replaced. The
+// post-refresh pass calls it only for a repo whose snapshot shows no hook, so a
+// write there means the snapshot was stale: one idempotent PATCH, after which the next refresh sees the hook and
 // leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	u, err := url.Parse(targetURL)
@@ -2178,8 +2177,8 @@ func hasWriteAccess(permission string) bool {
 // canManageWebhooks mirrors GitHub's own requirement for its hooks
 // endpoints: admin on the repo, not merely write access — anything less
 // than ADMIN gets a 404 from GET .../hooks (see Client.HasWebhook's doc
-// comment), which without this check reads as a broken "Add a webhook"
-// button instead of a permission this app already knew about.
+// comment), which without this check reads as a broken hook setup
+// instead of a permission this app already knew about.
 func canManageWebhooks(permission string) bool {
 	return permission == "ADMIN"
 }
