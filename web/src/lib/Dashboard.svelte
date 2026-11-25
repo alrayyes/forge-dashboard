@@ -1218,6 +1218,8 @@
       forge: string,
       // The wait chip already says "Checking for conflicts" (#4663).
       lineSaysChecking = false,
+      // The status block already says "Merge conflict" (#4655).
+      blockSaysConflict = false,
     ): HTMLElement | null {
       if (status === "blocked" && !Filters.showBlockedChip(status, ci))
         return null;
@@ -1232,6 +1234,11 @@
         return unconfirmedConflictPill(conflict.reason, conflict.reasonId);
       const label = MERGE_STATUS_LABELS[status];
       if (!label) return null;
+      // The block says the conflict; only the files it adds stay (#4655).
+      if (status === "conflicting" && blockSaysConflict) {
+        const where = conflictWhere(conflict.files ?? []);
+        return where ? el("span", "merge-where", where) : null;
+      }
       const pill = el("span", `merge-pill ${status}`);
       pill.appendChild(el("span", "dot"));
       pill.appendChild(document.createTextNode(label));
@@ -1353,6 +1360,16 @@
     // on Forgejo, a refusal named it (or the flag was never in doubt). The
     // same test as the server's conflictKnown. The row then shows the warning
     // and no control it contradicts (#3770).
+    // The status block draws the conflict, so no pill repeats it (#4655).
+    function conflictBlockShown(item: PullRequestItem, withFix: boolean) {
+      return (
+        conflictShown(item) &&
+        item.status?.code === "conflict" &&
+        !isSettled(item) &&
+        statusArea(item, withFix) !== null
+      );
+    }
+
     function conflictShown(item: PullRequestItem): boolean {
       return (
         item.mergeStatus === "conflicting" && item.conflictConfirmed !== false
@@ -1855,6 +1872,7 @@
           conflictFacts(item),
           item.forge,
           checkingLineShown(item),
+          conflictBlockShown(item, false),
         );
       } finally {
         idScope = "";
@@ -3484,6 +3502,7 @@
           conflictFacts(pr),
           pr.forge,
           checkingLineShown(pr),
+          conflictBlockShown(pr, true),
         );
         const reviewActivity = reviewPill(pr, (triggerId) =>
           openDetailsDialog(pr, triggerId),

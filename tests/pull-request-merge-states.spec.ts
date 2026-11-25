@@ -170,7 +170,7 @@ test.describe('Merge states on a pull request row', () => {
     await page.goto('/pull-requests.html');
 
     const row = rowOf(page);
-    await expect(row.locator('.merge-pill')).toHaveText('Conflicting');
+    await expect(row.locator('.merge-pill')).toHaveCount(0);
     await expect(
       row.getByRole('button', { name: 'Merge', exact: true }),
     ).toHaveCount(0);

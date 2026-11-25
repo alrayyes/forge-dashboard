@@ -106,7 +106,7 @@ for (const width of [360, 390, 1280]) {
       page,
     }) => {
       const r = row(page, 'Refused with conflict');
-      await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+      await expect(r.locator('.merge-pill')).toHaveCount(0);
       await expect(r.locator('.status-area')).toContainText('Merge conflict');
       await expect(
         r.getByRole('button', { name: 'Merge', exact: true }),
@@ -288,7 +288,7 @@ test.describe('a Merge in progress when a conflict appears', () => {
 
       stream.push();
 
-      await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+      await expect(r.locator('.merge-pill')).toHaveCount(0);
       await expect(lockedMerge(r)).toHaveAttribute('aria-disabled', 'true');
       expect((await axe(page)).violations).toEqual([]);
     });
@@ -319,7 +319,7 @@ test.describe('a Merge in progress when a conflict appears', () => {
 
       stream.push();
 
-      await expect(r.locator('.merge-pill')).toHaveText('Conflicting');
+      await expect(r.locator('.merge-pill')).toHaveCount(0);
       await expect(r.locator('.wait-chip-label')).toHaveText('Merging');
       await expect(lockedMerge(r)).toHaveAttribute('aria-disabled', 'true');
       expect((await axe(page)).violations).toEqual([]);

@@ -1037,9 +1037,7 @@ test.describe('pull request details dialog', () => {
     await expect(attributes.locator('.attr-chip.behind')).toHaveCount(0);
     // The words are the row's: Failed and Conflicting, never Failing/Conflicts.
     await expect(status.locator('.ci-pill')).toContainText('Failed');
-    await expect(status.locator('.merge-pill.conflicting')).toHaveText(
-      'Conflicting',
-    );
+    await expect(status.locator('.merge-pill')).toHaveCount(0);
     await expect(status).not.toContainText('Failing');
   });
 
@@ -1132,10 +1130,7 @@ test.describe('pull request details dialog', () => {
     await expect(dialog(page)).not.toContainText('Mergeable');
   });
 
-  for (const [mergeStatus, ci] of [
-    ['conflicting', 'failure'],
-    ['blocked', 'success'],
-  ] as const) {
+  for (const [mergeStatus, ci] of [['blocked', 'success']] as const) {
     test(`the header's merge pill reads like the row's (${mergeStatus})`, async ({
       page,
     }) => {
