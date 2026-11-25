@@ -259,7 +259,7 @@ test.describe('phone row status gap (#3834)', () => {
       expect((await marks()).scrollY).toBe(before.scrollY);
       // The offsets and height are read again until they settle. A read
       // straight after the tap has come back with the title and pill at 0
-      // (CI, 360px), so a single read can't tell a late redraw from a shift.
+      // (CI, at 320, 360 and 390px), so a single read can't tell a late redraw from a shift.
       await expect
         .poll(async () => {
           const { scrollY, ...m } = await marks();
