@@ -268,10 +268,24 @@ action on a repo no installation has reported yet is refused with a 404. The
 "waiting for owner approval" state and webhook updates are not built yet, and
 neither is the Settings screen.
 
-This is the sign-in half only. The dashboard doesn't yet use the linked
-account to read your repositories, and the Settings screen for it is not built;
-the flow is available through the [API](api.md)
-(`POST /api/v1/connections/github`).
+**What the linked account is used for.**
+
+- **Who you are.** `GET /api/v1/settings` reports the account's `githubLogin`,
+  never a token. It is empty when nothing is linked or GitHub can't be asked.
+- **Which repos you can read.** For each installation, the dashboard asks
+  GitHub which repos your account can read
+  (`GET /user/installations/{id}/repositories`) and leaves out the rest of what
+  the installation sees. The answer is kept for a minute. If GitHub can't
+  answer, that installation's read fails and shows as an error, rather than
+  listing repos you may not be allowed to see.
+- **Reading with no installation.** With no installation, the dashboard reads
+  with your user token, and it wins over a saved personal access token. The
+  token is renewed when it expires, and the new pair is saved before it is used.
+  It shares your account's 5,000 requests an hour. With an installation, reads
+  keep using the installation's token.
+
+The Settings screen for connecting is not built; the flow is available through
+the [API](api.md) (`POST /api/v1/connections/github`).
 
 ## GitHub App support
 

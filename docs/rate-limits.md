@@ -40,7 +40,11 @@ refresh tries again.
 
 - **A shared credential.** A personal access token acts as your GitHub
   account, so its budget is the account's. Anything else acting as that account
-  spends the same budget: your own use of `gh`, other tools, scripts, CI.
+  spends the same budget: your own use of `gh`, other tools, scripts, CI. A
+  [linked GitHub account](configuration.md#github-account-sign-in) is the same:
+  its user token reads from your budget when no installation exists, and the
+  list of repos you can read, one request a minute per installation, comes from
+  it too.
 - **Many tracked repositories.** One GraphQL query returns every repository with
   its open pull requests, issues and CI status, and a bigger answer costs more.
   The dashboard logs each query's cost at the `info` log level.
@@ -625,9 +629,9 @@ server and was not measured live.
 
 ## What you can do
 
-- **Connect a GitHub App installation** instead of a token, or give the token
-  to the dashboard alone, so nothing else spends its budget. Dependabot
-  commands still use your saved token.
+- **Connect a GitHub App installation** instead of a token or a linked account,
+  or give the token to the dashboard alone, so nothing else spends its budget.
+  Dependabot commands still use your saved token.
 - **Track fewer repositories.** Each one adds to every refresh.
 - **Keep the webhooks working.** A webhook delivery refreshes only the repo that
   changed, which costs far less than a full refresh. A burst of deliveries for one
