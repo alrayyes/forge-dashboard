@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.129.0](https://github.com/alrayyes/forge-dashboard/compare/v9.128.0...v9.129.0) (2026-11-26)
+
+
+### Features
+
+* use the linked GitHub user token for identity, discovery and repo filtering ([#4965](https://github.com/alrayyes/forge-dashboard/issues/4965)) ([0e05134](https://github.com/alrayyes/forge-dashboard/commit/0e0513420463b883a1b45205deeb6807b23dff31)), closes [#4576](https://github.com/alrayyes/forge-dashboard/issues/4576)
+
 ## [9.128.0](https://github.com/alrayyes/forge-dashboard/compare/v9.127.0...v9.128.0) (2026-11-26)
 
 
