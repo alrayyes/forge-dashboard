@@ -173,8 +173,38 @@ webhooks' work stands when it finishes, and the forge stays reachable.
 
 The server log names the cause of each failed full refresh: `full refresh failed`
 carries the forge and a `cause` (the error kind, such as `rate_limited` or
-`unreachable`), and `full refresh ran past the pass deadline` names a forge that
-was only slow.
+`unreachable`), and `fetch deadline passed with the forge still fetching` names
+a forge that was only slow.
+
+## Troubleshooting a false unreachable banner
+
+The banner says a forge is unreachable when its fetch failed with no answer, and
+also when the fetch was only slow. The server log tells the two apart. Look for
+these lines, in this order:
+
+- `fetch finished` with `outcome=ok` (Debug level) is a fetch that answered, with
+  its `duration`. Compare it to the deadline to see how close a healthy forge
+  runs.
+- `fetch finished` with `outcome=error` is a fetch that failed, with the
+  `error_kind` (`unreachable` for no answer, `upstream_error` for a 5xx from the
+  forge, `rate_limited`, `unauthorized` and so on). The log never carries the
+  forge's reply text. For GitHub, `forge unreachable` adds the same `error_kind`
+  and the `status` of a 5xx.
+- `fetch deadline passed with the forge still fetching` means the forge never
+  failed. The pass gave up waiting. `running_for` is how long the fetch had
+  run and `deadline` is how long the pass was willing to wait. The banner shows
+  here although nothing was wrong with the forge.
+- `fetch finished` with `outcome=late` follows a deadline line when the slow
+  fetch did finish. Its `duration` says how much longer the deadline needed to
+  be.
+- `fetch skipped, the last one is still running` means the forge was not asked
+  this pass because the previous fetch had not returned. `running_for` is how
+  long that earlier fetch has been going. Both forges showing this together
+  points at a slow host, not at the forges.
+
+Each line that marks a forge unreachable carries a `path`: `deadline`, `skipped`
+or `error`. A real outage shows `path=error` and the error kind. A false alarm
+shows `path=deadline` or `path=skipped`, and a late line, and no error kind.
 
 ## The first load after a restart
 
