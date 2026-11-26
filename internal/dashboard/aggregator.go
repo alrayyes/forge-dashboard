@@ -896,6 +896,10 @@ type sourceResult struct {
 	Result
 
 	asked bool
+	// missed is set when the source gave no answer in time: the pass hit its
+	// deadline, or skipped it because the last fetch was still running. It is
+	// a slow forge, not a failed one, and counts toward ForgeFailureThreshold.
+	missed bool
 }
 
 // fetchSources asks every source for its data at once and answers in the
@@ -939,7 +943,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 		if !a.fetching[i].CompareAndSwap(false, true) {
 			// The last fetch is still running. Asking again would only add
 			// load to a forge that is struggling (#3021).
-			results[i].Result = Result{Health: a.unreachableFrom(earlier, i)}
+			results[i] = sourceResult{Health: a.unreachableFrom(earlier, i), missed: true}
 			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge(), "path", "skipped", "running_for", a.fetchAge(i))
 
 			continue
@@ -1043,7 +1047,7 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 			}
 			for i := range pending {
 				slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[i].Forge(), "path", "deadline", "running_for", a.fetchAge(i), "deadline", deadline)
-				results[i] = sourceResult{asked: true}
+				results[i] = sourceResult{asked: true, missed: true}
 				results[i].Health = a.unreachableFrom(earlier, i)
 			}
 
@@ -1167,7 +1171,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		r := sr.Result
 		forge := a.sources[i].Forge()
 		logFailedRefresh(sr, forge)
-		r = settleOrHold(r, sr.asked, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
+		r = settleOrHold(r, sr.asked, sr.missed, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
 		noteBlockedActions(&r.Health, a.sources[i])
 		noteProviderStatus(ctx, &r.Health, a.sources[i])
 		snap.add(r)
@@ -1245,8 +1249,8 @@ func cloneStreaks(m map[Forge]int) map[Forge]int {
 
 // settleOrHold is forge's result for the snapshot: held over from earlier for a
 // blip of the forge's own 5xx, else settled as settleSource does.
-func settleOrHold(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, now time.Time, readForges map[Forge]bool, unread map[repoKey]bool, forge Forge) Result {
-	if held, ok := holdUpstreamError(r, asked, earlier, goodAt, streaks, forge); ok {
+func settleOrHold(r Result, asked, missed bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, now time.Time, readForges map[Forge]bool, unread map[repoKey]bool, forge Forge) Result {
+	if held, ok := holdUpstreamError(r, asked, missed, earlier, goodAt, streaks, forge); ok {
 		return held
 	}
 
@@ -1254,13 +1258,14 @@ func settleOrHold(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.
 }
 
 // holdUpstreamError counts forge's consecutive failed fetches in streaks, and
-// turns the first ForgeFailureThreshold-1 failures that were the forge's own 5xx
-// into the rows and health it last had, so the page does not flip to a banner
+// turns the first ForgeFailureThreshold-1 failures that were the forge's own 5xx,
+// or a pass that missed (deadline hit, or skipped while the last fetch still
+// ran), into the rows and health it last had, so the page does not flip to a banner
 // for a blip. A fetch that read the forge resets the count. A forge nobody
-// asked (budget spent, previous fetch still running) is left out: only a real
-// answer moves the count.
-func holdUpstreamError(r Result, asked bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, forge Forge) (Result, bool) {
-	if !asked {
+// asked (budget spent) is left out: only a real answer or a missed pass moves
+// the count.
+func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, forge Forge) (Result, bool) {
+	if !asked && !missed {
 		return r, false
 	}
 	if r.Health.Reachable {
@@ -1269,7 +1274,7 @@ func holdUpstreamError(r Result, asked bool, earlier Snapshot, goodAt map[Forge]
 		return r, false
 	}
 	streaks[forge]++
-	if r.Health.ErrorKind != ForgeErrorUpstream || streaks[forge] >= ForgeFailureThreshold {
+	if !missed && r.Health.ErrorKind != ForgeErrorUpstream || streaks[forge] >= ForgeFailureThreshold {
 		return r, false
 	}
 	if _, good := goodAt[forge]; !good {
