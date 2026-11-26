@@ -71,6 +71,7 @@ func (m *ghTokens) current() *oauth2.Token {
 // error body for the authorization code grant.
 type fakeGitHub struct {
 	server *httptest.Server
+	mux    *http.ServeMux
 
 	mu        sync.Mutex
 	challenge string
@@ -85,6 +86,7 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 
 	f := &fakeGitHub{valid: "ghr-1", access: "ghu-1"}
 	mux := http.NewServeMux()
+	f.mux = mux
 	mux.HandleFunc("/login/oauth/access_token", f.token)
 	mux.HandleFunc("/user", f.user)
 	f.server = httptest.NewServer(mux)
