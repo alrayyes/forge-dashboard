@@ -236,6 +236,24 @@ func TestGitHubConnectionsCallback_LinksTheAccountAndNeverShowsATokenAgain(t *te
 	assert.NotContains(t, stored, ghRefreshTok, "encrypted at rest")
 }
 
+func TestGitHubConnectionsSettings_ReportTheLinkedLoginAndNeverAToken(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	assert.Empty(t, getSettings(t, c.srv.URL, c.cookie).GitHubLogin, "no account linked yet")
+
+	c.connect(t)
+
+	assert.Equal(t, "octocat", getSettings(t, c.srv.URL, c.cookie).GitHubLogin)
+	for _, path := range []string{"/api/v1/settings", "/api/v1/settings/summary"} {
+		resp := doJSON(t, http.MethodGet, c.srv.URL+path, "", c.cookie)
+		defer func() { _ = resp.Body.Close() }()
+		raw := connBodyText(t, resp)
+		assert.Contains(t, raw, `"githubLogin":"octocat"`, path)
+		assert.NotContains(t, raw, ghAccessTok, path)
+	}
+}
+
 func TestGitHubConnectionsCallback_RedirectsBackToTheSetupPageAndIsNeverCached(t *testing.T) {
 	t.Parallel()
 

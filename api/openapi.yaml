@@ -4611,6 +4611,7 @@ components:
           forgejoOAuthConnected,
           githubOAuthConfigured,
           githubOAuthConnected,
+          githubLogin,
           renovateRebaseLabel,
           renovateAuthors,
           ignoredTitleCounts,
@@ -4678,6 +4679,11 @@ components:
           description: |
             Whether a GitHub account is linked through the GitHub App's user
             sign-in. The access and refresh tokens are never returned.
+        githubLogin:
+          type: string
+          description: |
+            The login of the linked GitHub account, or an empty string when none
+            is linked or GitHub can't be asked right now. Never a token.
         renovateRebaseLabel:
           type: string
           description: |
@@ -4786,6 +4792,7 @@ components:
           forgejoOAuthConnected,
           githubOAuthConfigured,
           githubOAuthConnected,
+          githubLogin,
           webhookConfigured,
           renovateRebaseLabel,
           renovateAuthors,
@@ -4820,6 +4827,8 @@ components:
           type: boolean
         githubOAuthConnected:
           type: boolean
+        githubLogin:
+          type: string
         webhookConfigured:
           type: boolean
           description: |

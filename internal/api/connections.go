@@ -234,6 +234,7 @@ func addOAuthStatus(ctx context.Context, w http.ResponseWriter, deps Deps, resp 
 	resp.ForgejoOAuthConnected = connected
 	resp.GitHubOAuthConfigured = deps.GitHubOAuth.Configured()
 	resp.GitHubOAuthConnected = githubConnected
+	resp.GitHubLogin = githubLogin(ctx, deps, githubConnected)
 
 	return true
 }
@@ -276,4 +277,13 @@ func fallsBackToPastedToken(creds settings.Credentials) bool {
 // them, without a trailing slash.
 func sameInstance(a, b string) bool {
 	return strings.TrimSuffix(a, "/") == strings.TrimSuffix(b, "/")
+}
+
+// githubLogin is the linked account's login, asked only when a pair is on file.
+func githubLogin(ctx context.Context, deps Deps, connected bool) string {
+	if !connected {
+		return ""
+	}
+
+	return deps.GitHubOAuth.Login(ctx)
 }

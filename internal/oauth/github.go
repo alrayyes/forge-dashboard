@@ -45,6 +45,7 @@ type GitHub struct {
 	mu     sync.Mutex
 	gen    int
 	source *Source
+	login  string // the linked account's login, once known; cleared with the pair.
 }
 
 // NewGitHub builds the connection for the GitHub App's client id and secret,
@@ -100,11 +101,13 @@ func (g *GitHub) Finish(ctx context.Context, state, code string) (login string, 
 	defer g.mu.Unlock()
 
 	g.gen++
-	g.source = nil
+	g.source, g.login = nil, ""
 
 	if err := g.store.SaveOAuthToken(ctx, githubForge, g.urls.Web, token); err != nil {
 		return "", fmt.Errorf("oauth: store token: %w", err)
 	}
+
+	g.login = login
 
 	return login, nil
 }
@@ -116,7 +119,7 @@ func (g *GitHub) Disconnect(ctx context.Context) error {
 	defer g.mu.Unlock()
 
 	g.gen++
-	g.source = nil
+	g.source, g.login = nil, ""
 
 	if err := g.store.DeleteOAuthToken(ctx, githubForge); err != nil {
 		return fmt.Errorf("oauth: delete token: %w", err)
