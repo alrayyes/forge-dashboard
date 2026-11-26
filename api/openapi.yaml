@@ -6486,6 +6486,21 @@ components:
             absent); it has not been checked yet. The first refresh that
             reaches it replaces this entry. A client says "starting up,
             showing data from 3 minutes ago", and never "unreachable".
+        cause:
+          type: string
+          enum: [starting, slow]
+          description: |
+            Why the rows shown for this forge are not from the latest read,
+            while the forge is not down. "starting" is the same fact as
+            the `starting` flag: the rows are the ones the last run saved and no
+            refresh has asked the forge since the app started. "slow" means
+            the latest pass gave no answer in time (it hit its deadline, or
+            was skipped because the last fetch was still running) and the
+            last good rows are held, with the forge still reachable, until
+            three passes in a row have missed. A good read clears it. Absent
+            when the rows are current, and when the forge is shown as down
+            (see errorKind). A client words it, "slow to answer" or
+            "starting up", and does not call the rows live.
         staleSince:
           type: string
           format: date-time

@@ -52,6 +52,7 @@ func (a *Aggregator) restoreSnapshot(ctx context.Context) {
 			Forge:      forge,
 			Reachable:  false,
 			Starting:   true,
+			Cause:      ForgeCauseStarting,
 			RepoCount:  repos,
 			StaleSince: &newest,
 		})

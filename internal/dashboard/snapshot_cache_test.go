@@ -90,6 +90,7 @@ func TestAggregator_AfterARestart_ServesTheSavedSnapshotMarkedStale(t *testing.T
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.False(t, h.Reachable)
 	assert.True(t, h.Starting, "no forge has been asked yet, so the mark says starting")
+	assert.Equal(t, dashboard.ForgeCauseStarting, h.Cause)
 	assert.Empty(t, h.ErrorKind, "a start-up gap is not an outage")
 	require.NotNil(t, h.StaleSince)
 	assert.False(t, restarted.FirstRefreshDone(), "readiness still waits for a real refresh")
@@ -110,6 +111,7 @@ func TestAggregator_AfterARestart_TheFirstGoodRefreshClearsTheStaleMark(t *testi
 	h := health(snap, dashboard.ForgeGitHub)
 	assert.True(t, h.Reachable)
 	assert.False(t, h.Starting)
+	assert.Empty(t, h.Cause)
 	assert.Nil(t, h.StaleSince)
 	require.Len(t, snap.Repos, 1)
 	assert.Nil(t, snap.Repos[0].StaleSince)
@@ -303,6 +305,7 @@ func TestAggregator_AfterARestart_AWebhookRefreshOfTheOnlyRepoClearsStarting(t *
 
 	h := health(restarted.Get(), dashboard.ForgeGitHub)
 	assert.False(t, h.Starting, "every saved repo of the forge now has fresh rows")
+	assert.Empty(t, h.Cause, "the start-up cause goes with the mark")
 	assert.Nil(t, h.StaleSince)
 	assert.True(t, h.Reachable)
 }
