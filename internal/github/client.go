@@ -160,6 +160,11 @@ type Client struct {
 	// App-mode Client's token field stays empty for its whole lifetime.
 	appAuthenticated bool
 
+	// userAuth is true for a Client built by NewBearerClient: a linked user's
+	// token goes on every request by its transport, and discovery is the
+	// viewer's, as with a personal token.
+	userAuth bool
+
 	// visibleRepos, when set, narrows an installation's repos to those the
 	// linked user can read (#4576). Nil reads everything the installation sees.
 	visibleRepos func(context.Context) (map[string]struct{}, error)
@@ -1446,7 +1451,7 @@ func (c *Client) fetch(ctx context.Context) dashboard.Result {
 			Forge: dashboard.ForgeGitHub, Reachable: false,
 			Error: c.permanentError,
 		}}
-	case c.token != "" || c.appAuthenticated:
+	case c.token != "" || c.appAuthenticated || c.userAuth:
 		return c.fetchViaGraphQL(ctx)
 	case c.username != "":
 		return c.fetchPublicViaREST(ctx)
