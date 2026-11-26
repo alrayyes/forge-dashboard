@@ -80,8 +80,9 @@ func handleGitHubConnectionCallback(deps Deps) http.HandlerFunc {
 }
 
 // handleGitHubConnectionDelete answers DELETE /api/v1/connections/github. It
-// removes the user token pair and nothing else: installations, a pasted token
-// and the other settings are untouched.
+// revokes the grant at GitHub where it can and removes the user token pair,
+// and nothing else: installations, a pasted token and the other settings are
+// untouched.
 func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
@@ -91,6 +92,17 @@ func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 			// No OAuth client is configured any more, but a pair saved while
 			// there was one still has to be removable.
 			err = deps.SettingsStore.DeleteOAuthToken(r.Context(), githubForge)
+		}
+
+		// The pair is gone either way. When GitHub did not confirm the
+		// revocation the owner is told, so they can revoke it by hand.
+		if errors.Is(err, oauth.ErrNotRevoked) {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"revoked": false,
+				"message": "Disconnected here, but GitHub did not confirm the revocation. Revoke the app under GitHub's Settings, Applications, Authorized GitHub Apps.",
+			})
+
+			return
 		}
 
 		if err != nil {

@@ -287,8 +287,12 @@ and puts focus on that input. The page holds no copy of those rules.
   ([setup](configuration.md#github-account-sign-in)). The user token renews
   itself and is stored encrypted. It is never in `GET /api/v1/settings`, which
   only reports `githubOAuthConfigured` and `githubOAuthConnected`. Disconnect
-  removes the link and leaves a saved token and the installation alone. Nothing
-  reads through the linked account yet.
+  asks GitHub to revoke the App's grant, so the access and refresh token stop
+  working at once, then removes the link and leaves a saved token and the
+  installation alone. If GitHub can't be reached or refuses, the link is still
+  removed, Settings is told the grant was not revoked, and nothing is retried:
+  revoke it by hand under GitHub's Settings, Applications, Authorized GitHub
+  Apps. Nothing reads through the linked account yet.
   Installations are kept one per row, so a second account or org can be added
   through the App's Setup URL without pasting an ID; the existing installation
   ID is carried over as the first row when you upgrade. Every enabled row is
@@ -307,7 +311,10 @@ scope(s): [read:user]`, before it was added to the token.
   OAuth client configured, you can link your account instead of pasting a token
   ([setup](configuration.md#forgejo-oauth)). The access token renews itself and
   wins over a pasted token while the account is linked. Disconnect, and the
-  pasted token is used again. Tokens are stored encrypted and are never in
+  pasted token is used again. Forgejo has no token revocation endpoint, so
+  Disconnect only deletes the dashboard's copy: the grant stays valid at the
+  instance until you remove it under Settings, Applications, Authorized OAuth2
+  Applications. Tokens are stored encrypted and are never in
   `GET /api/v1/settings`, which only reports `forgejoOAuthConfigured` and
   `forgejoOAuthConnected`. The instance URL is locked while linked. A
   pasted token saved for a different instance is cleared when you link, since

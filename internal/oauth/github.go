@@ -1,12 +1,14 @@
 package oauth
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -109,9 +111,17 @@ func (g *GitHub) Finish(ctx context.Context, state, code string) (login string, 
 	return login, nil
 }
 
-// Disconnect deletes the token pair. A refresh already under way can no longer
-// save its result.
+// ErrNotRevoked is what Disconnect returns when it deleted the local pair but
+// GitHub did not confirm the revocation, so the grant may still be live there.
+var ErrNotRevoked = errors.New("oauth: the forge did not revoke the grant")
+
+// Disconnect asks GitHub to revoke the grant, then deletes the token pair. A
+// refresh already under way can no longer save its result. If GitHub can't be
+// reached or refuses, the pair is deleted all the same and the error wraps
+// ErrNotRevoked. Nothing is retried.
 func (g *GitHub) Disconnect(ctx context.Context) error {
+	revokeErr := g.revoke(ctx)
+
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -120,6 +130,57 @@ func (g *GitHub) Disconnect(ctx context.Context) error {
 
 	if err := g.store.DeleteOAuthToken(ctx, githubForge); err != nil {
 		return fmt.Errorf("oauth: delete token: %w", err)
+	}
+
+	return revokeErr
+}
+
+// revoke deletes the App's grant for the linked user (DELETE
+// /applications/{client_id}/grant), which ends the access token and its
+// refresh token. It is a no-op when nothing is linked. The error never carries
+// a token or the client secret.
+func (g *GitHub) revoke(ctx context.Context) error {
+	bearer, linked := g.Bearer(ctx)
+	if !linked {
+		return nil
+	}
+
+	accessToken, err := bearer()
+	if err != nil {
+		return fmt.Errorf("%w: no usable token", ErrNotRevoked)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, accountTimeout)
+	defer cancel()
+
+	payload, err := json.Marshal(map[string]string{"access_token": accessToken})
+	if err != nil {
+		return fmt.Errorf("%w: build request", ErrNotRevoked)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		g.urls.API+"/applications/"+url.PathEscape(g.cfg.ClientID)+"/grant", bytes.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("%w: build request", ErrNotRevoked)
+	}
+
+	req.SetBasicAuth(g.cfg.ClientID, g.cfg.ClientSecret)
+	req.Header.Set("Accept", "application/vnd.github+json")
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: request failed", ErrNotRevoked)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	// Anything but 204 counts as not revoked, 401 and 404 included. GitHub
+	// answers those for a token it no longer knows, which this can't tell
+	// from a refusal, so the owner is told to check by hand rather than be
+	// told it worked.
+	if resp.StatusCode != http.StatusNoContent {
+		return fmt.Errorf("%w: status %d", ErrNotRevoked, resp.StatusCode)
 	}
 
 	return nil
