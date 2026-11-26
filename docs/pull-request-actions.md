@@ -1042,7 +1042,9 @@ the button, so a row on a phone doesn't grow sideways.
 Dependabot only honours these commands from a user with push access, and
 it ignores GitHub App accounts whatever permissions the App holds.
 So when you've connected a GitHub App, the commands go out with your saved
-personal access token instead, and the comment shows up as you. With an
+personal access token instead, and the comment shows up as you. The linked
+GitHub account doesn't stand in for it there. With no installation, reads and
+commands go out as the linked account and the buttons work. With an
 App and no saved token, both buttons are locked with that explanation
 and the background pass below skips Dependabot pull requests, rather than
 posting comments Dependabot would only refuse.
@@ -1095,9 +1097,9 @@ request. With only Auto-update on, nothing changes. A choice made on a single
 pull request still wins: a bot pull request switched off stays put. The
 setting is off by default. `POST /api/v1/repos/rebase-bots/enable` and
 `/disable` set it, and `rebaseBots` on each repo in `GET /api/v1/dashboard`
-reports it. With a GitHub App and no saved personal access token the switch is
-locked, for the same reason the Dependabot buttons are. The lock covers the
-whole switch, so Renovate pull requests wait too.
+reports it. With a GitHub App installation and no saved personal access
+token the switch is locked, for the same reason the Dependabot buttons
+are. The lock covers the whole switch, so Renovate pull requests wait too.
 
 Each pull request can also have its own say, whatever its repo does. Every
 pull request in `GET /api/v1/dashboard` carries its own state under

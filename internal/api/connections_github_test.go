@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/alrayyes/forge-dashboard/internal/api"
@@ -109,13 +110,19 @@ type ghConnFixture struct {
 	cookie *http.Cookie
 	gh     *fakeGitHubHost
 	db     *sql.DB
+	builds *atomic.Int32
 }
 
 func newGHConnFixture(t *testing.T, configured bool) *ghConnFixture {
 	t.Helper()
 
 	gh := newFakeGitHubHost(t)
-	srv, _, _, _, db, _ := newTestServerWithDatabase(t, func(settingspkg.Credentials) []dashboard.Source { return nil }, false, 0,
+	builds := &atomic.Int32{}
+	srv, _, _, _, db, _ := newTestServerWithDatabase(t, func(settingspkg.Credentials) []dashboard.Source {
+		builds.Add(1)
+
+		return nil
+	}, false, 0,
 		func(d *api.Deps) {
 			if configured {
 				d.GitHubOAuth = oauth.NewGitHubAt(t.Context(), "gh-id", "gh-secret", ghConnRedirect, d.SettingsStore,
@@ -124,7 +131,7 @@ func newGHConnFixture(t *testing.T, configured bool) *ghConnFixture {
 		})
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 
-	return &ghConnFixture{srv: srv, cookie: cookie, gh: gh, db: db}
+	return &ghConnFixture{srv: srv, cookie: cookie, gh: gh, db: db, builds: builds}
 }
 
 func (c *ghConnFixture) start(t *testing.T) (int, map[string]any, http.Header) {
@@ -247,6 +254,24 @@ func TestGitHubConnectionsCallback_LinksTheAccountAndNeverShowsATokenAgain(t *te
 	require.NoError(t, c.db.QueryRowContext(t.Context(), `SELECT token FROM oauth_tokens WHERE forge = 'github'`).Scan(&stored))
 	assert.NotContains(t, stored, ghAccessTok, "encrypted at rest")
 	assert.NotContains(t, stored, ghRefreshTok, "encrypted at rest")
+}
+
+func TestGitHubConnectionsSettings_ReportTheLinkedLoginAndNeverAToken(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	assert.Empty(t, getSettings(t, c.srv.URL, c.cookie).GitHubLogin, "no account linked yet")
+
+	c.connect(t)
+
+	assert.Equal(t, "octocat", getSettings(t, c.srv.URL, c.cookie).GitHubLogin)
+	for _, path := range []string{"/api/v1/settings", "/api/v1/settings/summary"} {
+		resp := doJSON(t, http.MethodGet, c.srv.URL+path, "", c.cookie)
+		defer func() { _ = resp.Body.Close() }()
+		raw := connBodyText(t, resp)
+		assert.Contains(t, raw, `"githubLogin":"octocat"`, path)
+		assert.NotContains(t, raw, ghAccessTok, path)
+	}
 }
 
 func TestGitHubConnectionsCallback_RedirectsBackToTheSetupPageAndIsNeverCached(t *testing.T) {
@@ -417,4 +442,41 @@ func TestGitHubConnections_NeverLogOrAnswerWithACodeStateSecretOrToken(t *testin
 		assert.NotContains(t, logs.String(), secret, "log")
 		assert.NotContains(t, refusedBody, secret, "answer")
 	}
+}
+
+func TestGitHubConnections_LinkingRebuildsTheRunningSources(t *testing.T) {
+	c := newGHConnFixture(t, true)
+	before := c.builds.Load()
+
+	c.connect(t)
+
+	assert.Greater(t, c.builds.Load(), before)
+}
+
+func TestGitHubConnections_DisconnectingRebuildsTheRunningSources(t *testing.T) {
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+	before := c.builds.Load()
+
+	resp := doJSON(t, http.MethodDelete, c.srv.URL+"/api/v1/connections/github", "", c.cookie)
+	_ = resp.Body.Close()
+	require.Equal(t, http.StatusNoContent, resp.StatusCode)
+
+	assert.Greater(t, c.builds.Load(), before)
+}
+
+func TestGitHubConnections_DisconnectingWithoutAConfirmedRevocationStillRebuildsTheRunningSources(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+	c.gh.mu.Lock()
+	c.gh.grantCode = http.StatusInternalServerError
+	c.gh.mu.Unlock()
+	before := c.builds.Load()
+
+	resp := doJSON(t, http.MethodDelete, c.srv.URL+"/api/v1/connections/github", "", c.cookie)
+	_ = resp.Body.Close()
+
+	assert.Greater(t, c.builds.Load(), before)
 }

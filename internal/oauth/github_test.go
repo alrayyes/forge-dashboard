@@ -71,6 +71,7 @@ func (m *ghTokens) current() *oauth2.Token {
 // error body for the authorization code grant.
 type fakeGitHub struct {
 	server *httptest.Server
+	mux    *http.ServeMux
 
 	mu        sync.Mutex
 	challenge string
@@ -103,6 +104,7 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 
 	f := &fakeGitHub{valid: "ghr-1", access: "ghu-1"}
 	mux := http.NewServeMux()
+	f.mux = mux
 	mux.HandleFunc("/login/oauth/access_token", f.token)
 	mux.HandleFunc("/user", f.user)
 	mux.HandleFunc("/applications/", f.grant)
@@ -414,6 +416,27 @@ func TestGitHub_Bearer_RefusesAPairGrantedByAnotherHost(t *testing.T) {
 	assert.Zero(t, gh.refreshCount())
 }
 
+func TestGitHub_Bearer_AValidTokenIsNotHandedOutAfterDisconnect(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	store := &ghTokens{instance: gh.server.URL, token: &oauth2.Token{
+		AccessToken: "ghu-1", RefreshToken: "ghr-1", Expiry: time.Now().Add(time.Hour),
+	}}
+	conn := newGitHubConn(t, gh, store)
+	bearer, ok := conn.Bearer(t.Context())
+	require.True(t, ok)
+	tok, err := bearer()
+	require.NoError(t, err)
+	require.Equal(t, "ghu-1", tok)
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+	tok, err = bearer()
+
+	require.Error(t, err)
+	assert.Empty(t, tok, "a request after Disconnect gets no token")
+}
+
 func TestGitHub_Disconnect_DeletesThePairAndForgetsTheLink(t *testing.T) {
 	t.Parallel()
 
@@ -540,14 +563,14 @@ func TestGitHub_Disconnect_ARefreshThatOutlivesItCannotPutThePairBack(t *testing
 	bearer, ok := conn.Bearer(t.Context())
 	require.True(t, ok)
 	// The revoke's own refresh fails and spends nothing, so the old function
-	// is left to refresh after the disconnect.
+	// is the only one left that could refresh after the disconnect.
 	gh.refreshFail = 1
 
 	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
 	_, err := bearer()
 
 	require.Error(t, err)
-	assert.Equal(t, 1, gh.refreshCount(), "the refresh ran, so the guard is what stopped the save")
+	assert.Zero(t, gh.refreshCount(), "the old function is refused before it can refresh")
 	assert.Nil(t, store.current())
 	_, ok = conn.Bearer(t.Context())
 	assert.False(t, ok)

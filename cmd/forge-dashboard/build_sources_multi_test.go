@@ -88,7 +88,7 @@ func (m *multiServer) builder(t *testing.T, counters *apistats.Counters, c setti
 
 	c.GitHubAppInstallationID = 42
 	c.GitHubAppInstallationIDs = []int64{42, 43}
-	build := buildSources(newTestAuthStore(t), nil, 1, testGitHubAppPrivateKeyPEM, counters, nil)
+	build := buildSources(newTestAuthStore(t), nil, 1, testGitHubAppPrivateKeyPEM, counters, nil, nil)
 
 	return func() []github.Member {
 		sources := build(c)

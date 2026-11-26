@@ -1,11 +1,13 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
 	"strconv"
 
+	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/oauth"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -75,8 +77,25 @@ func handleGitHubConnectionCallback(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		rebuildGitHubSources(r.Context(), deps)
 		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
+}
+
+// rebuildGitHubSources swaps the running sources for ones built after a link
+// or an unlink. Which credential reads is chosen when the sources are built, so
+// without this the running source keeps the old one until the next settings
+// save or restart. Nothing saved reads as empty settings: a linked account can
+// read with no other setting.
+func rebuildGitHubSources(ctx context.Context, deps Deps) {
+	deps.Service.EnsureFrom(deps.AppContext, func() ([]dashboard.Source, bool) {
+		creds, err := deps.SettingsStore.Get(ctx)
+		if err != nil && !errors.Is(err, settings.ErrNotFound) {
+			return nil, false
+		}
+
+		return deps.BuildSources(creds), true
+	})
 }
 
 // handleGitHubConnectionDelete answers DELETE /api/v1/connections/github. It
@@ -97,6 +116,7 @@ func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 		// The pair is gone either way. When GitHub did not confirm the
 		// revocation the owner is told, so they can revoke it by hand.
 		if errors.Is(err, oauth.ErrNotRevoked) {
+			rebuildGitHubSources(r.Context(), deps)
 			writeJSON(w, http.StatusOK, map[string]any{
 				"revoked": false,
 				"message": "Disconnected here, but GitHub did not confirm the revocation. Revoke the app under GitHub's Settings, Applications, Authorized GitHub Apps.",
@@ -111,6 +131,7 @@ func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		rebuildGitHubSources(r.Context(), deps)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }

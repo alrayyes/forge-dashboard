@@ -117,3 +117,34 @@ func (g *GitHub) Account(ctx context.Context) (string, error) {
 
 	return g.readAccount(ctx, token)
 }
+
+// Login is the linked account's login, or "" when none is linked or GitHub
+// can't be asked. It is asked once and remembered until the account changes,
+// so reading Settings doesn't spend the user's rate limit.
+func (g *GitHub) Login(ctx context.Context) string {
+	if g == nil {
+		return ""
+	}
+
+	g.mu.Lock()
+	known, gen := g.login, g.gen
+	g.mu.Unlock()
+
+	if known != "" {
+		return known
+	}
+
+	login, err := g.Account(ctx)
+	if err != nil {
+		return ""
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.gen == gen {
+		g.login = login
+	}
+
+	return login
+}
