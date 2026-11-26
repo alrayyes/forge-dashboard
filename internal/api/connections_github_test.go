@@ -32,6 +32,8 @@ type fakeGitHubHost struct {
 	server    *httptest.Server
 	mu        sync.Mutex
 	challenge string
+	grants    int
+	grantCode int
 }
 
 func newFakeGitHubHost(t *testing.T) *fakeGitHubHost {
@@ -62,6 +64,17 @@ func newFakeGitHubHost(t *testing.T) *fakeGitHubHost {
 			"access_token": ghAccessTok, "refresh_token": ghRefreshTok, "token_type": "bearer",
 			"expires_in": 28800, "refresh_token_expires_in": 15811200,
 		})
+	})
+	mux.HandleFunc("/applications/gh-id/grant", func(w http.ResponseWriter, _ *http.Request) {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		f.grants++
+		if f.grantCode != 0 {
+			w.WriteHeader(f.grantCode)
+
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
 	})
 	mux.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Authorization") != "Bearer "+ghAccessTok {
@@ -339,6 +352,40 @@ func TestGitHubConnectionsDelete_DeletesThePairAndLeavesTheOtherSettingsAlone(t 
 	assert.Equal(t, "octocat", got.GitHubUsername)
 	assert.Zero(t, c.rows(t))
 	assert.Equal(t, http.StatusNoContent, ghDisconnect(t, c), "nothing to disconnect is still fine")
+}
+
+func TestGitHubConnectionsDelete_RevokesTheGrantAtGitHub(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+
+	assert.Equal(t, http.StatusNoContent, ghDisconnect(t, c))
+
+	c.gh.mu.Lock()
+	defer c.gh.mu.Unlock()
+	assert.Equal(t, 1, c.gh.grants)
+}
+
+func TestGitHubConnectionsDelete_WhenGitHubRefusesStillDisconnectsAndSaysTheGrantIsNotRevoked(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+	c.gh.mu.Lock()
+	c.gh.grantCode = http.StatusInternalServerError
+	c.gh.mu.Unlock()
+
+	resp := doJSON(t, http.MethodDelete, c.srv.URL+"/api/v1/connections/github", "", c.cookie)
+	defer func() { _ = resp.Body.Close() }()
+	var body map[string]any
+	require.NoError(t, readJSON(resp, &body))
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, false, body["revoked"])
+	assert.NotContains(t, body["message"], ghAccessTok)
+	assert.Zero(t, c.rows(t))
+	assert.False(t, getSettings(t, c.srv.URL, c.cookie).GitHubOAuthConnected)
 }
 
 func TestGitHubConnectionsDelete_WorksWithNoClientConfiguredAnyMore(t *testing.T) {
