@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.136.3](https://github.com/alrayyes/forge-dashboard/compare/v9.136.2...v9.136.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* leave polls and wakes alone once a loop is cancelled ([#5052](https://github.com/alrayyes/forge-dashboard/issues/5052)) ([d4a6a65](https://github.com/alrayyes/forge-dashboard/commit/d4a6a6504f1bb8038fd7ccd0bdab890240ec3387))
+
 ## [9.136.2](https://github.com/alrayyes/forge-dashboard/compare/v9.136.1...v9.136.2) (2026-11-26)
 
 
