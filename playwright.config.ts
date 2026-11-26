@@ -354,6 +354,7 @@ const singleUserSpecs = [
   '**/repositories-table-reflow.spec.ts',
   '**/avatar-placeholder-edge.spec.ts',
   '**/comment-pill-newest.spec.ts',
+  '**/forge-cause.spec.ts',
 ];
 
 // A spec missing from the list would be skipped without a word, so fail the

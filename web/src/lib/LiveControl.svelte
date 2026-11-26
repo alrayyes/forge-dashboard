@@ -4,7 +4,13 @@
   // page owns what pausing and refreshing do; this draws them. The ids stay
   // because the dashboard wires the two buttons itself.
   import { onMount } from "svelte";
-  import { liveStatus, pauseLabel, updatedText } from "#lib/live-control.js";
+  import {
+    isHeld,
+    liveStatus,
+    pauseLabel,
+    updatedText,
+    type CausedForges,
+  } from "#lib/live-control.js";
 
   let {
     paused,
@@ -12,6 +18,7 @@
     onpause,
     onrefresh,
     refreshing = false,
+    forges = [],
   }: {
     paused: boolean;
     updatedAt: string | null;
@@ -20,6 +27,8 @@
     // True while a refresh the user asked for runs. aria-disabled, not
     // disabled, so the button keeps keyboard focus; a press is ignored.
     refreshing?: boolean;
+    // The forges' health: a cause on any of them means the rows aren't live.
+    forges?: CausedForges;
   } = $props();
 
   let now = $state(Date.now());
@@ -30,11 +39,19 @@
 
   const updated = $derived(updatedText(updatedAt, now));
   const pause = $derived(pauseLabel(paused));
+  const status = $derived(liveStatus(paused, forges));
+  const held = $derived(isHeld(paused, forges));
 </script>
 
-<div class="live-control" class:paused role="group" aria-label="Live updates">
+<div
+  class="live-control"
+  class:paused
+  class:held
+  role="group"
+  aria-label="Live updates"
+>
   <span class="live-status">
-    <span class="live-dot" aria-hidden="true"></span>{liveStatus(paused)}
+    <span class="live-dot" aria-hidden="true"></span>{status}
   </span>
   {#if updated}<span class="live-updated">{updated}</span>{/if}
   <button

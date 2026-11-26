@@ -542,10 +542,10 @@ type ForgeCause string
 
 const (
 	// ForgeCauseStarting means the rows are the saved ones and no fetch has
-	// answered since the start.
+	// answered in time since the start.
 	ForgeCauseStarting ForgeCause = "starting"
-	// ForgeCauseSlow means the pass missed its deadline or was skipped, and
-	// the last good rows are held.
+	// ForgeCauseSlow means the latest pass missed its deadline or was
+	// skipped, and the last good rows are held.
 	ForgeCauseSlow ForgeCause = "slow"
 )
 
@@ -560,13 +560,15 @@ type ForgeHealth struct {
 	UpstreamStatus int `json:"upstreamStatus,omitempty"`
 	RepoCount      int `json:"repoCount"`
 	// Starting is set while the rows shown for this forge are the ones the
-	// last run saved and no fetch has answered since this start. The forge
-	// has not been asked yet, so it is neither reachable nor in error: the
-	// first refresh that reaches it replaces this entry.
+	// last run saved and no fetch has answered in time since this start. The
+	// forge has not been heard from, so it is neither reachable nor in error,
+	// even past a fetch deadline: the first fetch that answers in time
+	// replaces this entry.
 	Starting bool `json:"starting,omitempty"`
 	// Cause says why the rows are not from the latest read while the forge is
-	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow for a
-	// missed pass whose last good rows are held (#4998). The client words it.
+	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow when the
+	// latest pass missed and the last good rows are held (#4998). The client
+	// words it.
 	Cause ForgeCause `json:"cause,omitempty"`
 	// StaleSince is set when this refresh failed and the pull requests,
 	// issues and repos shown for the forge are the last good ones, fetched

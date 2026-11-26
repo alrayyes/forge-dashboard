@@ -12081,6 +12081,7 @@
         </h2>
         <div class="board-head-controls">
           <LiveControl
+            forges={healthForges}
             paused={livePaused}
             updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
             onpause={() => togglePause()}
@@ -12281,6 +12282,7 @@
         <h2>Issues</h2>
         <div class="board-head-controls">
           <LiveControl
+            forges={healthForges}
             paused={livePaused}
             updatedAt={loadingFirst || !refreshedKnown ? null : liveUpdatedAt}
             onpause={() => togglePause()}

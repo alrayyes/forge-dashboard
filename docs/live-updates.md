@@ -22,16 +22,25 @@ Keyboard focus on a row doesn't hold either, and stays on the row
 when the list redraws. When rows land, one polite line tells a screen reader
 what changed ("List updated: 1 added, 2 removed"). One live control leads the
 right-hand controls in the header of every list card (Pull requests, Bots,
-Issues, Releases and Main branches): a status dot reading "Live" or "Paused",
-"updated 12 seconds ago", **Pause** (**Resume** while paused) and a refresh button.
-Pause is your own control: it stops every automatic update until you resume,
-which applies what waited (Refresh now still works). The time is the snapshot's
-own: it holds still while paused and moves to the newest one on Resume, and a
-refresh that fails leaves it where it was. On Main branches the
-pause isn't saved with your filters and a reload goes back to live. The
-**Sort** control offers Last activity (the default, the server's order: most
-recently updated first, whether or not a pull request is ready to merge),
-Created, and Repository. Pause and sort are saved with your other filters.
+Issues, Releases and Main branches): a status dot reading "Live", "Paused",
+"Slow to answer" or "Starting up", "updated 12 seconds ago", **Pause**
+(**Resume** while paused) and a refresh button. Pause is your own control: it
+stops every automatic update until you resume, which applies what waited
+(Refresh now still works). The time is the snapshot's own: it holds still while
+paused and moves to the newest one on Resume, and a refresh that fails leaves
+it where it was. "Live" means no forge has a cause: none is starting up, and
+none has its rows held for being slow to answer. It doesn't promise that every
+row is fresh, because a held server error, an unreachable forge's last rows and
+a spent rate limit can all leave older rows under "Live". While a forge has a
+cause, the control reads "Slow to answer" or "Starting up" (starting up wins
+when both apply) with an amber dot. "Paused" wins over both. On Pull requests,
+Bots, Issues and Releases that forge's chip says the same and a screen reader
+hears it. The Main branches page has no forge health chips, so only the control
+says it there, and the change isn't announced. On Main branches the pause isn't
+saved with your filters and a reload goes back to live. The **Sort** control offers
+Last activity (the default, the server's order: most recently updated first,
+whether or not a pull request is ready to merge), Created, and Repository.
+Pause and sort are saved with your other filters.
 
 The pull requests page also watches the rows you can see, in the order it
 draws them, so their CI pills fold from the live jobs without a dialog open.
@@ -213,17 +222,26 @@ Each of these lines carries a `path`: `deadline`, `skipped` or `error`. A real
 outage shows `path=error` and the error kind. A slow forge shows
 `path=deadline` or `path=skipped`, and a late line, and no error kind. These
 lines also appear on a held pass, where no banner shows. The forge's health
-then carries `cause: "slow"`. The API sends that fact now, and the page words
-it in a later change. The next good read clears the cause. Only the
-third miss in a row shows the unreachable banner, and that health has no cause.
+then carries `cause: "slow"`, and the page reads "Slow to answer" instead of
+"Live". It means the latest full pass got no answer in time, so the next one
+that doesn't miss clears it, even when it holds a 5xx or skips the forge to
+save its rate limit. A webhook that refreshes one repository doesn't, so the
+wording can stay until the next full pass. Only the third miss in a row shows
+the unreachable banner, and that health has no cause.
+
 After a restart the saved rows carry `cause: "starting"` (the same fact as
-`starting`) until the first read, and never read as unreachable.
+`starting`) until a fetch answers in time. The page reads "Starting up" and
+never unreachable. A first fetch that hits its deadline, and the passes skipped
+behind it, change nothing: the forge stays "Starting up", with no error kind and
+no banner. Its late answer is dropped, so a forge that is always slower than the
+deadline stays "Starting up". The log has the deadline and skipped lines for it
+and no `full refresh failed` line, since nothing has failed.
 
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
 shows those rows at once. Their forge reads as starting up, with a stale time,
-until the first refresh answers; one that then fails is shown in the
+until a fetch from it answers in time; one that fails is shown in the
 unreachable banner. The rest of this section
 covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,

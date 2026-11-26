@@ -927,7 +927,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			// No budget left until the reset: a call would only fail, and
 			// the attempt itself counts against the forge (#755). Keep the
 			// last rows and the exhausted budget, so the banner holds.
-			results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
+			results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
 
 			continue
 		}
@@ -935,7 +935,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
 				// At the reserve: what is left is for the person clicking.
 				health, _ := healthOf(earlier, src.Forge())
-				results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
+				results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
 
 				continue
 			}
@@ -1068,8 +1068,12 @@ func (a *Aggregator) unreachableFrom(snap Snapshot, i int) ForgeHealth {
 
 // markUnreachable is h for a forge that did not answer, so the aggregator
 // keeps the rows it last had, marked stale. The rest of h, such as its rate
-// limits, is left as it was.
+// limits, is left as it was. A forge still Starting is returned unchanged: its
+// first fetch has not answered, so it is starting up, not down.
 func markUnreachable(h ForgeHealth) ForgeHealth {
+	if h.Starting {
+		return h
+	}
 	kind := ForgeErrorUnreachable
 	h.Reachable = false
 	h.Error = HumanizeForgeError(kind)
@@ -1134,6 +1138,17 @@ func (a *Aggregator) joinPass() {
 		return
 	}
 	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0))
+}
+
+// notSlow is h without ForgeCauseSlow, which is about the latest pass only: a
+// pass that does not ask the forge must not inherit it. ForgeCauseStarting
+// stays, since nothing has answered yet.
+func notSlow(h ForgeHealth) ForgeHealth {
+	if h.Cause == ForgeCauseSlow {
+		h.Cause = ""
+	}
+
+	return h
 }
 
 // exhaustedHealth returns forge's health from snap when one of its budgets is
@@ -1218,9 +1233,11 @@ func (a *Aggregator) keepLaterGood(good map[Forge]time.Time) {
 }
 
 // logFailedRefresh names the cause of a full refresh that asked forge and got no
-// answer, so a report of old rows can be traced from the log (#3869).
+// answer, so a report of old rows can be traced from the log (#3869). A forge
+// still Starting has not failed: its first fetch is out, and the deadline line
+// already says so.
 func logFailedRefresh(sr sourceResult, forge Forge) {
-	if sr.asked && !sr.Health.Reachable {
+	if sr.asked && !sr.Health.Reachable && !sr.Health.Starting {
 		slog.Warn("full refresh failed", "forge", forge, "cause", sr.Health.ErrorKind, "error", sr.Health.Error)
 	}
 }
@@ -1285,7 +1302,7 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 	if !ok || !prev.Reachable {
 		return r, false
 	}
-	held := Result{Health: prev}
+	held := Result{Health: notSlow(prev)}
 	if missed {
 		held.Health.Cause = ForgeCauseSlow
 	}

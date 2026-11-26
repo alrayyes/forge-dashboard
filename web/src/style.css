@@ -368,6 +368,11 @@ header,
   animation: none;
 }
 
+.forge-health.slow .pulse-dot {
+  background: var(--warning);
+  animation: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .pulse-dot {
     animation: none;
@@ -1915,9 +1920,10 @@ select.col-filter {
   border-radius: 50%;
   background: var(--ok, #157347);
 }
-.live-control.paused .live-dot {
+.live-control.paused .live-dot,
+.live-control.held .live-dot {
   /* Amber as in the Stitch paused screen. --warning clears 3:1 against the
-     card in both themes; the word "Paused" carries the meaning, not the dot. */
+     card in both themes; the status word carries the meaning, not the dot. */
   background: var(--warning);
 }
 .live-updated {
@@ -1955,7 +1961,8 @@ select.col-filter {
   cursor: not-allowed;
 }
 @media (forced-colors: active) {
-  .live-control.paused .live-dot {
+  .live-control.paused .live-dot,
+  .live-control.held .live-dot {
     background: GrayText;
     border: 1px solid GrayText;
   }

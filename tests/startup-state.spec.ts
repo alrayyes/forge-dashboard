@@ -14,6 +14,7 @@ const starting = (forge: ForgeName): Forge =>
   forgeHealth(forge, {
     reachable: false,
     starting: true,
+    cause: 'starting',
     staleSince: savedAt(),
   });
 const outage = (forge: ForgeName): Forge =>
@@ -58,7 +59,7 @@ test.describe('start-up state', () => {
     await page.goto('/pull-requests.html');
 
     const chips = page.locator('#forge-health .forge-health');
-    await expect(chips.first()).toContainText('loading');
+    await expect(chips.first()).toContainText('starting up');
     await expect(chips).toHaveCount(2);
     await expect(page.locator('#forge-health')).toContainText(
       'Starting up, showing data from',
@@ -81,7 +82,7 @@ test.describe('start-up state', () => {
     const state = { forges: [starting('github'), starting('forgejo')] };
     await serve(page, state);
     await page.goto('/pull-requests.html');
-    await expect(page.locator('#forge-health')).toContainText('loading');
+    await expect(page.locator('#forge-health')).toContainText('starting up');
 
     state.forges = [up('github'), outage('forgejo')];
     // A reachable forge draws no chip; the live region still says so.

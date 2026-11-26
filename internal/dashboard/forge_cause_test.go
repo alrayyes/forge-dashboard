@@ -95,6 +95,38 @@ func TestAggregator_TheMissThatShowsTheOutageHasNoCause(t *testing.T) {
 	assert.Empty(t, h.Cause)
 }
 
+// A restored forge whose first fetch hangs has had no answer yet: it is still
+// starting, and says so, through a missed pass and a skipped one.
+func TestAggregator_AfterARestart_AHungFirstFetchKeepsTheStartingCause(t *testing.T) {
+	t.Parallel()
+
+	const deadline = time.Minute
+
+	timers := newFakeTimers()
+	src := newHangingSource(dashboard.ForgeGitHub, 1)
+	t.Cleanup(src.unblock)
+	agg := dashboard.NewAggregator(
+		[]dashboard.Source{src},
+		dashboard.WithSnapshotCache(savedByAFirstRun(t)),
+		dashboard.WithClock(timers.Now),
+		dashboard.WithFetchDeadline(deadline, timers.After),
+		dashboard.WithUserFetchDeadline(deadline),
+	)
+
+	missOnce(t, agg, src, timers)
+	missed := health(agg.Get(), dashboard.ForgeGitHub)
+	require.True(t, missed.Starting)
+	assert.Equal(t, dashboard.ForgeCauseStarting, missed.Cause, "after the missed pass")
+	assert.Empty(t, missed.ErrorKind, "a start-up gap is not an outage")
+	assert.Empty(t, missed.Error)
+
+	agg.Refresh(t.Context())
+	skipped := health(agg.Get(), dashboard.ForgeGitHub)
+	require.True(t, skipped.Starting)
+	assert.Equal(t, dashboard.ForgeCauseStarting, skipped.Cause, "after the skipped pass")
+	assert.Empty(t, skipped.ErrorKind)
+}
+
 // A held 5xx is a real answer from the forge, not a slow one: it carries no cause.
 func TestAggregator_AHeldUpstreamErrorHasNoCause(t *testing.T) {
 	t.Parallel()
