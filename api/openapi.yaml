@@ -3785,7 +3785,8 @@ paths:
         request to another host, and a private repository's attachment loads
         without the forge token ever reaching the browser.
 
-        Only the forge the item belongs to is reached. Forgejo: the saved
+        Only the forge the item belongs to is reached, apart from the avatar
+        hosts named below for `kind=avatar`. Forgejo: the saved
         instance, with the saved token sent to that host only. GitHub:
         `github.com` and its user-content hosts (`user-images`,
         `private-user-images`, `raw`, `gist`, `avatars` and `repository-images`

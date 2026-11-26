@@ -171,8 +171,9 @@ forge sends none, the URL isn't HTTPS, or the image can't load, the row draws
 the person's initial on a neutral circle in the same 20px box, so every name
 starts at the same place. The initial is decorative: a screen reader hears the
 name once. On Forgejo the avatar must be on the saved instance's host and
-scheme, or on Gravatar or Libravatar; any other host shows the initial. The
-narrow layout drops the author column, avatar included.
+scheme, or on Gravatar's or Libravatar's avatar hosts
+([which ones](accounts.md)); any other host shows the initial. The narrow layout
+drops the author column, avatar included.
 
 The avatar and the name are one link to that person's page on the forge, in a new
 tab, on the row and on the pop-up's "Filed by" line. A deleted account has no

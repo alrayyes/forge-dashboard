@@ -106,7 +106,7 @@ func avatarProxyFor(deps Deps, forgeProxy *imageproxy.Proxy, kind imageKind, raw
 func imageFailure(err error) *statusError {
 	switch {
 	case errors.Is(err, imageproxy.ErrHostNotAllowed):
-		return &statusError{http.StatusForbidden, "images load only from the forge the item belongs to"}
+		return &statusError{http.StatusForbidden, "that image's host is not allowed"}
 	case errors.Is(err, imageproxy.ErrNotFound):
 		return &statusError{http.StatusNotFound, "the forge has no such image"}
 	case errors.Is(err, imageproxy.ErrForbidden):
@@ -122,7 +122,7 @@ func imageFailure(err error) *statusError {
 
 // imageRefusalLevel is how loudly a failed fetch is logged. A host that is
 // simply not on the list is expected for an avatar the saved Forgejo instance
-// doesn't serve (Gravatar, say), and the page asks again on every render, so
+// doesn't serve (another site's, say), and the page asks again on every render, so
 // it is debug. Anything else, user info or a blocked address included, is a
 // probe worth seeing.
 func imageRefusalLevel(err error) slog.Level {

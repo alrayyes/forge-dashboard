@@ -450,7 +450,7 @@ func TestRefuseNonPublic_AllowsGloballyReachableIETFProtocolRanges(t *testing.T)
 	}
 }
 
-// A plain miss on the host list is routine (a Gravatar avatar, say). Anything
+// A plain miss on the host list is routine (another site's avatar, say). Anything
 // else the proxy refuses, such as user info or another scheme, is a probe, and
 // the server logs the two at different levels.
 func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
