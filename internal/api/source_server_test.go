@@ -75,6 +75,8 @@ func newTestServerWithForgeSource(t *testing.T, forge dashboard.Forge, source da
 	})
 	testSrv := httptest.NewServer(mux)
 	t.Cleanup(testSrv.Close)
+	testSettingsStores.Store(testSrv.URL, settingsStore)
+	t.Cleanup(func() { testSettingsStores.Delete(testSrv.URL) })
 
 	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 

@@ -23,8 +23,6 @@ async function standIn(page: Page, skipped: string[]) {
           forgejoUrl: 'https://git.example.com',
           forgejoUsername: 'demo-user',
           forgejoTokenSet: true,
-          webhookToken: 'webhook-token',
-          webhookSecret: 'webhook-secret',
           renovateRebaseLabel: '',
           renovateAuthors: [],
           theme: '',

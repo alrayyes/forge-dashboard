@@ -320,16 +320,16 @@ func (c *Client) findOwnHook(ctx context.Context, owner, name, wantPath string) 
 	return nil, nil
 }
 
-// forgejoWebhookEvents mirrors what docs/webhooks.md's manual Forgejo
-// steps have a user tick by hand, so a webhook created here covers the same
-// ground. Forgejo's "pull_request" and "issues" types already cover comments
-// and reviews on the items they name (routers/api/v1/utils/hook.go), so the
-// comment and review names below are explicit rather than the fix; the fix for
-// a stale "Last activity" sort (#1552) is on GitHub, whose "issues" and
-// "pull_request" events do not carry comments. Names are Forgejo's own hook
-// event types (modules/webhook/type.go). The two action_run names are what
-// make a rerun of an Actions run reach us: a rerun posts no commit status of
-// its own until a job ends, so without them a branch pill stays on the old run.
+// forgejoWebhookEvents is the event list of the webhook this dashboard
+// creates and maintains on each repository. Forgejo's "pull_request" and
+// "issues" types already cover comments and reviews on the items they name
+// (routers/api/v1/utils/hook.go), so the comment and review names below are
+// explicit rather than the fix; the fix for a stale "Last activity" sort
+// (#1552) is on GitHub, whose "issues" and "pull_request" events do not carry
+// comments. Names are Forgejo's own hook event types
+// (modules/webhook/type.go). The two action_run names are what make a rerun
+// of an Actions run reach us: a rerun posts no commit status of its own until
+// a job ends, so without them a branch pill stays on the old run.
 var forgejoWebhookEvents = []string{
 	"pull_request", "issues", "issue_comment", "pull_request_comment",
 	"pull_request_review_comment", "pull_request_review_approved",
@@ -345,9 +345,9 @@ var forgejoWebhookEvents = []string{
 // duplicate hook.
 //
 // It always writes an existing hook, so a changed secret gets replaced. The
-// post-refresh pass calls it only for a repo whose snapshot shows no hook, so a
-// write there means the snapshot was stale: one idempotent PATCH, after which the next refresh sees the hook and
-// leaves the repo to UpgradeWebhook.
+// post-refresh pass calls it only for a repo whose snapshot shows no hook, so
+// a write there means the snapshot was stale: one idempotent PATCH, after
+// which the next refresh sees the hook and leaves the repo to UpgradeWebhook.
 func (c *Client) EnsureWebhook(ctx context.Context, owner, name, targetURL, secret string) error {
 	c = c.withContext(ctx)
 	u, err := url.Parse(targetURL)

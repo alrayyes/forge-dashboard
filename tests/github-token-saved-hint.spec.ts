@@ -17,8 +17,6 @@ function settings(githubTokenSet: boolean, forgejoTokenSet: boolean) {
     forgejoUrl: 'https://git.example.com',
     forgejoUsername: '',
     forgejoTokenSet,
-    webhookToken: 'webhook-token',
-    webhookSecret: 'webhook-secret',
     renovateRebaseLabel: '',
     renovateAuthors: [],
     theme: '',

@@ -40,11 +40,6 @@ type SettingsResponse struct {
 	// facts for the GitHub App's user sign-in. Never the tokens themselves.
 	GitHubOAuthConfigured bool `json:"githubOAuthConfigured"`
 	GitHubOAuthConnected  bool `json:"githubOAuthConnected"`
-	// WebhookToken and WebhookSecret, unlike the forge tokens above, are
-	// ours to hand back in the clear — the user has to paste them into
-	// the forge's own webhook setup, so a "set" flag alone wouldn't do.
-	WebhookToken  string `json:"webhookToken"`
-	WebhookSecret string `json:"webhookSecret"`
 	// RenovateRebaseLabel — see settings.Credentials' own doc comment;
 	// round-trips as a plain value, unlike the forge tokens above, since
 	// it isn't a secret.
@@ -85,8 +80,6 @@ func settingsResponseOf(c settings.Credentials, githubAppConfigured bool, titleC
 		ForgejoURL:                publicForgejoURL(c.ForgejoURL),
 		ForgejoUsername:           c.ForgejoUsername,
 		ForgejoTokenSet:           c.ForgejoToken != "",
-		WebhookToken:              c.WebhookToken,
-		WebhookSecret:             c.WebhookSecret,
 		RenovateRebaseLabel:       c.RenovateRebaseLabel,
 		RenovateAuthors:           append([]string{}, c.RenovateAuthors...),
 		HideDependencyDashboard:   c.HideDependencyDashboard,
@@ -666,9 +659,9 @@ func handleTimezonePut(store *settings.Store) http.HandlerFunc {
 }
 
 // SettingsSummary matches components.schemas.SettingsSummary, and is the
-// output of the get_settings MCP tool: SettingsResponse without the webhook
-// token and secret, which are never returned, plus whether they exist. Kept in
-// step with SettingsResponse by a test that compares the two.
+// output of the get_settings MCP tool: SettingsResponse plus whether the
+// webhook token and secret exist. Kept in step with SettingsResponse by a test
+// that compares the two.
 type SettingsSummary struct {
 	GitHubUsername            string   `json:"githubUsername"`
 	GitHubTokenSet            bool     `json:"githubTokenSet"`

@@ -28,8 +28,8 @@ type Credentials struct {
 	ForgejoToken    string
 	ForgejoUsername string
 	// WebhookToken identifies this user in a webhook URL
-	// (/api/webhooks/{provider}/{token}); WebhookSecret is what's pasted
-	// into the forge's own webhook "Secret" field and never appears in
+	// (/api/webhooks/{provider}/{token}); WebhookSecret signs each
+	// delivery the dashboard-registered hooks send and never appears in
 	// the URL, so a leaked log line alone can't forge a valid signature.
 	// Neither is a third-party credential the way the forge tokens above
 	// are, so neither is encrypted at rest — see EnsureWebhookCredentials.
