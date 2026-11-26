@@ -34,10 +34,9 @@ export interface FilterableItem {
   autoMergeEnabled?: boolean;
   draft?: boolean;
   mergeStatus?: string;
-  // Whether the base branch has moved on, and whether nothing is left to
-  // merge. Both are the server's answers; absent from an older server.
-  behind?: boolean;
-  empty?: boolean;
+  // The server's answer for the Out of date badge and filter (#4993): behind
+  // its base with something left to merge. Absent from an older server.
+  outOfDate?: boolean;
   // The server's answer for the behind chip (#4990): a green dependency pull
   // request behind its base with something left to merge, not a draft or
   // hidden. The same rule counts the Bots menu pill.
@@ -194,10 +193,9 @@ export function matchesQuickFilter(
       // fixed, so it is listed too (#1215).
       return item.mergeStatus === 'conflicting';
     case 'out-of-date':
-      // The fields the row's own Out of date badge reads: behind its base,
-      // with something left to merge. An empty pull request has nothing to
-      // update, so the row draws no badge and the filter skips it too.
-      return item.behind === true && item.empty !== true;
+      // The server's own answer, the one the row's Out of date badge reads, so
+      // the page holds no copy of the rule (#4993).
+      return item.outOfDate === true;
     case 'behind-base':
       // The server's own answer, the one navCounts.bots.behind counts, so the
       // chip's number is the Bots menu pill's and the page holds no copy of the

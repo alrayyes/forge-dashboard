@@ -10,8 +10,7 @@ export type RebaseRow = {
   repo: string;
   number: number;
   title: string;
-  behind?: boolean;
-  empty?: boolean;
+  outOfDate?: boolean;
   // What the Failing CI pill reads, so the strip counts the same rows.
   ci?: string;
   failingCi?: boolean;
@@ -67,11 +66,6 @@ function noBotReason(item: RebaseRow): string {
   return listed?.blocked?.message || NO_REBASE_REASON;
 }
 
-// The same two fields the row's Out of date badge reads.
-function isOutOfDate(item: RebaseRow): boolean {
-  return item.behind === true && item.empty !== true;
-}
-
 export function rebaseAllPlan<T extends RebaseRow>(
   items: readonly T[],
   { blockedReason, requested }: PlanOptions<T>,
@@ -83,7 +77,7 @@ export function rebaseAllPlan<T extends RebaseRow>(
   let failing = 0;
   for (const item of items) {
     if (isFailing(item)) failing++;
-    if (!isOutOfDate(item)) continue;
+    if (item.outOfDate !== true) continue;
     behind++;
     if (requested?.(item)) {
       leftOut.push({ item, reason: REQUESTED_REASON });

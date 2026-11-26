@@ -1,4 +1,4 @@
-// A stand-in for the server's `allowedActions`, `status` and `kind` on mocked
+// A stand-in for the server's `allowedActions`, `status`, `kind` and `outOfDate` on mocked
 // snapshots (#805, #1375).
 //
 // The real server works out which actions each pull request offers
@@ -36,6 +36,7 @@ export type StandInPR = {
   allowedActions?: unknown;
   status?: StandInStatus | null;
   kind?: string;
+  outOfDate?: boolean;
   stackedOn?: { number?: number } | null;
   headBranch?: string;
 };
@@ -63,6 +64,7 @@ export type Fixture = {
     allowedActions: StandInEntry[];
     status: StandInStatus | null;
     kind: string;
+    outOfDate: boolean;
   }[];
   table: number[];
 };
@@ -135,6 +137,17 @@ export function statusFor(pr: StandInPR): StandInStatus | null {
   return structuredClone(outputFor(fixtureData, pr).status);
 }
 
+// The server's `outOfDate` for a pull request (#4993). Only behind and empty
+// change it, so it is looked up on those two and never held to the table's
+// other axes.
+export function outOfDateFor(pr: StandInPR): boolean {
+  return outputFor(fixtureData, {
+    forge: pr.forge,
+    behind: pr.behind,
+    empty: pr.empty,
+  }).outOfDate;
+}
+
 export function kindFor(pr: StandInPR): string {
   return outputFor(fixtureData, pr).kind;
 }
@@ -171,6 +184,15 @@ export function installAllowedActionsStandIn(
           pr.status = structuredClone(answer().status);
         // A mock that states its own kind is left alone.
         if (pr.kind === undefined) pr.kind = answer().kind;
+        // The Out of date answer, from the same table (#4993). It depends on
+        // behind and empty alone, so it is looked up on those and a mock with
+        // an unusual head branch or merge status still gets it.
+        if (pr.outOfDate === undefined)
+          pr.outOfDate = lookup(table, {
+            forge: pr.forge,
+            behind: pr.behind,
+            empty: pr.empty,
+          }).outOfDate;
       }
     // The server flags a bot's housekeeping issue and counts the rest
     // (#980). A mocked issue that states its own flag is left alone.
