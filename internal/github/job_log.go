@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/hostname"
 	ghsdk "github.com/google/go-github/v75/github"
 )
 
@@ -220,7 +221,7 @@ func dialAddress(u *url.URL) string {
 		}
 	}
 
-	return net.JoinHostPort(strings.ToLower(u.Hostname()), port)
+	return net.JoinHostPort(hostname.Fold(u.Hostname()), port)
 }
 
 // logBlobClient is the one token-free client every blob download shares, so
@@ -298,7 +299,7 @@ func (c *Client) logTransport() *http.Transport {
 			return pu, nil
 		},
 		DialContext: func(ctx context.Context, network, address string) (net.Conn, error) {
-			if _, isProxy := proxies.Load(address); isProxy || strings.EqualFold(address, apiHost) {
+			if _, isProxy := proxies.Load(address); isProxy || hostname.Equal(address, apiHost) {
 				return open.DialContext(ctx, network, address)
 			}
 

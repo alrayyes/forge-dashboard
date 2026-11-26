@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/hostname"
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -74,7 +75,7 @@ func avatarProxyFor(forgeProxy *imageproxy.Proxy, kind imageKind, raw string) *i
 		return forgeProxy
 	}
 	u, err := url.Parse(raw)
-	if err != nil || !slices.Contains(federatedAvatarHosts, strings.ToLower(u.Host)) {
+	if err != nil || !slices.Contains(federatedAvatarHosts, hostname.Fold(u.Host)) {
 		return forgeProxy
 	}
 
@@ -304,7 +305,7 @@ func isSignedAttachment(prefix, origin, raw string) bool {
 		home.Scheme, home.Host = o.Scheme, o.Host
 	}
 
-	return u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) && cleanPath(u) && strings.HasPrefix(u.Path, home.Path)
+	return u.Scheme == home.Scheme && hostname.Equal(u.Host, home.Host) && cleanPath(u) && strings.HasPrefix(u.Path, home.Path)
 }
 
 // cleanPath reports whether the link's path is already in its resolved form: no

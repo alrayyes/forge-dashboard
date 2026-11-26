@@ -480,6 +480,7 @@ func TestDialAddress_FillsTheDefaultPortAndLowercasesTheHost(t *testing.T) {
 		"https://GHES.example.com/api/v3/": "ghes.example.com:443",
 		"http://ghes.example.com/":         "ghes.example.com:80",
 		"https://ghes.example.com:8443/":   "ghes.example.com:8443",
+		"https://K.example.com/":           "K.example.com:443",
 	} {
 		u, err := url.Parse(in)
 		if err != nil {

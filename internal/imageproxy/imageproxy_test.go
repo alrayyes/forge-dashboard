@@ -475,6 +475,21 @@ func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
 	}
 }
 
+// Host names are matched ignoring ASCII case and nothing wider.
+func TestFetch_FoldsOnlyASCIICaseInHostNames(t *testing.T) {
+	t.Parallel()
+	p := imageproxy.New(imageproxy.Config{Hosts: []string{"Img.Example", "k.example"}, Scheme: "https"})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.Fetch(ctx, "https://IMG.example/a.png")
+	require.NotErrorIs(t, err, imageproxy.ErrHostNotAllowed)
+	for _, raw := range []string{"https://İmg.example/a.png", "https://K.example/a.png"} {
+		_, err := p.Fetch(ctx, raw)
+		require.ErrorIs(t, err, imageproxy.ErrHostNotListed, "%q", raw)
+	}
+}
+
 func TestFetchMax_RefusesAnImageOverTheGivenLimit(t *testing.T) {
 	t.Parallel()
 	big := append(append([]byte{}, onePixelPNG...), make([]byte, 2048)...)

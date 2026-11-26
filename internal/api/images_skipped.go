@@ -3,9 +3,10 @@ package api
 import (
 	"net/url"
 	"slices"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/hostname"
 )
 
 const (
@@ -40,7 +41,7 @@ func (s *skippedAvatars) noteURL(raw string) {
 	if err != nil || u.Host == "" {
 		return
 	}
-	s.note(strings.ToLower(u.Host))
+	s.note(hostname.Fold(u.Host))
 }
 
 func (s *skippedAvatars) note(host string) {
@@ -72,7 +73,7 @@ func (s *skippedAvatars) hosts(instanceHost string) []string {
 
 			continue
 		}
-		if h != strings.ToLower(instanceHost) {
+		if h != hostname.Fold(instanceHost) {
 			out = append(out, h)
 		}
 	}
