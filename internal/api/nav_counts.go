@@ -77,9 +77,7 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 			}
 		case dashboard.CISuccess:
 			page.Passed++
-			// The reading the row's Out of date badge uses: behind with
-			// something left to merge.
-			if pr.Kind == dashboard.KindDependency && pr.Behind && !pr.Empty {
+			if pr.countsAsBehind() {
 				page.Behind++
 			}
 		case dashboard.CICancelled:
@@ -91,6 +89,19 @@ func buildNavCounts(pullRequests []pullRequestView, openIssues int) navCounts {
 	counts.Issues.Total = openIssues
 
 	return counts
+}
+
+// countsAsBehind is the one rule for a green dependency pull request that is
+// behind its base branch with something left to merge, the reading the row's
+// Out of date badge uses (#4990). It is the Bots menu pill's Behind number and
+// the greenBehindBase field each pull request carries, which the behind chip
+// filters on, so the page holds no copy. A draft or a hidden pull request is
+// left out, as the pill leaves it out of every number.
+func (pr pullRequestView) countsAsBehind() bool {
+	return !pr.Draft && !pr.Hidden &&
+		pr.Kind == dashboard.KindDependency &&
+		pr.CI == dashboard.CISuccess &&
+		pr.Behind && !pr.Empty
 }
 
 // hiddenDraftCounts is how many drafts the board left out, per page that lists
