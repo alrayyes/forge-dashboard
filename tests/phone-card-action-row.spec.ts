@@ -55,7 +55,7 @@ const cases = [
   { name: 'Merge', overrides: {} },
   {
     name: 'a locked Merge',
-    overrides: { ci: 'failure', mergeStatus: 'blocked' },
+    overrides: { draft: true, mergeStatus: 'blocked' },
   },
 ];
 
@@ -88,7 +88,7 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 900 });
-  const row = await open(page, pr({ ci: 'failure', mergeStatus: 'blocked' }));
+  const row = await open(page, pr({ draft: true, mergeStatus: 'blocked' }));
   const bar = row.locator('.row-action-bar');
   const button = bar.getByRole('button', { name: 'Merge' });
   await expect(button).toHaveAttribute('aria-disabled', 'true');
@@ -98,12 +98,46 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   expect(describedBy).toBeTruthy();
   const status = page.locator(`[id="${describedBy}"]`);
   await expect(status).toBeVisible();
-  await expect(status).toContainText('CI is failing');
+  await expect(status).toContainText('Draft pull request');
   const statusBox = await status.boundingBox();
   const barBox = await bar.boundingBox();
   expect((statusBox?.y ?? 0) + (statusBox?.height ?? 0)).toBeLessThanOrEqual(
     (barBox?.y ?? 0) + 1,
   );
+});
+
+// Known gap: failing CI stacked behind a higher-priority reason. A draft whose
+// CI also fails keeps its locked Merge, and the status says the draft reason,
+// not the failing CI. This pins today's behaviour.
+test('a draft with failing CI keeps the locked Merge and the draft reason', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const row = await open(
+    page,
+    pr({ draft: true, ci: 'failure', mergeStatus: 'blocked' }),
+  );
+  const button = row.locator('.row-action-bar').getByRole('button', {
+    name: 'Merge',
+  });
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  const describedBy = await button.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  await expect(page.locator(`[id="${describedBy}"]`)).toContainText(
+    'Draft pull request',
+  );
+});
+
+// #4953: failing CI never offers Merge, armed or not. The status block says
+// why, once, as visible text.
+test('a failing-CI row draws no Merge and says why in the status block', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const row = await open(page, pr({ ci: 'failure', mergeStatus: 'blocked' }));
+  await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+  await expect(row.locator('.row-action-locked')).toHaveCount(0);
+  await expect(row.getByText('CI is failing')).toBeVisible();
 });
 
 test('a plain Merge is centred by the phone bar rule, full width', async ({

@@ -67,6 +67,7 @@
     showsBehindPill,
     showsBehindStatus,
   } from "#lib/behind-signals.js";
+  import { dropsFailingMerge } from "#lib/failing-merge.js";
   import {
     detailsCache,
     detailsKey,
@@ -4471,6 +4472,9 @@
         // Failing CI with auto-merge stopped: the stopped chip carries the
         // reason, so no button and no printed note (#4944).
         if (stoppedBlockedReason(item)) return null;
+        // Failing CI, armed or not: no Merge on the row. The status block
+        // says why (#4953).
+        if (dropsFailingMerge(merge.blocked.code, idScope === "")) return null;
         // The row says it in the waiting chip, one place only (#4663).
         if (rowWaitOf(item)) return null;
         // A behind Merge whose Update branch is on its way clears by itself:
