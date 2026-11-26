@@ -134,3 +134,22 @@ reaches the forge replaces the mark with its real reachability.
   forge that is starting
 - **THEN** a notice says the app is starting up and the rows are the saved
   ones, and the "forge can't be read" notice is not shown for them
+
+### Requirement: A slow forge's held rows say how old they are
+
+While a forge's cause is `slow`, its health SHALL carry `rowsReadAt`, the time
+of its last full read that answered, and SHALL NOT carry `staleSince` because
+of that cause. The pages with forge health chips SHALL show "Slow to answer,
+showing data from" that age. A forge with no such cause SHALL have neither the
+field nor the line.
+
+#### Scenario: A held pass
+
+- **WHEN** a pass misses its deadline, or is skipped, and the rows are held
+- **THEN** the health carries `rowsReadAt` and a line reads "Slow to answer,
+  showing data from" that age, with no row action locked because of it
+
+#### Scenario: A good read after a held pass
+
+- **WHEN** a later pass answers in time
+- **THEN** the health carries no `rowsReadAt` and the line is gone

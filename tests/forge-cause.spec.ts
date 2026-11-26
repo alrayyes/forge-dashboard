@@ -11,7 +11,8 @@ type Health = Record<string, unknown>;
 
 const savedAt = () => new Date(Date.now() - 5 * 60_000).toISOString();
 const good = () => forgeHealth('github');
-const slow = () => forgeHealth('github', { cause: 'slow' });
+const slow = () =>
+  forgeHealth('github', { cause: 'slow', rowsReadAt: savedAt() });
 const starting = () =>
   forgeHealth('github', {
     reachable: false,
@@ -83,8 +84,10 @@ test.describe('forge cause (#4998)', () => {
     await serve(page, state);
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto('/pull-requests.html');
+    const age = page.locator('#forge-health .forge-health-stale');
 
     await expect(status(page)).toHaveText('Slow to answer');
+    await expect(age).toHaveText('Slow to answer, showing data from 5m ago');
     await expect(page.locator('#forge-health')).toContainText(
       'GitHub slow to answer',
     );
@@ -99,6 +102,33 @@ test.describe('forge cause (#4998)', () => {
     await expect(page.locator('#forge-health')).not.toContainText(
       'slow to answer',
     );
+    await expect(age).toHaveCount(0);
+  });
+
+  // The age counts on while nothing else changes (#5023).
+  test('the age of held rows ticks without a new read', async ({ page }) => {
+    await page.clock.install({ time: new Date() });
+    const body = JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      forges: [slow()],
+      pullRequests: [],
+      issues: [],
+    });
+    await page.route('**/api/v1/dashboard*', (route: Route) =>
+      route.request().url().includes('/stream')
+        ? route.abort()
+        : route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body,
+          }),
+    );
+    await page.goto('/pull-requests.html');
+    const age = page.locator('#forge-health .forge-health-stale');
+    await expect(age).toContainText('5m ago');
+
+    await page.clock.fastForward(120_000);
+    await expect(age).toContainText('7m ago');
   });
 
   test('a forge that goes from slow to down shows the unreachable banner', async ({

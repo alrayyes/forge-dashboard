@@ -132,10 +132,22 @@
 <!-- Rows held from an earlier read: the forge is reachable but not fresh. -->
 <Story
   name="Slow to answer"
-  args={{ forges: [{ forge: "github", reachable: true, cause: "slow" }] }}
+  args={{
+    forges: [
+      {
+        forge: "github",
+        reachable: true,
+        cause: "slow",
+        rowsReadAt: "2026-01-01T00:00:00Z",
+      },
+    ],
+  }}
   play={async ({ canvasElement }) => {
     const chip = canvasElement.querySelector(".forge-health.slow");
     await expect(chip?.textContent?.trim()).toBe("GitHub slow to answer");
+    await expect(
+      canvasElement.querySelector(".forge-health-stale")?.textContent,
+    ).toMatch(/^Slow to answer, showing data from /);
   }}
 />
 

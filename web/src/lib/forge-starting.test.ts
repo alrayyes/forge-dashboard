@@ -8,6 +8,7 @@ import {
   isStartupGap,
   isUnreachable,
   needsChip,
+  rowsAgeSince,
   splitStaleRows,
   staleNote,
 } from './forge-starting';
@@ -178,9 +179,24 @@ describe('a slow forge (#4998)', () => {
     expect(isOutage(slow)).toBe(false);
   });
 
-  // The server holds a slow forge's last good health, which has no
-  // staleSince, so there is no age to word.
-  test('draws no age line', () => {
-    expect(staleNote(slow, '3m ago')).toBeNull();
+  const readAt = '2026-01-02T03:04:05Z';
+
+  // The server says when the held rows were read (#5023).
+  test('says how old the held rows are', () => {
+    const held = { ...slow, rowsReadAt: readAt };
+    expect(rowsAgeSince(held)).toBe(readAt);
+    expect(staleNote(held, '3m ago')).toBe(
+      'Slow to answer, showing data from 3m ago',
+    );
+  });
+
+  test('has no age to word without rowsReadAt', () => {
+    expect(rowsAgeSince(slow)).toBeUndefined();
+  });
+
+  test('other states age their rows from staleSince', () => {
+    const down = { forge: 'github', reachable: false, staleSince: readAt };
+    expect(rowsAgeSince(down)).toBe(readAt);
+    expect(rowsAgeSince({ ...down, starting: true })).toBe(readAt);
   });
 });

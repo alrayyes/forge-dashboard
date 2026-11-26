@@ -526,6 +526,8 @@
     // Set with reachable: false when the rows shown are the last good ones
     // (#933): when that data was fetched.
     staleSince?: string;
+    // When a slow forge's held rows were read.
+    rowsReadAt?: string;
     // What the forge's status page reports while it is unreachable (#3633).
     providerStatus?: ProviderStatus;
   };
