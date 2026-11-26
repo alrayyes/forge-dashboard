@@ -340,7 +340,7 @@ update-branch-on-row.spec.ts,4.504,13,5,C,,2.8
 update-branch-request.spec.ts,3.033,8,0,C,,3.0
 upstream-error-banner.spec.ts,1.289,2,1,A,,0.6
 wait-chip-desktop.spec.ts,13.418,10,7,A,web/src/lib/wait-chip.test.ts,4.0
-wait-chip.spec.ts,19.484,19,6,C,web/src/lib/wait-chip.test.ts,13.3
+wait-chip.spec.ts,19.484,19,6,C,web/src/lib/wait-chip.test.ts;web/src/lib/wait-chip-swap.test.ts,13.3
 waiting-for-ci-once.spec.ts,15.073,15,5,C,,10.0
 webmcp.spec.ts,1.519,7,6,A,web/src/lib/webmcp-parity.test.ts;web/src/lib/webmcp-tools.test.ts,0.2
 wide-screen-title.spec.ts,4.134,6,3,A,,2.1
