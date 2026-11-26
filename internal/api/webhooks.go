@@ -26,9 +26,9 @@ const maxWebhookBodyBytes = 5 << 20 // 5 MiB
 // handleGitHubWebhook verifies a GitHub repository webhook delivery
 // against its signature header and triggers an immediate refresh when
 // webhookToken matches. The headers are read by the github adapter.
-func handleGitHubWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
+func handleGitHubWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context), buildSources func(settings.Credentials) []dashboard.Source) http.HandlerFunc {
 	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeGitHub,
-		github.WebhookSignature, github.WebhookDelivery)
+		github.WebhookSignature, github.WebhookDelivery, buildSources)
 }
 
 // handleForgejoWebhook verifies a Forgejo repository webhook delivery and
@@ -36,7 +36,7 @@ func handleGitHubWebhook(appCtx context.Context, store *settings.Store, service 
 // including the legacy Gitea-named ones, are read by the forgejo adapter.
 func handleForgejoWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context)) http.HandlerFunc {
 	return handleWebhook(appCtx, store, service, warmUp, dashboard.ForgeForgejo,
-		forgejo.WebhookSignature, forgejo.WebhookDelivery)
+		forgejo.WebhookSignature, forgejo.WebhookDelivery, nil)
 }
 
 // webhookPayload is the piece of a webhook delivery's body every event
@@ -203,7 +203,7 @@ func settleFromDelivery(service *dashboard.Service, forge dashboard.Forge, body 
 // forge fetch along with it. The delivery is acknowledged as soon as it's
 // verified; the refresh it triggers survives the delivery ending either
 // way.
-func handleWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string)) http.HandlerFunc {
+func handleWebhook(appCtx context.Context, store *settings.Store, service *dashboard.Service, warmUp func(context.Context), forge dashboard.Forge, signatureOf func(http.Header) string, deliveryOf func(http.Header) (id, event string), buildSources func(settings.Credentials) []dashboard.Source) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		token := r.PathValue("webhookToken")
 		delivery, event := deliveryOf(r.Header)
@@ -233,6 +233,14 @@ func handleWebhook(appCtx context.Context, store *settings.Store, service *dashb
 		if !validSignature(body, secret, signatureOf(r.Header)) {
 			slog.Warn("webhook signature invalid", "forge", forge, "event", event, "delivery", delivery)
 			writeJSON(w, http.StatusUnauthorized, errorBody("invalid webhook signature"))
+
+			return
+		}
+
+		if wantsInstallationUpdate(forge, event, buildSources) {
+			slog.Info("webhook accepted", "forge", forge, "event", event, "delivery", delivery)
+			applyInstallationDelivery(appCtx, store, service, buildSources, event, body)
+			w.WriteHeader(http.StatusNoContent)
 
 			return
 		}

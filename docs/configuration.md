@@ -265,8 +265,18 @@ fails them all together: the dashboard then falls back to a saved token, and
 with none it reports GitHub as unreachable. A repo is read through
 one installation: if two see the same repo, the first one added keeps it. An
 action on a repo no installation has reported yet is refused with a 404. The
-"waiting for owner approval" state and webhook updates are not built yet, and
-neither is the Settings screen.
+"waiting for owner approval" state and the Settings screen are not built yet.
+
+**Keeping the list current.** Point the App's webhook at the dashboard's GitHub
+webhook URL, with the same secret (see [webhooks.md](webhooks.md)), and
+subscribe it to the **Installation** and **Installation repositories** events.
+A signed `installation` delivery then updates the list: `created` adds the row
+with its account, `deleted` removes it, `suspend` marks it suspended and stops
+reads from using it, and `unsuspend` lifts that. The dashboard rebuilds its
+sources after each, so the board follows. A delivery of `installation_repositories`
+for a known installation makes the dashboard read its repositories
+again. Deliveries for an installation it doesn't know, and other actions, are
+acknowledged and ignored.
 
 This is the sign-in half only. The dashboard doesn't yet use the linked
 account to read your repositories, and the Settings screen for it is not built;
