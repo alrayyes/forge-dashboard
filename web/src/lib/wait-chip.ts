@@ -680,8 +680,20 @@ function attachSwap(
   button.addEventListener('blur', () => {
     focused = false;
     tapped = false;
+    clearTimeout(timer);
     render();
   });
+  // A tap reveal gives itself up after a few seconds, so a chip left alone on
+  // a phone goes back to the wait. A chip the row has since redrawn is gone
+  // from the page; its timer does nothing.
+  const holdReveal = () => {
+    tapped = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      tapped = false;
+      if (root.isConnected) render();
+    }, 5000);
+  };
   button.addEventListener('click', (event) => {
     const phase = swap.phase();
     if (phase === 'inflight') return;
@@ -691,17 +703,10 @@ function attachSwap(
       locked: phase === 'locked',
     });
     if (outcome === 'reveal') {
-      tapped = true;
-      clearTimeout(timer);
-      // A reveal gives itself up after a few seconds, so a chip left alone
-      // on a phone goes back to the wait.
-      timer = setTimeout(() => {
-        tapped = false;
-        render();
-      }, 5000);
+      holdReveal();
       say('Update branch is ready. Activate again to run it.');
     } else if (outcome === 'explain') {
-      tapped = true;
+      holdReveal();
       say(`Update branch is locked. ${swap.reason()}`);
     } else {
       tapped = false;
@@ -709,6 +714,8 @@ function attachSwap(
       swap.run();
       say('Updating branch.');
     }
+    // Read again: running it makes the real button pending at once, so a
+    // second activation lands on a chip that already says it is updating.
     render();
   });
   render();

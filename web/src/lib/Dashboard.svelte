@@ -261,6 +261,11 @@
     requestedAnnouncement,
     type WaitKind,
   } from "#lib/wait-chip.js";
+  import {
+    swapPhaseOf,
+    swapSourceOf,
+    type SourceLike,
+  } from "#lib/wait-chip-swap.js";
   import type { RevealOutcome } from "#lib/feedback-ui.js";
   import {
     budgetText,
@@ -1749,15 +1754,21 @@
     function waitSwapOf(pr: PullRequestItem): SwapDrawing | undefined {
       if (idScope !== "" || isSettled(pr)) return undefined;
       const cell = updateBranchBesidePrimary(pr);
-      const real = cell?.querySelector<HTMLButtonElement>("button");
+      const real = swapSourceOf(cell as (HTMLElement & SourceLike) | null) as
+        HTMLButtonElement | undefined;
       if (!cell || !real) return undefined;
+      // The real button goes pending the moment it is clicked, so "in flight"
+      // is what this chip did, not a word on the button.
+      let ran = false;
       return {
-        phase: () =>
-          real.getAttribute("aria-disabled") !== "true"
-            ? "idle"
-            : real.textContent === "Queued…"
-              ? "inflight"
-              : "locked",
+        phase: () => {
+          const phase = swapPhaseOf({
+            disabled: real.getAttribute("aria-disabled") === "true",
+            ran,
+          });
+          if (phase === "idle") ran = false;
+          return phase;
+        },
         reason: () => {
           const id = real.getAttribute("aria-describedby");
           const node = id
@@ -1766,7 +1777,10 @@
             : null;
           return node?.textContent?.trim() ?? "";
         },
-        run: () => real.click(),
+        run: () => {
+          ran = true;
+          real.click();
+        },
       };
     }
 
