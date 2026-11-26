@@ -56,7 +56,7 @@ jobs:
       # shards and the e2e job expects one blob report from each.
       - name: list the e2e shards
         id: shards
-        run: echo 'list=[1,2,3,4,5,6,7,8]' >> "$GITHUB_OUTPUT"
+        run: echo 'list=[1,2,3,4,5,6,7,8,9,10]' >> "$GITHUB_OUTPUT"
       - name: test the mapping
         run: scripts/test-changed-areas.sh
       - name: test the release type check
@@ -350,8 +350,11 @@ jobs:
     # Balanced six-way, the same shard's test step still took 526s in run
     # 45578193434 and 368s in run 45582471951, and the slowest shard job ran
     # 599s, 598s and 597s in runs 45569093304, 45503741725 and 45573746412,
-    # about three seconds under this limit. Eight shards cut each shard's
-    # share by a quarter. Refresh the durations file from a green run
+    # about three seconds under this limit. Eight shards still left the
+    # slowest at a median of 8m31 over seven main runs: about a quarter of
+    # runners run the same specs a third slower, which no split can plan for,
+    # so each shard's share has to be small enough for a slow one. Hence ten.
+    # Refresh the durations file from a green run
     # (CONTRIBUTING.md), and raise the shard list (the `changes` job's
     # `e2e_shards` step is the only place) before this limit, never to hide a
     # suite growing back toward it.
