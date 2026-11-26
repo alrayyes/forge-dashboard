@@ -232,13 +232,14 @@ test.describe('the row follows allowedActions (#805)', () => {
       page,
       makePR({
         draft: true,
-        ci: 'failure',
+        ci: 'success',
         mergeStatus: 'blocked',
         allowedActions: [{ action: 'merge' }, { action: 'close' }],
       }),
     );
 
     // Not primary, so the row draws no Merge; the pop-up's footer has it.
+    // (CI is not failing: failing CI offers no Merge anywhere.)
     const merge = (await footerOf(row)).getByRole('button', {
       name: 'Merge',
       exact: true,

@@ -135,26 +135,26 @@ test.describe('pull request merge button', () => {
     await expect(row).not.toContainText(/waiting for ci|merge after ci/i);
   });
 
-  test('a mergeable pull request whose CI failed offers Merge in the pop-up, not on the row', async ({
-    page,
-  }) => {
-    await mockDashboard(
+  // #4975: failing CI offers no Merge on any surface, whatever else is true.
+  for (const [name, overrides] of [
+    ['a mergeable pull request', { mergeStatus: 'mergeable' }],
+    ['a draft', { draft: true, mergeStatus: 'mergeable' }],
+    ['a conflicting pull request', { mergeStatus: 'conflicting' }],
+  ] as const) {
+    test(`${name} whose CI failed offers no Merge, on the row or in the pop-up`, async ({
       page,
-      makePR({ mergeStatus: 'mergeable', ci: 'failure' }),
-    );
-    await page.goto('/pull-requests.html');
+    }) => {
+      await mockDashboard(page, makePR({ ...overrides, ci: 'failure' }));
+      await page.goto('/pull-requests.html');
 
-    // The server doesn't mark Merge primary while CI is failing, so the row
-    // draws no button; the footer still offers it, unlocked.
-    const row = page.locator('#pr-rows .row').first();
-    await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
-    const merge = actionsFooter(await openActionsDialog(row)).getByRole(
-      'button',
-      { name: 'Merge', exact: true },
-    );
-    await expect(merge).toBeVisible();
-    await expect(merge).not.toHaveAttribute('aria-disabled', 'true');
-  });
+      const row = page.locator('#pr-rows .row').first();
+      await expect(row.getByRole('button', { name: 'Merge' })).toHaveCount(0);
+      const footer = actionsFooter(await openActionsDialog(row));
+      await expect(
+        footer.getByRole('button', { name: 'Merge', exact: true }),
+      ).toHaveCount(0);
+    });
+  }
 
   // #543: a mergeable pull request whose diff against its base is already
   // empty (content landed some other way) used to show a fully clickable Merge

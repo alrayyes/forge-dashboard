@@ -4468,13 +4468,19 @@
         readOnlyBecauseRateLimited(proactiveActionLockReason(item.forge))
       )
         return null;
+      // Failing CI, armed or not, whatever else holds it back: no Merge on
+      // the row, the phone card or the pop-up's footer. A Merge already
+      // confirming or running stays. The pill's own reading of the jobs
+      // decides, so the three surfaces agree with it (#4953, #4975).
+      if (
+        (mergeState[prKey(item)]?.phase ?? "idle") === "idle" &&
+        dropsFailingMerge(ciModel(item).status, merge.blocked?.code)
+      )
+        return null;
       if (merge.blocked) {
         // Failing CI with auto-merge stopped: the stopped chip carries the
         // reason, so no button and no printed note (#4944).
         if (stoppedBlockedReason(item)) return null;
-        // Failing CI, armed or not: no Merge on the row. The status block
-        // says why (#4953).
-        if (dropsFailingMerge(merge.blocked.code, idScope === "")) return null;
         // The row says it in the waiting chip, one place only (#4663).
         if (rowWaitOf(item)) return null;
         // A behind Merge whose Update branch is on its way clears by itself:
