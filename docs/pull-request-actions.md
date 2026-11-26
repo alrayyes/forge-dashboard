@@ -105,16 +105,27 @@ said once, as the same one-line chip an armed auto-merge uses: "Waiting for CI"
 or "Checking for conflicts", with an Auto-merge button inside it where the
 server offers auto-merge (it does while CI runs). Armed, the button reads Cancel
 auto-merge and takes the same place. There is no locked Merge and no dashed
-placeholder, and Update branch stays a button beside the chip. The longer
+placeholder. Where the chip is the wait on CI and Update branch is offered, the
+two share the chip's one slot: its label is the Update branch button. It reads
+"Waiting for CI" and swaps to "Update branch" on mouse hover, keyboard focus or
+a first touch tap, with no change in width. Enter, Space and a screen reader's
+click run it at once, a second touch tap runs it, and a locked Update branch
+keeps `aria-disabled` and gives its reason as the button's description and
+title. A lock that offers Retry keeps the row's plain Retry button. Every other
+armed chip (review, a parent, a draft, a rate limit) keeps its own words and the
+plain Update branch button beside it. Cancel auto-merge stays its own button.
+The longer
 explanation is the chip's tooltip, which opens on hover and on keyboard focus
 and is the chip's accessible description, so a keyboard, a touch screen and a
 screen reader all get it. At 1280 and 1024 pixels a waiting row with the
 Auto-merge button is no taller than a normal one, with a comment pill, Update
 branch or a bot's rebase beside the chip too: the status column widens for
-those. A chip with a detail line, such as an armed chip or a bot rebase's, is
-wider than the title can spare, so with an action beside it the row keeps the
-stacked, taller cell. An armed row's "Auto-merge" label under the title also
-still adds a line to the row. The Pull requests, Releases and Bots pages share
+those. A comment pill with the shared Update branch slot keeps the chip on a
+line of its own below 94rem, as it does beside the button. A chip with a detail
+line, such as an armed chip or a bot rebase's, is wider than the title can
+spare, so with an action beside it the row keeps the stacked, taller cell.
+An armed row's "Auto-merge" label under the title also still adds a line to the
+row. The Pull requests, Releases and Bots pages share
 the row, so they share the chip. When the forge allows the merge, Merge takes
 the slot back, and a screen reader hears "Merge is available." only if focus is
 in that row. The pop-up's footer has no chip, so it keeps the words as a line of

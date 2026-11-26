@@ -13,6 +13,13 @@
 
 import { forgeFlag, forgeLabelOf } from './forges';
 import { tipDismiss } from './tip-dismiss';
+import {
+  type SwapPhase,
+  swapDetail,
+  swapLabel,
+  swapName,
+  tapOutcome,
+} from './wait-chip-swap';
 
 // How long a wait runs with no change before the chip says so.
 export const STILL_WAITING_MS = 120_000;
@@ -575,7 +582,169 @@ export type ChipDrawing = {
   resets?: HTMLElement;
   // The id of the tooltip, when something else on the row is described by it.
   tipId?: string;
+  // The chip's words become the Update branch control (#4942). The caller
+  // owns the real button; this only asks it to run and reads how it stands.
+  swap?: SwapDrawing;
 };
+
+export type SwapDrawing = {
+  // Where the real Update branch button stands now.
+  phase: () => SwapPhase;
+  // Why it is locked, read when the swap shows.
+  reason: () => string;
+  // Runs Update branch. Returns once the request is made.
+  run: () => void;
+};
+
+// The chip's label is the control (#4942): it shows the wait, and shows
+// Update branch on mouse hover, keyboard focus or a first touch tap. Enter,
+// Space and a screen reader's click run it at once (#4531). The Cancel button
+// beside it is untouched. One accessible name, one status line per action.
+function attachSwap(
+  root: HTMLElement,
+  text: HTMLElement,
+  detail: HTMLElement,
+  swap: SwapDrawing,
+) {
+  const labelEl = text.querySelector<HTMLElement>('.wait-chip-label');
+  if (!labelEl) return;
+  const waitWords = labelEl.textContent ?? '';
+  const idleParts = Array.from(detail.childNodes);
+  const idleDetail = detail.textContent ?? '';
+
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'wait-chip-swap';
+  // Sizers hold the widest label so the words swap without moving anything.
+  const sizers = ['Waiting for CI', 'Update branch', 'Updating branch…'].map(
+    (w) => span('wait-chip-sizer', w),
+  );
+  labelEl.replaceWith(button);
+  for (const s of sizers) button.appendChild(s);
+  button.appendChild(labelEl);
+  const reasonId = `${root.id || `wait-chip-swap-${chipCounter++}`}-reason`;
+  const reason = span('sr-only');
+  reason.id = reasonId;
+  const status = span('sr-only');
+  status.setAttribute('role', 'status');
+  root.appendChild(reason);
+  root.appendChild(status);
+  button.setAttribute('aria-describedby', reasonId);
+
+  let hovered = false;
+  let focused = false;
+  let tapped = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const render = () => {
+    const phase = swap.phase();
+    const revealed = hovered || focused || tapped;
+    labelEl.textContent = swapLabel({
+      revealed: revealed && phase !== 'locked',
+      inFlight: phase === 'inflight',
+    });
+    if (phase === 'locked' && revealed) labelEl.textContent = 'Update branch';
+    const why = phase === 'locked' ? swap.reason() : '';
+    // A chip with no second line stays one line: a line that appeared on
+    // hover would resize the status column and squeeze the title (#4795). A
+    // locked reason is then the button's title and its description.
+    const line =
+      idleDetail === '' && phase !== 'inflight'
+        ? idleDetail
+        : swapDetail({ phase, revealed, idleDetail, reason: why });
+    if (phase === 'locked') button.title = why;
+    else button.removeAttribute('title');
+    if (line === idleDetail) detail.replaceChildren(...idleParts);
+    else detail.textContent = line;
+    button.setAttribute('aria-label', swapName(phase));
+    button.setAttribute('aria-disabled', String(phase !== 'idle'));
+    if (phase === 'inflight') button.setAttribute('aria-busy', 'true');
+    else button.removeAttribute('aria-busy');
+    reason.textContent = `${waitWords}.${phase === 'locked' ? ` Update branch is locked. ${why}` : ''}`;
+    root.dataset.swap = revealed && phase === 'idle' ? 'revealed' : phase;
+  };
+  const say = (words: string) => {
+    status.textContent = words;
+  };
+
+  button.addEventListener('pointerenter', (e) => {
+    if (e.pointerType !== 'mouse') return;
+    hovered = true;
+    render();
+  });
+  button.addEventListener('pointerleave', () => {
+    hovered = false;
+    render();
+  });
+  button.addEventListener('focus', () => {
+    focused = button.matches(':focus-visible');
+    render();
+  });
+  button.addEventListener('blur', () => {
+    focused = false;
+    tapped = false;
+    clearTimeout(timer);
+    render();
+  });
+  // A tap reveal gives itself up after a few seconds, so a chip left alone on
+  // a phone goes back to the wait. A chip the row has since redrawn is gone
+  // from the page; its timer does nothing.
+  const holdReveal = () => {
+    tapped = true;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      tapped = false;
+      if (root.isConnected) render();
+    }, 5000);
+  };
+  button.addEventListener('click', (event) => {
+    const phase = swap.phase();
+    if (phase === 'inflight') return;
+    // A row rebuilt under a resting mouse never saw pointerenter, so ask the
+    // page: a click on a chip the pointer is already over is not a first tap.
+    // Mouse only: a touch can leave :hover stuck, and its first tap must reveal.
+    if (
+      (event as PointerEvent).pointerType === 'mouse' &&
+      button.matches(':hover')
+    )
+      hovered = true;
+    const outcome = tapOutcome({
+      revealed: hovered || focused || tapped,
+      detail: event.detail,
+      locked: phase === 'locked',
+    });
+    if (outcome === 'reveal') {
+      holdReveal();
+      say('Update branch is ready. Activate again to run it.');
+    } else if (outcome === 'explain') {
+      holdReveal();
+      say(`Update branch is locked. ${swap.reason()}`);
+    } else {
+      tapped = false;
+      clearTimeout(timer);
+      swap.run();
+      say('Updating branch.');
+    }
+    // Read again: running it makes the real button pending at once, so a
+    // second activation lands on a chip that already says it is updating.
+    render();
+  });
+  render();
+  // A row rebuilt under a resting mouse never saw pointerenter. Once the chip
+  // is on the page, ask it, so the label says what a click will do. A touch
+  // screen has no hover to seed.
+  requestAnimationFrame(() => {
+    if (
+      !root.isConnected ||
+      hovered ||
+      !matchMedia('(hover: hover) and (pointer: fine)').matches ||
+      !button.matches(':hover')
+    )
+      return;
+    hovered = true;
+    render();
+  });
+}
 
 let chipCounter = 0;
 
@@ -609,6 +778,8 @@ export function buildWaitChip(chip: Chip, drawing: ChipDrawing): HTMLElement {
   });
   text.appendChild(detail);
   root.appendChild(text);
+
+  if (drawing.swap) attachSwap(root, text, detail, drawing.swap);
 
   if (drawing.button) root.appendChild(drawing.button);
 

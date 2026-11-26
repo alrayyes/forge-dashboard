@@ -1,13 +1,17 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import fixture from './generated/behind-status.json';
 import { test } from './server-fixture';
 
-// A pull request with Update branch and an armed Auto-merge chip put the chip
-// on a second line under the button, so its row was two lines tall while the
-// rows around it were one. On a wide list the two now share a line; a
-// narrower one keeps the chip on a line of its own (#4789).
-// https://github.com/alrayyes/forge-dashboard/issues/4784
+// A pull request with Update branch and an armed Auto-merge chip used to put
+// the chip on a second line under the button, so its row was taller than the
+// rows around it (#4784). The chip's label is now the Update branch control
+// (#4942): one chip, one slot, so the row is as tall as an armed row without
+// Update branch at every width, and the title keeps its floor (#4795). The
+// stacked cases #4951 documents are the ones with a separate Update branch
+// button beside the chip; the shared slot has none, so they no longer arise
+// here and `pr-row-action-centre.spec.ts` keeps covering them.
 
 const base = fixture.pullRequests.notStrict as Record<string, unknown>;
 
@@ -44,7 +48,11 @@ const ARMED = {
   },
 };
 
-async function open(page: Page, width: number) {
+async function open(
+  page: Page,
+  width: number,
+  armed: Record<string, unknown> = ARMED,
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -56,7 +64,7 @@ async function open(page: Page, width: number) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests: [PLAIN, ARMED],
+        pullRequests: [PLAIN, armed],
         issues: [],
         openIssueCount: 0,
         repos: [],
@@ -68,51 +76,300 @@ async function open(page: Page, width: number) {
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 }
 
-for (const width of [1700, 1970]) {
-  test.describe(`armed row with Update branch at ${width}px (#4784)`, () => {
-    test('Update branch and the Auto-merge chip share a line and the row is as tall as a plain one', async ({
+const SWAP = 'Waiting for CI, update branch';
+
+// Behind and armed, but Update branch is listed blocked, so it is locked.
+const LOCKED = {
+  ...ARMED,
+  allowedActions: [
+    { action: 'merge' },
+    { action: 'close' },
+    {
+      action: 'update_branch',
+      blocked: {
+        code: 'checks_pending',
+        message: 'Wait for the runs to start',
+      },
+    },
+    { action: 'cancel_auto_merge' },
+  ],
+};
+
+function rowOf(page: Page) {
+  return page.locator('#pr-rows > .row').nth(1);
+}
+
+for (const width of [1100, 1280, 1503, 1700, 1970]) {
+  test.describe(`armed row with Update branch at ${width}px (#4942)`, () => {
+    test('the chip is the one control, on one line, and the row is as tall as a plain one', async ({
       page,
-    }) => {
+    }, info) => {
       await open(page, width);
-      const rows = page.locator('#pr-rows > .row');
-      const update = rows
-        .nth(1)
-        .getByRole('button', { name: 'Update branch', exact: true });
-      await expect(update).toBeVisible();
-      const chip = rows.nth(1).locator('.wait-chip');
-      const u = (await update.boundingBox())!;
-      const c = (await chip.boundingBox())!;
-      expect(Math.abs(u.y + u.height / 2 - (c.y + c.height / 2))).toBeLessThan(
-        4,
-      );
-      const plain = (await rows.nth(0).boundingBox())!.height;
-      const armed = (await rows.nth(1).boundingBox())!.height;
-      expect(armed).toBeLessThanOrEqual(plain + 2);
+      const armed = rowOf(page);
+      await expect(armed.getByRole('button', { name: SWAP })).toBeVisible();
+      await expect(
+        armed.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        armed.getByRole('button', { name: 'Cancel auto-merge' }),
+      ).toBeVisible();
+      const m = await armed.evaluate((r) => {
+        const box = (s: string) => r.querySelector(s)!.getBoundingClientRect();
+        const label = r.querySelector('.wait-chip-label')!;
+        const line = parseFloat(getComputedStyle(label).lineHeight);
+        return {
+          row: r.getBoundingClientRect().height,
+          title: box('.title-cell').width,
+          labelLines: Math.round(box('.wait-chip-label').height / line),
+          chip: box('.wait-chip').height,
+        };
+      });
+      const plain = (await page
+        .locator('#pr-rows > .row')
+        .first()
+        .boundingBox())!.height;
+      info.annotations.push({
+        type: 'measured',
+        description: JSON.stringify({ width, plain, ...m }),
+      });
+      // The label is one line, the title keeps its floor (#4795), and the row
+      // is within a pixel of a row with no wait at all.
+      expect(m.labelLines).toBe(1);
+      expect(m.title).toBeGreaterThanOrEqual(200);
+      expect(Math.abs(m.row - plain)).toBeLessThanOrEqual(1);
     });
   });
 }
 
-// From 1280px up to the last width under 94rem (1503px) a row with labels and
-// Update branch but no pills keeps the chip on a line of its own: on one line
-// the title was 194px, under the 200px floor of #4795.
-for (const width of [1280, 1503]) {
-  test.describe(`armed row with Update branch below 94rem at ${width}px (#4784)`, () => {
-    test('the chip keeps a line of its own, so the title keeps 200px, and the row is one line taller at most', async ({
+test.describe('reaching the swap without a mouse (#4942, #4531)', () => {
+  test('hover reveals Update branch and leaving puts the wait back, with no width change', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await open(page, 1280);
+    const armed = rowOf(page);
+    const chip = armed.locator('.wait-chip');
+    const label = armed.locator('.wait-chip-label');
+    await expect(label).toHaveText('Waiting for CI');
+    const before = (await chip.boundingBox())!.width;
+    const at = (await armed.getByRole('button', { name: SWAP }).boundingBox())!;
+    await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+    await expect(label).toHaveText('Update branch');
+    expect((await chip.boundingBox())!.width).toBe(before);
+    await page.mouse.move(0, 0);
+    await expect(label).toHaveText('Waiting for CI');
+  });
+
+  test('Enter on the focused chip runs Update branch, and Cancel is the next Tab', async ({
+    page,
+  }) => {
+    let updates = 0;
+    await page.route('**/api/v1/pull-requests/update-branch', (route) => {
+      updates++;
+      return route.fulfill({ status: 202 });
+    });
+    await open(page, 1280);
+    const armed = rowOf(page);
+    const swap = armed.getByRole('button', { name: SWAP });
+    await swap.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(swap).toBeFocused();
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
+    await page.keyboard.press('Tab');
+    await expect(
+      armed.getByRole('button', { name: 'Cancel auto-merge' }),
+    ).toBeFocused();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Enter');
+    await expect.poll(() => updates).toBe(1);
+  });
+
+  test('running it hands the row to the queued chip, and a second Enter or Space posts nothing', async ({
+    page,
+  }) => {
+    let updates = 0;
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route('**/api/v1/pull-requests/update-branch', async (route) => {
+      updates++;
+      await gate;
+      await route.fulfill({ status: 202 });
+    });
+    await open(page, 1280);
+    const armed = rowOf(page);
+    await armed.getByRole('button', { name: SWAP }).focus();
+    await page.keyboard.press('Enter');
+    // The row redraws at once with its own queued chip: the swap is gone, so
+    // there is no second control to press (#4942).
+    await expect(
+      armed.getByRole('group', { name: /^Updating branch/ }),
+    ).toBeVisible();
+    await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Space');
+    release();
+    await expect.poll(() => updates).toBe(1);
+  });
+
+  test('a locked Update branch keeps aria-disabled and gives its reason as the description', async ({
+    page,
+  }) => {
+    let updates = 0;
+    await page.route('**/api/v1/pull-requests/update-branch', (route) => {
+      updates++;
+      return route.fulfill({ status: 202 });
+    });
+    await open(page, 1280, LOCKED);
+    const armed = rowOf(page);
+    const swap = armed.getByRole('button', { name: SWAP });
+    await expect(swap).toHaveAttribute('aria-disabled', 'true');
+    await expect(swap).toHaveAccessibleDescription(
+      /Update branch is locked\. Wait for the runs to start/,
+    );
+    await swap.focus();
+    await page.keyboard.press('Enter');
+    // The chip has no second line to give the reason, so it is the title.
+    await expect(swap).toHaveAttribute('title', 'Wait for the runs to start');
+    expect(updates).toBe(0);
+  });
+
+  test('a retryable lock keeps the row its plain Retry button and no swap', async ({
+    page,
+  }) => {
+    // A refused update locks Update branch with a Retry that re-checks the
+    // row. That is a plain button, never the chip's label.
+    await page.route('**/api/v1/pull-requests/update-branch', (route) =>
+      route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          error: 'conflict',
+          code: 'conflict',
+          message: "Can't update cleanly. Resolve the conflict on the forge.",
+        }),
+      }),
+    );
+    await open(page, 1280, ARMED);
+    const armed = rowOf(page);
+    await armed.getByRole('button', { name: SWAP }).focus();
+    await page.keyboard.press('Enter');
+    await expect(armed.getByRole('button', { name: 'Retry' })).toBeVisible();
+    await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
+  });
+});
+
+// The swap says "Waiting for CI", so it is only for that wait (#4942). Any
+// other armed chip keeps its own words and the plain Update branch button.
+for (const [code, label] of [
+  ['stacked', 'Waiting for parent'],
+  ['review_required', ''],
+  ['rate_limited', 'Rate limited'],
+] as const) {
+  test.describe(`armed row waiting on ${code}`, () => {
+    test('keeps its own label and the plain Update branch button', async ({
       page,
     }) => {
-      await open(page, width);
-      const rows = page.locator('#pr-rows > .row');
-      const u = (await rows
-        .nth(1)
-        .getByRole('button', { name: 'Update branch', exact: true })
-        .boundingBox())!;
-      const c = (await rows.nth(1).locator('.wait-chip').boundingBox())!;
-      expect(c.y).toBeGreaterThan(u.y + u.height - 4);
-      const plain = (await rows.nth(0).boundingBox())!.height;
-      const armed = (await rows.nth(1).boundingBox())!.height;
-      expect(armed).toBeLessThanOrEqual(plain + 40);
-      const title = (await rows.nth(1).locator('.title-cell').boundingBox())!;
-      expect(title.width).toBeGreaterThanOrEqual(200);
+      await open(page, 1280, {
+        ...ARMED,
+        autoMerge: { state: 'waiting', code, message: 'Waiting.' },
+      });
+      const armed = rowOf(page);
+      await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
+      await expect(armed.locator('.wait-chip-label')).not.toHaveText(
+        'Waiting for CI',
+      );
+      if (label)
+        await expect(armed.locator('.wait-chip-label')).toHaveText(label);
+      await expect(
+        armed.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toBeVisible();
     });
+  });
+}
+
+// A comments pill and labels leave the title the least room (#4795).
+for (const width of [1000, 1280, 1503]) {
+  test(`comments pill, labels and the swap chip keep the title 200px at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, {
+      ...ARMED,
+      reviewComments: 4,
+      unresolvedThreads: 1,
+    });
+    const armed = rowOf(page);
+    await expect(armed.getByRole('button', { name: SWAP })).toBeVisible();
+    const title = (await armed.locator('.title-cell').boundingBox())!;
+    expect(title.width).toBeGreaterThanOrEqual(200);
+  });
+}
+
+test.describe('touch (#4942)', () => {
+  test.use({ hasTouch: true });
+
+  test('a first tap reveals Update branch, the second runs it', async ({
+    page,
+  }) => {
+    let updates = 0;
+    await page.route('**/api/v1/pull-requests/update-branch', (route) => {
+      updates++;
+      return route.fulfill({ status: 202 });
+    });
+    await open(page, 390);
+    const armed = rowOf(page);
+    const swap = armed.getByRole('button', { name: SWAP });
+    await swap.tap();
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
+    expect(updates).toBe(0);
+    await swap.tap();
+    await expect.poll(() => updates).toBe(1);
+  });
+
+  test('a reveal nobody follows up gives itself up after five seconds', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    await open(page, 390);
+    const armed = rowOf(page);
+    await armed.getByRole('button', { name: SWAP }).tap();
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
+    await page.clock.runFor(5100);
+    await expect(armed.locator('.wait-chip-label')).toHaveText(
+      'Waiting for CI',
+    );
+  });
+
+  test('Cancel auto-merge takes a tap of its own', async ({ page }) => {
+    await open(page, 390);
+    const armed = rowOf(page);
+    await expect(
+      armed.getByRole('button', { name: 'Cancel auto-merge' }),
+    ).toBeVisible();
+    const box = (await armed
+      .getByRole('button', { name: 'Cancel auto-merge' })
+      .boundingBox())!;
+    expect(box.height).toBeGreaterThanOrEqual(24);
+  });
+});
+
+// One scan per distinct state and width: the idle swap row and the locked one.
+for (const width of [390, 1280]) {
+  test(`the swap row has no axe violations at ${width}px (#4942)`, async ({
+    page,
+  }) => {
+    for (const [state, pr] of [
+      ['idle', ARMED],
+      ['locked', LOCKED],
+    ] as const) {
+      await open(page, width, pr);
+      await expect(rowOf(page).locator('.wait-chip-swap')).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, `${state} at ${width}px`).toEqual([]);
+    }
   });
 }
