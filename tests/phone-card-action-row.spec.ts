@@ -106,6 +106,28 @@ test('a locked Merge stays in the action row, greyed, with its reason', async ({
   );
 });
 
+// Known gap: failing CI stacked behind a higher-priority reason. A draft whose
+// CI also fails keeps its locked Merge, and the status says the draft reason,
+// not the failing CI. This pins today's behaviour.
+test('a draft with failing CI keeps the locked Merge and the draft reason', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  const row = await open(
+    page,
+    pr({ draft: true, ci: 'failure', mergeStatus: 'blocked' }),
+  );
+  const button = row.locator('.row-action-bar').getByRole('button', {
+    name: 'Merge',
+  });
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  const describedBy = await button.getAttribute('aria-describedby');
+  expect(describedBy).toBeTruthy();
+  await expect(page.locator(`[id="${describedBy}"]`)).toContainText(
+    'Draft pull request',
+  );
+});
+
 // #4953: failing CI never offers Merge, armed or not. The status block says
 // why, once, as visible text.
 test('a failing-CI row draws no Merge and says why in the status block', async ({
