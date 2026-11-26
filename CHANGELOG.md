@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.135.2](https://github.com/alrayyes/forge-dashboard/compare/v9.135.1...v9.135.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **web:** keep newest comment on small screens ([#5025](https://github.com/alrayyes/forge-dashboard/issues/5025)) ([eded210](https://github.com/alrayyes/forge-dashboard/commit/eded210bd5689619b2976741c1d5eef560f8bf26))
+
 ## [9.135.1](https://github.com/alrayyes/forge-dashboard/compare/v9.135.0...v9.135.1) (2026-11-26)
 
 
