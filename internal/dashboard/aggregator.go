@@ -1222,9 +1222,11 @@ func (a *Aggregator) keepLaterGood(good map[Forge]time.Time) {
 }
 
 // logFailedRefresh names the cause of a full refresh that asked forge and got no
-// answer, so a report of old rows can be traced from the log (#3869).
+// answer, so a report of old rows can be traced from the log (#3869). A forge
+// still Starting has not failed: its first fetch is out, and the deadline line
+// already says so.
 func logFailedRefresh(sr sourceResult, forge Forge) {
-	if sr.asked && !sr.Health.Reachable {
+	if sr.asked && !sr.Health.Reachable && !sr.Health.Starting {
 		slog.Warn("full refresh failed", "forge", forge, "cause", sr.Health.ErrorKind, "error", sr.Health.Error)
 	}
 }
