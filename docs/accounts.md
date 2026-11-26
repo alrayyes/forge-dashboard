@@ -299,6 +299,11 @@ and puts focus on that input. The page holds no copy of those rules.
   through the App's Setup URL without pasting an ID; the existing installation
   ID is carried over as the first row when you upgrade. Every enabled row is
   read with its own installation token and the results are merged.
+  Installation webhooks keep the rows current: an installation removed on
+  GitHub drops its row, and a suspended one is skipped until GitHub lifts the suspension.
+  A new installation is added from the webhook only when GitHub lists it for
+  the linked account, so only installations the owner made or allowed reach the
+  board (see [configuration.md](configuration.md)).
 
 ### Forgejo
 
