@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.136.1](https://github.com/alrayyes/forge-dashboard/compare/v9.136.0...v9.136.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* report a hung restored forge as down ([#5042](https://github.com/alrayyes/forge-dashboard/issues/5042)) ([dc446b6](https://github.com/alrayyes/forge-dashboard/commit/dc446b6b4be96cf687c1cbddb7b9514b2a734613))
+
 ## [9.136.0](https://github.com/alrayyes/forge-dashboard/compare/v9.135.2...v9.136.0) (2026-11-26)
 
 
