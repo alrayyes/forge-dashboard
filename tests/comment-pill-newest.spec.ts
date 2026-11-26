@@ -390,6 +390,78 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
     await expect(items(page).last()).not.toBeFocused();
   });
 
+  test('keeps the cut-off note in view under a comment taller than the dialog', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 360, height: 700 });
+    await mockDashboard(page, 80);
+    const thread = details(50, 80);
+    const tall = thread.comments.at(-1);
+    if (tall)
+      tall.text = `${'A long paragraph.\n\n'.repeat(60)}[the last link](https://example.com/last)`;
+    await mockDetails(page, () => ({ json: thread }));
+    await page.goto('/pull-requests.html');
+
+    await pill(page).click();
+
+    const newest = items(page).last();
+    await expect(newest).toBeFocused();
+    const note = dialog(page).getByText('Showing the first 50 of 80 comments.');
+    await expect(note).toBeInViewport({ ratio: 1 });
+    // On top of the comment, not under it.
+    await note.getByRole('link').click({ trial: true });
+    // The comment still starts at the top of the body.
+    const body = await dialog(page).locator('.details-body').boundingBox();
+    const box = await newest.boundingBox();
+    const offset = (box?.y ?? Number.NaN) - (body?.y ?? Number.NaN);
+    expect(offset).toBeGreaterThanOrEqual(0);
+    expect(offset).toBeLessThan(24);
+    await scan(page);
+
+    // A link in the comment, focused where the note was, is not under it.
+    const covered = await newest
+      .getByRole('link', { name: 'the last link' })
+      .evaluate((link) => {
+        const scroller = link.closest('.details-body') as HTMLElement;
+        scroller.scrollTop +=
+          link.getBoundingClientRect().bottom -
+          scroller.getBoundingClientRect().bottom +
+          24;
+        (link as HTMLElement).focus({ preventScroll: true });
+        const at = link.getBoundingClientRect();
+        return (
+          document.elementFromPoint(at.x + 2, at.y + at.height / 2) !== link
+        );
+      });
+    expect(covered).toBe(false);
+  });
+
+  // A short window, where the dialog itself can't fit what it holds.
+  test('keeps the header in place in a short landscape window', async ({
+    page,
+  }) => {
+    await mockDashboard(page);
+    await mockDetails(page, () => ({ json: details(12) }));
+    for (const [width, height] of [
+      [844, 390],
+      [740, 320],
+      [480, 270],
+    ] as const) {
+      await test.step(`${width}x${height}`, async () => {
+        await page.setViewportSize({ width, height });
+        await page.goto('/pull-requests.html');
+
+        await pill(page).click();
+
+        await expect(items(page).last()).toBeFocused();
+        expect(await dialog(page).evaluate((el) => el.scrollTop)).toBe(0);
+        await expect(
+          dialog(page).getByRole('heading', { name: 'Add structured logging' }),
+        ).toBeInViewport();
+      });
+    }
+  });
+
   test('does not jump later when a live update succeeds after a failed first read', async ({
     page,
   }) => {

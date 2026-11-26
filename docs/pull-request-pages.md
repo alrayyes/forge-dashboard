@@ -125,7 +125,7 @@ The comment pill on a row opens the pull request's pop-up, not the forge, at
 the newest comment it lists: that comment is scrolled into view without
 animation, outlined and focused, and Escape puts focus back on the pill. On a
 thread the pop-up cuts off, that's the last comment before the "Showing the
-first" note. If you scroll or tab elsewhere while
+first" note, and the note stays in view. If you scroll or tab elsewhere while
 the comments are still loading, the pop-up stays where you put it. The pill also
 counts review comments on lines of code, which the pop-up doesn't list. When it
 lists no comment, or can't load them, it opens at the top, and a successful

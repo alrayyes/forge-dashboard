@@ -444,8 +444,13 @@
         ".details-comment[tabindex]",
       );
       newest?.focus({ preventScroll: true });
-      // Instant, so there is no motion to reduce.
-      newest?.scrollIntoView({ block: "start", behavior: "instant" });
+      // Only the body moves: scrollIntoView would also scroll a dialog taller
+      // than the window and take the header with it. No motion to reduce.
+      if (newest)
+        bodyEl.scrollTop +=
+          newest.getBoundingClientRect().top -
+          bodyEl.getBoundingClientRect().top -
+          8;
       aim.held = newest;
       aim.top = bodyEl.scrollTop;
     }
@@ -1366,7 +1371,11 @@
                 {/each}
               </ol>
               {#if details.commentsTruncated}
-                <p class="details-note">
+                <!-- Pinned after a jump: a tall newest comment would hide it. -->
+                <p
+                  class="details-note"
+                  class:details-cut-pinned={landedId !== null}
+                >
                   Showing the first {details.comments.length} of {details.commentCount}
                   comments.
                   <a
@@ -1939,7 +1948,20 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     min-width: 0;
-    scroll-margin-top: 8px;
+  }
+  .details-cut-pinned {
+    position: sticky;
+    /* Past the body's bottom padding, where text would show under it. */
+    bottom: -20px;
+    z-index: 1;
+    padding: 8px 0;
+    background: var(--surface);
+  }
+  /* Back in the flow while focus is on something inside a comment, so the
+     note never covers it. scroll-padding would move the body when the note's
+     own link takes focus. */
+  .details-section:has(.details-comment :global(:focus)) .details-cut-pinned {
+    position: static;
   }
   /* Not :focus-visible: after a click on the pill the mark must show too. */
   .details-comment:focus {
