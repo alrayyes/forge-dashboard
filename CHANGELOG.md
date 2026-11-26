@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.126.4](https://github.com/alrayyes/forge-dashboard/compare/v9.126.3...v9.126.4) (2026-11-26)
+
+
+### Bug Fixes
+
+* **web:** keep a waiting chip on the row's line so every cell is centred ([#4951](https://github.com/alrayyes/forge-dashboard/issues/4951)) ([80d90b4](https://github.com/alrayyes/forge-dashboard/commit/80d90b4496765902239214b9b8952c20b1f731e6)), closes [#4945](https://github.com/alrayyes/forge-dashboard/issues/4945)
+
 ## [9.126.3](https://github.com/alrayyes/forge-dashboard/compare/v9.126.2...v9.126.3) (2026-11-26)
 
 
