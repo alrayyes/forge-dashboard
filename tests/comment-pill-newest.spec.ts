@@ -5,7 +5,7 @@ import { test } from './server-fixture';
 import { settle } from './settle-helper';
 
 // The row's comment pill opens the pull request dialog at the newest comment
-// (#5002). Every other way in keeps opening it at the top.
+// (#5002). No other way in jumps to a comment.
 
 const ago = (minutes: number) =>
   new Date(Date.now() - minutes * 60_000).toISOString();
