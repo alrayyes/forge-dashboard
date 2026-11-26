@@ -33,6 +33,8 @@ export interface FilterableItem {
   // forge can't say, which is in neither On nor Off (#1455).
   autoMergeEnabled?: boolean;
   draft?: boolean;
+  // Set on a pull request the user hid; the board lists it only on request.
+  hidden?: boolean;
   mergeStatus?: string;
   // Whether the base branch has moved on, and whether nothing is left to
   // merge. Both are the server's answers; absent from an older server.
@@ -197,8 +199,12 @@ export function matchesQuickFilter(
     case 'behind-base':
       // The reading navCounts.bots.behind uses, so the chip's number is the
       // Bots menu pill's: a green bot pull request behind its base with
-      // something left to merge (#4624). Out of date is wider, any CI.
+      // something left to merge (#4624). Out of date is wider, any CI. The
+      // menu pill counts neither drafts nor hidden ones, which Show drafts and
+      // Show hidden can still put in this pool.
       return (
+        item.draft !== true &&
+        item.hidden !== true &&
         item.kind === 'dependency' &&
         item.ci === 'success' &&
         item.behind === true &&

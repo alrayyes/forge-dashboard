@@ -690,6 +690,10 @@ describe('the behind-base quick filter', () => {
       bot({ behind: false }),
       bot({ kind: 'regular' }),
       bot({ kind: 'release' }),
+      // Show drafts and Show hidden put these in the pool, but the menu pill
+      // leaves them out, so the chip does too.
+      bot({ draft: true }),
+      bot({ hidden: true }),
     ])
       expect(matchesQuickFilter(item, 'behind-base')).toBe(false);
   });
