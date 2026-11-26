@@ -1193,16 +1193,19 @@ section.board {
          7.5rem and 9.25rem slots less their share of the 12px gap, which the
          status cell narrows to 4px. Each grows only for content that does not
          fit it: the CI track to a long pill, as far as the title can keep
-         200px (#4541, #4795), after which the pill wraps. */
+         200px (#4541, #4795), after which the pill wraps. The action track is
+         as wide as its row's buttons on one line, and where that would take
+         the title under 200px the buttons wrap instead of spilling over the
+         arrow. */
       grid-template-columns:
         186px
-        minmax(min(200px, calc(100% - 998px)), 1fr)
+        minmax(min(200px, calc(100% - 1008px)), 1fr)
         96px
         var(--dt)
         var(--dt)
         minmax(calc(10.25rem - 4px), max-content)
         minmax(calc(7.5rem - 8px), min-content)
-        minmax(calc(9.25rem - 4px), min-content)
+        fit-content(13.5rem)
         40px;
       column-gap: 12px;
     }
@@ -1247,12 +1250,26 @@ section.board {
       grid-row: 1;
       display: flex;
       flex-direction: row;
+      flex-wrap: wrap;
       justify-content: flex-start;
       align-items: center;
       gap: 4px;
     }
     .row:not(.issue-row) .status-cell > .row-action-bar .row-action {
       padding-inline: 5px;
+    }
+    .row:not(.issue-row) .status-cell > .row-action-bar .split-button-toggle {
+      min-width: 24px;
+      padding-inline: 4px;
+    }
+    /* The action column's floor, on every row, so it holds when no row has a
+       button: fit-content() takes no fixed minimum of its own. The status
+       cell's narrower gap takes 4px off, which leaves a 144px track. */
+    .row:not(.issue-row) .status-cell::after {
+      content: "";
+      grid-column: 3;
+      grid-row: 1;
+      width: 9.25rem;
     }
     /* A long CI pill wraps its counts when the title has no room to give. */
     .row:not(.issue-row) .status-cell .ci-slot:has(.ci-pill.segmented) {

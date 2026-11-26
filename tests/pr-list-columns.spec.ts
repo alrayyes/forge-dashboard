@@ -123,7 +123,12 @@ function snapshot(pullRequests: unknown[]) {
   };
 }
 
-async function open(page: Page, width: number, prs: unknown[] = ROWS) {
+async function open(
+  page: Page,
+  width: number,
+  prs: unknown[] = ROWS,
+  path = '/pull-requests.html',
+) {
   await page.setViewportSize({ width, height: 1200 });
   await page.addInitScript(() => {
     const w = window as unknown as {
@@ -146,7 +151,7 @@ async function open(page: Page, width: number, prs: unknown[] = ROWS) {
       body: JSON.stringify(snapshot(prs)),
     }),
   );
-  await page.goto('/pull-requests.html');
+  await page.goto(path);
   await expect(page.locator('#pr-rows .row')).toHaveCount(prs.length);
 }
 
@@ -253,53 +258,104 @@ function overlaps(rows: Row[]): string[] {
   );
 }
 
+// A bot row's actions are the widest the column holds: Merge beside
+// Dependabot's split button, or beside the cancel of a Renovate rebase.
+const dependabot = {
+  author: 'dependabot[bot]',
+  kind: 'dependency',
+  behind: true,
+  allowedActions: [
+    { action: 'merge', primary: true },
+    { action: 'dependabot_rebase' },
+    { action: 'dependabot_recreate' },
+    { action: 'close' },
+  ],
+};
+const renovate = {
+  author: 'renovate[bot]',
+  kind: 'dependency',
+  behind: true,
+  allowedActions: [
+    { action: 'merge', primary: true },
+    { action: 'cancel_renovate_rebase' },
+    { action: 'close' },
+  ],
+};
+const BOT_ROWS = [
+  pr(30, 'Dependabot behind', dependabot),
+  pr(31, 'Renovate rebase requested', renovate),
+  pr(32, 'Dependabot with comments', { ...dependabot, ...COMMENTS }),
+  pr(33, 'Renovate with a long pill', {
+    ...renovate,
+    ...LONG_PILL,
+    ...COMMENTS,
+  }),
+  pr(34, 'Plain bot row', {
+    author: 'renovate[bot]',
+    kind: 'dependency',
+  }),
+  pr(35, 'Another plain bot row', {
+    author: 'dependabot[bot]',
+    kind: 'dependency',
+    ...COMMENTS,
+  }),
+];
+
+const LISTS = [
+  { list: 'pull requests', path: '/pull-requests.html', prs: ROWS },
+  { list: 'bots', path: '/bots.html', prs: BOT_ROWS },
+];
+
 for (const scheme of ['light', 'dark'] as const) {
-  for (const width of [1280, 1503, 1920]) {
-    test.describe(`${scheme}, ${width}px`, () => {
-      test.beforeEach(async ({ page }) => {
-        await page.emulateMedia({ colorScheme: scheme });
-        await open(page, width);
-      });
+  for (const { list, path, prs } of LISTS) {
+    for (const width of [1253, 1280, 1503, 1920]) {
+      test.describe(`${list}, ${scheme}, ${width}px`, () => {
+        test.beforeEach(async ({ page }) => {
+          await page.emulateMedia({ colorScheme: scheme });
+          await open(page, width, prs, path);
+        });
 
-      test('every column starts at the same x on every row', async ({
-        page,
-      }) => {
-        const rows = await measure(page);
-        // The fixture has every cell on more than one row.
-        for (const name of Object.keys(CELLS))
-          expect(
-            rows.filter((r) => name in r.lefts).length,
-            name,
-          ).toBeGreaterThan(2);
-        await expect
-          .poll(async () => misaligned(await measure(page)))
-          .toEqual([]);
-      });
+        test('every column starts at the same x on every row', async ({
+          page,
+        }) => {
+          // The wide layout is on, and every cell is on more than one row.
+          await expect(page.locator('#pr-rows')).toHaveCSS('display', 'grid');
+          const rows = await measure(page);
+          for (const name of Object.keys(CELLS))
+            expect(
+              rows.filter((r) => name in r.lefts).length,
+              name,
+            ).toBeGreaterThan(2);
+          await expect
+            .poll(async () => misaligned(await measure(page)))
+            .toEqual([]);
+        });
 
-      test('nothing overlaps, nothing scrolls sideways, titles keep 200px', async ({
-        page,
-      }) => {
-        await expect
-          .poll(async () => overlaps(await measure(page)))
-          .toEqual([]);
-        expect(
-          await page.evaluate(
-            () =>
-              document.documentElement.scrollWidth -
-              document.documentElement.clientWidth,
-          ),
-        ).toBeLessThanOrEqual(0);
-        for (const r of await measure(page))
-          expect(r.titleWidth, r.title).toBeGreaterThanOrEqual(200);
-      });
+        test('nothing overlaps, nothing scrolls sideways, titles keep 200px', async ({
+          page,
+        }) => {
+          await expect
+            .poll(async () => overlaps(await measure(page)))
+            .toEqual([]);
+          for (const selector of ['html', '#pr-rows'])
+            expect(
+              await page
+                .locator(selector)
+                .evaluate((e) => e.scrollWidth - e.clientWidth),
+              selector,
+            ).toBeLessThanOrEqual(0);
+          for (const r of await measure(page))
+            expect(r.titleWidth, r.title).toBeGreaterThanOrEqual(200);
+        });
 
-      test('the list has no axe violations', async ({ page }) => {
-        const results = await new AxeBuilder({ page })
-          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-          .analyze();
-        expect(results.violations).toEqual([]);
+        test('the list has no axe violations', async ({ page }) => {
+          const results = await new AxeBuilder({ page })
+            .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+            .analyze();
+          expect(results.violations).toEqual([]);
+        });
       });
-    });
+    }
   }
 }
 

@@ -346,7 +346,10 @@ included, and a live update to one row leaves the others where they are. The
 status area has three columns: the CI pill, the merge-state and comment pills (a
 Conflicting pill takes the same column as the comment pill, and both stack there
 when a row has both), and the action. Each has a minimum width and grows for
-every row at once when one row needs more. A CI pill with many counts (a Failed
+every row at once when one row needs more. The action column grows until the
+buttons of a row sit side by side. Where that would take the title under 200px,
+as with Merge beside a bot's rebase in a 1280px window, the second button wraps
+under the first and that row is taller. A CI pill with many counts (a Failed
 pill with four, say) takes room from the title of every row, as far as the title
 can keep 200px, and past that the pill wraps its counts onto a second line. The
 attribute chips and the status note ("Behind the base branch", say) sit under
@@ -717,26 +720,29 @@ once its checks have passed and Forgejo says it can merge, with the repo's own
 merge method, the same as Merge. A pull request you didn't arm is never merged.
 Checks that fail, conflicts, a draft, a stack parent that hasn't merged yet or
 no checks at all keep it waiting, and it merges once that clears. The row says
-which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
-limited` and so on. One that has stopped (a failed check, a conflict, or a
+which, in words: the chip reads `Waiting for CI`, `Waiting for parent`,
+`Rate limited` and so on. One that has stopped (a failed check, a conflict, or a
 refused merge, including a token without merge permission) is the same kind of
-chip, `Auto-merge stopped`, with an alert icon and no button, on the status
-pill's line from 761px up. On a phone it stays the text line it was, and so does
-a stopped row that has a queued action (an Update branch waiting for a
-rate-limit reset): that row keeps its queued chip and its Cancel, with the
-sentence as text beside it. The chip is as wide as its words, so a long refusal
-never cuts it: the server's whole sentence is the chip's tooltip, which opens on
-hover and on keyboard focus and is the chip's accessible description. You can
-move the pointer onto the tooltip without it closing, and Escape closes it until
-the pointer and focus have left the chip. On a list narrower than 1191px, from
-861px, the status column widens to make room for it, as it does for a chip with
-a button. When the server merges one it tells the page, which shows "Auto-merged
-owner/repo#N after checks passed" for the next few minutes. If Forgejo refuses
-the merge, the server doesn't ask again until the pull request changes (a rate
-limit or an unreachable forge is retried after five minutes), and the log
-records each attempt by repo and number. Closing or merging the pull request
-elsewhere removes the intent, once Forgejo confirms it. A token that can push
-but not merge only finds out at the merge itself.
+chip, `Auto-merge stopped`, with an alert icon and no button. From 761px of
+window width it sits on the status pill's line. On the wide list (1191px of list
+width or more) it does so only on a row with no button and no merge-state or
+comment pill, and otherwise takes a line of its own under them. On a phone it
+stays the text line it was, and so does a stopped row that has a queued action
+(an Update branch waiting for a rate-limit reset): that row keeps its queued
+chip and its Cancel, with the sentence as text beside it. The chip is as wide as
+its words, so a long refusal never cuts it: the server's whole sentence is the
+chip's tooltip, which opens on hover and on keyboard focus and is the chip's
+accessible description. You can move the pointer onto the tooltip without it
+closing, and Escape closes it until the pointer and focus have left the chip. On
+a list narrower than 1191px, from 861px, the status column widens to make room
+for it, as it does for a chip with a button. When the server merges one it tells
+the page, which shows "Auto-merged owner/repo#N after checks passed" for the
+next few minutes. If Forgejo refuses the merge, the server doesn't ask again
+until the pull request changes (a rate limit or an unreachable forge is retried
+after five minutes), and the log records each attempt by repo and number.
+Closing or merging the pull request elsewhere removes the intent, once Forgejo
+confirms it. A token that can push but not merge only finds out at the merge
+itself.
 
 A pull request whose CI is failing never offers Merge, whether auto-merge was
 armed or not and whatever else holds it back: a draft, a conflict or a branch
@@ -858,16 +864,17 @@ Forgejo itself holds the merge (it merges when checks pass), and GitHub's reads
 says it cancels the merge scheduled on Forgejo. On GitHub, Cancel auto-merge
 turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
-On a desktop the chip is a compact status, not a banner. It is as wide as
-its icon, its bold label, its lighter line and its button, 30px tall, up to the
-room in the status cell. The lighter line shows whole in the common case (about
-310px of the 440px cell at the default font size) and shortens with an ellipsis
-only when the cell cannot hold it, on a line with an action or a pill beside it,
-at a large root font size or at 200% zoom; the hint always has the whole
-sentence. The slot is not drawn while it is empty, at any
-width. On a list narrower than the one-line row (761px to 1190px of list width)
-the status cell stacks, so the chip takes a line of its own at the cell's right
-edge, 30px tall.
+On a desktop the chip is a compact status, not a banner. It is as wide as its
+icon, its bold label, its lighter line and its button, 30px tall, up to the room
+it has. On the wide list that room is the whole status area (about 440px at the
+default font size) when the chip has a line of its own, and the last two columns
+(about 270px) when it shares the CI pill's line. The lighter line shows whole
+when there's room for it and is cut short with an ellipsis when there isn't,
+which happens sooner on the shared line, at a large root font size or at 200%
+zoom. The hint always has the whole sentence. The slot is not drawn while it is
+empty, at any width. On a list narrower than the one-line row (761px to 1190px
+of list width) the status cell stacks, so a waiting chip takes a line of its own
+at the cell's right edge, 30px tall.
 
 On a phone card the slot reserves nothing. With no chip the slot is not drawn,
 so the card is no taller than its content and the divider sits within 16px of
