@@ -202,8 +202,9 @@ these lines, in this order:
   long that earlier fetch has been going. Both forges showing this together
   points at a slow host, not at the forges.
 
-A real outage shows `outcome=error` lines with an `error_kind`. A false alarm
-shows deadline, skipped or late lines and no error kind.
+Each line that marks a forge unreachable carries a `path`: `deadline`, `skipped`
+or `error`. A real outage shows `path=error` and the error kind. A false alarm
+shows `path=deadline` or `path=skipped`, and a late line, and no error kind.
 
 ## The first load after a restart
 

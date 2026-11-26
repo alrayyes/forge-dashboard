@@ -22,7 +22,7 @@ func (b *syncBuffer) Write(p []byte) (int, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	return b.buf.Write(p)
+	return b.buf.Write(p) //nolint:wrapcheck // a bytes.Buffer write never fails
 }
 
 func (b *syncBuffer) String() string {

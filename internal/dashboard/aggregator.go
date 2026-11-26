@@ -940,7 +940,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			// The last fetch is still running. Asking again would only add
 			// load to a forge that is struggling (#3021).
 			results[i].Result = Result{Health: a.unreachableFrom(earlier, i)}
-			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge(), "running_for", a.fetchAge(i))
+			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge(), "path", "skipped", "running_for", a.fetchAge(i))
 
 			continue
 		}
@@ -1009,7 +1009,7 @@ func (a *Aggregator) logFetchOutcome(ctx context.Context, i int, forge Forge, re
 	case ctx.Err() != nil:
 		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "late")
 	case !res.Health.Reachable:
-		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "error", "error_kind", res.Health.ErrorKind)
+		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "error", "path", "error", "error_kind", res.Health.ErrorKind)
 	default:
 		slog.Debug("fetch finished", "forge", forge, "duration", took, "outcome", "ok")
 	}
@@ -1042,7 +1042,7 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 				}
 			}
 			for i := range pending {
-				slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[i].Forge(), "running_for", a.fetchAge(i), "deadline", deadline)
+				slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[i].Forge(), "path", "deadline", "running_for", a.fetchAge(i), "deadline", deadline)
 				results[i] = sourceResult{asked: true}
 				results[i].Health = a.unreachableFrom(earlier, i)
 			}
