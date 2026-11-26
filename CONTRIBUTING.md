@@ -68,6 +68,10 @@ component tests and the image build, but not Go lint or the `go mod` checks.
 CI still runs everything the hook skips, and the CI-only list at the top of
 `lefthook.yml` still holds.
 
+`bun run storybook:screenshots` takes its shots in one browser per core, up to
+four, in the hook and in CI alike. A story mustn't count on running after
+another one.
+
 CI runs a job only when a file it reads changed. The first job, `changes`,
 maps the pull request's diff to areas with `scripts/changed-areas.sh`, and
 each job runs when its area is set:
