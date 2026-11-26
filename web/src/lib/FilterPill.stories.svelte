@@ -31,12 +31,19 @@
     ...el.querySelectorAll<HTMLElement>(".filter-pill"),
   ];
 
+  // A space ahead of the text leaks into the button's name and any exact text
+  // match on the pill.
+  async function expectNoLeadingSpace(b: HTMLElement) {
+    await expect(b.textContent).toBe(b.textContent?.trimStart());
+  }
+
   async function expectGroups(el: HTMLElement) {
     const buttons = pills(el);
     await expect(buttons.length).toBeGreaterThan(4);
     for (const b of buttons) {
       await expect(b.getBoundingClientRect().height).toBe(32);
       await expect(b.querySelector(".filter-pill-count")).not.toBeNull();
+      await expectNoLeadingSpace(b);
     }
     for (const group of el.querySelectorAll<HTMLElement>("[role=group]")) {
       const label = group.querySelector(".filter-group-label");
@@ -55,10 +62,12 @@
   async function expectBehind(el: HTMLElement) {
     const chips = el.querySelectorAll<HTMLElement>("[data-pill=behind-base]");
     await expect(chips).toHaveLength(2);
-    for (const chip of chips)
+    for (const chip of chips) {
+      await expectNoLeadingSpace(chip);
       await expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe(
         "3 behind the base branch",
       );
+    }
     const { violations } = await axe.run(el);
     await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   }

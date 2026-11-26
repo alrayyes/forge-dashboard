@@ -48,10 +48,9 @@
   data-status={status}
   use:ciFilterGlyph={status}
 >
-  {#if countFirst && count !== undefined}
-    <span class="filter-pill-count">{count}</span>
-  {/if}
-  {@render children()}
+  {#if countFirst && count !== undefined}<span class="filter-pill-count">
+      {count}
+    </span>{" "}{/if}{@render children()}
   {#if !countFirst && count !== undefined}
     <span class="filter-pill-count">{count}</span>
   {/if}
