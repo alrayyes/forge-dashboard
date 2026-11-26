@@ -338,7 +338,7 @@ pills, the chip, the action, the author and the dates) shares the row's middle.
 Two cases keep the chip on a line of its own below 94rem of list width, one
 36px line taller, because on one line the title would fall under 200px: pills
 with a chip beside two actions (a bot's rebase and Cancel) or beside Update
-branch, and labels with an action but no pills (194px at 1280px). There the
+branch, and labels with an action but no pills (194px at 1280px). In both the
 pills and the action share the first line, the chip sits under them, and the
 author and dates centre on the two lines. Its room is only there while a chip
 is. A narrower list keeps the wrapping status
