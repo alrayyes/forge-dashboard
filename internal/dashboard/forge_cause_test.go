@@ -94,3 +94,19 @@ func TestAggregator_TheMissThatShowsTheOutageHasNoCause(t *testing.T) {
 	require.False(t, h.Reachable)
 	assert.Empty(t, h.Cause)
 }
+
+// A held 5xx is a real answer from the forge, not a slow one: it carries no cause.
+func TestAggregator_AHeldUpstreamErrorHasNoCause(t *testing.T) {
+	t.Parallel()
+
+	src := &answeringBadly{}
+	agg := dashboard.NewAggregator([]dashboard.Source{src})
+	agg.Refresh(t.Context())
+
+	src.set(dashboard.ForgeErrorUpstream)
+	agg.Refresh(t.Context())
+
+	h := health(agg.Get(), dashboard.ForgeGitHub)
+	assert.True(t, h.Reachable, "the one 5xx is held")
+	assert.Empty(t, h.Cause)
+}
