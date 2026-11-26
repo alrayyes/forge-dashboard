@@ -661,41 +661,32 @@ describe('the Out of date quick filter', () => {
   });
 });
 
-// The behind chip counts the green bot pull requests behind their base, the
-// reading navCounts.bots.behind uses (#4624). Out of date is wider: any CI.
+// The behind chip lists what the server says is behind: it holds no rule of its
+// own, so the one in internal/api/nav_counts.go cannot drift (#4990).
 describe('the behind-base quick filter', () => {
-  const bot = (overrides: Partial<FilterableItem> = {}) =>
-    choiceItem({
-      kind: 'dependency',
-      ci: 'success',
-      behind: true,
-      ...overrides,
-    });
-
   test('is a merge pill labelled for the chip', () => {
     expect(QUICK_FILTERS).toContain('behind-base');
     expect(pillGroupOf('behind-base')).toBe('merge');
     expect(pillLabel('behind-base')).toBe('behind the base branch');
   });
 
-  test('matches a green bot pull request that is behind with something to merge', () => {
-    expect(matchesQuickFilter(bot(), 'behind-base')).toBe(true);
+  test('matches what the server flags and nothing else', () => {
+    expect(
+      matchesQuickFilter(choiceItem({ greenBehindBase: true }), 'behind-base'),
+    ).toBe(true);
+    expect(
+      matchesQuickFilter(choiceItem({ greenBehindBase: false }), 'behind-base'),
+    ).toBe(false);
+    expect(matchesQuickFilter(choiceItem(), 'behind-base')).toBe(false);
   });
 
-  test('leaves out red, running, empty, up to date and non-bot pull requests', () => {
-    for (const item of [
-      bot({ ci: 'failure' }),
-      bot({ ci: 'pending' }),
-      bot({ empty: true }),
-      bot({ behind: false }),
-      bot({ kind: 'regular' }),
-      bot({ kind: 'release' }),
-      // Show drafts and Show hidden put these in the pool, but the menu pill
-      // leaves them out, so the chip does too.
-      bot({ draft: true }),
-      bot({ hidden: true }),
-    ])
-      expect(matchesQuickFilter(item, 'behind-base')).toBe(false);
+  test('does not re-derive the answer from other fields', () => {
+    const behindButUnflagged = choiceItem({
+      kind: 'dependency',
+      ci: 'success',
+      behind: true,
+    });
+    expect(matchesQuickFilter(behindButUnflagged, 'behind-base')).toBe(false);
   });
 });
 

@@ -33,13 +33,15 @@ export interface FilterableItem {
   // forge can't say, which is in neither On nor Off (#1455).
   autoMergeEnabled?: boolean;
   draft?: boolean;
-  // Set on a pull request the user hid; the board lists it only on request.
-  hidden?: boolean;
   mergeStatus?: string;
   // Whether the base branch has moved on, and whether nothing is left to
   // merge. Both are the server's answers; absent from an older server.
   behind?: boolean;
   empty?: boolean;
+  // The server's answer for the behind chip (#4990): a green dependency pull
+  // request behind its base with something left to merge, not a draft or
+  // hidden. The same rule counts the Bots menu pill.
+  greenBehindBase?: boolean;
   labels?: { name: string; color?: string }[];
   review?: { decision: string; requestedReviewers: number };
   // True for a bot's housekeeping issue; the server decides (#980).
@@ -197,20 +199,11 @@ export function matchesQuickFilter(
       // update, so the row draws no badge and the filter skips it too.
       return item.behind === true && item.empty !== true;
     case 'behind-base':
-      // The reading navCounts.bots.behind uses, so the chip's number is the
-      // Bots menu pill's: a green bot pull request behind its base with
-      // something left to merge (#4624). Out of date is wider, any CI. The
-      // menu pill counts neither drafts nor hidden ones, which Show drafts
-      // and Show hidden can still put in this pool. The chip only appears
-      // where offerPills finds a match, so a page with none draws no chip.
-      return (
-        item.draft !== true &&
-        item.hidden !== true &&
-        item.kind === 'dependency' &&
-        item.ci === 'success' &&
-        item.behind === true &&
-        item.empty !== true
-      );
+      // The server's own answer, the one navCounts.bots.behind counts, so the
+      // chip's number is the Bots menu pill's and the page holds no copy of the
+      // rule (#4990). Out of date is wider, any CI. The chip only appears where
+      // offerPills finds a match, so a page with none draws no chip.
+      return item.greenBehindBase === true;
     default:
       return true;
   }
