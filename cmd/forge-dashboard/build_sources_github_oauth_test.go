@@ -75,6 +75,9 @@ func newLinkedGitHub(t *testing.T) *linkedGitHub {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "ghu-2", "refresh_token": "ghr-2", "token_type": "bearer", "expires_in": 28800})
 	})
+	mux.HandleFunc("/applications/id/grant", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("/user", func(w http.ResponseWriter, _ *http.Request) {
 		f.mu.Lock()
 		login := f.login
