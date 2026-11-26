@@ -70,7 +70,7 @@ func TestBuildSources_ALinkedForgejoAccountSendsItsAccessTokenInPlaceOfAPastedOn
 	store := &pairStore{instance: srv.URL, token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
 
-	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 
@@ -87,7 +87,7 @@ func TestBuildSources_ALinkedForgejoAccountNeedsNoPastedToken(t *testing.T) {
 	store := &pairStore{instance: srv.URL, token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
 
-	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoUsername: "alice"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoUsername: "alice"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 
@@ -100,7 +100,7 @@ func TestBuildSources_WithoutALinkedAccountThePastedTokenIsUsed(t *testing.T) {
 	srv, headers := authHeaders(t)
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", &pairStore{})
 
-	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 
@@ -119,7 +119,7 @@ func TestBuildSources_APairGrantedByAnotherInstanceIsNeverSentToThisOne(t *testi
 	store := &pairStore{instance: "https://granted.example.com", token: &oauth2.Token{AccessToken: "linked", RefreshToken: "r", Expiry: time.Now().Add(time.Hour)}}
 	conn := oauth.NewForgejo(t.Context(), "id", "secret", "https://dash.example.com/cb", store)
 
-	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, nil, conn, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "pasted"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 

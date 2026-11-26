@@ -438,7 +438,7 @@ func run() error {
 	deps.GitHubOAuth = oauth.NewGitHub(ctx,
 		os.Getenv("GITHUB_APP_CLIENT_ID"), os.Getenv("GITHUB_APP_CLIENT_SECRET"),
 		strings.TrimSuffix(deps.PublicOrigin, "/")+"/api/v1/connections/github/callback", settingsStore)
-	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats, deps.ForgejoOAuth)
+	deps.BuildSources = buildSources(authStore, requestLogWriter, githubAppID, githubAppPrivateKey, deps.APIStats, deps.ForgejoOAuth, deps.GitHubOAuth)
 
 	startDashboardAtBoot(ctx, settingsStore, deps.BuildSources, service)
 	slog.Info("starting", "version", version, "addr", addr, "refreshInterval", refreshInterval, "ciPollInterval", ciPollInterval)
@@ -574,6 +574,10 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 		}
 	}
 
+	if linked := linkedGitHubClient(shared, baseURL, recorder, stats, c); linked != nil {
+		return linked
+	}
+
 	switch {
 	case c.GitHubToken != "":
 		client := github.NewClient(c.GitHubToken, "", baseURL, recorder)
@@ -600,6 +604,34 @@ func buildGitHubSource(c settings.Credentials, githubAppID int64, githubAppPriva
 	}
 }
 
+// linkedGitHubClient is the client for a linked GitHub account, or nil when
+// none is linked. It is what reads when no installation does (#4576): the
+// token is the user's, renewed by the connection, and a linked account wins
+// over a saved personal token as a linked Forgejo account does.
+func linkedGitHubClient(shared githubShared, baseURL string, recorder requestlog.Recorder, stats *apistats.Counters, c settings.Credentials) *github.Client {
+	if shared.linked == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	bearer, ok := shared.linked.Bearer(ctx)
+	if !ok {
+		return nil
+	}
+
+	login := shared.linked.Login(ctx)
+	client := github.NewBearerClient(bearer, login, baseURL, recorder)
+	client.SetStats(stats, apistats.AccountCredential("oauth:"+login))
+	shared.apply(client)
+	if c.WebhookToken != "" {
+		client.SetWebhookPath("/api/webhooks/github/" + c.WebhookToken)
+	}
+
+	return client
+}
+
 // buildAppSource reads each installation with its own token. One installation
 // is a plain client; two or more are members of a composite source (#4586).
 // An installation whose client cannot be built is logged and left out, and the
@@ -621,6 +653,9 @@ func buildAppSource(c settings.Credentials, ids []int64, appID int64, key []byte
 		client.SetCommentToken(c.GitHubToken)
 		client.SetStats(stats, apistats.AppCredential(id))
 		shared.apply(client)
+		if shared.visible != nil {
+			client.SetVisibleRepos(shared.visible.forInstallation(id))
+		}
 		members = append(members, github.Member{ID: id, Source: client})
 	}
 
@@ -644,6 +679,10 @@ type githubShared struct {
 	bodies     *github.RenderedBodyCache
 	advisories *github.AdvisoryCache
 	status     dashboard.ProviderStatusSource
+	// linked is the linked GitHub account, and visible what it can read per
+	// installation (#4576). Both are nil without a GitHub App OAuth client.
+	linked  *oauth.GitHub
+	visible *visibleRepos
 }
 
 func (g githubShared) apply(client *github.Client) {
@@ -674,7 +713,7 @@ var githubStatusURL = githubstatus.BaseURL
 // buildSources returns the dashboard.Source builder Deps.BuildSources
 // needs, a closure over authStore so every forge client it builds records its
 // requests in the request log.
-func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters, linked *oauth.Forgejo) func(c settings.Credentials) []dashboard.Source {
+func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, githubAppID int64, githubAppPrivateKey []byte, stats *apistats.Counters, linked *oauth.Forgejo, linkedGitHub *oauth.GitHub) func(c settings.Credentials) []dashboard.Source {
 	scanner := newAdvisoryScanner(os.Getenv("OSV_ADVISORIES"), slog.Default())
 	// One cache for every client this closure builds: a login or a settings
 	// save builds new clients, and they pick up what the old ones learned.
@@ -688,12 +727,18 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// One status page reader too, so a burst of failing clients makes one
 	// request (#3633).
 	status := githubstatus.New(githubStatusURL, nil)
+	// And what the linked GitHub account can read, so a poll doesn't ask for it
+	// every few seconds.
+	var visible *visibleRepos
+	if linkedGitHub != nil {
+		visible = newVisibleRepos(linkedGitHub)
+	}
 
 	return func(c settings.Credentials) []dashboard.Source {
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, status: status}); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, status: status, linked: linkedGitHub, visible: visible}); src != nil {
 			sources = append(sources, src)
 		}
 

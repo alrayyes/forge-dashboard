@@ -199,7 +199,7 @@ func TestBuildSources_SourcesBuiltOnSeparateRequestsShareRenderedBodies(t *testi
 	t.Cleanup(srv.Close)
 	githubAPIBaseURL = srv.URL
 	t.Cleanup(func() { githubAPIBaseURL = "" })
-	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil, nil)
 	item := dashboard.ImageItem{Kind: dashboard.ImageItemIssue, Number: 7}
 
 	for _, link := range []string{"https://github.com/user-attachments/assets/a", "https://github.com/user-attachments/assets/b"} {
@@ -227,7 +227,7 @@ func TestBuildSources_SourcesBuiltOnSeparateRequestsShareAdvisoryLists(t *testin
 	t.Cleanup(srv.Close)
 	githubAPIBaseURL = srv.URL
 	t.Cleanup(func() { githubAPIBaseURL = "" })
-	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil, nil)
 
 	for range 2 {
 		sources := build(settings.Credentials{GitHubToken: "pat-value"})
@@ -252,7 +252,7 @@ func TestBuildSources_GitHubSourceAsksTheStatusPageButForgejoDoesNot(t *testing.
 	t.Cleanup(srv.Close)
 	githubStatusURL = srv.URL
 	t.Cleanup(func() { githubStatusURL = githubstatus.BaseURL })
-	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil)
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil, nil)
 
 	sources := build(settings.Credentials{GitHubToken: "pat-value", ForgejoURL: "https://forge.example", ForgejoToken: "t"})
 	require.Len(t, sources, 2)
