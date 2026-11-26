@@ -10,6 +10,7 @@
   import { runSignature } from "#lib/pipeline-live.js";
   import type { Check } from "#lib/pipeline-checks.js";
   import { splitStaleRows } from "#lib/forge-starting.js";
+  import { announceCauses, type CausesSeen } from "#lib/cause-announcement.js";
   import { ciPillModel, renderCiPill } from "#lib/ci-pill.js";
   import { createBranchRerun } from "#lib/branch-rerun.js";
   import { createRedrawGuard } from "#lib/redraw-guard.js";
@@ -433,6 +434,10 @@
   let refreshing = $state(false);
   let refreshError = $state<string | null>(null);
   let held: MainBranches | null = null;
+  // What the health live region says (#5024), from the rows on screen: a page
+  // held by Pause is announced when it is drawn.
+  let healthNote = $state("");
+  let causesSeen: CausesSeen = new Map();
   function apply(next: MainBranches, asked = false) {
     registerForgeCapabilities(next.forges);
     if (paused && !asked) {
@@ -442,6 +447,9 @@
     held = null;
     if (!supersedes(next, data)) return;
     data = next;
+    const said = announceCauses(causesSeen, next.forges, forgeLabelOf);
+    causesSeen = said.seen;
+    if (said.text !== null) healthNote = said.text;
     failure = null;
     if (asked) refreshError = null;
     redrawOpenControl();
@@ -1070,6 +1078,17 @@
     aria-live="polite"
   >
     {pauseNote}
+  </span>
+  <!-- This page draws no forge chips, so this alone says that a forge is slow
+       or starting up (WCAG 4.1.3). Always mounted, like the one above. -->
+  <span
+    class="sr-only"
+    id="forge-health-live"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    {healthNote}
   </span>
   <p
     class="mb-banner"

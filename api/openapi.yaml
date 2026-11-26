@@ -6531,10 +6531,11 @@ components:
             the time of the last of those, and rows refreshed before it are
             older. A webhook may also have refreshed single repositories since,
             so some rows can be newer. `staleSince` is worked out the same way,
-            with the same limits. It stays the same through further missed and
-            skipped passes, and goes when `cause` does. It is not `staleSince`:
-            the forge is still reachable, and nothing is locked. A client can
-            say "slow to answer, showing data from 3 minutes ago".
+            with the same limits. `rowsReadAt` stays the same through further
+            missed and skipped passes, and goes when `cause` does. `rowsReadAt`
+            is not `staleSince`: the forge is still reachable, and nothing is
+            locked. A client can say "slow to answer, showing data from 3
+            minutes ago".
         staleSince:
           type: string
           format: date-time
