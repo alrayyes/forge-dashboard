@@ -145,6 +145,7 @@ test.describe('forge cause (#4998)', () => {
 // Main branches draws no forge chip, so a live region of its own says it (#5024).
 test.describe('forge cause on Main branches (#5024)', () => {
   const region = (page: Page) => page.locator('#forge-health-live');
+  const rows = (page: Page) => page.getByTestId('main-branch-row');
 
   async function serveBranches(page: Page, state: { forge: Health }) {
     await serve(page, state);
@@ -175,7 +176,8 @@ test.describe('forge cause on Main branches (#5024)', () => {
     const state = { forge: good() };
     await serveBranches(page, state);
     await page.goto('/');
-    await expect(status(page)).toHaveText('Live');
+    // The control can read Live before the rows arrive, so wait for one.
+    await expect(rows(page)).toHaveCount(1);
     await expect(region(page)).toHaveAttribute('aria-live', 'polite');
     await expect(region(page)).toHaveText('');
 
@@ -202,6 +204,15 @@ test.describe('forge cause on Main branches (#5024)', () => {
     state.forge = starting();
     await reread(page);
     await expect(region(page)).toHaveText('GitHub starting up');
+    await expectAccessible(page);
+  });
+
+  test('a forge already slow on first load is announced', async ({ page }) => {
+    await serveBranches(page, { forge: slow() });
+    await page.goto('/');
+
+    await expect(rows(page)).toHaveCount(1);
+    await expect(region(page)).toHaveText('GitHub slow to answer');
     await expectAccessible(page);
   });
 });
