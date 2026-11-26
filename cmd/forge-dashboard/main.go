@@ -621,6 +621,8 @@ func linkedGitHubClient(shared githubShared, baseURL string, recorder requestlog
 		return nil
 	}
 
+	// The label needs the login, which the link already read and keeps in
+	// memory. Only the first build after a restart makes a request for it.
 	login := shared.linked.Login(ctx)
 	client := github.NewBearerClient(bearer, login, baseURL, recorder)
 	client.SetStats(stats, apistats.AccountCredential("oauth:"+login))

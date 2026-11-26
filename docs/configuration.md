@@ -282,7 +282,9 @@ neither is the Settings screen.
   with your user token, and it wins over a saved personal access token. The
   token is renewed when it expires, and the new pair is saved before it is used.
   It shares your account's 5,000 requests an hour. With an installation, reads
-  keep using the installation's token.
+  keep using the installation's token. A GitHub App's user token reaches only
+  the repos where the App is installed, so with no installation the dashboard
+  may find few or none.
 
 The Settings screen for connecting is not built; the flow is available through
 the [API](api.md) (`POST /api/v1/connections/github`).
