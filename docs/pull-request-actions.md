@@ -332,8 +332,11 @@ remainder, so the pill's slot gives up its minimum width), and the row is no
 taller than one without a chip. With a comment or merge-state pill and one
 action, with or without labels, the chip shares the line too: the CI pill gives
 up its minimum width (a Running pill is 104px), so the pill, the chip, the
-pills and the action fit the status track, the title keeps at least 200px at
-1280px, and the row is as tall as one with a Merge button. Every cell (the
+other pills and the action fit the status track, the title keeps at least 200px
+at 1280px, and the row is as tall as one with a Merge button. The one
+exception is a bot row (a rebase button plus an unarmed chip, no pills or
+labels): it keeps one line with a 145px title, because it has no room to give
+and stacking it would make every bot row two lines. Every cell (the
 pills, the chip, the action, the author and the dates) shares the row's middle.
 Two cases keep the chip on a line of its own below 94rem of list width, one
 36px line taller, because on one line the title would fall under 200px: pills
