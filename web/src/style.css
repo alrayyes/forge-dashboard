@@ -1348,23 +1348,27 @@ section.board {
        merge-state pill has nothing to break and keeps the one line. With the
        pill and an action too, the chip, the pill and the action leave the
        title 70px at 1280px (0px with Cancel auto-merge), so it stacks the
-       chip as well (#4795). From 94rem it is one line again (#4784). */
+       chip as well (#4795); #4945 keeps the one line by narrowing the CI
+       pill's slot instead. */
     /* #4784: from 94rem (1504px at the default text size) the title keeps
        well over 200px with the chip beside the pills and the action, so the
        row stays one line there. The rem term keeps the stack at a large text
        size, where the tracks are as wide as they are at 1280px. */
+    /* #4945: a chip stacked under the pills left the row two lines tall with
+       the pills above the chip. The CI pill gives up its 10.25rem slot (a
+       Running pill is 104px) so the pill, the chip, the pills and one action
+       fit the 27.5rem track on one line. Two actions beside a chip (a bot's
+       rebase and Cancel), or Update branch (about 100px), do not leave the title 200px, so that row keeps the
+       chip on a line of its own. */
     @container not (min-width: 94rem) {
-      .row:not(.issue-row):has(> .title-cell > .label-chip)
-        .status-cell:has(> .wait-slot:not(:empty)):not(
-          :has(> .wait-slot .wait-chip-detail:not(:empty))
-        ):is(
-          :has(> .row-action-bar):not(:has(> .status-flags)),
-          :has(> .status-flags)
-        ),
       .row:not(.issue-row)
         .status-cell:has(> .wait-slot:not(:empty)):not(
           :has(> .wait-slot .wait-chip-detail:not(:empty))
-        ):has(> .status-flags):has(> .row-action-bar) {
+        ):has(
+          > .row-action-bar > :nth-child(2),
+          > .row-action-bar button ~ button,
+          > .row-action-bar .row-action-update
+        ):has(> .status-flags) {
         grid-template-columns: min-content 7.5rem 9.25rem;
         > .wait-slot {
           grid-column: 1 / -1;
@@ -1378,6 +1382,13 @@ section.board {
           grid-column: 3;
         }
       }
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot:not(:empty)):not(
+        :has(> .wait-slot .wait-chip-detail:not(:empty))
+      ):has(> .status-flags, > .row-action-bar)
+      > .state-group {
+      min-width: 0;
     }
 
     /* Under the title an empty cluster would still take a gap. */
