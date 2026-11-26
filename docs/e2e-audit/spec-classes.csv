@@ -20,6 +20,7 @@ author-name-ellipsis.spec.ts,1.85,4,0,C,,1.9
 auto-merge-filter.spec.ts,6.171,9,4,C,,3.4
 auto-merge-focus.spec.ts,3.337,3,3,A,,0.0
 awaiting-approval.spec.ts,4.627,5,3,A,,1.9
+behind-chip.spec.ts,,9,3,C,,0.0
 behind-fix-button.spec.ts,4.089,6,2,C,,2.7
 board-title-width.spec.ts,1.396,4,4,A,,0.0
 bot-rebase-all-left-out.spec.ts,5.081,4,1,C,web/src/lib/bot-rebase-all.test.ts,3.8

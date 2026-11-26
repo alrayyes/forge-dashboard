@@ -31,12 +31,19 @@
     ...el.querySelectorAll<HTMLElement>(".filter-pill"),
   ];
 
+  // A space ahead of the text leaks into the button's name and any exact text
+  // match on the pill.
+  async function expectNoLeadingSpace(b: HTMLElement) {
+    await expect(b.textContent).toBe(b.textContent?.trimStart());
+  }
+
   async function expectGroups(el: HTMLElement) {
     const buttons = pills(el);
     await expect(buttons.length).toBeGreaterThan(4);
     for (const b of buttons) {
       await expect(b.getBoundingClientRect().height).toBe(32);
       await expect(b.querySelector(".filter-pill-count")).not.toBeNull();
+      await expectNoLeadingSpace(b);
     }
     for (const group of el.querySelectorAll<HTMLElement>("[role=group]")) {
       const label = group.querySelector(".filter-group-label");
@@ -45,6 +52,21 @@
       await expect(
         group.querySelectorAll("[aria-pressed='true']"),
       ).toHaveLength(1);
+    }
+    const { violations } = await axe.run(el);
+    await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  }
+
+  // The behind chip (#4624): the count leads its words, and axe is clean in
+  // both states.
+  async function expectBehind(el: HTMLElement) {
+    const chips = el.querySelectorAll<HTMLElement>("[data-pill=behind-base]");
+    await expect(chips).toHaveLength(2);
+    for (const chip of chips) {
+      await expectNoLeadingSpace(chip);
+      await expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe(
+        "3 behind the base branch",
+      );
     }
     const { violations } = await axe.run(el);
     await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
@@ -101,4 +123,45 @@
   }}
 >
   {@render groups()}
+</Story>
+
+<!-- The behind chip (#4624): the count leads, and the chip turns amber when
+     pressed. Its name is its visible text. -->
+{#snippet behind()}
+  <div style="display: grid; gap: 10px">
+    {#each [false, true] as pressed (pressed)}
+      <FilterGroup label="Merge" id="story-merge-{pressed}">
+        <FilterPill pressed={!pressed} count={12} onclick={fn()}>
+          All
+        </FilterPill>
+        <FilterPill
+          data-pill="behind-base"
+          {pressed}
+          count={3}
+          countFirst
+          onclick={fn()}
+        >
+          behind the base branch
+        </FilterPill>
+      </FilterGroup>
+    {/each}
+  </div>
+{/snippet}
+
+<Story
+  asChild
+  name="Behind chip, light"
+  beforeEach={() => theme("light")}
+  play={async ({ canvasElement }) => expectBehind(canvasElement)}
+>
+  {@render behind()}
+</Story>
+
+<Story
+  asChild
+  name="Behind chip, dark"
+  beforeEach={() => theme("dark")}
+  play={async ({ canvasElement }) => expectBehind(canvasElement)}
+>
+  {@render behind()}
 </Story>

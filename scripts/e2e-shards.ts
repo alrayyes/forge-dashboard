@@ -8,11 +8,11 @@ const durationsFile = path.join(testsDir, 'e2e-durations.json');
 type Durations = Record<string, number>;
 
 // Shard 1 ran the same specs about 1.25 times slower than the rest under the
-// old split (#3477). On a later green main run its time per second
-// of recorded work was in line with the others (5m27 for 275s against 5m40 for
-// 296s on shard 3), so it gets 90 percent of an even share, a hedge against the
-// old gap coming back. Set this to 1 if shard 1 stays in line over a few more
-// runs, and lower it if it stands out again.
+// old split (#3477). On a later green main run its time per second of recorded
+// work was in line with the others (5m27 for 275s against 5m40 for 296s on
+// shard 3), so it gets 90 percent of an even share, a hedge against the old gap
+// coming back. Set this to 1 if shard 1 stays in line over a few more runs, and
+// lower it if it stands out again.
 export const SHARD_SPEEDS: Record<number, number> = { 1: 0.9 };
 
 export function speedsFor(total: number): number[] {

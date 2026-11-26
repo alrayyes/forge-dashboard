@@ -20,11 +20,14 @@
   // with the accent when pressed, and a count in it. A group of these sits in a
   // FilterGroup, which labels it. `status` gives the pill the CI pill's glyph
   // and tone (#4221, #4246); without it the pill is plain. `pressed` is the
-  // aria-pressed the group's single choice reads from.
+  // aria-pressed the group's single choice reads from. `countFirst` puts the
+  // count before the words, for a pill that reads as a sentence: "3 behind the
+  // base branch" (#4624).
   let {
     pressed,
     count,
     status,
+    countFirst = false,
     class: className = "",
     children,
     ...rest
@@ -32,6 +35,7 @@
     pressed: boolean;
     count?: number;
     status?: CiFilterStatus;
+    countFirst?: boolean;
     children: Snippet;
   } & Omit<HTMLButtonAttributes, "aria-pressed"> = $props();
 </script>
@@ -44,8 +48,10 @@
   data-status={status}
   use:ciFilterGlyph={status}
 >
-  {@render children()}
-  {#if count !== undefined}
+  {#if countFirst && count !== undefined}<span class="filter-pill-count">
+      {count}
+    </span>{" "}{/if}{@render children()}
+  {#if !countFirst && count !== undefined}
     <span class="filter-pill-count">{count}</span>
   {/if}
 </button>

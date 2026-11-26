@@ -7388,6 +7388,11 @@ footer a[aria-current="page"] {
   border-color: var(--pill-active);
   color: var(--accent-ink);
 }
+.filter-pill[data-pill="behind-base"][aria-pressed="true"] {
+  background: var(--warning-bg);
+  border-color: var(--warning);
+  color: var(--warning);
+}
 .filter-pill-count {
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;

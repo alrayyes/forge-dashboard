@@ -288,10 +288,23 @@ the fix is under way). The pop-up keeps the chip, except beside a confirmed
 conflict, where the pill and the status block already say it, and an Update
 branch locked by that conflict is described by the block rather than printing
 its reason again. The Out of date
-quick filter and the Update all count still read `behind`. It is drawn in the
-warning colour on a tinted fill with a larger icon and heavier text, so a stale
-pull request stands out. It is readable in both themes (4.5:1 for the words,
-3:1 for the outline). Blocked stays a merge pill, since it says what the merge
+quick filter and the Update all count still read `behind`. The Out of date
+pill is drawn in the warning colour on a tinted fill with a larger icon and
+heavier text, so a stale pull request stands out. It is readable in both themes
+(4.5:1 for the words, 3:1 for the outline).
+
+Next to Out of date in the Merge group, the Bots page draws a chip that reads
+`N behind the base branch` (the count first). It lists only the green bot pull
+requests that are behind with something left to merge, so its number is the one
+in the menu pill for the Bots page (`navCounts.bots.behind`). Drafts and hidden
+pull requests are left out of both, even while Show drafts or Show hidden lists
+them. Out of date stays wider and lists them at any CI state.
+
+The chip and Out of date are one choice, like the other pills in a group:
+pressing one lets go of the other. Pressing the chip again clears it, it turns
+amber while pressed, and it is not drawn when no pull request qualifies.
+
+Blocked stays a merge pill, since it says what the merge
 needs. A confirmed conflict draws no pill on the row or in the pop-up: the
 "Merge conflict" status block says it, and the file names of a refused merge stay
 as a line of text. A row with no status block keeps the Conflicting pill, as the

@@ -5,6 +5,7 @@ import { unlistedSpecs } from './scripts/unlisted-e2e-specs';
 // Specs run against a server of their own with one signed-in user and a reset
 // between tests (tests/server-fixture.ts). Every spec must be listed here.
 const singleUserSpecs = [
+  '**/behind-chip.spec.ts',
   '**/first-login-setup.spec.ts',
   '**/locked-note-align.spec.ts',
   '**/main-branches-header-400.spec.ts',
