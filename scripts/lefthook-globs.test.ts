@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { expect, test } from 'bun:test';
 import {
+  existsSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -43,9 +44,10 @@ const probe = (p: string) => (p.endsWith('/') ? `${p}probe.file` : p);
 // The scans read only tracked files: agent worktrees under .claude/ hold whole
 // copies of the repo, and walking them outlasted bun's 5 s default (#5028).
 // Cheaper beats a longer timeout, so the default still ends a hung test.
-const tracked = Bun.spawnSync(['git', 'ls-files'], { cwd: root })
+// -z: without it git quotes a path holding unusual characters.
+const tracked = Bun.spawnSync(['git', 'ls-files', '-z'], { cwd: root })
   .stdout.toString()
-  .split('\n')
+  .split('\0')
   .filter(Boolean);
 
 const trackedSources = (suffix: string, skip: string[]) =>
@@ -55,7 +57,8 @@ const trackedSources = (suffix: string, skip: string[]) =>
       !f
         .split('/')
         .slice(0, -1)
-        .some((d) => skip.includes(d)),
+        .some((d) => skip.includes(d)) &&
+      existsSync(path.join(root, f)),
   );
 
 function dockerCopySources(): string[] {
@@ -203,11 +206,10 @@ function goTestReads(): string[] {
   return [...out].sort();
 }
 
-const goTestReadsBefore = goTestReads();
-
 // Agent worktrees under .claude/ hold whole copies of the repo. Reading them
 // made these scans outlast bun's 5 s default on a busy machine (#5028).
 test('the source scans ignore files git does not track', () => {
+  const before = goTestReads();
   // A dot directory, so a `go test ./...` running beside this skips it.
   const dir = mkdtempSync(path.join(root, '.scan-probe-'));
   const name = path.basename(dir);
@@ -217,9 +219,20 @@ test('the source scans ignore files git does not track', () => {
       '//go:embed copy_test.go\nvar x = "../README.md"\n',
     );
     expect(goEmbedTargets()).not.toContain(`${name}/copy_test.go`);
-    expect(goTestReads()).toEqual(goTestReadsBefore);
+    expect(goTestReads()).toEqual(before);
   } finally {
     rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// git still lists a file deleted or moved without staging it.
+test('the source scans skip a tracked file that is gone', () => {
+  tracked.push('internal/gone_test.go');
+  try {
+    expect(() => goEmbedTargets()).not.toThrow();
+    expect(() => goTestReads()).not.toThrow();
+  } finally {
+    tracked.pop();
   }
 });
 
