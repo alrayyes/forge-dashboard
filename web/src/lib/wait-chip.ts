@@ -645,12 +645,15 @@ function attachSwap(
     });
     if (phase === 'locked' && revealed) labelEl.textContent = 'Update branch';
     const why = phase === 'locked' ? swap.reason() : '';
-    const line = swapDetail({
-      phase,
-      revealed,
-      idleDetail,
-      reason: why,
-    });
+    // A chip with no second line stays one line: a line that appeared on
+    // hover would resize the status column and squeeze the title (#4795). A
+    // locked reason is then the button's title and its description.
+    const line =
+      idleDetail === '' && phase !== 'inflight'
+        ? idleDetail
+        : swapDetail({ phase, revealed, idleDetail, reason: why });
+    if (phase === 'locked') button.title = why;
+    else button.removeAttribute('title');
     if (line === idleDetail) detail.replaceChildren(...idleParts);
     else detail.textContent = line;
     button.setAttribute('aria-label', swapName(phase));
