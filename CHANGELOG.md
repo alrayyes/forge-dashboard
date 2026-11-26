@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.135.0](https://github.com/alrayyes/forge-dashboard/compare/v9.134.0...v9.135.0) (2026-11-26)
+
+
+### Features
+
+* **web:** comment pill opens newest comment ([#5010](https://github.com/alrayyes/forge-dashboard/issues/5010)) ([2823bbd](https://github.com/alrayyes/forge-dashboard/commit/2823bbd47e289212ba2ff658f9dea46c3ee0145b)), closes [#5002](https://github.com/alrayyes/forge-dashboard/issues/5002)
+
 ## [9.134.0](https://github.com/alrayyes/forge-dashboard/compare/v9.133.0...v9.134.0) (2026-11-26)
 
 

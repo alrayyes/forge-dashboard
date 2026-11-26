@@ -352,6 +352,7 @@ const singleUserSpecs = [
   '**/popup-focus-fallback-sites.spec.ts',
   '**/repositories-filter-box-fit.spec.ts',
   '**/repositories-table-reflow.spec.ts',
+  '**/comment-pill-newest.spec.ts',
   '**/forge-cause.spec.ts',
 ];
 

@@ -8,6 +8,11 @@ import { join } from 'node:path';
 // matches oapi-codegen's PascalCase only while the id is camelCase
 // alphanumeric. A rule holds every id to that shape (#4947).
 
+// Each case runs the real Spectral CLI: 0.6 to 2.2 s on a busy 16-core machine,
+// up to 20 s squeezed to a ninth of one core, well past bun's 5 s default.
+// Sharing runs wouldn't shorten any one of them.
+const LINT_TIMEOUT_MS = 60_000;
+
 const lint = (operationId: string, schema: string) => {
   const dir = mkdtempSync(join(tmpdir(), 'spectral-'));
   try {
@@ -47,28 +52,42 @@ components:
 };
 
 describe('spectral operationId shape', () => {
-  test('snake_case ids are rejected, with the reason', () => {
-    const errors = lint(
-      'verify_forgejo_instance',
-      'VerifyForgejoInstanceResponse',
-    );
-    const hit = errors.find((r) => r.code === 'operation-id-camel-case');
-    expect(hit).toBeDefined();
-    expect(hit?.message).toContain('does not compile');
-  });
+  test(
+    'snake_case ids are rejected, with the reason',
+    () => {
+      const errors = lint(
+        'verify_forgejo_instance',
+        'VerifyForgejoInstanceResponse',
+      );
+      const hit = errors.find((r) => r.code === 'operation-id-camel-case');
+      expect(hit).toBeDefined();
+      expect(hit?.message).toContain('does not compile');
+    },
+    LINT_TIMEOUT_MS,
+  );
 
-  test('a camelCase id passes the shape rule', () => {
-    const errors = lint('verifyForgejoInstance', 'Other');
-    expect(errors.map((r) => r.code)).not.toContain('operation-id-camel-case');
-  });
+  test(
+    'a camelCase id passes the shape rule',
+    () => {
+      const errors = lint('verifyForgejoInstance', 'Other');
+      expect(errors.map((r) => r.code)).not.toContain(
+        'operation-id-camel-case',
+      );
+    },
+    LINT_TIMEOUT_MS,
+  );
 
-  test('a camelCase id still collides with its wrapper', () => {
-    const errors = lint(
-      'verifyForgejoInstance',
-      'VerifyForgejoInstanceResponse',
-    );
-    expect(errors.map((r) => r.code)).toContain(
-      'no-operation-wrapper-collision',
-    );
-  });
+  test(
+    'a camelCase id still collides with its wrapper',
+    () => {
+      const errors = lint(
+        'verifyForgejoInstance',
+        'VerifyForgejoInstanceResponse',
+      );
+      expect(errors.map((r) => r.code)).toContain(
+        'no-operation-wrapper-collision',
+      );
+    },
+    LINT_TIMEOUT_MS,
+  );
 });
