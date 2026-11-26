@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.132.0](https://github.com/alrayyes/forge-dashboard/compare/v9.131.0...v9.132.0) (2026-11-26)
+
+
+### Features
+
+* **dashboard:** offer no Merge anywhere while CI is failing ([#4995](https://github.com/alrayyes/forge-dashboard/issues/4995)) ([711d88b](https://github.com/alrayyes/forge-dashboard/commit/711d88b93bc68f84fadda18ae33d8449906ead76))
+
 ## [9.131.0](https://github.com/alrayyes/forge-dashboard/compare/v9.130.3...v9.131.0) (2026-11-26)
 
 

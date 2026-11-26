@@ -2,19 +2,25 @@
 import { describe, expect, it } from 'bun:test';
 import { dropsFailingMerge } from './failing-merge';
 
-describe('dropsFailingMerge (#4953)', () => {
-  it('draws no Merge on a row whose CI is failing', () => {
-    expect(dropsFailingMerge('checks_failing', true)).toBe(true);
+describe('dropsFailingMerge (#4953, #4975)', () => {
+  it('draws no Merge when CI is failing and that is the blocked reason', () => {
+    expect(dropsFailingMerge('failure', 'checks_failing')).toBe(true);
   });
 
-  it('keeps the pop-up footer listing the locked Merge', () => {
-    expect(dropsFailingMerge('checks_failing', false)).toBe(false);
+  it('draws none when another reason is listed first (stacked)', () => {
+    expect(dropsFailingMerge('failure', 'draft')).toBe(true);
+    expect(dropsFailingMerge('failure', 'conflict')).toBe(true);
+    expect(dropsFailingMerge('failure', 'behind')).toBe(true);
   });
 
-  it('leaves every other blocked reason to its own rule', () => {
-    expect(dropsFailingMerge('conflict', true)).toBe(false);
-    expect(dropsFailingMerge('draft', true)).toBe(false);
-    expect(dropsFailingMerge('behind', true)).toBe(false);
-    expect(dropsFailingMerge(undefined, true)).toBe(false);
+  it('draws none for a mergeable pull request whose CI failed', () => {
+    expect(dropsFailingMerge('failure', undefined)).toBe(true);
+  });
+
+  it('leaves every other state to its own rule', () => {
+    expect(dropsFailingMerge('success', 'conflict')).toBe(false);
+    expect(dropsFailingMerge('pending', 'behind')).toBe(false);
+    expect(dropsFailingMerge('cancelled', undefined)).toBe(false);
+    expect(dropsFailingMerge(undefined, undefined)).toBe(false);
   });
 });
