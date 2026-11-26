@@ -59,14 +59,13 @@ func TestSettingsSummary_NeverCarriesAnySecret(t *testing.T) {
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
-	creds := getSettings(t, srv.URL, cookie)
-	require.NotEmpty(t, creds.WebhookToken)
-	require.NotEmpty(t, creds.WebhookSecret)
+	getSettings(t, srv.URL, cookie)
+	webhookToken, webhookSecret := storedWebhookCredentials(t, srv.URL)
 
 	status, raw, body := getSettingsSummary(t, srv.URL, cookie)
 
 	require.Equal(t, http.StatusOK, status)
-	for _, secret := range []string{"ghp_secret_value", "fj_secret_value", creds.WebhookToken, creds.WebhookSecret} {
+	for _, secret := range []string{"ghp_secret_value", "fj_secret_value", webhookToken, webhookSecret} {
 		assert.NotContains(t, raw, secret)
 	}
 	assert.NotContains(t, body, "webhookToken")

@@ -343,8 +343,7 @@ func addSettingsTool(server *mcp.Server, deps Deps) {
 			"URL, whether a GitHub or Forgejo token is set (never the token), the Renovate " +
 			"and issue-hiding settings, theme and timezone, and webhookConfigured. " +
 			"Read-only: it writes nothing, and never creates webhook credentials. The " +
-			"webhook token and secret are never returned over MCP; read them in the web " +
-			"UI's Settings page.",
+			"webhook token and secret are never returned.",
 	}, func(ctx context.Context, _ *mcp.CallToolRequest, _ struct{}) (*mcp.CallToolResult, SettingsSummary, error) {
 		resp, err := resolveSettingsSummary(ctx, deps)
 		if err != nil {

@@ -70,9 +70,8 @@ func TestMCP_GetSettings_NeverReturnsAnySecret(t *testing.T) {
 	cookie, _, _ := registerViaRealCeremony(t, srv)
 	status, _ := putSettings(t, srv.URL, seededSettings, cookie)
 	require.Equal(t, http.StatusOK, status)
-	creds := getSettings(t, srv.URL, cookie) // creates the webhook credentials
-	require.NotEmpty(t, creds.WebhookToken)
-	require.NotEmpty(t, creds.WebhookSecret)
+	getSettings(t, srv.URL, cookie) // creates the webhook credentials
+	webhookToken, webhookSecret := storedWebhookCredentials(t, srv.URL)
 
 	result := callSettingsTool(t, srv.URL, cookie)
 
@@ -85,7 +84,7 @@ func TestMCP_GetSettings_NeverReturnsAnySecret(t *testing.T) {
 		require.True(t, ok)
 		all.WriteString(text.Text)
 	}
-	for _, secret := range []string{"ghp_secret_value", "fj_secret_value", creds.WebhookToken, creds.WebhookSecret} {
+	for _, secret := range []string{"ghp_secret_value", "fj_secret_value", webhookToken, webhookSecret} {
 		assert.NotContains(t, all.String(), secret)
 	}
 	content := settingsContent(t, result)
@@ -96,7 +95,7 @@ func TestMCP_GetSettings_NeverReturnsAnySecret(t *testing.T) {
 	assert.NotContains(t, content, "webhookSecret")
 }
 
-func TestMCP_GetSettings_HasTheHTTPFieldsMinusTheWebhookSecrets(t *testing.T) {
+func TestMCP_GetSettings_HasTheHTTPFieldsPlusWebhookConfigured(t *testing.T) {
 	t.Parallel()
 
 	srv := newTestServer(t)
@@ -108,8 +107,6 @@ func TestMCP_GetSettings_HasTheHTTPFieldsMinusTheWebhookSecrets(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 	var want map[string]any
 	require.NoError(t, readJSON(resp, &want))
-	delete(want, "webhookToken")
-	delete(want, "webhookSecret")
 	want["webhookConfigured"] = true
 
 	assert.Equal(t, want, settingsContent(t, callSettingsTool(t, srv.URL, cookie)))

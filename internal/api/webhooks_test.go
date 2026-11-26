@@ -224,6 +224,8 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 	})
 	testSrv := httptest.NewServer(mux)
 	t.Cleanup(testSrv.Close)
+	testSettingsStores.Store(testSrv.URL, settingsStore)
+	t.Cleanup(func() { testSettingsStores.Delete(testSrv.URL) })
 
 	sessionCookie, _, _ = registerViaRealCeremony(t, testSrv)
 
@@ -247,12 +249,9 @@ func webhookCredentials(t *testing.T, srvURL string, sessionCookie *http.Cookie)
 	resp, err := testClient(t).Do(req)
 	require.NoError(t, err)
 	defer func() { _ = resp.Body.Close() }()
-	var got api.SettingsResponse
-	require.NoError(t, readJSON(resp, &got))
-	require.NotEmpty(t, got.WebhookToken)
-	require.NotEmpty(t, got.WebhookSecret)
+	require.Equal(t, http.StatusOK, resp.StatusCode)
 
-	return got.WebhookToken, got.WebhookSecret
+	return storedWebhookCredentials(t, srvURL)
 }
 
 func TestGitHubWebhook_ValidSignature_TriggersRefreshAndReturns204(t *testing.T) {
