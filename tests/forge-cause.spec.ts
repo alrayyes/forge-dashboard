@@ -141,3 +141,78 @@ test.describe('forge cause (#4998)', () => {
     await expectAccessible(page);
   });
 });
+
+// Main branches draws no forge chip, so a live region of its own says it (#5024).
+test.describe('forge cause on Main branches (#5024)', () => {
+  const region = (page: Page) => page.locator('#forge-health-live');
+  const rows = (page: Page) => page.getByTestId('main-branch-row');
+
+  async function serveBranches(page: Page, state: { forge: Health }) {
+    await serve(page, state);
+    await page.route('**/api/v1/main-branches', (route: Route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ...mainBranchPageOf(['passed']),
+          forges: [state.forge],
+          generatedAt: new Date().toISOString(),
+        }),
+      }),
+    );
+  }
+
+  async function reread(page: Page) {
+    const button = page.getByRole('button', { name: 'Refresh now' });
+    const answered = page.waitForResponse('**/api/v1/main-branches');
+    await button.click();
+    await answered;
+    await expect(button).not.toHaveAttribute('aria-disabled', 'true');
+  }
+
+  test('a forge that turns slow is announced once, then starting up', async ({
+    page,
+  }) => {
+    const state = { forge: good() };
+    await serveBranches(page, state);
+    await page.goto('/');
+    // The control can read Live before the rows arrive, so wait for one.
+    await expect(rows(page)).toHaveCount(1);
+    await expect(region(page)).toHaveAttribute('aria-live', 'polite');
+    await expect(region(page)).toHaveText('');
+
+    state.forge = slow();
+    await reread(page);
+    await expect(region(page)).toHaveText('GitHub slow to answer');
+    await expectAccessible(page);
+
+    // An unchanged state must not touch the region, or it is spoken again.
+    await region(page).evaluate((el) => {
+      el.dataset.writes = '0';
+      new MutationObserver(() => {
+        el.dataset.writes = String(Number(el.dataset.writes) + 1);
+      }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    await reread(page);
+    await reread(page);
+    await expect(region(page)).toHaveAttribute('data-writes', '0');
+
+    state.forge = good();
+    await reread(page);
+    await expect(region(page)).toHaveText('');
+
+    state.forge = starting();
+    await reread(page);
+    await expect(region(page)).toHaveText('GitHub starting up');
+    await expectAccessible(page);
+  });
+
+  test('a forge already slow on first load is announced', async ({ page }) => {
+    await serveBranches(page, { forge: slow() });
+    await page.goto('/');
+
+    await expect(rows(page)).toHaveCount(1);
+    await expect(region(page)).toHaveText('GitHub slow to answer');
+    await expectAccessible(page);
+  });
+});

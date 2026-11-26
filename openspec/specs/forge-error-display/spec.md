@@ -134,3 +134,26 @@ reaches the forge replaces the mark with its real reachability.
   forge that is starting
 - **THEN** a notice says the app is starting up and the rows are the saved
   ones, and the "forge can't be read" notice is not shown for them
+
+### Requirement: Main branches announces a slow or starting forge
+
+The Main branches page, which draws no forge chip, SHALL state in a polite live
+region, naming the forge, that a forge is slow to answer or starting up when
+that forge's health gains that `cause`. It SHALL NOT state it again while the
+cause is unchanged, and SHALL say nothing while no forge has a cause.
+
+#### Scenario: A forge turns slow
+
+- **WHEN** a later read gives a forge `cause: "slow"` or `cause: "starting"`
+- **THEN** the live region says once that the named forge is slow to answer or
+  starting up
+
+#### Scenario: The same state on the next read
+
+- **WHEN** later reads carry the same cause
+- **THEN** the live region is not rewritten
+
+#### Scenario: A first load with no cause
+
+- **WHEN** the page loads and no forge has a cause
+- **THEN** the live region stays empty

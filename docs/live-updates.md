@@ -36,7 +36,11 @@ cause, the control reads "Slow to answer" or "Starting up" (starting up wins
 when both apply) with an amber dot. "Paused" wins over both. On Pull requests,
 Bots, Issues and Releases that forge's chip says the same and a screen reader
 hears it. The Main branches page has no forge health chips, so only the control
-says it there, and the change isn't announced. On Main branches the pause isn't
+shows it there, and one polite line tells a screen reader which forge is "slow
+to answer" or "starting up". It speaks once when a forge gains the state,
+including one already there when the page loads, and stays quiet while nothing
+changes. While paused, it waits for the page that Resume or Refresh now draws.
+On Main branches the pause isn't
 saved with your filters and a reload goes back to live. The **Sort** control offers
 Last activity (the default, the server's order: most recently updated first,
 whether or not a pull request is ready to merge), Created, and Repository.
