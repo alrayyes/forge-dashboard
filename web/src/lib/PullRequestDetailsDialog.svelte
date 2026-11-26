@@ -1885,6 +1885,12 @@
     font-weight: 600;
     font-size: 0.875rem;
   }
+  /* The initial's circle needs an edge, or it reads smaller than a picture
+     (#5008). */
+  span.avatar {
+    box-sizing: border-box;
+    border: 1px solid var(--control-border);
+  }
   .comment-login {
     font-weight: 600;
   }
