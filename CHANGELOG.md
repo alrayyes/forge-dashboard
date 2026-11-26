@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.130.3](https://github.com/alrayyes/forge-dashboard/compare/v9.130.2...v9.130.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **dashboard:** hold the last good rows for a missed pass until the failure threshold ([#4987](https://github.com/alrayyes/forge-dashboard/issues/4987)) ([fa50ef6](https://github.com/alrayyes/forge-dashboard/commit/fa50ef6c7b7abfeaf1b3e026338adaf4959f6ab1)), closes [#4977](https://github.com/alrayyes/forge-dashboard/issues/4977)
+
 ## [9.130.2](https://github.com/alrayyes/forge-dashboard/compare/v9.130.1...v9.130.2) (2026-11-26)
 
 
