@@ -223,20 +223,25 @@ outage shows `path=error` and the error kind. A slow forge shows
 `path=deadline` or `path=skipped`, and a late line, and no error kind. These
 lines also appear on a held pass, where no banner shows. The forge's health
 then carries `cause: "slow"`, and the page reads "Slow to answer" instead of
-"Live". The next good full refresh clears the cause. A webhook that refreshes
-one repository doesn't, so the wording can stay until that refresh. Only the
-third miss in a row shows the unreachable banner, and that health has no cause.
+"Live". It means the latest full pass got no answer in time, so the next one
+that doesn't miss clears it, even when it holds a 5xx or skips the forge to
+save its rate limit. A webhook that refreshes one repository doesn't, so the
+wording can stay until the next full pass. Only the third miss in a row shows
+the unreachable banner, and that health has no cause.
+
 After a restart the saved rows carry `cause: "starting"` (the same fact as
-`starting`) until the first fetch answers. The page reads "Starting up" and
+`starting`) until a fetch answers in time. The page reads "Starting up" and
 never unreachable. A first fetch that hits its deadline, and the passes skipped
 behind it, change nothing: the forge stays "Starting up", with no error kind and
-no banner, for as long as that fetch hangs.
+no banner. Its late answer is dropped, so a forge that is always slower than the
+deadline stays "Starting up". The log has the deadline and skipped lines for it
+and no `full refresh failed` line, since nothing has failed.
 
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
 shows those rows at once. Their forge reads as starting up, with a stale time,
-until the first refresh answers; one that then fails is shown in the
+until a fetch from it answers in time; one that fails is shown in the
 unreachable banner. The rest of this section
 covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,

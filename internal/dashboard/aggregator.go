@@ -927,7 +927,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			// No budget left until the reset: a call would only fail, and
 			// the attempt itself counts against the forge (#755). Keep the
 			// last rows and the exhausted budget, so the banner holds.
-			results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
+			results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
 
 			continue
 		}
@@ -935,7 +935,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
 				// At the reserve: what is left is for the person clicking.
 				health, _ := healthOf(earlier, src.Forge())
-				results[i].Result = carryOver(Result{Health: health}, earlier, src.Forge())
+				results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
 
 				continue
 			}
@@ -1140,6 +1140,17 @@ func (a *Aggregator) joinPass() {
 	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0))
 }
 
+// notSlow is h without ForgeCauseSlow, which is about the latest pass only: a
+// pass that does not ask the forge must not inherit it. ForgeCauseStarting
+// stays, since nothing has answered yet.
+func notSlow(h ForgeHealth) ForgeHealth {
+	if h.Cause == ForgeCauseSlow {
+		h.Cause = ""
+	}
+
+	return h
+}
+
 // exhaustedHealth returns forge's health from snap when one of its budgets is
 // spent and its reset is still ahead, so a fetch before then cannot work.
 func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bool) {
@@ -1291,7 +1302,7 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 	if !ok || !prev.Reachable {
 		return r, false
 	}
-	held := Result{Health: prev}
+	held := Result{Health: notSlow(prev)}
 	if missed {
 		held.Health.Cause = ForgeCauseSlow
 	}
