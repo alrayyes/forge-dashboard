@@ -24,13 +24,13 @@ func TestHoldUpstreamErrorLeavesTheStreakAloneForAForgeNobodyAsked(t *testing.T)
 	streaks := map[Forge]int{}
 
 	for range 5 {
-		_, held := holdUpstreamError(upstreamFailure(), false, earlier, goodAt, streaks, holdForge)
+		_, held := holdUpstreamError(upstreamFailure(), false, false, earlier, goodAt, streaks, holdForge)
 		assert.False(t, held)
 	}
 
 	assert.Zero(t, streaks[holdForge])
 
-	held, ok := holdUpstreamError(upstreamFailure(), true, earlier, goodAt, streaks, holdForge)
+	held, ok := holdUpstreamError(upstreamFailure(), true, false, earlier, goodAt, streaks, holdForge)
 	assert.True(t, ok, "the first real 504 is held")
 	assert.True(t, held.Health.Reachable)
 	assert.Equal(t, 1, streaks[holdForge])
@@ -40,7 +40,7 @@ func TestHoldUpstreamErrorLeavesTheStreakAloneForAReachableUnaskedAnswer(t *test
 	earlier, goodAt := heldFixture()
 	streaks := map[Forge]int{holdForge: 2}
 
-	holdUpstreamError(Result{Health: ForgeHealth{Forge: holdForge, Reachable: true}}, false, earlier, goodAt, streaks, holdForge)
+	holdUpstreamError(Result{Health: ForgeHealth{Forge: holdForge, Reachable: true}}, false, false, earlier, goodAt, streaks, holdForge)
 
 	assert.Equal(t, 2, streaks[holdForge])
 }
@@ -50,10 +50,10 @@ func TestHoldUpstreamErrorShowsTheBannerOnTheThirdRealFailure(t *testing.T) {
 	streaks := map[Forge]int{}
 
 	for range ForgeFailureThreshold - 1 {
-		_, ok := holdUpstreamError(upstreamFailure(), true, earlier, goodAt, streaks, holdForge)
+		_, ok := holdUpstreamError(upstreamFailure(), true, false, earlier, goodAt, streaks, holdForge)
 		assert.True(t, ok)
 	}
-	_, ok := holdUpstreamError(upstreamFailure(), true, earlier, goodAt, streaks, holdForge)
+	_, ok := holdUpstreamError(upstreamFailure(), true, false, earlier, goodAt, streaks, holdForge)
 
 	assert.False(t, ok)
 }
@@ -62,7 +62,53 @@ func TestHoldUpstreamErrorResetsOnAnAskedReachableAnswer(t *testing.T) {
 	earlier, goodAt := heldFixture()
 	streaks := map[Forge]int{holdForge: 2}
 
-	holdUpstreamError(Result{Health: ForgeHealth{Forge: holdForge, Reachable: true}}, true, earlier, goodAt, streaks, holdForge)
+	holdUpstreamError(Result{Health: ForgeHealth{Forge: holdForge, Reachable: true}}, true, false, earlier, goodAt, streaks, holdForge)
 
 	assert.Zero(t, streaks[holdForge])
+}
+
+func missedPass() Result {
+	return Result{Health: markUnreachable(ForgeHealth{Forge: holdForge})}
+}
+
+func TestHoldUpstreamErrorCountsAMissedPassEvenWhenNobodyAskedAgain(t *testing.T) {
+	earlier, goodAt := heldFixture()
+	streaks := map[Forge]int{}
+
+	for range ForgeFailureThreshold - 1 {
+		_, ok := holdUpstreamError(missedPass(), false, true, earlier, goodAt, streaks, holdForge)
+		assert.True(t, ok)
+	}
+	_, ok := holdUpstreamError(missedPass(), true, true, earlier, goodAt, streaks, holdForge)
+
+	assert.False(t, ok, "the threshold counts skipped and deadline passes together")
+}
+
+func TestHoldUpstreamErrorResetsTheMissCountOnAGoodAnswer(t *testing.T) {
+	earlier, goodAt := heldFixture()
+	streaks := map[Forge]int{}
+
+	holdUpstreamError(missedPass(), true, true, earlier, goodAt, streaks, holdForge)
+	holdUpstreamError(missedPass(), true, true, earlier, goodAt, streaks, holdForge)
+	holdUpstreamError(Result{Health: ForgeHealth{Forge: holdForge, Reachable: true}}, true, false, earlier, goodAt, streaks, holdForge)
+	_, ok := holdUpstreamError(missedPass(), true, true, earlier, goodAt, streaks, holdForge)
+
+	assert.True(t, ok, "the count started again")
+}
+
+func TestHoldUpstreamErrorShowsAMissedPassAtOnceWithNoGoodRead(t *testing.T) {
+	earlier, _ := heldFixture()
+
+	_, ok := holdUpstreamError(missedPass(), true, true, earlier, map[Forge]time.Time{}, map[Forge]int{}, holdForge)
+
+	assert.False(t, ok)
+}
+
+func TestHoldUpstreamErrorShowsARealFailureAtOnce(t *testing.T) {
+	earlier, goodAt := heldFixture()
+	refused := Result{Health: ForgeHealth{Forge: holdForge, ErrorKind: ForgeErrorUnreachable}}
+
+	_, ok := holdUpstreamError(refused, true, false, earlier, goodAt, map[Forge]int{}, holdForge)
+
+	assert.False(t, ok)
 }

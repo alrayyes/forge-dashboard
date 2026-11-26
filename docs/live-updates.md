@@ -202,6 +202,13 @@ these lines, in this order:
   long that earlier fetch has been going. Both forges showing this together
   points at a slow host, not at the forges.
 
+A deadline or skipped pass is held, not shown at once: the forge keeps its last
+good rows and health until `ForgeFailureThreshold` (3) passes in a row have
+missed, counting deadline and skipped passes together, as long as the forge was
+read at least once before. A good fetch resets the count, and a real failure
+(`path=error`) shows at once as before. So the banner from these paths appears
+only when the forge stayed silent for several passes.
+
 Each line that marks a forge unreachable carries a `path`: `deadline`, `skipped`
 or `error`. A real outage shows `path=error` and the error kind. A false alarm
 shows `path=deadline` or `path=skipped`, and a late line, and no error kind.
