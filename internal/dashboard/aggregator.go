@@ -1496,6 +1496,13 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 	// first, not after: one that arrives while the refresh runs is a real
 	// request and still gets its catch-up.
 	a.activity.drainWake()
+	if ctx.Err() != nil {
+		// Replaced before it started. No first refresh is coming, so let go
+		// of anyone waiting for one.
+		a.markFirstRefreshed()
+
+		return
+	}
 	a.refreshBackground(ctx)
 
 	timer := a.newRunTimer(a.NextDelay(interval))
@@ -1506,25 +1513,49 @@ func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-timer.C():
-			if a.activity.Idle() && !a.automationPending(ctx) {
-				timer.Reset(a.NextDelay(interval))
-
-				continue
-			}
-			a.refreshBackground(ctx)
-			timer.Reset(a.NextDelay(interval))
+			a.scheduledPass(ctx)
 		case <-a.activity.Woken():
-			// Someone opened the board after an idle spell: theirs, not the
-			// schedule's, so the reserve is for it.
-			a.Refresh(ctx)
-			if !timer.Stop() {
-				select {
-				case <-timer.C():
-				default:
-				}
-			}
-			timer.Reset(a.NextDelay(interval))
+			a.catchUpPass(ctx)
+			stopAndDrain(timer)
 		}
+		// select picks at random between ready cases, so a tick or a wake can
+		// win over a cancellation that is already there (#5041). The passes
+		// do nothing then, and this ends the loop.
+		if ctx.Err() != nil {
+			return
+		}
+		timer.Reset(a.NextDelay(interval))
+	}
+}
+
+// scheduledPass is what a tick does: a background refresh, unless Run was
+// cancelled or the dashboard is idle with nothing waiting on a refresh.
+func (a *Aggregator) scheduledPass(ctx context.Context) {
+	if ctx.Err() != nil || (a.activity.Idle() && !a.automationPending(ctx)) {
+		return
+	}
+	a.refreshBackground(ctx)
+}
+
+// catchUpPass is what a wake does, unless Run was cancelled. Someone opened
+// the board after an idle spell: the refresh is theirs, not the schedule's, so
+// the reserve is for it.
+func (a *Aggregator) catchUpPass(ctx context.Context) {
+	if ctx.Err() != nil {
+		return
+	}
+	a.Refresh(ctx)
+}
+
+// stopAndDrain stops timer and discards a tick it had already sent, so the
+// next Reset starts a full wait.
+func stopAndDrain(timer RunTimer) {
+	if timer.Stop() {
+		return
+	}
+	select {
+	case <-timer.C():
+	default:
 	}
 }
 
