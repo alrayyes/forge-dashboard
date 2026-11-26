@@ -420,11 +420,23 @@
   // (#5002). Holds where the dialog left the reader, so a comment that arrives
   // later never pulls them from somewhere they went themselves. Null for any
   // other way in, and once the read this open made has answered.
-  let landing: { held: Element | null; top: number } | null = null;
+  let landing: {
+    held: Element | null;
+    top: number;
+    dialogTop: number;
+  } | null = null;
   // The comment that was landed on, which takes the tabindex focus needs.
   let landedId = $state<string | null>(null);
   // This open's first read failed before it could land: Try again still may.
   let landOnRetry = false;
+
+  // Where focus and the dialog's own scroll are before a jump; the body is
+  // still at its top.
+  const landingFromHere = () => ({
+    held: document.activeElement,
+    top: 0,
+    dialogTop: dialogEl?.scrollTop ?? 0,
+  });
 
   // `settled` says the details on show are the ones this open read.
   async function landOnNewest(settled: boolean) {
@@ -435,7 +447,8 @@
     const at = document.activeElement;
     const moved =
       (at !== aim.held && at !== dialogEl && at !== document.body) ||
-      bodyEl.scrollTop !== aim.top;
+      bodyEl.scrollTop !== aim.top ||
+      dialogEl?.scrollTop !== aim.dialogTop;
     const id = details?.comments.at(-1)?.id;
     if (!moved && id !== undefined && id !== landedId) {
       landedId = id;
@@ -444,15 +457,21 @@
         ".details-comment[tabindex]",
       );
       newest?.focus({ preventScroll: true });
-      // Only the body moves: scrollIntoView would also scroll a dialog taller
-      // than the window and take the header with it. No motion to reduce.
-      if (newest)
+      // The body scrolls to the comment: scrollIntoView on the comment would
+      // move the dialog further than needed. No motion to reduce.
+      if (newest) {
         bodyEl.scrollTop +=
           newest.getBoundingClientRect().top -
           bodyEl.getBoundingClientRect().top -
           8;
+        // A tall header can leave the body past the edge of a short dialog
+        // (#5018). Then the dialog scrolls too, only as far as shows the
+        // body; where the body already fits, nothing moves.
+        bodyEl.scrollIntoView({ block: "nearest" });
+      }
       aim.held = newest;
       aim.top = bodyEl.scrollTop;
+      aim.dialogTop = dialogEl?.scrollTop ?? 0;
     }
     if (moved || settled) landing = null;
   }
@@ -520,7 +539,7 @@
     }
     if (atNewestComment) {
       // Where showModal put focus: the reader hasn't moved from there yet.
-      landing = { held: document.activeElement, top: 0 };
+      landing = landingFromHere();
       if (phase === "ready") landOnNewest(false);
     }
   }
@@ -776,7 +795,7 @@
   }
 
   function retry() {
-    if (landOnRetry) landing = { held: document.activeElement, top: 0 };
+    if (landOnRetry) landing = landingFromHere();
     load();
   }
 

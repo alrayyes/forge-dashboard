@@ -125,13 +125,20 @@ The comment pill on a row opens the pull request's pop-up, not the forge, at
 the newest comment it lists: that comment is scrolled into view without
 animation, outlined and focused, and Escape puts focus back on the pill. On a
 thread the pop-up cuts off, that's the last comment before the "Showing the
-first" note, and the note stays in view. If you scroll or tab elsewhere while
-the comments are still loading, the pop-up stays where you put it. The pill also
-counts review comments on lines of code, which the pop-up doesn't list. When it
-lists no comment, or can't load them, it opens at the top, and a successful
-**Try again** then goes to the newest one. No other way into the pop-up jumps to
-a comment. Only buttons named for the forge, such as Open on GitHub, leave the
-dashboard.
+first" note, and the note stays pinned to the bottom of the comments. It
+leaves that place while focus is on a link or another control inside any
+comment, so it never covers it: it then sits after the last comment, where you
+scroll to read it. It's pinned again once focus moves out. On a short window,
+such as a phone held sideways, a long title and several labels can push the
+comments past the bottom of the pop-up. The pill then also scrolls the whole
+pop-up, far enough to show the comment area, so the top of the header can go
+off-screen; scroll up to get it back. If you scroll or tab elsewhere while the
+comments are still loading, the pop-up stays where you put it. The pill also
+counts review comments on lines of code, which the pop-up doesn't list. When
+it lists no comment, or can't load them, it opens at the top, and a successful
+**Try again** then goes to the newest one. No other way into the pop-up jumps
+to a comment. Only buttons named for the forge, such as Open on GitHub, leave
+the dashboard.
 
 ## Finding a pull request by its number
 
