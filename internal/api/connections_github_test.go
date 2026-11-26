@@ -105,7 +105,11 @@ func newGHConnFixture(t *testing.T, configured bool) *ghConnFixture {
 
 	gh := newFakeGitHubHost(t)
 	builds := &atomic.Int32{}
-	srv, _, _, _, db, _ := newTestServerWithDatabase(t, func(settingspkg.Credentials) []dashboard.Source { builds.Add(1); return nil }, false, 0,
+	srv, _, _, _, db, _ := newTestServerWithDatabase(t, func(settingspkg.Credentials) []dashboard.Source {
+		builds.Add(1)
+
+		return nil
+	}, false, 0,
 		func(d *api.Deps) {
 			if configured {
 				d.GitHubOAuth = oauth.NewGitHubAt(t.Context(), "gh-id", "gh-secret", ghConnRedirect, d.SettingsStore,
