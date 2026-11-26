@@ -126,6 +126,16 @@ describe('spectral lint() helper', () => {
     expect(() => lint('ok', 'Other', { command })).toThrow(/cannot start/);
   });
 
+  // Output alone isn't a verdict: the exit status has to be one too.
+  test('throws when Spectral prints results but exits 2', () => {
+    const command = [
+      process.execPath,
+      '-e',
+      'console.log("[]"); console.error("crashed"); process.exit(2)',
+    ];
+    expect(() => lint('ok', 'Other', { command })).toThrow(/crashed/);
+  });
+
   test(
     'returns an empty list when there are no results at all',
     () => {
