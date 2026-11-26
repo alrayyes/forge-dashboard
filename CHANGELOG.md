@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.131.0](https://github.com/alrayyes/forge-dashboard/compare/v9.130.3...v9.131.0) (2026-11-26)
+
+
+### Features
+
+* **web:** add a 'N behind the base branch' chip that filters the bot pull requests ([#4989](https://github.com/alrayyes/forge-dashboard/issues/4989)) ([72768fc](https://github.com/alrayyes/forge-dashboard/commit/72768fcd065a5b6203e0aa39decf56a8b59d4717))
+
 ## [9.130.3](https://github.com/alrayyes/forge-dashboard/compare/v9.130.2...v9.130.3) (2026-11-26)
 
 
