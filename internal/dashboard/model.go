@@ -572,8 +572,8 @@ type ForgeHealth struct {
 	// latest pass missed and the last good rows are held (#4998). The client
 	// words it.
 	Cause ForgeCause `json:"cause,omitempty"`
-	// RowsReadAt is when the held rows were read, set only while Cause is
-	// ForgeCauseSlow. It is not StaleSince: the forge is still reachable, so
+	// RowsReadAt is about when the held rows were read (lastGood, as for
+	// StaleSince), set only while Cause is ForgeCauseSlow. It is not StaleSince: the forge is still reachable, so
 	// nothing locks on it.
 	RowsReadAt *time.Time `json:"rowsReadAt,omitempty"`
 	// StaleSince is set when this refresh failed and the pull requests,

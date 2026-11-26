@@ -137,9 +137,12 @@ reaches the forge replaces the mark with its real reachability.
 
 ### Requirement: A slow forge's held rows say how old they are
 
-While a forge's cause is `slow`, its health SHALL carry `rowsReadAt`, the time
-of its last full read that answered, and SHALL NOT carry `staleSince` because
-of that cause. The pages with forge health chips SHALL show "Slow to answer,
+While a forge's cause is `slow`, its health SHALL carry `rowsReadAt` and SHALL
+NOT carry `staleSince` because of that cause. `rowsReadAt` is the time of the
+last full read that answered, including one that could not read some
+repositories, or, where webhook refreshes made every repository current after a
+failed full refresh or a restart, the time of the last of those. Single rows MAY
+be older or newer than it. The pages with forge health chips SHALL show "Slow to answer,
 showing data from" that age. A forge with no such cause SHALL have neither the
 field nor the line.
 
