@@ -323,6 +323,7 @@ status-banner-400.spec.ts,5.825,3,3,A,,0.0
 status-block-height.spec.ts,,4,4,A,,0.0
 status-pill-glyphs.spec.ts,8.631,11,8,A,,2.4
 stopped-auto-merge-chip.spec.ts,4.988,9,7,A,,1.1
+stopped-blocked-reason.spec.ts,,2,1,A,,0.0
 stream-after-first-poll.spec.ts,3.354,4,0,C,,3.4
 timezone-select-phone.spec.ts,1.8,5,5,A,,0.0
 timezone.spec.ts,3.255,10,0,C,,3.3

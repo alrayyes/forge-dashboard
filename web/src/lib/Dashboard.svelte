@@ -1624,6 +1624,15 @@
     // state instead (#4601), and CSS shows one of the two. One that is only
     // waiting is the row's waiting chip (#1229). Both forges send the status
     // (GitHub since #1293).
+    // A failing-CI row whose auto-merge stopped says why Merge is blocked next
+    // to the stopped state, in the chip's detail line or the phone's text line,
+    // and draws no Merge button of its own (#4944).
+    function stoppedBlockedReason(pr: PullRequestItem): string | null {
+      if (pr.autoMerge?.state !== "stopped" || idScope !== "") return null;
+      const blocked = findAction(pr, "merge")?.blocked;
+      return blocked?.code === "checks_failing" ? blocked.message : null;
+    }
+
     function autoMergeStatusLine(pr: PullRequestItem): HTMLElement | null {
       if (pr.autoMerge?.state !== "stopped") return null;
       // A stopped row with a queued action keeps this line at every width:
@@ -1638,6 +1647,9 @@
           autoMergeWording(pr.autoMerge.message, pr.forge),
         ),
       );
+      const reason = stoppedBlockedReason(pr);
+      if (reason)
+        line.appendChild(el("span", "auto-merge-blocked", ` ${reason}`));
       return line;
     }
 
@@ -1712,6 +1724,9 @@
             },
           });
       if (!chip) return null;
+      const blockedReason = stoppedBlockedReason(pr);
+      if (blockedReason && chip.state === "stopped")
+        chip.detail = blockedReason;
       const disarm =
         isSettled(pr) || chip.action !== "disarm"
           ? null
@@ -4400,6 +4415,9 @@
       )
         return null;
       if (merge.blocked) {
+        // Failing CI with auto-merge stopped: the stopped chip carries the
+        // reason, so no button and no printed note (#4944).
+        if (stoppedBlockedReason(item)) return null;
         // The row says it in the waiting chip, one place only (#4663).
         if (rowWaitOf(item)) return null;
         // A behind Merge whose Update branch is on its way clears by itself:
