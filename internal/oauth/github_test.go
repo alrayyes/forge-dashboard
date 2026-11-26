@@ -84,6 +84,13 @@ type fakeGitHub struct {
 	grants      []grantCall
 	grantStatus int
 	holds       func() bool
+
+	// refreshFail answers that many refresh calls with a 500 and spends nothing.
+	refreshFail int
+	// gate, when set, holds every refresh call at the token endpoint until it
+	// is closed. entered is closed when the first one arrives.
+	gate    chan struct{}
+	entered chan struct{}
 }
 
 type grantCall struct {
@@ -140,6 +147,18 @@ func (f *fakeGitHub) urls() oauth.GitHubURLs {
 
 func (f *fakeGitHub) token(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
+	gate, entered := f.gate, f.entered
+	f.mu.Unlock()
+	if gate != nil && r.PostFormValue("grant_type") == "refresh_token" {
+		select {
+		case <-entered:
+		default:
+			close(entered)
+		}
+		<-gate
+	}
+
+	f.mu.Lock()
 	defer f.mu.Unlock()
 
 	_ = r.ParseForm()
@@ -164,6 +183,12 @@ func (f *fakeGitHub) token(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	case "refresh_token":
+		if f.refreshFail > 0 {
+			f.refreshFail--
+			w.WriteHeader(http.StatusInternalServerError)
+
+			return
+		}
 		if form.Get("refresh_token") != f.valid {
 			deny()
 
@@ -485,6 +510,87 @@ func TestGitHub_Disconnect_NeverFollowsARedirectOnTheRevokeCall(t *testing.T) {
 
 	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
 	assert.False(t, hit)
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_AnswerOf401Or404IsReportedAsNotRevoked(t *testing.T) {
+	t.Parallel()
+
+	// GitHub answers these for a token it no longer knows. The dashboard can't
+	// tell that from a refusal, so it says so rather than claim a revocation.
+	for _, status := range []int{http.StatusUnauthorized, http.StatusNotFound} {
+		t.Run(strconv.Itoa(status), func(t *testing.T) {
+			t.Parallel()
+
+			gh := newFakeGitHub(t)
+			gh.grantStatus = status
+			conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
+
+			require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
+			assert.Nil(t, store.current())
+		})
+	}
+}
+
+func TestGitHub_Disconnect_ARefreshThatOutlivesItCannotPutThePairBack(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(-time.Minute))
+	bearer, ok := conn.Bearer(t.Context())
+	require.True(t, ok)
+	// The revoke's own refresh fails and spends nothing, so the old function
+	// is left to refresh after the disconnect.
+	gh.refreshFail = 1
+
+	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
+	_, err := bearer()
+
+	require.Error(t, err)
+	assert.Equal(t, 1, gh.refreshCount(), "the refresh ran, so the guard is what stopped the save")
+	assert.Nil(t, store.current())
+	_, ok = conn.Bearer(t.Context())
+	assert.False(t, ok)
+}
+
+func TestGitHub_Finish_ASlowRefreshCannotOverwriteTheNewLink(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(-time.Minute))
+	bearer, ok := conn.Bearer(t.Context())
+	require.True(t, ok)
+	gh.gate, gh.entered = make(chan struct{}), make(chan struct{})
+
+	done := make(chan error, 1)
+	go func() { _, err := bearer(); done <- err }()
+	<-gh.entered
+
+	q := ghBegin(t, conn, gh)
+	_, err := conn.Finish(t.Context(), q.Get("state"), "good-code")
+	require.NoError(t, err)
+	close(gh.gate)
+
+	require.Error(t, <-done)
+	assert.Equal(t, "ghu-1", store.current().AccessToken, "the pair from the new sign-in stands")
+}
+
+func TestGitHub_Disconnect_WaitsForARefreshUnderWayAndLeavesNothingStored(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(-time.Minute))
+	bearer, ok := conn.Bearer(t.Context())
+	require.True(t, ok)
+	gh.gate, gh.entered = make(chan struct{}), make(chan struct{})
+
+	go func() { _, _ = bearer() }()
+	<-gh.entered
+	done := make(chan error, 1)
+	go func() { done <- conn.Disconnect(t.Context()) }()
+	close(gh.gate)
+
+	require.NoError(t, <-done)
 	assert.Nil(t, store.current())
 }
 
