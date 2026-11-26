@@ -541,9 +541,11 @@ func HumanizeForgeError(kind ForgeErrorKind) string {
 type ForgeCause string
 
 const (
-	// ForgeCauseStarting: the rows are the saved ones, no fetch has answered since the start.
+	// ForgeCauseStarting means the rows are the saved ones and no fetch has
+	// answered since the start.
 	ForgeCauseStarting ForgeCause = "starting"
-	// ForgeCauseSlow: the pass missed its deadline or was skipped, and the last good rows are held.
+	// ForgeCauseSlow means the pass missed its deadline or was skipped, and
+	// the last good rows are held.
 	ForgeCauseSlow ForgeCause = "slow"
 )
 
