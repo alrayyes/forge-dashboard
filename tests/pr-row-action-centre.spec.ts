@@ -239,8 +239,9 @@ for (const width of [1280, 1503]) {
 }
 
 // The title floor of #4795: a chip with pills and one action leaves the title
-// 200px or more at 1280px. A bot row's rebase button with an unarmed chip is
-// the one exception (145px, see merge-wait-chip.spec.ts).
+// 200px or more at 1280px. The rule is a 200px title floor except bot rows: a
+// bot row's rebase button with an unarmed chip keeps 145px (see
+// merge-wait-chip.spec.ts).
 test('a chip with pills and one action leaves the title 200px at 1280px', async ({
   page,
 }) => {

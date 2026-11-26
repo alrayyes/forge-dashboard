@@ -580,9 +580,10 @@ for (const width of [1280, 1024]) {
       (await heightOf(page, 'Plain bump')) + 1,
     );
     // No pills, and an unarmed chip with its own button: the one line leaves
-    // the title 145px at 1280px, narrower than #4795's 200px but a deliberate
-    // choice, since a bot row has no room to give and stacking it would make
-    // every bot row two lines. The floor pins it so it cannot shrink.
+    // the title 145px at 1280px. The rule is a 200px title floor except bot
+    // rows (#4795, owner decision 2026-11-26): a bot row has no room to give
+    // and stacking it would make every bot row two lines. This 140px floor
+    // pins the exception so it cannot shrink.
     if (width >= 1280)
       expect(
         await r.locator('.title-cell').evaluate((e) => e.clientWidth),
