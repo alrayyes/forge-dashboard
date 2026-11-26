@@ -6,10 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
+	"github.com/alrayyes/forge-dashboard/internal/hostname"
 	"github.com/alrayyes/forge-dashboard/internal/imageproxy"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
 )
@@ -52,12 +54,59 @@ func imageProxyForCapabilities(deps Deps, forge string, caps dashboard.ForgeCapa
 	}), nil
 }
 
+// federatedAvatarHosts are the hosts of Gravatar and Libravatar, which serve an
+// avatar a forge only links to (#5004). They are taken for kind=avatar alone,
+// over https by exact name, through their own tokenless proxy that reaches
+// public addresses only.
+var federatedAvatarHosts = []string{
+	"gravatar.com",
+	"secure.gravatar.com",
+	"seccdn.libravatar.org",
+	"cdn.libravatar.org",
+}
+
+// FederatedAvatars is a set of federated avatar hosts and the proxy that
+// reaches them.
+type FederatedAvatars struct {
+	Hosts []string
+	Proxy *imageproxy.Proxy
+}
+
+var defaultFederatedAvatars = FederatedAvatars{
+	Hosts: federatedAvatarHosts,
+	Proxy: imageproxy.New(imageproxy.Config{Hosts: federatedAvatarHosts, Scheme: "https"}),
+}
+
+// avatarProxyFor is the proxy that fetches raw: the federated one for an
+// avatar on a federated host, the forge's own otherwise. The forge's proxy may
+// carry its token or reach private addresses, so it serves one of these hosts
+// only when that host is already on its list, as a saved instance is.
+func avatarProxyFor(deps Deps, forgeProxy *imageproxy.Proxy, kind imageKind, raw string) *imageproxy.Proxy {
+	if kind != imageAvatar {
+		return forgeProxy
+	}
+	federated := defaultFederatedAvatars
+	if deps.FederatedAvatars != nil {
+		federated = *deps.FederatedAvatars
+	}
+	u, err := url.Parse(raw)
+	if err != nil {
+		return forgeProxy
+	}
+	isHost := func(h string) bool { return hostname.Equal(h, u.Host) }
+	if !slices.ContainsFunc(federated.Hosts, isHost) || slices.ContainsFunc(forgeProxy.Config().Hosts, isHost) {
+		return forgeProxy
+	}
+
+	return federated.Proxy
+}
+
 // imageFailure is what a caller is told about a refused or failed fetch: a
 // fixed sentence per kind, never the error, which could name the host.
 func imageFailure(err error) *statusError {
 	switch {
 	case errors.Is(err, imageproxy.ErrHostNotAllowed):
-		return &statusError{http.StatusForbidden, "images load only from the forge the item belongs to"}
+		return &statusError{http.StatusForbidden, "that image's host is not allowed"}
 	case errors.Is(err, imageproxy.ErrNotFound):
 		return &statusError{http.StatusNotFound, "the forge has no such image"}
 	case errors.Is(err, imageproxy.ErrForbidden):
@@ -73,7 +122,7 @@ func imageFailure(err error) *statusError {
 
 // imageRefusalLevel is how loudly a failed fetch is logged. A host that is
 // simply not on the list is expected for an avatar the saved Forgejo instance
-// doesn't serve (Gravatar, say), and the page asks again on every render, so
+// doesn't serve (another site's, say), and the page asks again on every render, so
 // it is debug. Anything else, user info or a blocked address included, is a
 // probe worth seeing.
 func imageRefusalLevel(err error) slog.Level {
@@ -131,6 +180,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		proxy = avatarProxyFor(deps, proxy, imageKind(q.Get("kind")), raw)
 		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
 			return fetchSized(ctx, width, func() (imageproxy.Image, error) {
 				return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
@@ -274,7 +324,7 @@ func isSignedAttachment(prefix, origin, raw string) bool {
 		home.Scheme, home.Host = o.Scheme, o.Host
 	}
 
-	return u.Scheme == home.Scheme && strings.EqualFold(u.Host, home.Host) && cleanPath(u) && strings.HasPrefix(u.Path, home.Path)
+	return u.Scheme == home.Scheme && hostname.Equal(u.Host, home.Host) && cleanPath(u) && strings.HasPrefix(u.Path, home.Path)
 }
 
 // cleanPath reports whether the link's path is already in its resolved form: no

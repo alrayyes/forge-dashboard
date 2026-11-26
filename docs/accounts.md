@@ -15,8 +15,10 @@ Every response also carries `Content-Security-Policy: img-src 'self'`.
 Avatars, repository logos and images in descriptions all come through this
 server, so your browser refuses to load an image from anywhere else.
 
-A Forgejo avatar on any host but your saved instance (Gravatar and Libravatar
-included) is refused, and the author shows an initial. Settings says so inside
+A Forgejo avatar is taken from your saved instance, or from `gravatar.com`,
+`secure.gravatar.com`, `seccdn.libravatar.org` or `cdn.libravatar.org`. One on
+any other host is refused, and the author shows an initial. Settings says so
+inside
 the Forgejo card: an amber note, "Avatars from another host were skipped:
 `host`. Initials are shown instead.", with every skipped host listed in
 a code font (up to eight, "other hosts" when there are several), never one line

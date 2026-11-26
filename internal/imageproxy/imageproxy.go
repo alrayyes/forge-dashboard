@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"net/netip"
 	"net/url"
-	"strings"
 	"syscall"
 	"time"
+
+	"github.com/alrayyes/forge-dashboard/internal/hostname"
 )
 
 // MaxBytes is the largest image the proxy returns.
@@ -85,7 +86,7 @@ func New(cfg Config) *Proxy {
 	}
 	hosts := make(map[string]bool, len(cfg.Hosts))
 	for _, h := range cfg.Hosts {
-		hosts[strings.ToLower(h)] = true
+		hosts[hostname.Fold(h)] = true
 	}
 	dialer := &net.Dialer{Timeout: cfg.Timeout}
 	if !cfg.AllowLocal {
@@ -204,7 +205,7 @@ func (p *Proxy) check(raw string) (*url.URL, error) {
 	if err != nil || u.Scheme != p.cfg.Scheme || u.User != nil || u.Host == "" {
 		return nil, ErrHostNotAllowed
 	}
-	if !p.hosts[strings.ToLower(u.Host)] {
+	if !p.hosts[hostname.Fold(u.Host)] {
 		return nil, ErrHostNotListed
 	}
 
@@ -257,7 +258,7 @@ func (p *Proxy) get(ctx context.Context, u *url.URL) (*http.Response, error) {
 		return nil, ErrHostNotAllowed
 	}
 	req.Header.Set("Accept", "image/*")
-	if p.cfg.Token != "" && strings.EqualFold(u.Host, p.cfg.TokenHost) {
+	if p.cfg.Token != "" && hostname.Equal(u.Host, p.cfg.TokenHost) {
 		req.Header.Set("Authorization", "token "+p.cfg.Token)
 	}
 	resp, err := p.client.Do(req)
