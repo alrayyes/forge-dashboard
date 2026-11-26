@@ -63,6 +63,7 @@ const singleUserSpecs = [
   '**/auth-single-user.spec.ts',
   '**/board-title-width.spec.ts',
   '**/pr-row-centering.spec.ts',
+  '**/pr-row-action-centre.spec.ts',
   '**/failed-pills-clear-comment.spec.ts',
   '**/wide-screen-title.spec.ts',
   '**/wait-chip-desktop.spec.ts',

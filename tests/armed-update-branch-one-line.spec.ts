@@ -7,7 +7,10 @@ import { test } from './server-fixture';
 // the chip on a second line under the button, so its row was taller than the
 // rows around it (#4784). The chip's label is now the Update branch control
 // (#4942): one chip, one slot, so the row is as tall as an armed row without
-// Update branch at every width, and the title keeps its floor (#4795).
+// Update branch at every width, and the title keeps its floor (#4795). The
+// stacked cases #4951 documents are the ones with a separate Update branch
+// button beside the chip; the shared slot has none, so they no longer arise
+// here and `pr-row-action-centre.spec.ts` keeps covering them.
 
 const base = fixture.pullRequests.notStrict as Record<string, unknown>;
 

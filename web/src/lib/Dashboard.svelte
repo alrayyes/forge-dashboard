@@ -5527,7 +5527,7 @@
 
       const queued = entry.phase === "queued";
       const button = buttonEl(
-        "row-action",
+        "row-action row-action-update",
         queued ? "Queued…" : "Update branch",
       );
       button.type = "button";

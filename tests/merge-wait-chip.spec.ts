@@ -354,6 +354,11 @@ for (const scheme of ['light', 'dark'] as const) {
           expect(await heightOf(page, 'Behind')).toBeLessThanOrEqual(
             (await heightOf(page, 'Ready')) + 1,
           );
+        // With no pills and no labels the one line leaves the title 200px.
+        if (width >= 1280)
+          expect(
+            await r.locator('.title-cell').evaluate((e) => e.clientWidth),
+          ).toBeGreaterThanOrEqual(200);
       });
 
       test('a row with a comment pill and Update branch is no taller than the same row with Merge', async ({
@@ -574,6 +579,14 @@ for (const width of [1280, 1024]) {
     expect(await heightOf(page, 'Waiting bump')).toBeLessThanOrEqual(
       (await heightOf(page, 'Plain bump')) + 1,
     );
+    // No pills, and an unarmed chip with its own button: the one line leaves
+    // the title 145px at 1280px, narrower than #4795's 200px but a deliberate
+    // choice, since a bot row has no room to give and stacking it would make
+    // every bot row two lines. The floor pins it so it cannot shrink.
+    if (width >= 1280)
+      expect(
+        await r.locator('.title-cell').evaluate((e) => e.clientWidth),
+      ).toBeGreaterThanOrEqual(140);
   });
 }
 
