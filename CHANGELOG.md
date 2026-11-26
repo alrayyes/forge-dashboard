@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.126.3](https://github.com/alrayyes/forge-dashboard/compare/v9.126.2...v9.126.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* **web:** fold the blocked reason into a stopped auto-merge chip and draw no Merge ([#4950](https://github.com/alrayyes/forge-dashboard/issues/4950)) ([05a99b9](https://github.com/alrayyes/forge-dashboard/commit/05a99b91711c0d84a5706abbeb7458aa8ae778f7)), closes [#4944](https://github.com/alrayyes/forge-dashboard/issues/4944)
+
 ## [9.126.2](https://github.com/alrayyes/forge-dashboard/compare/v9.126.1...v9.126.2) (2026-11-26)
 
 

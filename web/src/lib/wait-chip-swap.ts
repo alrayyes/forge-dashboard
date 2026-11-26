@@ -1,5 +1,5 @@
-// Mockup logic for the shared armed-wait / Update branch slot (#4942). Not
-// wired into the row. The slot is one button: it shows the wait, and shows
+// Logic for the shared armed-wait / Update branch slot (#4942), drawn by
+// wait-chip.ts. The slot is one button: it shows the wait, and shows
 // Update branch while "revealed" (mouse hover, keyboard focus or a first tap).
 
 export type TapOutcome = 'run' | 'reveal' | 'explain';
@@ -19,8 +19,8 @@ export function tapOutcome(input: {
   return 'reveal';
 }
 
-// The words drawn in the slot. The accessible name stays "Update branch" in
-// every state; this is only what a sighted user reads.
+// The words drawn in the slot. The accessible name is swapName's, which holds
+// both labels; this is only what a sighted user reads.
 export function swapLabel(input: {
   revealed: boolean;
   inFlight: boolean;
