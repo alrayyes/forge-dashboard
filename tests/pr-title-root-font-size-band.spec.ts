@@ -91,7 +91,13 @@ const measure = (page: Page, rows: string) =>
       title: title.getBoundingClientRect().width,
       scroll: row.scrollWidth,
       client: row.clientWidth,
-      tracks: getComputedStyle(row).gridTemplateColumns,
+      // The one-line pull request row is a subgrid of its list (#5006), so
+      // the list has the track widths.
+      tracks: getComputedStyle(
+        getComputedStyle(row).gridTemplateColumns.startsWith('subgrid')
+          ? (row.parentElement as HTMLElement)
+          : row,
+      ).gridTemplateColumns,
     };
   }, rows);
 
@@ -162,7 +168,7 @@ test('Pull requests: the tracks are unchanged at 100%', async ({ page }) => {
     761: 4,
     1103: 4,
     1104: 7,
-    1280: 7,
+    1280: 9,
   };
   for (const width of [320, 390, 761, 1103, 1104, 1280]) {
     await open(page, '/pull-requests.html', PR, 100, width);
@@ -178,7 +184,7 @@ test('Pull requests: the 100% track widths at 1104px are unchanged and at 1280px
   await open(page, '/pull-requests.html', PR, 100, 1280);
   await expect
     .poll(async () => (await measure(page, PR)).tracks)
-    .toBe('168px 220px 96px 82px 82px 440px 22px');
+    .toBe('186px 220px 96px 82px 82px 160px 112px 144px 40px');
   await open(page, '/pull-requests.html', PR, 100, 1104);
   await expect
     .poll(async () => {

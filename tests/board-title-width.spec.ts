@@ -87,13 +87,20 @@ async function titleGeometry(page: Page, board: string) {
     const go = r.querySelector('.go') as HTMLElement;
     const status = r.querySelector('.status-cell') as HTMLElement | null;
     const box = cell.getBoundingClientRect();
-    const tracks = getComputedStyle(r).gridTemplateColumns.split(' ');
+    // A pull request row is a subgrid of the list (#5006), so the list has the
+    // track widths, and the status area is the three tracks before the arrow.
+    const own = getComputedStyle(r).gridTemplateColumns;
+    const shared = own.startsWith('subgrid');
+    const tracks = getComputedStyle(
+      shared ? (r.parentElement as Element) : r,
+    ).gridTemplateColumns.split(' ');
+    const px = (i: number) => Number.parseFloat(tracks[tracks.length + i]);
     return {
       isIssueRow: r.classList.contains('issue-row'),
       goRight: go.getBoundingClientRect().right,
       viewport: document.documentElement.clientWidth,
       // The status track is the one right before the arrow's.
-      statusTrack: Number.parseFloat(tracks[tracks.length - 2]),
+      statusTrack: shared ? px(-4) + px(-3) + px(-2) + 24 : px(-2),
       statusWidth: status ? status.getBoundingClientRect().width : 0,
       width: box.width,
       gapToAuthor: after.getBoundingClientRect().left - box.right,

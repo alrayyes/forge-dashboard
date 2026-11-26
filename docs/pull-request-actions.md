@@ -118,13 +118,10 @@ plain Update branch button beside it. Cancel auto-merge stays its own button.
 The longer
 explanation is the chip's tooltip, which opens on hover and on keyboard focus
 and is the chip's accessible description, so a keyboard, a touch screen and a
-screen reader all get it. At 1280 and 1024 pixels a waiting row with the
-Auto-merge button is no taller than a normal one, with a comment pill, Update
-branch or a bot's rebase beside the chip too: the status column widens for
-those. A comment pill with the shared Update branch slot keeps the chip on a
-line of its own below 94rem, as it does beside the button. A chip with a detail
-line, such as an armed chip or a bot rebase's, is wider than the title can
-spare, so with an action beside it the row keeps the stacked, taller cell.
+screen reader all get it. A waiting row whose chip is its only extra, with no
+button and no merge-state or comment pill, is no taller than a normal one. On a
+list 1191px wide or more, a row with a button or such a pill beside the chip
+puts the chip on a line of its own, because every row shares the same columns.
 An armed row's "Auto-merge" label under the title also still adds a line to the
 row. The Pull requests, Releases and Bots pages share
 the row, so they share the chip. When the forge allows the merge, Merge takes
@@ -342,51 +339,40 @@ for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
 On a list 1191px wide or more (74.5rem, so a large root font size turns it
-off) a pull request row is one vertically centred line. The status column
-holds three fixed slots: the CI pill, the merge-state and comment pills (a
-Conflicting pill takes the same slot as the comment pill, and both stack there
-when a row has both), and the action. A pill is at the same x on every row and
-at the row's centre, unless a CI pill with so many counts that it outgrows its
-slot (a Failed pill with four, say) makes its own row's status column that much
-wider, taking the room from that row's title, so it never runs under the
-comment pill. The attribute chips and the status note ("Behind the base
-branch", say) sit under the title, so a row that has one is taller and its pills
-stay centred on the title and the note together. Rarer lines (a close cue, a
-queued note) take a line of their own under the slots. The waiting chip is as
-wide as its content, up to the room there is, and one line tall. On a row with no
-action and no merge-state or comment pill it sits after the CI pill on the
-pill's own line, in the rest of the cell (the cell is the CI pill and that
-remainder, so the pill's slot gives up its minimum width), and the row is no
-taller than one without a chip. With a comment or merge-state pill and one
-action, with or without labels, the chip shares the line too: the CI pill gives
-up its minimum width (a Running pill is 104px), so the pill, the chip, the
-other pills and the action fit the status track, the title keeps at least 200px
-at 1280px, and the row is as tall as one with a Merge button. The one
-exception is a bot row (a rebase button plus an unarmed chip, no pills or
-labels): it keeps one line with a 145px title, because it has no room to give
-and stacking it would make every bot row two lines. Every cell (the
-pills, the chip, the action, the author and the dates) shares the row's middle.
-Two cases keep the chip on a line of its own below 94rem of list width, one
-36px line taller, because on one line the title would fall under 200px: pills
-with a chip beside two actions (a bot's rebase and Cancel) or beside Update
-branch, and labels with an action but no pills (194px at 1280px). In both the
-pills and the action share the first line, the chip sits under them, and the
-author and dates centre on the two lines. Its room is only there while a chip
-is. A narrower list keeps the wrapping status
-cell, with the chips and the note in it, which is a
-stack of lines at 280px wide. The repo, the title and the arrow start at the top
-of the row, so the CI pill and the title's first line share a centre whatever is
-under them. Only the one-line row keeps the other pills and the action on that
-line. A row with
-both Merge and Update branch puts the two buttons side by side in the action
-slot, so it is as tall as a row with one. The slot is wide enough for the pair
-at 1191px. The slot before it is 7.5rem, so a long merge-state label such as
-"Conflict not confirmed" wraps to a second line there and the comment pill keeps
-its count inside it. Tab follows the layout: when the note
-under the title has a fix button in it, such as Update branch on a behind pull
-request, Tab reaches that button before the CI and comment pills. On a phone
-and on a narrower list the note stays in the status cell, and Tab visits the
-pills first and the button last.
+off) a pull request row is one vertically centred line, and the whole list is
+one grid. The author, the dates, the CI pill, the merge-state and comment pills
+and the action each start at the same x on every row, stacked and grouped rows
+included, and a live update to one row leaves the others where they are. The
+status area has three columns: the CI pill, the merge-state and comment pills (a
+Conflicting pill takes the same column as the comment pill, and both stack there
+when a row has both), and the action. Each has a minimum width and grows for
+every row at once when one row needs more. A CI pill with many counts (a Failed
+pill with four, say) takes room from the title of every row, as far as the title
+can keep 200px, and past that the pill wraps its counts onto a second line. The
+attribute chips and the status note ("Behind the base branch", say) sit under
+the title, so a row that has one is taller and its pills stay centred on the
+title and the note together. Rarer lines (a close cue, a queued note) take a
+line of their own under the columns. The waiting chip never moves a column. On
+a row with no button and no merge-state or comment pill it sits after the CI
+pill, and the row is no taller than one without a chip. Otherwise it takes a
+line of its own under them, starting where the CI pill starts, and the author
+and dates centre on the two lines. A waiting chip that gives a reason, such as
+Rate limited, takes that line too, so you can read all of it. Its detail is cut
+short with an ellipsis, with the whole text in the tooltip, when there isn't
+room for it.
+A narrower list keeps the wrapping status cell, with the chips and the note in
+it, which is a stack of lines at 280px wide. The repo, the title and the arrow
+start at the top of the row, so the CI pill and the title's first line share a
+centre whatever is under them. Only the one-line row keeps the other pills and
+the action on that line. A row with both Merge and Update branch puts the two
+buttons side by side in the action column, so it is as tall as a row with one.
+The column is wide enough for the pair at 1191px. The column before it is about
+7.5rem, so a long merge-state label such as "Conflict not confirmed" wraps to a
+second line there and the comment pill keeps its count inside it. Tab follows
+the layout: when the note under the title has a fix button in it, such as Update
+branch on a behind pull request, Tab reaches that button before the CI and
+comment pills. On a phone and on a narrower list the note stays in the status
+cell, and Tab visits the pills first and the button last.
 On a phone (760px and narrower) the card is the title with its labels, chips
 and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width

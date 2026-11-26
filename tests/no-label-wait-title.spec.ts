@@ -158,15 +158,10 @@ test.describe('A waiting row keeps a readable title (#4795)', () => {
             expect(m.title).toBeGreaterThanOrEqual(floorAt(width));
             expect(m.status).toBeLessThanOrEqual(m.right + 1);
             // From 1280px the chip is on a line of its own, under the pills,
-            // with or without labels, until the list is 94rem wide (1504px at
-            // the default 16px text, 94rem * text / 100 at larger sizes). From
-            // there the chip sits beside the pills (#4784). The list is
-            // narrower than the viewport, so only 1918px at 100% text is
-            // asserted to be past the threshold.
-            const wide = width >= (1504 * text) / 100;
-            if (width >= 1280 && !wide)
+            // with or without labels: every row shares the list's columns
+            // (#5006), so a chip cannot widen one row's status area.
+            if (width >= 1280)
               expect(m.chipTop).toBeGreaterThanOrEqual(m.flagsBottom - 1);
-            if (wide) expect(m.chipTop).toBeLessThan(m.flagsBottom);
 
             const results = await new AxeBuilder({ page })
               .withRules(['color-contrast', 'target-size'])
