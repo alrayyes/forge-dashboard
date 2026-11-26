@@ -45,12 +45,20 @@ function details(n: number, total = n) {
   };
 }
 
-async function mockDashboard(page: Page, conversationComments = 12) {
+// `polls` reads the board every second, and `touch` makes the next read say the
+// pull request changed, which is what reloads an open dialog.
+async function mockDashboard(
+  page: Page,
+  conversationComments = 12,
+  { polls = false } = {},
+) {
+  let updatedAt = ago(5);
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       json: {
         generatedAt: new Date().toISOString(),
+        ...(polls ? { readIntervalSeconds: 1 } : {}),
         forges: [forgeHealth('github')],
         pullRequests: [
           {
@@ -64,7 +72,7 @@ async function mockDashboard(page: Page, conversationComments = 12) {
             ci: 'success',
             labels: [],
             createdAt: ago(60),
-            updatedAt: ago(5),
+            updatedAt,
             mergeStatus: 'mergeable',
             behind: false,
             kind: 'regular',
@@ -75,6 +83,11 @@ async function mockDashboard(page: Page, conversationComments = 12) {
       },
     }),
   );
+  return {
+    touch: () => {
+      updatedAt = new Date().toISOString();
+    },
+  };
 }
 
 // Answers each read with what `answer` says then; `hold` keeps reads waiting
@@ -318,6 +331,63 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
     await scan(page);
     await page.keyboard.press('Escape');
     await expect(pill(page)).toBeFocused();
+  });
+
+  test('stays put when a live update brings a newer comment after landing', async ({
+    page,
+  }) => {
+    const board = await mockDashboard(page, 12, { polls: true });
+    let count = 12;
+    await mockDetails(page, () => ({ json: details(count) }));
+    await page.goto('/pull-requests.html');
+    await pill(page).click();
+    await expectLandedOn(page, 'Comment number 12.');
+    await settle(page);
+    const top = await scrollTop(page);
+
+    count = 13;
+    board.touch();
+
+    await expect(items(page)).toHaveCount(13);
+    await settle(page);
+    await expect(items(page).nth(11)).toBeFocused();
+    expect(await scrollTop(page)).toBe(top);
+  });
+
+  test('stays put when the reader scrolled away before a newer comment arrived', async ({
+    page,
+  }) => {
+    await mockDashboard(page);
+    let count = 11;
+    let gate = Promise.resolve();
+    let release = () => {};
+    await page.route('**/api/v1/pull-requests/details*', async (route) => {
+      const answer = details(count);
+      await gate;
+      await route.fulfill({ json: answer });
+    });
+    await page.goto('/pull-requests.html');
+    await title(page).click();
+    await expect(items(page)).toHaveCount(11);
+    await page.keyboard.press('Escape');
+    count = 12;
+    gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    await pill(page).click();
+    await expectLandedOn(page, 'Comment number 11.');
+    await dialog(page)
+      .locator('.details-body')
+      .evaluate((el) => {
+        el.scrollTop = 0;
+      });
+    release();
+
+    await expect(items(page)).toHaveCount(12);
+    await settle(page);
+    expect(await scrollTop(page)).toBe(0);
+    await expect(items(page).last()).not.toBeFocused();
   });
 
   test('lands again after the reader scrolled away and closed', async ({
