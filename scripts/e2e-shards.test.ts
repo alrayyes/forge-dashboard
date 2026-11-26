@@ -100,13 +100,48 @@ test('the committed durations cover at least 97 percent of the specs', () => {
   expect(missing.length / specs.length).toBeLessThanOrEqual(0.03);
 });
 
-test('the committed durations split the suite into eight shards within 30 seconds', () => {
+test('a ci.yml without the shard list says what is missing', () => {
+  expect(() => shardCount('jobs: {}')).toThrow('no shard list in ci.yml');
+});
+
+function shardCount(yml: string): number {
+  const list = /echo 'list=(\[[\d,]+\])'/.exec(yml)?.[1];
+  if (!list) {
+    throw new Error(
+      "no shard list in ci.yml: expected an `echo 'list=[1,2,...]'` line; fix it or this pattern",
+    );
+  }
+  return (JSON.parse(list) as number[]).length;
+}
+
+// The count CI runs, read from the one place it lives.
+const ciYml = readFileSync(
+  path.join(import.meta.dir, '..', '.github', 'workflows', 'ci.yml'),
+  'utf8',
+);
+const ciShards = shardCount(ciYml);
+
+function predictedLoads(): number[] {
   const known = specs.filter((s) => s in committed);
   const mean = known.reduce((n, s) => n + committed[s], 0) / known.length;
-  const speeds = speedsFor(8);
-  const loads = assignShards(specs, committed, 8, speeds).map(
+  const speeds = speedsFor(ciShards);
+  return assignShards(specs, committed, ciShards, speeds).map(
     (shard, i) =>
       shard.reduce((n, s) => n + (committed[s] ?? mean), 0) / speeds[i],
   );
+}
+
+test("the committed durations split the suite over CI's shards within 30 seconds", () => {
+  const loads = predictedLoads();
   expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(30);
+});
+
+// A balanced split isn't enough. About a quarter of runners run the same specs
+// a third slower than the rest, and setup adds about a minute, so 300 seconds
+// of recorded work is a job of about 7m40 on a slow one, about 10 seconds over
+// the 7.5 minute line (#3477). Over that, add a shard in ci.yml. Nine shards
+// miss this only narrowly today (301 seconds), so the main argument for ten is
+// the measured job times, not this test.
+test('no shard CI runs is given more than 300 seconds of work', () => {
+  expect(Math.max(...predictedLoads())).toBeLessThanOrEqual(300);
 });

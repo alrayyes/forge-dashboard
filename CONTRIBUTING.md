@@ -227,18 +227,21 @@ The image repo's README says how a new tag is published.
 `run-local.sh` doesn't use the image: it runs on your machine with the browsers
 you installed once with `bunx playwright install chromium`.
 
-CI splits the suite over eight shards by spec duration, not by test count.
+CI splits the suite over ten shards by spec duration, not by test count.
 `scripts/e2e-shards.ts` gives each shard the spec files it should run from
 `tests/e2e-durations.json` (seconds per spec): slow specs first, each into the
 shard with the least work so far. A new spec needs no entry: it counts as the
 average spec until the file is refreshed. To refresh it, download the
 `e2e-reports` artifact of a green run on `main` and run `bun
-scripts/e2e-shards.ts record <path>/e2e.xml`; `bun scripts/e2e-shards.ts plan 8`
+scripts/e2e-shards.ts record <path>/e2e.xml`; `bun scripts/e2e-shards.ts plan 10`
 prints the expected load per shard. Shard 1 once ran about a quarter slower
 than the others, so `SHARD_SPEEDS` in the script gives it a little less work;
 drop that entry if it stays in line. Each shard still builds its own binary and
-database, and the merged JUnit report still holds every test. Refresh the file
-when the slowest shard drifts more than about a minute from the fastest.
+database, and the merged JUnit report still holds every test. Runners differ:
+the same specs can take a third longer on one than on another, so one run's
+shard times can be two minutes apart with a good split. Judge the split by
+`plan` and by several runs, not one. `scripts/e2e-shards.test.ts` fails when a
+shard is planned more than 300 seconds of work: add a shard then.
 
 A shard that runs past its 10-minute limit is cancelled, and the log ends at
 `The operation was canceled.` A final `cancelled()` step then writes an error
