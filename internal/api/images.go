@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -50,6 +51,34 @@ func imageProxyForCapabilities(deps Deps, forge string, caps dashboard.ForgeCapa
 		TokenHost:  u.Host,
 		AllowLocal: true,
 	}), nil
+}
+
+// federatedAvatarHosts are the hosts of Gravatar and Libravatar, which serve an
+// avatar a forge only links to (#5004). They are taken for kind=avatar alone,
+// over https by exact name, through their own tokenless proxy that reaches
+// public addresses only.
+var federatedAvatarHosts = []string{
+	"gravatar.com",
+	"secure.gravatar.com",
+	"seccdn.libravatar.org",
+	"cdn.libravatar.org",
+}
+
+var federatedAvatarProxy = imageproxy.New(imageproxy.Config{Hosts: federatedAvatarHosts, Scheme: "https"})
+
+// avatarProxyFor is the proxy that fetches raw: the federated one for an
+// avatar on a federated host, the forge's own otherwise. The forge's proxy may
+// carry its token or reach private addresses, so it never serves these hosts.
+func avatarProxyFor(forgeProxy *imageproxy.Proxy, kind imageKind, raw string) *imageproxy.Proxy {
+	if kind != imageAvatar {
+		return forgeProxy
+	}
+	u, err := url.Parse(raw)
+	if err != nil || !slices.Contains(federatedAvatarHosts, strings.ToLower(u.Host)) {
+		return forgeProxy
+	}
+
+	return federatedAvatarProxy
 }
 
 // imageFailure is what a caller is told about a refused or failed fetch: a
@@ -131,6 +160,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
+		proxy = avatarProxyFor(proxy, imageKind(q.Get("kind")), raw)
 		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
 			return fetchSized(ctx, width, func() (imageproxy.Image, error) {
 				return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())
