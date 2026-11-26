@@ -1,5 +1,13 @@
 import { expect, test } from 'bun:test';
-import { MARGIN, planShot, shotName, VARIANTS } from './storybook-shots';
+import {
+  inParallel,
+  MARGIN,
+  planShot,
+  shotJobs,
+  shotName,
+  VARIANTS,
+  workerCount,
+} from './storybook-shots';
 
 // https://github.com/alrayyes/forge-dashboard/issues/3872
 //
@@ -67,4 +75,51 @@ test('says a story that draws nothing renders nothing', () => {
       viewport,
     ),
   ).toEqual({ kind: 'blank' });
+});
+
+// https://github.com/alrayyes/forge-dashboard/issues/5034
+//
+// Shooting one story at a time made the CI job the longest in the run, so the
+// shots are shared out between a few browsers.
+test('shoots every story at every size, once', () => {
+  const jobs = shotJobs(['a--one', 'b--two']);
+  expect(jobs.map((j) => shotName(j.id, j.variant))).toEqual([
+    'a--one.png',
+    'b--two.png',
+    'a--one--phone.png',
+    'b--two--phone.png',
+    'a--one--dark.png',
+    'b--two--dark.png',
+  ]);
+});
+
+test('uses a worker per core, from one up to four', () => {
+  expect([0, 1, 2, 4, 32].map(workerCount)).toEqual([1, 1, 2, 4, 4]);
+});
+
+test('runs that many at once and answers in the order asked', async () => {
+  const busy = new Set<number>();
+  let most = 0;
+  const results = await inParallel(
+    [30, 5, 5, 5, 5, 5],
+    3,
+    async (ms, worker) => {
+      expect(busy.has(worker)).toBe(false);
+      busy.add(worker);
+      most = Math.max(most, busy.size);
+      await Bun.sleep(ms);
+      busy.delete(worker);
+      return `${ms}`;
+    },
+  );
+  expect(most).toBe(3);
+  expect(results).toEqual(['30', '5', '5', '5', '5', '5']);
+});
+
+test('fails when one of them throws', async () => {
+  const run = inParallel([1, 2, 3], 2, async (n) => {
+    if (n === 2) throw new Error('no browser');
+    return n;
+  });
+  await expect(run).rejects.toThrow('no browser');
 });

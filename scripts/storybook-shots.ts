@@ -59,3 +59,34 @@ export function planShot(measure: Measure, viewport: Size): Plan {
   const bottom = Math.min(viewport.height, box.y + box.height + MARGIN);
   return { kind: 'clip', clip: { x, y, width: right - x, height: bottom - y } };
 }
+
+// One shot to take: a story at one size.
+export type ShotJob = { id: string; variant: Variant };
+
+export const shotJobs = (ids: string[]): ShotJob[] =>
+  VARIANTS.flatMap((variant) => ids.map((id) => ({ id, variant })));
+
+// Browsers to run at once: one per core, and no more than the four a CI runner
+// has, so a many-core workstation doesn't start dozens in the pre-push hook.
+export const workerCount = (cores: number) => Math.min(4, Math.max(1, cores));
+
+// Runs every item with `count` running at once, and answers in the items'
+// order. `worker` is the slot an item runs in, which no other item holds
+// meanwhile, so it can pick that slot's browser.
+export async function inParallel<T, R>(
+  items: T[],
+  count: number,
+  run: (item: T, worker: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(count, items.length) }, async (_, worker) => {
+      while (next < items.length) {
+        const index = next++;
+        results[index] = await run(items[index] as T, worker);
+      }
+    }),
+  );
+  return results;
+}
