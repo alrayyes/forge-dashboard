@@ -561,8 +561,8 @@ type ForgeHealth struct {
 	RepoCount      int `json:"repoCount"`
 	// Starting is set while the rows shown for this forge are the ones the
 	// last run saved and no fetch has answered since this start. The forge
-	// has not been asked yet, so it is neither reachable nor in error: the
-	// first refresh that reaches it replaces this entry.
+	// has not been heard from, so it is neither reachable nor in error, even
+	// past a fetch deadline: the first fetch that answers replaces this entry.
 	Starting bool `json:"starting,omitempty"`
 	// Cause says why the rows are not from the latest read while the forge is
 	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow for a

@@ -80,8 +80,8 @@ one of the other kinds.
 ### Requirement: A start-up gap is not drawn as an outage
 
 The system SHALL mark a forge `starting`, with no error kind, while the rows
-shown for it are the ones a previous run saved and no refresh has asked the
-forge since the app started. The dashboard SHALL say the app is starting up
+shown for it are the ones a previous run saved and no fetch from the forge has
+answered since the app started. The dashboard SHALL say the app is starting up
 and show when the data is from, and SHALL NOT draw an unreachable chip,
 headline or banner for that forge. The first refresh that reaches the forge
 replaces the mark with its real reachability.
@@ -92,6 +92,13 @@ replaces the mark with its real reachability.
   forges carry the saved rows
 - **THEN** each forge chip says it is loading, a line says "Starting up,
   showing data from" the saved time, and no forge is called unreachable
+
+#### Scenario: A first fetch that hangs
+
+- **WHEN** the first fetch passes its deadline, or a pass is skipped because
+  it is still running
+- **THEN** the forge stays `starting`, with no error kind, and is not called
+  unreachable
 
 #### Scenario: A forge that is really down at start-up
 

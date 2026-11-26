@@ -222,8 +222,10 @@ then carries `cause: "slow"`, and the page reads "Slow to answer" instead of
 one repository doesn't, so the wording can stay until that refresh. Only the
 third miss in a row shows the unreachable banner, and that health has no cause.
 After a restart the saved rows carry `cause: "starting"` (the same fact as
-`starting`) until the first read. The page reads "Starting up" and never
-unreachable.
+`starting`) until the first fetch answers. The page reads "Starting up" and
+never unreachable. A first fetch that hits its deadline, and the passes skipped
+behind it, change nothing: the forge stays "Starting up", with no error kind and
+no banner, for as long as that fetch hangs.
 
 ## The first load after a restart
 
