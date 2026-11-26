@@ -34,8 +34,6 @@ async function standInSettings(
     forgejoUrl: '',
     forgejoUsername: '',
     forgejoTokenSet: false,
-    webhookToken: 'webhook-token',
-    webhookSecret: 'webhook-secret',
     renovateRebaseLabel: '',
     renovateAuthors: [],
     theme: '',

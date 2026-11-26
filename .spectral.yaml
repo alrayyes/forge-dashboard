@@ -2,7 +2,21 @@
 # lint; warnings are printed and don't. Every rule turned off says why.
 extends: ["@stoplight/spectral-owasp-ruleset"]
 
+functions: [no-operation-wrapper-collision]
+functionsDir: api/spectral
+
 rules:
+  # oapi-codegen emits <PascalCase operationId> + Response for every
+  # operation. A schema with that name makes the generated Go file declare
+  # the type twice and the SDK stops compiling (#4943). Request bodies are
+  # aliased as <Op>JSONRequestBody, so <Op>Request schemas are fine.
+  no-operation-wrapper-collision:
+    description: A schema can't share a name with a generated operation wrapper.
+    severity: error
+    given: "$.components.schemas"
+    then:
+      function: no-operation-wrapper-collision
+
   # No general inbound rate limiting exists, so there are no RateLimit headers
   # to describe. The one throttle, the force-refresh cooldown, answers 200
   # with a Retry-After header (#809).

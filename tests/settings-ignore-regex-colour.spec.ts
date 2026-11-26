@@ -24,8 +24,6 @@ async function standIn(page: Page) {
           forgejoUrl: '',
           forgejoUsername: '',
           forgejoTokenSet: false,
-          webhookToken: 'webhook-token',
-          webhookSecret: 'webhook-secret',
           renovateRebaseLabel: '',
           renovateAuthors: [],
           theme: '',
