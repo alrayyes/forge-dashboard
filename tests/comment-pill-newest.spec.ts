@@ -390,6 +390,56 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
     await expect(items(page).last()).not.toBeFocused();
   });
 
+  test('does not jump later when a live update succeeds after a failed first read', async ({
+    page,
+  }) => {
+    const board = await mockDashboard(page, 12, { polls: true });
+    let failing = true;
+    await mockDetails(page, () =>
+      failing
+        ? { status: 502, json: { error: 'the forge is unreachable' } }
+        : { json: details(12) },
+    );
+    await page.goto('/pull-requests.html');
+    await pill(page).click();
+    await expect(dialog(page).getByRole('alert')).toBeVisible();
+
+    failing = false;
+    board.touch();
+
+    await expect(items(page)).toHaveCount(12);
+    await expectAtTop(page);
+  });
+
+  test('lands on a prefetched comment when the read for this open fails', async ({
+    page,
+  }) => {
+    await mockDashboard(page);
+    let failing = false;
+    await mockDetails(page, () =>
+      failing
+        ? { status: 502, json: { error: 'the forge is unreachable' } }
+        : { json: details(12) },
+    );
+    await page.goto('/pull-requests.html');
+    await Promise.all([
+      page.waitForResponse(/pull-requests\/details/),
+      title(page).hover(),
+    ]);
+    failing = true;
+    // Holds the scripts not loaded yet, the markdown renderer among them, so
+    // the read has failed before the prefetched answer is on screen.
+    await page.route('**/_app/immutable/**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      await route.continue();
+    });
+
+    await pill(page).click();
+
+    await expect(dialog(page).getByText('may be out of date')).toBeVisible();
+    await expectLandedOn(page, 'Comment number 12.');
+  });
+
   test('lands again after the reader scrolled away and closed', async ({
     page,
   }) => {

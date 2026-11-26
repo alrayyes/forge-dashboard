@@ -423,6 +423,8 @@
   let landing: { held: Element | null; top: number } | null = null;
   // The comment that was landed on, which takes the tabindex focus needs.
   let landedId = $state<string | null>(null);
+  // This open's first read failed before it could land: Try again still may.
+  let landOnRetry = false;
 
   // `settled` says the details on show are the ones this open read.
   async function landOnNewest(settled: boolean) {
@@ -465,6 +467,7 @@
     const fromTop = atNewestComment || landedId !== null;
     landing = null;
     landedId = null;
+    landOnRetry = false;
     target = item;
     returnFocusId = triggerId;
     returnFocusFallbackId = fallbackFocusId;
@@ -747,7 +750,8 @@
       if (mine !== token) return true;
       if (quiet || phase === "ready") {
         older = OLDER_NOTE;
-        landing = null;
+        // What is on show is all this open gets: land on it, then stop.
+        landOnNewest(true);
 
         return false;
       }
@@ -758,9 +762,17 @@
           ? `Could not load the details: ${err.message}`
           : "Could not load the details. Check your connection and try again.";
       phase = "error";
+      // Nothing to land on, and a later live read must not jump there.
+      landOnRetry ||= landing !== null;
+      landing = null;
 
       return false;
     }
+  }
+
+  function retry() {
+    if (landOnRetry) landing = { held: document.activeElement, top: 0 };
+    load();
   }
 
   // A description that scrolls and holds nothing focusable would be out of a
@@ -1220,7 +1232,7 @@
       {:else if phase === "error"}
         <div class="details-error" role="alert">
           <p>{errorMessage}</p>
-          <button type="button" class="details-retry" onclick={() => load()}>
+          <button type="button" class="details-retry" onclick={retry}>
             Try again
           </button>
         </div>
