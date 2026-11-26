@@ -81,7 +81,7 @@ one of the other kinds.
 
 The system SHALL mark a forge `starting`, with no error kind, while the rows
 shown for it are the ones a previous run saved and no fetch from the forge has
-answered since the app started. The dashboard SHALL say the app is starting up
+answered in time since the app started. The dashboard SHALL say the app is starting up
 and show when the data is from, and SHALL NOT draw an unreachable chip,
 headline or banner for that forge. The first refresh that reaches the forge
 replaces the mark with its real reachability.
@@ -90,7 +90,7 @@ replaces the mark with its real reachability.
 
 - **WHEN** the page loads before the first refresh has finished and the
   forges carry the saved rows
-- **THEN** each forge chip says it is loading, a line says "Starting up,
+- **THEN** each forge chip says it is starting up, a line says "Starting up,
   showing data from" the saved time, and no forge is called unreachable
 
 #### Scenario: A first fetch that hangs
@@ -103,14 +103,14 @@ replaces the mark with its real reachability.
 #### Scenario: A forge that is really down at start-up
 
 - **WHEN** the first refresh reports a forge as failing
-- **THEN** its chip says unreachable and the unreachable banner appears,
-  as for any outage
+- **THEN** the unreachable banner appears, as for any outage, and no chip is
+  drawn for that forge unless it is also rate limited
 
 #### Scenario: The first refresh finishes
 
 - **WHEN** the first refresh answers for a forge
-- **THEN** the starting notice clears and the chip shows the real
-  reachability
+- **THEN** the starting notice and the forge's "starting up" chip clear, and
+  its real reachability shows
 
 #### Scenario: Saved main-branch rows after a restart
 
