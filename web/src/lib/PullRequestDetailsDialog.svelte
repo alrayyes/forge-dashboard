@@ -416,6 +416,40 @@
     actionsHost?.replaceChildren(...chrome.actions);
   }
 
+  // Opened from the row's comment pill, which lands on the newest comment
+  // (#5002). Holds where the dialog left the reader, so a comment that arrives
+  // later never pulls them from somewhere they went themselves. Null for any
+  // other way in, and once the read this open made has answered.
+  let landing: { held: Element | null; top: number } | null = null;
+  // The comment that was landed on, which takes the tabindex focus needs.
+  let landedId = $state<string | null>(null);
+
+  // `settled` says the details on show are the ones this open read.
+  async function landOnNewest(settled: boolean) {
+    const aim = landing;
+    if (!aim) return;
+    await tick();
+    if (landing !== aim || !bodyEl) return;
+    const at = document.activeElement;
+    const moved =
+      (at !== aim.held && at !== dialogEl && at !== document.body) ||
+      bodyEl.scrollTop !== aim.top;
+    const id = details?.comments.at(-1)?.id;
+    if (!moved && id !== undefined && id !== landedId) {
+      landedId = id;
+      await tick();
+      const newest = bodyEl.querySelector<HTMLElement>(
+        ".details-comment[tabindex]",
+      );
+      newest?.focus({ preventScroll: true });
+      // Instant, so there is no motion to reduce.
+      newest?.scrollIntoView({ block: "start", behavior: "instant" });
+      aim.held = newest;
+      aim.top = bodyEl.scrollTop;
+    }
+    if (moved || settled) landing = null;
+  }
+
   // `fallbackFocusId` is where focus goes on close when the trigger is no
   // longer on the page (its row is filtered out). It is looked up on close,
   // not here, since the row can come and go while the dialog is open.
@@ -423,7 +457,14 @@
     item: DetailsTarget,
     triggerId: string,
     fallbackFocusId = "",
+    atNewestComment = false,
   ) {
+    // The browser keeps a closed dialog's scroll position. A jump made for one
+    // open must not decide where the next one starts, and a new jump starts
+    // from the top like a first open.
+    const fromTop = atNewestComment || landedId !== null;
+    landing = null;
+    landedId = null;
     target = item;
     returnFocusId = triggerId;
     returnFocusFallbackId = fallbackFocusId;
@@ -465,6 +506,15 @@
       load(false, hit?.details as Details | undefined);
     }
     dialogEl?.showModal();
+    if (fromTop) {
+      if (dialogEl) dialogEl.scrollTop = 0;
+      if (bodyEl) bodyEl.scrollTop = 0;
+    }
+    if (atNewestComment) {
+      // Where showModal put focus: the reader hasn't moved from there yet.
+      landing = { held: document.activeElement, top: 0 };
+      if (phase === "ready") landOnNewest(false);
+    }
   }
 
   // Fetches the details again for the pull request on show. Once they are on
@@ -593,6 +643,7 @@
         shownReaction = null;
         showIssueState(current, seed);
         showFoundState(target ?? current, seed);
+        landOnNewest(false);
       });
     }
     try {
@@ -656,6 +707,7 @@
         ownAction = false;
         const kept = detailsCache.get(key);
         if (kept) detailsCache.set(key, { ...kept, readAt: Date.now() });
+        landOnNewest(true);
         return true;
       }
       const rendered = await renderAll(current, loaded);
@@ -686,6 +738,7 @@
         shownReaction = null;
         brokenAvatars = {};
       }
+      landOnNewest(true);
 
       return true;
     } catch (err) {
@@ -694,6 +747,7 @@
       if (mine !== token) return true;
       if (quiet || phase === "ready") {
         older = OLDER_NOTE;
+        landing = null;
 
         return false;
       }
@@ -818,6 +872,7 @@
     const fallbackId = returnFocusFallbackId;
     returnFocusId = "";
     returnFocusFallbackId = "";
+    landing = null;
     onClosed?.();
     const drawn = (el: Element | null): el is HTMLElement =>
       el instanceof HTMLElement && el.getClientRects().length > 0;
@@ -1234,7 +1289,13 @@
               <ol class="details-comments">
                 {#each details.comments as c (c.id)}
                   {@const login = c.author?.login ?? "ghost"}
-                  <li class="details-comment">
+                  <!-- -1 only, on the one comment the comment pill lands on:
+                    focusable by script and left out of the tab order. -->
+                  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                  <li
+                    class="details-comment"
+                    tabindex={c.id === landedId ? -1 : undefined}
+                  >
                     <div class="comment-head">
                       {#snippet person()}
                         {#if avatarSrc(forgeId, c.author?.avatarUrl) && !brokenAvatars[c.id]}
@@ -1508,6 +1569,10 @@
     outline-offset: 1px;
   }
   .details-body {
+    /* Holds the visually hidden text inside it. Without this it is placed
+       against the dialog, which then scrolls its header away when a comment
+       low in the thread is scrolled into view. */
+    position: relative;
     padding: 16px 18px 20px;
     overflow-y: auto;
     overflow-x: hidden;
@@ -1862,6 +1927,12 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     min-width: 0;
+    scroll-margin-top: 8px;
+  }
+  /* Not :focus-visible: after a click on the pill the mark must show too. */
+  .details-comment:focus {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
   }
   .comment-head {
     display: flex;
