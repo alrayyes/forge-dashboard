@@ -200,8 +200,9 @@ export function matchesQuickFilter(
       // The reading navCounts.bots.behind uses, so the chip's number is the
       // Bots menu pill's: a green bot pull request behind its base with
       // something left to merge (#4624). Out of date is wider, any CI. The
-      // menu pill counts neither drafts nor hidden ones, which Show drafts and
-      // Show hidden can still put in this pool.
+      // menu pill counts neither drafts nor hidden ones, which Show drafts
+      // and Show hidden can still put in this pool. The chip only appears
+      // where offerPills finds a match, so a page with none draws no chip.
       return (
         item.draft !== true &&
         item.hidden !== true &&
