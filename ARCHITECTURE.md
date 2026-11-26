@@ -410,7 +410,7 @@ can't fire a tracking pixel when the dialog opens.
   refuses a host that isn't its own. An avatar alone may also come from
   Gravatar or Libravatar (`gravatar.com`, `secure.gravatar.com`,
   `seccdn.libravatar.org`, `cdn.libravatar.org`), fetched through a separate
-  https-only proxy with no token and no private addresses. An avatar on any
+  HTTPS-only proxy with no token and no private addresses. An avatar on any
   other third-party host shows the initial instead.
 - The page repeats the rules in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. It reads them from each forge's
