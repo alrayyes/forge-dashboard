@@ -348,6 +348,27 @@ func TestGitHub_Bearer_RefusesAPairGrantedByAnotherHost(t *testing.T) {
 	assert.Zero(t, gh.refreshCount())
 }
 
+func TestGitHub_Bearer_AValidTokenIsNotHandedOutAfterDisconnect(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	store := &ghTokens{instance: gh.server.URL, token: &oauth2.Token{
+		AccessToken: "ghu-1", RefreshToken: "ghr-1", Expiry: time.Now().Add(time.Hour),
+	}}
+	conn := newGitHubConn(t, gh, store)
+	bearer, ok := conn.Bearer(t.Context())
+	require.True(t, ok)
+	tok, err := bearer()
+	require.NoError(t, err)
+	require.Equal(t, "ghu-1", tok)
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+	tok, err = bearer()
+
+	require.Error(t, err)
+	assert.Empty(t, tok, "a request after Disconnect gets no token")
+}
+
 func TestGitHub_Disconnect_DeletesThePairAndASlowRefreshCannotPutItBack(t *testing.T) {
 	t.Parallel()
 

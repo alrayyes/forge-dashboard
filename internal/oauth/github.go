@@ -154,9 +154,19 @@ func (g *GitHub) Bearer(ctx context.Context) (func() (string, error), bool) {
 		g.source = NewSource(g.ctx, g.cfg, stored, githubSaver{g: g, gen: g.gen})
 	}
 
-	source := g.source
+	source, gen := g.source, g.gen
 
 	return func() (string, error) {
+		// A token already in memory is not handed out once the account has
+		// been disconnected or replaced.
+		g.mu.Lock()
+		current := g.gen == gen
+		g.mu.Unlock()
+
+		if !current {
+			return "", errDisconnected
+		}
+
 		tok, err := source.Token()
 		if err != nil {
 			return "", err
