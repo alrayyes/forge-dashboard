@@ -980,7 +980,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/VerifyForgejoInstanceResponse"
+                $ref: "#/components/schemas/ForgejoInstanceCheck"
         "400":
           description: Not a usable http(s) address, or it did not answer like a Forgejo. `field` is `instanceUrl`.
           content:
@@ -4997,7 +4997,7 @@ components:
           format: uri
           maxLength: 2048
           example: https://git.example.com
-    VerifyForgejoInstanceResponse:
+    ForgejoInstanceCheck:
       type: object
       required: [instanceUrl]
       properties:
