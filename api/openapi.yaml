@@ -6492,7 +6492,7 @@ components:
           description: |
             Why the rows shown for this forge are not from the latest read,
             while the forge is not down. "starting" is the same fact as
-            `starting`: the rows are the ones the last run saved and no
+            the `starting` flag: the rows are the ones the last run saved and no
             refresh has asked the forge since the app started. "slow" means
             the latest pass gave no answer in time (it hit its deadline, or
             was skipped because the last fetch was still running) and the
