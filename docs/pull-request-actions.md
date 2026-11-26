@@ -713,6 +713,13 @@ records each attempt by repo and number. Closing or merging the pull request
 elsewhere removes the intent, once Forgejo confirms it. A token that can push
 but not merge only finds out at the merge itself.
 
+Failing CI with a stopped auto-merge is the one case where a blocked Merge is
+left off the row altogether: the row draws no Merge button, locked or not, and no
+printed note under the title. The server's "Blocked, CI is failing" is the
+chip's detail line, under "Auto-merge stopped" (on a phone, the end of the text
+line), so both facts sit together in the action area and are read without
+hovering. The pop-up's footer still lists Merge locked with its reason.
+
 A merge scheduled in Forgejo's own web UI ("Merge when checks succeed") shows
 as auto-merging too, with Cancel auto-merge on it. Forgejo's pull request JSON
 has no field for it, so each refresh reads the pull request's timeline (`GET
