@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.130.1](https://github.com/alrayyes/forge-dashboard/compare/v9.130.0...v9.130.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **web:** draw no Merge on any failing-CI row, armed or not ([#4973](https://github.com/alrayyes/forge-dashboard/issues/4973)) ([8e42d37](https://github.com/alrayyes/forge-dashboard/commit/8e42d3724bb49d6aa14e1a80891b420b20c4e511))
+
 ## [9.130.0](https://github.com/alrayyes/forge-dashboard/compare/v9.129.0...v9.130.0) (2026-11-26)
 
 
