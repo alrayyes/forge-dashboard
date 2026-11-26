@@ -329,13 +329,19 @@ wide as its content, up to the room there is, and one line tall. On a row with n
 action and no merge-state or comment pill it sits after the CI pill on the
 pill's own line, in the rest of the cell (the cell is the CI pill and that
 remainder, so the pill's slot gives up its minimum width), and the row is no
-taller than one without a chip. A row with no label, a comment or
-merge-state pill and an action puts the chip on a line of its own too, so the
-title keeps at least 200px at 1280px (on one line the chip, the pill and the
-action left it 70px). That row is one 36px line taller than one with a Merge
-button. A row with no pill keeps the chip on the line. Otherwise the chip has a
-line at the cell's right edge, 36px more than the row would be without it. Its
-room is only there while a chip is. A narrower list keeps the wrapping status
+taller than one without a chip. With a comment or merge-state pill and one
+action, with or without labels, the chip shares the line too: the CI pill gives
+up its minimum width (a Running pill is 104px), so the pill, the chip, the
+pills and the action fit the status track, the title keeps at least 200px at
+1280px, and the row is as tall as one with a Merge button. Every cell (the
+pills, the chip, the action, the author and the dates) shares the row's middle.
+Two cases keep the chip on a line of its own below 94rem of list width, one
+36px line taller, because on one line the title would fall under 200px: pills
+with a chip beside two actions (a bot's rebase and Cancel) or beside Update
+branch, and labels with an action but no pills (194px at 1280px). In both the
+pills and the action share the first line, the chip sits under them, and the
+author and dates centre on the two lines. Its room is only there while a chip
+is. A narrower list keeps the wrapping status
 cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is
