@@ -3,12 +3,17 @@
 // wording for each state in one place so the page never reads a start-up gap
 // as "unreachable".
 
+// Why the server holds a forge's rows from an earlier read, absent when it
+// doesn't.
+export type ForgeCause = 'starting' | 'slow';
+
 export type StartingHealth = {
   forge: string;
   reachable: boolean;
   // Set by the server while the rows are the saved ones and no fetch has
   // answered since the app started.
   starting?: boolean;
+  cause?: ForgeCause;
   errorKind?: string;
   staleSince?: string;
 };
@@ -48,26 +53,34 @@ export function isStartupGap(
 // An outage draws none either (#3719): the banner says it once. A forge that
 // is rate limited as well has no unreachable banner, so it keeps its chip.
 export function needsChip(h: StartingHealth, rateLimited: boolean): boolean {
-  if (h.starting) return true;
+  if (h.starting || h.cause === 'slow') return true;
   if (isUnreachable(h)) return rateLimited;
   return !!h.staleSince || rateLimited;
 }
 
+// The state a forge's chip and spoken sentence name. A slow forge is still
+// reachable, so its cause is read before reachability.
+function stateWords(h: StartingHealth): string {
+  if (h.starting) return 'starting up';
+  if (h.cause === 'slow') return 'slow to answer';
+  return isUnreachable(h) ? 'unreachable' : 'reachable';
+}
+
 export function chipLabel(name: string, h: StartingHealth): string {
-  if (h.starting) return `${name} loading`;
-  return `${name} ${isUnreachable(h) ? 'unreachable' : 'reachable'}`;
+  return `${name} ${stateWords(h)}`;
 }
 
 // What the health live region says for one forge, before any budget text.
 export function healthSentence(name: string, h: StartingHealth): string {
-  if (h.starting) return `${name} starting up`;
-  return `${name} ${isUnreachable(h) ? 'unreachable' : 'reachable'}`;
+  return `${name} ${stateWords(h)}`;
 }
 
 // The plain line beside the chip saying the rows are old, or null when the
 // rows are current. `ago` is the formatted age.
 export function staleNote(h: StartingHealth, ago: string): string | null {
   if (h.starting) return `Starting up, showing data from ${ago}`;
+  if (h.cause === 'slow')
+    return h.staleSince ? `Slow to answer, showing data from ${ago}` : null;
   if (isUnreachable(h) && h.staleSince) return `Showing data from ${ago}`;
   return null;
 }
@@ -75,6 +88,7 @@ export function staleNote(h: StartingHealth, ago: string): string | null {
 // The chip's class, from the same state as its label.
 export function chipClass(h: StartingHealth): string {
   if (h.starting) return 'forge-health starting';
+  if (h.cause === 'slow') return 'forge-health slow';
   return isUnreachable(h) ? 'forge-health unreachable' : 'forge-health';
 }
 

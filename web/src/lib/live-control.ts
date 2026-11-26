@@ -1,4 +1,5 @@
 import { hasTimestamp } from './first-refresh.js';
+import type { ForgeCause } from './forge-starting.js';
 
 // The one live control in a list card header (#3699): status, the time of the
 // snapshot on screen, Pause or Resume, and refresh. The time is the
@@ -18,8 +19,22 @@ export function updatedText(iso: string | null, nowMs: number): string {
   return `updated ${Math.round(hours / 24)}d ago`;
 }
 
-export function liveStatus(paused: boolean): string {
-  return paused ? 'Paused' : 'Live';
+// The forges' health as far as this control reads it.
+export type CausedForges = readonly { cause?: ForgeCause }[];
+
+// "Live" is only true while no forge shows rows held from an earlier read.
+// Paused comes first: it is what the user asked for. A start-up outranks a
+// slow forge.
+export function liveStatus(paused: boolean, forges: CausedForges = []): string {
+  if (paused) return 'Paused';
+  if (forges.some((f) => f.cause === 'starting')) return 'Starting up';
+  if (forges.some((f) => f.cause === 'slow')) return 'Slow to answer';
+  return 'Live';
+}
+
+// Whether the status dot says the rows are held.
+export function isHeld(paused: boolean, forges: CausedForges): boolean {
+  return !paused && forges.some((f) => f.cause !== undefined);
 }
 
 // The name holds the visible word (WCAG 2.5.3) and says what it acts on.

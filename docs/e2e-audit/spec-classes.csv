@@ -108,6 +108,7 @@ forced-colors-current-page.spec.ts,2.378,2,2,A,,0.0
 forced-colors-pressed-pills.spec.ts,2.125,2,2,A,,0.0
 forced-colors-pressed-toggles.spec.ts,1.069,1,1,A,,0.0
 foreign-relation-pill.spec.ts,2.673,5,0,C,,2.7
+forge-cause.spec.ts,,4,1,C,,0.0
 forge-filter-single-forge.spec.ts,4.708,7,3,C,,2.7
 forge-health-budgets.spec.ts,3.001,5,2,C,ForgeHealth.stories.svelte (proven),1.8
 forge-health-live-region.spec.ts,5.103,8,0,C,,5.1

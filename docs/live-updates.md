@@ -22,13 +22,17 @@ Keyboard focus on a row doesn't hold either, and stays on the row
 when the list redraws. When rows land, one polite line tells a screen reader
 what changed ("List updated: 1 added, 2 removed"). One live control leads the
 right-hand controls in the header of every list card (Pull requests, Bots,
-Issues, Releases and Main branches): a status dot reading "Live" or "Paused",
-"updated 12 seconds ago", **Pause** (**Resume** while paused) and a refresh button.
-Pause is your own control: it stops every automatic update until you resume,
-which applies what waited (Refresh now still works). The time is the snapshot's
-own: it holds still while paused and moves to the newest one on Resume, and a
-refresh that fails leaves it where it was. On Main branches the
-pause isn't saved with your filters and a reload goes back to live. The
+Issues, Releases and Main branches): a status dot reading "Live", "Paused",
+"Slow to answer" or "Starting up", "updated 12 seconds ago", **Pause**
+(**Resume** while paused) and a refresh button. Pause is your own control: it
+stops every automatic update until you resume, which applies what waited
+(Refresh now still works). The time is the snapshot's own: it holds still while
+paused and moves to the newest one on Resume, and a refresh that fails leaves
+it where it was. "Live" means no forge is showing held rows. While one is, the
+control reads "Slow to answer" or "Starting up" (starting up wins when both
+apply) with an amber dot, and that forge's chip says the same. "Paused" wins
+over both. On Main branches the pause isn't saved with your filters and a
+reload goes back to live. The
 **Sort** control offers Last activity (the default, the server's order: most
 recently updated first, whether or not a pull request is ready to merge),
 Created, and Repository. Pause and sort are saved with your other filters.
@@ -213,11 +217,13 @@ Each of these lines carries a `path`: `deadline`, `skipped` or `error`. A real
 outage shows `path=error` and the error kind. A slow forge shows
 `path=deadline` or `path=skipped`, and a late line, and no error kind. These
 lines also appear on a held pass, where no banner shows. The forge's health
-then carries `cause: "slow"`. The API sends that fact now, and the page words
-it in a later change. The next good read clears the cause. Only the
+then carries `cause: "slow"`, and the page reads "Slow to answer" instead of
+"Live". The next good full refresh clears the cause. A webhook that refreshes
+one repository doesn't, so the wording can stay until that refresh. Only the
 third miss in a row shows the unreachable banner, and that health has no cause.
 After a restart the saved rows carry `cause: "starting"` (the same fact as
-`starting`) until the first read, and never read as unreachable.
+`starting`) until the first read. The page reads "Starting up" and never
+unreachable.
 
 ## The first load after a restart
 

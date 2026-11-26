@@ -3,6 +3,7 @@
 // branches page lock a control on this, with the same wording, instead of
 // letting a click fail.
 
+import type { ForgeCause } from './forge-starting';
 import { isUnreachable } from './forge-starting';
 import { type ForgeCapabilities, forgeLabelOf } from './forges';
 import {
@@ -18,6 +19,8 @@ export type ForgeHealthEntry = {
   reachable: boolean;
   // Rows are the saved ones and no fetch has answered since the app started.
   starting?: boolean;
+  // Why the rows shown for this forge are held from an earlier read.
+  cause?: ForgeCause;
   // When the rows shown for this forge were last read, while it can't be asked.
   staleSince?: string;
   rateLimitREST?: RateLimit;

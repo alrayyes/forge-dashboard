@@ -182,6 +182,48 @@
   />
 </Story>
 
+<!-- A forge with a cause has rows held from an earlier read, so the control
+     does not call them live (#4998). -->
+<Story
+  name="Slow to answer"
+  args={{
+    paused: false,
+    updatedAt: ago(12),
+    forges: [{ cause: "slow" }],
+    onpause,
+    onrefresh,
+  }}
+  play={async ({ canvasElement }) => {
+    const live = control(canvasElement);
+    await expect(live.querySelector(".live-status")?.textContent?.trim()).toBe(
+      "Slow to answer",
+    );
+    await expect(live.classList.contains("held")).toBe(true);
+    await expectNoViolations(canvasElement, "light");
+    await expectNoViolations(canvasElement, "dark");
+  }}
+/>
+
+<Story
+  name="Starting up"
+  args={{
+    paused: false,
+    updatedAt: ago(300),
+    forges: [{ cause: "starting" }],
+    onpause,
+    onrefresh,
+  }}
+  play={async ({ canvasElement }) => {
+    const live = control(canvasElement);
+    await expect(live.querySelector(".live-status")?.textContent?.trim()).toBe(
+      "Starting up",
+    );
+    await expect(live.classList.contains("held")).toBe(true);
+    await expectNoViolations(canvasElement, "light");
+    await expectNoViolations(canvasElement, "dark");
+  }}
+/>
+
 <!-- No accessibility violations in either theme, live and paused. -->
 <Story
   name="Live, light and dark"

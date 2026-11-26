@@ -1051,6 +1051,7 @@
     <h1>Main branches</h1>
     <div class="mb-header-controls">
       <LiveControl
+        forges={data?.forges}
         {paused}
         updatedAt={pending ? null : (data?.generatedAt ?? null)}
         onpause={togglePause}

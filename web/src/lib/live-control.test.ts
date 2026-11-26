@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { liveStatus, pauseLabel, updatedText } from './live-control.js';
+import { isHeld, liveStatus, pauseLabel, updatedText } from './live-control.js';
 
 const NOW = Date.parse('2026-11-13T10:00:00Z');
 const ago = (s: number) => new Date(NOW - s * 1000).toISOString();
@@ -27,6 +27,34 @@ describe('updatedText', () => {
     expect(updatedText(t, NOW + 5000)).toBe('updated 35s ago');
     // The same generatedAt later is just the clock; a new one resets it.
     expect(updatedText(ago(0), NOW + 5000)).toBe('updated 5s ago');
+  });
+});
+
+describe('liveStatus with a forge cause (#4998)', () => {
+  const fresh = {};
+  const slow = { cause: 'slow' as const };
+  const starting = { cause: 'starting' as const };
+
+  test('is Live only while no forge has a cause', () => {
+    expect(liveStatus(false, [])).toBe('Live');
+    expect(liveStatus(false, [fresh, fresh])).toBe('Live');
+    expect(liveStatus(false, [fresh, slow])).toBe('Slow to answer');
+    expect(liveStatus(false, [starting])).toBe('Starting up');
+  });
+
+  test('a start-up outranks a slow forge, whichever is listed first', () => {
+    expect(liveStatus(false, [slow, starting])).toBe('Starting up');
+    expect(liveStatus(false, [starting, slow])).toBe('Starting up');
+  });
+
+  test('Paused wins: it is what the user asked for', () => {
+    expect(liveStatus(true, [slow])).toBe('Paused');
+  });
+
+  test('isHeld marks the dot only for a cause on a page that is not paused', () => {
+    expect(isHeld(false, [slow])).toBe(true);
+    expect(isHeld(false, [fresh])).toBe(false);
+    expect(isHeld(true, [slow])).toBe(false);
   });
 });
 

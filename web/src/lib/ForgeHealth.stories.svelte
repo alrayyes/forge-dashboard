@@ -117,11 +117,25 @@
 
 <Story
   name="Starting up"
-  args={{ forges: [{ forge: "github", reachable: true, starting: true }] }}
+  args={{
+    forges: [
+      { forge: "github", reachable: true, starting: true, cause: "starting" },
+    ],
+  }}
   play={async ({ canvasElement }) => {
     const chip = canvasElement.querySelector(".forge-health.starting");
-    await expect(chip?.textContent).toBe("GitHub loading");
+    await expect(chip?.textContent).toBe("GitHub starting up");
     await expect(chip?.querySelector(".pulse-dot")).not.toBeNull();
+  }}
+/>
+
+<!-- Rows held from an earlier read: the forge is reachable but not fresh. -->
+<Story
+  name="Slow to answer"
+  args={{ forges: [{ forge: "github", reachable: true, cause: "slow" }] }}
+  play={async ({ canvasElement }) => {
+    const chip = canvasElement.querySelector(".forge-health.slow");
+    await expect(chip?.textContent?.trim()).toBe("GitHub slow to answer");
   }}
 />
 

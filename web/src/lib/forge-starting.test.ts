@@ -16,8 +16,8 @@ const base = { forge: 'github', reachable: false };
 const starting = { ...base, starting: true };
 
 describe('forge-starting', () => {
-  test('a forge that has not been asked yet is loading, never unreachable', () => {
-    expect(chipLabel('GitHub', starting)).toBe('GitHub loading');
+  test('a forge that has not been asked yet is starting up, never unreachable', () => {
+    expect(chipLabel('GitHub', starting)).toBe('GitHub starting up');
     expect(healthSentence('GitHub', starting)).toBe('GitHub starting up');
     expect(isOutage(starting)).toBe(false);
   });
@@ -153,7 +153,7 @@ describe('needsChip for an outage (#3719)', () => {
     ).toBe(false);
   });
 
-  test('a start-up gap still draws its loading chip', () => {
+  test('a start-up gap still draws its chip', () => {
     expect(
       needsChip({ forge: 'github', reachable: false, starting: true }, false),
     ).toBe(true);
@@ -161,5 +161,27 @@ describe('needsChip for an outage (#3719)', () => {
 
   test('an unreachable forge that is also rate limited keeps its chip: no unreachable banner covers it', () => {
     expect(needsChip({ forge: 'github', reachable: false }, true)).toBe(true);
+  });
+});
+
+describe('a slow forge (#4998)', () => {
+  const slow = { forge: 'github', reachable: true, cause: 'slow' as const };
+
+  test('is worded slow to answer in the chip and the spoken sentence', () => {
+    expect(chipLabel('GitHub', slow)).toBe('GitHub slow to answer');
+    expect(healthSentence('GitHub', slow)).toBe('GitHub slow to answer');
+  });
+
+  test('draws a chip of its own class, though it is reachable', () => {
+    expect(needsChip(slow, false)).toBe(true);
+    expect(chipClass(slow)).toBe('forge-health slow');
+    expect(isOutage(slow)).toBe(false);
+  });
+
+  test('says so beside the age of the rows, when it has one', () => {
+    expect(
+      staleNote({ ...slow, staleSince: '2030-01-01T00:00:00Z' }, '3m ago'),
+    ).toBe('Slow to answer, showing data from 3m ago');
+    expect(staleNote(slow, '3m ago')).toBeNull();
   });
 });
