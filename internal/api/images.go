@@ -65,21 +65,40 @@ var federatedAvatarHosts = []string{
 	"cdn.libravatar.org",
 }
 
-var federatedAvatarProxy = imageproxy.New(imageproxy.Config{Hosts: federatedAvatarHosts, Scheme: "https"})
+// FederatedAvatars is a set of federated avatar hosts and the proxy that
+// reaches them.
+type FederatedAvatars struct {
+	Hosts []string
+	Proxy *imageproxy.Proxy
+}
+
+var defaultFederatedAvatars = FederatedAvatars{
+	Hosts: federatedAvatarHosts,
+	Proxy: imageproxy.New(imageproxy.Config{Hosts: federatedAvatarHosts, Scheme: "https"}),
+}
 
 // avatarProxyFor is the proxy that fetches raw: the federated one for an
 // avatar on a federated host, the forge's own otherwise. The forge's proxy may
-// carry its token or reach private addresses, so it never serves these hosts.
-func avatarProxyFor(forgeProxy *imageproxy.Proxy, kind imageKind, raw string) *imageproxy.Proxy {
+// carry its token or reach private addresses, so it serves one of these hosts
+// only when that host is already on its list, as a saved instance is.
+func avatarProxyFor(deps Deps, forgeProxy *imageproxy.Proxy, kind imageKind, raw string) *imageproxy.Proxy {
 	if kind != imageAvatar {
 		return forgeProxy
 	}
+	federated := defaultFederatedAvatars
+	if deps.FederatedAvatars != nil {
+		federated = *deps.FederatedAvatars
+	}
 	u, err := url.Parse(raw)
-	if err != nil || !slices.Contains(federatedAvatarHosts, hostname.Fold(u.Host)) {
+	if err != nil {
+		return forgeProxy
+	}
+	isHost := func(h string) bool { return hostname.Equal(h, u.Host) }
+	if !slices.ContainsFunc(federated.Hosts, isHost) || slices.ContainsFunc(forgeProxy.Config().Hosts, isHost) {
 		return forgeProxy
 	}
 
-	return federatedAvatarProxy
+	return federated.Proxy
 }
 
 // imageFailure is what a caller is told about a refused or failed fetch: a
@@ -161,7 +180,7 @@ func handleImage(deps Deps) http.HandlerFunc {
 
 			return
 		}
-		proxy = avatarProxyFor(proxy, imageKind(q.Get("kind")), raw)
+		proxy = avatarProxyFor(deps, proxy, imageKind(q.Get("kind")), raw)
 		img, err := limits.load(r.Context(), q, raw, func(ctx context.Context, kind imageKind) (imageproxy.Image, error) {
 			return fetchSized(ctx, width, func() (imageproxy.Image, error) {
 				return fetchImage(ctx, deps, creds, proxy, q, raw, kind.maxBytes())

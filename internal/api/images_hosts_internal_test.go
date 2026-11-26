@@ -269,11 +269,11 @@ func TestAvatarProxyFor_TakesFederatedAvatarHostsForAvatarsOnly(t *testing.T) {
 		base, serr := imageProxyFor(Deps{}, forge, creds)
 		require.Nil(t, serr)
 		for _, raw := range listed {
-			require.NotErrorIs(t, cancelledFetch(avatarProxyFor(base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar takes %s", forge, raw)
-			require.ErrorIs(t, cancelledFetch(avatarProxyFor(base, imageEmbedded, raw), raw), imageproxy.ErrHostNotListed, "%s embedded refuses %s", forge, raw)
+			require.NotErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar takes %s", forge, raw)
+			require.ErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageEmbedded, raw), raw), imageproxy.ErrHostNotListed, "%s embedded refuses %s", forge, raw)
 		}
 		for _, raw := range refused {
-			require.ErrorIs(t, cancelledFetch(avatarProxyFor(base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar refuses %s", forge, raw)
+			require.ErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar refuses %s", forge, raw)
 		}
 	}
 }
@@ -283,7 +283,7 @@ func TestAvatarProxyFor_FederatedProxyIsTokenlessPublicAndHttpsOnly(t *testing.T
 	creds := settings.Credentials{ForgejoURL: "http://git.example:3000", ForgejoToken: "saved-token"}
 	base, serr := imageProxyFor(Deps{}, "forgejo", creds)
 	require.Nil(t, serr)
-	proxy := avatarProxyFor(base, imageAvatar, "https://secure.gravatar.com/avatar/abc")
+	proxy := avatarProxyFor(Deps{}, base, imageAvatar, "https://secure.gravatar.com/avatar/abc")
 	require.NotSame(t, base, proxy)
 	cfg := proxy.Config()
 	assert.ElementsMatch(t, []string{"gravatar.com", "secure.gravatar.com", "seccdn.libravatar.org", "cdn.libravatar.org"}, cfg.Hosts)
@@ -295,8 +295,8 @@ func TestAvatarProxyFor_FederatedProxyIsTokenlessPublicAndHttpsOnly(t *testing.T
 	assert.Equal(t, 512<<10, imageproxy.MaxAvatarBytes)
 
 	// The forge's own avatar keeps the forge's proxy.
-	assert.Same(t, base, avatarProxyFor(base, imageAvatar, "http://git.example:3000/avatars/abc"))
-	assert.Same(t, base, avatarProxyFor(base, imageAvatar, "%zz"))
+	assert.Same(t, base, avatarProxyFor(Deps{}, base, imageAvatar, "http://git.example:3000/avatars/abc"))
+	assert.Same(t, base, avatarProxyFor(Deps{}, base, imageAvatar, "%zz"))
 }
 
 func cancelledFetch(p *imageproxy.Proxy, raw string) error {
