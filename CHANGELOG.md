@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.138.0](https://github.com/alrayyes/forge-dashboard/compare/v9.137.0...v9.138.0) (2026-11-26)
+
+
+### Features
+
+* show how old a slow forge's held rows are ([#5049](https://github.com/alrayyes/forge-dashboard/issues/5049)) ([f86756b](https://github.com/alrayyes/forge-dashboard/commit/f86756b752204f64a78f74ee16464c98257f0d8e))
+
+## [9.137.0](https://github.com/alrayyes/forge-dashboard/compare/v9.136.3...v9.137.0) (2026-11-26)
+
+
+### Features
+
+* **web:** announce a slow or starting forge on Main branches ([#5050](https://github.com/alrayyes/forge-dashboard/issues/5050)) ([742fbf9](https://github.com/alrayyes/forge-dashboard/commit/742fbf9e67e8c90771077f2a46fd237eef6c8c72))
+
+## [9.136.3](https://github.com/alrayyes/forge-dashboard/compare/v9.136.2...v9.136.3) (2026-11-26)
+
+
+### Bug Fixes
+
+* leave polls and wakes alone once a loop is cancelled ([#5052](https://github.com/alrayyes/forge-dashboard/issues/5052)) ([d4a6a65](https://github.com/alrayyes/forge-dashboard/commit/d4a6a6504f1bb8038fd7ccd0bdab890240ec3387))
+
+## [9.136.2](https://github.com/alrayyes/forge-dashboard/compare/v9.136.1...v9.136.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* start no refresh once the refresh loop is cancelled ([#5046](https://github.com/alrayyes/forge-dashboard/issues/5046)) ([a6c9c35](https://github.com/alrayyes/forge-dashboard/commit/a6c9c35b6c30656e12024f0e8de7ab719f17a4b6)), closes [#5041](https://github.com/alrayyes/forge-dashboard/issues/5041)
+
 ## [9.136.1](https://github.com/alrayyes/forge-dashboard/compare/v9.136.0...v9.136.1) (2026-11-26)
 
 

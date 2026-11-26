@@ -79,6 +79,30 @@ func TestAggregator_TheNextGoodReadClearsTheSlowCause(t *testing.T) {
 
 		return health(agg.Get(), dashboard.ForgeGitHub).Cause == ""
 	}, 5*time.Second, 10*time.Millisecond)
+	assert.Nil(t, health(agg.Get(), dashboard.ForgeGitHub).RowsReadAt)
+}
+
+// A held pass says when its rows were read (#5023): the time of the last good
+// read, the same through a skipped pass. It is not staleSince, which means the
+// forge could not be read.
+func TestAggregator_AHeldPassSaysWhenItsRowsWereRead(t *testing.T) {
+	t.Parallel()
+
+	agg, src, timers := slowForge(t)
+	readAt := agg.Get().GeneratedAt
+	assert.Nil(t, health(agg.Get(), dashboard.ForgeGitHub).RowsReadAt, "a fresh read needs no age")
+
+	missOnce(t, agg, src, timers)
+	missed := health(agg.Get(), dashboard.ForgeGitHub)
+	require.NotNil(t, missed.RowsReadAt, "after the missed pass")
+	assert.Equal(t, readAt, *missed.RowsReadAt)
+	assert.Nil(t, missed.StaleSince)
+
+	agg.Refresh(t.Context())
+	skipped := health(agg.Get(), dashboard.ForgeGitHub)
+	require.NotNil(t, skipped.RowsReadAt, "after the skipped pass")
+	assert.Equal(t, readAt, *skipped.RowsReadAt)
+	assert.Nil(t, skipped.StaleSince)
 }
 
 // Three misses in a row show the outage, and an outage is not "slow".
@@ -93,6 +117,7 @@ func TestAggregator_TheMissThatShowsTheOutageHasNoCause(t *testing.T) {
 	h := health(agg.Get(), dashboard.ForgeGitHub)
 	require.False(t, h.Reachable)
 	assert.Empty(t, h.Cause)
+	assert.Nil(t, h.RowsReadAt, "an outage says its age with staleSince")
 }
 
 // A restored forge whose first fetch hangs has had no answer yet: it is still

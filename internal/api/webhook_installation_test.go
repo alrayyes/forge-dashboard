@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"context"
 	"database/sql"
 	"net/http"
 	"strconv"
@@ -21,13 +22,14 @@ import (
 // installationHook is a signed GitHub App delivery against a test server whose
 // GitHub fake lists installations 100 and 200 for the linked account.
 type installationHook struct {
-	srv    string
-	token  string
-	secret string
-	store  *settingspkg.Store
-	db     *sql.DB
-	calls  *atomic.Int64
-	conn   *ghConnFixture
+	srv     string
+	service *dashboard.Service
+	token   string
+	secret  string
+	store   *settingspkg.Store
+	db      *sql.DB
+	calls   *atomic.Int64
+	conn    *ghConnFixture
 
 	mu     sync.Mutex
 	builds [][]int64
@@ -59,7 +61,7 @@ func newInstallationHook(t *testing.T, connected bool) *installationHook {
 	}
 	service.Ensure(t.Context(), []dashboard.Source{&countingSource{calls: h.calls}})
 	h.token, h.secret = webhookCredentials(t, srv.URL, cookie)
-	h.srv, h.store, h.db = srv.URL, store, db
+	h.srv, h.service, h.store, h.db = srv.URL, service, store, db
 	h.mu.Lock()
 	h.builds = nil
 	h.mu.Unlock()
@@ -193,19 +195,44 @@ func TestInstallationWebhook_Deleted_RemovesTheRow(t *testing.T) {
 	assert.Equal(t, int64(502), got[0].ID)
 }
 
+// replacedSource counts the fetches that could still reach a forge after its
+// sources were replaced: ones that start then, on a context nobody cancelled.
+// A fetch already on its way at the swap may land later, and isn't one.
+type replacedSource struct {
+	replaced    atomic.Bool
+	fetches     atomic.Int64
+	liveFetches atomic.Int64
+}
+
+func (s *replacedSource) Fetch(ctx context.Context) dashboard.Result {
+	// replaced is read first: once it is set the swap has happened, so the old
+	// context is already cancelled and no timing can miscount it.
+	if s.replaced.Load() && ctx.Err() == nil {
+		s.liveFetches.Add(1)
+	}
+	s.fetches.Add(1)
+
+	return dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: true}}
+}
+
+func (s *replacedSource) Forge() dashboard.Forge { return dashboard.ForgeGitHub }
+
 func TestInstallationWebhook_DeletingTheLastInstallation_ReplacesTheSourcesWithNone(t *testing.T) {
 	t.Parallel()
 
 	h := newInstallationHook(t, true)
 	require.NoError(t, h.store.SaveInstallation(t.Context(), settingspkg.Installation{ID: 501, AccountLogin: "acme-org"}))
+	src := &replacedSource{}
+	h.service.Ensure(t.Context(), []dashboard.Source{src})
+	require.Eventually(t, func() bool { return src.fetches.Load() > 0 }, time.Second, time.Millisecond)
 
 	h.deliver(t, "installation", hookBody("deleted", 501, "acme-org"))
+	src.replaced.Store(true)
 
 	ids, built := h.lastBuild(t)
 	assert.True(t, built, "the aggregator must be rebuilt, or it keeps reading the removed installation")
 	assert.Empty(t, ids)
-	before := h.calls.Load()
-	assert.Never(t, func() bool { return h.calls.Load() > before }, 100*time.Millisecond, 10*time.Millisecond,
+	assert.Never(t, func() bool { return src.liveFetches.Load() > 0 }, 100*time.Millisecond, 10*time.Millisecond,
 		"nothing should be fetching any more")
 }
 

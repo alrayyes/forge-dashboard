@@ -10,6 +10,7 @@
     isOutage,
     isUnreachable,
     needsChip,
+    rowsAgeSince,
     staleNote,
     type StartingHealth,
   } from "#lib/forge-starting.js";
@@ -71,10 +72,20 @@
   // One that is rate limited as well has no unreachable banner, so it keeps all
   // three.
   const shown = (f: Forge) => !(isOutage(f) && !limited(f));
-  // The rows of an unreachable forge are its last good ones (#933), plain text
-  // for every error kind.
-  const note = (f: Forge) =>
-    f.staleSince ? staleNote(f, ago(f.staleSince)) : null;
+  // The age counts on while no new snapshot arrives. `ago` reads the clock,
+  // which is not reactive, so the line reads this tick to be worked out again.
+  let tick = $state(0);
+  $effect(() => {
+    const timer = setInterval(() => tick++, 1000);
+    return () => clearInterval(timer);
+  });
+
+  // Rows held from an earlier read, from a slow or an unreachable forge, say
+  // how old they are (#933), as plain text for every error kind.
+  const note = (f: Forge, _tick: number) => {
+    const since = rowsAgeSince(f);
+    return since ? staleNote(f, ago(since)) : null;
+  };
   // The reason is real text, not a hover title: a tooltip never reaches touch.
   // The raw string sits in a native <details>. rate_limited has its own banner.
   const cause = (f: Forge) =>
@@ -83,7 +94,7 @@
 
 {#each forges.filter(shown) as f (f.forge)}
   {@const lines = budgets(f)}
-  {@const age = note(f)}
+  {@const age = note(f, tick)}
   {#if needsChip(f, limited(f)) || age || lines.length > 0 || cause(f)}
     <div class="forge-health-item">
       {#if needsChip(f, limited(f))}

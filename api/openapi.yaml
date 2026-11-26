@@ -6519,6 +6519,23 @@ components:
             rows are current, and when the forge is shown as down (see
             errorKind). A client words it, "slow to answer" or "starting up",
             and does not call the rows live.
+        rowsReadAt:
+          type: string
+          format: date-time
+          description: |
+            Present only while `cause` is "slow": about when the held rows
+            were read. It is normally the time of the last full read that
+            answered, including one that could not read some repositories,
+            whose rows are older. When webhook refreshes have made every
+            repository current after a failed full refresh or a restart, it is
+            the time of the last of those, and rows refreshed before it are
+            older. A webhook may also have refreshed single repositories since,
+            so some rows can be newer. `staleSince` is worked out the same way,
+            with the same limits. `rowsReadAt` stays the same through further
+            missed and skipped passes, and goes when `cause` does. `rowsReadAt`
+            is not `staleSince`: the forge is still reachable, and nothing is
+            locked. A client can say "slow to answer, showing data from 3
+            minutes ago".
         staleSince:
           type: string
           format: date-time

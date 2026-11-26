@@ -47,7 +47,8 @@ const MaxViewers = 32
 // use. The zero idle period turns idle mode off.
 //
 // One Activity serves every Aggregator the Service builds, and its wake is
-// read by whichever Run gets there first, which is the only reader.
+// read by whichever Run gets there first. A cancelled Run leaves it, or hands it
+// back, for its successor.
 //
 // A nil *Activity is valid and is never idle, which is what an Aggregator
 // built without idle mode holds. Safe for concurrent use.
@@ -218,6 +219,15 @@ func (a *Activity) drainWake() {
 	case <-a.wake:
 	default:
 	}
+}
+
+// handBackWake returns a wake to be read again, for a reader that took one it
+// can't act on. Only for a caller that received from Woken, so a is not nil.
+func (a *Activity) handBackWake() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.signalLocked()
 }
 
 func (a *Activity) idleLocked() bool {

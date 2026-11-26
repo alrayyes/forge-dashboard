@@ -17,6 +17,9 @@ export type StartingHealth = {
   cause?: ForgeCause;
   errorKind?: string;
   staleSince?: string;
+  // When the held rows were read, sent only while the cause is "slow". Not
+  // staleSince: the forge is still reachable, so nothing locks on it.
+  rowsReadAt?: string;
 };
 
 // A forge that says it can't be reached. One that is silent on it is not
@@ -76,10 +79,19 @@ export function healthSentence(name: string, h: StartingHealth): string {
   return `${name} ${stateWords(h)}`;
 }
 
+// When the rows the chip's line talks about were read, absent when there is
+// no age to give.
+export function rowsAgeSince(h: StartingHealth): string | undefined {
+  if (h.starting) return h.staleSince;
+  return h.cause === 'slow' ? h.rowsReadAt : h.staleSince;
+}
+
 // The plain line beside the chip saying the rows are old, or null when the
 // rows are current. `ago` is the formatted age.
 export function staleNote(h: StartingHealth, ago: string): string | null {
   if (h.starting) return `Starting up, showing data from ${ago}`;
+  if (h.cause === 'slow' && h.rowsReadAt)
+    return `Slow to answer, showing data from ${ago}`;
   if (isUnreachable(h) && h.staleSince) return `Showing data from ${ago}`;
   return null;
 }

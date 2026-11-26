@@ -134,3 +134,48 @@ reaches the forge replaces the mark with its real reachability.
   forge that is starting
 - **THEN** a notice says the app is starting up and the rows are the saved
   ones, and the "forge can't be read" notice is not shown for them
+
+### Requirement: A slow forge's held rows say how old they are
+
+While a forge's cause is `slow`, its health SHALL carry `rowsReadAt` and SHALL
+NOT carry `staleSince` because of that cause. `rowsReadAt` is the time of the
+last full read that answered, including one that could not read some
+repositories, or, where webhook refreshes made every repository current after a
+failed full refresh or a restart, the time of the last of those. Single rows MAY
+be older or newer than it. The pages with forge health chips SHALL show "Slow
+to answer, showing data from" that age. A forge with no such cause SHALL have
+neither the field nor the line.
+
+#### Scenario: A held pass
+
+- **WHEN** a pass misses its deadline, or is skipped, and the rows are held
+- **THEN** the health carries `rowsReadAt` and a line reads "Slow to answer,
+  showing data from" that age, with no row action locked because of it
+
+#### Scenario: A good read after a held pass
+
+- **WHEN** a later pass answers in time
+- **THEN** the health carries no `rowsReadAt` and the line is gone
+
+### Requirement: Main branches announces a slow or starting forge
+
+The Main branches page, which draws no forge chip, SHALL state in a polite live
+region, naming the forge, that a forge is slow to answer or starting up when
+that forge's health gains that `cause`. It SHALL NOT state it again while the
+cause is unchanged, and SHALL say nothing while no forge has a cause.
+
+#### Scenario: A forge turns slow
+
+- **WHEN** a later read gives a forge `cause: "slow"` or `cause: "starting"`
+- **THEN** the live region says once that the named forge is slow to answer or
+  starting up
+
+#### Scenario: The same state on the next read
+
+- **WHEN** later reads carry the same cause
+- **THEN** the live region is not rewritten
+
+#### Scenario: A first load with no cause
+
+- **WHEN** the page loads and no forge has a cause
+- **THEN** the live region stays empty
