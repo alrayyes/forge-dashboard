@@ -627,37 +627,33 @@ describe('activePill and effectivePill', () => {
   });
 });
 
-// The Out of date pill lists the pull requests whose base branch moved on. It
-// reads the same `behind` field as the row's badge, and an empty pull request
-// is left out because the row draws no badge for one.
+// The Out of date pill lists what the server flags as out of date: it holds no
+// rule of its own, so the one in internal/dashboard/quick_filters.go cannot
+// drift (#4993).
 describe('the Out of date quick filter', () => {
   test('is a quick filter', () => {
     expect(QUICK_FILTERS).toContain('out-of-date');
   });
 
-  test('matches a behind pull request that has something to merge', () => {
+  test('matches what the server flags and nothing else', () => {
     expect(
-      matchesQuickFilter(choiceItem({ behind: true }), 'out-of-date'),
+      matchesQuickFilter(choiceItem({ outOfDate: true }), 'out-of-date'),
     ).toBe(true);
     expect(
       matchesQuickFilter(
-        choiceItem({ behind: true, draft: true }),
+        choiceItem({ outOfDate: true, draft: true }),
         'out-of-date',
       ),
     ).toBe(true);
-  });
-
-  test('leaves out one that is up to date, empty or not reported', () => {
     expect(
-      matchesQuickFilter(choiceItem({ behind: false }), 'out-of-date'),
+      matchesQuickFilter(choiceItem({ outOfDate: false }), 'out-of-date'),
     ).toBe(false);
     expect(matchesQuickFilter(choiceItem(), 'out-of-date')).toBe(false);
-    expect(
-      matchesQuickFilter(
-        choiceItem({ behind: true, empty: true }),
-        'out-of-date',
-      ),
-    ).toBe(false);
+  });
+
+  test('does not re-derive the answer from other fields', () => {
+    const behindButUnflagged = { ...choiceItem(), behind: true, empty: false };
+    expect(matchesQuickFilter(behindButUnflagged, 'out-of-date')).toBe(false);
   });
 });
 
@@ -681,11 +677,10 @@ describe('the behind-base quick filter', () => {
   });
 
   test('does not re-derive the answer from other fields', () => {
-    const behindButUnflagged = choiceItem({
-      kind: 'dependency',
-      ci: 'success',
+    const behindButUnflagged = {
+      ...choiceItem({ kind: 'dependency', ci: 'success' }),
       behind: true,
-    });
+    };
     expect(matchesQuickFilter(behindButUnflagged, 'behind-base')).toBe(false);
   });
 });

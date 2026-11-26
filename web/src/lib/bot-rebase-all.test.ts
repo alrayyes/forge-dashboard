@@ -18,8 +18,7 @@ type Row = {
   repo: string;
   number: number;
   title: string;
-  behind?: boolean;
-  empty?: boolean;
+  outOfDate?: boolean;
   ci?: string;
   failingCi?: boolean;
   allowedActions?: AllowedAction[];
@@ -30,7 +29,7 @@ function row(over: Partial<Row> & { number: number }): Row {
     forge: 'github',
     repo: 'acme/api',
     title: 'bump x',
-    behind: true,
+    outOfDate: true,
     allowedActions: [{ action: 'dependabot_rebase' }],
     ...over,
   };
@@ -48,7 +47,7 @@ describe('rebaseAllPlan', () => {
           forge: 'forgejo',
           allowedActions: [{ action: 'renovate_rebase' }],
         }),
-        row({ number: 3, behind: false }),
+        row({ number: 3, outOfDate: false }),
       ],
       { blockedReason: none },
     );
@@ -60,7 +59,7 @@ describe('rebaseAllPlan', () => {
   });
 
   test('skips an empty pull request, as the Out of date badge does', () => {
-    const plan = rebaseAllPlan([row({ number: 1, empty: true })], {
+    const plan = rebaseAllPlan([row({ number: 1, outOfDate: false })], {
       blockedReason: none,
     });
     expect(plan.eligible).toEqual([]);
@@ -120,8 +119,8 @@ describe('rebaseAllPlan', () => {
       [
         row({ number: 1 }),
         row({ number: 2 }),
-        row({ number: 3, behind: false }),
-        row({ number: 4, empty: true }),
+        row({ number: 3, outOfDate: false }),
+        row({ number: 4, outOfDate: false }),
       ],
       { blockedReason: none, requested: (item) => item.number === 1 },
     );
@@ -159,14 +158,14 @@ describe('labels', () => {
 
 describe('showRebaseAll', () => {
   test('hides when nothing listed is out of date', () => {
-    const plan = rebaseAllPlan([row({ number: 1, behind: false })], {
+    const plan = rebaseAllPlan([row({ number: 1, outOfDate: false })], {
       blockedReason: none,
     });
     expect(showRebaseAll(plan, false)).toBe(false);
   });
 
   test('hides when the only behind rows are empty', () => {
-    const plan = rebaseAllPlan([row({ number: 1, empty: true })], {
+    const plan = rebaseAllPlan([row({ number: 1, outOfDate: false })], {
       blockedReason: none,
     });
     expect(showRebaseAll(plan, false)).toBe(false);
@@ -180,7 +179,7 @@ describe('showRebaseAll', () => {
   });
 
   test('stays through a run even when no row is behind any more', () => {
-    const plan = rebaseAllPlan([row({ number: 1, behind: false })], {
+    const plan = rebaseAllPlan([row({ number: 1, outOfDate: false })], {
       blockedReason: none,
     });
     expect(showRebaseAll(plan, true)).toBe(true);
@@ -198,8 +197,8 @@ describe('rebaseAllPlan failing count', () => {
           number: 2,
           allowedActions: [],
         }),
-        row({ number: 3, behind: false, ci: 'failure', failingCi: true }),
-        row({ number: 4, behind: false, ci: 'failure', failingCi: false }),
+        row({ number: 3, outOfDate: false, ci: 'failure', failingCi: true }),
+        row({ number: 4, outOfDate: false, ci: 'failure', failingCi: false }),
         row({ number: 5 }),
       ],
       { blockedReason: none, requested: (item) => item.number === 5 },
@@ -213,7 +212,7 @@ describe('rebaseAllPlan failing count', () => {
     const plan = rebaseAllPlan(
       [
         row({ number: 1, ci: 'failure' }),
-        row({ number: 2, ci: 'failure', behind: false }),
+        row({ number: 2, ci: 'failure', outOfDate: false }),
         row({ number: 3, ci: 'success' }),
       ],
       { blockedReason: none },
@@ -281,7 +280,7 @@ describe('rebaseAllPlan left-out rows', () => {
 
   test('leaves out nothing when every behind row can run', () => {
     const plan = rebaseAllPlan(
-      [row({ number: 1 }), row({ number: 2, behind: false })],
+      [row({ number: 1 }), row({ number: 2, outOfDate: false })],
       { blockedReason: none },
     );
     expect(plan.leftOut).toEqual([]);

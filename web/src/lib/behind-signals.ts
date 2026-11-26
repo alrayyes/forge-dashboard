@@ -3,8 +3,8 @@
 // pinned without drawing a row.
 
 export type BehindPillInput = {
-  behind: boolean;
-  empty: boolean;
+  // The server's Out of date answer: behind with something left to merge.
+  outOfDate: boolean;
   // A row in the list, not the details pop-up.
   onRow: boolean;
   conflictShown: boolean;
@@ -19,7 +19,7 @@ export type BehindPillInput = {
 // pop-up keeps it, except beside a confirmed conflict: the pill and the block
 // already say it there (#4531).
 export function showsBehindPill(input: BehindPillInput): boolean {
-  if (!input.behind || input.empty) return false;
+  if (!input.outOfDate) return false;
   if (input.conflictShown) return false;
   if (!input.onRow) return true;
   return !(input.liveUpdateBranch || input.rebaseRequested);

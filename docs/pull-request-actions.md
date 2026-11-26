@@ -288,10 +288,11 @@ confirmed conflict's warning, or a requested bot rebase (the waiting chip says
 the fix is under way). The pop-up keeps the chip, except beside a confirmed
 conflict, where the pill and the status block already say it, and an Update
 branch locked by that conflict is described by the block rather than printing
-its reason again. The Out of date
-quick filter and the Update all count still read `behind`. The Out of date
-pill is drawn in the warning colour on a tinted fill with a larger icon and
-heavier text, so a stale pull request stands out. It is readable in both themes
+its reason again. The Out of date quick filter and the badge read one answer the
+server sends on each pull request, `outOfDate`, so the page holds no copy of the
+rule. The Update all count still reads `behind`. The Out of date pill is drawn
+in the warning colour on a tinted fill with a larger icon and heavier text, so a
+stale pull request stands out. It is readable in both themes
 (4.5:1 for the words, 3:1 for the outline).
 
 Next to Out of date in the Merge group, the Bots page draws a chip that reads

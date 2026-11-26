@@ -1353,8 +1353,7 @@
     ): HTMLElement | null {
       if (
         !showsBehindPill({
-          behind: !!item.behind,
-          empty: !!item.empty,
+          outOfDate: !!item.outOfDate,
           onRow,
           conflictShown: conflictShown(item),
           liveUpdateBranch: liveUpdateBranch(item),
