@@ -414,7 +414,8 @@ configured. A CI status saved from when the dropdown existed becomes the
 matching CI pill when the page loads, unless a CI pill is already picked, in
 which case it is dropped, so nothing stays filtered out of sight. The **Out of
 date** pill, on this page and on Bots, keeps the pull requests whose base branch
-has moved on, the same `behind` field the row's Out of date badge reads, though
+has moved on, the same `outOfDate` answer the server sends for the row's
+Out of date badge, though
 a row with a live Update branch button or a confirmed conflict leaves the badge
 out. An empty pull request is left out. The choice is saved like the other
 pills. Next to them an **Auto-merge** control has Any, On, and Off. On shows
