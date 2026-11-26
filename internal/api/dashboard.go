@@ -402,6 +402,10 @@ type pullRequestView struct {
 	// pill's Failed number (#1946): CI is failing and not only because a
 	// workflow run is held for approval.
 	FailingCI bool `json:"failingCi"`
+	// GreenBehindBase is the behind chip's answer and the rule behind the Bots
+	// menu pill's Behind number (#4990): a green dependency pull request that is
+	// behind its base with something left to merge, not a draft, not hidden.
+	GreenBehindBase bool `json:"greenBehindBase"`
 	// ReviewRequestedFromMe is true when this open, non-draft pull request
 	// asks the signed-in user to review it (#695), by the username saved in
 	// Settings for its forge. False when no username is saved.
@@ -823,6 +827,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			Queued:                b.waitingQueuedAction(pr),
 			Hidden:                isHidden,
 		}
+		item.GreenBehindBase = item.countsAsBehind()
 		if isHidden && !hide.Until.IsZero() {
 			until := hide.Until
 			item.HiddenUntil = &until
