@@ -71,6 +71,9 @@ type Aggregator struct {
 	// fetching marks the sources whose last fetch has not returned yet, by
 	// place in sources (#3021).
 	fetching []atomic.Bool
+	// fetchStarted is when each source's running fetch began, as Unix
+	// nanoseconds, so a log line can say how long it has been going (#4977).
+	fetchStarted []atomic.Int64
 	// writeBudget is how long a refresh waits for the writes that follow it,
 	// the auto update-branch and auto-merge passes, before it moves on, and how
 	// long a pass may run at all. writeAfter schedules it. writing marks a pass
@@ -304,6 +307,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		opt(a)
 	}
 	a.fetching = make([]atomic.Bool, len(a.sources))
+	a.fetchStarted = make([]atomic.Int64, len(a.sources))
 	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold, a.webhookMinInterval)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
@@ -912,7 +916,7 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 	pending := map[int]bool{}
 	fetched := false
 	// Started before any fetch, so a deadline cannot pass unseen.
-	timedOut, endPass := a.beginPass(ctx)
+	timedOut, deadline, endPass := a.beginPass(ctx)
 	defer endPass()
 	for i, src := range a.sources {
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
@@ -936,15 +940,16 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			// The last fetch is still running. Asking again would only add
 			// load to a forge that is struggling (#3021).
 			results[i].Result = Result{Health: a.unreachableFrom(earlier, i)}
-			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge())
+			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge(), "path", "skipped", "running_for", a.fetchAge(i))
 
 			continue
 		}
 		fetched = true
 		pending[i] = true
+		a.fetchStarted[i].Store(a.now().UnixNano())
 		go a.fetchOne(fetchCtx, i, src, answers)
 	}
-	a.collectAnswers(results, pending, answers, timedOut, earlier)
+	a.collectAnswers(results, pending, answers, timedOut, deadline, earlier)
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
@@ -952,9 +957,9 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 }
 
 // beginPass starts the wait that ends a pass over the sources and makes the
-// pass visible to joinPass. It returns the channel the wait closes, and the
-// function that ends the pass.
-func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, func()) {
+// pass visible to joinPass. It returns the channel the wait closes, the wait
+// it was given, and the function that ends the pass.
+func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, time.Duration, func()) {
 	fp := &fetchPass{timedOut: make(chan struct{}), started: a.now()}
 	a.passMu.Lock()
 	a.pass = fp
@@ -968,7 +973,7 @@ func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, func()) {
 	// Armed before any fetch, so a deadline cannot pass unseen.
 	fp.arm(a.fetchAfter, deadline)
 
-	return fp.timedOut, func() {
+	return fp.timedOut, deadline, func() {
 		a.passMu.Lock()
 		a.pass = nil
 		a.passMu.Unlock()
@@ -985,7 +990,29 @@ func (a *Aggregator) fetchOne(ctx context.Context, i int, src Source, answers ch
 		defer a.fetching[i].Store(false)
 		res = src.Fetch(ctx)
 	}()
+	a.logFetchOutcome(ctx, i, src.Forge(), res)
 	answers <- sourceAnswer{i, res}
+}
+
+// fetchAge is how long source i's running fetch has been going.
+func (a *Aggregator) fetchAge(i int) time.Duration {
+	return a.now().Sub(time.Unix(0, a.fetchStarted[i].Load()))
+}
+
+// logFetchOutcome says how long a fetch took and how it ended, so a forge
+// shown as unreachable can be told from one that answered slowly (#4977). A
+// fetch that returns after its pass was given up on ("late") is a Warn, as is
+// a failure; a good answer is Debug. It logs the error kind, never the text.
+func (a *Aggregator) logFetchOutcome(ctx context.Context, i int, forge Forge, res Result) {
+	took := a.fetchAge(i)
+	switch {
+	case ctx.Err() != nil:
+		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "late")
+	case !res.Health.Reachable:
+		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "error", "path", "error", "error_kind", res.Health.ErrorKind)
+	default:
+		slog.Debug("fetch finished", "forge", forge, "duration", took, "outcome", "ok")
+	}
 }
 
 // sourceAnswer is one source's fetch result, by its place in a.sources.
@@ -997,7 +1024,7 @@ type sourceAnswer struct {
 // collectAnswers fills results from answers until every source in pending has
 // answered or timedOut closes. A source still pending then gets an unreachable
 // result, so the aggregator shows the rows it last had, marked stale (#3019).
-func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}, earlier Snapshot) {
+func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}, deadline time.Duration, earlier Snapshot) {
 	for len(pending) > 0 {
 		select {
 		case ans := <-answers:
@@ -1015,7 +1042,7 @@ func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool
 				}
 			}
 			for i := range pending {
-				slog.Warn("full refresh ran past the pass deadline", "forge", a.sources[i].Forge())
+				slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[i].Forge(), "path", "deadline", "running_for", a.fetchAge(i), "deadline", deadline)
 				results[i] = sourceResult{asked: true}
 				results[i].Health = a.unreachableFrom(earlier, i)
 			}

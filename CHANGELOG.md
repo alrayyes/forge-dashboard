@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.130.2](https://github.com/alrayyes/forge-dashboard/compare/v9.130.1...v9.130.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **dashboard:** log why a forge was marked unreachable ([#4979](https://github.com/alrayyes/forge-dashboard/issues/4979)) ([f81d55d](https://github.com/alrayyes/forge-dashboard/commit/f81d55d34481644aaceb8517799f148aec90c1d1)), closes [#4977](https://github.com/alrayyes/forge-dashboard/issues/4977)
+
+## [9.130.1](https://github.com/alrayyes/forge-dashboard/compare/v9.130.0...v9.130.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* **web:** draw no Merge on any failing-CI row, armed or not ([#4973](https://github.com/alrayyes/forge-dashboard/issues/4973)) ([8e42d37](https://github.com/alrayyes/forge-dashboard/commit/8e42d3724bb49d6aa14e1a80891b420b20c4e511))
+
 ## [9.130.0](https://github.com/alrayyes/forge-dashboard/compare/v9.129.0...v9.130.0) (2026-11-26)
 
 
