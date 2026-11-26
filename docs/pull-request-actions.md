@@ -288,7 +288,7 @@ the fix is under way). The pop-up keeps the chip, except beside a confirmed
 conflict, where the pill and the status block already say it, and an Update
 branch locked by that conflict is described by the block rather than printing
 its reason again. The Out of date
-quick filter and the Update all count still read `behind`. Beside it in the
+quick filter and the Update all count still read `behind`. Next to it in the
 Merge group, the Bots page draws a chip that reads `N behind the base branch`
 (the count first). It lists only the green bot pull requests that are behind
 with something left to merge, so its number is the one in the menu pill
