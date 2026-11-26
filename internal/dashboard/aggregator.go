@@ -127,8 +127,9 @@ type Aggregator struct {
 	webhookMinInterval time.Duration
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
-	// every source answered or reported itself unreachable. Readiness
-	// (Service.FirstRefreshComplete) reads it; it never flips back.
+	// every source answered or reported itself unreachable — or when Run is
+	// cancelled before it starts. Readiness (Service.FirstRefreshComplete)
+	// reads it; it never flips back.
 	firstRefreshed atomic.Bool
 	// firstRefreshedCh is closed with it, for a reader that would rather wait
 	// than answer from the empty snapshot (WaitFirstRefresh).
@@ -420,10 +421,12 @@ func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string)
 	})
 }
 
-// FirstRefreshDone reports whether the first Refresh has completed, with
-// every source's result or its unreachable ForgeHealth entry in the
-// snapshot. A forge that failed still counts: done means "tried", not
-// "succeeded".
+// FirstRefreshDone reports whether nothing is left to wait for from the first
+// Refresh. Normally it has completed, with every source's result or its
+// unreachable ForgeHealth entry in the snapshot. A forge that failed still
+// counts: done means "tried", not "succeeded". It is also true for an
+// Aggregator whose Run was cancelled before it started: no first refresh is
+// coming, and the snapshot has nothing from one.
 func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
 
 // WaitFirstRefresh blocks until the first refresh has completed, ctx is done or
