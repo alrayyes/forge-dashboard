@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.130.2](https://github.com/alrayyes/forge-dashboard/compare/v9.130.1...v9.130.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **dashboard:** log why a forge was marked unreachable ([#4979](https://github.com/alrayyes/forge-dashboard/issues/4979)) ([f81d55d](https://github.com/alrayyes/forge-dashboard/commit/f81d55d34481644aaceb8517799f148aec90c1d1)), closes [#4977](https://github.com/alrayyes/forge-dashboard/issues/4977)
+
 ## [9.130.1](https://github.com/alrayyes/forge-dashboard/compare/v9.130.0...v9.130.1) (2026-11-26)
 
 
