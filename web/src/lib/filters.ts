@@ -33,6 +33,8 @@ export interface FilterableItem {
   // forge can't say, which is in neither On nor Off (#1455).
   autoMergeEnabled?: boolean;
   draft?: boolean;
+  // Set on a pull request the user hid; the board lists it only on request.
+  hidden?: boolean;
   mergeStatus?: string;
   // Whether the base branch has moved on, and whether nothing is left to
   // merge. Both are the server's answers; absent from an older server.
@@ -78,6 +80,7 @@ export const QUICK_FILTERS = [
   'review-requested',
   'conflicting',
   'out-of-date',
+  'behind-base',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
@@ -93,7 +96,7 @@ export const PILL_GROUPS = {
     return forgeIds();
   },
   ci: ['failing', 'running', 'passing', 'cancelled', 'no-checks'],
-  merge: ['conflicting', 'out-of-date'],
+  merge: ['conflicting', 'out-of-date', 'behind-base'],
   review: ['ready', 'needs-review', 'review-requested'],
 } as const;
 export type PillGroup = keyof typeof PILL_GROUPS;
@@ -113,6 +116,7 @@ export const PILL_LABELS: Record<string, string> = {
   'no-checks': 'No checks',
   conflicting: 'Conflicting',
   'out-of-date': 'Out of date',
+  'behind-base': 'behind the base branch',
   ready: 'Ready',
   'needs-review': 'Needs review',
   'review-requested': 'Review requested',
@@ -192,6 +196,21 @@ export function matchesQuickFilter(
       // with something left to merge. An empty pull request has nothing to
       // update, so the row draws no badge and the filter skips it too.
       return item.behind === true && item.empty !== true;
+    case 'behind-base':
+      // The reading navCounts.bots.behind uses, so the chip's number is the
+      // Bots menu pill's: a green bot pull request behind its base with
+      // something left to merge (#4624). Out of date is wider, any CI. The
+      // menu pill counts neither drafts nor hidden ones, which Show drafts
+      // and Show hidden can still put in this pool. The chip only appears
+      // where offerPills finds a match, so a page with none draws no chip.
+      return (
+        item.draft !== true &&
+        item.hidden !== true &&
+        item.kind === 'dependency' &&
+        item.ci === 'success' &&
+        item.behind === true &&
+        item.empty !== true
+      );
     default:
       return true;
   }

@@ -9643,7 +9643,11 @@
     pillClick = (b) => {
       const group = b.closest<HTMLElement>("[data-group]")?.dataset
         .group as Filters.PillGroup;
-      setQuickPill(sharedState, group, b.dataset.pill ?? "all");
+      // The behind chip is a switch: pressing it again clears it (#4624).
+      const off =
+        b.dataset.pill === "behind-base" &&
+        b.getAttribute("aria-pressed") === "true";
+      setQuickPill(sharedState, group, off ? "all" : (b.dataset.pill ?? "all"));
       prBoard.resetPage();
       issueBoard.resetPage();
       updateSharedFilterOptions();
@@ -11659,6 +11663,7 @@
           {#each Filters.PILL_GROUPS[group] as pill (pill)}
             <FilterPill
               class="quick-pill"
+              countFirst={pill === "behind-base"}
               data-pill={pill}
               pressed={false}
               count={0}
