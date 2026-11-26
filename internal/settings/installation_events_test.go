@@ -76,6 +76,23 @@ func TestStore_SetInstallationSuspended_TheOnlyOne_LeavesNothingToRead(t *testin
 	assert.Empty(t, c.GitHubAppInstallationIDs, "the saved column must not bring a suspended installation back")
 }
 
+func TestStore_SaveInstallation_AKnownSuspendedRow_StaysSuspended(t *testing.T) {
+	t.Parallel()
+
+	store, _ := newTokenStore(t)
+	require.NoError(t, store.SaveInstallation(t.Context(), settings.Installation{ID: 7, AccountLogin: "a"}))
+	require.NoError(t, store.SetInstallationSuspended(t.Context(), 7, true))
+
+	require.NoError(t, store.SaveInstallation(t.Context(), settings.Installation{ID: 7, AccountLogin: "renamed"}))
+
+	got, err := store.Installations(t.Context())
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "renamed", got[0].AccountLogin)
+	assert.Equal(t, settings.InstallationSuspended, got[0].Status)
+	assert.False(t, got[0].Enabled)
+}
+
 func TestStore_SetInstallationSuspended_UnknownID_ChangesNothing(t *testing.T) {
 	t.Parallel()
 

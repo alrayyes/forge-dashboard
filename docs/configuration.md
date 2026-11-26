@@ -270,13 +270,26 @@ action on a repo no installation has reported yet is refused with a 404. The
 **Keeping the list current.** Point the App's webhook at the dashboard's GitHub
 webhook URL, with the same secret (see [webhooks.md](webhooks.md)), and
 subscribe it to the **Installation** and **Installation repositories** events.
-A signed `installation` delivery then updates the list: `created` adds the row
-with its account, `deleted` removes it, `suspend` marks it suspended and stops
-reads from using it, and `unsuspend` lifts that. The dashboard rebuilds its
-sources after each, so the board follows. A delivery of `installation_repositories`
-for a known installation makes the dashboard read its repositories
-again. Deliveries for an installation it doesn't know, and other actions, are
-acknowledged and ignored.
+A signed `installation` delivery then updates the list:
+
+- `created` adds the row only for an installation the owner made or allowed:
+  GitHub has to list it for the linked account, the same check the Setup URL
+  makes. The App's webhook fires for every installation of the App, so any
+  other `created` is ignored and nothing is stored. With no linked account
+  nothing is stored either; the Setup URL adds it later. A `created` for an
+  installation already stored changes nothing, and a replay after a `deleted`
+  is ignored because GitHub no longer lists it.
+- `deleted` removes the row. `suspend` marks it suspended and stops reads from
+  using it. `unsuspend` lifts that.
+
+After a change the dashboard rebuilds its sources, so removing or suspending
+the last installation stops it being read. A delivery of
+`installation_repositories` for a stored installation refreshes the board
+once, across all sources, so the new repositories show up. It is not limited
+to that installation, so many such deliveries spend rate-limit budget.
+Deliveries for an installation the dashboard doesn't know, malformed ones and
+other actions are acknowledged and ignored. If the dashboard can't read or
+write its settings it answers 500, so GitHub's redeliver button reruns it.
 
 This is the sign-in half only. The dashboard doesn't yet use the linked
 account to read your repositories, and the Settings screen for it is not built;

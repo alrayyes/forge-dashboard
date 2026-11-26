@@ -111,8 +111,9 @@ func listInstallations(ctx context.Context, q queryer) ([]Installation, error) {
 	return out, nil
 }
 
-// SaveInstallation adds an installation, or updates the one with the same ID
-// in place. A blank Status means InstallationConnected.
+// SaveInstallation adds an installation, or updates the account of the one
+// with the same ID in place. A row that exists keeps its status and whether it
+// is enabled. A blank Status means InstallationConnected.
 func (s *Store) SaveInstallation(ctx context.Context, in Installation) error {
 	return upsertInstallation(ctx, s.db, in)
 }
@@ -127,7 +128,7 @@ func upsertInstallation(ctx context.Context, q queryer, in Installation) error {
 		INSERT INTO github_app_installations (installation_id, account_login, enabled, status, position)
 		VALUES (?, ?, 1, ?, (SELECT COALESCE(MAX(position), 0) + 1 FROM github_app_installations))
 		ON CONFLICT (installation_id) DO UPDATE SET
-			account_login = excluded.account_login, status = excluded.status`,
+			account_login = excluded.account_login`,
 		in.ID, in.AccountLogin, status)
 	if err != nil {
 		return fmt.Errorf("settings: save installation: %w", err)
