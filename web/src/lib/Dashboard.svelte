@@ -263,6 +263,7 @@
   } from "#lib/wait-chip.js";
   import {
     swapPhaseOf,
+    chipFitsSwap,
     swapSourceOf,
     type SourceLike,
   } from "#lib/wait-chip-swap.js";
@@ -1742,7 +1743,10 @@
         subject: `${pr.repo}#${pr.number}`,
         button: disarm ?? undefined,
         tipId: waitChipTipId(pr),
-        swap: disarm ? waitSwapOf(pr) : undefined,
+        swap:
+          disarm && chipFitsSwap({ code: pr.autoMerge.code, label: chip.label })
+            ? waitSwapOf(pr)
+            : undefined,
       });
     }
 

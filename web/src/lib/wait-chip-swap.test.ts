@@ -1,6 +1,7 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
 import {
+  chipFitsSwap,
   swapDetail,
   swapLabel,
   swapName,
@@ -160,5 +161,35 @@ describe('swapPhaseOf', () => {
 
   test('idle again if it ran but the button is no longer pending', () => {
     expect(swapPhaseOf({ disabled: false, ran: true })).toBe('idle');
+  });
+});
+
+describe('chipFitsSwap', () => {
+  test('the real wait on CI takes the swap', () => {
+    expect(
+      chipFitsSwap({ code: 'checks_pending', label: 'Waiting for CI' }),
+    ).toBe(true);
+  });
+
+  test.each([
+    'review_required',
+    'stacked',
+    'behind',
+    'rate_limited',
+    'draft',
+    'changes_requested',
+    'branch_rules',
+    'forge_pending',
+    'merging',
+    'merging_next',
+    undefined,
+  ])('an armed chip with code %p keeps its own label', (code) => {
+    expect(chipFitsSwap({ code, label: 'Waiting for review' })).toBe(false);
+  });
+
+  test('a checks_pending chip that reads anything else keeps its label', () => {
+    expect(
+      chipFitsSwap({ code: 'checks_pending', label: 'Refreshing CI' }),
+    ).toBe(false);
   });
 });

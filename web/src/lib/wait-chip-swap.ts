@@ -29,6 +29,16 @@ export function swapLabel(input: {
   return input.revealed ? 'Update branch' : 'Waiting for CI';
 }
 
+// The swap says "Waiting for CI", so only the chip that is that wait may take
+// it. Any other armed chip (review, a parent, a draft, the rate limit, a
+// merge under way) keeps its own words and the plain Update branch button.
+export function chipFitsSwap(chip: {
+  code: string | undefined;
+  label: string;
+}): boolean {
+  return chip.code === 'checks_pending' && chip.label === 'Waiting for CI';
+}
+
 export type SwapPhase = 'idle' | 'locked' | 'inflight';
 
 // The slot's second line. The chip's own line shows until the swap is
