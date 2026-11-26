@@ -1,5 +1,5 @@
-// A stand-in for the server's `allowedActions`, `status`, `kind` and `outOfDate` on mocked
-// snapshots (#805, #1375).
+// A stand-in for the server's `allowedActions`, `status`, `kind` and
+// `outOfDate` on mocked snapshots (#805, #1375).
 //
 // The real server works out which actions each pull request offers
 // (internal/dashboard/allowed_actions.go), why it is held back
@@ -135,17 +135,6 @@ export function allowedActionsFor(pr: StandInPR): StandInEntry[] {
 // PullRequestStatus, #1375): why it is waiting or can't be merged, or null.
 export function statusFor(pr: StandInPR): StandInStatus | null {
   return structuredClone(outputFor(fixtureData, pr).status);
-}
-
-// The server's `outOfDate` for a pull request (#4993). Only behind and empty
-// change it, so it is looked up on those two and never held to the table's
-// other axes.
-export function outOfDateFor(pr: StandInPR): boolean {
-  return outputFor(fixtureData, {
-    forge: pr.forge,
-    behind: pr.behind,
-    empty: pr.empty,
-  }).outOfDate;
 }
 
 export function kindFor(pr: StandInPR): string {
