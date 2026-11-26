@@ -563,14 +563,14 @@ func TestGitHub_Disconnect_ARefreshThatOutlivesItCannotPutThePairBack(t *testing
 	bearer, ok := conn.Bearer(t.Context())
 	require.True(t, ok)
 	// The revoke's own refresh fails and spends nothing, so the old function
-	// is left to refresh after the disconnect.
+	// is the only one left that could refresh after the disconnect.
 	gh.refreshFail = 1
 
 	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
 	_, err := bearer()
 
 	require.Error(t, err)
-	assert.Equal(t, 1, gh.refreshCount(), "the refresh ran, so the guard is what stopped the save")
+	assert.Zero(t, gh.refreshCount(), "the old function is refused before it can refresh")
 	assert.Nil(t, store.current())
 	_, ok = conn.Bearer(t.Context())
 	assert.False(t, ok)
