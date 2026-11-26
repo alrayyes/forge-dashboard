@@ -269,14 +269,24 @@ func (s *Store) Get(ctx context.Context) (Credentials, error) {
 
 	// The installations table is the source; the saved column is only what an
 	// older release left, and still answers when the table has no enabled row.
-	ids, err := enabledInstallations(ctx, s.db)
+	rows, err := listInstallations(ctx, s.db)
 	if err != nil {
 		return Credentials{}, err
 	}
-	if len(ids) > 0 {
+	var ids []int64
+	for _, in := range rows {
+		if in.Enabled {
+			ids = append(ids, in.ID)
+		}
+	}
+	switch {
+	case len(ids) > 0:
 		c.GitHubAppInstallationID = ids[0]
 		c.GitHubAppInstallationIDs = ids
-	} else if c.GitHubAppInstallationID != 0 {
+	case len(rows) > 0:
+		// Every row is suspended: the saved column must not bring one back.
+		c.GitHubAppInstallationID = 0
+	case c.GitHubAppInstallationID != 0:
 		c.GitHubAppInstallationIDs = []int64{c.GitHubAppInstallationID}
 	}
 

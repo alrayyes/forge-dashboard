@@ -136,22 +136,50 @@ func upsertInstallation(ctx context.Context, q queryer, in Installation) error {
 	return nil
 }
 
-// enabledInstallations is the ID of every enabled row, in the order they were
-// added.
-func enabledInstallations(ctx context.Context, q queryer) ([]int64, error) {
-	all, err := listInstallations(ctx, q)
+// InstallationSuspended is the status of an installation its owner suspended
+// on GitHub. It is not enabled, so reads skip it until it is unsuspended.
+const InstallationSuspended = "suspended"
+
+// RemoveInstallation deletes an installation GitHub says is gone. The saved
+// single-ID column is cleared too when it holds the same ID, or the fallback
+// in Get would read the removed installation again.
+func (s *Store) RemoveInstallation(ctx context.Context, id int64) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
-		return nil, err
+		return fmt.Errorf("settings: remove installation: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM github_app_installations WHERE installation_id = ?`, id); err != nil {
+		return fmt.Errorf("settings: remove installation: %w", err)
+	}
+	if _, err := tx.ExecContext(ctx, `UPDATE settings SET github_app_installation_id = 0 WHERE github_app_installation_id = ?`, id); err != nil {
+		return fmt.Errorf("settings: remove installation: %w", err)
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("settings: remove installation: %w", err)
 	}
 
-	var ids []int64
-	for _, in := range all {
-		if in.Enabled {
-			ids = append(ids, in.ID)
-		}
+	return nil
+}
+
+// SetInstallationSuspended marks an installation suspended, which disables it,
+// or lifts the suspension, which enables it again. An unknown ID changes
+// nothing.
+func (s *Store) SetInstallationSuspended(ctx context.Context, id int64, suspended bool) error {
+	status := InstallationConnected
+	if suspended {
+		status = InstallationSuspended
 	}
 
-	return ids, nil
+	_, err := s.db.ExecContext(ctx,
+		`UPDATE github_app_installations SET enabled = ?, status = ? WHERE installation_id = ?`,
+		!suspended, status, id)
+	if err != nil {
+		return fmt.Errorf("settings: suspend installation: %w", err)
+	}
+
+	return nil
 }
 
 // firstEnabledInstallation is the ID reads use, 0 when no row is enabled.
