@@ -17,6 +17,24 @@ rules:
     then:
       function: no-operation-wrapper-collision
 
+  # The collision rule above uppercases the first letter of each operationId.
+  # That only matches oapi-codegen's PascalCase while the id is camelCase
+  # alphanumeric: the real one also folds `_`, `-` and `.` and handles digits,
+  # so `verify_forgejo_instance` would slip past it (#4947).
+  operation-id-camel-case:
+    description: An operationId must be camelCase alphanumeric.
+    message: >-
+      operationId "{{value}}" must match ^[a-z][a-zA-Z0-9]*$. The
+      wrapper-collision rule only mirrors oapi-codegen's PascalCase for that
+      shape, so another one can generate a duplicate type and the Go SDK
+      does not compile (#4943).
+    severity: error
+    given: "$.paths[*][*].operationId"
+    then:
+      function: pattern
+      functionOptions:
+        match: "^[a-z][a-zA-Z0-9]*$"
+
   # No general inbound rate limiting exists, so there are no RateLimit headers
   # to describe. The one throttle, the force-refresh cooldown, answers 200
   # with a Retry-After header (#809).
