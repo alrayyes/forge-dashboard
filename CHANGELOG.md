@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.137.0](https://github.com/alrayyes/forge-dashboard/compare/v9.136.3...v9.137.0) (2026-11-26)
+
+
+### Features
+
+* **web:** announce a slow or starting forge on Main branches ([#5050](https://github.com/alrayyes/forge-dashboard/issues/5050)) ([742fbf9](https://github.com/alrayyes/forge-dashboard/commit/742fbf9e67e8c90771077f2a46fd237eef6c8c72))
+
 ## [9.136.3](https://github.com/alrayyes/forge-dashboard/compare/v9.136.2...v9.136.3) (2026-11-26)
 
 
