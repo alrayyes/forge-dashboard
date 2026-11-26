@@ -105,32 +105,6 @@ test.describe('forge cause (#4998)', () => {
     await expect(age).toHaveCount(0);
   });
 
-  // The age counts on while nothing else changes (#5023).
-  test('the age of held rows ticks without a new read', async ({ page }) => {
-    await page.clock.install({ time: new Date() });
-    const body = JSON.stringify({
-      generatedAt: new Date().toISOString(),
-      forges: [slow()],
-      pullRequests: [],
-      issues: [],
-    });
-    await page.route('**/api/v1/dashboard*', (route: Route) =>
-      route.request().url().includes('/stream')
-        ? route.abort()
-        : route.fulfill({
-            status: 200,
-            contentType: 'application/json',
-            body,
-          }),
-    );
-    await page.goto('/pull-requests.html');
-    const age = page.locator('#forge-health .forge-health-stale');
-    await expect(age).toContainText('5m ago');
-
-    await page.clock.fastForward(120_000);
-    await expect(age).toContainText('7m ago');
-  });
-
   test('a forge that goes from slow to down shows the unreachable banner', async ({
     page,
   }) => {

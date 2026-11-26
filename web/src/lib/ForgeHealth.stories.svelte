@@ -1,6 +1,6 @@
 <script module lang="ts">
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import { expect } from "storybook/test";
+  import { expect, waitFor } from "storybook/test";
   import "./forge-labels-fixture";
   import ForgeHealth from "./ForgeHealth.svelte";
 
@@ -19,6 +19,8 @@
   });
   const budgets = (root: HTMLElement) =>
     Array.from(root.querySelectorAll(".forge-health-budget"));
+  // An age the story can move on without handing the component new props.
+  let heldAge = "1m ago";
 </script>
 
 <!-- A forge with current rows and budget left has nothing to act on (#3681). -->
@@ -148,6 +150,34 @@
     await expect(
       canvasElement.querySelector(".forge-health-stale")?.textContent,
     ).toMatch(/^Slow to answer, showing data from /);
+  }}
+/>
+
+<!-- The age counts on while no new snapshot arrives. -->
+<Story
+  name="Slow to answer, the age counts on"
+  args={{
+    forges: [
+      {
+        forge: "github",
+        reachable: true,
+        cause: "slow",
+        rowsReadAt: "2026-01-01T00:00:00Z",
+      },
+    ],
+    ago: () => heldAge,
+  }}
+  play={async ({ canvasElement }) => {
+    const line = () =>
+      canvasElement.querySelector(".forge-health-stale")?.textContent;
+    await expect(line()).toBe("Slow to answer, showing data from 1m ago");
+
+    heldAge = "2m ago";
+    await waitFor(
+      () => expect(line()).toBe("Slow to answer, showing data from 2m ago"),
+      { timeout: 3000 },
+    );
+    heldAge = "1m ago";
   }}
 />
 
