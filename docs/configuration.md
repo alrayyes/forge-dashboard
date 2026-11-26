@@ -153,8 +153,9 @@ API), the dashboard keeps showing that forge's last good pull requests, issues
 and repos instead of none, and the forge's health carries `staleSince`, the time
 that data was fetched, next to `reachable: false`. The next good refresh
 replaces it. After a restart the saved rows come back the same way, but the
-forge carries `starting: true` and no `errorKind`: it has not been asked yet, so
-it is not an outage. A forge that has never fetched successfully has nothing to
+forge carries `starting: true` and no `errorKind`: it has not been heard from,
+so it is not an outage until a fetch fails or three passes in a row go
+unanswered. A forge that has never fetched successfully has nothing to
 show. For what the dashboard does while a forge is limited, see [Rate
 limits](rate-limits.md).
 

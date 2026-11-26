@@ -10,8 +10,9 @@ export type ForgeCause = 'starting' | 'slow';
 export type StartingHealth = {
   forge: string;
   reachable: boolean;
-  // Set by the server while the rows are the saved ones and no fetch has
-  // answered since the app started.
+  // Set by the server while the rows are the saved ones, no fetch has
+  // answered in time since the app started, and too few passes have missed to
+  // call the forge down.
   starting?: boolean;
   cause?: ForgeCause;
   errorKind?: string;
