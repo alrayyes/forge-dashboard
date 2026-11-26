@@ -1069,7 +1069,8 @@ func (a *Aggregator) unreachableFrom(snap Snapshot, i int) ForgeHealth {
 // markUnreachable is h for a forge that did not answer, so the aggregator
 // keeps the rows it last had, marked stale. The rest of h, such as its rate
 // limits, is left as it was. A forge still Starting is returned unchanged: its
-// first fetch has not answered, so it is starting up, not down.
+// first fetch has not answered, so it is starting up, not down, until
+// endStartingAfterMisses says otherwise.
 func markUnreachable(h ForgeHealth) ForgeHealth {
 	if h.Starting {
 		return h
@@ -1234,7 +1235,7 @@ func (a *Aggregator) keepLaterGood(good map[Forge]time.Time) {
 
 // logFailedRefresh names the cause of a full refresh that asked forge and got no
 // answer, so a report of old rows can be traced from the log (#3869). A forge
-// still Starting has not failed: its first fetch is out, and the deadline line
+// still Starting has not failed yet: its fetch is out, and the deadline line
 // already says so.
 func logFailedRefresh(sr sourceResult, forge Forge) {
 	if sr.asked && !sr.Health.Reachable && !sr.Health.Starting {
@@ -1271,8 +1272,23 @@ func settleOrHold(r Result, asked, missed bool, earlier Snapshot, goodAt map[For
 	if held, ok := holdUpstreamError(r, asked, missed, earlier, goodAt, streaks, forge); ok {
 		return held
 	}
+	if missed && streaks[forge] >= ForgeFailureThreshold {
+		r.Health = endStarting(r.Health)
+	}
 
 	return settleSource(r, asked, earlier, goodAt, now, readForges, unread, forge)
+}
+
+// endStarting is h for a forge that has missed ForgeFailureThreshold passes in
+// a row: one still Starting has now had as long as a forge that was read, so it
+// is down rather than starting up (#5022). Any other h is returned unchanged.
+func endStarting(h ForgeHealth) ForgeHealth {
+	if !h.Starting {
+		return h
+	}
+	h.Starting = false
+
+	return markUnreachable(h)
 }
 
 // holdUpstreamError counts forge's consecutive failed fetches in streaks, and

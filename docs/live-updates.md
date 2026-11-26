@@ -230,19 +230,24 @@ wording can stay until the next full pass. Only the third miss in a row shows
 the unreachable banner, and that health has no cause.
 
 After a restart the saved rows carry `cause: "starting"` (the same fact as
-`starting`) until a fetch answers in time. The page reads "Starting up" and
-never unreachable. A first fetch that hits its deadline, and the passes skipped
-behind it, change nothing: the forge stays "Starting up", with no error kind and
-no banner. Its late answer is dropped, so a forge that is always slower than the
-deadline stays "Starting up". The log has the deadline and skipped lines for it
-and no `full refresh failed` line, since nothing has failed.
+`starting`) and the page reads "Starting up". A first fetch that hits its
+deadline, and a pass skipped behind it, don't change that at first: no error kind
+and no banner. Their late answers are dropped. When `ForgeFailureThreshold` (3)
+passes in a row have gone unanswered, because the first fetch hangs or because
+the forge is always slower than the deadline, it stops being "Starting up": its
+health carries `errorKind: "unreachable"` and no cause, and the unreachable
+banner shows over the saved rows. In the first five minutes after the start that
+banner still says the forge is starting up (`recentlyStarted`). The next good
+read clears the error. The log has the deadline and skipped lines for it. While
+the forge is starting up there is no `full refresh failed` line; once it is shown
+as down, a pass that hits its deadline logs one.
 
 ## The first load after a restart
 
 A restarted server starts from the snapshot its last run saved, so the board
 shows those rows at once. Their forge reads as starting up, with a stale time,
-until a fetch from it answers in time; one that fails is shown in the
-unreachable banner. The rest of this section
+until a fetch from it answers in time; one that fails, or three passes in a row
+with no answer, is shown in the unreachable banner. The rest of this section
 covers a start with nothing saved (for example a first install or a new database).
 There the first snapshot is empty. While the snapshot's `firstRefreshDone` is `false`,
 Pull requests, Releases, Bots, Issues and Branches show placeholder rows and one

@@ -36,6 +36,10 @@ func newHangingSource(forge dashboard.Forge, prs ...int) *hangingSource {
 // release the source early and still have t.Cleanup release it on failure.
 func (s *hangingSource) unblock() { s.once.Do(func() { close(s.release) }) }
 
+// answerOnce ends one hung fetch, leaving the next to hang again. It blocks
+// until a fetch takes it.
+func (s *hangingSource) answerOnce() { s.release <- struct{}{} }
+
 func (s *hangingSource) Forge() dashboard.Forge { return s.forge }
 
 func (s *hangingSource) setHang(hang bool, prs ...int) {
