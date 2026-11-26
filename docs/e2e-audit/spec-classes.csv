@@ -55,7 +55,7 @@ ci-pill-tap-opens.spec.ts,6.639,4,3,A,web/src/lib/ci-pill.test.ts,1.7
 ci-status-pulldown-gone.spec.ts,0.673,3,0,C,,0.7
 close-neutral.spec.ts,4.489,6,5,A,,0.7
 closing-issues.spec.ts,5.133,12,6,A,web/src/lib/closing-issues.test.ts,2.6
-comment-pill-newest.spec.ts,14.268,17,15,A,,1.7
+comment-pill-newest.spec.ts,14.268,20,18,A,,1.4
 conflict-not-confirmed-reason.spec.ts,2.314,4,1,C,,1.7
 conflict-not-confirmed.spec.ts,9.833,4,1,C,,7.4
 conflict-row-warning-only.spec.ts,17.513,9,5,A,,7.8
