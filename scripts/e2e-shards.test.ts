@@ -100,14 +100,26 @@ test('the committed durations cover at least 97 percent of the specs', () => {
   expect(missing.length / specs.length).toBeLessThanOrEqual(0.03);
 });
 
+test('a ci.yml without the shard list says what is missing', () => {
+  expect(() => shardCount('jobs: {}')).toThrow('no shard list in ci.yml');
+});
+
+function shardCount(yml: string): number {
+  const list = /echo 'list=(\[[\d,]+\])'/.exec(yml)?.[1];
+  if (!list) {
+    throw new Error(
+      "no shard list in ci.yml: expected an `echo 'list=[1,2,...]'` line; fix it or this pattern",
+    );
+  }
+  return (JSON.parse(list) as number[]).length;
+}
+
 // The count CI runs, read from the one place it lives.
 const ciYml = readFileSync(
   path.join(import.meta.dir, '..', '.github', 'workflows', 'ci.yml'),
   'utf8',
 );
-const ciShards = (
-  JSON.parse(/echo 'list=(\[[\d,]+\])'/.exec(ciYml)?.[1] ?? '[]') as number[]
-).length;
+const ciShards = shardCount(ciYml);
 
 function predictedLoads(): number[] {
   const known = specs.filter((s) => s in committed);
@@ -125,9 +137,11 @@ test("the committed durations split the suite over CI's shards within 30 seconds
 });
 
 // A balanced split isn't enough. About a quarter of runners run the same specs
-// a third slower than the rest, and setup adds about 80 seconds, so 300 seconds
-// of recorded work is a job of about 8 minutes on a slow one (#3477). Over
-// that, add a shard in ci.yml.
+// a third slower than the rest, and setup adds about a minute, so 300 seconds
+// of recorded work is a job of about 7m40 on a slow one, right at the 7.5
+// minute line (#3477). Over that, add a shard in ci.yml. Nine shards also pass
+// this today (293 seconds), so running ten rests on the measured job times, not
+// on this test.
 test('no shard CI runs is given more than 300 seconds of work', () => {
   expect(Math.max(...predictedLoads())).toBeLessThanOrEqual(300);
 });
