@@ -191,7 +191,7 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 		assert.ElementsMatch(t, []int{2, 10}, numbers(agg.Get()), "the fast forge is fresh, the slow one kept")
 	})
 
-	t.Run("the slow forge keeps its rows, marked stale and timed out", func(t *testing.T) {
+	t.Run("the slow forge keeps its rows and its last good health", func(t *testing.T) {
 		t.Parallel()
 		agg, fast, slow, timers := setup(t)
 		done := refreshHung(t, agg, fast, slow)
@@ -199,10 +199,9 @@ func TestAggregator_AHungForgeDoesNotHoldBackTheOthers(t *testing.T) {
 		<-done
 
 		h := health(agg.Get(), dashboard.ForgeForgejo)
-		assert.False(t, h.Reachable)
-		assert.Equal(t, dashboard.ForgeErrorUnreachable, h.ErrorKind)
-		assert.NotEmpty(t, h.Error)
-		require.NotNil(t, h.StaleSince, "says when the rows shown were fetched")
+		assert.True(t, h.Reachable, "one missed pass is held (#4977)")
+		assert.Nil(t, h.StaleSince)
+		assert.Contains(t, numbers(agg.Get()), 10)
 		assert.True(t, health(agg.Get(), dashboard.ForgeGitHub).Reachable, "the fast forge is untouched")
 	})
 
@@ -447,9 +446,11 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 		assert.False(t, second(t, agg, slow))
 	})
 
-	t.Run("its rows stay, marked stale", func(t *testing.T) {
+	t.Run("its rows stay, and it shows unreachable once the misses reach the threshold", func(t *testing.T) {
 		t.Parallel()
 		agg, _, slow := setup(t)
+		second(t, agg, slow)
+		assert.True(t, health(agg.Get(), dashboard.ForgeForgejo).Reachable, "two misses are held (#4977)")
 		second(t, agg, slow)
 
 		h := health(agg.Get(), dashboard.ForgeForgejo)
