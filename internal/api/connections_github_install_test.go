@@ -85,6 +85,44 @@ func TestGitHubInstalled_AnUpdateOfAKnownInstallation_KeepsOneRow(t *testing.T) 
 	assert.Equal(t, []int64{100}, c.installationRows(t))
 }
 
+func TestGitHubInstalled_AKnownSuspendedOrDisabledInstallation_KeepsItsStatusAndEnabled(t *testing.T) {
+	t.Parallel()
+
+	for name, prepare := range map[string]func(*testing.T, *ghConnFixture){
+		"suspended": func(t *testing.T, c *ghConnFixture) {
+			t.Helper()
+			_, err := c.db.ExecContext(t.Context(), `UPDATE github_app_installations SET enabled = 0, status = 'suspended'`)
+			require.NoError(t, err)
+		},
+		"disabled": func(t *testing.T, c *ghConnFixture) {
+			t.Helper()
+			_, err := c.db.ExecContext(t.Context(), `UPDATE github_app_installations SET enabled = 0`)
+			require.NoError(t, err)
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			c := newGHConnFixture(t, true)
+			c.connect(t)
+			first := c.installed(t, "installation_id=100&setup_action=install")
+			_ = first.Body.Close()
+			prepare(t, c)
+			var status string
+			require.NoError(t, c.db.QueryRowContext(t.Context(), `SELECT status FROM github_app_installations`).Scan(&status))
+
+			resp := c.installed(t, "installation_id=100&setup_action=update")
+			_ = resp.Body.Close()
+
+			var gotStatus string
+			var enabled bool
+			require.NoError(t, c.db.QueryRowContext(t.Context(), `SELECT status, enabled FROM github_app_installations`).Scan(&gotStatus, &enabled))
+			assert.Equal(t, status, gotStatus)
+			assert.False(t, enabled)
+		})
+	}
+}
+
 func TestGitHubInstalled_AnIDNotInTheUsersInstallations_StoresNothing(t *testing.T) {
 	t.Parallel()
 

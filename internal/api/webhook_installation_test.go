@@ -164,6 +164,19 @@ func TestInstallationWebhook_Created_ForAKnownSuspendedInstallation_ChangesNothi
 	require.Len(t, got, 1)
 	assert.Equal(t, settingspkg.InstallationSuspended, got[0].Status)
 	assert.False(t, got[0].Enabled)
+	_, built := h.lastBuild(t)
+	assert.False(t, built, "a delivery that changed nothing should not rebuild the sources")
+}
+
+func TestInstallationWebhook_Created_WhenGitHubsListFails_Is500AndStoresNothing(t *testing.T) {
+	t.Parallel()
+
+	h := newInstallationHook(t, true)
+	h.conn.gh.server.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, h.post(t, "installation", hookBody("created", 200, "acme-org")))
+
+	assert.Empty(t, h.installations(t))
 }
 
 func TestInstallationWebhook_Deleted_RemovesTheRow(t *testing.T) {
