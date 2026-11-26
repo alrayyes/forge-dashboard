@@ -40,6 +40,9 @@ type SettingsResponse struct {
 	// facts for the GitHub App's user sign-in. Never the tokens themselves.
 	GitHubOAuthConfigured bool `json:"githubOAuthConfigured"`
 	GitHubOAuthConnected  bool `json:"githubOAuthConnected"`
+	// GitHubLogin is the linked account's login, "" when none is linked or
+	// GitHub can't be asked. Never a token.
+	GitHubLogin string `json:"githubLogin"`
 	// RenovateRebaseLabel — see settings.Credentials' own doc comment;
 	// round-trips as a plain value, unlike the forge tokens above, since
 	// it isn't a secret.
@@ -674,6 +677,7 @@ type SettingsSummary struct {
 	ForgejoOAuthConnected     bool     `json:"forgejoOAuthConnected"`
 	GitHubOAuthConfigured     bool     `json:"githubOAuthConfigured"`
 	GitHubOAuthConnected      bool     `json:"githubOAuthConnected"`
+	GitHubLogin               string   `json:"githubLogin"`
 	WebhookConfigured         bool     `json:"webhookConfigured"`
 	RenovateRebaseLabel       string   `json:"renovateRebaseLabel"`
 	RenovateAuthors           []string `json:"renovateAuthors"`
@@ -720,6 +724,7 @@ func resolveSettingsSummary(ctx context.Context, deps Deps) (SettingsSummary, er
 		ForgejoOAuthConnected:     connected,
 		GitHubOAuthConfigured:     deps.GitHubOAuth.Configured(),
 		GitHubOAuthConnected:      githubConnected,
+		GitHubLogin:               githubLogin(ctx, deps, githubConnected),
 		WebhookConfigured:         creds.WebhookToken != "" && creds.WebhookSecret != "",
 		RenovateRebaseLabel:       full.RenovateRebaseLabel,
 		RenovateAuthors:           full.RenovateAuthors,

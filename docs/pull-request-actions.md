@@ -332,8 +332,11 @@ remainder, so the pill's slot gives up its minimum width), and the row is no
 taller than one without a chip. With a comment or merge-state pill and one
 action, with or without labels, the chip shares the line too: the CI pill gives
 up its minimum width (a Running pill is 104px), so the pill, the chip, the
-pills and the action fit the status track, the title keeps at least 200px at
-1280px, and the row is as tall as one with a Merge button. Every cell (the
+other pills and the action fit the status track, the title keeps at least 200px
+at 1280px, and the row is as tall as one with a Merge button. The one
+exception is a bot row (a rebase button plus an unarmed chip, no pills or
+labels): it keeps one line with a 145px title, because it has no room to give
+and stacking it would make every bot row two lines. Every cell (the
 pills, the chip, the action, the author and the dates) shares the row's middle.
 Two cases keep the chip on a line of its own below 94rem of list width, one
 36px line taller, because on one line the title would fall under 200px: pills
@@ -1044,7 +1047,9 @@ the button, so a row on a phone doesn't grow sideways.
 Dependabot only honours these commands from a user with push access, and
 it ignores GitHub App accounts whatever permissions the App holds.
 So when you've connected a GitHub App, the commands go out with your saved
-personal access token instead, and the comment shows up as you. With an
+personal access token instead, and the comment shows up as you. The linked
+GitHub account doesn't stand in for it there. With no installation, reads and
+commands go out as the linked account and the buttons work. With an
 App and no saved token, both buttons are locked with that explanation
 and the background pass below skips Dependabot pull requests, rather than
 posting comments Dependabot would only refuse.
@@ -1097,9 +1102,9 @@ request. With only Auto-update on, nothing changes. A choice made on a single
 pull request still wins: a bot pull request switched off stays put. The
 setting is off by default. `POST /api/v1/repos/rebase-bots/enable` and
 `/disable` set it, and `rebaseBots` on each repo in `GET /api/v1/dashboard`
-reports it. With a GitHub App and no saved personal access token the switch is
-locked, for the same reason the Dependabot buttons are. The lock covers the
-whole switch, so Renovate pull requests wait too.
+reports it. With a GitHub App installation and no saved personal access
+token the switch is locked, for the same reason the Dependabot buttons
+are. The lock covers the whole switch, so Renovate pull requests wait too.
 
 Each pull request can also have its own say, whatever its repo does. Every
 pull request in `GET /api/v1/dashboard` carries its own state under

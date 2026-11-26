@@ -92,7 +92,12 @@ const ROWS = [
   pr(6, { title: 'Labels with Merge', ...COMMENTS, labels: LABELS }),
 ];
 
-async function open(page: Page, width: number, prs = ROWS) {
+async function open(
+  page: Page,
+  width: number,
+  prs = ROWS,
+  path = '/pull-requests.html',
+) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -112,7 +117,7 @@ async function open(page: Page, width: number, prs = ROWS) {
       }),
     }),
   );
-  await page.goto('/pull-requests.html');
+  await page.goto(path);
   await expect(page.locator('#pr-rows > .row')).toHaveCount(prs.length);
 }
 
@@ -235,5 +240,64 @@ for (const width of [1280, 1503]) {
         ];
       })
       .toEqual([true, true, true]);
+  });
+}
+
+// The title floor of #4795: a chip with pills and one action leaves the title
+// 200px or more at 1280px. The rule is a 200px title floor except bot rows: a
+// bot row's rebase button with an unarmed chip keeps 145px (see
+// merge-wait-chip.spec.ts).
+test('a chip with pills and one action leaves the title 200px at 1280px', async ({
+  page,
+}) => {
+  await open(page, 1280);
+  for (const title of ['Waiting chip']) {
+    const width = await page
+      .locator('#pr-rows > .row', { hasText: title })
+      .locator('.title-cell')
+      .evaluate((e) => e.clientWidth);
+    expect(width, title).toBeGreaterThanOrEqual(200);
+  }
+});
+
+// A bot's rebase (in the bar) and Cancel (in the chip) with pills and a chip stack the chip under the
+// pills, like Update branch above, and every part stays visible.
+for (const width of [1280, 1503]) {
+  test(`a stacked bot row shows the pills, rebase and Cancel at ${width}px`, async ({
+    page,
+  }) => {
+    const bot = pr(8, {
+      title: 'Stacked bot',
+      author: 'dependabot[bot]',
+      kind: 'dependency',
+      ...COMMENTS,
+      ...RUNNING,
+      behind: true,
+      autoMergeEnabled: true,
+      autoMerge: WAITING,
+      allowedActions: [
+        { action: 'dependabot_rebase', primary: true },
+        { action: 'cancel_auto_merge' },
+        { action: 'close' },
+      ],
+    });
+    await open(page, width, [bot], '/bots.html');
+    const row = page.locator('#pr-rows > .row');
+    await expect(row.locator('.ci-pill')).toBeVisible();
+    await expect(row.locator('.review-pill')).toBeVisible();
+    const chip = row.locator('.wait-chip');
+    await expect(chip).toBeVisible();
+    await expect(
+      row.locator('.row-action-bar').getByRole('button', { name: /Rebase/ }),
+    ).toBeVisible();
+    await expect(
+      chip.getByRole('button', { name: /^Cancel auto-merge/ }),
+    ).toBeVisible();
+    await expect
+      .poll(async () => {
+        const [m] = await measure(page);
+        return m.centres['.wait-chip'] - m.centres['.ci-pill'] > 10;
+      })
+      .toBe(true);
   });
 }

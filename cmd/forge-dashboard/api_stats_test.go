@@ -48,7 +48,7 @@ func TestBuildSources_CountsAForgejoClientUnderItsLabel(t *testing.T) {
 	defer srv.Close()
 	counters := apistats.New()
 
-	sources := buildSources(newTestAuthStore(t), nil, 0, nil, counters, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "fj-value"})
+	sources := buildSources(newTestAuthStore(t), nil, 0, nil, counters, nil, nil)(settings.Credentials{ForgejoURL: srv.URL, ForgejoToken: "fj-value"})
 	require.Len(t, sources, 1)
 	sources[0].Fetch(t.Context())
 

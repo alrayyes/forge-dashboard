@@ -286,13 +286,15 @@ and puts focus on that input. The page holds no copy of those rules.
   App's OAuth client configured, you can link your GitHub account
   ([setup](configuration.md#github-account-sign-in)). The user token renews
   itself and is stored encrypted. It is never in `GET /api/v1/settings`, which
-  only reports `githubOAuthConfigured` and `githubOAuthConnected`. Disconnect
-  asks GitHub to revoke the App's grant, so the access and refresh token stop
-  working at once, then removes the link and leaves a saved token and the
-  installation alone. If GitHub can't be reached or refuses, the link is still
-  removed, Settings is told the grant was not revoked, and nothing is retried:
-  revoke it by hand under GitHub's Settings, Applications, Authorized GitHub
-  Apps. Nothing reads through the linked account yet.
+  reports `githubOAuthConfigured`, `githubOAuthConnected` and the account's
+  `githubLogin`. Disconnect asks GitHub to revoke the App's grant, so the
+  access and refresh token stop working at once, then removes the link and
+  leaves a saved token and the installation alone. If GitHub can't be reached
+  or refuses, the link is still removed, Settings is told the grant was not
+  revoked, and nothing is retried: revoke it by hand under GitHub's Settings,
+  Applications, Authorized GitHub Apps. Each repo is read through the
+  installation's token and narrowed to the ones your account can read; with no
+  installation the linked account reads them itself.
   Installations are kept one per row, so a second account or org can be added
   through the App's Setup URL without pasting an ID; the existing installation
   ID is carried over as the first row when you upgrade. Every enabled row is
