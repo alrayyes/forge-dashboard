@@ -84,3 +84,51 @@ func TestAggregator_Run_CancelledWithAWakeWaiting_StartsNoFetch(t *testing.T) {
 		require.Equal(t, int64(1), src.calls.Load(), "only the fetch that was running when Run was cancelled")
 	}
 }
+
+// wakePending reports whether a wake is waiting, taking it.
+func wakePending(act *dashboard.Activity) bool {
+	select {
+	case <-act.Woken():
+		return true
+	default:
+		return false
+	}
+}
+
+// One Activity serves every Aggregator, so a wake a replaced loop takes is one
+// its successor never gets.
+func TestAggregator_Run_AlreadyCancelled_LeavesAWakeForItsSuccessor(t *testing.T) {
+	t.Parallel()
+
+	clock := newActivityClock()
+	act := dashboard.NewActivity(15*time.Minute, clock.now)
+	clock.advance(time.Hour)
+	act.Touch()
+	agg := dashboard.NewAggregator([]dashboard.Source{&cancellingSource{}}, dashboard.WithActivity(act))
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	agg.Run(ctx, time.Hour)
+
+	assert.True(t, wakePending(act))
+}
+
+func TestAggregator_Run_CancelledWithAWakeWaiting_LeavesItForItsSuccessor(t *testing.T) {
+	t.Parallel()
+
+	for range selectRaceRuns {
+		ctx, cancel := context.WithCancel(t.Context())
+		clock := newActivityClock()
+		act := dashboard.NewActivity(15*time.Minute, clock.now)
+		src := &cancellingSource{during: func() {
+			clock.advance(time.Hour)
+			act.Touch()
+			cancel()
+		}}
+		agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithActivity(act))
+
+		agg.Run(ctx, time.Hour)
+
+		require.True(t, wakePending(act))
+	}
+}

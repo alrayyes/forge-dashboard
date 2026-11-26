@@ -1491,18 +1491,18 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 // auto-update hook has yet to try, is only ever acted on after a refresh. The first use after that wakes Run, which refreshes
 // once so the person who just arrived is not shown data from before they left.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
+	if ctx.Err() != nil {
+		// Replaced before it started. No first refresh is coming, so let go
+		// of anyone waiting for one. Any wake is the successor's.
+		a.markFirstRefreshed()
+
+		return
+	}
 	// A wake left over from before this refresh (a sign-in builds this
 	// Aggregator and then its first request wakes it) is answered by it. Drained
 	// first, not after: one that arrives while the refresh runs is a real
 	// request and still gets its catch-up.
 	a.activity.drainWake()
-	if ctx.Err() != nil {
-		// Replaced before it started. No first refresh is coming, so let go
-		// of anyone waiting for one.
-		a.markFirstRefreshed()
-
-		return
-	}
 	a.refreshBackground(ctx)
 
 	timer := a.newRunTimer(a.NextDelay(interval))
@@ -1537,11 +1537,13 @@ func (a *Aggregator) scheduledPass(ctx context.Context) {
 	a.refreshBackground(ctx)
 }
 
-// catchUpPass is what a wake does, unless Run was cancelled. Someone opened
-// the board after an idle spell: the refresh is theirs, not the schedule's, so
-// the reserve is for it.
+// catchUpPass is what a wake does, unless Run was cancelled, when the wake goes
+// back for the successor to read. Someone opened the board after an idle spell:
+// the refresh is theirs, not the schedule's, so the reserve is for it.
 func (a *Aggregator) catchUpPass(ctx context.Context) {
 	if ctx.Err() != nil {
+		a.activity.handBackWake()
+
 		return
 	}
 	a.Refresh(ctx)
