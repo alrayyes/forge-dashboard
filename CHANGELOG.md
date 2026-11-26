@@ -1,5 +1,17 @@
 # Changelog
 
+## [9.130.0](https://github.com/alrayyes/forge-dashboard/compare/v9.129.0...v9.130.0) (2026-11-26)
+
+
+### Features
+
+* **web:** share the armed chip's slot with Update branch ([#4956](https://github.com/alrayyes/forge-dashboard/issues/4956)) ([abb7df1](https://github.com/alrayyes/forge-dashboard/commit/abb7df1fcd5d3ea9f27da84db55f0327b5833854)), closes [#4942](https://github.com/alrayyes/forge-dashboard/issues/4942)
+
+
+### Bug Fixes
+
+* **api:** rebuild sources when the GitHub App Setup URL saves an installation ([#4976](https://github.com/alrayyes/forge-dashboard/issues/4976)) ([dfab49f](https://github.com/alrayyes/forge-dashboard/commit/dfab49face98b429bcf2b69fa998017ff6444a61)), closes [#4966](https://github.com/alrayyes/forge-dashboard/issues/4966)
+
 ## [9.129.0](https://github.com/alrayyes/forge-dashboard/compare/v9.128.0...v9.129.0) (2026-11-26)
 
 
