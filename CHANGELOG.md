@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.135.1](https://github.com/alrayyes/forge-dashboard/compare/v9.135.0...v9.135.1) (2026-11-26)
+
+
+### Bug Fixes
+
+* give initial placeholders a visible edge ([#5012](https://github.com/alrayyes/forge-dashboard/issues/5012)) ([a5aec7f](https://github.com/alrayyes/forge-dashboard/commit/a5aec7fe761b75abc198ecb6ef1623147a80e47d))
+
 ## [9.135.0](https://github.com/alrayyes/forge-dashboard/compare/v9.134.0...v9.135.0) (2026-11-26)
 
 
