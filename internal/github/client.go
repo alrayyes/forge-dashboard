@@ -2948,7 +2948,6 @@ func sinceVariable(since *time.Time) any {
 // client's errors get the same RateLimitGraphQL/ErrorKind treatment a
 // token client's always have.
 func (c *Client) unreachableResult(err error) dashboard.Result {
-	slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error", err)
 	health := dashboard.ForgeHealth{
 		Forge: dashboard.ForgeGitHub, Reachable: false,
 		Error: err.Error(), ErrorKind: dashboard.ForgeErrorUnknown,
@@ -2958,6 +2957,8 @@ func (c *Client) unreachableResult(err error) dashboard.Result {
 		health.ErrorKind = apiErr.kind
 		upstreamHealth(&health, apiErr)
 	}
+	// The kind and status say what failed without the reply's text (#4977).
+	slog.Warn("forge unreachable", "forge", dashboard.ForgeGitHub, "error_kind", health.ErrorKind, "status", health.UpstreamStatus, "error", err)
 	health.RateLimitREST = c.lastRESTRate.Load()
 
 	return dashboard.Result{Health: health}

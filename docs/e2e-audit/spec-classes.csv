@@ -191,7 +191,7 @@ pager-stepper.spec.ts,18.329,6,6,A,,0.0
 pagination-focus.spec.ts,2.289,5,5,A,,0.0
 phone-action-bar.spec.ts,8.452,5,5,A,,0.0
 phone-activity-no-push.spec.ts,5.134,10,10,A,,0.0
-phone-card-action-row.spec.ts,2.566,5,5,A,,0.0
+phone-card-action-row.spec.ts,2.566,7,7,A,,0.0
 phone-row-gap.spec.ts,1.285,3,3,A,,0.0
 phone-row-status-gap.spec.ts,12.714,11,11,A,,0.0
 pick-row-click.spec.ts,8.257,8,5,A,,3.1

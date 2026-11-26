@@ -55,7 +55,7 @@ An unconfirmed Forgejo conflict keeps its live Update branch, because updating
 is how it gets confirmed. The pop-up's footer still lists Merge and Update
 branch locked, each with its reason. A conflict row still keeps a Close, the
 cancel of a pending Renovate rebase and a Merge already confirming or running. A
-pull request that is behind the base branch is the one case where a locked Merge
+pull request that is behind the base branch is a case where a locked Merge
 is not the row's button: the row draws no button of its own, because the cure
 (Update branch, or the bot's rebase) sits inside the status block on top of it,
 and the greyed Merge is in the pop-up. A behind bot pull request whose Merge is
@@ -434,7 +434,8 @@ row, locked (`aria-disabled`, no click), with the reason printed beside it: a
 merge conflict, a draft, a branch that's behind, or "Blocked by the forge" when
 the forge says no without saying why. While only CI is running, or Forgejo is
 checking for conflicts, Merge is a line of text instead. A failing check is
-named only when CI itself reports failing. A token missing the right permission,
+named only when CI itself reports failing, and then the row draws no Merge at
+all, since nothing on the row unlocks it. A token missing the right permission,
 or the forge being unreachable, locks it too. Merge asks for confirmation first:
 the button turns into Confirm and Cancel, and the step ends on Cancel, a click
 anywhere else (which still does what it would have done), Escape, or after 8
@@ -733,12 +734,16 @@ records each attempt by repo and number. Closing or merging the pull request
 elsewhere removes the intent, once Forgejo confirms it. A token that can push
 but not merge only finds out at the merge itself.
 
-Failing CI with a stopped auto-merge is the one case where a blocked Merge is
-left off the row altogether: the row draws no Merge button, locked or not, and no
-printed note under the title. The server's "Blocked, CI is failing" is the
-chip's detail line, under "Auto-merge stopped" (on a phone, the end of the text
-line), so both facts sit together in the action area and are read without
-hovering. The pop-up's footer still lists Merge locked with its reason.
+A pull request whose CI is failing never offers Merge on its row, whether
+auto-merge was armed or not: the row draws no Merge button, locked or not, and
+no printed note under the title. The reason is said once, in the action area,
+where you read it without hovering. On an unarmed row that is the status block,
+"CI is failing". On a row whose auto-merge stopped, the server's "Blocked, CI is
+failing" is the chip's detail line, under "Auto-merge stopped" (on a phone, the
+end of the text line). The pop-up's footer still lists Merge locked with its
+reason. Other rows drop a blocked Merge too (a conflict, a branch that is
+behind, a waiting chip, an armed row), so failing CI is one of several cases,
+not the only one.
 
 A merge scheduled in Forgejo's own web UI ("Merge when checks succeed") shows
 as auto-merging too, with Cancel auto-merge on it. Forgejo's pull request JSON
