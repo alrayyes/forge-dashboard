@@ -11,6 +11,7 @@ import { test } from './server-fixture';
 // https://github.com/alrayyes/forge-dashboard/issues/5008
 
 const AVATAR = 'https://avatars.githubusercontent.com/u/1';
+const LOGO = 'https://repository-images.githubusercontent.com/1/alice';
 const NOW = new Date().toISOString();
 const IMAGE = Buffer.from(
   '<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64"><rect width="64" height="64" fill="#c0392b"/></svg>',
@@ -36,8 +37,9 @@ function pr(number: number, author: string, authorAvatarUrl: string) {
 
 const PRS = [pr(1, 'alice', AVATAR), pr(2, 'carol', '')];
 
-const repo = (name: string) => ({
+const repo = (name: string, logoUrl?: string) => ({
   forge: 'github',
+  logoUrl,
   fullName: `acme/${name}`,
   url: `https://github.com/acme/${name}`,
   hasWebhook: false,
@@ -66,9 +68,11 @@ function comment(id: string, login: string, avatarUrl: string) {
 }
 
 async function mock(page: Page) {
-  await routeImage(page, AVATAR, (route: Route) =>
-    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
-  );
+  for (const url of [AVATAR, LOGO]) {
+    await routeImage(page, url, (route: Route) =>
+      route.fulfill({ status: 200, contentType: 'image/svg+xml', body: IMAGE }),
+    );
+  }
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
   );
@@ -82,7 +86,7 @@ async function mock(page: Page) {
         pullRequests: PRS,
         issues: [],
         openIssueCount: 0,
-        repos: [repo('alice'), repo('carol')],
+        repos: [repo('alice', LOGO), repo('carol')],
         hiddenDrafts: 0,
       }),
     }),
@@ -157,6 +161,60 @@ function edgeContrast(target: Locator) {
 const expectVisibleEdge = (target: Locator) =>
   expect.poll(() => edgeContrast(target)).toBeGreaterThanOrEqual(3);
 
+const choice = (page: Page, key: 'author' | 'repo', name: string) =>
+  pickPanel(page, key).locator('.label-filter-option', { hasText: name });
+
+// Which pixels of a screenshot of the element show the picture (IMAGE's red):
+// the middle of each side, then the top left corner. A box measurement can't
+// tell, since a clipped image keeps its box.
+async function picturePaint(page: Page, target: Locator) {
+  // Clipped to whole pixels, where the box is painted: an element screenshot
+  // of a box at a fraction of a pixel comes out a pixel wider.
+  const box = await target.boundingBox();
+  if (!box) return null;
+  const clip = {
+    x: Math.round(box.x),
+    y: Math.round(box.y),
+    width: Math.round(box.width),
+    height: Math.round(box.height),
+  };
+  const shot = (await page.screenshot({ clip })).toString('base64');
+  return page.evaluate(async (data) => {
+    const bytes = Uint8Array.from(atob(data), (c) => c.charCodeAt(0));
+    const bitmap = await createImageBitmap(
+      new Blob([bytes], { type: 'image/png' }),
+    );
+    const context = new OffscreenCanvas(bitmap.width, bitmap.height).getContext(
+      '2d',
+    );
+    if (!context) return null;
+    context.drawImage(bitmap, 0, 0);
+    const red = (x: number, y: number) => {
+      const [r, g, b] = context.getImageData(x, y, 1, 1).data;
+      return Math.abs(r - 192) < 45 && Math.abs(g - 57) < 45 && b < 90;
+    };
+    const mid = Math.floor(bitmap.width / 2);
+    const end = bitmap.width - 1;
+    return {
+      width: bitmap.width,
+      left: red(0, mid),
+      right: red(end, mid),
+      top: red(mid, 0),
+      bottom: red(mid, end),
+      corner: red(0, 0),
+    };
+  }, shot);
+}
+
+const FULL_DISC = {
+  width: 16,
+  left: true,
+  right: true,
+  top: true,
+  bottom: true,
+  corner: false,
+};
+
 const size = async (target: Locator) => {
   const box = await target.boundingBox();
   return [box?.width, box?.height];
@@ -224,6 +282,56 @@ for (const theme of ['light', 'dark'] as const) {
         await expectNoViolations(page);
         await pickButton(page, key).click();
       }
+    });
+
+    test('a filter choice paints its picture to the same 16px as a placeholder (#5013)', async ({
+      page,
+    }) => {
+      await openRows(page);
+      for (const [key, name] of [
+        ['author', 'alice'],
+        ['repo', 'acme/alice'],
+      ] as const) {
+        await pickButton(page, key).click();
+        const image = choice(page, key, name).locator('.pick-image');
+        // Retries until the picture has loaded and painted. The corner stays
+        // unpainted: the avatar is a disc and the logo keeps rounded corners.
+        await expect.poll(() => picturePaint(page, image)).toEqual(FULL_DISC);
+        await expectNoViolations(page);
+        await pickButton(page, key).click();
+      }
+    });
+
+    test('a picture still loading keeps the placeholder edge', async ({
+      page,
+    }) => {
+      await mock(page);
+      // Never answered, so the choice stays in its loading state.
+      await routeImage(page, AVATAR, () => {});
+      await page.goto('/pull-requests.html', {
+        waitUntil: 'domcontentloaded',
+      });
+      await pickButton(page, 'author').click();
+      const image = choice(page, 'author', 'alice').locator('.pick-image');
+      await expect(image.locator('img')).toHaveCount(1);
+      await expectVisibleEdge(image);
+    });
+
+    test('a picture that fails to load leaves the name where it was (#5013)', async ({
+      page,
+    }) => {
+      await mock(page);
+      await routeImage(page, AVATAR, (route: Route) => route.abort());
+      await page.goto('/pull-requests.html');
+      await pickButton(page, 'author').click();
+      const failed = choice(page, 'author', 'alice');
+      await expect(failed.locator('img')).toHaveCount(0);
+      await expectVisibleEdge(failed.locator('.pick-image'));
+      const nameX = async (row: Locator) =>
+        (await row.locator('.pick-name').boundingBox())?.x;
+      expect(await nameX(failed)).toBe(
+        await nameX(choice(page, 'author', 'carol')),
+      );
     });
 
     test('a repository logo placeholder on Settings has the same edge', async ({

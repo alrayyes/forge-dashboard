@@ -1699,7 +1699,6 @@ select.col-filter {
   display: inline-block;
   width: 16px;
   height: 16px;
-  overflow: hidden;
   background: var(--surface-sunken);
   border: 1px solid var(--border);
   box-sizing: border-box;
@@ -1708,9 +1707,9 @@ select.col-filter {
   line-height: 14px;
   text-align: center;
 }
-/* With no picture over it, the faint edge left only the initial to see, so the
-   box read smaller than a picture's (#5008). */
-.pick-image:not(:has(img)) {
+/* With no picture over it (none, loading or failed), the faint edge left only
+   the initial to see, so the box read smaller than a picture's (#5008). */
+.pick-image:not(.has-picture) {
   border-color: var(--control-border);
 }
 .pick-avatar {
@@ -1719,11 +1718,14 @@ select.col-filter {
 .pick-logo {
   border-radius: 4px;
 }
+/* Over the border too, so a picture paints the same 16px as a placeholder
+   (#5013). The box doesn't clip, so the image takes its corners itself. */
 .pick-image img {
   position: absolute;
   inset: -1px;
   width: 16px;
   height: 16px;
+  border-radius: inherit;
   object-fit: cover;
 }
 .pick-group {
