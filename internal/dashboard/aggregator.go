@@ -1074,6 +1074,7 @@ func markUnreachable(h ForgeHealth) ForgeHealth {
 	h.Reachable = false
 	h.Error = HumanizeForgeError(kind)
 	h.ErrorKind = kind
+	h.Cause = ""
 
 	return h
 }
@@ -1285,6 +1286,9 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 		return r, false
 	}
 	held := Result{Health: prev}
+	if missed {
+		held.Health.Cause = ForgeCauseSlow
+	}
 	held.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
 	held.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
 	held.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(x Repo) bool { return x.Forge != forge })
@@ -1782,6 +1786,7 @@ func clearMarkWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) (out []
 	}
 	out = slices.Clone(forges)
 	out[i].Starting = false
+	out[i].Cause = ""
 	out[i].Reachable = true
 	out[i].StaleSince = nil
 	out[i].Error = ""
