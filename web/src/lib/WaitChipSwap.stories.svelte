@@ -4,10 +4,11 @@
   import { expect, fn, userEvent } from "storybook/test";
   import WaitChipSwap from "./WaitChipSwap.svelte";
 
-  // MOCKUP for #4942 (nothing in the app draws this yet): the armed-wait chip
-  // and the Update branch button sharing one slot. The owner approves it here
-  // before the wiring lands. Read the stories in this order: Idle, Hover
-  // preview, Keyboard focus, Pressed, Locked, In flight, then the rows.
+  // The armed-wait chip and the Update branch button sharing one slot, as the
+  // row draws them for a "Waiting for CI" chip (#4942). The row never reaches
+  // In flight: it redraws to the queued chip at once. Read the stories in this
+  // order: Idle, Hover preview, Keyboard focus, Pressed, Locked, In flight,
+  // then the rows.
   //
   //  - Idle shows "Waiting for CI" with Cancel auto-merge, as the chip does.
   //  - Mouse hover previews the swap. Keyboard focus shows the same swap.
