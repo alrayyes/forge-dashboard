@@ -541,8 +541,9 @@ func HumanizeForgeError(kind ForgeErrorKind) string {
 type ForgeCause string
 
 const (
-	// ForgeCauseStarting means the rows are the saved ones and no fetch has
-	// answered in time since the start.
+	// ForgeCauseStarting means the rows are the saved ones, no fetch has
+	// answered in time since the start, and fewer than ForgeFailureThreshold
+	// passes in a row have missed.
 	ForgeCauseStarting ForgeCause = "starting"
 	// ForgeCauseSlow means the latest pass missed its deadline or was
 	// skipped, and the last good rows are held.
@@ -562,8 +563,9 @@ type ForgeHealth struct {
 	// Starting is set while the rows shown for this forge are the ones the
 	// last run saved and no fetch has answered in time since this start. The
 	// forge has not been heard from, so it is neither reachable nor in error,
-	// even past a fetch deadline: the first fetch that answers in time
-	// replaces this entry.
+	// even past a fetch deadline. The first fetch that answers in time
+	// replaces this entry; ForgeFailureThreshold passes in a row with no
+	// answer end it as unreachable.
 	Starting bool `json:"starting,omitempty"`
 	// Cause says why the rows are not from the latest read while the forge is
 	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow when the

@@ -81,10 +81,11 @@ one of the other kinds.
 
 The system SHALL mark a forge `starting`, with no error kind, while the rows
 shown for it are the ones a previous run saved and no fetch from the forge has
-answered in time since the app started. The dashboard SHALL say the app is starting up
-and show when the data is from, and SHALL NOT draw an unreachable chip,
-headline or banner for that forge. The first refresh that reaches the forge
-replaces the mark with its real reachability.
+answered in time since the app started, until `ForgeFailureThreshold` (3) passes
+in a row have gone unanswered. While a forge is `starting` the dashboard SHALL
+say the app is starting up and show when the data is from, and SHALL NOT draw an
+unreachable chip, headline or banner for that forge. The first refresh that
+reaches the forge replaces the mark with its real reachability.
 
 #### Scenario: Opening the page right after a restart
 
@@ -96,9 +97,24 @@ replaces the mark with its real reachability.
 #### Scenario: A first fetch that hangs
 
 - **WHEN** the first fetch passes its deadline, or a pass is skipped because
-  it is still running
+  it is still running, and fewer than `ForgeFailureThreshold` passes in a row
+  have gone unanswered
 - **THEN** the forge stays `starting`, with no error kind, and is not called
   unreachable
+
+#### Scenario: A first fetch that keeps going unanswered
+
+- **WHEN** `ForgeFailureThreshold` passes in a row have gone unanswered,
+  counting deadline and skipped passes together
+- **THEN** the forge is no longer `starting`, its health carries the
+  `unreachable` error kind and no cause, the saved rows stay, and the
+  unreachable banner appears
+
+#### Scenario: A good read after the outage
+
+- **WHEN** a later fetch answers in time
+- **THEN** the health carries no error and no cause, and the live control reads
+  "Live"
 
 #### Scenario: A forge that is really down at start-up
 

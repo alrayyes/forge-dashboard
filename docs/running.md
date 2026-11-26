@@ -53,8 +53,9 @@ you sign in, but a slow forge never holds the container back. Ready means the
 app can serve its last saved view, and tying it to a third-party outage would
 take the dashboard down with the forge. After a restart the page shows the
 saved rows with a "Starting up, showing data from" line and a "starting up"
-chip for each forge, until a fetch from the forge has answered in time. Only a
-fetch that fails is drawn as unreachable.
+chip for each forge, until a fetch from the forge has answered in time. A forge
+is drawn as unreachable when a fetch fails, or when three passes in a row have
+gone unanswered.
 
 `starting` is normal for up to 30 seconds after boot, then `healthy`. A
 healthy container stays healthy when a forge goes unreachable. That shows
