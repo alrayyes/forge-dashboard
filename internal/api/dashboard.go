@@ -402,6 +402,9 @@ type pullRequestView struct {
 	// pill's Failed number (#1946): CI is failing and not only because a
 	// workflow run is held for approval.
 	FailingCI bool `json:"failingCi"`
+	// OutOfDate is the Out of date badge's and quick filter's answer (#4993):
+	// behind its base with something left to merge, at any CI state.
+	OutOfDate bool `json:"outOfDate"`
 	// GreenBehindBase is the behind chip's answer and the rule behind the Bots
 	// menu pill's Behind number (#4990): a green dependency pull request that is
 	// behind its base with something left to merge, not a draft, not hidden.
@@ -827,6 +830,7 @@ func (b boardSettings) pullRequestViews(prs []dashboard.PullRequest, view boardV
 			Queued:                b.waitingQueuedAction(pr),
 			Hidden:                isHidden,
 		}
+		item.OutOfDate = pr.IsOutOfDate()
 		item.GreenBehindBase = item.countsAsBehind()
 		if isHidden && !hide.Until.IsZero() {
 			until := hide.Until

@@ -1,5 +1,5 @@
-// A stand-in for the server's `allowedActions`, `status` and `kind` on mocked
-// snapshots (#805, #1375).
+// A stand-in for the server's `allowedActions`, `status`, `kind` and
+// `outOfDate` on mocked snapshots (#805, #1375).
 //
 // The real server works out which actions each pull request offers
 // (internal/dashboard/allowed_actions.go), why it is held back
@@ -36,6 +36,7 @@ export type StandInPR = {
   allowedActions?: unknown;
   status?: StandInStatus | null;
   kind?: string;
+  outOfDate?: boolean;
   stackedOn?: { number?: number } | null;
   headBranch?: string;
 };
@@ -63,6 +64,7 @@ export type Fixture = {
     allowedActions: StandInEntry[];
     status: StandInStatus | null;
     kind: string;
+    outOfDate: boolean;
   }[];
   table: number[];
 };
@@ -171,6 +173,16 @@ export function installAllowedActionsStandIn(
           pr.status = structuredClone(answer().status);
         // A mock that states its own kind is left alone.
         if (pr.kind === undefined) pr.kind = answer().kind;
+        // The Out of date answer (#4993), from the same table. Always set: it
+        // follows from behind and empty alone, and a spec that spreads a
+        // generated pull request and changes `behind` would otherwise keep the
+        // old answer. Looked up with a forge the table has, so a mock with a
+        // made-up forge id still gets it.
+        pr.outOfDate = lookup(table, {
+          forge: 'github',
+          behind: pr.behind,
+          empty: pr.empty,
+        }).outOfDate;
       }
     // The server flags a bot's housekeeping issue and counts the rest
     // (#980). A mocked issue that states its own flag is left alone.

@@ -6937,6 +6937,7 @@ components:
           status,
           readyToMerge,
           failingCi,
+          outOfDate,
           greenBehindBase,
           needsReview,
           autoUpdate,
@@ -7407,6 +7408,14 @@ components:
             True when CI is failing and not only because a workflow run is
             held for approval: what the Failing CI quick filter lists, and
             what the menu pill's Failed number counts. Always present.
+        outOfDate:
+          type: boolean
+          description: |
+            True when this pull request is behind its base branch with
+            something left to merge, at any CI state, drafts and hidden ones
+            included: what the row's Out of date badge shows and what the Out of
+            date quick filter lists. An empty pull request has nothing to
+            update, so it is false. Always present.
         greenBehindBase:
           type: boolean
           description: |

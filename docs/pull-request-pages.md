@@ -414,15 +414,15 @@ configured. A CI status saved from when the dropdown existed becomes the
 matching CI pill when the page loads, unless a CI pill is already picked, in
 which case it is dropped, so nothing stays filtered out of sight. The **Out of
 date** pill, on this page and on Bots, keeps the pull requests whose base branch
-has moved on, the same `behind` field the row's Out of date badge reads, though
-a row with a live Update branch button or a confirmed conflict leaves the badge
-out. An empty pull request is left out. The choice is saved like the other
-pills. Next to them an **Auto-merge** control has Any, On, and Off. On shows
-only pull requests that have auto-merge armed, Off only those without. It
-combines with the pill groups, so Failing with Auto-merge On finds armed pull
-requests whose checks have since failed. In the phone Filters sheet its choices
-are 44px targets at their own width, and a pressed choice keeps its size when
-high-contrast mode swaps the fill for a border.
+has moved on, the same `outOfDate` answer the server sends for the row's Out of
+date badge, though a row with a live Update branch button or a confirmed
+conflict leaves the badge out. An empty pull request is left out. The choice is
+saved like the other pills. Next to them an **Auto-merge** control has Any, On,
+and Off. On shows only pull requests that have auto-merge armed, Off only those
+without. It combines with the pill groups, so Failing with Auto-merge On finds
+armed pull requests whose checks have since failed. In the phone Filters sheet
+its choices are 44px targets at their own width, and a pressed choice keeps its
+size when high-contrast mode swaps the fill for a border.
 
 A **Refs issue** control beside it has Any, **Has issue**, and **No issue** (the
 full wording, "References an issue" and "References no issue", is each button's

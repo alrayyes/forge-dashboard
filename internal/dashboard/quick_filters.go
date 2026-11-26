@@ -21,6 +21,15 @@ func IsFailingCI(pr PullRequest) bool {
 	return pr.CI == CIFailure && !pr.FailingOnlyForApproval
 }
 
+// IsOutOfDate is the Out of date rule (#4993): the base branch has moved on and
+// something is left to merge. An empty pull request has nothing to update, so
+// the row draws no badge and the quick filter skips it. It is the field each
+// pull request carries as outOfDate, the badge and the filter read it, and the
+// Update branch refusal and the behind chip build on it.
+func (pr PullRequest) IsOutOfDate() bool {
+	return pr.Behind && !pr.Empty
+}
+
 // NeedsReview is the Needs review quick filter (#807): a review is
 // outstanding, meaning the forge requires one or a reviewer was asked. An
 // unreviewed pull request nobody was asked about is merely unreviewed,
