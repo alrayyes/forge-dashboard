@@ -19,6 +19,20 @@ export function speedsFor(total: number): number[] {
   return Array.from({ length: total }, (_, i) => SHARD_SPEEDS[i + 1] ?? 1);
 }
 
+// What each spec weighs: its recorded duration, or the average of the recorded
+// ones for a spec that has none.
+function weightFor(
+  specs: string[],
+  durations: Durations,
+): (spec: string) => number {
+  const known = specs.filter((s) => s in durations);
+  const mean =
+    known.length === 0
+      ? 1
+      : known.reduce((n, s) => n + durations[s], 0) / known.length;
+  return (s) => durations[s] ?? mean;
+}
+
 // Splits spec files over `total` shards so each shard's summed duration is
 // close to the others': longest spec first, each into the lightest shard so
 // far. A spec with no recorded duration counts as the average of the recorded
@@ -34,12 +48,7 @@ export function assignShards(
   total: number,
   speeds: number[] = new Array<number>(total).fill(1),
 ): string[][] {
-  const known = specs.filter((s) => s in durations);
-  const mean =
-    known.length === 0
-      ? 1
-      : known.reduce((n, s) => n + durations[s], 0) / known.length;
-  const weight = (s: string) => durations[s] ?? mean;
+  const weight = weightFor(specs, durations);
   const ordered = [...specs].sort(
     (a, b) => weight(b) - weight(a) || a.localeCompare(b),
   );
@@ -70,6 +79,23 @@ export function durationsFromJunit(xml: string): Durations {
       Math.round((out[m[1]] ?? 0) * 1000 + Number(m[2]) * 1000) / 1000;
   }
   return out;
+}
+
+// What `plan` prints: each shard's work and how long its speed makes that take.
+export function planLines(
+  specs: string[],
+  durations: Durations,
+  total: number,
+): string[] {
+  const speeds = speedsFor(total);
+  const weight = weightFor(specs, durations);
+  return assignShards(specs, durations, total, speeds).map((s, i) => {
+    const sum = s.reduce((n, f) => n + weight(f), 0);
+    return (
+      `shard ${i + 1}: ${s.length} specs, ${sum.toFixed(0)}s of work, ` +
+      `about ${(sum / speeds[i]).toFixed(0)}s to run`
+    );
+  });
 }
 
 function listSpecs(): string[] {
@@ -108,16 +134,7 @@ if (import.meta.main) {
     );
     writeFileSync(durationsFile, `${JSON.stringify(sorted, null, 2)}\n`);
   } else if (cmd === 'plan' && a) {
-    const total = Number(a);
-    const durations = readDurations();
-    const speeds = speedsFor(total);
-    assignShards(listSpecs(), durations, total, speeds).forEach((s, i) => {
-      const sum = s.reduce((n, f) => n + (durations[f] ?? 0), 0);
-      console.log(
-        `shard ${i + 1}: ${s.length} specs, ${sum.toFixed(0)}s of work, ` +
-          `about ${(sum / speeds[i]).toFixed(0)}s to run`,
-      );
-    });
+    console.log(planLines(listSpecs(), readDurations(), Number(a)).join('\n'));
   } else {
     console.error(
       'usage: e2e-shards.ts shard <index> <total> | plan <total> | record <junit.xml>',

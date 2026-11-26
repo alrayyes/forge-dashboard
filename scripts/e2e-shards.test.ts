@@ -1,7 +1,12 @@
 import { expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { assignShards, durationsFromJunit, speedsFor } from './e2e-shards';
+import {
+  assignShards,
+  durationsFromJunit,
+  planLines,
+  speedsFor,
+} from './e2e-shards';
 
 test('every spec lands in exactly one shard', () => {
   const durations = { 'a.spec.ts': 5, 'b.spec.ts': 3, 'c.spec.ts': 2 };
@@ -38,6 +43,16 @@ test('a spec with no recorded duration counts as the average of the rest', () =>
   const specs = ['a.spec.ts', 'b.spec.ts', 'new.spec.ts'];
   const shards = assignShards(specs, durations, 3);
   expect(shards.every((s) => s.length === 1)).toBe(true);
+});
+
+// new.spec.ts weighs 15, the mean of the other two, and shard 1 runs at 0.9.
+test('plan counts a spec with no recorded duration as the average one', () => {
+  const durations = { 'a.spec.ts': 10, 'b.spec.ts': 20 };
+  const specs = ['a.spec.ts', 'b.spec.ts', 'new.spec.ts'];
+  expect(planLines(specs, durations, 2)).toEqual([
+    'shard 1: 2 specs, 25s of work, about 28s to run',
+    'shard 2: 1 specs, 20s of work, about 20s to run',
+  ]);
 });
 
 test('the assignment is the same on every call, whatever order specs arrive in', () => {
