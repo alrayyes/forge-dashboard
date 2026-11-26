@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.136.2](https://github.com/alrayyes/forge-dashboard/compare/v9.136.1...v9.136.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* start no refresh once the refresh loop is cancelled ([#5046](https://github.com/alrayyes/forge-dashboard/issues/5046)) ([a6c9c35](https://github.com/alrayyes/forge-dashboard/commit/a6c9c35b6c30656e12024f0e8de7ab719f17a4b6)), closes [#5041](https://github.com/alrayyes/forge-dashboard/issues/5041)
+
 ## [9.136.1](https://github.com/alrayyes/forge-dashboard/compare/v9.136.0...v9.136.1) (2026-11-26)
 
 
