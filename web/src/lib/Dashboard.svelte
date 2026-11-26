@@ -256,6 +256,7 @@
     joinNames,
     autoMergeWording,
     buildWaitChip,
+    type SwapDrawing,
     queuedChip,
     requestedAnnouncement,
     type WaitKind,
@@ -1721,7 +1722,37 @@
         subject: `${pr.repo}#${pr.number}`,
         button: disarm ?? undefined,
         tipId: waitChipTipId(pr),
+        swap: disarm ? waitSwapOf(pr) : undefined,
       });
+    }
+
+    // #4942: where the row would draw Update branch beside an armed chip, the
+    // chip's label is that button instead, so the two share one slot. The
+    // real button stays the one place its rules live (locked, pending,
+    // retry); it is never put in the page, the swap only clicks it and reads
+    // how it stands. The dialog's footer has no chip and keeps its button.
+    function waitSwapOf(pr: PullRequestItem): SwapDrawing | undefined {
+      if (idScope !== "" || isSettled(pr)) return undefined;
+      const cell = updateBranchBesidePrimary(pr);
+      const real = cell?.querySelector<HTMLButtonElement>("button");
+      if (!cell || !real) return undefined;
+      return {
+        phase: () =>
+          real.getAttribute("aria-disabled") !== "true"
+            ? "idle"
+            : real.textContent === "Queued…"
+              ? "inflight"
+              : "locked",
+        reason: () => {
+          const id = real.getAttribute("aria-describedby");
+          const node = id
+            ? (cell.querySelector(`[id="${id}"]`) ??
+              document.getElementById(id))
+            : null;
+          return node?.textContent?.trim() ?? "";
+        },
+        run: () => real.click(),
+      };
     }
 
     // What an unarmed row waits on, when the row draws it as a chip: CI
@@ -3572,7 +3603,11 @@
         // divider; on a wider screen the bar adds no box of its own.
         const rebase =
           rowAction && rowAction === mergeAction ? rebaseBesideMerge(pr) : null;
-        const update = settledRow ? null : updateBranchBesidePrimary(pr);
+        // The armed chip carries Update branch itself when it can (#4942).
+        const update =
+          settledRow || rowWait?.querySelector(".wait-chip-swap")
+            ? null
+            : updateBranchBesidePrimary(pr);
         if (rowAction || update) {
           const bar = el("div", "row-action-bar");
           if (rowAction) bar.appendChild(rowAction);

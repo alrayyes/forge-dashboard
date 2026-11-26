@@ -3825,6 +3825,53 @@ a.ci-pill:hover {
   border-color: var(--border-strong);
 }
 
+/* #4942: the chip's label is the Update branch control. Its sizers stack the
+   three labels so the chip is as wide as the longest and never moves when the
+   words swap. Hover is one way to reveal it, focus and a tap are others. */
+.wait-chip-swap {
+  display: grid;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.wait-chip-swap > * {
+  grid-area: 1 / 1;
+}
+.wait-chip-swap[aria-disabled="true"] {
+  cursor: default;
+}
+.wait-chip-swap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.wait-chip-swap:not([aria-disabled="true"]):active .wait-chip-label {
+  color: var(--accent);
+  text-decoration: underline;
+}
+.wait-chip-sizer {
+  visibility: hidden;
+  height: 0;
+  overflow: hidden;
+  font-size: 0.78125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.wait-chip[data-swap="revealed"] {
+  border-color: var(--accent);
+}
+.wait-chip[data-swap="revealed"] .wait-chip-label {
+  color: var(--accent);
+}
+.wait-chip[data-swap="locked"] {
+  border-style: dashed;
+}
+
 /* The fuller explanation. Opacity, not display, so it stays the chip's
    aria-describedby target. Opens on hover and on keyboard focus (WCAG
    1.4.13), and floats above the row. */

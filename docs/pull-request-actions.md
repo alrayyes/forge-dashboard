@@ -105,7 +105,13 @@ said once, as the same one-line chip an armed auto-merge uses: "Waiting for CI"
 or "Checking for conflicts", with an Auto-merge button inside it where the
 server offers auto-merge (it does while CI runs). Armed, the button reads Cancel
 auto-merge and takes the same place. There is no locked Merge and no dashed
-placeholder, and Update branch stays a button beside the chip. The longer
+placeholder. Where an armed chip would sit beside Update branch, the two share
+the chip's one slot: the chip's label is the Update branch button. It reads
+"Waiting for CI" and swaps to "Update branch" on mouse hover, keyboard focus or
+a first touch tap, with no change in width. Enter, Space and a screen reader's
+click run it at once, a second touch tap runs it, and a locked Update branch
+keeps `aria-disabled` and gives its reason in the second line. Cancel auto-merge
+stays its own button. The longer
 explanation is the chip's tooltip, which opens on hover and on keyboard focus
 and is the chip's accessible description, so a keyboard, a touch screen and a
 screen reader all get it. At 1280 and 1024 pixels a waiting row with the

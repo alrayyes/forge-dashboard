@@ -71,44 +71,71 @@ async function open(page: Page, width: number) {
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 }
 
-for (const width of [1700, 1970]) {
-  test.describe(`armed row with Update branch at ${width}px (#4784)`, () => {
-    test('Update branch and the Auto-merge chip share a line and the row is as tall as a plain one', async ({
+// #4942: the chip's label is the Update branch control, so an armed, behind
+// row draws one chip where it drew a chip and a button. The row stays one line
+// from a phone-wide list up, and Cancel auto-merge stays its own button.
+const SWAP = 'Waiting for CI, update branch';
+
+for (const width of [1280, 1700, 1970]) {
+  test.describe(`armed row with Update branch at ${width}px (#4942)`, () => {
+    test('the chip is the one control, and the row is as tall as a plain one', async ({
       page,
     }) => {
       await open(page, width);
       const rows = page.locator('#pr-rows > .row');
-      const update = rows
-        .nth(1)
-        .getByRole('button', { name: 'Update branch', exact: true });
-      await expect(update).toBeVisible();
-      const chip = rows.nth(1).locator('.wait-chip');
-      const u = (await update.boundingBox())!;
-      const c = (await chip.boundingBox())!;
-      expect(Math.abs(u.y + u.height / 2 - (c.y + c.height / 2))).toBeLessThan(
-        4,
-      );
+      const armed = rows.nth(1);
+      await expect(armed.getByRole('button', { name: SWAP })).toBeVisible();
+      await expect(
+        armed.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        armed.getByRole('button', { name: 'Cancel auto-merge' }),
+      ).toBeVisible();
       const plain = (await rows.nth(0).boundingBox())!.height;
-      const armed = (await rows.nth(1).boundingBox())!.height;
-      expect(armed).toBeLessThanOrEqual(plain + 2);
+      const height = (await armed.boundingBox())!.height;
+      expect(height).toBeLessThanOrEqual(plain + 2);
     });
   });
 }
 
-test.describe('armed row with Update branch below 94rem of list width (#4784)', () => {
-  test('the chip keeps a line of its own, so the title keeps its width, and the row is one line taller at most', async ({
+test.describe('the shared slot is reachable without hover (#4942, #4531)', () => {
+  test('Enter on the focused chip runs Update branch, and Cancel is the next Tab', async ({
     page,
   }) => {
+    let updates = 0;
+    await page.route('**/api/v1/pull-requests/update-branch', (route) => {
+      updates++;
+      return route.fulfill({ status: 202 });
+    });
     await open(page, 1280);
-    const rows = page.locator('#pr-rows > .row');
-    const u = (await rows
-      .nth(1)
-      .getByRole('button', { name: 'Update branch', exact: true })
-      .boundingBox())!;
-    const c = (await rows.nth(1).locator('.wait-chip').boundingBox())!;
-    expect(c.y).toBeGreaterThan(u.y + u.height - 4);
-    const plain = (await rows.nth(0).boundingBox())!.height;
-    const armed = (await rows.nth(1).boundingBox())!.height;
-    expect(armed).toBeLessThanOrEqual(plain + 40);
+    const armed = page.locator('#pr-rows > .row').nth(1);
+    const swap = armed.getByRole('button', { name: SWAP });
+    await swap.focus();
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
+    await page.keyboard.press('Tab');
+    await expect(
+      armed.getByRole('button', { name: 'Cancel auto-merge' }),
+    ).toBeFocused();
+    await swap.focus();
+    await page.keyboard.press('Enter');
+    await expect.poll(() => updates).toBe(1);
+  });
+
+  test('a first tap reveals Update branch and the second runs it', async ({
+    page,
+  }) => {
+    let updates = 0;
+    await page.route('**/api/v1/pull-requests/update-branch', (route) => {
+      updates++;
+      return route.fulfill({ status: 202 });
+    });
+    await open(page, 390);
+    const armed = page.locator('#pr-rows > .row').nth(1);
+    const swap = armed.getByRole('button', { name: SWAP });
+    await swap.dispatchEvent('click', { detail: 1 });
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
+    expect(updates).toBe(0);
+    await swap.dispatchEvent('click', { detail: 1 });
+    await expect.poll(() => updates).toBe(1);
   });
 });
