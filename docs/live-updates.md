@@ -233,6 +233,19 @@ save its rate limit. A webhook that refreshes one repository doesn't, so the
 wording can stay until the next full pass. Only the third miss in a row shows
 the unreachable banner, and that health has no cause.
 
+While the cause is `slow`, the health also carries `rowsReadAt`: about when the
+held rows were read. Pull requests, Bots, Issues and Releases show it beside the
+chips as "Slow to answer, showing data from 3m ago", and the age counts on while
+you watch. It isn't `staleSince`: the forge still counts as reachable, so no row
+action locks. The line goes when the cause does.
+
+Read the age as approximate. It's normally the last full read that answered, and
+that includes one that couldn't read some repositories, whose rows are older. If
+webhooks made every repository current after a failed full refresh or a restart,
+it's the time of the last of those, so rows refreshed before it are older.
+Webhooks can also refresh single repositories later, so some rows can be newer.
+The age on an unreachable forge's rows is worked out the same way.
+
 After a restart the saved rows carry `cause: "starting"` (the same fact as
 `starting`) and the page reads "Starting up". A first fetch that hits its
 deadline, and a pass skipped behind it, don't change that at first: no error kind

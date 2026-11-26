@@ -11,7 +11,8 @@ type Health = Record<string, unknown>;
 
 const savedAt = () => new Date(Date.now() - 5 * 60_000).toISOString();
 const good = () => forgeHealth('github');
-const slow = () => forgeHealth('github', { cause: 'slow' });
+const slow = () =>
+  forgeHealth('github', { cause: 'slow', rowsReadAt: savedAt() });
 const starting = () =>
   forgeHealth('github', {
     reachable: false,
@@ -83,8 +84,10 @@ test.describe('forge cause (#4998)', () => {
     await serve(page, state);
     await page.setViewportSize({ width: 360, height: 800 });
     await page.goto('/pull-requests.html');
+    const age = page.locator('#forge-health .forge-health-stale');
 
     await expect(status(page)).toHaveText('Slow to answer');
+    await expect(age).toHaveText('Slow to answer, showing data from 5m ago');
     await expect(page.locator('#forge-health')).toContainText(
       'GitHub slow to answer',
     );
@@ -99,6 +102,7 @@ test.describe('forge cause (#4998)', () => {
     await expect(page.locator('#forge-health')).not.toContainText(
       'slow to answer',
     );
+    await expect(age).toHaveCount(0);
   });
 
   test('a forge that goes from slow to down shows the unreachable banner', async ({
