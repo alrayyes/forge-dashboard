@@ -6,10 +6,9 @@ import (
 	"net/url"
 	"time"
 
-	ghsdk "github.com/google/go-github/v75/github"
-
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 	"github.com/alrayyes/forge-dashboard/internal/requestlog"
+	ghsdk "github.com/google/go-github/v75/github"
 )
 
 // bearerTransport puts the source's current token on every request, so a token
@@ -28,7 +27,12 @@ func (t bearerTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	clone := req.Clone(req.Context())
 	clone.Header.Set("Authorization", "Bearer "+token)
 
-	return t.base.RoundTrip(clone)
+	resp, err := t.base.RoundTrip(clone)
+	if err != nil {
+		return nil, fmt.Errorf("github: send request: %w", err)
+	}
+
+	return resp, nil
 }
 
 // NewBearerClient returns a Client that reads as a linked GitHub user (#4576).

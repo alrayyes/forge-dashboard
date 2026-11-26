@@ -2,6 +2,7 @@ package github_test
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -45,7 +46,7 @@ func TestBearerClient_Fetch_AsksTheSourceForATokenOnEveryRequest(t *testing.T) {
 	client := github.NewBearerClient(func() (string, error) {
 		n++
 
-		return "ghu-" + string(rune('0'+n)), nil
+		return fmt.Sprintf("ghu-%d", n), nil
 	}, "octocat", srv.URL)
 
 	result := client.Fetch(t.Context())

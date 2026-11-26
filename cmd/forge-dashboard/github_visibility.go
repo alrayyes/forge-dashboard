@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -57,7 +58,7 @@ func (v *visibleRepos) forInstallation(id int64) func(context.Context) (map[stri
 		}
 
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list the repos the linked user can read: %w", err)
 		}
 
 		v.mu.Lock()
