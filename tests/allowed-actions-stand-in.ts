@@ -173,15 +173,16 @@ export function installAllowedActionsStandIn(
           pr.status = structuredClone(answer().status);
         // A mock that states its own kind is left alone.
         if (pr.kind === undefined) pr.kind = answer().kind;
-        // The Out of date answer, from the same table (#4993). It depends on
-        // behind and empty alone, so it is looked up on those and a mock with
-        // an unusual head branch or merge status still gets it.
-        if (pr.outOfDate === undefined)
-          pr.outOfDate = lookup(table, {
-            forge: pr.forge,
-            behind: pr.behind,
-            empty: pr.empty,
-          }).outOfDate;
+        // The Out of date answer (#4993), from the same table. Always set: it
+        // follows from behind and empty alone, and a spec that spreads a
+        // generated pull request and changes `behind` would otherwise keep the
+        // old answer. Looked up with a forge the table has, so a mock with a
+        // made-up forge id still gets it.
+        pr.outOfDate = lookup(table, {
+          forge: 'github',
+          behind: pr.behind,
+          empty: pr.empty,
+        }).outOfDate;
       }
     // The server flags a bot's housekeeping issue and counts the rest
     // (#980). A mocked issue that states its own flag is left alone.
