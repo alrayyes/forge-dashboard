@@ -1,6 +1,13 @@
 /// <reference types="bun" />
 import { expect, test } from 'bun:test';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import {
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import path from 'node:path';
 
 const root = path.join(import.meta.dir, '..');
@@ -33,6 +40,24 @@ const matches = (name: string, file: string) =>
 // A source ending in / is a directory: any file in it must match.
 const probe = (p: string) => (p.endsWith('/') ? `${p}probe.file` : p);
 
+// The scans read only tracked files: agent worktrees under .claude/ hold whole
+// copies of the repo, and walking them outlasted bun's 5 s default (#5028).
+// Cheaper beats a longer timeout, so the default still ends a hung test.
+const tracked = Bun.spawnSync(['git', 'ls-files'], { cwd: root })
+  .stdout.toString()
+  .split('\n')
+  .filter(Boolean);
+
+const trackedSources = (suffix: string, skip: string[]) =>
+  tracked.filter(
+    (f) =>
+      f.endsWith(suffix) &&
+      !f
+        .split('/')
+        .slice(0, -1)
+        .some((d) => skip.includes(d)),
+  );
+
 function dockerCopySources(): string[] {
   const out: string[] = [];
   for (const line of read('Dockerfile').split('\n')) {
@@ -47,31 +72,22 @@ function dockerCopySources(): string[] {
 
 function goEmbedTargets(): string[] {
   const out: string[] = [];
-  const walk = (dir: string) => {
-    for (const e of readdirSync(path.join(root, dir), {
-      withFileTypes: true,
-    })) {
-      const rel = path.posix.join(dir, e.name);
-      if (e.isDirectory()) {
-        if (!['node_modules', '.git', 'web'].includes(e.name)) walk(rel);
-      } else if (e.name.endsWith('.go')) {
-        for (const m of read(rel).matchAll(/^\/\/go:embed\s+(.+)$/gm)) {
-          for (let t of m[1].trim().split(/\s+/)) {
-            t = t.replace(/^all:/, '');
-            const p = path.posix.join(dir, t);
-            if (t.includes('*')) {
-              const g = new Bun.Glob(p);
-              for (const f of readdirSync(
-                path.join(root, dir, path.posix.dirname(t)),
-              ).map((f) => path.posix.join(dir, path.posix.dirname(t), f)))
-                if (g.match(f)) out.push(f);
-            } else out.push(p);
-          }
-        }
+  for (const rel of trackedSources('.go', ['web'])) {
+    const dir = path.posix.dirname(rel);
+    for (const m of read(rel).matchAll(/^\/\/go:embed\s+(.+)$/gm)) {
+      for (let t of m[1].trim().split(/\s+/)) {
+        t = t.replace(/^all:/, '');
+        const p = path.posix.join(dir, t);
+        if (t.includes('*')) {
+          const g = new Bun.Glob(p);
+          for (const f of readdirSync(
+            path.join(root, dir, path.posix.dirname(t)),
+          ).map((f) => path.posix.join(dir, path.posix.dirname(t), f)))
+            if (g.match(f)) out.push(f);
+        } else out.push(p);
       }
     }
-  };
-  walk('.');
+  }
   return out;
 }
 
@@ -163,42 +179,49 @@ test('Go jobs run for a root-level Go file and for their scripts', () => {
 // filepath.Join("..", ...). Derived, so the next one is caught.
 function goTestReads(): string[] {
   const out = new Set<string>();
-  const walk = (dir: string) => {
-    for (const e of readdirSync(path.join(root, dir), {
-      withFileTypes: true,
-    })) {
-      const rel = path.posix.join(dir, e.name);
-      if (e.isDirectory()) {
-        if (!['node_modules', '.git', 'web', 'integration'].includes(e.name))
-          walk(rel);
-        continue;
-      }
-      if (!e.name.endsWith('_test.go')) continue;
-      const src = read(rel);
-      const refs: string[] = [];
-      for (const m of src.matchAll(/"((?:\.\.\/)+[^"\s]*)"/g)) refs.push(m[1]);
-      for (const m of src.matchAll(
-        /filepath\.Join\(((?:\s*"[^"]*"\s*,?)+)\)/g,
-      )) {
-        const parts = [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
-        if (parts[0] === '..') refs.push(parts.join('/'));
-      }
-      for (const ref of refs) {
-        const resolved = path.posix.normalize(path.posix.join(dir, ref));
-        if (resolved.startsWith('..')) continue;
-        let stat: ReturnType<typeof statSync>;
-        try {
-          stat = statSync(path.join(root, resolved));
-        } catch {
-          continue; // not a path that exists: a string about paths
-        }
-        out.add(stat.isDirectory() ? `${resolved}/probe.file` : resolved);
-      }
+  for (const rel of trackedSources('_test.go', ['web', 'integration'])) {
+    const dir = path.posix.dirname(rel);
+    const src = read(rel);
+    const refs: string[] = [];
+    for (const m of src.matchAll(/"((?:\.\.\/)+[^"\s]*)"/g)) refs.push(m[1]);
+    for (const m of src.matchAll(/filepath\.Join\(((?:\s*"[^"]*"\s*,?)+)\)/g)) {
+      const parts = [...m[1].matchAll(/"([^"]*)"/g)].map((x) => x[1]);
+      if (parts[0] === '..') refs.push(parts.join('/'));
     }
-  };
-  walk('.');
+    for (const ref of refs) {
+      const resolved = path.posix.normalize(path.posix.join(dir, ref));
+      if (resolved.startsWith('..')) continue;
+      let stat: ReturnType<typeof statSync>;
+      try {
+        stat = statSync(path.join(root, resolved));
+      } catch {
+        continue; // not a path that exists: a string about paths
+      }
+      out.add(stat.isDirectory() ? `${resolved}/probe.file` : resolved);
+    }
+  }
   return [...out].sort();
 }
+
+const goTestReadsBefore = goTestReads();
+
+// Agent worktrees under .claude/ hold whole copies of the repo. Reading them
+// made these scans outlast bun's 5 s default on a busy machine (#5028).
+test('the source scans ignore files git does not track', () => {
+  // A dot directory, so a `go test ./...` running beside this skips it.
+  const dir = mkdtempSync(path.join(root, '.scan-probe-'));
+  const name = path.basename(dir);
+  try {
+    writeFileSync(
+      path.join(dir, 'copy_test.go'),
+      '//go:embed copy_test.go\nvar x = "../README.md"\n',
+    );
+    expect(goEmbedTargets()).not.toContain(`${name}/copy_test.go`);
+    expect(goTestReads()).toEqual(goTestReadsBefore);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test('every file a Go test reads from outside its package is a go test input', () => {
   const reads = goTestReads();
@@ -288,11 +311,6 @@ for (const [name, files] of Object.entries(mustMatch)) {
 // files, and `internal/api/static/**` is equivalent to `internal/**`; the
 // first would stop being true the day cmd/ gains a fixture, and this test
 // would then fail for the narrower list.
-const tracked = Bun.spawnSync(['git', 'ls-files'], { cwd: root })
-  .stdout.toString()
-  .split('\n')
-  .filter(Boolean);
-
 test('Go jobs run for every tracked Go file', () => {
   const goFiles = tracked.filter((f) => f.endsWith('.go'));
   expect(goFiles.length).toBeGreaterThan(100);
