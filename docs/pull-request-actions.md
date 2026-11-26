@@ -297,9 +297,11 @@ heavier text, so a stale pull request stands out. It is readable in both themes
 Next to Out of date in the Merge group, the Bots page draws a chip that reads
 `N behind the base branch` (the count first). It lists only the green bot pull
 requests that are behind with something left to merge, so its number is the one
-in the menu pill for the Bots page (`navCounts.bots.behind`). Drafts and hidden
-pull requests are left out of both, even while Show drafts or Show hidden lists
-them. Out of date stays wider and lists them at any CI state.
+in the menu pill for the Bots page (`navCounts.bots.behind`). Both read one
+rule on the server, sent on each pull request as `greenBehindBase`, so the page
+holds no copy of it. Drafts and hidden pull requests are left out of both, even
+while Show drafts or Show hidden lists them. Out of date stays wider and lists
+them at any CI state.
 
 The chip and Out of date are one choice, like the other pills in a group:
 pressing one lets go of the other. Pressing the chip again clears it, it turns

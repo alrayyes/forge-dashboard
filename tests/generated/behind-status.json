@@ -66,6 +66,7 @@
       "readyToMerge": false,
       "needsReview": false,
       "failingCi": false,
+      "greenBehindBase": false,
       "reviewRequestedFromMe": false,
       "autoMerge": {
         "state": "waiting",
@@ -145,6 +146,7 @@
       "readyToMerge": true,
       "needsReview": false,
       "failingCi": false,
+      "greenBehindBase": false,
       "reviewRequestedFromMe": false,
       "autoMerge": {
         "state": "waiting",

@@ -41,6 +41,15 @@ const withBase = (pullRequests: unknown[]) =>
     behindBase: p.behind,
   }));
 
+// The server sends each pull request's own greenBehindBase, the rule the menu
+// pill counts. The generated nav-counts table is that rule here, so the mock
+// reads the fact from it instead of repeating the conditions (#4990).
+const withFact = (pullRequests: unknown[]) =>
+  (pullRequests as Record<string, unknown>[]).map((p) => ({
+    ...p,
+    greenBehindBase: navCountsFor(withBase([p]), 0).bots.behind === 1,
+  }));
+
 function mockDashboard(page: Page, pullRequests: unknown[]) {
   return page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
@@ -49,7 +58,7 @@ function mockDashboard(page: Page, pullRequests: unknown[]) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests,
+        pullRequests: withFact(pullRequests),
         issues: [],
         openIssueCount: 0,
         navCounts: navCountsFor(withBase(pullRequests), 0),
