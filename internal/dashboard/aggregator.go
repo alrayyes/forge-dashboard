@@ -1080,6 +1080,7 @@ func markUnreachable(h ForgeHealth) ForgeHealth {
 	h.Error = HumanizeForgeError(kind)
 	h.ErrorKind = kind
 	h.Cause = ""
+	h.RowsReadAt = nil
 
 	return h
 }
@@ -1141,12 +1142,13 @@ func (a *Aggregator) joinPass() {
 	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0))
 }
 
-// notSlow is h without ForgeCauseSlow, which is about the latest pass only: a
+// notSlow is h without ForgeCauseSlow and its RowsReadAt, which are about the latest pass only: a
 // pass that does not ask the forge must not inherit it. ForgeCauseStarting
 // stays, since nothing has answered yet.
 func notSlow(h ForgeHealth) ForgeHealth {
 	if h.Cause == ForgeCauseSlow {
 		h.Cause = ""
+		h.RowsReadAt = nil
 	}
 
 	return h
@@ -1311,7 +1313,8 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 	if !missed && r.Health.ErrorKind != ForgeErrorUpstream || streaks[forge] >= ForgeFailureThreshold {
 		return r, false
 	}
-	if _, good := goodAt[forge]; !good {
+	readAt, good := goodAt[forge]
+	if !good {
 		return r, false
 	}
 	prev, ok := healthOf(earlier, forge)
@@ -1321,6 +1324,7 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 	held := Result{Health: notSlow(prev)}
 	if missed {
 		held.Health.Cause = ForgeCauseSlow
+		held.Health.RowsReadAt = &readAt
 	}
 	held.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
 	held.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
@@ -1820,6 +1824,7 @@ func clearMarkWhenFresh(forges []ForgeHealth, repos []Repo, forge Forge) (out []
 	out = slices.Clone(forges)
 	out[i].Starting = false
 	out[i].Cause = ""
+	out[i].RowsReadAt = nil
 	out[i].Reachable = true
 	out[i].StaleSince = nil
 	out[i].Error = ""

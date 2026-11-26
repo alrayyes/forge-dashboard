@@ -60,6 +60,7 @@ func TestAggregator_AHeldUpstreamErrorAfterAMissDropsTheSlowCause(t *testing.T) 
 	h := health(agg.Get(), dashboard.ForgeGitHub)
 	require.True(t, h.Reachable, "the 5xx is held")
 	assert.Empty(t, h.Cause)
+	assert.Nil(t, h.RowsReadAt)
 }
 
 // A pass that asks nothing because the budget is spent, or at its reserve, is
@@ -108,6 +109,7 @@ func TestAggregator_APassHeldOnTheBudgetDropsTheSlowCause(t *testing.T) {
 			h := health(agg.Get(), dashboard.ForgeGitHub)
 			require.True(t, h.Reachable, "the held rows stay")
 			assert.Empty(t, h.Cause)
+			assert.Nil(t, h.RowsReadAt)
 		})
 	}
 }
