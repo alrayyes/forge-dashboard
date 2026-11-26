@@ -393,7 +393,7 @@ func unconfirmedConflictMerge(pr PullRequest, renovateAuthors []string) ActionAv
 // something to merge. Dependabot and Renovate pull requests use their own
 // rebase instead; release-please keeps this one.
 func updateBranchAvailability(pr PullRequest, renovateAuthors []string) (ActionAvailability, bool) {
-	if !pr.Behind || pr.Empty {
+	if !pr.IsOutOfDate() {
 		return ActionAvailability{}, false
 	}
 	if (isDependabotPR(pr) || isRenovatePR(pr, renovateAuthors)) && !isReleasePleasePR(pr) && !editedDependabotPR(pr) {

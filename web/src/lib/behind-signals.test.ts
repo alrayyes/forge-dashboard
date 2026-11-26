@@ -8,8 +8,7 @@ import {
 } from './behind-signals';
 
 const behindRow = {
-  behind: true,
-  empty: false,
+  outOfDate: true,
   onRow: true,
   conflictShown: false,
   liveUpdateBranch: false,
@@ -45,9 +44,8 @@ describe('showsBehindPill', () => {
     );
   });
 
-  test('a row that is not behind, or is empty, never draws it', () => {
-    expect(showsBehindPill({ ...behindRow, behind: false })).toBe(false);
-    expect(showsBehindPill({ ...behindRow, empty: true })).toBe(false);
+  test('a row the server does not call out of date never draws it', () => {
+    expect(showsBehindPill({ ...behindRow, outOfDate: false })).toBe(false);
   });
 
   test('a confirmed conflict or a live Update branch still drops it', () => {
