@@ -13,7 +13,11 @@ import { join } from 'node:path';
 // Sharing runs wouldn't shorten any one of them.
 const LINT_TIMEOUT_MS = 60_000;
 
-const lint = (operationId: string, schema: string) => {
+const lint = (
+  operationId: string,
+  schema: string,
+  { command = ['bunx', 'spectral'], ruleset = '.spectral.yaml' } = {},
+) => {
   const dir = mkdtempSync(join(tmpdir(), 'spectral-'));
   try {
     const file = join(dir, 'spec.yaml');
@@ -36,11 +40,20 @@ components:
       type: object
 `,
     );
+    // -q keeps a "No results" line from following the JSON on a clean run.
     const p = Bun.spawnSync(
-      ['bunx', 'spectral', 'lint', file, '-r', '.spectral.yaml', '-f', 'json'],
+      [...command, 'lint', file, '-r', ruleset, '-f', 'json', '-q'],
       { cwd: join(import.meta.dir, '..') },
     );
-    const out = JSON.parse(p.stdout.toString() || '[]') as {
+    const stdout = p.stdout.toString();
+    // 0 and 1 are verdicts, and each comes with JSON. A binary that can't
+    // start also exits 1, but prints nothing.
+    if ((p.exitCode !== 0 && p.exitCode !== 1) || !stdout) {
+      throw new Error(
+        `Spectral didn't run (exit ${p.exitCode}): ${p.stderr.toString()}`,
+      );
+    }
+    const out = JSON.parse(stdout) as {
       code: string;
       severity: number;
       message: string;
@@ -87,6 +100,46 @@ describe('spectral operationId shape', () => {
       expect(errors.map((r) => r.code)).toContain(
         'no-operation-wrapper-collision',
       );
+    },
+    LINT_TIMEOUT_MS,
+  );
+});
+
+describe('spectral lint() helper', () => {
+  test(
+    'throws with stderr when the ruleset fails to load',
+    () => {
+      expect(() =>
+        lint('ok', 'Other', { ruleset: 'no-such-ruleset.yaml' }),
+      ).toThrow(/no-such-ruleset\.yaml/);
+    },
+    LINT_TIMEOUT_MS,
+  );
+
+  // A missing binary exits 1, the same status as a run that found errors.
+  test('throws with stderr when Spectral fails to start', () => {
+    const command = [
+      process.execPath,
+      '-e',
+      'console.error("cannot start"); process.exit(1)',
+    ];
+    expect(() => lint('ok', 'Other', { command })).toThrow(/cannot start/);
+  });
+
+  test(
+    'returns an empty list when there are no results at all',
+    () => {
+      const dir = mkdtempSync(join(tmpdir(), 'spectral-rules-'));
+      try {
+        const ruleset = join(dir, 'ruleset.yaml');
+        writeFileSync(
+          ruleset,
+          "rules: { has-info: { given: '$', then: { field: info, function: truthy } } }\n",
+        );
+        expect(lint('ok', 'Other', { ruleset })).toEqual([]);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
     },
     LINT_TIMEOUT_MS,
   );
