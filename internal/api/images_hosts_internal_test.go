@@ -242,3 +242,67 @@ func TestIsSignedAttachment_RefusesPathsThatEscapeThePrefix(t *testing.T) {
 		assert.Equal(t, want, isSignedAttachment(prefix, "", raw), raw)
 	}
 }
+
+// Gravatar and Libravatar serve an avatar a forge only links to, on hosts that
+// are not the forge's. They are taken for an avatar and nothing else, by exact
+// name over https, with no token and no private address.
+func TestAvatarProxyFor_TakesFederatedAvatarHostsForAvatarsOnly(t *testing.T) {
+	t.Parallel()
+	creds := settings.Credentials{ForgejoURL: "https://git.example", ForgejoToken: "saved-token"}
+	listed := []string{
+		"https://gravatar.com/avatar/abc?s=64",
+		"https://secure.gravatar.com/avatar/abc?s=64",
+		"https://seccdn.libravatar.org/avatar/abc?s=64",
+		"https://cdn.libravatar.org/avatar/abc?s=64",
+	}
+	refused := []string{
+		"https://www.gravatar.com/avatar/abc",
+		"https://gravatar.com.evil.test/avatar/abc",
+		"https://evilgravatar.com/avatar/abc",
+		"https://libravatar.org/avatar/abc",
+		"https://evil.test/a.png",
+		"http://secure.gravatar.com/avatar/abc",
+		"https://user:pw@secure.gravatar.com/avatar/abc",
+		"https://secure.gravatar.com:8443/avatar/abc",
+	}
+	for _, forge := range []string{"forgejo", "github"} {
+		base, serr := imageProxyFor(Deps{}, forge, creds)
+		require.Nil(t, serr)
+		for _, raw := range listed {
+			require.NotErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar takes %s", forge, raw)
+			require.ErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageEmbedded, raw), raw), imageproxy.ErrHostNotListed, "%s embedded refuses %s", forge, raw)
+		}
+		for _, raw := range refused {
+			require.ErrorIs(t, cancelledFetch(avatarProxyFor(Deps{}, base, imageAvatar, raw), raw), imageproxy.ErrHostNotAllowed, "%s avatar refuses %s", forge, raw)
+		}
+	}
+}
+
+func TestAvatarProxyFor_FederatedProxyIsTokenlessPublicAndHttpsOnly(t *testing.T) {
+	t.Parallel()
+	creds := settings.Credentials{ForgejoURL: "http://git.example:3000", ForgejoToken: "saved-token"}
+	base, serr := imageProxyFor(Deps{}, "forgejo", creds)
+	require.Nil(t, serr)
+	proxy := avatarProxyFor(Deps{}, base, imageAvatar, "https://secure.gravatar.com/avatar/abc")
+	require.NotSame(t, base, proxy)
+	cfg := proxy.Config()
+	assert.ElementsMatch(t, []string{"gravatar.com", "secure.gravatar.com", "seccdn.libravatar.org", "cdn.libravatar.org"}, cfg.Hosts)
+	assert.Equal(t, "https", cfg.Scheme, "https even when the saved instance is plain http")
+	assert.Empty(t, cfg.Token)
+	assert.Empty(t, cfg.TokenHost)
+	assert.False(t, cfg.AllowLocal)
+	assert.Equal(t, imageproxy.MaxAvatarBytes, imageAvatar.maxBytes())
+	assert.Equal(t, 512<<10, imageproxy.MaxAvatarBytes)
+
+	// The forge's own avatar keeps the forge's proxy.
+	assert.Same(t, base, avatarProxyFor(Deps{}, base, imageAvatar, "http://git.example:3000/avatars/abc"))
+	assert.Same(t, base, avatarProxyFor(Deps{}, base, imageAvatar, "%zz"))
+}
+
+func cancelledFetch(p *imageproxy.Proxy, raw string) error {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := p.Fetch(ctx, raw)
+
+	return err //nolint:wrapcheck // the test reads the kind
+}

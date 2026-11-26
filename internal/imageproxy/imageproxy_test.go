@@ -450,7 +450,7 @@ func TestRefuseNonPublic_AllowsGloballyReachableIETFProtocolRanges(t *testing.T)
 	}
 }
 
-// A plain miss on the host list is routine (a Gravatar avatar, say). Anything
+// A plain miss on the host list is routine (another site's avatar, say). Anything
 // else the proxy refuses, such as user info or another scheme, is a probe, and
 // the server logs the two at different levels.
 func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
@@ -472,6 +472,21 @@ func TestProxy_OnlyAPlainHostMissIsNotListed(t *testing.T) {
 		_, err := p.Fetch(t.Context(), raw)
 		require.ErrorIs(t, err, imageproxy.ErrHostNotAllowed, name)
 		require.NotErrorIs(t, err, imageproxy.ErrHostNotListed, name)
+	}
+}
+
+// Host names are matched ignoring ASCII case and nothing wider.
+func TestFetch_FoldsOnlyASCIICaseInHostNames(t *testing.T) {
+	t.Parallel()
+	p := imageproxy.New(imageproxy.Config{Hosts: []string{"Img.Example", "k.example"}, Scheme: "https"})
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	_, err := p.Fetch(ctx, "https://IMG.example/a.png")
+	require.NotErrorIs(t, err, imageproxy.ErrHostNotAllowed)
+	for _, raw := range []string{"https://İmg.example/a.png", "https://K.example/a.png"} {
+		_, err := p.Fetch(ctx, raw)
+		require.ErrorIs(t, err, imageproxy.ErrHostNotListed, "%q", raw)
 	}
 }
 

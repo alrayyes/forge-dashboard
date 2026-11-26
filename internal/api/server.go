@@ -68,6 +68,9 @@ type Deps struct {
 	// ImageOrigins replaces, by forge, the scheme and host of its signed
 	// attachment prefix. Only tests set it.
 	ImageOrigins map[string]string
+	// FederatedAvatars replaces the federated avatar hosts and their proxy.
+	// Only tests set it.
+	FederatedAvatars *FederatedAvatars
 	// ImageConcurrency is how many image fetches may run upstream at once,
 	// ImageQueueWait how long another waits for a slot before a 503, and
 	// ImageCacheTTL how long a fetched image is reused. Zero means the

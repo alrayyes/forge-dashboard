@@ -115,7 +115,7 @@ with a placeholder while it loads.
 
 ## Privacy
 
-The dashboard talks to your forges and to nothing else, with two exceptions.
+The dashboard talks to your forges and to nothing else, with three exceptions.
 The first isn't optional but sends nothing about you: when GitHub can't be
 reached, it reads GitHub's public status page (`www.githubstatus.com`) to say
 whether GitHub reports an incident, at most once a minute and never while GitHub
@@ -123,7 +123,14 @@ works. That request carries no token, account, or repo name, but
 githubstatus.com still sees the server's IP address and the `User-Agent` of the
 request, and there is no setting to turn it off.
 
-The second is opt-in. Forgejo has no dependency alerts, so the dashboard can
+The second is avatars. When a forge gives an avatar address on Gravatar
+(`gravatar.com`, `secure.gravatar.com`) or Libravatar (`seccdn.libravatar.org`,
+`cdn.libravatar.org`), the server fetches that image. Those services receive the
+avatar hash in the address, the server's IP address and the `User-Agent` of the
+request, and no token. Your browser still only talks to the dashboard, and there
+is no setting to turn this off.
+
+The third is opt-in. Forgejo has no dependency alerts, so the dashboard can
 match a repo's lock files against the public [OSV](https://osv.dev) database
 instead. That is off by default. Set `OSV_ADVISORIES=on` to turn it on.
 

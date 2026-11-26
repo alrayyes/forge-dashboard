@@ -100,8 +100,23 @@
     <h2>Third-party services</h2>
     <ul>
       <li>
-        None. The fonts are served by this app itself, so a page makes no
-        request to any other host and your IP address goes nowhere else.
+        Your browser only talks to this dashboard. The fonts and images are
+        served by this app itself, so a page makes no request to any other host.
+      </li>
+      <li>
+        The server fetches avatars from Gravatar and Libravatar when a forge
+        gives such an address. They receive the avatar hash in the address, and
+        the server's IP address and <span class="mono">User-Agent</span>.
+      </li>
+      <li>
+        When GitHub can't be reached, the server reads GitHub's public status
+        page, which sees the server's IP address and
+        <span class="mono">User-Agent</span>.
+      </li>
+      <li>
+        If the operator turns on OSV advisories (off by default), the server
+        sends package names and versions from Forgejo lock files to
+        <span class="mono">api.osv.dev</span>.
       </li>
       <li>No analytics, tracking, or telemetry of any kind.</li>
     </ul>

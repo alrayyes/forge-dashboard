@@ -407,8 +407,11 @@ can't fire a tracking pixel when the dialog opens.
   by `web/src/lib/avatar.ts`, which names the forge of the row the image
   belongs to rather than guessing it from the host. The server applies that
   forge's list: GitHub's fixed hosts, or the saved Forgejo instance, which
-  refuses a host that isn't its own. A Forgejo avatar on a third-party host,
-  Gravatar and Libravatar included, therefore shows the initial instead.
+  refuses a host that isn't its own. An avatar alone may also come from
+  Gravatar or Libravatar (`gravatar.com`, `secure.gravatar.com`,
+  `seccdn.libravatar.org`, `cdn.libravatar.org`), fetched through a separate
+  HTTPS-only proxy with no token and no private addresses. An avatar on any
+  other third-party host shows the initial instead.
 - The page repeats the rules in `web/src/lib/image-source.ts` only to skip a
   pointless request and show a link instead. It reads them from each forge's
   image policy in `web/src/lib/forges.ts` (fixed hosts or the item's own
