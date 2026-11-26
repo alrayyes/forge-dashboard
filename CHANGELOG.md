@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.136.0](https://github.com/alrayyes/forge-dashboard/compare/v9.135.2...v9.136.0) (2026-11-26)
+
+
+### Features
+
+* **web:** say when a forge is slow or starting instead of Live ([#5021](https://github.com/alrayyes/forge-dashboard/issues/5021)) ([4ca22c5](https://github.com/alrayyes/forge-dashboard/commit/4ca22c5c235a509b8e9fc9a279fdc1279d2ae3e4))
+
 ## [9.135.2](https://github.com/alrayyes/forge-dashboard/compare/v9.135.1...v9.135.2) (2026-11-26)
 
 
