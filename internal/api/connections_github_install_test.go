@@ -148,6 +148,36 @@ func TestGitHubInstalled_WithoutAConnectedAccount_StoresNothing(t *testing.T) {
 	assert.Empty(t, c.installationRows(t))
 }
 
+func TestGitHubInstalled_SavingAnInstallation_RebuildsTheRunningSources(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+	before := c.builds.Load()
+
+	resp := c.installed(t, "installation_id=200&setup_action=install")
+	defer func() { _ = resp.Body.Close() }()
+
+	require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+	assert.Greater(t, c.builds.Load(), before)
+}
+
+func TestGitHubInstalled_AStoreError_AnswersAnErrorAndRebuildsNothing(t *testing.T) {
+	t.Parallel()
+
+	c := newGHConnFixture(t, true)
+	c.connect(t)
+	_, err := c.db.ExecContext(t.Context(), `DROP TABLE github_app_installations`)
+	require.NoError(t, err)
+	before := c.builds.Load()
+
+	resp := c.installed(t, "installation_id=200&setup_action=install")
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, "save_failed", setupErrorOf(t, resp))
+	assert.Equal(t, before, c.builds.Load())
+}
+
 func TestGitHubInstalled_WithoutAnOAuthClient_SaysNotConnected(t *testing.T) {
 	t.Parallel()
 

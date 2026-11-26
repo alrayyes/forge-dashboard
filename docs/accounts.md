@@ -298,7 +298,11 @@ and puts focus on that input. The page holds no copy of those rules.
   Installations are kept one per row, so a second account or org can be added
   through the App's Setup URL without pasting an ID; the existing installation
   ID is carried over as the first row when you upgrade. Every enabled row is
-  read with its own installation token and the results are merged.
+  read with its own installation token and the results are merged. Finishing
+  the Setup URL page starts reading the new installation at once, with no
+  restart. Running it again for an installation you already have changes
+  nothing but its account name: a suspended or disabled one stays that way
+  until GitHub's `unsuspend` webhook lifts the suspension.
   Installation webhooks keep the rows current: an installation removed on
   GitHub drops its row, and a suspended one is skipped until GitHub lifts the suspension.
   A new installation is added from the webhook only when GitHub lists it for

@@ -82,8 +82,8 @@ func handleGitHubConnectionCallback(deps Deps) http.HandlerFunc {
 	}
 }
 
-// rebuildGitHubSources swaps the running sources for ones built after a link
-// or an unlink. Which credential reads is chosen when the sources are built, so
+// rebuildGitHubSources swaps the running sources for ones built after a link,
+// an unlink or a saved installation. Which credential reads is chosen when the sources are built, so
 // without this the running source keeps the old one until the next settings
 // save or restart. Nothing saved reads as empty settings: a linked account can
 // read with no other setting.
@@ -187,6 +187,7 @@ func handleGitHubInstalled(deps Deps) http.HandlerFunc {
 			return
 		}
 
+		rebuildGitHubSources(r.Context(), deps)
 		http.Redirect(w, r, setupPath, http.StatusSeeOther)
 	}
 }
