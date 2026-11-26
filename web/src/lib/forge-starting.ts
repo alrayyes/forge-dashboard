@@ -79,8 +79,6 @@ export function healthSentence(name: string, h: StartingHealth): string {
 // rows are current. `ago` is the formatted age.
 export function staleNote(h: StartingHealth, ago: string): string | null {
   if (h.starting) return `Starting up, showing data from ${ago}`;
-  if (h.cause === 'slow')
-    return h.staleSince ? `Slow to answer, showing data from ${ago}` : null;
   if (isUnreachable(h) && h.staleSince) return `Showing data from ${ago}`;
   return null;
 }

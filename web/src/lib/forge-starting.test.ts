@@ -178,10 +178,9 @@ describe('a slow forge (#4998)', () => {
     expect(isOutage(slow)).toBe(false);
   });
 
-  test('says so beside the age of the rows, when it has one', () => {
-    expect(
-      staleNote({ ...slow, staleSince: '2030-01-01T00:00:00Z' }, '3m ago'),
-    ).toBe('Slow to answer, showing data from 3m ago');
+  // The server holds a slow forge's last good health, which has no
+  // staleSince, so there is no age to word.
+  test('draws no age line', () => {
     expect(staleNote(slow, '3m ago')).toBeNull();
   });
 });
