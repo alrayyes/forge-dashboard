@@ -101,7 +101,7 @@ func (pr pullRequestView) countsAsBehind() bool {
 	return !pr.Draft && !pr.Hidden &&
 		pr.Kind == dashboard.KindDependency &&
 		pr.CI == dashboard.CISuccess &&
-		pr.Behind && !pr.Empty
+		pr.IsOutOfDate()
 }
 
 // hiddenDraftCounts is how many drafts the board left out, per page that lists

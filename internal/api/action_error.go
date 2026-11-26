@@ -102,7 +102,7 @@ func notOfferedRefusal(action dashboard.ActionName, pr dashboard.PullRequest) da
 		return refusal
 	}
 	if action == dashboard.ActionUpdateBranch {
-		if !pr.Behind || pr.Empty {
+		if !pr.IsOutOfDate() {
 			return dashboard.ActionRefusal{Code: dashboard.ActionAlreadyUpToDate, Message: "Already up to date with the base branch."}
 		}
 
