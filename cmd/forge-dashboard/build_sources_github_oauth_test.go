@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -29,15 +30,43 @@ type linkedGitHub struct {
 	mu        sync.Mutex
 	graphqlAs []string
 	savedThen []string
+	login     string
+	listCalls int
+	listFails bool
+}
+
+func (f *linkedGitHub) setLogin(login string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.login = login
+}
+
+func (f *linkedGitHub) failList(fails bool) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.listFails = fails
+}
+
+func (f *linkedGitHub) listCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return f.listCalls
 }
 
 func newLinkedGitHub(t *testing.T) *linkedGitHub {
 	t.Helper()
 
-	f := &linkedGitHub{}
+	f := &linkedGitHub{login: "octocat"}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login/oauth/access_token", func(w http.ResponseWriter, r *http.Request) {
 		_ = r.ParseForm()
+		if r.PostForm.Get("grant_type") == "authorization_code" {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "ghu-3", "refresh_token": "ghr-3", "token_type": "bearer", "expires_in": 28800})
+
+			return
+		}
 		if r.PostForm.Get("refresh_token") != "ghr-1" {
 			http.Error(w, `{"error":"bad_refresh_token"}`, http.StatusBadRequest)
 
@@ -47,7 +76,10 @@ func newLinkedGitHub(t *testing.T) *linkedGitHub {
 		_ = json.NewEncoder(w).Encode(map[string]any{"access_token": "ghu-2", "refresh_token": "ghr-2", "token_type": "bearer", "expires_in": 28800})
 	})
 	mux.HandleFunc("/user", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]string{"login": "octocat"})
+		f.mu.Lock()
+		login := f.login
+		f.mu.Unlock()
+		_ = json.NewEncoder(w).Encode(map[string]string{"login": login})
 	})
 	mux.HandleFunc("/app/installations/42/access_tokens", func(w http.ResponseWriter, _ *http.Request) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"token": "installation-token", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339)})
@@ -59,7 +91,16 @@ func newLinkedGitHub(t *testing.T) *linkedGitHub {
 		}})
 	})
 	mux.HandleFunc("/user/installations/42/repositories", func(w http.ResponseWriter, _ *http.Request) {
-		_ = json.NewEncoder(w).Encode(map[string]any{"total_count": 1, "repositories": []map[string]any{{"full_name": "octocat/one"}}})
+		f.mu.Lock()
+		f.listCalls++
+		fails, login := f.listFails, f.login
+		f.mu.Unlock()
+		if fails {
+			http.Error(w, "boom", http.StatusInternalServerError)
+
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"total_count": 1, "repositories": []map[string]any{{"full_name": login + "/one"}}})
 	})
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -157,4 +198,39 @@ func TestBuildSources_AnInstallationWithNoLinkedAccountReadsEveryRepoItSees(t *t
 
 	require.True(t, result.Health.Reachable, result.Health.Error)
 	assert.Equal(t, 2, result.Health.RepoCount)
+}
+
+func TestVisibleRepos_ARelinkAsAnotherUserIsNotFilteredByTheOldUsersList(t *testing.T) {
+	f := newLinkedGitHub(t)
+	conn := f.link(t, time.Now().Add(time.Hour))
+	read := newVisibleRepos(conn).forInstallation(42)
+
+	first, err := read(t.Context())
+	require.NoError(t, err)
+	require.Contains(t, first, "octocat/one")
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+	f.setLogin("bob")
+	state, err := url.Parse(conn.Begin())
+	require.NoError(t, err)
+	_, err = conn.Finish(t.Context(), state.Query().Get("state"), "code")
+	require.NoError(t, err)
+
+	second, err := read(t.Context())
+	require.NoError(t, err)
+	assert.Contains(t, second, "bob/one")
+}
+
+func TestVisibleRepos_AFailureIsRememberedBrieflySoABrokenEndpointIsNotHitOnEveryPoll(t *testing.T) {
+	f := newLinkedGitHub(t)
+	conn := f.link(t, time.Now().Add(time.Hour))
+	f.failList(true)
+	read := newVisibleRepos(conn).forInstallation(42)
+
+	_, firstErr := read(t.Context())
+	_, secondErr := read(t.Context())
+
+	require.Error(t, firstErr)
+	require.Error(t, secondErr)
+	assert.Equal(t, 1, f.listCount())
 }

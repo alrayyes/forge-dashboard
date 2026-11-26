@@ -15,9 +15,14 @@ import (
 // comes from the user's own rate limit, so it is asked about once a minute.
 const visibleReposTTL = time.Minute
 
+// visibleReposFailureTTL is how long a failed read is remembered, so a broken
+// endpoint isn't asked again on every poll.
+const visibleReposFailureTTL = 15 * time.Second
+
 // visibleRepos remembers, per installation, the repos the linked GitHub
-// account can read (#4576). Only a successful answer is kept, and a changed
-// or removed account drops everything it knew.
+// account can read (#4576). An answer belongs to the account that asked: a
+// different login, or none, never reads another's list. A failure is kept
+// briefly.
 type visibleRepos struct {
 	user *oauth.GitHub
 	now  func() time.Time
@@ -27,8 +32,19 @@ type visibleRepos struct {
 }
 
 type visibleEntry struct {
+	login string
 	repos map[string]struct{}
+	err   error
 	at    time.Time
+}
+
+func (e visibleEntry) fresh(now time.Time, login string) bool {
+	ttl := visibleReposTTL
+	if e.err != nil {
+		ttl = visibleReposFailureTTL
+	}
+
+	return e.login == login && now.Sub(e.at) < ttl
 }
 
 func newVisibleRepos(user *oauth.GitHub) *visibleRepos {
@@ -40,12 +56,14 @@ func newVisibleRepos(user *oauth.GitHub) *visibleRepos {
 // means no filtering.
 func (v *visibleRepos) forInstallation(id int64) func(context.Context) (map[string]struct{}, error) {
 	return func(ctx context.Context) (map[string]struct{}, error) {
+		login := v.user.Login(ctx)
+
 		v.mu.Lock()
 		cached, ok := v.entries[id]
 		v.mu.Unlock()
 
-		if ok && v.now().Sub(cached.at) < visibleReposTTL {
-			return cached.repos, nil
+		if ok && login != "" && cached.fresh(v.now(), login) {
+			return cached.repos, cached.err
 		}
 
 		repos, err := v.user.InstallationRepos(ctx, id)
@@ -58,11 +76,16 @@ func (v *visibleRepos) forInstallation(id int64) func(context.Context) (map[stri
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("list the repos the linked user can read: %w", err)
+			err = fmt.Errorf("list the repos the linked user can read: %w", err)
+			v.mu.Lock()
+			v.entries[id] = visibleEntry{login: login, err: err, at: v.now()}
+			v.mu.Unlock()
+
+			return nil, err
 		}
 
 		v.mu.Lock()
-		v.entries[id] = visibleEntry{repos: repos, at: v.now()}
+		v.entries[id] = visibleEntry{login: login, repos: repos, at: v.now()}
 		v.mu.Unlock()
 
 		return repos, nil
