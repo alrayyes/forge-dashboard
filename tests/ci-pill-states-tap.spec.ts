@@ -98,13 +98,29 @@ async function axeClean(page: Page) {
 }
 
 // Every part of the pill that a finger can land on opens the dialog.
+//
+// The board rebuilds a row's pill from scratch when the dialog closes (and on a
+// later reconcile), and the pill's children take no pointer events. So the
+// spec never holds a locator for a child: one read of the pill gives the
+// centre of each visible part relative to the pill, and the tap goes to the
+// pill itself at that spot. Without `force`, Playwright waits for the pill to
+// be attached, visible and still, and re-resolves it if a rebuild swaps it.
 async function everyPartOpens(page: Page, pill: Locator) {
   await expect(pill).toBeVisible();
-  const parts = pill.locator('.ci-word:visible, .ci-seg:visible');
-  const n = await parts.count();
-  expect(n).toBeGreaterThan(0);
-  for (let i = 0; i < n; i++) {
-    await parts.nth(i).tap({ force: true });
+  const centres = await pill.evaluate((root) => {
+    const box = root.getBoundingClientRect();
+
+    return Array.from(root.querySelectorAll('.ci-word, .ci-seg'))
+      .map((el) => el.getBoundingClientRect())
+      .filter((r) => r.width > 0 && r.height > 0)
+      .map((r) => ({
+        x: r.left - box.left + r.width / 2,
+        y: r.top - box.top + r.height / 2,
+      }));
+  });
+  expect(centres.length).toBeGreaterThan(0);
+  for (const position of centres) {
+    await pill.tap({ position });
     await expect(checks(page)).toBeVisible();
     await expect(page.locator('.ci-pill-tip')).toBeHidden();
     await page.keyboard.press('Escape');
