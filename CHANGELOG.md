@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.134.0](https://github.com/alrayyes/forge-dashboard/compare/v9.133.0...v9.134.0) (2026-11-26)
+
+
+### Features
+
+* **api:** allow Gravatar and Libravatar avatars through the image proxy ([#5005](https://github.com/alrayyes/forge-dashboard/issues/5005)) ([3904f5c](https://github.com/alrayyes/forge-dashboard/commit/3904f5c58b5f6138660cada1bfec8ab12946aa50))
+
 ## [9.133.0](https://github.com/alrayyes/forge-dashboard/compare/v9.132.0...v9.133.0) (2026-11-26)
 
 
