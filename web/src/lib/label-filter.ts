@@ -265,6 +265,7 @@ export function pickImageNode(
     img.height = 16;
     img.loading = 'lazy';
     img.referrerPolicy = 'no-referrer';
+    img.addEventListener('load', () => wrap.classList.add('has-picture'));
     img.addEventListener('error', () => img.remove());
     wrap.appendChild(img);
   }
