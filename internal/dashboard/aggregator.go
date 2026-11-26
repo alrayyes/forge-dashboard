@@ -127,8 +127,9 @@ type Aggregator struct {
 	webhookMinInterval time.Duration
 
 	// firstRefreshed flips once, when the first refreshOnce finishes —
-	// every source answered or reported itself unreachable. Readiness
-	// (Service.FirstRefreshComplete) reads it; it never flips back.
+	// every source answered or reported itself unreachable — or when Run is
+	// cancelled before it starts. Readiness (Service.FirstRefreshComplete)
+	// reads it; it never flips back.
 	firstRefreshed atomic.Bool
 	// firstRefreshedCh is closed with it, for a reader that would rather wait
 	// than answer from the empty snapshot (WaitFirstRefresh).
@@ -420,10 +421,12 @@ func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string)
 	})
 }
 
-// FirstRefreshDone reports whether the first Refresh has completed, with
-// every source's result or its unreachable ForgeHealth entry in the
-// snapshot. A forge that failed still counts: done means "tried", not
-// "succeeded".
+// FirstRefreshDone reports whether nothing is left to wait for from the first
+// Refresh. Normally it has completed, with every source's result or its
+// unreachable ForgeHealth entry in the snapshot. A forge that failed still
+// counts: done means "tried", not "succeeded". It is also true for an
+// Aggregator whose Run was cancelled before it started: no first refresh is
+// coming, and the snapshot has nothing from one.
 func (a *Aggregator) FirstRefreshDone() bool { return a.firstRefreshed.Load() }
 
 // WaitFirstRefresh blocks until the first refresh has completed, ctx is done or
@@ -1491,18 +1494,18 @@ func logOneRateLimitTransition(forge Forge, kind string, previous, current *Rate
 // auto-update hook has yet to try, is only ever acted on after a refresh. The first use after that wakes Run, which refreshes
 // once so the person who just arrived is not shown data from before they left.
 func (a *Aggregator) Run(ctx context.Context, interval time.Duration) {
+	if ctx.Err() != nil {
+		// Replaced before it started. No first refresh is coming, so let go
+		// of anyone waiting for one. Any wake is the successor's.
+		a.markFirstRefreshed()
+
+		return
+	}
 	// A wake left over from before this refresh (a sign-in builds this
 	// Aggregator and then its first request wakes it) is answered by it. Drained
 	// first, not after: one that arrives while the refresh runs is a real
 	// request and still gets its catch-up.
 	a.activity.drainWake()
-	if ctx.Err() != nil {
-		// Replaced before it started. No first refresh is coming, so let go
-		// of anyone waiting for one.
-		a.markFirstRefreshed()
-
-		return
-	}
 	a.refreshBackground(ctx)
 
 	timer := a.newRunTimer(a.NextDelay(interval))
@@ -1537,11 +1540,13 @@ func (a *Aggregator) scheduledPass(ctx context.Context) {
 	a.refreshBackground(ctx)
 }
 
-// catchUpPass is what a wake does, unless Run was cancelled. Someone opened
-// the board after an idle spell: the refresh is theirs, not the schedule's, so
-// the reserve is for it.
+// catchUpPass is what a wake does, unless Run was cancelled, when the wake goes
+// back for the successor to read. Someone opened the board after an idle spell:
+// the refresh is theirs, not the schedule's, so the reserve is for it.
 func (a *Aggregator) catchUpPass(ctx context.Context) {
 	if ctx.Err() != nil {
+		a.activity.handBackWake()
+
 		return
 	}
 	a.Refresh(ctx)
@@ -1568,13 +1573,14 @@ func armedOnForge(pr PullRequest) bool {
 	return forgeMergesArmed(pr.Forge) && pr.AutoMergeEnabled != nil && *pr.AutoMergeEnabled
 }
 
-// RunCIPoll runs PollCI on a fixed interval until ctx is cancelled —
-// PollCI's own ticker-loop counterpart, the same relationship Run has
-// to Refresh. A plain Ticker, unlike Run's rate-limit-aware Timer:
-// PollCI's own per-tick cost is bounded to the repos with something pending or
-// armed, and it skips a forge whose budget is spent itself, so it doesn't need
-// the delay Run computes for its account-wide pass. Meant to run in its own goroutine for the
-// lifetime of the process, alongside Run.
+// RunCIPoll runs PollCI on a fixed interval until ctx is cancelled, and starts
+// no poll after that. It is PollCI's own ticker-loop counterpart, the same
+// relationship Run has to Refresh. A plain Ticker, unlike Run's
+// rate-limit-aware Timer: PollCI's own per-tick cost is bounded to the repos
+// with something pending or armed, and it skips a forge whose budget is spent
+// itself, so it doesn't need the delay Run computes for its account-wide pass.
+// Meant to run in its own goroutine for the lifetime of the process, alongside
+// Run.
 func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
 	a.ciBase.Store(int64(interval))
 	ticker := time.NewTicker(interval)
@@ -1585,6 +1591,11 @@ func (a *Aggregator) RunCIPoll(ctx context.Context, interval time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
+			// A tick can win over a cancellation that is already there, as
+			// in Run.
+			if ctx.Err() != nil {
+				return
+			}
 			a.PollCI(ctx)
 		}
 	}
