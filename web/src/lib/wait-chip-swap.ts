@@ -28,3 +28,26 @@ export function swapLabel(input: {
   if (input.inFlight) return 'Updating branch…';
   return input.revealed ? 'Update branch' : 'Waiting for CI';
 }
+
+export type SwapPhase = 'idle' | 'locked' | 'inflight';
+
+// The slot's second line. The chip's own line shows until the swap is
+// revealed; then it says what comes next, or why Update branch is locked.
+export function swapDetail(input: {
+  phase: SwapPhase;
+  revealed: boolean;
+  idleDetail: string;
+  reason: string;
+}): string {
+  if (input.phase === 'inflight') return 'Auto-merge follows when it lands';
+  if (!input.revealed) return input.idleDetail;
+  return input.phase === 'locked' ? input.reason : 'Then auto-merge goes on';
+}
+
+// The one accessible name. It holds both visible labels (WCAG 2.5.3); in
+// flight it says updating, which is the visible word then.
+export function swapName(phase: SwapPhase): string {
+  return phase === 'inflight'
+    ? 'Waiting for CI, updating branch'
+    : 'Waiting for CI, update branch';
+}
