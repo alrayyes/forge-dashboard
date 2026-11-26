@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.128.0](https://github.com/alrayyes/forge-dashboard/compare/v9.127.0...v9.128.0) (2026-11-26)
+
+
+### Features
+
+* **api:** keep the GitHub App installation list current from webhooks ([#4963](https://github.com/alrayyes/forge-dashboard/issues/4963)) ([ca0ec09](https://github.com/alrayyes/forge-dashboard/commit/ca0ec09ff39cca68ec4cf04ed03dd6e6e6ccf499)), closes [#4587](https://github.com/alrayyes/forge-dashboard/issues/4587)
+
+## [9.127.0](https://github.com/alrayyes/forge-dashboard/compare/v9.126.4...v9.127.0) (2026-11-26)
+
+
+### Features
+
+* **oauth:** revoke the grant at GitHub when the account is disconnected ([#4961](https://github.com/alrayyes/forge-dashboard/issues/4961)) ([c709815](https://github.com/alrayyes/forge-dashboard/commit/c709815a185ae9fcaec2a9d3ad7931c470c06513))
+
 ## [9.126.4](https://github.com/alrayyes/forge-dashboard/compare/v9.126.3...v9.126.4) (2026-11-26)
 
 
