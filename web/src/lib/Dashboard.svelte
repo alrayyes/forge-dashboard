@@ -1410,9 +1410,9 @@
     // and, where the forge can say, how many threads are still open. Nothing
     // at zero. The words are in the accessible name, the numbers on screen,
     // and the open state is a dot and "open" as well as amber. It opens the
-    // pull request's dialog, where the comments are (#3744); the dialog links
-    // on to the forge. Hover or focus shows a tip with the counts and when the
-    // newest comment was written (#4539).
+    // pull request's dialog, where the comments are (#3744), at the newest one
+    // it lists (#5002); the dialog links on to the forge. Hover or focus shows
+    // a tip with the counts and when the newest comment was written (#4539).
     function reviewPill(
       item: PullRequestItem,
       onOpen: (triggerId: string) => void,
@@ -2555,6 +2555,7 @@
       item: PullRequestItem,
       triggerId: string,
       fallbackFocusId = "",
+      atNewestComment = false,
     ) {
       dialogOpens++;
       endChainUnlessSwap(triggerId);
@@ -2567,6 +2568,7 @@
         { ...item, status: detailsStatus(item) },
         triggerId,
         fallbackFocusId,
+        atNewestComment,
       );
       refreshDialogChrome();
     }
@@ -3570,7 +3572,7 @@
           conflictBlockShown(pr, true),
         );
         const reviewActivity = reviewPill(pr, (triggerId) =>
-          openDetailsDialog(pr, triggerId),
+          openDetailsDialog(pr, triggerId, "", true),
         );
         // One slot for the merge-state and comment pills, so the pill after
         // the CI pill starts at the same x on every row (#4502).
