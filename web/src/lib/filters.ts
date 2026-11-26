@@ -78,6 +78,7 @@ export const QUICK_FILTERS = [
   'review-requested',
   'conflicting',
   'out-of-date',
+  'behind-base',
 ] as const;
 export type QuickFilter = (typeof QUICK_FILTERS)[number];
 
@@ -93,7 +94,7 @@ export const PILL_GROUPS = {
     return forgeIds();
   },
   ci: ['failing', 'running', 'passing', 'cancelled', 'no-checks'],
-  merge: ['conflicting', 'out-of-date'],
+  merge: ['conflicting', 'out-of-date', 'behind-base'],
   review: ['ready', 'needs-review', 'review-requested'],
 } as const;
 export type PillGroup = keyof typeof PILL_GROUPS;
@@ -113,6 +114,7 @@ export const PILL_LABELS: Record<string, string> = {
   'no-checks': 'No checks',
   conflicting: 'Conflicting',
   'out-of-date': 'Out of date',
+  'behind-base': 'behind the base branch',
   ready: 'Ready',
   'needs-review': 'Needs review',
   'review-requested': 'Review requested',
@@ -192,6 +194,16 @@ export function matchesQuickFilter(
       // with something left to merge. An empty pull request has nothing to
       // update, so the row draws no badge and the filter skips it too.
       return item.behind === true && item.empty !== true;
+    case 'behind-base':
+      // The reading navCounts.bots.behind uses, so the chip's number is the
+      // Bots menu pill's: a green bot pull request behind its base with
+      // something left to merge (#4624). Out of date is wider, any CI.
+      return (
+        item.kind === 'dependency' &&
+        item.ci === 'success' &&
+        item.behind === true &&
+        item.empty !== true
+      );
     default:
       return true;
   }
