@@ -757,9 +757,10 @@ paths:
       description: |
         Deletes the stored token pair. Forgejo has no token revocation
         endpoint, so the grant stays at the instance until it is removed under
-        Settings, Applications, Authorized OAuth2 Applications. When a pasted Forgejo token is saved,
-        the instance URL and account name stay and the dashboard goes back to
-        that token; otherwise both are cleared. Passkey sign-in is unaffected.
+        Settings, Applications, Authorized OAuth2 Applications. When a pasted
+        Forgejo token is saved, the instance URL and account name stay and the
+        dashboard goes back to that token; otherwise both are cleared. Passkey
+        sign-in is unaffected.
       tags: [settings]
       security: [{ bearerAuth: [] }]
       responses:
@@ -859,14 +860,16 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [revoked, message]
+                required: [revoked]
                 properties:
                   revoked:
                     type: boolean
                     enum: [false]
                   message:
                     type: string
-                    description: Where to revoke the grant by hand.
+                    description: |
+                      Optional hint text on where to revoke the grant by hand.
+                      A client may show it or use its own wording.
         "204":
           description: Disconnected and the grant revoked, or there was nothing to disconnect.
         "401":

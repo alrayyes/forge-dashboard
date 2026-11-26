@@ -292,8 +292,7 @@ and puts focus on that input. The page holds no copy of those rules.
   installation alone. If GitHub can't be reached or refuses, the link is still
   removed, Settings is told the grant was not revoked, and nothing is retried:
   revoke it by hand under GitHub's Settings, Applications, Authorized GitHub
-  Apps. Nothing
-  reads through the linked account yet.
+  Apps. Nothing reads through the linked account yet.
   Installations are kept one per row, so a second account or org can be added
   through the App's Setup URL without pasting an ID; the existing installation
   ID is carried over as the first row when you upgrade. Every enabled row is

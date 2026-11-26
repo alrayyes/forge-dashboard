@@ -175,6 +175,10 @@ func (g *GitHub) revoke(ctx context.Context) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
+	// Anything but 204 counts as not revoked, 401 and 404 included. GitHub
+	// answers those for a token it no longer knows, which this can't tell
+	// from a refusal, so the owner is told to check by hand rather than be
+	// told it worked.
 	if resp.StatusCode != http.StatusNoContent {
 		return fmt.Errorf("%w: status %d", ErrNotRevoked, resp.StatusCode)
 	}

@@ -80,8 +80,9 @@ func handleGitHubConnectionCallback(deps Deps) http.HandlerFunc {
 }
 
 // handleGitHubConnectionDelete answers DELETE /api/v1/connections/github. It
-// revokes the grant at GitHub where it can and removes the user token pair, and nothing else: installations, a pasted token
-// and the other settings are untouched.
+// revokes the grant at GitHub where it can and removes the user token pair,
+// and nothing else: installations, a pasted token and the other settings are
+// untouched.
 func handleGitHubConnectionDelete(deps Deps) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var err error
