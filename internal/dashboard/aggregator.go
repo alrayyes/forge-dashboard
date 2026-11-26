@@ -1070,7 +1070,7 @@ func (a *Aggregator) unreachableFrom(snap Snapshot, i int) ForgeHealth {
 // keeps the rows it last had, marked stale. The rest of h, such as its rate
 // limits, is left as it was. A forge still Starting is returned unchanged: its
 // first fetch has not answered, so it is starting up, not down, until
-// endStartingAfterMisses says otherwise.
+// endStarting says otherwise.
 func markUnreachable(h ForgeHealth) ForgeHealth {
 	if h.Starting {
 		return h
