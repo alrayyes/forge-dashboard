@@ -92,12 +92,15 @@ const specs = readdirSync(specDir)
   .filter((f) => f.endsWith('.spec.ts'))
   .sort();
 
-test('the committed durations cover at least 90 percent of the specs', () => {
+// A spec missing from the file counts as the average one, and a suite that grew
+// by a few big specs then skews one shard. 5 percent of the specs went missing
+// before shards 2 and 6 ran 2m40 over the fastest (#3477), so the bound is 3.
+test('the committed durations cover at least 97 percent of the specs', () => {
   const missing = specs.filter((s) => !(s in committed));
-  expect(missing.length / specs.length).toBeLessThanOrEqual(0.1);
+  expect(missing.length / specs.length).toBeLessThanOrEqual(0.03);
 });
 
-test('the committed durations split the suite into eight shards within a minute', () => {
+test('the committed durations split the suite into eight shards within 30 seconds', () => {
   const known = specs.filter((s) => s in committed);
   const mean = known.reduce((n, s) => n + committed[s], 0) / known.length;
   const speeds = speedsFor(8);
@@ -105,5 +108,5 @@ test('the committed durations split the suite into eight shards within a minute'
     (shard, i) =>
       shard.reduce((n, s) => n + (committed[s] ?? mean), 0) / speeds[i],
   );
-  expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(60);
+  expect(Math.max(...loads) - Math.min(...loads)).toBeLessThanOrEqual(30);
 });

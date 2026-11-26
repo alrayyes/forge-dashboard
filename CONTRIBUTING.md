@@ -234,9 +234,9 @@ shard with the least work so far. A new spec needs no entry: it counts as the
 average spec until the file is refreshed. To refresh it, download the
 `e2e-reports` artifact of a green run on `main` and run `bun
 scripts/e2e-shards.ts record <path>/e2e.xml`; `bun scripts/e2e-shards.ts plan 8`
-prints the expected load per shard. Shard 1 runs about a quarter slower than
-the others, so `SHARD_SPEEDS` in the script gives it less work; drop that
-entry if it stops standing out. Each shard still builds its own binary and
+prints the expected load per shard. Shard 1 once ran about a quarter slower
+than the others, so `SHARD_SPEEDS` in the script gives it a little less work;
+drop that entry if it stays in line. Each shard still builds its own binary and
 database, and the merged JUnit report still holds every test. Refresh the file
 when the slowest shard drifts more than about a minute from the fastest.
 
