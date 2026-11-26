@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.133.0](https://github.com/alrayyes/forge-dashboard/compare/v9.132.0...v9.133.0) (2026-11-26)
+
+
+### Features
+
+* **api:** say why a forge's rows are held with a cause on ForgeHealth ([#5000](https://github.com/alrayyes/forge-dashboard/issues/5000)) ([bfeda71](https://github.com/alrayyes/forge-dashboard/commit/bfeda715a3b727000458bb91be7ea41a354ffb15))
+
 ## [9.132.0](https://github.com/alrayyes/forge-dashboard/compare/v9.131.0...v9.132.0) (2026-11-26)
 
 
