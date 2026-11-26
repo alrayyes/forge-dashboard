@@ -78,6 +78,17 @@ type fakeGitHub struct {
 	valid     string
 	access    string
 	userFails bool
+
+	// grants records each DELETE /applications/{id}/grant: who asked, with
+	// what body, and whether the dashboard still held the pair at that moment.
+	grants      []grantCall
+	grantStatus int
+	holds       func() bool
+}
+
+type grantCall struct {
+	path, user, secret, token string
+	stillStored               bool
 }
 
 func newFakeGitHub(t *testing.T) *fakeGitHub {
@@ -87,10 +98,40 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/login/oauth/access_token", f.token)
 	mux.HandleFunc("/user", f.user)
+	mux.HandleFunc("/applications/", f.grant)
 	f.server = httptest.NewServer(mux)
 	t.Cleanup(f.server.Close)
 
 	return f
+}
+
+func (f *fakeGitHub) grant(w http.ResponseWriter, r *http.Request) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	user, secret, _ := r.BasicAuth()
+	var body struct {
+		AccessToken string `json:"access_token"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&body)
+	call := grantCall{path: r.Method + " " + r.URL.Path, user: user, secret: secret, token: body.AccessToken}
+	if f.holds != nil {
+		call.stillStored = f.holds()
+	}
+	f.grants = append(f.grants, call)
+
+	status := f.grantStatus
+	if status == 0 {
+		status = http.StatusNoContent
+	}
+	w.WriteHeader(status)
+}
+
+func (f *fakeGitHub) grantCalls() []grantCall {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	return append([]grantCall(nil), f.grants...)
 }
 
 func (f *fakeGitHub) urls() oauth.GitHubURLs {
@@ -348,24 +389,113 @@ func TestGitHub_Bearer_RefusesAPairGrantedByAnotherHost(t *testing.T) {
 	assert.Zero(t, gh.refreshCount())
 }
 
-func TestGitHub_Disconnect_DeletesThePairAndASlowRefreshCannotPutItBack(t *testing.T) {
+func TestGitHub_Disconnect_DeletesThePairAndForgetsTheLink(t *testing.T) {
 	t.Parallel()
 
 	gh := newFakeGitHub(t)
-	store := &ghTokens{instance: gh.server.URL, token: &oauth2.Token{
-		AccessToken: "ghu-1", RefreshToken: "ghr-1", Expiry: time.Now().Add(-time.Minute),
-	}}
-	conn := newGitHubConn(t, gh, store)
-	bearer, ok := conn.Bearer(t.Context())
-	require.True(t, ok)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
 
 	require.NoError(t, conn.Disconnect(t.Context()))
-	_, err := bearer()
 
-	require.Error(t, err)
 	assert.Nil(t, store.current())
-	_, ok = conn.Bearer(t.Context())
+	_, ok := conn.Bearer(t.Context())
 	assert.False(t, ok)
+}
+
+func linkedGitHub(t *testing.T, gh *fakeGitHub, expiry time.Time) (*oauth.GitHub, *ghTokens) {
+	t.Helper()
+
+	store := &ghTokens{instance: gh.server.URL, token: &oauth2.Token{
+		AccessToken: "ghu-1", RefreshToken: "ghr-1", Expiry: expiry,
+	}}
+	gh.holds = func() bool { return store.current() != nil }
+
+	return newGitHubConn(t, gh, store), store
+}
+
+func TestGitHub_Disconnect_RevokesTheGrantOnceBeforeDeletingThePair(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+
+	calls := gh.grantCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, grantCall{
+		path: "DELETE /applications/gh-id/grant", user: "gh-id", secret: "gh-secret",
+		token: "ghu-1", stillStored: true,
+	}, calls[0])
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_RevokesWithAFreshTokenWhenTheStoredOneExpired(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(-time.Minute))
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+
+	calls := gh.grantCalls()
+	require.Len(t, calls, 1)
+	assert.Equal(t, "ghu-2", calls[0].token)
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_StillDeletesThePairWhenGitHubRefusesAndSaysSo(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	gh.grantStatus = http.StatusInternalServerError
+	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
+
+	err := conn.Disconnect(t.Context())
+
+	require.ErrorIs(t, err, oauth.ErrNotRevoked)
+	assert.NotContains(t, err.Error(), "ghu-1")
+	assert.NotContains(t, err.Error(), "gh-secret")
+	assert.Len(t, gh.grantCalls(), 1, "no retry")
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_StillDeletesThePairWhenGitHubIsUnreachable(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
+	gh.server.Close()
+
+	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_NeverFollowsARedirectOnTheRevokeCall(t *testing.T) {
+	t.Parallel()
+
+	var hit bool
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { hit = true }))
+	t.Cleanup(elsewhere.Close)
+	gh := newFakeGitHub(t)
+	gh.server.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL, http.StatusTemporaryRedirect)
+	})
+	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
+
+	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
+	assert.False(t, hit)
+	assert.Nil(t, store.current())
+}
+
+func TestGitHub_Disconnect_NothingToRevokeWhenNotLinked(t *testing.T) {
+	t.Parallel()
+
+	gh := newFakeGitHub(t)
+	conn := newGitHubConn(t, gh, &ghTokens{})
+
+	require.NoError(t, conn.Disconnect(t.Context()))
+	assert.Empty(t, gh.grantCalls())
 }
 
 func TestGitHub_TokenRequests_NeverFollowARedirect(t *testing.T) {
