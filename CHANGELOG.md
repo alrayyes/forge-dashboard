@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.138.0](https://github.com/alrayyes/forge-dashboard/compare/v9.137.0...v9.138.0) (2026-11-26)
+
+
+### Features
+
+* show how old a slow forge's held rows are ([#5049](https://github.com/alrayyes/forge-dashboard/issues/5049)) ([f86756b](https://github.com/alrayyes/forge-dashboard/commit/f86756b752204f64a78f74ee16464c98257f0d8e))
+
 ## [9.137.0](https://github.com/alrayyes/forge-dashboard/compare/v9.136.3...v9.137.0) (2026-11-26)
 
 
