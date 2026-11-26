@@ -49,6 +49,19 @@
     const { violations } = await axe.run(el);
     await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
   }
+
+  // The behind chip (#4624): the count leads its words, and axe is clean in
+  // both states.
+  async function expectBehind(el: HTMLElement) {
+    const chips = el.querySelectorAll<HTMLElement>("[data-pill=behind-base]");
+    await expect(chips).toHaveLength(2);
+    for (const chip of chips)
+      await expect(chip.textContent?.replace(/\s+/g, " ").trim()).toBe(
+        "3 behind the base branch",
+      );
+    const { violations } = await axe.run(el);
+    await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
+  }
 </script>
 
 {#snippet groups()}
@@ -105,39 +118,41 @@
 
 <!-- The behind chip (#4624): the count leads, and the chip turns amber when
      pressed. Its name is its visible text. -->
-{#snippet behind(pressed: boolean)}
-  <FilterGroup label="Merge" id="story-merge-{pressed}">
-    <FilterPill pressed={!pressed} count={12} onclick={fn()}>All</FilterPill>
-    <FilterPill
-      data-pill="behind-base"
-      {pressed}
-      count={3}
-      countFirst
-      onclick={fn()}
-    >
-      behind the base branch
-    </FilterPill>
-  </FilterGroup>
+{#snippet behind()}
+  <div style="display: grid; gap: 10px">
+    {#each [false, true] as pressed (pressed)}
+      <FilterGroup label="Merge" id="story-merge-{pressed}">
+        <FilterPill pressed={!pressed} count={12} onclick={fn()}>
+          All
+        </FilterPill>
+        <FilterPill
+          data-pill="behind-base"
+          {pressed}
+          count={3}
+          countFirst
+          onclick={fn()}
+        >
+          behind the base branch
+        </FilterPill>
+      </FilterGroup>
+    {/each}
+  </div>
 {/snippet}
 
-{#each [false, true] as pressed (pressed)}
-  {#each ["light", "dark"] as const as mode (mode)}
-    <Story
-      asChild
-      name="Behind chip, {pressed ? 'pressed' : 'idle'}, {mode}"
-      beforeEach={() => theme(mode)}
-      play={async ({ canvasElement }) => {
-        const chip = canvasElement.querySelector<HTMLElement>(
-          "[data-pill=behind-base]",
-        );
-        await expect(chip?.textContent?.replace(/\s+/g, " ").trim()).toBe(
-          "3 behind the base branch",
-        );
-        const { violations } = await axe.run(canvasElement);
-        await expect(violations.map((v) => `${v.id}: ${v.help}`)).toEqual([]);
-      }}
-    >
-      {@render behind(pressed)}
-    </Story>
-  {/each}
-{/each}
+<Story
+  asChild
+  name="Behind chip, light"
+  beforeEach={() => theme("light")}
+  play={async ({ canvasElement }) => expectBehind(canvasElement)}
+>
+  {@render behind()}
+</Story>
+
+<Story
+  asChild
+  name="Behind chip, dark"
+  beforeEach={() => theme("dark")}
+  play={async ({ canvasElement }) => expectBehind(canvasElement)}
+>
+  {@render behind()}
+</Story>
