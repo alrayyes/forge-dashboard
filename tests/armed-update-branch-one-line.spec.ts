@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import fixture from './generated/behind-status.json';
@@ -98,7 +99,7 @@ function rowOf(page: Page) {
   return page.locator('#pr-rows > .row').nth(1);
 }
 
-for (const width of [1280, 1700, 1970]) {
+for (const width of [1100, 1280, 1503, 1700, 1970]) {
   test.describe(`armed row with Update branch at ${width}px (#4942)`, () => {
     test('the chip is the one control, on one line, and the row is as tall as a plain one', async ({
       page,
@@ -353,3 +354,22 @@ test.describe('touch (#4942)', () => {
     expect(box.height).toBeGreaterThanOrEqual(24);
   });
 });
+
+// One scan per distinct state and width: the idle swap row and the locked one.
+for (const width of [390, 1280]) {
+  test(`the swap row has no axe violations at ${width}px (#4942)`, async ({
+    page,
+  }) => {
+    for (const [state, pr] of [
+      ['idle', ARMED],
+      ['locked', LOCKED],
+    ] as const) {
+      await open(page, width, pr);
+      await expect(rowOf(page).locator('.wait-chip-swap')).toBeVisible();
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations, `${state} at ${width}px`).toEqual([]);
+    }
+  });
+}
