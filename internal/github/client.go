@@ -160,6 +160,10 @@ type Client struct {
 	// App-mode Client's token field stays empty for its whole lifetime.
 	appAuthenticated bool
 
+	// visibleRepos, when set, narrows an installation's repos to those the
+	// linked user can read (#4576). Nil reads everything the installation sees.
+	visibleRepos func(context.Context) (map[string]struct{}, error)
+
 	// commentRestClient, when set, posts CommentPullRequest as a real user
 	// (#666): Dependabot ignores "@dependabot" commands from GitHub App
 	// accounts whatever permissions the App holds, so an App-mode Client
@@ -2557,9 +2561,43 @@ func decodeAppRepoBatch(data json.RawMessage, repos []*ghsdk.Repository) ([]grap
 	return result, rateLimit, nil
 }
 
+// SetVisibleRepos narrows what an installation client reads to the repos fn
+// names (lower-case owner/name). A nil map means no one is linked, so nothing
+// is filtered; an error fails the read, since showing every repo of the
+// installation is what the filter exists to prevent.
+func (c *Client) SetVisibleRepos(fn func(context.Context) (map[string]struct{}, error)) {
+	c.visibleRepos = fn
+}
+
 // listAppRepos lists the repositories the App's installation can see, without
-// the archived ones and forks, which the dashboard doesn't track.
+// the archived ones and forks, which the dashboard doesn't track, and without
+// those the linked user can't read.
 func (c *Client) listAppRepos(ctx context.Context) ([]*ghsdk.Repository, error) {
+	candidates, err := c.listInstallationRepos(ctx)
+	if err != nil || c.visibleRepos == nil {
+		return candidates, err
+	}
+
+	visible, err := c.visibleRepos(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("github: read the repos the linked user can access: %w", err)
+	}
+
+	if visible == nil {
+		return candidates, nil
+	}
+
+	kept := make([]*ghsdk.Repository, 0, len(candidates))
+	for _, r := range candidates {
+		if _, ok := visible[strings.ToLower(r.GetFullName())]; ok {
+			kept = append(kept, r)
+		}
+	}
+
+	return kept, nil
+}
+
+func (c *Client) listInstallationRepos(ctx context.Context) ([]*ghsdk.Repository, error) {
 	const installPath = "/installation/repositories"
 
 	var candidates []*ghsdk.Repository

@@ -1,6 +1,7 @@
 package github_test
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -189,6 +190,40 @@ func TestAppClient_Fetch_ReturnsInstallationRepositoriesPRsAndIssues(t *testing.
 	require.Len(t, result.Issues, 1)
 	assert.Equal(t, "alrayyes/repo-two", result.Issues[0].Repo)
 	assert.Equal(t, 3, result.Issues[0].Number)
+}
+
+func TestAppClient_Fetch_LeavesOutReposTheLinkedUserCannotRead(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _ := appInstallationTestServer(t)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetVisibleRepos(func(context.Context) (map[string]struct{}, error) {
+		return map[string]struct{}{"alrayyes/repo-one": {}}, nil
+	})
+
+	result := client.Fetch(t.Context())
+
+	require.True(t, result.Health.Reachable)
+	assert.Equal(t, 1, result.Health.RepoCount)
+	assert.Len(t, result.PullRequests, 1)
+	assert.Empty(t, result.Issues, "repo-two is not in the user's list")
+}
+
+func TestAppClient_Fetch_AFailedVisibilityReadFailsTheReadRatherThanShowEverything(t *testing.T) {
+	t.Parallel()
+
+	srv, _, _ := appInstallationTestServer(t)
+	client, err := github.NewAppClient(1, testInstallationID, testAppPrivateKeyPEM, srv.URL)
+	require.NoError(t, err)
+	client.SetVisibleRepos(func(context.Context) (map[string]struct{}, error) {
+		return nil, errors.New("boom")
+	})
+
+	result := client.Fetch(t.Context())
+
+	assert.False(t, result.Health.Reachable)
+	assert.Empty(t, result.PullRequests)
 }
 
 func TestAppClient_Fetch_MintsAnInstallationToken(t *testing.T) {
