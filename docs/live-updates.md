@@ -209,9 +209,15 @@ read at least once before. A good fetch resets the count, and a real failure
 (`path=error`) shows at once as before. So the banner from these paths appears
 only when the forge stayed silent for several passes.
 
-Each line that marks a forge unreachable carries a `path`: `deadline`, `skipped`
-or `error`. A real outage shows `path=error` and the error kind. A false alarm
-shows `path=deadline` or `path=skipped`, and a late line, and no error kind.
+Each of these lines carries a `path`: `deadline`, `skipped` or `error`. A real
+outage shows `path=error` and the error kind. A slow forge shows
+`path=deadline` or `path=skipped`, and a late line, and no error kind. These
+lines also appear on a held pass, where no banner shows. The forge's health
+then carries `cause: "slow"`, the page says the forge is slow to answer, and
+the rows are not called live. The next good read clears the cause. Only the
+third miss in a row shows the unreachable banner, and that health has no cause.
+After a restart the saved rows carry `cause: "starting"` (the same fact as
+`starting`) until the first read, and never read as unreachable.
 
 ## The first load after a restart
 

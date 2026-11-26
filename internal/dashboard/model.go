@@ -537,6 +537,16 @@ func HumanizeForgeError(kind ForgeErrorKind) string {
 	return "An unexpected error occurred talking to the forge."
 }
 
+// ForgeCause matches components.schemas.ForgeHealth.cause.
+type ForgeCause string
+
+const (
+	// ForgeCauseStarting: the rows are the saved ones, no fetch has answered since the start.
+	ForgeCauseStarting ForgeCause = "starting"
+	// ForgeCauseSlow: the pass missed its deadline or was skipped, and the last good rows are held.
+	ForgeCauseSlow ForgeCause = "slow"
+)
+
 // ForgeHealth matches components.schemas.ForgeHealth.
 type ForgeHealth struct {
 	Forge     Forge          `json:"forge"`
@@ -552,6 +562,10 @@ type ForgeHealth struct {
 	// has not been asked yet, so it is neither reachable nor in error: the
 	// first refresh that reaches it replaces this entry.
 	Starting bool `json:"starting,omitempty"`
+	// Cause says why the rows are not from the latest read while the forge is
+	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow for a
+	// missed pass whose last good rows are held (#4998). The client words it.
+	Cause ForgeCause `json:"cause,omitempty"`
 	// StaleSince is set when this refresh failed and the pull requests,
 	// issues and repos shown for the forge are the last good ones, fetched
 	// at this time (#922). Absent when the data is current, and for a forge
