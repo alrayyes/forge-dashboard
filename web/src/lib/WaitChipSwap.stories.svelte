@@ -121,7 +121,8 @@
   args={{ onupdate: fn() }}
   play={async ({ canvasElement, args }) => {
     const button = swap(canvasElement);
-    button.click();
+    // A touch tap's click carries detail 1; button.click() would carry 0.
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true, detail: 1 }));
     await expect(args.onupdate).not.toHaveBeenCalled();
     await expect(button.textContent).toContain("Update branch");
     await userEvent.click(button);

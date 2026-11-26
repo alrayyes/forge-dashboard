@@ -123,60 +123,66 @@
        visible words are always part of it (WCAG 2.5.3). The reason sits in
        the description, and the change of words is not announced as it
        happens: the status line below speaks once per action. -->
-  <button
-    type="button"
-    class="swap"
-    class:pressed={forceActive}
-    aria-label="Waiting for CI, update branch"
-    aria-describedby="{uid}-detail"
-    aria-disabled={locked || inFlight ? "true" : undefined}
-    aria-busy={inFlight ? "true" : undefined}
-    onpointerenter={(e) => {
-      if (e.pointerType === "mouse") hovered = true;
-    }}
-    onpointerleave={() => {
-      hovered = false;
-      explained = false;
-    }}
-    onfocus={(e) => {
-      focused = e.currentTarget.matches(":focus-visible");
-    }}
-    onblur={() => {
-      focused = false;
-      tapped = false;
-      explained = false;
-    }}
-    onclick={activate}
-  >
-    <span class="words" aria-hidden="true">
-      <!-- Sizers: the three labels stacked, so the slot is as wide as the
+  <div class="col">
+    <button
+      type="button"
+      class="swap"
+      class:pressed={forceActive}
+      aria-label={inFlight
+        ? "Waiting for CI, updating branch"
+        : "Waiting for CI, update branch"}
+      aria-describedby="{uid}-detail"
+      aria-disabled={locked || inFlight ? "true" : undefined}
+      aria-busy={inFlight ? "true" : undefined}
+      onpointerenter={(e) => {
+        if (e.pointerType === "mouse") hovered = true;
+      }}
+      onpointerleave={() => {
+        hovered = false;
+        explained = false;
+      }}
+      onfocus={(e) => {
+        focused = e.currentTarget.matches(":focus-visible");
+      }}
+      onblur={() => {
+        focused = false;
+        tapped = false;
+        explained = false;
+      }}
+      onclick={activate}
+    >
+      <span class="words" aria-hidden="true">
+        <!-- Sizers: the three labels stacked, so the slot is as wide as the
            longest and never reflows. -->
-      <span class="sizer">Waiting for CI</span>
-      <span class="sizer">Update branch</span>
-      <span class="sizer">Updating branch…</span>
-      <span class="label">
-        {#if locked && revealed}<svg
-            class="lock"
-            viewBox="0 0 16 16"
-            width="12"
-            height="12"
-          >
-            <path
-              d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6H4z"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="1.5"
-              stroke-linejoin="round"
-            />
-          </svg>{/if}{locked && revealed ? "Update branch" : label}
+        <span class="sizer">Waiting for CI</span>
+        <span class="sizer">Update branch</span>
+        <span class="sizer">Updating branch…</span>
+        <span class="label">
+          {#if locked && revealed}<svg
+              class="lock"
+              viewBox="0 0 16 16"
+              width="12"
+              height="12"
+            >
+              <path
+                d="M5 7V5a3 3 0 0 1 6 0v2M4 7h8v6H4z"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                stroke-linejoin="round"
+              />
+            </svg>{/if}{locked && revealed ? "Update branch" : label}
+        </span>
       </span>
-      <span class="detail">{detail}</span>
-    </span>
+    </button>
+    <!-- Outside the button, so the button's visible text is only its label and
+       the label sits inside its name (WCAG 2.5.3). -->
+    <span class="detail" aria-hidden="true">{detail}</span>
     <span id="{uid}-detail" class="visually-hidden">
       Waiting for CI, auto-merge is armed.
       {#if locked}Update branch is locked. {lockReason}{/if}
     </span>
-  </button>
+  </div>
 
   <button type="button" class="cancel" onclick={() => oncancel?.()}>
     Cancel auto-merge
@@ -209,10 +215,17 @@
   .icon {
     flex: none;
   }
-  .swap {
+  .col {
+    position: relative;
     flex: 1 1 auto;
     min-width: 0;
-    align-self: stretch;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    line-height: 1.25;
+  }
+  .swap {
+    min-width: 0;
     display: flex;
     align-items: center;
     padding: 0;
@@ -260,8 +273,6 @@
     white-space: nowrap;
   }
   .detail {
-    grid-row: 2;
-    grid-column: 1;
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
