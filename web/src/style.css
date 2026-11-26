@@ -973,7 +973,9 @@ section.board {
      title track is minmax(0, 1fr) so a long title cannot widen the row. When
      the list is too narrow for the tracks (see the @container rule below) the
      compact layout takes over. */
-  grid-template-columns: 280px minmax(0, 1fr) 96px var(--dt) var(--dt) 280px 22px;
+  grid-template-columns:
+    280px minmax(0, 1fr) 96px var(--dt) var(--dt)
+    280px 22px;
   --dt: max(82px, 3.1rem);
   gap: 12px;
   align-items: center;
@@ -1337,30 +1339,25 @@ section.board {
       > .row-action-bar {
       grid-column: 4;
     }
-    /* #4789: the two layouts above hold the chip beside the pills and the
-       action, which is up to 660px of status cell at 1280px: a status track
-       as wide as the cell left the title nothing, and the chips of a row with
-       labels broke at every letter. A row with labels keeps the chip on a
-       line of its own, as it does with a detail line, and the title keeps its
-       width. This holds at every width, because the one-line row has no room
-       to spare even where it fits, and costs a row with labels one 18px line
-       against the one-line row. A row with no label and no comment or
-       merge-state pill has nothing to break and keeps the one line. With the
-       pill and an action too, the chip, the pill and the action leave the
-       title 70px at 1280px (0px with Cancel auto-merge), so it stacks the
-       chip as well (#4795); #4945 keeps the one line by narrowing the CI
-       pill's slot instead. */
-    /* #4784: from 94rem (1504px at the default text size) the title keeps
-       well over 200px with the chip beside the pills and the action, so the
-       row stays one line there. The rem term keeps the stack at a large text
-       size, where the tracks are as wide as they are at 1280px. */
-    /* #4945: a chip stacked under the pills left the row two lines tall with
-       the pills above the chip. The CI pill gives up its 10.25rem slot (a
-       Running pill is 104px) so the pill, the chip, the pills and one action
-       fit the 27.5rem track on one line. Two actions beside a chip (a bot's
-       rebase and Cancel), or Update branch (about 100px), do not leave the title 200px, so that row keeps the
-       chip on a line of its own. */
+    /* #4945: the two layouts above hold the chip beside the pills and the
+       action, which is up to 660px of status cell at 1280px. A chip stacked
+       under the pills left the row two lines tall with the pills above the
+       chip, so the CI pill gives up its 10.25rem slot (a Running pill is
+       104px) and the pill, the chip, the pills and one action fit the 27.5rem
+       track on one line, with the title above 200px (#4795). Two cases would
+       leave the title under it, so they keep the chip on a line of its own,
+       one line taller: pills with a chip beside two actions (a bot's rebase
+       and Cancel) or beside Update branch (about 100px), and labels with an
+       action but no pills (the title was 194px at 1280px). The
+       rule holds below 94rem only: from there the title keeps well over 200px
+       with the chip beside everything (#4784). The rem term keeps the stack
+       at a large text size, where the tracks are as wide as they are at
+       1280px. */
     @container not (min-width: 94rem) {
+      .row:not(.issue-row):has(> .title-cell > .label-chip)
+        .status-cell:has(> .wait-slot:not(:empty)):not(
+          :has(> .wait-slot .wait-chip-detail:not(:empty))
+        ):has(> .row-action-bar):not(:has(> .status-flags)),
       .row:not(.issue-row)
         .status-cell:has(> .wait-slot:not(:empty)):not(
           :has(> .wait-slot .wait-chip-detail:not(:empty))

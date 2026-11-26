@@ -62,6 +62,14 @@ const ROWS = [
     ...RUNNING,
     autoMergeEnabled: true,
     autoMerge: WAITING,
+    allowedActions: [
+      {
+        action: 'merge',
+        blocked: { code: 'checks_pending', message: 'Waiting' },
+      },
+      { action: 'cancel_auto_merge', primary: true },
+      { action: 'close' },
+    ],
   }),
   pr(4, {
     title: 'Update branch beside Merge',
@@ -188,5 +196,44 @@ for (const width of [1280, 390]) {
         .analyze();
       expect(results.violations).toEqual([]);
     });
+  });
+}
+
+// A chip beside Update branch (about 100px) would leave the title under 200px,
+// so below 94rem it keeps a line of its own under the pills. That is the one
+// documented exception to "every cell shares the middle": the pills and the
+// action share the first line, the chip sits below them and the author and
+// dates centre on both lines. The centring
+// test above leaves this row out for that reason.
+for (const width of [1280, 1503]) {
+  test(`a chip stacked under the pills and Update branch: pills and action share a line at ${width}px`, async ({
+    page,
+  }) => {
+    const stacked = pr(7, {
+      title: 'Stacked chip',
+      ...COMMENTS,
+      ...RUNNING,
+      behind: true,
+      autoMergeEnabled: true,
+      autoMerge: WAITING,
+      allowedActions: [
+        { action: 'update_branch', primary: true },
+        { action: 'cancel_auto_merge' },
+        { action: 'close' },
+      ],
+    });
+    await open(page, width, [stacked]);
+    await expect
+      .poll(async () => {
+        const [m] = await measure(page);
+        const pill = m.centres['.ci-pill'];
+        const near = (n: string) => Math.abs(m.centres[n] - pill) <= TOLERANCE;
+        return [
+          near('.review-pill'),
+          near('.row-action-bar'),
+          m.centres['.wait-chip'] - pill > 10,
+        ];
+      })
+      .toEqual([true, true, true]);
   });
 }

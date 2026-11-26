@@ -335,10 +335,13 @@ up its minimum width (a Running pill is 104px), so the pill, the chip, the
 pills and the action fit the status track, the title keeps at least 200px at
 1280px, and the row is as tall as one with a Merge button. Every cell (the
 pills, the chip, the action, the author and the dates) shares the row's middle.
-Only a chip beside two actions (a bot's rebase and Cancel), or beside a pill and
-Update branch, keeps a line of its own below 94rem of list width, one 36px line
-taller, because on one line the title would have no room. Its room is only there
-while a chip is. A narrower list keeps the wrapping status
+Two cases keep the chip on a line of its own below 94rem of list width, one
+36px line taller, because on one line the title would fall under 200px: pills
+with a chip beside two actions (a bot's rebase and Cancel) or beside Update
+branch, and labels with an action but no pills (194px at 1280px). There the
+pills and the action share the first line, the chip sits under them, and the
+author and dates centre on the two lines. Its room is only there while a chip
+is. A narrower list keeps the wrapping status
 cell, with the chips and the note in it, which is a
 stack of lines at 280px wide. The repo, the title and the arrow start at the top
 of the row, so the CI pill and the title's first line share a centre whatever is
