@@ -45,12 +45,22 @@ function details(n: number, total = n) {
   };
 }
 
+const LONG_TITLE =
+  'Add structured logging to every handler, the aggregator and both forge clients so a failed refresh can be traced end to end';
+const FIVE_LABELS = [
+  'enhancement',
+  'dependencies',
+  'needs-review',
+  'breaking-change',
+  'documentation',
+].map((name) => ({ name, color: '0e8a16' }));
+
 // `polls` reads the board every second, and `touch` makes the next read say the
 // pull request changed, which is what reloads an open dialog.
 async function mockDashboard(
   page: Page,
   conversationComments = 12,
-  { polls = false } = {},
+  { polls = false, crowded = false } = {},
 ) {
   let updatedAt = ago(5);
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -65,16 +75,16 @@ async function mockDashboard(
             forge: 'github',
             repo: 'alrayyes/forge-dashboard',
             number: 42,
-            title: 'Add structured logging',
+            title: crowded ? LONG_TITLE : 'Add structured logging',
             url: 'https://example.com/42',
             author: 'ryankes',
             draft: false,
             ci: 'success',
-            labels: [],
+            labels: crowded ? FIVE_LABELS : [],
             createdAt: ago(60),
             updatedAt,
-            mergeStatus: 'mergeable',
-            behind: false,
+            mergeStatus: crowded ? 'conflicting' : 'mergeable',
+            behind: crowded,
             kind: 'regular',
             conversationComments,
           },
@@ -460,6 +470,98 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
         ).toBeInViewport();
       });
     }
+  });
+
+  // A long title, five labels and a conflicting branch: the header takes so
+  // much of a small landscape window that the body starts near its bottom edge
+  // (#5018).
+  const smallLandscape = [
+    [568, 320],
+    [740, 320],
+    [480, 270],
+  ] as const;
+
+  for (const [width, height] of smallLandscape) {
+    test(`shows the newest comment under a tall header at ${width}x${height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await mockDashboard(page, 12, { crowded: true });
+      await mockDetails(page, () => ({ json: details(12) }));
+      await page.goto('/pull-requests.html');
+
+      await pill(page).click();
+
+      const newest = items(page).last();
+      await expect(newest).toBeFocused();
+      await expect(newest).toBeInViewport({ ratio: 1 });
+      await scan(page);
+      await page.keyboard.press('Escape');
+      await expect(pill(page)).toBeFocused();
+    });
+
+    test(`shows the cut-off note without covering a focused link at ${width}x${height}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height });
+      await mockDashboard(page, 80, { crowded: true });
+      const thread = details(50, 80);
+      const tall = thread.comments.at(-1);
+      if (tall)
+        tall.text = `${'A long paragraph.\n\n'.repeat(20)}[the last link](https://example.com/last)`;
+      await mockDetails(page, () => ({ json: thread }));
+      await page.goto('/pull-requests.html');
+
+      await pill(page).click();
+
+      await expect(items(page).last()).toBeFocused();
+      await expect(items(page).last()).toBeInViewport();
+      const note = dialog(page).getByText(
+        'Showing the first 50 of 80 comments.',
+      );
+      // Not 1: the dialog's fractional position can clip under half a pixel.
+      await expect(note).toBeInViewport({ ratio: 0.95 });
+      await note.getByRole('link').click({ trial: true });
+      await scan(page);
+
+      const link = items(page)
+        .last()
+        .getByRole('link', { name: 'the last link' });
+      await link.focus();
+      await expect(link).toBeInViewport({ ratio: 1 });
+      const covered = await link.evaluate((el) => {
+        const at = el.getBoundingClientRect();
+        return document.elementFromPoint(at.x + 2, at.y + at.height / 2) !== el;
+      });
+      expect(covered).toBe(false);
+      // Off its pinned place, the note is still there to scroll to.
+      await note.scrollIntoViewIfNeeded();
+      await expect(note).toBeInViewport({ ratio: 0.95 });
+    });
+  }
+
+  test('leaves a reader who scrolled the dialog while the comments loaded where they are', async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 568, height: 320 });
+    await mockDashboard(page, 12, { crowded: true });
+    const reads = await mockDetails(page, () => ({ json: details(12) }), {
+      hold: true,
+    });
+    await page.goto('/pull-requests.html');
+    await pill(page).click();
+    await expect(dialog(page).getByText('Loading details')).toBeAttached();
+    const top = await dialog(page).evaluate((el) => {
+      el.scrollTop = 20;
+      return el.scrollTop;
+    });
+
+    reads.release();
+
+    await expect(items(page)).toHaveCount(12);
+    await settle(page);
+    expect(await dialog(page).evaluate((el) => el.scrollTop)).toBe(top);
+    expect(await scrollTop(page)).toBe(0);
   });
 
   test('does not jump later when a live update succeeds after a failed first read', async ({
