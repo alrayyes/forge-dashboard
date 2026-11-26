@@ -700,6 +700,14 @@ function attachSwap(
   button.addEventListener('click', (event) => {
     const phase = swap.phase();
     if (phase === 'inflight') return;
+    // A row rebuilt under a resting mouse never saw pointerenter, so ask the
+    // page: a click on a chip the pointer is already over is not a first tap.
+    // Mouse only: a touch can leave :hover stuck, and its first tap must reveal.
+    if (
+      (event as PointerEvent).pointerType === 'mouse' &&
+      button.matches(':hover')
+    )
+      hovered = true;
     const outcome = tapOutcome({
       revealed: hovered || focused || tapped,
       detail: event.detail,

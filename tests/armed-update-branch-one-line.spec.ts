@@ -238,26 +238,73 @@ test.describe('reaching the swap without a mouse (#4942, #4531)', () => {
   test('a retryable lock keeps the row its plain Retry button and no swap', async ({
     page,
   }) => {
+    // A refused update locks Update branch with a Retry that re-checks the
+    // row. That is a plain button, never the chip's label.
     await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.fulfill({
-        status: 502,
+        status: 409,
         contentType: 'application/json',
         body: JSON.stringify({
-          error: 'bad gateway',
-          code: 'forge_unreachable',
+          error: 'conflict',
+          code: 'conflict',
+          message: "Can't update cleanly. Resolve the conflict on the forge.",
         }),
       }),
     );
     await open(page, 1280, ARMED);
-    // Until the first request fails, the chip has the swap; run it once.
     const armed = rowOf(page);
     await armed.getByRole('button', { name: SWAP }).focus();
     await page.keyboard.press('Enter');
-    // After a failed update the row redraws. A Retry button, if drawn, is a
-    // plain row button, never the chip's label.
+    await expect(armed.getByRole('button', { name: 'Retry' })).toBeVisible();
     await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
   });
 });
+
+// The swap says "Waiting for CI", so it is only for that wait (#4942). Any
+// other armed chip keeps its own words and the plain Update branch button.
+for (const [code, label] of [
+  ['stacked', 'Waiting for parent'],
+  ['review_required', ''],
+  ['rate_limited', 'Rate limited'],
+] as const) {
+  test.describe(`armed row waiting on ${code}`, () => {
+    test('keeps its own label and the plain Update branch button', async ({
+      page,
+    }) => {
+      await open(page, 1280, {
+        ...ARMED,
+        autoMerge: { state: 'waiting', code, message: 'Waiting.' },
+      });
+      const armed = rowOf(page);
+      await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
+      await expect(armed.locator('.wait-chip-label')).not.toHaveText(
+        'Waiting for CI',
+      );
+      if (label)
+        await expect(armed.locator('.wait-chip-label')).toHaveText(label);
+      await expect(
+        armed.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toBeVisible();
+    });
+  });
+}
+
+// A comments pill and labels leave the title the least room (#4795).
+for (const width of [1000, 1280, 1503]) {
+  test(`comments pill, labels and the swap chip keep the title 200px at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, {
+      ...ARMED,
+      reviewComments: 4,
+      unresolvedThreads: 1,
+    });
+    const armed = rowOf(page);
+    await expect(armed.getByRole('button', { name: SWAP })).toBeVisible();
+    const title = (await armed.locator('.title-cell').boundingBox())!;
+    expect(title.width).toBeGreaterThanOrEqual(200);
+  });
+}
 
 test.describe('touch (#4942)', () => {
   test.use({ hasTouch: true });

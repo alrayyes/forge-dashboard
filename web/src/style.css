@@ -1364,7 +1364,8 @@ section.board {
         ):has(
           > .row-action-bar > :nth-child(2),
           > .row-action-bar button ~ button,
-          > .row-action-bar .row-action-update
+          > .row-action-bar .row-action-update,
+          > .wait-slot .wait-chip-swap
         ):has(> .status-flags) {
         grid-template-columns: min-content 7.5rem 9.25rem;
         > .wait-slot {
