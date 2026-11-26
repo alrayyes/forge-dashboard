@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.126.2](https://github.com/alrayyes/forge-dashboard/compare/v9.126.1...v9.126.2) (2026-11-26)
+
+
+### Bug Fixes
+
+* **api:** rename VerifyForgejoInstanceResponse so the generated Go client compiles ([#4946](https://github.com/alrayyes/forge-dashboard/issues/4946)) ([da865a7](https://github.com/alrayyes/forge-dashboard/commit/da865a715a5d3e278e0bc98c117961fa94473784)), closes [#4943](https://github.com/alrayyes/forge-dashboard/issues/4943)
+
 ## [9.126.1](https://github.com/alrayyes/forge-dashboard/compare/v9.126.0...v9.126.1) (2026-11-25)
 
 
