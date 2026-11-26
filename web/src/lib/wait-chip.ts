@@ -730,6 +730,20 @@ function attachSwap(
     render();
   });
   render();
+  // A row rebuilt under a resting mouse never saw pointerenter. Once the chip
+  // is on the page, ask it, so the label says what a click will do. A touch
+  // screen has no hover to seed.
+  requestAnimationFrame(() => {
+    if (
+      !root.isConnected ||
+      hovered ||
+      !matchMedia('(hover: hover) and (pointer: fine)').matches ||
+      !button.matches(':hover')
+    )
+      return;
+    hovered = true;
+    render();
+  });
 }
 
 let chipCounter = 0;
