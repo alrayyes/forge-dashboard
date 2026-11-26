@@ -75,3 +75,6 @@ CHANGELOG.md
 
 # Push logs are written outside the tree; never stage one.
 push-*.log
+
+# Left behind if scripts/lefthook-globs.test.ts is killed mid-run.
+/.scan-probe-*/
