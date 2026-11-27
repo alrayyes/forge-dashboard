@@ -45,8 +45,13 @@ func (a *Aggregator) probeSettled(ctx context.Context, snap Snapshot, rows []Pul
 	}
 
 	for forge, items := range moved {
-		for _, read := range a.refreshEachRepo(apistats.WithKind(ctx, apistats.KindCIPoll), forge, items) {
-			a.pendingSched.polledUpTo(keys[read.item.key()], now, base, settledProbeCap, true)
+		read := make(map[string]bool, len(items))
+		for _, r := range a.refreshEachRepo(apistats.WithKind(ctx, apistats.KindCIPoll), forge, items) {
+			read[r.item.key()] = true
+		}
+		// A row whose repo couldn't be read waits longer, like a failed probe.
+		for _, it := range items {
+			a.pendingSched.polledUpTo(keys[it.key()], now, base, settledProbeCap, read[it.key()])
 		}
 	}
 }

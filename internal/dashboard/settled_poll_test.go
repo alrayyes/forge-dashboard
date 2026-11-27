@@ -2,6 +2,7 @@ package dashboard_test
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"sync"
 	"testing"
@@ -116,4 +117,20 @@ func TestPollCI_FailedRowOnAForgeHoldingItsBudget_IsNotProbed(t *testing.T) {
 
 	probes, _ := source.counts()
 	assert.Zero(t, probes)
+}
+
+func TestPollCI_NewerStatusWhoseRepoCannotBeRead_BacksOff(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	source := &settledSource{rows: []dashboard.PullRequest{settledRow(7, dashboard.CIFailure)}, latest: 2}
+	agg := settledAggregator(t, source, dashboard.WithClock(func() time.Time { return now }))
+	source.repoErr = errors.New("listing failed")
+
+	for range 60 {
+		agg.PollCI(t.Context())
+		now = now.Add(time.Minute)
+	}
+
+	_, repoReads := source.counts()
+	assert.LessOrEqual(t, repoReads, 15, "an hour of one-minute ticks")
 }
