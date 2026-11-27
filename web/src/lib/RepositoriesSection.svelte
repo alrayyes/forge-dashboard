@@ -127,17 +127,19 @@
     await tick();
     if (!control.isConnected) return;
     const root = document.documentElement;
-    const { scrollBy, above, below } = planHold(
+    const { scrollTo, above, below } = planHold(
       control.getBoundingClientRect().top - before,
       {
         ...room,
         scrollY: window.scrollY,
-        maxScroll: root.scrollHeight - root.clientHeight,
+        viewport: root.clientHeight,
+        // Not scrollHeight, which is never less than the window.
+        height: root.getBoundingClientRect().height,
       },
     );
     room = { above, below };
     await tick();
-    window.scrollBy({ top: scrollBy, behavior: "instant" });
+    window.scrollTo({ top: scrollTo, behavior: "instant" });
   }
   let sortKey = $state<RepoSortKey>("fullName");
   let sortDir = $state<"asc" | "desc">("asc");

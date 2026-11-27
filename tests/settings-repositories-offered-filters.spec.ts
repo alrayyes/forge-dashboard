@@ -26,8 +26,9 @@ async function open(
   width: number,
   scheme: 'light' | 'dark',
   repos: Record<string, unknown>[],
+  height = 800,
 ) {
-  await page.setViewportSize({ width, height: 800 });
+  await page.setViewportSize({ width, height });
   await page.emulateMedia({ colorScheme: scheme });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -80,6 +81,41 @@ const four = (extra: Record<string, unknown> = {}) => [
   repo('c'),
   repo('d'),
 ];
+
+// A window taller than the page has no scroll at all, and unused height under
+// the content that the room has to cover before anything can scroll.
+for (const scheme of ['light', 'dark'] as const) {
+  for (const [width, height] of [
+    [820, 1180],
+    [1280, 1440],
+  ] as const) {
+    test.describe(`${width}x${height}, ${scheme}`, () => {
+      for (const [when, extra, name] of [
+        ['appears', {}, 'owner/b'],
+        ['goes', { rebaseBots: true }, 'owner/a'],
+      ] as const) {
+        test(`the control stays put when a group ${when} and is undone`, async ({
+          page,
+        }) => {
+          await open(page, width, scheme, four(extra), height);
+          const toggle = page.getByRole('button', {
+            name: `Rebase bots on ${name}`,
+          });
+          const before = await top(toggle);
+          const groups = when === 'appears' ? [1, 0] : [0, 1];
+
+          for (const count of groups) {
+            await toggle.click();
+            await expect(group(page, 'Rebase bots')).toHaveCount(count);
+            await expectUnmoved(toggle, before);
+          }
+          // Back where it started, so no blank room is left over.
+          await expect(page.getByTestId('held-room')).toHaveCount(0);
+        });
+      }
+    });
+  }
+}
 
 for (const scheme of ['light', 'dark'] as const) {
   for (const width of [390, 1280]) {
