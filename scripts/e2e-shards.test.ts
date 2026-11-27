@@ -154,9 +154,9 @@ test("the committed durations split the suite over CI's shards within 30 seconds
 // A balanced split isn't enough. About a quarter of runners run the same specs
 // a third slower than the rest, and setup adds about a minute, so 300 seconds
 // of recorded work is a job of about 7m40 on a slow one, about 10 seconds over
-// the 7.5 minute line (#3477). Over that, add a shard in ci.yml. Nine shards
-// miss this only narrowly today (301 seconds), so the main argument for ten is
-// the measured job times, not this test.
+// the 7.5 minute line (#3477). Over that, add a shard in ci.yml. CI runs
+// eleven: the measured job times argued for ten, and the suite then outgrew
+// what ten could hold under this bound.
 test('no shard CI runs is given more than 300 seconds of work', () => {
   expect(Math.max(...predictedLoads())).toBeLessThanOrEqual(300);
 });

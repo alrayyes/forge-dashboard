@@ -221,6 +221,17 @@ a {
    the pages line up. */
 :root {
   --wrap-max: max(1220px, min(90vw, 1800px));
+  /* #470: a list's repo column takes the width the list has past 1270px, up
+     to --repo-cap, where a 34 character name fits beside the forge badge and
+     the logo. So a 168px pull request column starts to grow at a 1438px list
+     (a 1600px window), where the title has 440px, and a 280px issue column at
+     1550px. 100cqi is read where the value is used, so it is the width of the
+     nearest container around the columns: the list. In rem, so the threshold
+     and the cap follow the text, with the threshold held at 1270px for small
+     text, which would otherwise start it while the title has nothing to
+     spare. */
+  --repo-free: calc(100cqi - max(1270px, 79.375rem));
+  --repo-cap: 23.5rem;
   /* The toolbar's padding. The phone Activity control's offsets follow from
      these and --tap (#4591, #4619). */
   --toolbar-pad-top: 4px;
@@ -1189,7 +1200,8 @@ section.board {
       --dt: max(82px, 3.1rem);
       display: grid;
       /* The outer tracks include the row's 18px padding: a 168px repo column
-         (#4596) and the 22px arrow. The three status tracks are the 10.25rem,
+         (#4596), which grows with the list (--repo-free, #470), and the
+         22px arrow. The three status tracks are the 10.25rem,
          7.5rem and 9.25rem slots less their share of the 12px gap, which the
          status cell narrows to 4px. Each grows only for content that does not
          fit it: the CI track to a long pill, as far as the title can keep
@@ -1199,7 +1211,11 @@ section.board {
          arrow. The title's floor is the list less 1008px, so on lists of
          1191px to 1207px it is 183px to 199px. */
       grid-template-columns:
-        186px
+        max(
+          186px,
+          min(var(--repo-free), var(--repo-cap) + var(--repo-indent, 0px)) +
+          18px
+        )
         minmax(min(200px, calc(100% - 1008px)), 1fr)
         96px
         var(--dt)
@@ -1212,6 +1228,11 @@ section.board {
     }
     #pr-rows > * {
       grid-column: 1 / -1;
+    }
+    /* #470: room for the indent of the deepest stacked row, three steps of
+       18px, so its name fits too. */
+    #pr-rows:has(.stack-member) {
+      --repo-indent: 54px;
     }
     /* A stacked row's indent comes out of the repo track, so its other
        columns stay in line with the rest of the list. */
@@ -1226,6 +1247,13 @@ section.board {
     #pr-rows .row > .row-meta > .status-cell,
     #pr-rows .row > .row-meta > .empty-cell {
       grid-column: 6 / 9;
+    }
+    /* #470: an issue row's repo column starts at 280px and grows by the same
+       rule as a pull request's. */
+    .row.issue-row {
+      grid-template-columns:
+        max(280px, min(var(--repo-free), var(--repo-cap))) minmax(0, 1fr) 96px
+        var(--dt) var(--dt) 22px;
     }
     .row:not(.issue-row) .status-cell {
       display: grid;
