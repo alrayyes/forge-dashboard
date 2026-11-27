@@ -55,17 +55,21 @@ func TestAggregator_LogsWhyAForgeWasMarkedUnreachable(t *testing.T) {
 	timers.Advance(userDeadline)
 	<-first
 
-	assert.Contains(t, logs.String(), `level=WARN msg="fetch deadline passed with the forge still fetching" forge=forgejo path=deadline running_for=1m0s deadline=1m0s`)
+	assert.Contains(t, logs.String(), `level=INFO msg="stopped waiting for a fetch, which goes on" forge=forgejo path=waiting running_for=1m0s deadline=1m0s`)
 
 	timers.Advance(time.Minute)
 	agg.Refresh(t.Context())
 
 	assert.Contains(t, logs.String(), `level=WARN msg="fetch skipped, the last one is still running" forge=forgejo path=skipped running_for=2m0s`)
 
+	timers.Advance(time.Minute)
+
+	assert.Contains(t, logs.String(), `level=WARN msg="fetch deadline passed with the forge still fetching" forge=forgejo path=deadline running_for=3m0s deadline=3m0s`)
+
 	slow.unblock()
 	require.Eventually(t, func() bool {
-		return strings.Contains(logs.String(), `msg="fetch finished" forge=forgejo duration=2m0s outcome=late`)
-	}, 5*time.Second, time.Millisecond, "a fetch that answers after the pass gave up says how late it was")
+		return strings.Contains(logs.String(), `msg="fetch finished" forge=forgejo duration=3m0s outcome=late`)
+	}, 5*time.Second, time.Millisecond, "a fetch that answers after the pass stopped waiting says how late it was")
 }
 
 // A fetch that fails is a Warn line with its error kind and duration, and no

@@ -157,6 +157,27 @@ neither the field nor the line.
 - **WHEN** a later pass answers in time
 - **THEN** the health carries no `rowsReadAt` and the line is gone
 
+### Requirement: A person's refresh leaves a slow read running
+
+A refresh a person asked for, including the catch-up when the board is opened
+after an idle spell, SHALL stop waiting for a forge at the user deadline and
+SHALL NOT cancel its read before the scheduled deadline. While that read runs,
+the forge SHALL be reachable with cause `slow` (a `starting` forge stays
+`starting`), keep the rows it had, not be asked again, and have no pass counted
+as missed. The outcome SHALL be applied when it arrives. A forge never read
+before has no rows and no `rowsReadAt` meanwhile.
+
+#### Scenario: An answer between the two deadlines
+
+- **WHEN** a forge answers after the user deadline and within the scheduled one
+- **THEN** its rows appear without another refresh and the cause goes
+
+#### Scenario: Silence past the scheduled deadline
+
+- **WHEN** a forge has not answered by the scheduled deadline
+- **THEN** the read is cancelled and counts as a missed pass, shown as any other
+  miss is
+
 ### Requirement: Main branches announces a slow or starting forge
 
 The Main branches page, which draws no forge chip, SHALL state in a polite live
