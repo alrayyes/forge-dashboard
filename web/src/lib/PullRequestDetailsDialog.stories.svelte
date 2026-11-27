@@ -421,6 +421,33 @@
   {@render opener(PULL_REQUEST)}
 </Story>
 
+<!-- The budget is spent: the dialog says when it comes back. -->
+<Story
+  asChild
+  name="Rate limited"
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: ROUTE,
+        status: 429,
+        body: {
+          error: "github: graphql: rate limit exceeded",
+          resetsAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+        },
+      },
+    ])}
+  play={async ({ canvasElement }) => {
+    await opened(canvasElement);
+    await waitFor(() =>
+      expect(document.querySelector(".details-error")?.textContent).toContain(
+        "It resets at",
+      ),
+    );
+  }}
+>
+  {@render opener(PULL_REQUEST)}
+</Story>
+
 <!-- Keyboard focus on Try again after a failed load. -->
 <Story
   asChild

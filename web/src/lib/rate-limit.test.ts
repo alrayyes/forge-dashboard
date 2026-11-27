@@ -4,6 +4,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 const {
   isRateLimited,
   isRunningLow,
+  rateLimitResetText,
   rateLimitSeverity,
   rateLimitWhy,
   showsOnOverview,
@@ -194,5 +195,18 @@ describe('rateLimitWhy', () => {
 
   test('a forge nobody described gets the proxy wording', () => {
     expect(rateLimitWhy('nowhere', 'Nowhere').docsUrl).toBeNull();
+  });
+});
+
+describe('rateLimitResetText', () => {
+  test('names the forge, the reset time and the minutes left', () => {
+    expect(rateLimitResetText('GitHub', future, now)).toMatch(
+      /^GitHub API rate limit reached\. It resets at .+ \(in 10 min\)\.$/,
+    );
+  });
+
+  test('says nothing without a time it can read', () => {
+    expect(rateLimitResetText('GitHub', undefined, now)).toBeNull();
+    expect(rateLimitResetText('GitHub', 'soon', now)).toBeNull();
   });
 });
