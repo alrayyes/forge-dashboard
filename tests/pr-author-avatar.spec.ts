@@ -39,7 +39,7 @@ const PRS = [
   pr(4, 'Broken avatar', 'https://avatars.example.com/broken'),
 ];
 
-async function open(page: Page) {
+async function mock(page: Page, prs = PRS) {
   await routeImage(page, 'https://avatars.example.com/u/1', (route: Route) =>
     route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL }),
   );
@@ -56,7 +56,7 @@ async function open(page: Page) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests: PRS,
+        pullRequests: prs,
         issues: [],
         openIssueCount: 0,
         repos: [],
@@ -64,6 +64,10 @@ async function open(page: Page) {
       }),
     }),
   );
+}
+
+async function open(page: Page) {
+  await mock(page);
   await page.goto('/pull-requests.html');
   await expect(page.locator('#pr-rows > .row')).toHaveCount(PRS.length);
 }
@@ -202,5 +206,114 @@ test.describe('Pull request row author avatar (#1913)', () => {
     await expect(cell.locator('img')).toHaveCount(0);
     await expect(cell.locator('.avatar-placeholder')).toHaveCount(1);
     await expect(cell).toHaveText('claude');
+  });
+});
+
+// The initial is drawn under the picture, and a failed address is left alone
+// for a while, so a redrawn row never shows an empty box.
+// https://github.com/alrayyes/forge-dashboard/issues/5124
+test.describe('Author avatar that cannot load (#5124)', () => {
+  const GONE = 'https://avatars.example.com/gone';
+
+  // One row whose avatar is answered by `answer`; returns the requests made.
+  async function openOne(page: Page, answer: (route: Route) => unknown) {
+    const requested: string[] = [];
+    await mock(page, [pr(1, 'Gone avatar', GONE), pr(2, 'No avatar', '')]);
+    await routeImage(page, GONE, (route: Route) => {
+      requested.push(route.request().url());
+      return answer(route);
+    });
+    // Not the load event: one test never answers the image.
+    await page.goto('/pull-requests.html', { waitUntil: 'domcontentloaded' });
+    await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
+    return requested;
+  }
+
+  // Changing the sort rebuilds every row; the mark proves this one is new.
+  // Returns how many author images the rebuild put on the page.
+  async function redraw(page: Page) {
+    const list = page.locator('#pr-rows');
+    await list.evaluate((el) => {
+      el.querySelector('.row')?.setAttribute('data-before-redraw', '');
+      el.dataset.imagesAdded = '0';
+      new MutationObserver((records) => {
+        for (const node of records.flatMap((r) => [...r.addedNodes])) {
+          if (!(node instanceof Element)) continue;
+          const added =
+            node.querySelectorAll('.author img').length +
+            (node.matches('.author img') ? 1 : 0);
+          el.dataset.imagesAdded = String(
+            Number(el.dataset.imagesAdded) + added,
+          );
+        }
+      }).observe(el, { childList: true, subtree: true });
+    });
+    await page.getByLabel('Sort pull requests by').selectOption('created');
+    await expect(list.locator('[data-before-redraw]')).toHaveCount(0);
+    await expect(list.locator('.row')).toHaveCount(2);
+    return Number(await list.getAttribute('data-images-added'));
+  }
+
+  const picture = (route: Route) =>
+    route.fulfill({ status: 200, contentType: 'image/svg+xml', body: PIXEL });
+  const cell = (page: Page) => author(page, 'Gone avatar');
+  const initial = (page: Page) => cell(page).locator('.avatar-placeholder');
+  const drawn = (page: Page) =>
+    initial(page).evaluate((el) => getComputedStyle(el, '::before').content);
+
+  test('the initial is there while the image is still on its way', async ({
+    page,
+  }) => {
+    await openOne(page, () => {});
+    await expect(cell(page).locator('img')).toHaveCount(1);
+    await expect(initial(page)).toHaveCount(1);
+    await expect.poll(() => drawn(page)).toBe('"C"');
+  });
+
+  test('a redrawn row shows the initial and does not ask again', async ({
+    page,
+  }) => {
+    const requested = await openOne(page, (route) =>
+      route.fulfill({ status: 404 }),
+    );
+    await expect.poll(() => requested.length).toBe(1);
+    await expect(cell(page).locator('img')).toHaveCount(0);
+    expect(await redraw(page)).toBe(0);
+    await expect.poll(() => drawn(page)).toBe('"C"');
+    expect(requested).toHaveLength(1);
+  });
+
+  test('a passing failure is tried again later, without a reload', async ({
+    page,
+  }) => {
+    await page.clock.install();
+    const proxy = { busy: true };
+    const requested = await openOne(page, (route) =>
+      proxy.busy ? route.fulfill({ status: 503 }) : picture(route),
+    );
+    await expect.poll(() => requested.length).toBe(1);
+    await expect(cell(page).locator('img')).toHaveCount(0);
+    proxy.busy = false;
+    await page.clock.fastForward('02:00');
+    expect(await redraw(page)).toBe(1);
+    await expect.poll(() => requested.length).toBe(2);
+    await expect(initial(page)).toHaveClass(/has-picture/);
+  });
+
+  test('a loaded avatar covers the initial in the same box', async ({
+    page,
+  }) => {
+    await openOne(page, picture);
+    const img = cell(page).locator('img');
+    await expect(initial(page)).toHaveClass(/has-picture/);
+    await expect(img).toHaveAttribute('alt', '');
+    await expect
+      .poll(() =>
+        initial(page).evaluate((el) => getComputedStyle(el, '::before').color),
+      )
+      .toBe('rgba(0, 0, 0, 0)');
+    const box = await initial(page).boundingBox();
+    expect([box?.width, box?.height]).toEqual([20, 20]);
+    expect(await img.boundingBox()).toEqual(box);
   });
 });

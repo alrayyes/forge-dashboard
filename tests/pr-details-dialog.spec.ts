@@ -588,6 +588,31 @@ test.describe('pull request details dialog', () => {
     // The fallback only means something if the image was asked for and failed.
     expect(aborted).toBeGreaterThan(0);
     await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
+
+    // Opening it again shortly after doesn't ask again (#5124).
+    const asked = aborted;
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await trigger(page).click();
+    await expect(avatar).toHaveText('A');
+    await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
+    expect(aborted).toBe(asked);
+  });
+
+  test('a comment avatar on its way has its initial under it (#5124)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await routeImage(page, 'https://example.invalid/**', () => {});
+    await mockDetails(
+      page,
+      details({ comments: [comment('c1')], commentCount: 1 }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const comments = dialog(page).locator('.details-comment');
+    await expect(comments.locator('img.avatar')).toHaveCount(1);
+    await expect(comments.locator('span.avatar')).toHaveText('A');
   });
 
   test('past 50 comments it says so and links to the forge', async ({

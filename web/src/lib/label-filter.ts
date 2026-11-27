@@ -9,7 +9,7 @@
 // a comma or a space. Picks are lowercase, like every saved pick, and the page
 // matches without regard to case.
 
-import { avatarSrc } from './avatar';
+import { avatarSrc, noteImageFailed } from './avatar';
 import { labelTextColor } from './label-color';
 import { labelKey } from './label-name';
 
@@ -266,7 +266,10 @@ export function pickImageNode(
     img.loading = 'lazy';
     img.referrerPolicy = 'no-referrer';
     img.addEventListener('load', () => wrap.classList.add('has-picture'));
-    img.addEventListener('error', () => img.remove());
+    img.addEventListener('error', () => {
+      noteImageFailed(src);
+      img.remove();
+    });
     wrap.appendChild(img);
   }
   return wrap;

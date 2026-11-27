@@ -154,6 +154,35 @@ test.describe('Repository logo (#2001)', () => {
     ).toHaveCount(1);
   });
 
+  test('Settings, Repositories draws a logo over its initial, in the same box (#5124)', async ({
+    page,
+  }) => {
+    await mock(page);
+    await page.goto('/settings.html#repositories');
+    const rows = page.locator('#repositories-rows tr');
+    const box = rows
+      .filter({ hasText: 'alrayyes/with-logo' })
+      .locator('.logo-placeholder');
+    await expect(box).toHaveClass(/has-picture/);
+    const img = box.locator('img.repo-logo');
+    await expect(img).toHaveAttribute('alt', '');
+    await expect
+      .poll(async () => {
+        const [outer, inner] = [
+          await box.boundingBox(),
+          await img.boundingBox(),
+        ];
+        return [inner?.x === outer?.x, inner?.y === outer?.y, inner?.width];
+      })
+      .toEqual([true, true, 16]);
+
+    const broken = rows.filter({ hasText: 'alrayyes/broken-logo' });
+    await expect(broken.locator('img')).toHaveCount(0);
+    await expect(broken.locator('.logo-placeholder')).not.toHaveClass(
+      /has-picture/,
+    );
+  });
+
   test('a Settings, Repositories cell reads as the bare repository name, with or without a logo', async ({
     page,
   }) => {

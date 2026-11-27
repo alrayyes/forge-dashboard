@@ -1,6 +1,6 @@
 /// <reference types="bun" />
 import { describe, expect, test } from 'bun:test';
-import { avatarSrc } from './avatar';
+import { avatarSrc, FAILED_IMAGE_MS, noteImageFailed } from './avatar';
 import { registerImagePolicy } from './forges';
 
 // An avatar or logo is the forge's own https URL, but the page never loads it
@@ -53,5 +53,25 @@ describe('avatarSrc', () => {
 
   test('refuses a missing URL', () => {
     expect(avatarSrc('github', undefined)).toBeNull();
+  });
+});
+
+// A refused image carries no cache header, so a redrawn row would ask again
+// and show an empty box until it failed again (#5124).
+describe('a failed image', () => {
+  const url = 'https://avatars.githubusercontent.com/u/5124';
+  const src = proxied('github', url);
+
+  test('is left alone for a while, then tried again', () => {
+    noteImageFailed(src, 1000);
+    expect(avatarSrc('github', url, 1000)).toBeNull();
+    expect(avatarSrc('github', url, 999 + FAILED_IMAGE_MS)).toBeNull();
+    expect(avatarSrc('github', url, 1000 + FAILED_IMAGE_MS)).toBe(src);
+  });
+
+  test('leaves other images alone', () => {
+    noteImageFailed(src, 1000);
+    const other = 'https://avatars.githubusercontent.com/u/1';
+    expect(avatarSrc('github', other, 1000)).toBe(proxied('github', other));
   });
 });

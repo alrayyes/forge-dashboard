@@ -78,7 +78,7 @@
   import { onDestroy, tick } from "svelte";
   import { createDwell } from "#lib/reference-dwell.js";
   import { syncScrollRegion } from "#lib/scroll-region.js";
-  import { avatarSrc } from "#lib/avatar.js";
+  import { avatarSrc, noteImageFailed } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import { forgeClassOf, forgeLabelOf, pullRequestUrlOf } from "#lib/forges.js";
   import { imageFallback } from "#lib/image-fallback.js";
@@ -235,6 +235,8 @@
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
   let brokenAvatars = $state<Record<string, boolean>>({});
+  // Those that have loaded, so their initial can give way.
+  let loadedAvatars = $state<Record<string, boolean>>({});
   // The same for the avatar of whoever filed the issue, in the header.
   let brokenFilerAvatar = $state(false);
 
@@ -521,6 +523,7 @@
     returnFocusId = triggerId;
     returnFocusFallbackId = fallbackFocusId;
     brokenAvatars = {};
+    loadedAvatars = {};
     brokenFilerAvatar = false;
     older = null;
     referencedKey = null;
@@ -790,6 +793,7 @@
       if (!quiet) {
         shownReaction = null;
         brokenAvatars = {};
+        loadedAvatars = {};
       }
       landOnNewest(true);
 
@@ -1193,16 +1197,20 @@
           {/if}
           {#if byline}
             {#snippet filer()}
-              {#if avatarSrc(forgeId, byline?.avatar) && !brokenFilerAvatar}
+              {@const src = avatarSrc(forgeId, byline?.avatar)}
+              {#if src && !brokenFilerAvatar}
                 <img
                   class="filer-avatar"
-                  src={avatarSrc(forgeId, byline?.avatar) ?? undefined}
+                  {src}
                   alt=""
                   width="20"
                   height="20"
                   loading="lazy"
                   referrerpolicy="no-referrer"
-                  onerror={() => (brokenFilerAvatar = true)}
+                  onerror={() => {
+                    noteImageFailed(src);
+                    brokenFilerAvatar = true;
+                  }}
                 />
               {/if}
               <span class="filer-name">{byline?.name}</span>
@@ -1367,23 +1375,33 @@
                   >
                     <div class="comment-head">
                       {#snippet person()}
-                        {#if avatarSrc(forgeId, c.author?.avatarUrl) && !brokenAvatars[c.id]}
-                          <img
-                            class="avatar"
-                            src={avatarSrc(forgeId, c.author?.avatarUrl) ??
-                              undefined}
-                            alt=""
-                            width="32"
-                            height="32"
-                            loading="lazy"
-                            referrerpolicy="no-referrer"
-                            onerror={() => (brokenAvatars[c.id] = true)}
-                          />
-                        {:else}
-                          <span class="avatar" aria-hidden="true">
-                            {c.author ? login.charAt(0).toUpperCase() : "?"}
-                          </span>
-                        {/if}
+                        {@const src = avatarSrc(forgeId, c.author?.avatarUrl)}
+                        <!-- The initial is always drawn, with the picture over
+                        it, so a slow or missing one is never an empty circle
+                        (#5124). -->
+                        <span
+                          class="avatar"
+                          class:has-picture={loadedAvatars[c.id]}
+                          aria-hidden="true"
+                        >
+                          {c.author ? login.charAt(0).toUpperCase() : "?"}
+                          {#if src && !brokenAvatars[c.id]}
+                            <img
+                              class="avatar"
+                              {src}
+                              alt=""
+                              width="32"
+                              height="32"
+                              loading="lazy"
+                              referrerpolicy="no-referrer"
+                              onload={() => (loadedAvatars[c.id] = true)}
+                              onerror={() => {
+                                noteImageFailed(src);
+                                brokenAvatars[c.id] = true;
+                              }}
+                            />
+                          {/if}
+                        </span>
                         <span class="comment-login">{login}</span>
                       {/snippet}
                       <!-- The avatar and the name are one link to the person's
@@ -2057,6 +2075,19 @@
   span.avatar {
     box-sizing: border-box;
     border: 1px solid var(--control-border);
+    position: relative;
+  }
+  /* Over the edge too, and with no fill of its own, so the initial shows
+     until the picture has painted (#5124). */
+  span.avatar > img.avatar {
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    background: transparent;
+  }
+  span.avatar.has-picture {
+    border-color: transparent;
+    color: transparent;
   }
   .comment-login {
     font-weight: 600;
