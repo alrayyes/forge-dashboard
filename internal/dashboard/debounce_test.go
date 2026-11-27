@@ -73,6 +73,21 @@ func (f *fakeTimers) Pending() int {
 	return n
 }
 
+// NextIn is how long until the earliest pending timer, or zero with none.
+func (f *fakeTimers) NextIn() time.Duration {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	var next time.Duration
+	for _, t := range f.timers {
+		if d := t.at.Sub(f.now); !t.fired && !t.stopped && (next == 0 || d < next) {
+			next = d
+		}
+	}
+
+	return next
+}
+
 // Advance moves the clock on by d, runs every timer that came due on the way
 // in time order, and waits for those callbacks to return.
 func (f *fakeTimers) Advance(d time.Duration) {

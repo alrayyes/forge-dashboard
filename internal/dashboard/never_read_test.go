@@ -59,7 +59,9 @@ func TestAggregator_ASlowFirstReadLeavesAQueuedActionWaiting(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	f.giveUp(t, func() { f.agg.ProcessQueuedActions(t.Context()) })
+	// A person's refresh has left the read running when the action comes due.
+	f.giveUp(t, func() { f.agg.Refresh(t.Context()) })
+	f.agg.ProcessQueuedActions(t.Context())
 
 	items, err := store.QueuedActions(t.Context())
 	require.NoError(t, err)
