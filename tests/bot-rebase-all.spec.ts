@@ -829,3 +829,63 @@ for (const { bot, endpoint, action, row } of [
     release();
   });
 }
+
+// While the run asks for one row, that row can't be asked again, and a row
+// asked by hand mid-run is not sent a second time (#5134).
+test('a row is sent once, by the run or by hand', async ({ page }) => {
+  await open(page, [renovate(1), pr(2), renovate(4)]);
+  const sent: number[] = [];
+  let answer = () => {};
+  const held = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  // Registered last, so these win over the open() routes.
+  for (const endpoint of ['dependabot-action', 'renovate-rebase']) {
+    await page.route(
+      `**/api/v1/pull-requests/${endpoint}`,
+      async (route: Route) => {
+        const { number } = route.request().postDataJSON();
+        sent.push(number);
+        if (sent.length === 1) await held;
+        await route.fulfill({ status: 204 });
+      },
+    );
+  }
+  const row = (n: number) =>
+    page.locator('#pr-rows .row', {
+      has: page.getByRole('button', { name: new RegExp(`^#${n} `) }),
+    });
+  const label = (n: number) =>
+    n === 2 ? 'Dependabot: Rebase' : 'Renovate: Rebase';
+  await page.getByRole('button', { name: 'Rebase all (3)' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Rebase', exact: true })
+    .click();
+  await expect.poll(() => sent.length).toBe(1);
+  const first = sent[0] as number;
+  // A Renovate row first: its request draws nothing by itself.
+  expect(first).not.toBe(2);
+  const [second, third] = [1, 2, 4].filter((n) => n !== first) as [
+    number,
+    number,
+  ];
+
+  await expect(
+    row(first).getByRole('button', { name: label(first), disabled: false }),
+  ).toHaveCount(0);
+  await viaActionsDialog(row(first), async (footer) => {
+    await expect(
+      footer.getByRole('button', { name: label(first), disabled: false }),
+    ).toHaveCount(0);
+  });
+  await viaActionsDialog(row(second), (footer) =>
+    footer.getByRole('button', { name: label(second) }).click(),
+  );
+  answer();
+
+  await expect(page.locator('#rebase-all-status')).toHaveText(
+    'Rebase requested for 2.',
+  );
+  expect(sent).toEqual([first, second, third]);
+});
