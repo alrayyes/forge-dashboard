@@ -209,6 +209,44 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.getByRole('searchbox')).toBeVisible();
       });
 
+      test('focus from a group that goes lands on a pressed pill', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, [
+          repo('a', { autoUpdateBranch: true }),
+          repo('b', { forge: 'gitlab', autoUpdateBranch: true }),
+          repo('c', { forge: 'gitlab' }),
+        ]);
+        await pill(page, 'Auto-update', 'Off').click();
+        await page
+          .getByRole('button', { name: 'Auto-update on owner/c' })
+          .click();
+        await pill(page, 'Auto-update', 'All').focus();
+        await page.keyboard.press('Enter');
+        await expect(group(page, 'Auto-update')).toHaveCount(0);
+        await expect(pill(page, 'Forge', 'All')).toBeFocused();
+      });
+
+      test('focus from a bar that goes lands on the first row', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, [
+          repo('a', { ignored: true, ignoredPRs: true }),
+        ]);
+        await pill(page, 'Ignored', 'Show').click();
+        await page.getByRole('combobox', { name: /owner\/a/ }).selectOption('');
+        await expect(page.locator('#repositories-status')).toContainText(
+          'no longer ignored',
+        );
+        await pill(page, 'Ignored', 'Hide').focus();
+        await page.keyboard.press('Enter');
+        await expect(page.locator('.filter-bar')).toHaveCount(0);
+        await expect(
+          page.locator('#repositories-rows a').first(),
+        ).toBeFocused();
+        expect(await onBody(page)).toBe(false);
+      });
+
       test('Clear filters works over one row, with no search box', async ({
         page,
       }) => {
