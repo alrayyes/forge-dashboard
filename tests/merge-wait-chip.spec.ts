@@ -616,8 +616,9 @@ test.describe('a status that stays unknown', () => {
     const chip = row(page, 'Unknown').locator('.wait-chip');
     await expect(chip.locator('.wait-chip-label')).toHaveText('Status unknown');
 
+    // Nothing about the row changes and nothing is pushed: the page has to
+    // redraw it by itself (#5062).
     await page.clock.fastForward(130_000);
-    await push(page, [unknownStatus(1, 'Unknown')]);
 
     await expect(chip.locator('.wait-chip-label')).toHaveText('Still waiting');
     await expect(chip).toHaveAccessibleDescription(
@@ -627,19 +628,6 @@ test.describe('a status that stays unknown', () => {
       chip.getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
     await axeClean(page);
-  });
-
-  test('turns to Still waiting by itself when nothing about the row changes', async ({
-    page,
-  }) => {
-    await page.clock.install({ time: new Date() });
-    await open(page, [unknownStatus(1, 'Unknown')]);
-    const label = row(page, 'Unknown').locator('.wait-chip-label');
-    await expect(label).toHaveText('Status unknown');
-
-    await page.clock.fastForward(130_000);
-
-    await expect(label).toHaveText('Still waiting');
   });
 
   test('redraws the list once when two waits run long together', async ({
