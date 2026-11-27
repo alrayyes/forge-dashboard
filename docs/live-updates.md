@@ -204,7 +204,8 @@ a forge that was only slow.
 
 ## When a forge is slow
 
-The schedule waits three minutes for a forge. A refresh you ask for waits one:
+The schedule waits three minutes for a forge, and so does the read made when a
+queued action comes due. A refresh you ask for waits one:
 the Refresh button, a sign-in, and the catch-up when you open the board after
 nobody has been looking. After that minute you get the board back, but the read
 keeps going for the rest of the three. Its rows appear when it answers, with no
@@ -220,6 +221,11 @@ after a restart stays "Starting up". One that was unreachable stays unreachable,
 with its error shown and its controls off, until a read succeeds. Queued
 actions are held meanwhile, for up to an hour after they first came due. None of
 this counts against the forge, however often you press Refresh.
+
+Rows kept while a forge is slow never decide a queued action. While its forge is
+slow the action stays queued and is tried again, for up to an hour after it
+first came due. The buttons on those rows still work for you: you can see how
+old they are, and nobody is looking when a queued action runs.
 
 ## Troubleshooting a false unreachable banner
 

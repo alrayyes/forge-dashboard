@@ -200,6 +200,31 @@ its actions stay off.
 - **THEN** the read is cancelled and counts as a missed pass, shown as any other
   miss is
 
+### Requirement: A queued action is not decided from a slow forge's held rows
+
+A queued action that is due on a forge whose cause is `slow` SHALL NOT be run,
+skipped or failed from the rows the forge is holding. It SHALL stay queued and
+be tried again, and fail only under the same give-up time as a forge that does
+not answer. The read made for a due action SHALL wait for a forge until the
+scheduled deadline, unless a person is waiting on the same read. Row actions a
+person uses on a slow forge SHALL stay as they are.
+
+#### Scenario: Due while the read is running or was missed
+
+- **WHEN** a queued action is due and its forge's read is still running, or was
+  missed
+- **THEN** the action stays queued and is tried again
+
+#### Scenario: The forge answers within the retry window
+
+- **WHEN** a later try gets an answer from the forge
+- **THEN** the action is decided from the new rows
+
+#### Scenario: No read succeeds in time
+
+- **WHEN** no read has succeeded and the give-up time has passed
+- **THEN** the action fails, saying the forge did not answer
+
 ### Requirement: Main branches announces a slow or starting forge
 
 The Main branches page, which draws no forge chip, SHALL state in a polite live

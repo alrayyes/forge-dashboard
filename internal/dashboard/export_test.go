@@ -98,3 +98,7 @@ func (a *Aggregator) WaitSourcesIdleForTest() {
 		}
 	}
 }
+
+// ParkedRefreshesForTest is how many refresh calls are queued behind the
+// in-flight one.
+func (a *Aggregator) ParkedRefreshesForTest() int { return a.refresh.waiting() }
