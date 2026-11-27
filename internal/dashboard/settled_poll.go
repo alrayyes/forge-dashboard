@@ -25,17 +25,35 @@ func settledPollKey(pr PullRequest) string {
 	return "settled/" + pullRequestKey(pr.Forge, pr.Repo, pr.Number)
 }
 
+// unreadSince is the rows of before that are still settled in snap and haven't
+// been read with a newer status meanwhile.
+func unreadSince(before []PullRequest, snap Snapshot) []PullRequest {
+	ids := make(map[string]int64, len(before))
+	for _, pr := range before {
+		ids[settledPollKey(pr)] = pr.LatestStatusID
+	}
+
+	return slices.DeleteFunc(settledRows(snap), func(pr PullRequest) bool {
+		id, was := ids[settledPollKey(pr)]
+
+		return !was || id != pr.LatestStatusID
+	})
+}
+
 // probeSettled asks each due settled row's forge for the newest status id of
 // its head commit, and refreshes the repos where there is a newer one than the
-// row was read with. It does nothing while nobody is using the dashboard.
-func (a *Aggregator) probeSettled(ctx context.Context, snap Snapshot, rows []PullRequest, now time.Time, base time.Duration) {
+// row was read with. before is the settled rows the tick started with: one the
+// tick's other polls have read since is left alone. It does nothing while nobody
+// is using the dashboard.
+func (a *Aggregator) probeSettled(ctx context.Context, before []PullRequest, now time.Time, base time.Duration) {
 	if a.activity.Idle() {
 		return
 	}
 
+	snap := a.Get()
 	moved := make(map[Forge][]pendingItem)
 	keys := make(map[string]string)
-	for _, pr := range rows {
+	for _, pr := range unreadSince(before, snap) {
 		it, changed := a.probeRow(ctx, snap, pr, now, base)
 		if !changed {
 			continue

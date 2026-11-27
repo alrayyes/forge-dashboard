@@ -90,7 +90,7 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	}
 
 	a.pollBranches(ctx, snap, branches, now, base)
-	a.probeSettled(ctx, snap, settled, now, base)
+	a.probeSettled(ctx, settled, now, base)
 }
 
 // scheduledKeys is the schedule keys of everything a poll is for, so the

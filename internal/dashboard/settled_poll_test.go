@@ -134,3 +134,18 @@ func TestPollCI_NewerStatusWhoseRepoCannotBeRead_BacksOff(t *testing.T) {
 	_, repoReads := source.counts()
 	assert.LessOrEqual(t, repoReads, 15, "an hour of one-minute ticks")
 }
+
+func TestPollCI_RepoThePendingPollJustRead_IsNotReadAgain(t *testing.T) {
+	t.Parallel()
+	source := &settledSource{
+		rows:   []dashboard.PullRequest{settledRow(7, dashboard.CIFailure), settledRow(8, dashboard.CIPending)},
+		latest: 2,
+	}
+	agg := settledAggregator(t, source)
+	source.onRepo = func() { source.rows[0].LatestStatusID = 2 }
+
+	agg.PollCI(t.Context())
+
+	_, repoReads := source.counts()
+	assert.Equal(t, 1, repoReads)
+}
