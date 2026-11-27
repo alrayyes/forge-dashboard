@@ -1920,7 +1920,9 @@
     // state first, the attributes (the row's cluster, then labels and the
     // release version) below the title. Fields the row has, nothing else, as
     // they were when the dialog opened.
-    function detailsStatus(item: PullRequestItem): DetailsStatus {
+    function detailsStatus(
+      item: PullRequestItem,
+    ): Required<Pick<DetailsStatus, "state">> & DetailsStatus {
       const state = el("div", "details-state");
       state.setAttribute("role", "group");
       state.setAttribute("aria-label", "Status when opened");
@@ -2733,19 +2735,23 @@
       dialogGone = false;
       lastChromeSig = "";
       lastChromeItem = undefined;
+      // Listed means an open issue. Anything else may be closed or a pull
+      // request, so it has no state and no actions until its read answers
+      // (#5089).
+      const listed = listedIssue(item.forge, item.repo, item.number);
       issueActions.open({
         forge: item.forge,
         repo: item.repo,
         number: item.number,
         // Nothing here writes to a repository the board does not track.
         readOnly: !trackedRepo(item.forge, item.repo),
+        unread: !listed,
       });
       issueDialog = {
         forge: item.forge,
         repo: item.repo,
         number: item.number,
-        seenUpdatedAt: listedIssue(item.forge, item.repo, item.number)
-          ?.updatedAt,
+        seenUpdatedAt: listed?.updatedAt,
         item,
         outgoing: noOutgoing(),
         found: rowsOf({}),
@@ -2755,7 +2761,10 @@
         {
           ...item,
           subject: "issue",
-          status: issueStatus(item, noOutgoing()),
+          status: {
+            ...issueStatus(item, noOutgoing()),
+            state: listed ? issueStateElement(false) : undefined,
+          },
         },
         triggerId,
         fallbackFocusId,
@@ -3096,8 +3105,9 @@
       note.hidden = false;
     }
 
-    // The issue header: open when the dialog opens (the board lists open
-    // issues only), until the dialog's own details say otherwise, and its
+    // The issue header: open when a listed issue's dialog opens (the board
+    // lists open issues only), until the dialog's own details say otherwise,
+    // empty for an unlisted one until they answer, and its
     // labels as the pull request header shows them.
     function issueStateElement(closed: boolean): HTMLElement {
       const state = el("div", "details-state");
@@ -3197,8 +3207,7 @@
     function issueStatus(
       item: IssueDialogItem,
       outgoing: OutgoingRows,
-    ): DetailsStatus {
-      const state = issueStateElement(false);
+    ): Omit<DetailsStatus, "state"> {
       const attributes = el("div", "attr-cluster");
       attributes.setAttribute("role", "group");
       attributes.setAttribute("aria-label", "Labels when opened");
@@ -3271,7 +3280,7 @@
           },
         },
       );
-      return { state, attributes, related };
+      return { attributes, related };
     }
 
     // An armed confirm in the footer ends on the first Escape, and goes

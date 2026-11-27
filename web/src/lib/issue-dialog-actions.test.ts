@@ -202,3 +202,45 @@ describe('an issue of a repository the board does not track', () => {
     expect(chrome.actions).toEqual([]);
   });
 });
+
+describe('an issue the board does not list', () => {
+  // A mention or a #N reference: it may be a closed issue or a pull request,
+  // so nothing that writes is offered until a read says what it is (#5089).
+  const unread = { ...target, unread: true };
+  const names = () =>
+    chrome.actions
+      .flatMap((n) => walk(n))
+      .filter((n) => n.tag === 'button')
+      .map((n) => n.textContent);
+
+  test('open offers no actions', () => {
+    const actions = setup();
+    actions.open(unread);
+
+    expect(names()).toEqual([]);
+  });
+
+  test('a read saying it is open adds the Close buttons', () => {
+    const actions = setup();
+    actions.open(unread);
+
+    expect(actions.forgeState(false)).toBe(true);
+    expect(names()).toEqual(['Close issue', 'Close with a comment']);
+  });
+
+  test('a read saying it is closed adds Reopen', () => {
+    const actions = setup();
+    actions.open(unread);
+    actions.forgeState(true);
+
+    expect(names()).toEqual(['Reopen issue']);
+  });
+
+  test('of an untracked repository, a read adds nothing', () => {
+    const actions = setup();
+    actions.open({ ...unread, readOnly: true });
+    actions.forgeState(false);
+
+    expect(chrome.actions).toEqual([]);
+  });
+});

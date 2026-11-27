@@ -453,6 +453,17 @@ test.describe('the pull request dialog', () => {
         tracked: false,
       });
     const gonePill = (page: Page) => prDialog(page).locator('.mention-pill');
+    const statusChip = (page: Page) =>
+      issueDialog(page).getByRole('group', { name: 'Status' });
+    // Until a read answers, the item may be closed or a pull request.
+    async function expectNothingToActOn(page: Page) {
+      await expect(statusChip(page)).toHaveCount(0);
+      await expect(
+        issueDialog(page).getByRole('button', {
+          name: /^(Close issue|Close with a comment|Reopen issue)$/,
+        }),
+      ).toHaveCount(0);
+    }
 
     async function openWithGoneMention(page: Page) {
       await page.goto('/pull-requests.html');
@@ -500,8 +511,13 @@ test.describe('the pull request dialog', () => {
           'Loading details',
         ]);
         await expect(prDialog(page)).toBeHidden();
+        await expectNothingToActOn(page);
         answer();
         await expect(issueDialog(page)).toContainText('Closed text.');
+        await expect(statusChip(page)).toHaveText('Closed');
+        await expect(
+          issueDialog(page).getByRole('button', { name: 'Reopen issue' }),
+        ).toBeVisible();
         expect(asked).toBe(1);
         expect(page.context().pages()).toHaveLength(1);
         const results = await new AxeBuilder({ page })
@@ -531,7 +547,64 @@ test.describe('the pull request dialog', () => {
         await expect(
           issueDialog(page).getByRole('link', { name: /^Open on GitHub/ }),
         ).toHaveAttribute('href', gone().url);
+        await expectNothingToActOn(page);
         expect(page.context().pages()).toHaveLength(1);
+      });
+
+      // The pills the board closes and references, and a #N in the text, open
+      // the same dialog.
+      test('a Closes pill, a Refs pill and a #N reference offer nothing until read', async ({
+        page,
+      }) => {
+        await mockBoard(page, {
+          pullRequests: [
+            {
+              ...pullRequest(1, []),
+              // A #N in its text is resolved against this address.
+              url: `https://example.com/${REPO}/pull/1`,
+              closesIssues: [mention(5)],
+              refsIssues: [mention(6, { relation: 'refs' })],
+            },
+          ],
+        });
+        await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...details,
+              description: { ...details.description, text: 'See #8.' },
+            }),
+          }),
+        );
+        let answer: () => void = () => {};
+        await page.route('**/api/v1/issues/details*', async (route: Route) => {
+          await new Promise<void>((resolve) => {
+            answer = resolve;
+          });
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(details),
+          });
+        });
+        await page.goto('/pull-requests.html');
+
+        for (const name of [/^Closes: #5/, /^Refs: #6/, /^#8$/]) {
+          await openPullRequest(page);
+          await prDialog(page).getByRole('link', { name }).tap();
+          await expect(issueDialog(page).getByRole('status')).toContainText([
+            'Loading details',
+          ]);
+          await expectNothingToActOn(page);
+          answer();
+          await expect(statusChip(page)).toHaveText('Open');
+          await expect(
+            issueDialog(page).getByRole('button', { name: 'Close issue' }),
+          ).toBeVisible();
+          await page.keyboard.press('Escape');
+          await expect(issueDialog(page)).toBeHidden();
+        }
       });
     });
   });

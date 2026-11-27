@@ -102,6 +102,11 @@ request closes, references and mentions.
 The footer offers **Close issue** and **Close with a comment**. There is no
 merge or rebase on an issue.
 
+An issue the board doesn't list, opened from a "Closes", "Refs" or "Mentions"
+pill or a `#12` in a description, may already be closed or may be a pull
+request. Its pop-up shows no status and neither button until the forge
+has answered, and none at all if the forge can't be read.
+
 - **Close issue** asks you to confirm. **Confirm close issue?** closes it;
   **Cancel** or Escape drops the step.
 - **Close with a comment** opens a **Comment** field. **Comment and close**

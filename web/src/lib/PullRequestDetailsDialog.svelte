@@ -6,7 +6,8 @@
   // so the two cannot drift (#1563): the CI slot and merge state, and the
   // attribute chips.
   export type DetailsStatus = {
-    state: HTMLElement;
+    // Absent until the details answer, for an issue the board does not list.
+    state?: HTMLElement;
     attributes: HTMLElement;
     // The Related band between the title block and the description (#4220);
     // absent when nothing is related.
@@ -255,15 +256,19 @@
   const STATE_WORDS = { open: "Open", closed: "Closed", merged: "Merged" };
   // The status chip of a header with no row behind it: a pull request's from
   // the facts, an issue's from its details. Empty while they are on the way,
-  // when the row is held at the chip's height so nothing below it moves.
+  // when the row is held at the chip's height so nothing below it moves. An
+  // issue the board does not list is held the same way until the page hands
+  // over its chip (#5089).
   const stateWord = $derived(
-    !itemTarget || itemTarget.status
+    !itemTarget || itemTarget.status?.state
       ? null
-      : facts
-        ? STATE_WORDS[facts.state]
-        : details?.state
-          ? STATE_WORDS[details.state]
-          : "",
+      : itemTarget.status
+        ? ""
+        : facts
+          ? STATE_WORDS[facts.state]
+          : details?.state
+            ? STATE_WORDS[details.state]
+            : "",
   );
   // Who opened it: the filer on an issue's row, the author the server named
   // on a pull request found by number.
@@ -1135,7 +1140,7 @@
         <!-- The status describes the title, so it follows it in the DOM and not
           only on screen (#4405). The filer shares its line when there is room. -->
         <div class="details-meta">
-          {#if target.status}
+          {#if target.status?.state}
             <div
               class="details-status"
               {@attach adopt(target.status.state)}
