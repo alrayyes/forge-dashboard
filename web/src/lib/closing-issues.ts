@@ -62,7 +62,7 @@ export function closingDialogName(
     : `Closes: ${number}, ${where}`;
 }
 
-/** The pill's class: a refs pill is drawn apart from a closes one. */
+/** The pill's class: it marks which relation, and both are drawn alike. */
 export const closingPillClass = (issue: ClosingIssue) =>
   issue.relation === 'refs'
     ? 'linked-pr refs-issue'
@@ -76,7 +76,7 @@ export function closingPillName(issue: ClosingIssue, prRepo: string) {
     : `${text}, opens the issue`;
 }
 
-/** The pill's tooltip: the issue's title when known, then what the pill does to it, which the italic alone doesn't say. */
+/** The pill's tooltip: the issue's title when known, then what the pill does to it, in a whole sentence. */
 export const closingPillTitle = (issue: ClosingIssue) =>
   pillHoverText(
     issue.title,

@@ -2269,16 +2269,6 @@ button.title {
 .linked-pr.draft {
   border-style: dashed;
 }
-/* A refs pill works on a ticket and does not close it: a dotted outline, no
-   sunken fill and italic text. A draft's border is dashed, so the two never
-   look alike. The border stays 1px, since the phone hit area is measured
-   from the padding box. */
-.linked-pr.refs-issue,
-.linked-pr.refs-pill {
-  background: transparent;
-  border-style: dotted;
-  font-style: italic;
-}
 /* A pill never grows past its row: the number cuts a long cross-repo name
    short with an ellipsis, and the state and pipeline after it stay whole. The
    full name is in the pill's accessible name and in the dialog it opens. */
@@ -2288,9 +2278,24 @@ button.title {
   gap: 4px;
   max-width: 100%;
 }
+.linked-pr-relation {
+  flex: none;
+  font-weight: 700;
+}
 .linked-pr-ref {
   display: inline-flex;
   min-width: 0;
+}
+/* With a pipeline, the cross-repo name gives way first and the pipeline then
+   takes a second line: squeezed onto one, it clips its counts out of sight.
+   The max-width keeps a short name from reserving the whole 14ch. */
+.linked-pr.with-ci {
+  flex-wrap: wrap;
+  border-radius: 12px;
+}
+.linked-pr.with-ci .linked-pr-ref {
+  flex: 1 1 14ch;
+  max-width: max-content;
 }
 .linked-pr-repo {
   min-width: 8ch;

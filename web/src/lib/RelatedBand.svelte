@@ -84,9 +84,9 @@
     min-width: 0;
   }
   /* The row builders' pills, drawn here as they are on a row, at the band's
-     size, and a mention drawn like a ref: 26px tall (24px is the floor), a gap that holds wrapped lines
-     apart, and on the sunken band a surface fill and a dotted border dark
-     enough to be seen against it. */
+     size: 26px tall (24px is the floor), a gap that holds wrapped lines apart,
+     and a surface fill on the sunken band. Every relation looks alike; the
+     row's label names it. */
   .related-host :global(.linked-prs) {
     display: flex;
     flex-wrap: wrap;
@@ -104,17 +104,6 @@
   }
   .related-host :global(.linked-pr) {
     max-width: 100%;
-  }
-  .related-host :global(.linked-pr.refs-issue),
-  .related-host :global(.linked-pr.refs-pill),
-  .related-host :global(.linked-pr.mention-pill) {
-    background: transparent;
-    border-style: dotted;
-    border-color: var(--control-border);
-    font-style: italic;
-  }
-  .related-host :global(.linked-pr.draft) {
-    border-style: dashed;
   }
   /* The disclosure is text with a chevron, not an entity-shaped pill. */
   .related-host :global(.related-toggle) {

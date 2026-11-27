@@ -148,13 +148,13 @@ test('the dialog shows the closing pull request with the row pill text and its n
   await expect(dialogPills(page)).toHaveAttribute(
     'aria-label',
     `Closed by: ${(name ?? '')
-      .replace(/, closes this issue$/, '')
-      .replace('Pull request #12', 'PR #12 · Open')}`,
+      .replace(/, pull request, closes this issue$/, '')
+      .replace('closes #12', 'PR #12 · Open')}`,
   );
-  // The band says the state in words where the row says only the number.
+  // The band says the state in words, and its row label names the relation.
   await expect(dialogPills(page)).toHaveText(
     ((await rowPills(page).textContent()) ?? '').replace(
-      '#12',
+      'closes #12',
       'PR #12 · Open',
     ),
   );
@@ -176,7 +176,7 @@ test('the dialog pill shows the same CI state as the row, failing and passing', 
 
   const signature = (pill: Locator) =>
     pill.evaluate((el) => ({
-      ci: [...el.querySelectorAll('*')].map((n) => ({
+      ci: [...el.querySelectorAll('.ci-pill, .ci-pill *')].map((n) => ({
         cls: n.className,
         color: getComputedStyle(n).color,
         bg: getComputedStyle(n).backgroundColor,
