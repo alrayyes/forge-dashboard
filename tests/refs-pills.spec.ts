@@ -134,16 +134,20 @@ test.describe('the refs pill on a pull request row', () => {
     );
     await expect(closes(page, 1)).toHaveText('Closes #10');
     await expect(refs(page, 2)).toHaveCount(0);
-    const border = (locator: ReturnType<typeof refs>) =>
-      locator.evaluate((el) => getComputedStyle(el).borderTopStyle);
-    // Retries until both pills are styled; an unstyled pill reads as ''.
-    await expect
-      .poll(async () => {
-        const a = await border(refs(page, 1));
-        const b = await border(closes(page, 1));
-        return a !== '' && b !== '' && a !== b;
-      })
-      .toBe(true);
+    // Drawn alike: the word is what tells them apart (#5073).
+    for (const property of [
+      'background-color',
+      'border-top-style',
+      'border-top-color',
+      'font-style',
+    ])
+      await expect(refs(page, 1)).toHaveCSS(
+        property,
+        await closes(page, 1).evaluate(
+          (el, name) => getComputedStyle(el).getPropertyValue(name),
+          property,
+        ),
+      );
   });
 
   test('shows its explanation on keyboard focus and Escape dismisses it', async ({

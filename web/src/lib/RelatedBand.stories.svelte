@@ -159,6 +159,12 @@
       (n) => n.textContent,
     );
     await expect(labels).toEqual(["Closes", "Refs", "Mentions"]);
+    // Every relation is drawn alike; the row's label says which it is.
+    const looks = [...canvasElement.querySelectorAll(".linked-pr")].map((n) => {
+      const s = getComputedStyle(n);
+      return `${s.backgroundColor} ${s.borderTopStyle} ${s.borderTopColor} ${s.fontStyle}`;
+    });
+    await expect(new Set(looks).size).toBe(1);
     await expect(
       canvasElement.querySelector(".related-count")?.textContent,
     ).toBe("5");

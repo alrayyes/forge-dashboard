@@ -44,15 +44,22 @@ describe('a pill that carries a pipeline', () => {
   };
 
   test('reads the word and the counts after the number and state', () => {
-    expect(linkedPillText(pr(), 'alrayyes/app', ci)).toBe('#12 Running 3 1');
+    expect(linkedPillText(pr(), 'alrayyes/app', ci, 'closes')).toBe(
+      'closes #12 Running 3 1',
+    );
   });
 
   test('says the counts in words, after the visible text it contains', () => {
     const name = linkedPillName(pr(), 'alrayyes/app', ci);
     expect(name).toBe(
-      'Pull request #12 Running 3 1: 3 passed, 1 failed, closes this issue',
+      'closes #12 Running 3 1: 3 passed, 1 failed, pull request, closes this issue',
     );
-    expect(name).toContain(linkedPillText(pr(), 'alrayyes/app', ci));
+    expect(name).toContain(
+      linkedPillText(pr(), 'alrayyes/app', ci, 'closes').replace(
+        ' Running 3 1',
+        ' Running 3 1:',
+      ),
+    );
   });
 
   test('an incomplete check list says so in the name, as the row does (#4299)', () => {
@@ -62,7 +69,7 @@ describe('a pill that carries a pipeline', () => {
       segments: [{ kind: 'passed' as const, n: 1 }],
     };
     expect(linkedPillName(pr(), 'alrayyes/app', counting)).toBe(
-      'Pull request #12 Counting checks… 1: 1 passed. The list of checks is not complete yet., closes this issue',
+      'closes #12 Counting checks… 1: 1 passed. The list of checks is not complete yet., pull request, closes this issue',
     );
     expect(
       linkedDialogName(pr(), 'alrayyes/app', counting).endsWith(
@@ -78,7 +85,7 @@ describe('a pill that carries a pipeline', () => {
       segments: [],
     };
     expect(linkedPillName(pr(), 'alrayyes/app', held)).toBe(
-      'Pull request #12 Waiting for workflow approval, closes this issue',
+      'closes #12 Waiting for workflow approval, pull request, closes this issue',
     );
   });
 });
@@ -105,20 +112,47 @@ describe('linkedPillText', () => {
 describe('linkedPillName', () => {
   test('says what it is and that it closes the issue, and contains the visible text', () => {
     const name = linkedPillName(pr(), 'alrayyes/app');
-    expect(name).toBe('Pull request #12, closes this issue');
-    expect(name).toContain(linkedPillText(pr(), 'alrayyes/app'));
+    expect(name).toBe('closes #12, pull request, closes this issue');
+    expect(name).toContain(
+      linkedPillText(pr(), 'alrayyes/app', null, 'closes'),
+    );
   });
 
   test('says it mentions the issue when that is what the pull request does', () => {
     expect(linkedPillName(pr(), 'alrayyes/app', null, 'mentions')).toBe(
-      'Pull request #12, mentions this issue',
+      'mentions #12, pull request, mentions this issue',
     );
   });
 
   test('says it references the issue when that is what the pull request does', () => {
     expect(linkedPillName(pr(), 'alrayyes/app', null, 'refs')).toBe(
-      'Pull request #12, references, does not close this issue',
+      'refs #12, pull request, references, does not close this issue',
     );
+  });
+
+  test('a row pill says its relation before the number, and its name holds that text', () => {
+    for (const relation of ['closes', 'refs', 'mentions'] as const)
+      for (const item of [
+        pr(),
+        pr({ draft: true }),
+        pr({ repo: 'alrayyes/other' }),
+      ]) {
+        const text = linkedPillText(item, 'alrayyes/app', null, relation);
+        expect(text.startsWith(`${relation} `)).toBe(true);
+        expect(linkedPillName(item, 'alrayyes/app', null, relation)).toContain(
+          text,
+        );
+      }
+    expect(
+      linkedPillText(pr({ draft: true }), 'alrayyes/app', null, 'refs'),
+    ).toBe('refs #12 draft');
+    expect(linkedPillText(pr(), 'alrayyes/app', null, 'closes')).toBe(
+      'closes #12',
+    );
+  });
+
+  test('without a relation, as under a heading that names it, the text is the number', () => {
+    expect(linkedPillText(pr(), 'alrayyes/app')).toBe('#12');
   });
 
   test('says in its tooltip what each relation does to the issue', () => {
@@ -156,9 +190,11 @@ describe('linkedPillName', () => {
     const other = pr({ repo: 'alrayyes/other', draft: true });
     const name = linkedPillName(other, 'alrayyes/app');
     expect(name).toBe(
-      'Pull request alrayyes/other#12 draft, closes this issue',
+      'closes alrayyes/other#12 draft, pull request, closes this issue',
     );
-    expect(name).toContain(linkedPillText(other, 'alrayyes/app'));
+    expect(name).toContain(
+      linkedPillText(other, 'alrayyes/app', null, 'closes'),
+    );
   });
 });
 
@@ -216,7 +252,7 @@ describe('a pull request pill in the Related band', () => {
       linkedPillText(p, 'alrayyes/app'),
     );
     expect(linkedPillName(p, 'alrayyes/app')).toContain(
-      linkedPillText(p, 'alrayyes/app'),
+      linkedPillText(p, 'alrayyes/app', null, 'closes'),
     );
   });
 

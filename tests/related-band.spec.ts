@@ -178,7 +178,21 @@ test('a pull request dialog has a Related band between the title and the descrip
   const refsRow = row(dialog, 'Refs').locator('.linked-pr');
   await expect(refsRow).toHaveCount(1);
   await expect(refsRow).toHaveText('alrayyes/other#7');
-  await expect(refsRow).toHaveCSS('border-top-style', 'dotted');
+  // Drawn like a closing pill; the row's heading says the relation.
+  const closing = row(dialog, 'Closes').locator('.linked-pr').first();
+  for (const property of [
+    'background-color',
+    'border-top-style',
+    'border-top-color',
+    'font-style',
+  ])
+    await expect(refsRow).toHaveCSS(
+      property,
+      await closing.evaluate(
+        (el, name) => getComputedStyle(el).getPropertyValue(name),
+        property,
+      ),
+    );
   await expect(row(dialog, 'Mentions')).toHaveCount(0);
   // The count is the distinct items, not the rows.
   await expect(dialog.locator('.related-count')).toHaveText('3');
