@@ -91,6 +91,21 @@ const ISSUES = [NAME_34, OTHER_34, 'demo/api', TOO_LONG].map((repo, i) => ({
   updatedAt: new Date(Date.now() - (i + 1) * 1000).toISOString(),
 }));
 
+// A stack four deep, the most the list indents, all with the same long name.
+const STACK = [1, 2, 3, 4].map((position) =>
+  pr(position, NAME_34, {
+    stack: { position, size: 4 },
+    stackChildren: position < 4 ? [position + 1] : [],
+    stackedOn:
+      position > 1
+        ? {
+            number: position - 1,
+            url: `https://example.com/pull/${position - 1}`,
+          }
+        : undefined,
+  }),
+);
+
 const ROWS = '#pr-rows .row, #issue-rows .row';
 
 async function open(
@@ -99,15 +114,29 @@ async function open(
   {
     path = '/pull-requests.html',
     groupBy = '',
-  }: { path?: string; groupBy?: string } = {},
+    stacked = false,
+  }: { path?: string; groupBy?: string; stacked?: boolean } = {},
 ) {
   await page.setViewportSize({ width, height: 900 });
-  const prs =
+  const base =
     path === '/bots.html'
       ? BOT_PRS
       : path === '/releases.html'
         ? RELEASE_PRS
         : PRS;
+  // The stack takes the view's author, kind and title from its first row. A
+  // second repository keeps the Group rows by control on the page.
+  const prs = stacked
+    ? [
+        ...STACK.map((p) => ({
+          ...p,
+          author: base[0].author,
+          kind: (base[0] as { kind?: string }).kind,
+          title: base[0].title.replace(/\d(?=\)?$)/, String(p.number)),
+        })),
+        { ...base[2], number: 5, url: 'https://example.com/pull/5' },
+      ]
+    : base;
   const issues = path === '/issues.html' ? ISSUES : [];
   await routeImage(
     page,
@@ -215,6 +244,32 @@ for (const [view, options, narrow] of VIEWS) {
     const rows = await measure(page);
     expect(rows.map((r) => Math.round(r.repo))).toEqual(Array(4).fill(narrow));
   });
+}
+
+// A stacked row is indented by its depth, and the indent comes out of the repo
+// column, so the column has to be that much wider for the name to fit.
+for (const [view, options] of VIEWS.slice(0, 4)) {
+  for (const width of [1920, 2560]) {
+    test(`${view}: stacked rows show a 34 character name whole at ${width}px`, async ({
+      page,
+    }) => {
+      await open(page, width, { ...options, stacked: true });
+      await expect(page.locator('#pr-rows .stack-member > .row')).toHaveCount(
+        4,
+      );
+      await expect
+        .poll(async () => (await measure(page)).map((r) => r.cut))
+        .toEqual(Array(5).fill(false));
+      const lefts = await page
+        .locator('#pr-rows .row .title-cell')
+        .evaluateAll((cells) =>
+          cells.map((c) => Math.round(c.getBoundingClientRect().left)),
+        );
+      expect(new Set(lefts).size).toBe(1);
+      for (const r of await measure(page))
+        expect(r.title).toBeGreaterThanOrEqual(439.5);
+    });
+  }
 }
 
 // The column starts to grow at a list width set in rem, with a floor in px so
