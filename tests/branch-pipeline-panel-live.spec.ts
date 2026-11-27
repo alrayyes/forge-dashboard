@@ -154,6 +154,38 @@ async function update(
 }
 
 test.describe('main branches pipeline panel updates live', () => {
+  // GitHub lists no external status beside check runs, so the footer is the
+  // only link to one that failed the branch (#5077). A rerun moves the row on,
+  // and the footer follows the runs again.
+  test('a failed branch with no failed check keeps its link to the failure', async ({
+    page,
+  }) => {
+    const external = 'https://ci.example.com/build/1';
+    const failed = {
+      ...branch('failed', { passed: 2, running: 0, waiting: 0, failed: 1 }),
+      runUrl: external,
+    };
+    const run = (id: number) => `https://example.com/o/r/actions/runs/${id}`;
+    const runs = [
+      { ...DONE[0], url: `${run(5)}/job/1` },
+      { ...DONE[1], url: `${run(9)}/job/2` },
+    ];
+    const state = await open(page, failed, runs);
+    const link = panel(page).getByRole('link', { name: /^Open .*run on/ });
+    await expect(link).toHaveAttribute('href', external);
+    await expect(link).toHaveText('Open run on GitHub');
+
+    state.row = RUNNING;
+    state.checks = [
+      { name: 'build', status: 'in_progress', url: `${run(5)}/job/1` },
+      runs[1],
+    ];
+    await update(page, state);
+
+    await expect(link).toHaveAttribute('href', run(5));
+    await expect(link).toHaveText('Open latest running run on GitHub');
+  });
+
   test('a check finishing changes its pill where it stands, announced once', async ({
     page,
   }) => {

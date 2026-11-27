@@ -9,6 +9,7 @@ import {
   checkRunKey,
   checkState,
   checkUnknownWord,
+  footerRunLink,
   formatCheckDuration,
   groupChecks,
   isBlocking,
@@ -308,6 +309,55 @@ describe('runPageUrl', () => {
     });
   });
 
+  const job = (run: number, over: Partial<Check> = {}) =>
+    check({ url: `https://f.example/o/r/actions/runs/${run}/jobs/0`, ...over });
+  const running = { status: 'in_progress', conclusion: undefined };
+  const queued = { status: 'queued', conclusion: undefined };
+  const held = { status: 'waiting', conclusion: undefined };
+  const page = (run: number) => `https://f.example/o/r/actions/runs/${run}`;
+
+  test('a running run wins over newer finished and queued ones', () => {
+    const checks = [job(5, running), job(7, queued), job(9)];
+    expect(runPageUrl(checks)).toEqual({
+      url: page(5),
+      kind: 'running-run',
+    });
+  });
+
+  test('several running runs link the newest of those', () => {
+    const checks = [job(5, running), job(7, running), job(9)];
+    expect(runPageUrl(checks)).toEqual({
+      url: page(7),
+      kind: 'running-run',
+    });
+  });
+
+  test('a run counts as running when any of its jobs is', () => {
+    const checks = [job(5), job(5, running), job(5, queued), job(9)];
+    expect(runPageUrl([...checks])).toEqual({
+      url: page(5),
+      kind: 'running-run',
+    });
+  });
+
+  test.each([
+    ['queued', queued],
+    ['held for approval', held],
+  ])('a %s run wins over a newer finished one', (_, state) => {
+    expect(runPageUrl([job(5, state), job(9)])).toEqual({
+      url: page(5),
+      kind: 'waiting-run',
+    });
+  });
+
+  test('a failed run still wins over a running one', () => {
+    const checks = [job(5, { conclusion: 'failure' }), job(9, running)];
+    expect(runPageUrl(checks)).toEqual({
+      url: page(5),
+      kind: 'failed-run',
+    });
+  });
+
   test('is undefined for a third-party status or no checks', () => {
     const third = [check({ url: 'https://ci.example/build/1' })];
     expect(runPageUrl(third)).toBeUndefined();
@@ -316,10 +366,70 @@ describe('runPageUrl', () => {
   });
 });
 
+describe('footerRunLink', () => {
+  const board = 'https://f.example/o/r/actions/runs/9';
+  const job = (run: number, over: Partial<Check> = {}) =>
+    check({ url: `https://f.example/o/r/actions/runs/${run}/jobs/0`, ...over });
+
+  test('checks naming several runs outrank the board address', () => {
+    const checks = [
+      job(5, { status: 'in_progress', conclusion: undefined }),
+      job(9),
+    ];
+    expect(footerRunLink(board, checks)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/5',
+      kind: 'running-run',
+    });
+  });
+
+  test('the board address stands for one run or none', () => {
+    const url = 'https://f.example/o/r/commit/abc/checks';
+    expect(footerRunLink(url, [job(5)])).toEqual({ url, kind: 'run' });
+    expect(footerRunLink(url, [])).toEqual({ url, kind: 'run' });
+  });
+
+  test('with no board address the checks name the run', () => {
+    expect(footerRunLink(undefined, [job(5)])).toEqual({
+      url: 'https://f.example/o/r/actions/runs/5',
+      kind: 'run',
+    });
+    expect(footerRunLink(undefined, [])).toBeUndefined();
+  });
+
+  // A failed branch's address may be the only link to the failure: GitHub lists
+  // no external status beside check runs.
+  const failure = 'https://ci.example.com/build/1';
+
+  test('a failed branch keeps its address when no listed run failed', () => {
+    expect(footerRunLink(board, [job(5), job(9)], failure)).toEqual({
+      url: failure,
+      kind: 'run',
+    });
+    const app = check({
+      url: 'https://app.example/check/1',
+      conclusion: 'failure',
+    });
+    expect(footerRunLink(board, [job(5), app], failure)).toEqual({
+      url: failure,
+      kind: 'run',
+    });
+  });
+
+  test('a failed run a failed branch lists still wins', () => {
+    const checks = [job(5, { conclusion: 'failure' }), job(9)];
+    expect(footerRunLink(board, checks, failure)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/5',
+      kind: 'failed-run',
+    });
+  });
+});
+
 describe('runLinkNoun', () => {
   test('names what each kind opens', () => {
     expect(runLinkNoun('run')).toBe('run');
     expect(runLinkNoun('failed-run')).toBe('latest failed run');
+    expect(runLinkNoun('running-run')).toBe('latest running run');
+    expect(runLinkNoun('waiting-run')).toBe('latest waiting run');
     expect(runLinkNoun('latest-run')).toBe('latest run');
   });
 });

@@ -187,45 +187,82 @@ export function blockingFirst(checks: Check[]): Check[] {
 
 const RUN_PAGE = /^(.*\/actions\/runs\/(\d+))(?:\/|$)/;
 
-export type RunLinkKind = 'run' | 'failed-run' | 'latest-run';
+export type RunLinkKind =
+  | 'run'
+  | 'failed-run'
+  | 'running-run'
+  | 'waiting-run'
+  | 'latest-run';
 
-// The run page to link for a target that carries no run address of its own (a
-// pull request). A job's page is the run's page plus a job path, so trimming it
-// names the run. One run is just "the run". Several runs (workflows, a re-run)
-// can't all be opened by one link, so it goes to the newest run holding a
-// failed check, since that is what someone opens the dialog to debug, and the
-// kind says so; with nothing failed, to the newest run. A third-party status
-// has no run page, and neither does an empty list.
-export function runPageUrl(
-  checks: Check[],
-): { url: string; kind: RunLinkKind } | undefined {
-  const runs = new Map<number, { url: string; failed: boolean }>();
+export type RunLink = { url: string; kind: RunLinkKind };
+
+// Which of several runs the link opens: the first of these that any run has a
+// check in, else the newest run of all. A failed run is what someone opens the
+// dialog to debug; failing that, a run still going is what they wait for.
+const RUN_PREFERENCE: { kind: RunLinkKind; states: string[] }[] = [
+  { kind: 'failed-run', states: ['failure', 'timed_out'] },
+  { kind: 'running-run', states: ['running'] },
+  { kind: 'waiting-run', states: ['queued', 'awaiting_approval'] },
+];
+
+// The run page to link, from the checks alone. A job's page is the run's page
+// plus a job path, so trimming it names the run. One run is just "the run".
+// Several runs (workflows, a re-run) can't all be opened by one link, so
+// RUN_PREFERENCE picks one, the newest where several qualify, and the kind says
+// which sort it is. A third-party status has no run page, and neither does an
+// empty list.
+export function runPageUrl(checks: Check[]): RunLink | undefined {
+  const runs = new Map<number, { url: string; states: Set<string> }>();
   for (const check of checks) {
     const match = RUN_PAGE.exec(check.url);
     if (!match) continue;
     const id = Number(match[2]);
-    const state = checkState(check);
-    const failed = state === 'failure' || state === 'timed_out';
-    const seen = runs.get(id);
-    runs.set(id, { url: match[1], failed: failed || (seen?.failed ?? false) });
+    const run = runs.get(id) ?? { url: match[1], states: new Set<string>() };
+    run.states.add(checkState(check));
+    runs.set(id, run);
   }
   if (runs.size === 0) return undefined;
-  const newest = (entries: [number, { url: string }][]) =>
-    entries.reduce((a, b) => (b[0] > a[0] ? b : a))[1].url;
-  const all = [...runs];
-  if (all.length === 1) return { url: all[0][1].url, kind: 'run' };
-  const failed = all.filter(([, run]) => run.failed);
-  if (failed.length > 0) return { url: newest(failed), kind: 'failed-run' };
+  const newestFirst = [...runs].sort(([a], [b]) => b - a).map(([, run]) => run);
+  if (newestFirst.length === 1) return { url: newestFirst[0].url, kind: 'run' };
+  for (const { kind, states } of RUN_PREFERENCE) {
+    const run = newestFirst.find((r) => states.some((s) => r.states.has(s)));
+    if (run) return { url: run.url, kind };
+  }
 
-  return { url: newest(all), kind: 'latest-run' };
+  return { url: newestFirst[0].url, kind: 'latest-run' };
+}
+
+// The dialog's footer link. A board's own run address (a branch's) stands
+// while the checks name one run or none. Once they name several, that address
+// may be a finished run while another is going, so the checks choose, as they
+// do for a pull request. The exception is a failed branch's address
+// (failureUrl) when no run the checks name has a failed check: the failure may
+// be one the list leaves out, and this link the only way to it.
+export function footerRunLink(
+  boardUrl: string | undefined,
+  checks: Check[],
+  failureUrl?: string,
+): RunLink | undefined {
+  const named = runPageUrl(checks);
+  if (failureUrl && named?.kind !== 'failed-run') {
+    return { url: failureUrl, kind: 'run' };
+  }
+  if (named && named.kind !== 'run') return named;
+
+  return boardUrl ? { url: boardUrl, kind: 'run' } : named;
 }
 
 // What the link opens, in the words after "Open".
-export function runLinkNoun(kind: RunLinkKind): string {
-  if (kind === 'failed-run') return 'latest failed run';
-  if (kind === 'latest-run') return 'latest run';
+const RUN_LINK_NOUNS: Record<RunLinkKind, string> = {
+  run: 'run',
+  'failed-run': 'latest failed run',
+  'running-run': 'latest running run',
+  'waiting-run': 'latest waiting run',
+  'latest-run': 'latest run',
+};
 
-  return 'run';
+export function runLinkNoun(kind: RunLinkKind): string {
+  return RUN_LINK_NOUNS[kind];
 }
 
 // How many failed checks a rerun restarts and how many it leaves out. The
