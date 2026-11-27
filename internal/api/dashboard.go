@@ -548,8 +548,9 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 	done := firstRefreshDone(deps.Service)
 	// A snapshot with forges in it was either refreshed or restored from the
 	// last run, and either way there is something to show instead of a
-	// loading state. The short read interval still follows the real flag.
-	shown := done || len(snap.Forges) > 0
+	// loading state, unless it is empty only because a forge has not been
+	// read yet. The short read interval still follows the real flag.
+	shown := (done || len(snap.Forges) > 0) && !emptyUnread(snap)
 
 	return dashboardResponse{
 		GeneratedAt:    snap.GeneratedAt,
@@ -577,6 +578,12 @@ func buildDashboardResponse(ctx context.Context, deps Deps, snap dashboard.Snaps
 		ReadIntervalSeconds: int(readInterval(done) / time.Second),
 		RecentlyStarted:     recentlyStarted(deps.StartedAt, board.now),
 	}
+}
+
+// emptyUnread reports a board with no pull requests because a forge is still
+// on its first read, which is not an empty board.
+func emptyUnread(snap dashboard.Snapshot) bool {
+	return len(snap.PullRequests) == 0 && slices.ContainsFunc(snap.Forges, dashboard.ForgeHealth.NeverRead)
 }
 
 // firstRefreshDone is the snapshot's flag. When no Aggregator is running

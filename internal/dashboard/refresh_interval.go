@@ -52,7 +52,7 @@ func webhooksCover(snap Snapshot, interval time.Duration, now time.Time) bool {
 	// has carried-over repos, and this check catches that too.
 	reachable := make(map[Forge]bool, len(snap.Forges))
 	for _, h := range snap.Forges {
-		if !h.Reachable {
+		if !h.Reachable || h.NeverRead() {
 			return false
 		}
 		reachable[h.Forge] = true

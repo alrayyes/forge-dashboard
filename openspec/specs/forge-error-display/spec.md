@@ -157,6 +157,46 @@ neither the field nor the line.
 - **WHEN** a later pass answers in time
 - **THEN** the health carries no `rowsReadAt` and the line is gone
 
+### Requirement: A person's refresh leaves a slow read running
+
+A refresh a person asked for, including the catch-up when the board is opened
+after an idle spell, SHALL stop waiting for a forge at the user deadline and
+SHALL NOT cancel its read before the scheduled deadline. While that read runs,
+the forge SHALL keep the rows it had, not be asked again, and have no pass
+counted as missed, and SHALL be reachable with cause `slow`. A forge that was
+unreachable or `starting` before the read began is the exception: it SHALL stay
+as it was, with its actions off and queued actions held, until a read succeeds.
+The outcome SHALL be applied when it arrives. A forge never read before has no
+rows and no `rowsReadAt` meanwhile, and its missing rows SHALL NOT be treated as
+closed or gone: no saved choice is forgotten, no queued action is skipped and
+its actions stay off.
+
+#### Scenario: An unreachable forge is read again
+
+- **WHEN** an unreachable forge's next read is still running at the user deadline
+- **THEN** it stays unreachable with its error, and a queued action stays queued
+
+#### Scenario: An unreachable forge's next read fails too
+
+- **WHEN** that read fails, or is silent past the scheduled deadline
+- **THEN** the forge stays unreachable, with no failures held back as slow
+
+#### Scenario: A queued action while the first read is slow
+
+- **WHEN** a queued action is due and its forge has never been read
+- **THEN** the action stays queued and is tried again
+
+#### Scenario: An answer between the two deadlines
+
+- **WHEN** a forge answers after the user deadline and within the scheduled one
+- **THEN** its rows appear without another refresh and the cause goes
+
+#### Scenario: Silence past the scheduled deadline
+
+- **WHEN** a forge has not answered by the scheduled deadline
+- **THEN** the read is cancelled and counts as a missed pass, shown as any other
+  miss is
+
 ### Requirement: Main branches announces a slow or starting forge
 
 The Main branches page, which draws no forge chip, SHALL state in a polite live

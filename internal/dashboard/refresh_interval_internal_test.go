@@ -133,3 +133,23 @@ func TestKeepNewerScopedRepos_TakesTheFullRefreshsRowForARepoNoScopedRefreshTouc
 
 	assert.NotNil(t, got.Repos[1].StaleSince)
 }
+
+// Its repos are not known yet, so the other forge's webhooks cover nothing of it.
+func TestWebhooksCover_AForgeNeverReadIsNotCovered(t *testing.T) {
+	t.Parallel()
+
+	snap := staleSnapshot(nil, nil)
+	snap.Forges = append(snap.Forges, ForgeHealth{Forge: ForgeForgejo, Reachable: true, Cause: ForgeCauseSlow})
+
+	assert.False(t, webhooksCover(snap, 20*time.Minute, time.Date(2026, 10, 22, 12, 0, 0, 0, time.UTC)))
+}
+
+// A pass that does not ask a forge keeps what says it was never read, or its
+// empty rows would read as an answer.
+func TestNotSlow_KeepsAForgeNeverRead(t *testing.T) {
+	t.Parallel()
+
+	h := ForgeHealth{Forge: ForgeForgejo, Reachable: true, Cause: ForgeCauseSlow}
+
+	assert.True(t, notSlow(h).NeverRead())
+}

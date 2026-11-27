@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"runtime"
 	"time"
 )
 
@@ -71,3 +72,16 @@ func MergeRefusalForTest(err error) ActionRefusal { return mergeRefusal(err) }
 
 // PollFingerprintForTest is what a CI poll can change about pr.
 func PollFingerprintForTest(pr PullRequest) string { return pollFingerprint(pr) }
+
+// CatchUpForTest runs the refresh Run does when someone opens the board after
+// an idle spell.
+func (a *Aggregator) CatchUpForTest(ctx context.Context) { a.catchUpPass(ctx) }
+
+// WaitSourcesIdleForTest waits until no source's fetch is running.
+func (a *Aggregator) WaitSourcesIdleForTest() {
+	for i := range a.fetching {
+		for a.fetching[i].Load() {
+			runtime.Gosched()
+		}
+	}
+}

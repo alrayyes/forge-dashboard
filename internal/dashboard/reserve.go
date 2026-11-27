@@ -69,17 +69,22 @@ func (l *reserveLedger) record(k costKey, points int) {
 // the dearest recent one.
 func (a *Aggregator) noteSpend(results []sourceResult) {
 	for i, r := range results {
-		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
-			continue
-		}
-		forge := a.sources[i].Forge()
-		// A GraphQL fetch that worked cost at least a point, so none reported
-		// is no measurement. REST can cost nothing: the cache answered.
-		if r.Spent.GraphQL > 0 {
-			a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
-		}
-		a.reserve.record(costKey{forge, false}, r.Spent.REST)
+		a.noteSpendOf(i, r.Result)
 	}
+}
+
+// noteSpendOf is noteSpend for source i's result alone.
+func (a *Aggregator) noteSpendOf(i int, r Result) {
+	if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
+		return
+	}
+	forge := a.sources[i].Forge()
+	// A GraphQL fetch that worked cost at least a point, so none reported
+	// is no measurement. REST can cost nothing: the cache answered.
+	if r.Spent.GraphQL > 0 {
+		a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
+	}
+	a.reserve.record(costKey{forge, false}, r.Spent.REST)
 }
 
 func budgetOf(h ForgeHealth, graphQL bool) *RateLimit {
