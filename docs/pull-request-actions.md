@@ -351,15 +351,19 @@ off) a pull request row is one vertically centred line, and the whole list is
 one grid. The author, the dates, the CI pill, the merge-state and comment pills
 and the action each start at the same x on every row, stacked and grouped rows
 included, and a live update to one row leaves the others where they are. The
-status area has three columns: the CI pill, the merge-state and comment pills (a
-Conflicting pill takes the same column as the comment pill, and both stack there
-when a row has both), and the action. Each has a minimum width and grows for
-every row at once when one row needs more. The action column grows until the
-buttons of a row sit side by side. Where that would take the title under 200px,
-as with Merge beside a bot's rebase in a 1280px window, the second button wraps
-under the first and that row is taller. A CI pill with many counts (a Failed
-pill with four, say) takes room from the title of every row, as far as the title
-can keep 200px, and past that the pill wraps its counts onto a second line. The
+Releases and Bots pages draw the same list, so their columns line up the same
+way. The status area has three columns: the CI pill, the merge-state and comment
+pills (a Conflicting pill takes the same column as the comment pill, and both
+stack there when a row has both), and the action. Each has a minimum width and
+grows for every row at once when one row needs more. The action column grows
+until the buttons of a row sit side by side, and the reason printed under a
+locked Merge can widen it too, up to 13.5rem. Where that would take the title
+under 200px, as with Merge beside a bot's rebase in a 1280px window, the second
+button wraps under the first and that row is taller. A CI pill with many counts
+(a Failed pill with four, say) takes room from the title of every row, as far as
+the title can keep 200px, and past that the pill wraps its counts onto a second
+line. On the narrowest of these lists, 1191px to 1207px wide, the title can go
+down to about 183px. The
 attribute chips and the status note ("Behind the base branch", say) sit under
 the title, so a row that has one is taller and its pills stay centred on the
 title and the note together. Rarer lines (a close cue, a queued note) take a

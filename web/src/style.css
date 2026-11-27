@@ -1196,7 +1196,8 @@ section.board {
          200px (#4541, #4795), after which the pill wraps. The action track is
          as wide as its row's buttons on one line, and where that would take
          the title under 200px the buttons wrap instead of spilling over the
-         arrow. */
+         arrow. The title's floor is the list less 1008px, so on lists of
+         1191px to 1207px it is 183px to 199px. */
       grid-template-columns:
         186px
         minmax(min(200px, calc(100% - 1008px)), 1fr)
