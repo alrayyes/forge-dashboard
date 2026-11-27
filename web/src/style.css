@@ -1300,15 +1300,6 @@ section.board {
       grid-row: 1;
       width: 9.25rem;
     }
-    /* A long CI pill wraps its counts when the title has no room to give. */
-    .row:not(.issue-row) .status-cell .ci-slot:has(.ci-pill.segmented) {
-      max-width: 100%;
-    }
-    .row:not(.issue-row) .status-cell .segmented.ci-pill {
-      flex-wrap: wrap;
-      max-width: 100%;
-      border-radius: 12px;
-    }
     /* Sentences wrap inside the three tracks and never widen them. */
     .row:not(.issue-row) .status-cell > .auto-merge-status,
     .row:not(.issue-row) .status-cell > .row-lock-cue {
@@ -2813,6 +2804,17 @@ a.ci-pill:hover {
   .row .ci-pill.failure .ci-seg-label + .ci-seg {
     border-left: 1px solid var(--border-strong);
   }
+}
+/* A long CI pill wraps its counts inside the row's status track instead of
+   running over the arrow after it, at every list width (#5118). On the
+   one-line list the track first grows as far as the title can spare. */
+.row .status-cell .ci-slot:has(.ci-pill.segmented) {
+  max-width: 100%;
+}
+.row .status-cell .segmented.ci-pill {
+  flex-wrap: wrap;
+  max-width: 100%;
+  border-radius: 12px;
 }
 /* A pill that carries its pull request's pipeline: the number, then the same
    badge the pull request's row draws, shrunk to sit inside the pill. */

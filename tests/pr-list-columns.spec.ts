@@ -484,12 +484,14 @@ for (const width of [1280, 1920]) {
 }
 
 // Row heights of these rows before the change, in the order of ROWS. Under
-// 1191px of list width and on a phone no row may grow.
+// 1191px of list width and on a phone no row may grow. At 820px the long
+// pill's row is the exception: its pill ran past the status track and now
+// wraps inside it (#5118).
 const HEIGHTS = {
   1190: [85, 78, 85, 85, 85, 85, 85, 127, 54, 84],
   1024: [85, 78, 85, 85, 85, 85, 85, 127, 49, 84],
   861: [85, 78, 85, 85, 85, 85, 85, 127, 49, 84],
-  820: [85, 86, 85, 114, 85, 85, 85, 144.5, 49, 84],
+  820: [85, 92, 85, 114, 85, 85, 85, 144.5, 49, 84],
   390: [225, 210, 225, 225, 225, 249, 225, 213, 160, 299],
 };
 
