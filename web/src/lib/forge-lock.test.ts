@@ -225,3 +225,22 @@ describe('forgeLockReason forge names', () => {
     },
   );
 });
+
+// A forge on its first read has no rows to be sure of: nothing it doesn't list
+// is known to be gone.
+describe('a slow forge', () => {
+  test('never read, it locks as one still starting does', () => {
+    const forges = [host({ cause: 'slow' })];
+    expect(forgeLockReason(forges, 'github', { now: NOW })?.code).toBe(
+      'forge_starting',
+    );
+    expect(carriedOverLock(forges, 'github')?.lock.code).toBe('forge_starting');
+  });
+
+  test('with rows read before, it stays open', () => {
+    const forges = [
+      host({ cause: 'slow', rowsReadAt: '2026-10-22T11:55:00Z' }),
+    ];
+    expect(forgeLockReason(forges, 'github', { now: NOW })).toBeNull();
+  });
+});

@@ -391,13 +391,14 @@ func TestAggregator_AManualRefreshJoiningAScheduledRunWaitsLessThanTheSchedule(t
 
 // A forge whose last fetch is still running is not asked again: a second
 // fetch on top of a stuck one only adds load to a forge that is struggling.
-// Its rows stay, marked stale, until the fetch ends (#3021).
+// Its rows stay until the fetch ends (#3021), and once it has run past the
+// scheduled deadline, each refresh that finds it so is a miss (#5059).
 func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 	t.Parallel()
 
 	const userDeadline = time.Minute
 
-	setup := func(t *testing.T) (*dashboard.Aggregator, *hangingSource, *hangingSource) {
+	setup := func(t *testing.T) (*dashboard.Aggregator, *hangingSource, *hangingSource, *fakeTimers) {
 		t.Helper()
 		timers := newFakeTimers()
 		fast := newHangingSource(dashboard.ForgeGitHub, 1)
@@ -423,7 +424,7 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 		timers.Advance(userDeadline)
 		<-first
 
-		return agg, fast, slow
+		return agg, fast, slow, timers
 	}
 
 	// second runs a refresh while slow's first fetch is still stuck, and
@@ -445,14 +446,15 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 
 	t.Run("the refresh does not call it again", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow := setup(t)
+		agg, _, slow, _ := setup(t)
 
 		assert.False(t, second(t, agg, slow))
 	})
 
 	t.Run("its rows stay, and it shows unreachable once the misses reach the threshold", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow := setup(t)
+		agg, _, slow, timers := setup(t)
+		timers.Advance(2 * userDeadline)
 		second(t, agg, slow)
 		assert.True(t, health(agg.Get(), dashboard.ForgeForgejo).Reachable, "two misses are held (#4977)")
 		second(t, agg, slow)
@@ -466,7 +468,7 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 
 	t.Run("its rate limits stay", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow := setup(t)
+		agg, _, slow, _ := setup(t)
 		second(t, agg, slow)
 
 		require.NotNil(t, health(agg.Get(), dashboard.ForgeForgejo).RateLimitREST)
@@ -475,7 +477,7 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 
 	t.Run("the others are still fetched", func(t *testing.T) {
 		t.Parallel()
-		agg, fast, slow := setup(t)
+		agg, fast, slow, _ := setup(t)
 		fast.setHang(false, 2)
 		second(t, agg, slow)
 
@@ -484,7 +486,7 @@ func TestAggregator_ASourceStillFetchingIsNotAskedAgain(t *testing.T) {
 
 	t.Run("it is asked again once the fetch has ended", func(t *testing.T) {
 		t.Parallel()
-		agg, _, slow := setup(t)
+		agg, _, slow, _ := setup(t)
 		slow.unblock()
 		slow.setHang(false, 11)
 		refreshUntilServed(t, agg, slow)

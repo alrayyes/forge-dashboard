@@ -29,7 +29,7 @@ stops every automatic update until you resume, which applies what waited
 (Refresh now still works). The time is the snapshot's own: it holds still while
 paused and moves to the newest one on Resume, and a refresh that fails leaves
 it where it was. "Live" means no forge has a cause: none is starting up, and
-none has its rows held for being slow to answer. It doesn't promise that every
+none is slow to answer. It doesn't promise that every
 row is fresh, because a held server error, an unreachable forge's last rows and
 a spent rate limit can all leave older rows under "Live". While a forge has a
 cause, the control reads "Slow to answer" or "Starting up" (starting up wins
@@ -82,7 +82,9 @@ when the live stream says that pull request's or branch's CI changed. The
 panel tells the stream which row it shows, and the server sends that row's job
 list when the panel opens and again for each such change, and none while
 nothing changes, so a finished pipeline is not read again, and a rerun
-that starts sends it again once. The panel never polls the forge, and the list
+that starts sends it again once. A Forgejo pull request's list is also sent
+again when its head commit gets a newer status, even if the row reads the same,
+as when a rerun fails again. The panel never polls the forge, and the list
 arrives as named `run` events that the plain snapshot readers don't see. There
 is one event for each workflow run attempt, and one for each check that
 belongs to no run. A rerun is a new attempt, so it sends a new event, and a
@@ -189,11 +191,30 @@ carries the forge and a `cause` (the error kind, such as `rate_limited` or
 `unreachable`), and `fetch deadline passed with the forge still fetching` names
 a forge that was only slow.
 
+## When a forge is slow
+
+The schedule waits three minutes for a forge. A refresh you ask for waits one:
+the Refresh button, a sign-in, and the catch-up when you open the board after
+nobody has been looking. After that minute you get the board back, but the read
+keeps going for the rest of the three. Its rows appear when it answers, with no
+second refresh. Until then the forge reads "Slow to answer" and keeps the rows
+it had, and it isn't asked again. A forge never read before shows no rows yet,
+and that isn't read as "nothing open": your saved auto-update choices are kept,
+queued actions wait, and its controls stay off until it answers. With no pull
+requests from anywhere else, the pages keep their loading placeholders instead
+of saying there are none.
+
+Two kinds of forge don't change while they're read again. One still starting up
+after a restart stays "Starting up". One that was unreachable stays unreachable,
+with its error shown, its controls off and queued actions held, until a read
+succeeds. None of this counts against the forge, however often you press
+Refresh.
+
 ## Troubleshooting a false unreachable banner
 
 The banner says a forge is unreachable when its fetch failed with no answer, and
-also when the fetch was only slow. The server log tells the two apart. Look for
-these lines, in this order:
+also when it was silent past the three minutes too often. The server log tells
+the two apart. Look for these lines:
 
 - `fetch finished` with `outcome=ok` (Debug level) is a fetch that answered, with
   its `duration`. Compare it to the deadline to see how close a healthy forge
@@ -203,35 +224,38 @@ these lines, in this order:
   forge, `rate_limited`, `unauthorized` and so on). The log never carries the
   forge's reply text. For GitHub, `forge unreachable` adds the same `error_kind`
   and the `status` of a 5xx.
+- `stopped waiting for a fetch, which goes on` (Info level, `path=waiting`)
+  is a refresh you asked for giving the board back after its one minute. It
+  isn't a miss.
 - `fetch deadline passed with the forge still fetching` means the forge never
-  failed. The pass gave up waiting. `running_for` is how long the fetch had
-  run and `deadline` is how long the pass was willing to wait. The banner shows
-  here although nothing was wrong with the forge.
-- `fetch finished` with `outcome=late` follows a deadline line when the slow
-  fetch did finish. Its `duration` says how much longer the deadline needed to
-  be.
+  failed. The three minutes ran out and the fetch was cancelled. `running_for`
+  is how long it had run and `deadline` is the limit.
+- `fetch finished` with `outcome=late` is a fetch that ended after the refresh
+  that started it had stopped waiting. After a `waiting` line alone, its answer
+  was applied. After a deadline line, it was dropped.
 - `fetch skipped, the last one is still running` means the forge was not asked
   this pass because the previous fetch had not returned. `running_for` is how
   long that earlier fetch has been going. Both forges showing this together
   points at a slow host, not at the forges.
 
-A deadline or skipped pass is held, not shown at once: the forge keeps its last
-good rows and health until `ForgeFailureThreshold` (3) passes in a row have
-missed, counting deadline and skipped passes together, as long as the forge was
-read at least once before. A good fetch resets the count, and a real failure
-(`path=error`) shows at once as before. So the banner from these paths appears
-only when the forge stayed silent for several passes.
+A deadline pass is held, not shown at once: the forge keeps its last good rows
+and health until `ForgeFailureThreshold` (3) passes in a row have missed, as
+long as the forge was read at least once before. A skipped pass counts too, but
+only once the earlier fetch is past the three minutes. A good fetch resets the
+count, and a real failure (`path=error`) shows at once as before. So the banner
+from these paths appears only when the forge stayed silent for several passes.
 
-Each of these lines carries a `path`: `deadline`, `skipped` or `error`. A real
+Each warning here carries a `path`: `deadline`, `skipped` or `error`. A real
 outage shows `path=error` and the error kind. A slow forge shows
-`path=deadline` or `path=skipped`, and a late line, and no error kind. These
-lines also appear on a held pass, where no banner shows. The forge's health
-then carries `cause: "slow"`, and the page reads "Slow to answer" instead of
-"Live". It means the latest full pass got no answer in time, so the next one
-that doesn't miss clears it, even when it holds a 5xx or skips the forge to
-save its rate limit. A webhook that refreshes one repository doesn't, so the
-wording can stay until the next full pass. Only the third miss in a row shows
-the unreachable banner, and that health has no cause.
+`path=waiting`, `path=deadline` or `path=skipped`, and a late line, and no error
+kind. These lines also appear where no banner shows. The forge's health then
+carries `cause: "slow"`, and the page reads "Slow to answer" instead of "Live".
+It means the forge hasn't answered yet. A fetch still running clears it when it
+answers. After a miss, the next pass that doesn't miss clears it, even when it
+holds a 5xx or skips the forge to save its rate limit. A webhook that refreshes
+one repository doesn't, so the wording can stay until the next full pass. Only
+the third miss in a row shows the unreachable banner, and that health has no
+cause.
 
 While the cause is `slow`, the health also carries `rowsReadAt`: about when the
 held rows were read. Pull requests, Bots, Issues and Releases show it beside the
@@ -248,8 +272,8 @@ The age on an unreachable forge's rows is worked out the same way.
 
 After a restart the saved rows carry `cause: "starting"` (the same fact as
 `starting`) and the page reads "Starting up". A first fetch that hits its
-deadline, and a pass skipped behind it, don't change that at first: no error kind
-and no banner. Their late answers are dropped. When `ForgeFailureThreshold` (3)
+three minutes, and a pass skipped behind it, don't change that at first: no error
+kind and no banner. Its late answer is dropped. When `ForgeFailureThreshold` (3)
 passes in a row have gone unanswered, because the first fetch hangs or because
 the forge is always slower than the deadline, it stops being "Starting up": its
 health carries `errorKind: "unreachable"` and no cause, and the unreachable
@@ -289,7 +313,9 @@ user ends. A snapshot restored from the last run already counts as loaded, so
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
-then on (including after later refreshes and settings saves). It is not stored,
+then on (including after later refreshes and settings saves). The one
+exception is a board with no pull requests while a forge's first read is still
+running: it reads `false` until that forge answers. It is not stored,
 so a restart resets it. The first refresh starts when the process does, from the
 saved credentials, so it is usually done before you sign in. An account with no
 saved settings has nothing to refresh, so it reads `true` at once. `GET
@@ -415,6 +441,22 @@ The quick pills do too: a pill is offered only when clicking it would show
 something and not when it matches the whole pool, and the one that is active
 stays so it can be cleared. The count on each pill is worked out from the same
 pool, so it moves with every filter that changes what the pill would show.
+
+Settings, Repositories follows the same rule. A choice in the Forge, Ignored,
+Auto-update or `Rebase bots` group is offered only if picking it would give a
+different, non-empty list, or it is the active one, and a group with nothing to
+offer is not drawn, label and all. So Auto-update is missing while every repo
+the other filters leave has it the same way. The default (**All**, or **Hide**
+for Ignored) stays beside whatever is offered, so a pick can be undone. Forge
+needs two forges or a picked one. The search box goes while at most one repo is
+listed, counting a row kept after a toggle, and it holds no text. The whole bar
+goes when only one repo is tracked, unless that repo is ignored or a filter is
+set. Toggling a row can add or remove a group or a bulk button above the list.
+The page scrolls to make up for it, so the control you pressed stays where it
+was. At the top of the page, or where the page is too short to scroll that far,
+blank space is added above or below the list instead, until you change a filter
+or the toggle is undone. If the control you are on goes, focus moves to another
+one.
 
 ## The Label filter
 

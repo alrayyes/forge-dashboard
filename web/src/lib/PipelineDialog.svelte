@@ -17,6 +17,9 @@
     errorText: string;
     // Where the run is on the forge, when the forge named one.
     runUrl?: string;
+    // A failed branch's address for its failure, read as the row stands; see
+    // footerRunLink.
+    failureUrl?: () => string | undefined;
     forgeName?: string;
     // Live updates are paused: a new list waits until they are back.
     paused?: () => boolean;
@@ -102,8 +105,8 @@
     formatCheckDuration,
     groupChecks,
     isBlocking,
+    footerRunLink,
     runLinkNoun,
-    runPageUrl,
     type Check,
   } from "#lib/pipeline-checks.js";
   import {
@@ -588,13 +591,11 @@
     new Map(checkKeys(checks).map((key, i) => [checks[i], key])),
   );
   const groups = $derived(groupChecks(checks));
-  // The board's own run address, else the run the checks name (the failed
-  // one when there are several), so a pull request links to a run as a branch
-  // does. None, no link.
+  // The board's own run address or the run the checks name (the failed one,
+  // else the one still going, when there are several), so a pull request links
+  // to a run as a branch does. None, no link.
   const runLink = $derived(
-    target?.runUrl
-      ? { url: target.runUrl, kind: "run" as const }
-      : runPageUrl(checks),
+    footerRunLink(target?.runUrl, checks, target?.failureUrl?.()),
   );
   const runLinkText = $derived(
     target && runLink

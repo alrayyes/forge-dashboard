@@ -98,7 +98,10 @@ for (const scheme of ['light', 'dark'] as const) {
         await pill(page, 'Rebase bots', 'Off').click();
         await expect(rows).toHaveText([/owner\/b/]);
         await expect(count).toHaveText('Showing 1 of 4 repos');
+        // One repo left, so there is nothing to search.
+        await expect(page.getByRole('searchbox')).toHaveCount(0);
 
+        await pill(page, 'Rebase bots', 'All').click();
         await page.getByRole('searchbox').fill('zzz');
         await expect(page.locator('#repositories-no-results')).toBeVisible();
         await page.getByRole('button', { name: 'Clear filters' }).click();
@@ -143,7 +146,7 @@ for (const scheme of ['light', 'dark'] as const) {
         // It no longer matches, and has not moved or vanished.
         await expect(rows).toHaveText([/owner\/a/, /owner\/b/]);
 
-        await pill(page, 'Rebase bots', 'All').click();
+        await pill(page, 'Auto-update', 'On').click();
         await expect(rows).toHaveText([/owner\/b/]);
       });
 

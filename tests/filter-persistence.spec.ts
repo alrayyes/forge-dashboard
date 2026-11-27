@@ -92,8 +92,13 @@ async function open(page: Page, url: string) {
 
 const issueRows = (page: Page) => page.locator('#issue-rows > .row');
 const prRows = (page: Page) => page.locator('#pr-rows > .row');
-const nav = (page: Page, name: string) =>
-  page.locator(`.app-nav a[href="/${name}.html"]`);
+// The nav links load a new document. A read taken before it has replaced the
+// old one is either thrown away half way or answered by the page being left,
+// so wait for the new page first (#5062).
+async function visit(page: Page, name: string) {
+  await page.locator(`.app-nav a[href="/${name}.html"]`).click();
+  await page.waitForURL((url) => url.pathname === `/${name}.html`);
+}
 
 test.describe('picks survive a visit to a page that does not offer them (#1620)', () => {
   test.beforeEach(async ({ page }) => {
@@ -111,13 +116,13 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
       await pickOnly(page, control, value);
       await expect(issueRows(page)).toHaveCount(kept);
 
-      await nav(page, 'pull-requests').click();
+      await visit(page, 'pull-requests');
       // The pick is not on offer here, so this page shows its whole list.
       await expect(prRows(page)).toHaveCount(2);
-      await nav(page, 'issues').click();
+      await visit(page, 'issues');
 
-      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
       await expect(issueRows(page)).toHaveCount(kept);
+      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
     });
 
     test(`the ${control} pick on Issues is still set after a full load of Pull requests`, async ({
@@ -130,8 +135,8 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
       await expect(prRows(page)).toHaveCount(2);
       await open(page, '/issues.html');
 
-      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
       await expect(issueRows(page)).toHaveCount(kept);
+      await expect.poll(() => pickedValues(page, control)).toEqual([value]);
     });
   }
 
@@ -141,12 +146,12 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
     await toggleLabels(page, 'bug');
     await expect(issueRows(page)).toHaveCount(1);
 
-    await nav(page, 'pull-requests').click();
+    await visit(page, 'pull-requests');
     await expect(prRows(page)).toHaveCount(2);
-    await nav(page, 'issues').click();
+    await visit(page, 'issues');
 
-    expect(await pickedLabels(page)).toEqual(['bug']);
     await expect(issueRows(page)).toHaveCount(1);
+    expect(await pickedLabels(page)).toEqual(['bug']);
   });
 
   test('the label pick on Issues is still set after a full load of Pull requests', async ({
@@ -159,36 +164,39 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
     await expect(prRows(page)).toHaveCount(2);
     await open(page, '/issues.html');
 
-    expect(await pickedLabels(page)).toEqual(['bug']);
     await expect(issueRows(page)).toHaveCount(1);
+    expect(await pickedLabels(page)).toEqual(['bug']);
   });
 
   test('the same pick follows the account to a second browser after the detour', async ({
     page,
   }) => {
     await pickOnly(page, 'author', 'github:ryan');
-    await nav(page, 'pull-requests').click();
+    await visit(page, 'pull-requests');
     await expect(prRows(page)).toHaveCount(2);
 
-    const saved = await (
-      await page.request.get('/api/v1/settings/filter-state')
-    ).json();
-    expect(saved.shared.author).toBe('github:ryan');
+    await expect
+      .poll(async () => {
+        const res = await page.request.get('/api/v1/settings/filter-state');
+        return (await res.json()).shared.author;
+      })
+      .toBe('github:ryan');
   });
 
   test('a pick changed on the page that does not offer the old one replaces it', async ({
     page,
   }) => {
     await pickOnly(page, 'author', 'github:ryan');
-    await nav(page, 'pull-requests').click();
+    await visit(page, 'pull-requests');
     await expect(prRows(page)).toHaveCount(2);
     await pickOnly(page, 'author', 'github:claude');
     await expect(prRows(page)).toHaveCount(1);
 
-    await nav(page, 'issues').click();
+    await visit(page, 'issues');
     // claude wrote no issue, so the list is whole and the old pick is gone.
     await expect(issueRows(page)).toHaveCount(3);
-    await nav(page, 'pull-requests').click();
+    await visit(page, 'pull-requests');
+    await expect(prRows(page)).toHaveCount(1);
     await expect
       .poll(() => pickedValues(page, 'author'))
       .toEqual(['github:claude']);
@@ -198,15 +206,15 @@ test.describe('picks survive a visit to a page that does not offer them (#1620)'
     page,
   }) => {
     await pickOnly(page, 'author', 'github:ryan');
-    await nav(page, 'pull-requests').click();
+    await visit(page, 'pull-requests');
     await expect(prRows(page)).toHaveCount(2);
     // Nothing is ticked here, so the held pick is cleared from its note.
     await page
       .getByRole('button', { name: 'Clear saved author "ryan"' })
       .click();
-    await nav(page, 'issues').click();
+    await visit(page, 'issues');
 
-    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
     await expect(issueRows(page)).toHaveCount(3);
+    await expect.poll(() => pickedValues(page, 'author')).toEqual([]);
   });
 });

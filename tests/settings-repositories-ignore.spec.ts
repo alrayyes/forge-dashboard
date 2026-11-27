@@ -213,14 +213,26 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(rows).toHaveText([/owner\/b/]);
       });
 
-      test('the Only view with nothing ignored names the filter', async ({
+      test('the Only view with nothing left ignored names the filter', async ({
         page,
       }) => {
-        await open(page, width, scheme, [repo('a')]);
-        await page
+        await open(page, width, scheme, [
+          repo('a', { ignored: true, ignoredPRs: true, ignoredIssues: true }),
+          repo('b'),
+          repo('c'),
+        ]);
+        await page.route('**/api/v1/repos/unignore', (route) =>
+          route.fulfill({ status: 204 }),
+        );
+        const only = page
           .getByRole('group', { name: 'Ignored' })
-          .getByRole('button', { name: 'Only' })
-          .click();
+          .getByRole('button', { name: 'Only' });
+        await only.click();
+        await page
+          .getByRole('combobox', { name: 'Ignore owner/a' })
+          .selectOption('');
+        // The pick keeps the group; picking it again lets go of the row.
+        await only.click();
         await expect(page.locator('#repositories-no-results')).toHaveText(
           'No repos match these filters. No repo is ignored.',
         );

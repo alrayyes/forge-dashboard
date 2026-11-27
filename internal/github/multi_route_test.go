@@ -14,6 +14,7 @@ import (
 // Everything the aggregator and the API look for on the GitHub source, the
 // composite has to offer too (#4586).
 var (
+	_ dashboard.BudgetReporter               = (*github.Multi)(nil)
 	_ dashboard.Source                       = (*github.Multi)(nil)
 	_ dashboard.PullRequestStateReader       = (*github.Multi)(nil)
 	_ dashboard.AdvisoryReader               = (*github.Multi)(nil)

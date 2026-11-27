@@ -172,7 +172,29 @@ test.describe('the pull request dialog', () => {
     });
   const untrackedPill = (page: Page) => prDialog(page).locator('.mention-pill');
 
+  // A pill opens the dialog only once the page has read the answer's body,
+  // which is later than the response arriving, so note it from inside the
+  // page (#5062). The timeout runs after the reader of that body has.
+  async function noteIssueRead(page: Page) {
+    await page.evaluate(() => {
+      const json = Response.prototype.json;
+      Response.prototype.json = function () {
+        const read = json.call(this);
+        if (this.url.includes('/api/v1/issues/details'))
+          read.then(() =>
+            setTimeout(() => {
+              document.documentElement.dataset.issueRead = 'true';
+            }),
+          );
+        return read;
+      };
+    });
+  }
+  const issueRead = (page: Page) =>
+    expect(page.locator('html[data-issue-read]')).toBeAttached();
+
   async function answerIssues(page: Page, status: number) {
+    await noteIssueRead(page);
     await page.route('**/api/v1/issues/details*', (route: Route) =>
       route.fulfill({
         status,
@@ -198,9 +220,8 @@ test.describe('the pull request dialog', () => {
     await openPullRequest(page);
     await answerIssues(page, 200);
     const pill = untrackedPill(page);
-    const answered = page.waitForResponse('**/api/v1/issues/details*');
     await pill.hover();
-    await answered;
+    await issueRead(page);
     const before = page.url();
     // The link is target=_blank, so a click that also followed it would open a
     // tab as well as the dialog. Listen before the click, and look after.
@@ -249,9 +270,8 @@ test.describe('the pull request dialog', () => {
     await expect(prDialog(page)).toBeVisible();
     await answerIssues(page, 200);
     const pill = untrackedPill(page);
-    const answered = page.waitForResponse('**/api/v1/issues/details*');
     await pill.hover();
-    await answered;
+    await issueRead(page);
 
     await pill.click();
     await expect(issueDialog(page)).toBeVisible();
@@ -288,9 +308,8 @@ test.describe('the pull request dialog', () => {
     await page.goto('/pull-requests.html');
     await openPullRequest(page);
     await answerIssues(page, 200);
-    const answered = page.waitForResponse('**/api/v1/issues/details*');
     await untrackedPill(page).focus();
-    await answered;
+    await issueRead(page);
 
     await page.keyboard.press('Enter');
 
@@ -413,9 +432,8 @@ test.describe('the pull request dialog', () => {
     await openPullRequest(page);
     await answerIssues(page, 200);
     const pill = untrackedPill(page);
-    const answered = page.waitForResponse('**/api/v1/issues/details*');
     await pill.hover();
-    await answered;
+    await issueRead(page);
     const popup = page.context().waitForEvent('page');
 
     await pill.click({ modifiers: ['ControlOrMeta'] });

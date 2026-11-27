@@ -3,6 +3,7 @@ package dashboard
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/apistats"
 )
@@ -69,60 +70,92 @@ func (l *reserveLedger) record(k costKey, points int) {
 // the dearest recent one.
 func (a *Aggregator) noteSpend(results []sourceResult) {
 	for i, r := range results {
-		if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
-			continue
-		}
-		forge := a.sources[i].Forge()
-		// A GraphQL fetch that worked cost at least a point, so none reported
-		// is no measurement. REST can cost nothing: the cache answered.
-		if r.Spent.GraphQL > 0 {
-			a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
-		}
-		a.reserve.record(costKey{forge, false}, r.Spent.REST)
+		a.noteSpendOf(i, r.Result)
 	}
 }
 
-func budgetOf(h ForgeHealth, graphQL bool) *RateLimit {
-	if graphQL {
-		return h.RateLimitGraphQL
+// noteSpendOf is noteSpend for source i's result alone.
+func (a *Aggregator) noteSpendOf(i int, r Result) {
+	if r.Spent == nil || !r.Health.Reachable || r.Health.Error != "" {
+		return
 	}
-
-	return h.RateLimitREST
+	forge := a.sources[i].Forge()
+	// A GraphQL fetch that worked cost at least a point, so none reported
+	// is no measurement. REST can cost nothing: the cache answered.
+	if r.Spent.GraphQL > 0 {
+		a.reserve.record(costKey{forge, true}, r.Spent.GraphQL)
+	}
+	a.reserve.record(costKey{forge, false}, r.Spent.REST)
 }
 
 // budgetHold reports whether background work of this kind should not call
-// forge now. A scoped webhook refresh is held only when a budget is spent,
-// since it is cheap and is the path that keeps the board current. Every other
-// background kind (full refresh, polls, hook maintenance) waits when it would
-// leave either budget at or under its reserve, REST work included when only
-// GraphQL is low and the reverse: one check is simpler than tracking which
-// budget each kind spends. A budget the forge does not report has no reserve,
-// so Forgejo is never held. User actions never ask.
+// forge now. Background work waits when it would leave either budget at or
+// under its reserve, REST work included when only GraphQL is low and the
+// reverse: one check is simpler than tracking which budget each kind spends. A
+// budget the forge does not report has no reserve, so Forgejo is never held.
+// User actions never ask.
 func (a *Aggregator) budgetHold(snap Snapshot, forge Forge, kind apistats.Kind) bool {
-	h, ok := healthOf(snap, forge)
-	if !ok {
-		return false
-	}
+	_, held := a.holdFor(snap, forge, "", "", kind)
+
+	return held
+}
+
+// holdFor is budgetHold for work on one repo, or on the whole account when
+// owner and name are empty. A held answer comes with the time the last of the
+// budgets holding it resets.
+func (a *Aggregator) holdFor(snap Snapshot, forge Forge, owner, name string, kind apistats.Kind) (until time.Time, held bool) {
 	now := a.now()
-	for _, graphQL := range []bool{true, false} {
-		rl := budgetOf(h, graphQL)
+	for i, rl := range a.budgets(snap, forge, owner, name) {
 		if rl == nil || rl.Limit <= 0 || !rl.ResetsAt.After(now) {
 			continue
 		}
 		left := rl.Remaining
-		if kind != apistats.KindScopedWebhook {
-			if kind == apistats.KindFull {
-				left -= a.reserve.lastCost(costKey{forge, graphQL})
-			}
-			if left > reserveOf(*rl) {
-				continue
-			}
-		} else if left > 0 {
+		if kind == apistats.KindFull {
+			left -= a.reserve.lastCost(costKey{forge, i == 0})
+		}
+		if left > reserveOf(*rl) {
 			continue
 		}
-
-		return true
+		held = true
+		if rl.ResetsAt.After(until) {
+			until = rl.ResetsAt
+		}
 	}
 
-	return false
+	return until, held
+}
+
+// budgets is forge's GraphQL and REST budgets, in that order: what its Source
+// last heard where it can say, and what the snapshot carries where it cannot.
+// The snapshot's figures are only as new as the last full refresh.
+func (a *Aggregator) budgets(snap Snapshot, forge Forge, owner, name string) [2]*RateLimit {
+	h, _ := healthOf(snap, forge)
+	out := [2]*RateLimit{h.RateLimitGraphQL, h.RateLimitREST}
+	r, ok := a.sourceFor(forge).(BudgetReporter)
+	if !ok {
+		return out
+	}
+	graphQL, rest := r.LatestBudgets(owner, name)
+	for i, latest := range [2]*RateLimit{graphQL, rest} {
+		if latest != nil {
+			out[i] = latest
+		}
+	}
+
+	return out
+}
+
+// leftAtReserve reports whether a background full refresh should leave forge
+// alone, since what is left is for the person clicking. The result then holds
+// the last rows and the figures that held it, not the older ones. A forge no
+// refresh has read yet is never left alone: there is nothing to show for it.
+func (a *Aggregator) leftAtReserve(earlier Snapshot, forge Forge) (Result, bool) {
+	health, known := healthOf(earlier, forge)
+	if !known || !a.budgetHold(earlier, forge, apistats.KindFull) {
+		return Result{}, false
+	}
+	budgets := a.budgets(earlier, forge, "", "")
+	health.RateLimitGraphQL, health.RateLimitREST = budgets[0], budgets[1]
+
+	return carryOver(Result{Health: notSlow(health)}, earlier, forge), true
 }

@@ -399,6 +399,10 @@ type PullRequest struct {
 	// request is still reported behind, or wasn't behind to begin with.
 	// Empty when the forge didn't say.
 	HeadSHA string `json:"headSha"`
+	// LatestStatusID is the highest id among the head commit's statuses when the
+	// row was read, so a newer one shows a finished check was rerun. Set by
+	// Forgejo only (SettledCheckProber), 0 elsewhere. Server-side only.
+	LatestStatusID int64 `json:"-"`
 	// RenovateRebaseRequested is true when Renovate's rebase checkbox in the
 	// description is ticked (#1349): a rebase is already waiting for Renovate.
 	// Read from the description the list carries, so it costs no call. Not
@@ -545,8 +549,9 @@ const (
 	// answered in time since the start, and fewer than ForgeFailureThreshold
 	// passes in a row have missed.
 	ForgeCauseStarting ForgeCause = "starting"
-	// ForgeCauseSlow means the latest pass missed its deadline or was
-	// skipped, and the last good rows are held.
+	// ForgeCauseSlow means the forge has not answered yet and is not counted
+	// as down: a read still running after a person's refresh stopped waiting
+	// (#5059), or a missed pass whose last good rows are held.
 	ForgeCauseSlow ForgeCause = "slow"
 )
 
@@ -569,8 +574,8 @@ type ForgeHealth struct {
 	Starting bool `json:"starting,omitempty"`
 	// Cause says why the rows are not from the latest read while the forge is
 	// not down: ForgeCauseStarting with Starting, or ForgeCauseSlow when the
-	// latest pass missed and the last good rows are held (#4998). The client
-	// words it.
+	// forge has not answered yet and its last good rows are held (#4998). The
+	// client words it.
 	Cause ForgeCause `json:"cause,omitempty"`
 	// RowsReadAt is about when the held rows were read (lastGood, as for
 	// StaleSince), set only while Cause is ForgeCauseSlow. It is not StaleSince: the forge is still reachable, so
@@ -612,6 +617,12 @@ type ForgeHealth struct {
 	// Capabilities is what this forge can do, filled in when a response is
 	// built (WithCapabilities), so no refresh path has to set it.
 	Capabilities ForgeCapabilities `json:"capabilities"`
+}
+
+// NeverRead reports a forge whose first read is still to be answered: it is
+// not down, and its lack of rows says nothing about what it holds.
+func (h ForgeHealth) NeverRead() bool {
+	return h.Cause == ForgeCauseSlow && h.RowsReadAt == nil
 }
 
 // FailedInstallation matches components.schemas.FailedInstallation.

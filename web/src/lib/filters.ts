@@ -1969,7 +1969,14 @@ export function offerFilterBar(
   nothingToUndo: boolean,
 ): void {
   if (!bar) return;
-  bar.hidden = rows === 0 || (rows === 1 && nothingToUndo);
+  bar.hidden = !filterBarOffered(rows, nothingToUndo);
+}
+
+export function filterBarOffered(
+  rows: number,
+  nothingToUndo: boolean,
+): boolean {
+  return rows > 1 || (rows === 1 && !nothingToUndo);
 }
 
 // The title search, only while it could narrow something: not over exactly one

@@ -74,6 +74,11 @@ type Aggregator struct {
 	// fetchStarted is when each source's running fetch began, as Unix
 	// nanoseconds, so a log line can say how long it has been going (#4977).
 	fetchStarted []atomic.Int64
+	// flights holds each source's latest fetch, which may outlive its pass,
+	// and foldMu serialises whatever puts a fetch's outcome on the board: a
+	// refresh and a late read (late_fetch.go). Lock order: foldMu before mu.
+	flights []atomic.Pointer[flight]
+	foldMu  sync.Mutex
 	// writeBudget is how long a refresh waits for the writes that follow it,
 	// the auto update-branch and auto-merge passes, before it moves on, and how
 	// long a pass may run at all. writeAfter schedules it. writing marks a pass
@@ -195,15 +200,17 @@ const defaultSettleWindow = 2 * time.Minute
 // forge call times out on its own after 30 seconds, but one fetch makes many
 // calls, so a hung forge could hold the whole snapshot back for far longer.
 // Three minutes is well past a slow healthy fetch of a large install; a source
-// still fetching then is shown as it last was, marked stale (#3019).
+// still fetching then has missed the pass, and its rows are held as it last
+// had them (#3019, #4977). A read left running by a person's refresh gets this
+// long too (#5059).
 const defaultFetchDeadline = 3 * time.Minute
 
 // defaultUserFetchDeadline is how long a refresh a person asked for (the
 // Refresh button, a sign-in, a forced refresh) waits for its sources. Someone
-// is looking at the board, so it gives up on a silent forge sooner than the
-// schedule does. A minute is twice the per-call timeout, so one slow call is
-// not mistaken for a stuck forge, and short enough to still feel like the
-// refresh answered (#3021).
+// is looking at the board, so it stops waiting for a silent forge sooner than
+// the schedule does, and leaves its read running. A minute is twice the
+// per-call timeout, and short enough to still feel like the refresh answered
+// (#3021, #5059).
 const defaultUserFetchDeadline = time.Minute
 
 // defaultWriteBudget is how long a refresh waits for the forge writes that
@@ -309,6 +316,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 	}
 	a.fetching = make([]atomic.Bool, len(a.sources))
 	a.fetchStarted = make([]atomic.Int64, len(a.sources))
+	a.flights = make([]atomic.Pointer[flight], len(a.sources))
 	a.debounce = newDebouncer(a.debounceOwner, a.now, a.after, webhookQuiet, webhookMaxHold, a.webhookMinInterval)
 	if a.snapCache != nil {
 		a.restoreSnapshot(context.Background())
@@ -385,8 +393,9 @@ func (a *Aggregator) Unsettle(forge Forge, repo string, number int) {
 // withoutSettled drops from prs every pull request MarkSettled is still
 // holding back, and forgets the ones the forge no longer lists or whose
 // window has passed. prs is what a fetch just returned: the whole board, or
-// with forge and repo set, one repo's own entries, so a scoped refresh never
-// forgets another repo's pull request.
+// with forge set, one forge's, and with repo set too, one repo's, so a partial
+// read never forgets another's pull request. Nothing is forgotten for a forge
+// with a read left behind.
 func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string) []PullRequest {
 	a.settledMu.Lock()
 	defer a.settledMu.Unlock()
@@ -400,13 +409,16 @@ func (a *Aggregator) withoutSettled(prs []PullRequest, forge Forge, repo string)
 		listed[settledKey(pr.Forge, pr.Repo, pr.Number)] = struct{}{}
 	}
 	scope := ""
-	if repo != "" {
+	switch {
+	case repo != "":
 		scope = settledKey(forge, repo, 0)
 		scope = scope[:strings.LastIndex(scope, "#")+1]
+	case forge != "":
+		scope = string(forge) + "/"
 	}
 
 	for key, at := range a.settled {
-		if scope != "" && !strings.HasPrefix(key, scope) {
+		if scope != "" && !strings.HasPrefix(key, scope) || a.readingBehind(key) {
 			continue
 		}
 		if _, still := listed[key]; time.Since(at) > a.settleWindow || !still {
@@ -564,15 +576,29 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	if refresher == nil {
 		return false
 	}
-	if kind := apistats.KindFrom(ctx); kind == apistats.KindUnknown || kind == apistats.KindScopedWebhook {
-		if spent := a.budgetHold(a.Get(), forge, apistats.KindScopedWebhook); spent {
-			// A budget with nothing left can't answer. Reporting the refresh
-			// as run keeps the caller from falling back to a full one, which
-			// costs more; the next full refresh picks the change up.
-			return true
-		}
+	if _, held := a.scopedHold(ctx, forge, owner, name); held {
+		// What is left is for the person clicking. Reporting the refresh as
+		// run keeps the caller from falling back to a full one, which costs
+		// more; the next full refresh picks the change up.
+		return true
+	}
+	a.fetchRepo(ctx, refresher, forge, owner, name, fullName, attrs...)
+
+	return true
+}
+
+// scopedHold is holdFor for a one-repo refresh that a webhook asks for. One a
+// poll asks for has been checked by the poll already.
+func (a *Aggregator) scopedHold(ctx context.Context, forge Forge, owner, name string) (time.Time, bool) {
+	if kind := apistats.KindFrom(ctx); kind != apistats.KindUnknown && kind != apistats.KindScopedWebhook {
+		return time.Time{}, false
 	}
 
+	return a.holdFor(a.Get(), forge, owner, name, apistats.KindScopedWebhook)
+}
+
+// fetchRepo reads one repo and merges it, whatever the budgets say.
+func (a *Aggregator) fetchRepo(ctx context.Context, refresher RepoRefresher, forge Forge, owner, name, fullName string, attrs ...any) {
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
 		ctx := scopedRefreshContext(ctx, fullName)
 		seq := a.fetchSeq.Add(1)
@@ -585,8 +611,6 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 		branch, branchOK := a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName)
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, branch, branchOK)
 	})
-
-	return true
 }
 
 // mergedSince reports whether a scoped refresh of forge/fullName has been merged
@@ -903,12 +927,15 @@ type sourceResult struct {
 	// deadline, or skipped it because the last fetch was still running. It is
 	// a slow forge, not a failed one, and counts toward ForgeFailureThreshold.
 	missed bool
+	// late is set, and the rest is empty, when the source's read is still
+	// running behind the pass.
+	late *flight
 }
 
 // fetchSources asks every source for its data at once and answers in the
 // order of a.sources. Each answer says whether its source was asked: the
 // others were answered from the snapshot.
-func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
+func (a *Aggregator) fetchSources(ctx context.Context, seq uint64) []sourceResult {
 	results := make([]sourceResult, len(a.sources))
 
 	a.mu.RLock()
@@ -918,14 +945,19 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 	// Buffered for every source, so a fetch that answers after the deadline
 	// finds room and its goroutine ends.
 	answers := make(chan sourceAnswer, len(a.sources))
-	fetchCtx, cancel := context.WithCancel(ctx)
-	defer cancel()
-	pending := map[int]bool{}
+	pending := map[int]*flight{}
 	fetched := false
 	// Started before any fetch, so a deadline cannot pass unseen.
-	timedOut, deadline, endPass := a.beginPass(ctx)
+	pass, deadline, endPass := a.beginPass(ctx)
 	defer endPass()
 	for i, src := range a.sources {
+		if last := a.flights[i].Load(); last != nil && last.in(flightLeft) {
+			// Still within the scheduled deadline: slow, not silent.
+			results[i] = sourceResult{late: last}
+			slog.Warn("fetch skipped, the last one is still running", "forge", src.Forge(), "path", "skipped", "running_for", a.fetchAge(i))
+
+			continue
+		}
 		if health, ok := exhaustedHealth(earlier, src.Forge(), a.now()); ok {
 			// No budget left until the reset: a call would only fail, and
 			// the attempt itself counts against the forge (#755). Keep the
@@ -935,10 +967,8 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			continue
 		}
 		if background(ctx) && a.userRefreshes.Load() == 0 {
-			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
-				// At the reserve: what is left is for the person clicking.
-				health, _ := healthOf(earlier, src.Forge())
-				results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
+			if left, held := a.leftAtReserve(earlier, src.Forge()); held {
+				results[i].Result = left
 
 				continue
 			}
@@ -952,11 +982,15 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 			continue
 		}
 		fetched = true
-		pending[i] = true
+		fetchCtx, cancel := context.WithCancel(ctx)
+		f := &flight{i: i, seq: seq, cancel: cancel}
+		defer f.release()
+		pending[i] = f
+		a.flights[i].Store(f)
 		a.fetchStarted[i].Store(a.now().UnixNano())
-		go a.fetchOne(fetchCtx, i, src, answers)
+		go a.fetchOne(ctx, fetchCtx, f, src, answers)
 	}
-	a.collectAnswers(results, pending, answers, timedOut, deadline, earlier)
+	a.collectAnswers(ctx, results, pending, answers, pass, deadline, earlier)
 	a.notePass(ctx, fetched)
 	a.noteSpend(results)
 
@@ -964,9 +998,9 @@ func (a *Aggregator) fetchSources(ctx context.Context) []sourceResult {
 }
 
 // beginPass starts the wait that ends a pass over the sources and makes the
-// pass visible to joinPass. It returns the channel the wait closes, the wait
-// it was given, and the function that ends the pass.
-func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, time.Duration, func()) {
+// pass visible to joinPass. It returns the pass, the wait it was given, and the
+// function that ends the pass.
+func (a *Aggregator) beginPass(ctx context.Context) (*fetchPass, time.Duration, func()) {
 	fp := &fetchPass{timedOut: make(chan struct{}), started: a.now()}
 	a.passMu.Lock()
 	a.pass = fp
@@ -978,9 +1012,9 @@ func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, time.Durat
 		deadline = a.fetchDeadline
 	}
 	// Armed before any fetch, so a deadline cannot pass unseen.
-	fp.arm(a.fetchAfter, deadline)
+	fp.arm(a.fetchAfter, deadline, deadline < a.fetchDeadline)
 
-	return fp.timedOut, deadline, func() {
+	return fp, deadline, func() {
 		a.passMu.Lock()
 		a.pass = nil
 		a.passMu.Unlock()
@@ -988,17 +1022,21 @@ func (a *Aggregator) beginPass(ctx context.Context) (<-chan struct{}, time.Durat
 	}
 }
 
-// fetchOne asks source i and sends its answer. The in-flight mark clears
+// fetchOne asks f's source and sends its answer. The in-flight mark clears
 // whether or not the refresh still listens, and even if Fetch exits its
-// goroutine: a late answer then waits in the buffer and is dropped with it.
-func (a *Aggregator) fetchOne(ctx context.Context, i int, src Source, answers chan<- sourceAnswer) {
+// goroutine. An answer to a read the pass left behind is applied here, on ctx,
+// the pass's own context; one to a read given up on is dropped.
+func (a *Aggregator) fetchOne(ctx, fetchCtx context.Context, f *flight, src Source, answers chan<- sourceAnswer) {
 	var res Result
 	func() {
-		defer a.fetching[i].Store(false)
-		res = src.Fetch(ctx)
+		defer a.fetching[f.i].Store(false)
+		res = src.Fetch(fetchCtx)
 	}()
-	a.logFetchOutcome(ctx, i, src.Forge(), res)
-	answers <- sourceAnswer{i, res}
+	a.logFetchOutcome(!f.in(flightWaited) || fetchCtx.Err() != nil, f.i, src.Forge(), res)
+	if f.deliver(answers, res) == flightLeft {
+		f.cancel()
+		a.applyLate(ctx, f, sourceResult{Result: res, asked: true})
+	}
 }
 
 // fetchAge is how long source i's running fetch has been going.
@@ -1008,12 +1046,12 @@ func (a *Aggregator) fetchAge(i int) time.Duration {
 
 // logFetchOutcome says how long a fetch took and how it ended, so a forge
 // shown as unreachable can be told from one that answered slowly (#4977). A
-// fetch that returns after its pass was given up on ("late") is a Warn, as is
+// fetch that returns after its pass stopped waiting ("late") is a Warn, as is
 // a failure; a good answer is Debug. It logs the error kind, never the text.
-func (a *Aggregator) logFetchOutcome(ctx context.Context, i int, forge Forge, res Result) {
+func (a *Aggregator) logFetchOutcome(late bool, i int, forge Forge, res Result) {
 	took := a.fetchAge(i)
 	switch {
-	case ctx.Err() != nil:
+	case late:
 		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "late")
 	case !res.Health.Reachable:
 		slog.Warn("fetch finished", "forge", forge, "duration", took, "outcome", "error", "path", "error", "error_kind", res.Health.ErrorKind)
@@ -1029,34 +1067,68 @@ type sourceAnswer struct {
 }
 
 // collectAnswers fills results from answers until every source in pending has
-// answered or timedOut closes. A source still pending then gets an unreachable
-// result, so the aggregator shows the rows it last had, marked stale (#3019).
-func (a *Aggregator) collectAnswers(results []sourceResult, pending map[int]bool, answers <-chan sourceAnswer, timedOut <-chan struct{}, deadline time.Duration, earlier Snapshot) {
+// answered or the pass's wait ends. A wait shorter than the scheduled deadline
+// leaves the reads still pending to run on (#5059). Otherwise such a source gets
+// an unreachable result, so the aggregator shows the rows it last had, marked
+// stale (#3019).
+func (a *Aggregator) collectAnswers(ctx context.Context, results []sourceResult, pending map[int]*flight, answers <-chan sourceAnswer, pass *fetchPass, deadline time.Duration, earlier Snapshot) {
 	for len(pending) > 0 {
 		select {
 		case ans := <-answers:
-			results[ans.i] = sourceResult{Result: ans.res, asked: true}
-			delete(pending, ans.i)
-		case <-timedOut:
-			// An answer that arrived with the deadline still counts.
-			for drained := false; !drained; {
-				select {
-				case ans := <-answers:
-					results[ans.i] = sourceResult{Result: ans.res, asked: true}
-					delete(pending, ans.i)
-				default:
-					drained = true
-				}
+			takeAnswer(results, pending, ans)
+		case <-pass.timedOut:
+			// Marked before the drain, so no answer can land after it.
+			for _, f := range pending {
+				f.stopWaiting(pass.early)
 			}
-			for i := range pending {
-				slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[i].Forge(), "path", "deadline", "running_for", a.fetchAge(i), "deadline", deadline)
-				results[i] = sourceResult{asked: true, missed: true}
-				results[i].Health = a.unreachableFrom(earlier, i)
+			drainAnswers(results, pending, answers)
+			for i, f := range pending {
+				if pass.early {
+					results[i] = a.leaveRunning(ctx, f, pass.started, deadline)
+				} else {
+					results[i] = a.giveUp(f, deadline, earlier)
+				}
 			}
 
 			return
 		}
 	}
+}
+
+func takeAnswer(results []sourceResult, pending map[int]*flight, ans sourceAnswer) {
+	results[ans.i] = sourceResult{Result: ans.res, asked: true}
+	delete(pending, ans.i)
+}
+
+// drainAnswers takes the answers that arrived with the deadline, which still
+// count.
+func drainAnswers(results []sourceResult, pending map[int]*flight, answers <-chan sourceAnswer) {
+	for {
+		select {
+		case ans := <-answers:
+			takeAnswer(results, pending, ans)
+		default:
+			return
+		}
+	}
+}
+
+// leaveRunning is the result for a read the pass stops waiting for while it
+// goes on.
+func (a *Aggregator) leaveRunning(ctx context.Context, f *flight, started time.Time, waited time.Duration) sourceResult {
+	slog.Info("stopped waiting for a fetch, which goes on", "forge", a.sources[f.i].Forge(), "path", "waiting", "running_for", a.fetchAge(f.i), "deadline", waited)
+	a.leave(ctx, f, started)
+
+	return sourceResult{late: f}
+}
+
+// giveUp cancels a read still pending at the scheduled deadline and is the
+// missed result for it.
+func (a *Aggregator) giveUp(f *flight, deadline time.Duration, earlier Snapshot) sourceResult {
+	f.cancel()
+	slog.Warn("fetch deadline passed with the forge still fetching", "forge", a.sources[f.i].Forge(), "path", "deadline", "running_for", a.fetchAge(f.i), "deadline", deadline)
+
+	return sourceResult{Health: a.unreachableFrom(earlier, f.i), asked: true, missed: true}
 }
 
 // unreachableFrom is source i's health from snap, marked unreachable, so its
@@ -1094,6 +1166,9 @@ type fetchPass struct {
 	timedOut chan struct{}
 	started  time.Time
 	once     sync.Once
+	// early says the wait that ended was shorter than the scheduled deadline.
+	// Read it after timedOut closes.
+	early bool
 
 	mu    sync.Mutex
 	stops []func() bool
@@ -1101,10 +1176,15 @@ type fetchPass struct {
 	ended bool
 }
 
-func (p *fetchPass) fire() { p.once.Do(func() { close(p.timedOut) }) }
+func (p *fetchPass) fire(early bool) {
+	p.once.Do(func() {
+		p.early = early
+		close(p.timedOut)
+	})
+}
 
-func (p *fetchPass) arm(after AfterFunc, d time.Duration) {
-	stop := after(d, p.fire)
+func (p *fetchPass) arm(after AfterFunc, d time.Duration, early bool) {
+	stop := after(d, func() { p.fire(early) })
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.ended {
@@ -1142,14 +1222,14 @@ func (a *Aggregator) joinPass() {
 	if !first {
 		return
 	}
-	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0))
+	fp.arm(a.fetchAfter, max(a.userFetchDeadline-a.now().Sub(fp.started), 0), a.userFetchDeadline < a.fetchDeadline)
 }
 
 // notSlow is h without ForgeCauseSlow and its RowsReadAt, which are about the latest pass only: a
 // pass that does not ask the forge must not inherit it. ForgeCauseStarting
-// stays, since nothing has answered yet.
+// stays, since nothing has answered yet, and so does a forge never read.
 func notSlow(h ForgeHealth) ForgeHealth {
-	if h.Cause == ForgeCauseSlow {
+	if h.Cause == ForgeCauseSlow && !h.NeverRead() {
 		h.Cause = ""
 		h.RowsReadAt = nil
 	}
@@ -1176,39 +1256,35 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
-	results := a.fetchSources(a.refreshContext(ctx))
+	results := a.fetchSources(a.refreshContext(ctx), seq)
+	// It asks the forge, so it stays outside foldMu: a hang holds up no one else.
+	a.checkDependabotAcks(ctx)
 
+	a.foldMu.Lock()
 	a.mu.RLock()
 	earlier := a.snap
 	goodAt := maps.Clone(a.lastGood)
 	streaks := cloneStreaks(a.failStreak)
 	a.mu.RUnlock()
 
-	snap := newEmptySnapshot()
-	snap.GeneratedAt = time.Now().UTC()
 	read := rowsRead(results)
 	readForges := make(map[Forge]bool)
 	unread := make(map[repoKey]bool)
-	for i, sr := range results {
-		r := sr.Result
-		forge := a.sources[i].Forge()
-		logFailedRefresh(sr, forge)
-		r = settleOrHold(r, sr.asked, sr.missed, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
-		noteBlockedActions(&r.Health, a.sources[i])
-		noteProviderStatus(ctx, &r.Health, a.sources[i])
-		snap.add(r)
-	}
-	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
+	snap, notRead := a.assemble(ctx, results, earlier, goodAt, streaks, readForges, unread)
 	reachable := reachableForges(snap.Forges)
-	a.checkDependabotAcks(ctx)
-	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
-	AnnotateStacks(snap.PullRequests)
-	sortByRecency(snap.PullRequests, snap.Issues)
+	for _, forge := range notRead {
+		delete(reachable, forge)
+	}
 
 	a.mu.Lock()
 	previous := a.snap
+	// Under mu, so a MarkSettled is either seen here or runs on the new board.
+	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
+	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
+	AnnotateStacks(snap.PullRequests)
+	sortByRecency(snap.PullRequests, snap.Issues)
 	snap = a.keepNewerScopedRepos(snap, previous, seq)
-	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
+	// Rows keepNewerScopedRepos brought back get their requests here (#976).
 	// The box overrides are settled here too, under the lock every tick and
 	// cancel takes, so none can land between the settling and the swap.
 	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
@@ -1219,6 +1295,7 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.keepLaterGood(goodAt)
 	a.failStreak = streaks
 	a.mu.Unlock()
+	a.foldMu.Unlock()
 	a.markFirstRefreshed()
 
 	logRateLimitTransitions(previous.Forges, snap.Forges)
@@ -1226,6 +1303,30 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	a.publish(ctx, snap)
 	a.runWrites(ctx, snap)
 	a.startWebhookUpgrade(snap)
+}
+
+// assemble is the snapshot a full refresh's results make, before the board's own
+// marks go on it. notRead names the forges whose read is still running, which
+// say nothing new about their pull requests.
+func (a *Aggregator) assemble(ctx context.Context, results []sourceResult, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, readForges map[Forge]bool, unread map[repoKey]bool) (snap Snapshot, notRead []Forge) {
+	snap = newEmptySnapshot()
+	snap.GeneratedAt = time.Now().UTC()
+	for i, sr := range results {
+		r := sr.Result
+		forge := a.sources[i].Forge()
+		logFailedRefresh(sr, forge)
+		if sr.late != nil {
+			r = heldWhileReading(sr.late.behind.Load(), earlier, goodAt, forge)
+			notRead = append(notRead, forge)
+		} else {
+			r = settleOrHold(r, sr.asked, sr.missed, earlier, goodAt, streaks, snap.GeneratedAt, readForges, unread, forge)
+		}
+		noteBlockedActions(&r.Health, a.sources[i])
+		noteProviderStatus(ctx, &r.Health, a.sources[i])
+		snap.add(r)
+	}
+
+	return snap, notRead
 }
 
 // keepLaterGood folds good into lastGood, per forge, keeping the later time.
@@ -1298,9 +1399,9 @@ func endStarting(h ForgeHealth) ForgeHealth {
 
 // holdUpstreamError counts forge's consecutive failed fetches in streaks, and
 // turns the first ForgeFailureThreshold-1 failures that were the forge's own 5xx,
-// or a pass that missed (deadline hit, or skipped while the last fetch still
-// ran), into the rows and health it last had, so the page does not flip to a banner
-// for a blip. A fetch that read the forge resets the count. A forge nobody
+// or a pass that missed (scheduled deadline hit, or skipped while a fetch past
+// it still ran), into the rows and health it last had, so the page does not flip
+// to a banner for a blip. A fetch that read the forge resets the count. A forge nobody
 // asked (budget spent) is left out: only a real answer or a missed pass moves
 // the count.
 func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt map[Forge]time.Time, streaks map[Forge]int, forge Forge) (Result, bool) {
@@ -1324,15 +1425,12 @@ func holdUpstreamError(r Result, asked, missed bool, earlier Snapshot, goodAt ma
 	if !ok || !prev.Reachable {
 		return r, false
 	}
-	held := Result{Health: notSlow(prev)}
+	held := rowsWhere(earlier, func(other Forge) bool { return other == forge })
+	held.Health = notSlow(prev)
 	if missed {
 		held.Health.Cause = ForgeCauseSlow
 		held.Health.RowsReadAt = &readAt
 	}
-	held.PullRequests = slices.DeleteFunc(slices.Clone(earlier.PullRequests), func(pr PullRequest) bool { return pr.Forge != forge })
-	held.Issues = slices.DeleteFunc(slices.Clone(earlier.Issues), func(i Issue) bool { return i.Forge != forge })
-	held.Repos = slices.DeleteFunc(slices.Clone(earlier.Repos), func(x Repo) bool { return x.Forge != forge })
-	held.MainBranches = slices.DeleteFunc(slices.Clone(earlier.MainBranches), func(b MainBranch) bool { return b.Forge != forge })
 
 	return held, true
 }

@@ -4291,10 +4291,47 @@
     // forge that keeps saying so changes the chip after STILL_WAITING_MS.
     const statusUnknownSince = new Map<string, number>();
 
+    // A row nothing has changed on isn't redrawn by a snapshot, so a wait
+    // redraws the list itself when it runs long (#5062). One timer serves
+    // every wait: it is set for the earliest one still to run long, and a
+    // wait that starts later can only run long after that.
+    let lateTimer: number | undefined;
+    function scheduleLateRedraw(after = Date.now()) {
+      if (lateTimer !== undefined) return;
+      const next = Math.min(
+        ...[...statusUnknownSince.values()]
+          .map((since) => since + STILL_WAITING_MS)
+          .filter((late) => late > after),
+      );
+      if (next === Infinity) return;
+      lateTimer = window.setTimeout(
+        () => {
+          lateTimer = undefined;
+          if (destroyed) return;
+          const now = Date.now();
+          // The wait this timer was set for may have ended since.
+          const ranLong = [...statusUnknownSince.values()].some((since) => {
+            const late = since + STILL_WAITING_MS;
+            return late >= next && late <= now;
+          });
+          if (ranLong) {
+            keepFocusAcross(renderPRBoard);
+            refreshDialogChrome();
+          }
+          scheduleLateRedraw(now);
+        },
+        next - Date.now() + 100,
+      );
+    }
+
     function statusUnknownWait(item: PullRequestItem): MergeWait {
       const key = prKey(item);
-      const since = statusUnknownSince.get(key) ?? Date.now();
-      statusUnknownSince.set(key, since);
+      let since = statusUnknownSince.get(key);
+      if (since === undefined) {
+        since = Date.now();
+        statusUnknownSince.set(key, since);
+        scheduleLateRedraw();
+      }
       return Date.now() - since >= STILL_WAITING_MS
         ? "status-unknown-late"
         : "status-unknown";
@@ -6790,9 +6827,14 @@
       // that button's request runs (#3279).
       const inChip =
         active instanceof HTMLElement && !!active.closest(".wait-chip");
+      // A row's links have no id either, so one is found by where it goes.
+      const href =
+        active instanceof HTMLAnchorElement
+          ? active.getAttribute("href")
+          : null;
       const key =
-        active instanceof HTMLButtonElement || inChip
-          ? active.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
+        active instanceof HTMLButtonElement || inChip || href !== null
+          ? active?.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
           : undefined;
       const label = active?.textContent;
       const className = active?.className;
@@ -6821,7 +6863,17 @@
       // fills, and the one now in that slot takes the focus. Failing that, the
       // chip that stands in for it, and last the row's title button, so focus
       // never drops to the page (#3279).
+      const sameLink =
+        href === null
+          ? undefined
+          : Array.from(row?.querySelectorAll("a") ?? []).find(
+              (a) =>
+                a.className === className &&
+                a.getAttribute("href") === href &&
+                !a.closest("[hidden]"),
+            );
       (
+        sameLink ??
         buttons.find(
           (b) => b.className === className && b.textContent === label,
         ) ??
@@ -11609,6 +11661,7 @@
       clearTimeout(touchTimer);
       clearTimeout(pollTimer);
       clearTimeout(streamTimer);
+      window.clearTimeout(lateTimer);
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();

@@ -93,10 +93,11 @@ refresh tries again.
   nothing about whether anyone is looking, and neither does the page's own timed
   read of its data. A tab becoming visible again makes the one catch-up refresh.
   What still runs while it rests:
-  - Webhook deliveries, which refresh the repository they name.
+  - Webhook deliveries, which refresh the repository they name, unless the
+    budget is at its [reserve](#a-reserve-for-your-own-actions).
   - Refresh now.
   - The CI poll, for pull requests with checks still running or GitHub's
-    auto-merge armed.
+    auto-merge armed (the look for reruns of failed ones stops).
   - The scheduled refresh itself, while something is waiting on it: a pull
     request armed for auto-merge, or a behind pull request with auto-update on
     (for its repository or for that pull request), or a behind Dependabot or
@@ -165,10 +166,11 @@ On every forge, "Refresh now" runs at most once every five seconds.
 ## A reserve for your own actions
 
 On GitHub the dashboard keeps part of each budget for you. Background work
-(the scheduled full refresh, the CI and auto-merge polls, and webhook
-maintenance) stops once a call would leave the REST or the GraphQL budget at or
-under the reserve: 10% of the budget, never less than 50 points, and never more
-than half of it. A 5000 point budget keeps 500. A low budget of either kind
+(the scheduled full refresh, the CI and auto-merge polls, webhook refreshes, and
+webhook maintenance) stops once a call would leave the REST or the GraphQL
+budget at or under the reserve: 10% of the budget, never less than 50 points,
+and never more than half of it. A 5000 point budget keeps 500. A low budget of
+either kind
 holds all of that background work, even work that only uses the other. For a
 full refresh, "a call" means what the last one spent, counted from its own
 requests, not from how far the budget fell since the one before (your own
@@ -184,9 +186,14 @@ marked stale, in the meantime.
 Your own actions are never held back by it (Merge, Update branch, the bot
 rebases, Close, Enable auto-merge, queued actions, Refresh now, and the refresh
 that opening the board after an idle spell starts). They stop only when the
-budget is spent, as described earlier. A refresh that a webhook delivery asks for
-is cheap and is how the board stays current, so it also runs inside the reserve
-and waits only when the budget is spent.
+budget is spent, as described earlier.
+
+A refresh that a webhook delivery asks for waits too. One is small, but a busy
+repository sends enough of them to spend a whole budget. It isn't dropped: it
+runs 30 seconds after the budget resets, once per repository however many
+deliveries arrived while it waited. The budget it checks is the one in GitHub's
+latest response, not the one the last full refresh saw. With the GitHub App on
+several accounts, each repository is judged by its own installation's budget.
 
 Forgejo reports no budget, so it has no reserve and is never held back. The
 reserve is fixed, not a setting. If background work is using too much, raise
@@ -242,6 +249,18 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   due and held, not at its last read, so the gap between two reads is the
   back-off gap plus the hold-off: about 30 minutes at the 15-minute cap. The
   cost is a check colour up to that much late, never a missed merge.
+
+The poll also watches failed and cancelled pull requests on Forgejo. Rerunning
+their jobs adds a pending status and sends no webhook until the run ends, so
+without this the row, and its open checks list, would say failed all the way
+through. The poll reads the combined status of the head commit, one request for
+each such pull request (one more for every further 50 statuses). If there is a
+newer status than the row was read with, that repository is refreshed. The
+probes go out at `CI_POLL_INTERVAL`, then double, up to 5 minutes (or
+`CI_POLL_INTERVAL` if that is longer), so about 12 an hour for each failed pull
+request at the defaults. None are sent while nobody is using the dashboard, for
+a pull request that passed, or to GitHub, whose webhook reports reruns.
+`CI_POLL_INTERVAL=0s` turns them off with the rest of the poll.
 
 For a rough sense of the saving, take 30 pull requests with a running check, on
 12 repos, polled every minute, where nothing changes for ten minutes and there is
@@ -417,7 +436,7 @@ The kind says why the request was made:
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `full`             | A refresh of the whole account.                                                                                                                                                                                                                              |
 | `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                                                                                                                                              |
-| `ci_poll`          | A poll of pull requests with a check still running.                                                                                                                                                                                                          |
+| `ci_poll`          | A poll of pull requests with a check still running, or a look for a rerun of a failed one.                                                                                                                                                                   |
 | `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                                                                                                                                           |
 | `details`          | A pull request, issue, or check list you opened.                                                                                                                                                                                                             |
 | `hook_maintenance` | Checking, adding, or upgrading webhooks.                                                                                                                                                                                                                     |

@@ -1,5 +1,40 @@
 # Changelog
 
+## [9.139.6](https://github.com/alrayyes/forge-dashboard/compare/v9.139.5...v9.139.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** hold webhook refreshes back at the budget reserve ([#5104](https://github.com/alrayyes/forge-dashboard/issues/5104)) ([7b4c212](https://github.com/alrayyes/forge-dashboard/commit/7b4c21293499747e53c40a4ff153b368952dec23)), closes [#5085](https://github.com/alrayyes/forge-dashboard/issues/5085)
+
+## [9.139.5](https://github.com/alrayyes/forge-dashboard/compare/v9.139.4...v9.139.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** open the run that is still going ([#5097](https://github.com/alrayyes/forge-dashboard/issues/5097)) ([ad30ba1](https://github.com/alrayyes/forge-dashboard/commit/ad30ba18add6ceb544dfa46b1a45b550580abf6f)), closes [#5077](https://github.com/alrayyes/forge-dashboard/issues/5077)
+
+## [9.139.4](https://github.com/alrayyes/forge-dashboard/compare/v9.139.3...v9.139.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** show Still waiting on unchanged rows and settle e2e races ([#5078](https://github.com/alrayyes/forge-dashboard/issues/5078)) ([f0b26e1](https://github.com/alrayyes/forge-dashboard/commit/f0b26e1136c730876c5bdbc2b60203096162a475)), closes [#5062](https://github.com/alrayyes/forge-dashboard/issues/5062)
+
+## [9.139.3](https://github.com/alrayyes/forge-dashboard/compare/v9.139.2...v9.139.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* **forgejo:** notice a rerun of a failed pull request's job ([#5079](https://github.com/alrayyes/forge-dashboard/issues/5079)) ([e98bd1a](https://github.com/alrayyes/forge-dashboard/commit/e98bd1a8ab139cc9cd9275843ae398d215da9530))
+
+## [9.139.2](https://github.com/alrayyes/forge-dashboard/compare/v9.139.1...v9.139.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a slow forge's read going after a person's refresh ([#5067](https://github.com/alrayyes/forge-dashboard/issues/5067)) ([a5b1314](https://github.com/alrayyes/forge-dashboard/commit/a5b13149f8ed27036caa5dd24d192d3b24ea9aab))
+
 ## [9.139.1](https://github.com/alrayyes/forge-dashboard/compare/v9.139.0...v9.139.1) (2026-11-27)
 
 

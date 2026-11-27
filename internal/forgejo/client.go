@@ -1194,12 +1194,9 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 	if p.Head != nil {
 		sha = p.Head.Sha
 	}
-	ci, checks, incomplete, pending, err := c.ciStatus(ctx, owner, name, sha, branchRef(p.Base))
+	ci, err := c.ciStatus(ctx, owner, name, sha, branchRef(p.Base))
 	if err != nil {
-		ci = dashboard.CINone
-		checks = dashboard.CheckCounts{}
-		incomplete = false
-		pending = nil
+		ci = ciReading{state: dashboard.CINone}
 	}
 	var created, updated time.Time
 	if p.Created != nil {
@@ -1224,10 +1221,11 @@ func (c *Client) toPullRequest(ctx context.Context, owner, name, repo string, p 
 		Labels:                  toLabels(p.Labels),
 		CreatedAt:               created,
 		UpdatedAt:               updated,
-		CI:                      ci,
-		Checks:                  checks,
-		ChecksIncomplete:        incomplete,
-		PendingChecks:           pending,
+		CI:                      ci.state,
+		Checks:                  ci.checks,
+		ChecksIncomplete:        ci.incomplete,
+		PendingChecks:           ci.pending,
+		LatestStatusID:          ci.latestStatusID,
 		MergeStatus:             verdict.Status,
 		ConflictConfirmed:       verdict.Confirmed,
 		ConflictFiles:           verdict.Files,
@@ -1337,16 +1335,16 @@ func (c *Client) ListOpenIssues(ctx context.Context, owner, name, repo string) (
 //
 // incomplete is true while a run that is still going has jobs the counts
 // leave out (#4253).
-func (c *Client) ciStatus(ctx context.Context, owner, name, sha, base string) (dashboard.CIStatus, dashboard.CheckCounts, bool, []string, error) {
+func (c *Client) ciStatus(ctx context.Context, owner, name, sha, base string) (ciReading, error) {
 	if sha == "" {
-		return dashboard.CINone, dashboard.CheckCounts{}, false, nil, nil
+		return ciReading{state: dashboard.CINone}, nil
 	}
 	c = c.withContext(ctx)
 	ctx = withJobPagesMemo(ctx)
 
 	combined, whole, err := c.combinedStatus(ctx, owner, name, sha)
 	if err != nil {
-		return dashboard.CINone, dashboard.CheckCounts{}, false, nil, err
+		return ciReading{state: dashboard.CINone}, err
 	}
 
 	counts := checkCountsOf(combined.Statuses)
@@ -1378,7 +1376,41 @@ func (c *Client) ciStatus(ctx context.Context, owner, name, sha, base string) (d
 		pending = append(pending, missing...)
 	}
 
-	return state, counts, incomplete, pending, nil
+	return ciReading{state: state, checks: counts, incomplete: incomplete, pending: pending, latestStatusID: newestStatusID(combined.Statuses)}, nil
+}
+
+// ciReading is what ciStatus learned about a commit's checks.
+type ciReading struct {
+	state      dashboard.CIStatus
+	checks     dashboard.CheckCounts
+	incomplete bool
+	pending    []string
+	// latestStatusID is newestStatusID of the statuses read.
+	latestStatusID int64
+}
+
+// newestStatusID is the highest id among statuses, or 0 for none. Forgejo adds
+// a status with a new id each time a job's state changes, a rerun included.
+func newestStatusID(statuses []*gitea.Status) int64 {
+	var newest int64
+	for _, s := range statuses {
+		if s != nil {
+			newest = max(newest, s.ID)
+		}
+	}
+
+	return newest
+}
+
+// LatestStatusID implements dashboard.SettledCheckProber with one read of the
+// commit's combined status (one more for each further page of statuses).
+func (c *Client) LatestStatusID(ctx context.Context, owner, name, sha string) (int64, error) {
+	combined, _, err := c.withContext(ctx).combinedStatus(ctx, owner, name, sha)
+	if err != nil {
+		return 0, err
+	}
+
+	return newestStatusID(combined.Statuses), nil
 }
 
 // excuseCancelled takes the failure statuses of cancelled jobs out of the

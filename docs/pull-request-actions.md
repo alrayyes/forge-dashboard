@@ -134,12 +134,12 @@ Merge unlocks by itself. A queued action (Update branch waiting for a rate limit
 to reset) keeps its own chip and Cancel in place of the waiting chip.
 A merge status the forge hasn't reported reads "Status unknown", with the code
 `status_unknown` behind it. If the forge still says unknown after two minutes on
-this page, the chip changes at the next refresh to "Still waiting", "Over 2 min",
-and its tooltip says to open the pull request on the forge, since a forge that
-never reports (a pull request with no checks, say) shouldn't look as if it is
-about to. The count starts again if the forge reports a status or the pull
-request leaves this page's list. Auto-merge stays in the chip throughout. A
-draft keeps its locked Merge.
+this page, the chip changes to "Still waiting", "Over 2 min", as soon as the two
+minutes have passed, and its tooltip says to open the pull request on the forge,
+since a forge that never reports (a pull request with no checks, say) shouldn't
+look as if it is about to. The count starts again if the forge reports a status
+or the pull request leaves this page's list. Auto-merge stays in the chip
+throughout. A draft keeps its locked Merge.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row keeps the chip but says "Waiting for the forge", with
 "Updating from the latest CI results" in its tooltip, and the Merge button stays
@@ -253,14 +253,22 @@ page from the same trailing icon button, after the Copy button when there is
 one. Its tooltip and accessible name carry the words: "Open job on GitHub" (or
 Forgejo) for a job with output, "Watch on GitHub" for a running one, "Open on
 GitHub" for a queued one, "Approve on GitHub" for a held one and "Open check
-page" for a check from an external status. The footer holds one outlined button,
-"Open run on GitHub", pinned under a divider so it stays on screen however long
-the list is; it opens the run page. When a pull request's checks belong to
+page" for a check from an external status. The footer holds one outlined
+button, "Open run on GitHub", pinned under a divider so it stays on screen
+however long the list is; it opens the run page. When the checks belong to
 several runs (more than one workflow, or a re-run), one link can't open them
-all, so the button says which it opens: "Open latest failed run on GitHub" for
-the newest run with a failed check (even when a newer run passed), or "Open
-latest run on GitHub" when nothing failed. A held workflow reads "Approve on"
-followed by the forge's name.
+all, so the button picks one and says which it opens: "Open latest failed run
+on GitHub" for the newest run with a failed check (even when a newer run
+passed); with nothing failed, `Open latest running run on GitHub` for the
+newest run with a running check; then "Open latest waiting run on GitHub" for
+the newest run with a queued check or one waiting for approval; otherwise
+"Open latest run on GitHub" for the newest run. The choice follows the checks
+as they change. A branch's panel on Main branches follows the same rule. While
+its checks name one run or none, its button is "Open run on GitHub" and opens
+the address the server gives the branch. A failed branch also keeps that button
+and address while its checks show nothing failed in any run, because the panel
+may not list the failure: an external status is one example. A held workflow
+reads "Approve on" followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
@@ -391,10 +399,12 @@ What a row may claim while its forge can't be asked is decided in one place,
 health and never its name, so a Forgejo row and a GitHub row get the same words.
 Each claim is one of three: confirmed (the forge answered), carried over (the
 forge can't be asked, so the row is an earlier answer, with since-when and the
-reason) or unknown (the forge answered but hasn't said, which only an
-unconfirmed conflict is). The same answer says whether a control may be drawn:
-none is while the forge can't be asked, and none is while its budget is spent
-(the web only; a spent budget says nothing about how old the data is). The
+reason; a forge whose first read is still running counts the same, so a pull
+request it hasn't listed yet isn't taken as closed) or unknown (the forge
+answered but hasn't said, which only an unconfirmed conflict is). The same
+answer says whether a control may be drawn: none is while the forge can't be
+asked, and none is while its budget is spent (the web only; a spent budget says
+nothing about how old the data is). The
 Dependabot buttons, the actions in the issue dialog, the row controls, the
 queued-action offer, and the auto-merge, hidden-pull-request and queued-action
 checks on the server all ask it, so a new case lands in all of them at once.
@@ -415,8 +425,8 @@ since-time, a main branch row or a repo marked `staleSince`, asks the same
 rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
 with one is carried over, in the same words and with the same since-time.
 Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
-reserve, the settings page, the snapshot cache, and which forges the aggregator
-asks) are not row claims and read the health directly.
+reserve, the repository list in Settings, the snapshot cache, and which forges
+the aggregator asks) are not row claims and read the health directly.
 
 Four limits to know:
 

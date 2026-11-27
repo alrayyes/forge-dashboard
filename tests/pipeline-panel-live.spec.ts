@@ -257,28 +257,28 @@ test.describe('pipeline panel updates live', () => {
     await expect(row.locator('.ci-seg-waiting')).toHaveCount(0);
   });
 
-  test('a pull request dialog with several runs links the newest, and says latest', async ({
+  test('a pull request dialog with several runs links the running one, and says so', async ({
     page,
   }) => {
     await open(page, RUNNING_FORGEJO, [
       {
         name: 'build',
-        status: 'completed',
-        conclusion: 'success',
+        status: 'in_progress',
         url: 'https://forge.example/o/r/actions/runs/7/jobs/0',
       },
       {
         name: 'test',
-        status: 'in_progress',
+        status: 'completed',
+        conclusion: 'success',
         url: 'https://forge.example/o/r/actions/runs/9/jobs/1',
       },
     ]);
     const link = dialog(page).getByRole('link', {
-      name: 'Open latest run on Forgejo (opens in a new tab)',
+      name: 'Open latest running run on Forgejo (opens in a new tab)',
     });
     await expect(link).toHaveAttribute(
       'href',
-      'https://forge.example/o/r/actions/runs/9',
+      'https://forge.example/o/r/actions/runs/7',
     );
     const box = await link.boundingBox();
     expect(box?.height).toBeGreaterThanOrEqual(44);

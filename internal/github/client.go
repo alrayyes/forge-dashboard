@@ -198,6 +198,10 @@ type Client struct {
 	// there's no multi-field invariant a mutex would need to protect.
 	lastRESTRate atomic.Pointer[dashboard.RateLimit]
 
+	// lastGraphQLRate is the GraphQL budget in the headers of the newest
+	// response, so a one-repo fetch teaches it too, not only a full one.
+	lastGraphQLRate atomic.Pointer[dashboard.RateLimit]
+
 	// issueState tracks the last known open-issue set per repo and when
 	// this Client last polled successfully, for the since-filtered
 	// reconciliation fetchViaGraphQL runs on every repeat poll (#381) —
@@ -229,6 +233,12 @@ func (c *Client) recordRESTRate(rate ghsdk.Rate) {
 		Remaining: rate.Remaining,
 		ResetsAt:  rate.Reset.Time,
 	})
+}
+
+// LatestBudgets implements dashboard.BudgetReporter. One credential reads
+// every repo, so it answers the same for each.
+func (c *Client) LatestBudgets(_, _ string) (graphQL, rest *dashboard.RateLimit) {
+	return c.lastGraphQLRate.Load(), c.lastRESTRate.Load()
 }
 
 // NewClient returns a Client. With token set, Fetch queries GraphQL for
@@ -2877,6 +2887,9 @@ func (c *Client) graphqlSend(ctx context.Context, query string, variables map[st
 		}
 	}
 	defer func() { _ = resp.Body.Close() }()
+	if rl := rateLimitFromHeaders(resp.Header); rl != nil && rl.Limit > 0 {
+		c.lastGraphQLRate.Store(rl)
+	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return nil, c.graphqlStatusError(ctx, resp)

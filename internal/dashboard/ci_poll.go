@@ -40,6 +40,9 @@ func (it pendingItem) key() string {
 // within settledPollWindow, since a rerun of it sends none either
 // (pollableBranches).
 //
+// A failed or cancelled Forgejo pull request is probed too, since rerunning its
+// jobs sends no webhook until the run ends (probeSettled).
+//
 // A source that implements PendingCheckRefresher answers all of a forge's
 // pull requests in one request; any other is refreshed one repo at a time
 // through RefreshRepo, the same keyed coalescer a webhook delivery uses.
@@ -53,15 +56,9 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	base := time.Duration(a.ciBase.Load())
 
 	items := pendingItems(snap)
-	live := make(map[string]struct{}, len(items))
-	for _, it := range items {
-		live[it.key()] = struct{}{}
-	}
 	branches := pollableBranches(snap, now)
-	for _, b := range branches {
-		live[branchPollKey(b)] = struct{}{}
-	}
-	a.pendingSched.keepOnly(live)
+	settled := settledRows(snap)
+	a.pendingSched.keepOnly(scheduledKeys(items, branches, settled))
 
 	byForge := make(map[Forge][]pendingItem)
 	for _, it := range items {
@@ -93,6 +90,24 @@ func (a *Aggregator) PollCI(ctx context.Context) {
 	}
 
 	a.pollBranches(ctx, snap, branches, now, base)
+	a.probeSettled(ctx, settled, now, base)
+}
+
+// scheduledKeys is the schedule keys of everything a poll is for, so the
+// schedule forgets the rest.
+func scheduledKeys(items []pendingItem, branches []MainBranch, settled []PullRequest) map[string]struct{} {
+	live := make(map[string]struct{}, len(items))
+	for _, it := range items {
+		live[it.key()] = struct{}{}
+	}
+	for _, b := range branches {
+		live[branchPollKey(b)] = struct{}{}
+	}
+	for _, pr := range settled {
+		live[settledPollKey(pr)] = struct{}{}
+	}
+
+	return live
 }
 
 // settledPollWindow is how long after its run finished a Forgejo default branch

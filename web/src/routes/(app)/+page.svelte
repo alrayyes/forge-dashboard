@@ -357,6 +357,10 @@
         branch: b.branch,
         runUrl: b.runUrl,
       }),
+      failureUrl: () => {
+        const row = latest(b);
+        return row.status === "failed" ? row.runUrl : undefined;
+      },
       // A branch has no allowed-actions list: Cancel run is offered for each
       // run the checks name as going.
       cancel: { forge: b.forge, fullName: b.fullName },
