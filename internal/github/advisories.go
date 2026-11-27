@@ -224,8 +224,8 @@ func throttled(err error) bool {
 	return ok
 }
 
-// refused reports GitHub's definitive 403 or 404 for the alerts listing: alerts
-// off, or no access. Rate limits are checked before this.
+// refused reports GitHub's definitive 403 or 404: the thing is off, or the
+// credential has no access. Rate limits are checked before this.
 func refused(err error) bool {
 	errResp, ok := errors.AsType[*ghsdk.ErrorResponse](err)
 	if !ok || errResp.Response == nil {

@@ -286,6 +286,7 @@ func (r *statusCheckRollup) keepNewestRuns(extra []branchContext, more bool) {
 		return
 	}
 	r.jobsCut = cut
+	r.statusesCounted = r.hasStatuses()
 
 	kept := make([]branchContext, 0, len(nodes))
 	for i, n := range nodes {

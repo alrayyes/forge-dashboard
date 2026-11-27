@@ -306,10 +306,39 @@ neither does the pipeline panel. A lookup that fails leaves the row as GitHub
 gave it and is tried again at the next read.
 
 Without a token there's no GraphQL, and the same case costs several REST requests
-for each such pull request at every refresh, none of them cached by the
-dashboard: a list of the head's finished workflow runs, and while jobs are still
-going, the lists of its queued and running runs plus one job list for each of
-those runs.
+for each such pull request at every refresh: a list of the head's finished
+workflow runs, and while jobs are still going, the lists of its queued and
+running runs plus one job list for each of those runs. They go through the
+conditional cache, but they're sent again at each refresh, and without a
+credential GitHub may charge for them.
+
+## What a checks list costs
+
+A GitHub checks list (a pull request's, or a default branch's) reads the commit
+statuses beside the check runs. The row's rollup already says whether a commit
+has any, and when it counted none the read is skipped, so that list costs
+nothing extra. When it counted some, each read of the list costs one request,
+and one more for every further 100 statuses.
+
+A list is read far more often than a panel is opened:
+
+- when you open the panel, and again while it stays open when the row changes or
+  you refresh it
+- with no panel open, for the rows the pull request, Main branches and issue
+  pages watch (up to seven), once when watched and again each time one changes
+- when you point at or focus a pipeline pill on Main branches, which reads the
+  list early
+- when an agent calls a checks tool over MCP or WebMCP, or you rerun a default
+  branch's checks
+
+The read is also made when the server has no rollup for the commit: before the
+first poll after a restart, when the list picks another commit than the row did,
+and without a token. A commit with no check run reads its statuses as it always
+did. The request goes through the conditional cache.
+
+The skip trusts the last rollup the server saw. A status posted on a commit that
+had none is left out of its list until a poll or a webhook refresh has counted
+it.
 
 ## Conditional requests
 
@@ -392,11 +421,12 @@ a new read can't skip the question of whether it can be conditional.
 | File                                       | Calls | Reads                                                                                                                                                                                  | Conditional                       |
 | ------------------------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `internal/github/cancel_run.go`            | 3     | The queued and the running workflow runs of a commit, then the jobs of each, only while a check is running, and the completed runs, only when a finished job names a run not yet known | Yes                               |
-| `internal/github/client.go`                | 24    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists                    | Yes, all but the job log download |
+| `internal/github/client.go`                | 23    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists                    | Yes, all but the job log download |
+| `internal/github/commit_statuses.go`       | 1     | The commit statuses of a commit, for the checks list                                                                                                                                   | Yes                               |
 | `internal/github/dependabot_ack.go`        | 2     | Comments and comment reactions                                                                                                                                                         | Yes                               |
 | `internal/github/job_log.go`               | 2     | One job's log, then its download                                                                                                                                                       | No, a log is never cached         |
 | `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                                       | Yes                               |
-| `internal/github/required_checks.go`       | 2     | Check runs, statuses                                                                                                                                                                   | Yes                               |
+| `internal/github/required_checks.go`       | 2     | Check runs and statuses, for its required checks. Without admin rights on the repository it also reads the branch, built by hand and so not counted here                               | Yes                               |
 | `internal/github/rerun.go`                 | 4     | One pull request, commits, check runs, one job                                                                                                                                         | Yes                               |
 | `internal/github/up_to_date_rule.go`       | 1     | A base branch's required status checks, for the up-to-date rule, once per branch while a pull request is behind                                                                        | Yes                               |
 | `internal/forgejo/advisories.go`           | 3     | The repository's file tree, one call per 1000 files up to five, a slashed default branch's commit, and each lock file (at most 20)                                                     | No, Forgejo sends no ETag         |

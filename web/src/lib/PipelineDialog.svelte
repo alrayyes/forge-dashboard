@@ -106,7 +106,7 @@
     groupChecks,
     isBlocking,
     footerRunLink,
-    runLinkNoun,
+    runLinkText,
     type Check,
   } from "#lib/pipeline-checks.js";
   import {
@@ -597,10 +597,8 @@
   const runLink = $derived(
     footerRunLink(target?.runUrl, checks, target?.failureUrl?.()),
   );
-  const runLinkText = $derived(
-    target && runLink
-      ? `Open ${runLinkNoun(runLink.kind)} on ${forgeLabel(target)}`
-      : "",
+  const runLinkLabel = $derived(
+    target && runLink ? runLinkText(runLink.kind, forgeLabel(target)) : "",
   );
   const failed = $derived(
     checks.some((c) => {
@@ -974,9 +972,9 @@
         href={runLink.url}
         target="_blank"
         rel="noopener noreferrer"
-        aria-label="{runLinkText} (opens in a new tab)"
+        aria-label="{runLinkLabel} (opens in a new tab)"
       >
-        {runLinkText}<ExternalLinkIcon />
+        {runLinkLabel}<ExternalLinkIcon />
       </a>
     </div>
   {/if}

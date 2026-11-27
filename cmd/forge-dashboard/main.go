@@ -674,7 +674,8 @@ func buildAppSource(c settings.Credentials, ids []int64, appID int64, key []byte
 }
 
 // githubShared is what every GitHub client one settings load builds shares:
-// the rendered-body cache, the advisory cache and the status page reader. Any
+// the rendered-body cache, the advisory cache, the record of which commits have
+// statuses and the status page reader. Any
 // of them may be nil (tests). It goes to every installation's client, so a
 // composite source reads the same caches as a single one.
 type githubShared struct {
@@ -682,6 +683,7 @@ type githubShared struct {
 	advisories *github.AdvisoryCache
 	replaced   *github.ReplacedRunsCache
 	status     dashboard.ProviderStatusSource
+	statuses   *github.StatusPresenceCache
 	// linked is the linked GitHub account, and visible what it can read per
 	// installation (#4576). Both are nil without a GitHub App OAuth client.
 	linked  *oauth.GitHub
@@ -698,6 +700,9 @@ func (g githubShared) apply(client *github.Client) {
 	}
 	if g.status != nil {
 		client.SetStatusChecker(g.status)
+	}
+	if g.statuses != nil {
+		client.ShareStatusPresenceCache(g.statuses)
 	}
 }
 
@@ -733,6 +738,9 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// And which heads hold a replaced cancelled run, so a head is read once
 	// while its counts stand.
 	replacedRuns := github.NewReplacedRunsCache()
+	// And which commits have statuses: a poll's client learns it, and the
+	// checks list's client reads it (#5101).
+	statusPresence := github.NewStatusPresenceCache()
 	// One status page reader too, so a burst of failing clients makes one
 	// request (#3633).
 	status := githubstatus.New(githubStatusURL, nil)
@@ -747,7 +755,7 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, replaced: replacedRuns, status: status, linked: linkedGitHub, visible: visible}); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, replaced: replacedRuns, statuses: statusPresence, status: status, linked: linkedGitHub, visible: visible}); src != nil {
 			sources = append(sources, src)
 		}
 

@@ -211,8 +211,11 @@
       expect(document.querySelector(".adv-row")).not.toBeNull(),
     );
     await userEvent.click(document.querySelector(".adv-row") as HTMLElement);
-    await waitFor(() =>
-      expect(document.querySelector(".adv-description")).not.toBeNull(),
+    // The description waits for the lazy markdown chunk, which on a busy
+    // machine takes longer than waitFor's 1000 ms default.
+    await waitFor(
+      () => expect(document.querySelector(".adv-description")).not.toBeNull(),
+      { timeout: 10_000 },
     );
   }}
 >

@@ -15,6 +15,7 @@ import {
   isBlocking,
   rerunnableCounts,
   runLinkNoun,
+  runLinkText,
   runPageUrl,
 } from './pipeline-checks';
 
@@ -396,8 +397,36 @@ describe('footerRunLink', () => {
     expect(footerRunLink(undefined, [])).toBeUndefined();
   });
 
-  // A failed branch's address may be the only link to the failure: GitHub lists
-  // no external status beside check runs.
+  // A failed listed status names no run, so no run link reaches it (#5101).
+  const status = check({
+    name: 'deploy',
+    url: 'https://ci.example.com/deploy/1',
+    conclusion: 'failure',
+  });
+
+  test('links a failed check that names no run when no run failed', () => {
+    const expected = { url: status.url, kind: 'failed-check' as const };
+    expect(footerRunLink(undefined, [status])).toEqual(expected);
+    expect(footerRunLink(board, [job(5), status])).toEqual(expected);
+    expect(footerRunLink(board, [job(5), job(9), status])).toEqual(expected);
+  });
+
+  test('a run with a failed check outranks a failed check without one', () => {
+    const one = [job(5, { conclusion: 'failure' }), status];
+    expect(footerRunLink(undefined, one)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/5',
+      kind: 'run',
+    });
+    expect(footerRunLink(board, [...one, job(9)])?.kind).toBe('failed-run');
+  });
+
+  test('a failed check with no address changes nothing', () => {
+    const bare = check({ url: '', conclusion: 'failure' });
+    expect(footerRunLink(board, [bare])).toEqual({ url: board, kind: 'run' });
+  });
+
+  // A failed branch's address may be the only link to the failure, as the list
+  // can leave it out.
   const failure = 'https://ci.example.com/build/1';
 
   test('a failed branch keeps its address when no listed run failed', () => {
@@ -415,12 +444,36 @@ describe('footerRunLink', () => {
     });
   });
 
+  test('a failed branch address that is a listed status is not a run', () => {
+    expect(footerRunLink(status.url, [job(5), status], status.url)).toEqual({
+      url: status.url,
+      kind: 'failed-check',
+    });
+  });
+
+  test('a failed branch address that is a run page stays a run', () => {
+    const run = job(5, { conclusion: 'failure' });
+    expect(footerRunLink(run.url, [run], run.url)).toEqual({
+      url: run.url,
+      kind: 'run',
+    });
+  });
+
   test('a failed run a failed branch lists still wins', () => {
     const checks = [job(5, { conclusion: 'failure' }), job(9)];
     expect(footerRunLink(board, checks, failure)).toEqual({
       url: 'https://f.example/o/r/actions/runs/5',
       kind: 'failed-run',
     });
+  });
+});
+
+describe('runLinkText', () => {
+  test('names the forge for a run, and not for a check page', () => {
+    expect(runLinkText('run', 'GitHub')).toBe('Open run on GitHub');
+    expect(runLinkText('failed-check', 'GitHub')).toBe(
+      'Open failed check page',
+    );
   });
 });
 
