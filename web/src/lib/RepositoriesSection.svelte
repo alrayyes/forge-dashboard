@@ -18,6 +18,7 @@
   import { dependabotBlockedReason } from "./forge-lock.js";
   import { forgeClassOf, forgeLabelOf } from "./forges.js";
   import { formatTime } from "./time.svelte.js";
+  import { planHold, type Room } from "./hold-in-place.js";
   import {
     pollingFilterHolds,
     pollingOnlyCount,
@@ -112,6 +113,32 @@
   function keep(repo: Repo) {
     kept = new Set(kept).add(repoKey(repo));
   }
+  // A toggle can add or take away a filter group or a bulk button above its
+  // row, so the page moves with it. Where the page can't scroll, blank room
+  // goes in until the next filter change.
+  let room = $state<Room>({ above: 0, below: 0 });
+  async function holdInPlace(
+    control: HTMLElement | undefined,
+    write: () => void,
+  ) {
+    if (!control) return write();
+    const before = control.getBoundingClientRect().top;
+    write();
+    await tick();
+    if (!control.isConnected) return;
+    const root = document.documentElement;
+    const { scrollBy, above, below } = planHold(
+      control.getBoundingClientRect().top - before,
+      {
+        ...room,
+        scrollY: window.scrollY,
+        maxScroll: root.scrollHeight - root.clientHeight,
+      },
+    );
+    room = { above, below };
+    await tick();
+    window.scrollBy({ top: scrollBy, behavior: "instant" });
+  }
   let sortKey = $state<RepoSortKey>("fullName");
   let sortDir = $state<"asc" | "desc">("asc");
   let page = $state(1);
@@ -201,7 +228,10 @@
   // A person's filter change lets go of the rows kept after a toggle; the
   // automatic reset below keeps them.
   function changeFilter(releaseKept = true) {
-    if (releaseKept) kept = new Set();
+    if (releaseKept) {
+      kept = new Set();
+      room = { above: 0, below: 0 };
+    }
     page = 1;
     setStatus("");
   }
@@ -366,6 +396,7 @@
     repo: Repo,
     enabled: boolean,
     quiet = false,
+    control?: HTMLElement,
   ): Promise<string | null> {
     const key = busyKey("auto", repo);
     busy[key] = true;
@@ -386,12 +417,14 @@
         );
       return failed;
     }
-    keep(repo);
-    repo.autoUpdateBranch = enabled;
-    if (!quiet)
-      setStatus(
-        `Auto-update turned ${enabled ? "on" : "off"} for ${repo.fullName}.`,
-      );
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.autoUpdateBranch = enabled;
+      if (!quiet)
+        setStatus(
+          `Auto-update turned ${enabled ? "on" : "off"} for ${repo.fullName}.`,
+        );
+    });
     return null;
   }
 
@@ -399,6 +432,7 @@
     repo: Repo,
     enabled: boolean,
     quiet = false,
+    control?: HTMLElement,
   ): Promise<string | null> {
     const key = busyKey("rebase", repo);
     busy[key] = true;
@@ -419,16 +453,24 @@
         );
       return failed;
     }
-    keep(repo);
-    repo.rebaseBots = enabled;
-    if (!quiet)
-      setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.rebaseBots = enabled;
+      if (!quiet)
+        setStatus(
+          `Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`,
+        );
+    });
     return null;
   }
 
   // Reversible and local, so no confirm step. A repeat call with another scope
   // replaces the saved one.
-  async function ignoreRepo(repo: Repo, scope: IgnoreScope) {
+  async function ignoreRepo(
+    repo: Repo,
+    scope: IgnoreScope,
+    control?: HTMLElement,
+  ) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
     setStatus(`Ignoring ${repo.fullName}…`);
@@ -443,17 +485,19 @@
       setStatus(`Couldn't ignore ${repo.fullName}: ${failed}`, "error");
       return;
     }
-    keep(repo);
-    repo.ignored = true;
-    repo.ignoredPRs = scope === "prs" || scope === "both";
-    repo.ignoredIssues = scope === "issues" || scope === "both";
-    setStatus(
-      `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
-    );
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.ignored = true;
+      repo.ignoredPRs = scope === "prs" || scope === "both";
+      repo.ignoredIssues = scope === "issues" || scope === "both";
+      setStatus(
+        `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
+      );
+    });
   }
 
   // Un-ignore clears both scopes at once.
-  async function unignoreRepo(repo: Repo) {
+  async function unignoreRepo(repo: Repo, control?: HTMLElement) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
     setStatus(`Un-ignoring ${repo.fullName}…`);
@@ -466,11 +510,13 @@
       setStatus(`Couldn't un-ignore ${repo.fullName}: ${failed}`, "error");
       return;
     }
-    keep(repo);
-    repo.ignored = false;
-    repo.ignoredPRs = false;
-    repo.ignoredIssues = false;
-    setStatus(`${repo.fullName} is no longer ignored.`);
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.ignored = false;
+      repo.ignoredPRs = false;
+      repo.ignoredIssues = false;
+      setStatus(`${repo.fullName} is no longer ignored.`);
+    });
   }
 
   // The bulk buttons act on the filtered list, every page of it, kept rows
@@ -787,6 +833,10 @@
       {repoCountText(sortedRepos.length, repoScope(repos, filter, kept))}
     </p>
 
+    {#if room.above > 0}
+      <div data-testid="held-room" style:height={`${room.above}px`}></div>
+    {/if}
+
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
         No repos match these filters.{filter.ignored === "only" &&
@@ -940,7 +990,8 @@
                   tip={toggleTip("Auto-update", repo.autoUpdateBranch)}
                   pressed={repo.autoUpdateBranch}
                   busy={busy[busyKey("auto", repo)]}
-                  onclick={() => setAutoUpdate(repo, !repo.autoUpdateBranch)}
+                  onclick={(control) =>
+                    setAutoUpdate(repo, !repo.autoUpdateBranch, false, control)}
                 />
               </td>
               <td role="cell" class="control-cell" data-label="Rebase bots">
@@ -956,7 +1007,8 @@
                   describedby={lockedOff
                     ? `rebase-bots-lock-${rowKey(repo)}`
                     : undefined}
-                  onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
+                  onclick={(control) =>
+                    setRebaseBots(repo, !repo.rebaseBots, false, control)}
                 />
                 {#if lockedOff}
                   <span
@@ -985,8 +1037,8 @@
                     onchange={async (e) => {
                       const select = e.currentTarget;
                       const next = select.value as IgnoreScope | "";
-                      if (next) await ignoreRepo(repo, next);
-                      else await unignoreRepo(repo);
+                      if (next) await ignoreRepo(repo, next, select);
+                      else await unignoreRepo(repo, select);
                       // A failed save leaves the saved scope showing.
                       select.value = ignoreScopeOf(repo);
                     }}
@@ -1085,6 +1137,10 @@
           </label>
         </div>
       {/if}
+    {/if}
+
+    {#if room.below > 0}
+      <div data-testid="held-room" style:height={`${room.below}px`}></div>
     {/if}
   {/if}
 </div>

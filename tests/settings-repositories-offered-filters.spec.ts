@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
-import { expect, type Page, type Route } from '@playwright/test';
+import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { test } from './server-fixture';
 
 // The Repositories filter box draws only what can change the list, the way the
@@ -66,6 +66,21 @@ const pill = (page: Page, groupName: string, name: string) =>
 const onBody = (page: Page) =>
   page.evaluate(() => document.activeElement === document.body);
 
+// A control's distance from the top of the viewport.
+const top = async (control: Locator) =>
+  (await control.boundingBox())?.y ?? Number.NaN;
+// A scroll lands on whole pixels, so a pixel either way is not a jump.
+async function expectUnmoved(control: Locator, before: number) {
+  expect(Math.abs((await top(control)) - before)).toBeLessThanOrEqual(1);
+}
+
+const four = (extra: Record<string, unknown> = {}) => [
+  repo('a', extra),
+  repo('b'),
+  repo('c'),
+  repo('d'),
+];
+
 for (const scheme of ['light', 'dark'] as const) {
   for (const width of [390, 1280]) {
     test.describe(`${width}px, ${scheme}`, () => {
@@ -122,6 +137,59 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(group(page, 'Auto-update')).toHaveCount(0);
         await expect(page.getByRole('searchbox')).toBeFocused();
         expect(await onBody(page)).toBe(false);
+      });
+
+      test('the toggled control stays where it is as a group comes and goes', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, four());
+        const toggle = page.getByRole('button', {
+          name: 'Rebase bots on owner/b',
+        });
+        await toggle.scrollIntoViewIfNeeded();
+        const before = await top(toggle);
+
+        await toggle.click();
+        await expect(group(page, 'Rebase bots')).toBeVisible();
+        await expectUnmoved(toggle, before);
+
+        await toggle.click();
+        await expect(group(page, 'Rebase bots')).toHaveCount(0);
+        await expectUnmoved(toggle, before);
+      });
+
+      test('it stays put when a group goes from a page not yet scrolled', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, four({ rebaseBots: true }));
+        const toggle = page.getByRole('button', {
+          name: 'Rebase bots on owner/a',
+        });
+        // A phone has to scroll to reach the first card; a desktop does not.
+        await toggle.scrollIntoViewIfNeeded();
+        const before = await top(toggle);
+
+        await toggle.click();
+        await expect(group(page, 'Rebase bots')).toHaveCount(0);
+        await expectUnmoved(toggle, before);
+        await axe(page);
+
+        // The room made for it goes with the next filter change.
+        await page.getByRole('searchbox').fill('owner');
+        await expect(page.getByTestId('held-room')).toHaveCount(0);
+      });
+
+      test('the Ignore menu stays where it is as its group appears', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, four());
+        const menu = page.getByRole('combobox', { name: /owner\/b/ });
+        await menu.scrollIntoViewIfNeeded();
+        const before = await top(menu);
+
+        await menu.selectOption('prs');
+        await expect(group(page, 'Ignored')).toBeVisible();
+        await expectUnmoved(menu, before);
       });
 
       test('the search box stays while a toggled row is still listed', async ({

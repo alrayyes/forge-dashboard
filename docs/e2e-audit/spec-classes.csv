@@ -302,7 +302,7 @@ settings-mcp-help.spec.ts,5.183,3,2,A,,1.7
 settings-repositories-auto-update-message.spec.ts,17.766,10,2,C,,14.2
 settings-repositories-failing.spec.ts,5.452,4,1,C,,4.1
 settings-repositories-ignore.spec.ts,26.281,5,2,C,,15.8
-settings-repositories-offered-filters.spec.ts,,7,5,A,,0.0
+settings-repositories-offered-filters.spec.ts,,10,8,A,,0.0
 settings-repositories-one-line.spec.ts,16.232,11,8,A,,4.4
 settings-repositories-rebase-bots.spec.ts,4.093,6,0,C,,4.1
 settings-repositories-status-line.spec.ts,1.12,3,0,C,,1.1

@@ -425,8 +425,9 @@ for Ignored) stays beside whatever is offered, so a pick can be undone. Forge
 needs two forges or a picked one. The search box goes while at most one repo is
 listed, counting a row kept after a toggle, and it holds no text. The whole bar
 goes when only one repo is tracked, unless that repo is ignored or a filter is
-set. Toggling a row can add or remove a group; the row stays where it is. If the
-control you are on goes, focus moves to another one.
+set. Toggling a row can add or remove a group or a bulk button above the list;
+the page scrolls by the same amount, so the control you pressed stays where it
+was. If the control you are on goes, focus moves to another one.
 
 ## The Label filter
 
