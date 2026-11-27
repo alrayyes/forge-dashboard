@@ -258,7 +258,8 @@ for (const theme of ['light', 'dark'] as const) {
         name: /^Pull request details/,
       });
       const picture = dialog.locator('img.avatar');
-      const placeholder = dialog.locator('span.avatar');
+      // The one with a picture draws its circle too, under the image (#5124).
+      const placeholder = dialog.locator('span.avatar:not(:has(img))');
       await expect.poll(() => size(picture)).toEqual([32, 32]);
       await expect.poll(() => size(placeholder)).toEqual([32, 32]);
       await expectVisibleEdge(placeholder);

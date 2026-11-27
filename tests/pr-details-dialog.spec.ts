@@ -588,6 +588,91 @@ test.describe('pull request details dialog', () => {
     // The fallback only means something if the image was asked for and failed.
     expect(aborted).toBeGreaterThan(0);
     await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
+
+    // Opening it again shortly after doesn't ask again (#5124).
+    const asked = aborted;
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await trigger(page).click();
+    await expect(avatar).toHaveText('A');
+    await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
+    expect(aborted).toBe(asked);
+  });
+
+  test('a comment avatar on its way has its initial under it (#5124)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await routeImage(page, 'https://example.invalid/**', () => {});
+    await mockDetails(
+      page,
+      details({ comments: [comment('c1')], commentCount: 1 }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const comments = dialog(page).locator('.details-comment');
+    await expect(comments.locator('img.avatar')).toHaveCount(1);
+    await expect(comments.locator('span.avatar')).toHaveText('A');
+    // Not part of a copied comment, as on the rows (#5124).
+    await expect(comments.locator('span.avatar')).toHaveCSS(
+      'user-select',
+      'none',
+    );
+  });
+
+  const png = (route: Route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'image/png',
+      body: Buffer.from(PNG_1X1, 'base64'),
+    });
+
+  test('a loaded comment avatar still covers its initial on reopening (#5124)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await routeImage(page, 'https://example.invalid/**', png);
+    await mockDetails(
+      page,
+      details({ comments: [comment('c1')], commentCount: 1 }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const avatar = dialog(page).locator('.details-comment span.avatar');
+    await expect(avatar).toHaveClass(/has-picture/);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog(page)).toBeHidden();
+    await trigger(page).click();
+    await expect(dialog(page).getByText('Comment c1')).toBeVisible();
+    await expect(avatar).toHaveClass(/has-picture/);
+  });
+
+  test('a comment avatar whose address changes and then fails shows its initial (#5124)', async ({
+    page,
+  }) => {
+    await mockDashboard(page, [makePR()]);
+    await routeImage(page, 'https://example.invalid/**', (route) =>
+      route.request().url().includes('gone') ? route.abort() : png(route),
+    );
+    await mockDetails(
+      page,
+      details({ comments: [comment('c1')], commentCount: 1 }),
+    );
+    await page.goto('/pull-requests.html');
+    await trigger(page).click();
+    const avatar = dialog(page).locator('.details-comment span.avatar');
+    await expect(avatar).toHaveClass(/has-picture/);
+
+    await page.keyboard.press('Escape');
+    // The same comment, with a new picture.
+    await page.unroute('**/api/v1/pull-requests/details*');
+    const changed = { ...comment('gone'), id: 'c1' };
+    await mockDetails(page, details({ comments: [changed], commentCount: 1 }));
+    await trigger(page).click();
+    await expect(dialog(page).getByText('Comment gone')).toBeVisible();
+    await expect(dialog(page).locator('img.avatar')).toHaveCount(0);
+    await expect(avatar).not.toHaveClass(/has-picture/);
   });
 
   test('past 50 comments it says so and links to the forge', async ({

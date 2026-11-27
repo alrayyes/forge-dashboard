@@ -33,7 +33,7 @@
   args={{ forge: "forgejo", url: undefined, name: "alrayyes/forge-dashboard" }}
 />
 
-<!-- The image fails to load: it is swapped for the initial. The
+<!-- The image fails to load: it is dropped, leaving the initial. The
      screenshot script aborts any logo path but the one above, so this story
      really fails. -->
 <Story
