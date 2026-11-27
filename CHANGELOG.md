@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.6](https://github.com/alrayyes/forge-dashboard/compare/v9.139.5...v9.139.6) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** hold webhook refreshes back at the budget reserve ([#5104](https://github.com/alrayyes/forge-dashboard/issues/5104)) ([7b4c212](https://github.com/alrayyes/forge-dashboard/commit/7b4c21293499747e53c40a4ff153b368952dec23)), closes [#5085](https://github.com/alrayyes/forge-dashboard/issues/5085)
+
 ## [9.139.5](https://github.com/alrayyes/forge-dashboard/compare/v9.139.4...v9.139.5) (2026-11-27)
 
 
