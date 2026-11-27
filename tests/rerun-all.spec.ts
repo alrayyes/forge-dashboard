@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { viaActionsDialog } from './actions-dialog-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -546,4 +547,40 @@ test('an answer that lands after the dialog closed updates the count', async ({
   await page.keyboard.press('Escape');
   release();
   await expect(button).toBeHidden();
+});
+
+// The count follows a row's own rerun while the forge has yet to answer, and
+// takes the row back when the rerun is refused (#5122).
+test("a row's own rerun leaves the count until it is refused", async ({
+  page,
+}) => {
+  await open(
+    page,
+    '/pull-requests.html',
+    [pr(1), pr(2)],
+    {},
+    { refuse: { 1: 'Try again.' } },
+  );
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    '**/api/v1/pull-requests/rerun-checks',
+    async (route: Route) => {
+      await gate;
+      await route.fallback();
+    },
+  );
+  const all = page.locator('#rerun-all-button');
+  await expect(all).toHaveText('Rerun failed checks (2)');
+
+  await viaActionsDialog(
+    page.locator('#pr-rows .row', { hasText: 'Change number 1' }),
+    (footer) =>
+      footer.getByRole('button', { name: 'Rerun failed checks' }).click(),
+  );
+  await expect(all).toHaveText('Rerun failed checks (1)');
+  release();
+  await expect(all).toHaveText('Rerun failed checks (2)');
 });

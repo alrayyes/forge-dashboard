@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
+import { viaActionsDialog } from './actions-dialog-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -785,3 +786,46 @@ test('focus moves to the All quick filter when the strip hides under it', async 
     ),
   ).toBeFocused();
 });
+
+// The count follows a row's own rebase while the forge has yet to answer
+// (#5122), for both bots.
+for (const { bot, endpoint, action, row } of [
+  {
+    bot: 'Dependabot',
+    endpoint: 'dependabot-action',
+    action: 'Dependabot: Rebase',
+    row: 1,
+  },
+  {
+    bot: 'Renovate',
+    endpoint: 'renovate-rebase',
+    action: 'Renovate: Rebase',
+    row: 4,
+  },
+]) {
+  test(`a row's ${bot} rebase leaves the count before the forge answers`, async ({
+    page,
+  }) => {
+    await open(page, [pr(1), pr(2), renovate(4)]);
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await page.route(
+      `**/api/v1/pull-requests/${endpoint}`,
+      async (route: Route) => {
+        await gate;
+        await route.fallback();
+      },
+    );
+    const all = page.locator('#rebase-all-button');
+    await expect(all).toHaveText('Rebase all (3)');
+
+    await viaActionsDialog(
+      page.locator('#pr-rows > .row', { hasText: `Bump dependency ${row}` }),
+      (footer) => footer.getByRole('button', { name: action }).click(),
+    );
+    await expect(all).toHaveText('Rebase all (2)');
+    release();
+  });
+}

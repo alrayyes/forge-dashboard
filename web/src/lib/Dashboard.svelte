@@ -5438,6 +5438,7 @@
       };
       markPending(button, true);
       button.textContent = "Queued…";
+      updateBulkButtons();
       const fkey = `update-branch:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -7119,6 +7120,15 @@
       reconcilePRs();
     }
 
+    // The header's bulk buttons count the rows still to be acted on. A row's
+    // own action calls this as it starts, so its count drops without waiting
+    // for the answer or redrawing the row under the pointer.
+    function updateBulkButtons() {
+      updateRebaseAll();
+      updateUpdateAll();
+      updateRerunAll();
+    }
+
     function doRenovateRebase(
       item: PullRequestItem,
       button: HTMLButtonElement,
@@ -7131,6 +7141,7 @@
       const hadFocus = document.activeElement === button;
       markPending(button, true);
       button.textContent = queuedBotLabel(true);
+      updateBulkButtons();
       const fkey = `renovate:${key}`;
       feedback.start({
         actionKey: fkey,
@@ -7266,9 +7277,10 @@
       // the first control in the bar that is drawn and enabled. A disabled
       // select can't take focus, so it is never the answer.
       if (from?.closest("#filter-sheet")) return;
+      // Over one row the whole bar is hidden, so the row takes the focus.
       [
         ...document.querySelectorAll<HTMLElement>(
-          ".filter-bar button, .filter-bar select, .filter-bar input",
+          ".filter-bar button, .filter-bar select, .filter-bar input, #pr-rows button",
         ),
       ]
         .find(
@@ -7612,7 +7624,9 @@
         lockReason: (forge) =>
           proactiveActionLockReason(forge)?.reason ??
           rerunBlockedLock(lastForges, forge)?.reason,
-        queued: rerunQueued,
+        // A rerun still being asked for is as taken as a queued one.
+        queued: (item) =>
+          rerunState[prKey(item)]?.phase === "requesting" || rerunQueued(item),
       });
     }
 
@@ -9415,9 +9429,7 @@
           else if (!isPR && view === "issues")
             watchVisibleIssueLinks(container, state.items as IssueItem[]);
           else rowWatcher.stop();
-          updateRebaseAll();
-          updateUpdateAll();
-          updateRerunAll();
+          updateBulkButtons();
         }
         const count = document.getElementById(`${idPrefix}-count`);
         // Only the issues board still has a header count; the pull request
