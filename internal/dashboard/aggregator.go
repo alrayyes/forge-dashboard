@@ -1247,6 +1247,8 @@ func exhaustedHealth(snap Snapshot, forge Forge, now time.Time) (ForgeHealth, bo
 func (a *Aggregator) refreshOnce(ctx context.Context) {
 	seq := a.fetchSeq.Add(1)
 	results := a.fetchSources(a.refreshContext(ctx), seq)
+	// It asks the forge, so it stays outside foldMu: a hang holds up no one else.
+	a.checkDependabotAcks(ctx)
 
 	a.foldMu.Lock()
 	a.mu.RLock()
@@ -1263,7 +1265,6 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 	for _, forge := range notRead {
 		delete(reachable, forge)
 	}
-	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	previous := a.snap

@@ -79,3 +79,38 @@ func TestAggregator_AMergeDuringTheAckLookupStaysOffTheBoard(t *testing.T) {
 		assert.Empty(t, numbers(f.agg.Get()))
 	})
 }
+
+// A lookup that hangs while a late read is applied holds nobody else up.
+func TestAggregator_AHangingAckLookupDoesNotHoldUpARefresh(t *testing.T) {
+	t.Parallel()
+	f, src := newAckFixture(t)
+	f.src.slow.Store(true)
+	f.giveUp(t, func() { f.agg.Refresh(t.Context()) })
+	requestRebase(f)
+	asked, release := make(chan struct{}), make(chan struct{})
+	t.Cleanup(func() { close(release) })
+	hang := func() {
+		close(asked)
+		<-release
+	}
+	src.onAck.Store(&hang)
+	f.src.answer <- f.src.rows(11)
+	select {
+	case <-asked:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the late read asked for no acknowledgement")
+	}
+
+	f.src.slow.Store(false)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		f.agg.Refresh(t.Context())
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the refresh waited for the hanging lookup")
+	}
+}

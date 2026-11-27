@@ -141,6 +141,9 @@ func (a *Aggregator) applyLate(ctx context.Context, f *flight, sr sourceResult) 
 // snapshot and leaves the rest as it is. It drops the outcome of a run that has
 // ended, and of a read a newer full refresh has overtaken.
 func (a *Aggregator) foldLate(ctx context.Context, f *flight, sr sourceResult) (previous, snap Snapshot, ok bool) {
+	// It asks the forge, so it stays outside foldMu: a hang holds up no one else.
+	a.checkDependabotAcks(ctx)
+
 	a.foldMu.Lock()
 	defer a.foldMu.Unlock()
 	defer f.behind.Store(false)
@@ -167,7 +170,6 @@ func (a *Aggregator) foldLate(ctx context.Context, f *flight, sr sourceResult) (
 	noteBlockedActions(&r.Health, src)
 	noteProviderStatus(ctx, &r.Health, src)
 	covers := func(other Forge, _ string) bool { return other == forge && r.Health.Reachable }
-	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
