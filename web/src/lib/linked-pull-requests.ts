@@ -128,16 +128,23 @@ const numberOf = (pr: LinkedPullRequest, issueRepo: string) =>
 const ciText = (ci: PillCi) =>
   [ci.label, ...ci.segments.map((s) => String(s.n))].join(' ');
 
+/** A row pill says its relation in words, so it needs no style of its own (#5073). */
+const worded = (head: string, relation?: Relation) =>
+  relation ? `${relation} ${head}` : head;
+
 /**
- * What the pill shows: the number, and "draft" for a draft, with the whole repo
- * when it is not the issue's, then the pipeline's word and counts when it has any.
+ * What the pill shows: the relation, the number, and "draft" for a draft, with
+ * the whole repo when it is not the issue's, then the pipeline's word and counts
+ * when it has any. A row passes the relation; under a heading that already names
+ * it, there is none.
  */
 export function linkedPillText(
   pr: LinkedPullRequest,
   issueRepo: string,
   ci?: PillCi | null,
+  relation?: Relation,
 ) {
-  const head = headOf(pr, issueRepo);
+  const head = worded(headOf(pr, issueRepo), relation);
   return ci ? `${head} ${ciText(ci)}` : head;
 }
 
@@ -151,12 +158,11 @@ export function linkedPillName(
   ci?: PillCi | null,
   relation: Relation = 'closes',
 ) {
-  const head = headOf(pr, issueRepo);
+  const head = worded(headOf(pr, issueRepo), relation);
   const says = relation === 'refs' ? 'references, does not close' : relation;
-  const noun = stated(pr) ? '' : `${nounOf(pr)} `;
-  if (!ci) return `${noun}${head}, ${says} this issue`;
-  const said = ciSaid(ci);
-  return `${noun}${head} ${said}, ${says} this issue`;
+  const noun = stated(pr) ? '' : `${nounOf(pr).toLowerCase()}, `;
+  const shown = ci ? `${head} ${ciSaid(ci)}` : head;
+  return `${shown}, ${noun}${says} this issue`;
 }
 
 /**
@@ -195,7 +201,7 @@ export function linkedDialogName(
   return external ? `${name}, opens on the forge in a new tab` : name;
 }
 
-/** The pill's classes: a ref and a mention are each drawn apart from a close. */
+/** The pill's classes. A ref and a mention are drawn like a close; their class marks which is which. */
 export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
   return [
     'linked-pr',
@@ -207,7 +213,7 @@ export function linkedPillClass(pr: LinkedPullRequest, relation: Relation) {
     .join(' ');
 }
 
-/** The pill's tooltip: the item's title when known, then what it does to the issue, which the italic alone doesn't say. */
+/** The pill's tooltip: the item's title when known, then what it does to the issue, in a whole sentence. */
 export function linkedPillTitle(
   relation: Relation,
   side: RelatedSide = 'issue',
@@ -367,7 +373,11 @@ export function linkedPills(
     // an ellipsis: the number, the state and the pipeline stay whole, and two
     // pills from one long repo stay apart. The text and the accessible name
     // still carry the whole name.
-    const text = linkedPillText(pr, issueRepo);
+    const word = inDialog ? undefined : relation;
+    const whole = linkedPillText(pr, issueRepo, undefined, word);
+    // The relation word is its own node so it alone reads bold.
+    if (word) link.append(element('span', 'linked-pr-relation', word));
+    const text = word ? whole.slice(word.length) : whole;
     const ref = numberOf(pr, issueRepo);
     const number = `#${pr.number}`;
     const at = text.indexOf(ref);
@@ -381,7 +391,7 @@ export function linkedPills(
     } else if (stated(pr) && pr.state === 'merged') {
       appendTail(link, text, pr);
     } else {
-      link.textContent = text;
+      link.append(text);
     }
     if (ci) {
       // The badge follows the number, with the space the text reads across.

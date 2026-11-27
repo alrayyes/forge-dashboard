@@ -141,6 +141,12 @@ describe('the fake DOM the tests stand on', () => {
   });
 });
 
+/** A pill's nodes, an element shown as the list of its own. */
+const words = (n: FakeNode) =>
+  n.children.map((c) => (typeof c === 'string' ? c : c.children));
+const textOf = (n: FakeNode | string): string =>
+  typeof n === 'string' ? n : n.children.map(textOf).join('');
+
 const pillOf = (p: LinkedPullRequest) => {
   const wrap = linkedPills('k', 'alrayyes/app', [p]) as unknown as FakeNode;
   return wrap.children[0] as FakeNode;
@@ -153,12 +159,12 @@ describe('linkedPillName for an entry that carries its state', () => {
         pr({ kind: 'pullRequest', state: 'merged' }),
         'alrayyes/app',
       ),
-    ).toBe('PR #12 · Merged, closes this issue');
+    ).toBe('closes PR #12 · Merged, closes this issue');
   });
 
   test('an entry with no state keeps its noun', () => {
     expect(linkedPillName(pr(), 'alrayyes/app')).toBe(
-      'Pull request #12, closes this issue',
+      'closes #12, pull request, closes this issue',
     );
   });
 });
@@ -172,7 +178,8 @@ describe('the cross-repo split in the pill', () => {
       tag: 'a',
       class: 'linked-pr',
       kids: [
-        'PR ',
+        { tag: 'span', class: 'linked-pr-relation', kids: ['closes'] },
+        ' PR ',
         {
           tag: 'span',
           class: 'linked-pr-ref',
@@ -197,7 +204,8 @@ describe('the cross-repo split in the pill', () => {
       tag: 'a',
       class: 'linked-pr',
       kids: [
-        'PR #12 · ',
+        { tag: 'span', class: 'linked-pr-relation', kids: ['closes'] },
+        ' PR #12 · ',
         { tag: 'span', class: 'linked-pr-merged', kids: ['Merged'] },
       ],
     });
@@ -205,21 +213,41 @@ describe('the cross-repo split in the pill', () => {
 
   test('the repo node carries the whole repo as its tooltip', () => {
     const pill = pillOf(pr({ repo: 'alrayyes/other' }));
-    const ref = pill.children[1] as FakeNode;
+    const ref = pill.children[2] as FakeNode;
     expect((ref.children[0] as FakeNode).title).toBe('alrayyes/other');
   });
 
-  test('a leading empty piece is kept when the number starts the text', () => {
+  test('the relation leads the text when the repo follows it', () => {
     const pill = pillOf(pr({ repo: 'alrayyes/other' }));
     const kids = pill.children;
-    expect(kids[0]).toBe('');
-    expect(kids[2]).toBe('');
-    expect(kids).toHaveLength(3);
+    expect(tree(kids[0])).toEqual({
+      tag: 'span',
+      class: 'linked-pr-relation',
+      kids: ['closes'],
+    });
+    expect(kids[1]).toBe(' ');
+    expect(kids[3]).toBe('');
+    expect(kids).toHaveLength(4);
+  });
+
+  test('in a dialog there is no relation word, and a leading empty piece is kept', () => {
+    const pill = asNode(
+      wrapOf(
+        [pr({ repo: 'alrayyes/other' })],
+        undefined,
+        undefined,
+        undefined,
+        'closes',
+        true,
+      ).children[0],
+    );
+    expect(pill.children[0]).toBe('');
+    expect(pill.children).toHaveLength(3);
   });
 
   test('a same-repo pill is one plain text node', () => {
     const pill = pillOf(pr({ kind: 'pullRequest', state: 'open' }));
-    expect(pill.children).toEqual(['PR #12 · Open']);
+    expect(words(pill)).toEqual([['closes'], ' PR #12 · Open']);
   });
 });
 
@@ -249,7 +277,7 @@ describe('a pill that carries a pipeline badge', () => {
   const withCi = () => asNode(wrapOf([pr()], undefined, ci).children[0]);
 
   test('appends the badge after a space, following the text', () => {
-    expect(withCi().children).toEqual(['#12', ' ', badge]);
+    expect(words(withCi())).toEqual([['closes'], ' #12', ' ', []]);
   });
 
   test('adds the with-ci class to the pill', () => {
@@ -258,13 +286,13 @@ describe('a pill that carries a pipeline badge', () => {
 
   test('a pill with no pipeline has neither space, badge nor class', () => {
     const pill = asNode(wrapOf([pr()], undefined, () => null).children[0]);
-    expect(pill.children).toEqual(['#12']);
+    expect(words(pill)).toEqual([['closes'], ' #12']);
     expect(pill.className).toBe('linked-pr');
   });
 
   test('without a renderer the renderer is not asked and nothing is added', () => {
     const pill = pillOf(pr());
-    expect(pill.children).toEqual(['#12']);
+    expect(words(pill)).toEqual([['closes'], ' #12']);
     expect(pill.className).toBe('linked-pr');
   });
 
@@ -302,7 +330,7 @@ describe('the aria-label of a pill', () => {
       wrapOf([pr()], undefined, undefined, undefined, 'refs').children[0],
     );
     expect(asNode(host.children[0]).attrs['aria-label']).toBe(
-      'Pull request #12, references, does not close this issue',
+      'refs #12, pull request, references, does not close this issue',
     );
   });
 
@@ -341,7 +369,7 @@ describe('the aria-label of a pill', () => {
 
   test('outside a dialog a pill with no pipeline is named without one', () => {
     expect(pillOf(pr()).attrs['aria-label']).toBe(
-      'Pull request #12, closes this issue',
+      'closes #12, pull request, closes this issue',
     );
   });
 });
@@ -418,6 +446,9 @@ describe('the attributes and wiring of a pill', () => {
     expect(host.className).toBe('pill-tip-host');
     const pill = asNode(host.children[0]);
     expect(pill.className).toBe('linked-pr refs-pill');
+    expect(words(pill)).toEqual([['refs'], ' #12']);
+    expect(words(pillOf(pr()))).toEqual([['closes'], ' #12']);
+    expect((pill.children[0] as FakeNode).className).toBe('linked-pr-relation');
     expect(pill.title).toBe('References this issue, does not close it');
     expect(asNode(host.children[1]).children).toEqual([
       'References this issue, does not close it',
@@ -498,15 +529,15 @@ describe('the attributes and wiring of a pill', () => {
 describe('the pills a row shows and the count that holds the rest', () => {
   const many = (n: number) =>
     Array.from({ length: n }, (_, i) => pr({ number: i + 1 }));
-  const texts = (w: FakeNode) => w.children.map((c) => asNode(c).children[0]);
+  const texts = (w: FakeNode) => w.children.map((c) => textOf(c));
 
   test('two pills and no count when there are two', () => {
-    expect(texts(wrapOf(many(2)))).toEqual(['#1', '#2']);
+    expect(texts(wrapOf(many(2)))).toEqual(['closes #1', 'closes #2']);
   });
 
   test('two pills then a count button holding the rest', () => {
     const wrap = wrapOf(many(5), undefined, undefined, undefined, 'mentions');
-    expect(texts(wrap)).toEqual(['#1', '#2', '3 more']);
+    expect(texts(wrap)).toEqual(['mentions #1', 'mentions #2', '3 more']);
     const more = asNode(wrap.children[2]) as FakeButton;
     expect(more.tag).toBe('button');
     expect(more.type).toBe('button');
@@ -520,9 +551,9 @@ describe('the pills a row shows and the count that holds the rest', () => {
     const wrap = wrapOf(many(4), undefined, undefined, undefined, 'closes');
     const more = asNode(wrap.children[2]);
     more.listeners.click();
-    expect(more.replacedBy.map((n) => asNode(n).children[0])).toEqual([
-      '#3',
-      '#4',
+    expect(more.replacedBy.map((n) => textOf(n))).toEqual([
+      'closes #3',
+      'closes #4',
     ]);
     expect(asNode(more.replacedBy[0]).focused).toBe(true);
     expect(asNode(more.replacedBy[1]).focused).toBe(false);
@@ -532,7 +563,7 @@ describe('the pills a row shows and the count that holds the rest', () => {
     const w1 = asNode(linkedPills('again', 'alrayyes/app', many(3)));
     asNode(w1.children[2]).listeners.click();
     const w2 = asNode(linkedPills('again', 'alrayyes/app', many(3)));
-    expect(texts(w2)).toEqual(['#1', '#2', '#3']);
+    expect(texts(w2)).toEqual(['closes #1', 'closes #2', 'closes #3']);
   });
 
   test('a ref pill that was held back is focused through its host', () => {

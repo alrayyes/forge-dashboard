@@ -130,11 +130,11 @@ test.describe('the pill on an issue row', () => {
     await page.goto('/issues.html');
 
     await expect(pills(page, 1)).toHaveCount(1);
-    await expect(pills(page, 1)).toHaveText('#12');
+    await expect(pills(page, 1)).toHaveText('closes #12');
     await expect(pills(page, 1)).toHaveAccessibleName(
-      'Pull request #12, closes this issue',
+      'closes #12, pull request, closes this issue',
     );
-    await expect(pills(page, 3)).toHaveText('#13 draft');
+    await expect(pills(page, 3)).toHaveText('closes #13 draft');
     await expect(pills(page, 2)).toHaveCount(0);
   });
 
@@ -147,9 +147,9 @@ test.describe('the pill on an issue row', () => {
     });
     await page.goto('/issues.html');
 
-    await expect(pills(page, 1)).toHaveText('alrayyes/other#4');
+    await expect(pills(page, 1)).toHaveText('closes alrayyes/other#4');
     await expect(pills(page, 1)).toHaveAccessibleName(
-      'Pull request alrayyes/other#4, closes this issue',
+      'closes alrayyes/other#4, pull request, closes this issue',
     );
   });
 

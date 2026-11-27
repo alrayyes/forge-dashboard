@@ -155,14 +155,14 @@ test.describe('settings groups', () => {
       .toBe(true);
   });
 
-  test('Behaviour says upright pull request pills close an issue and italic ones only reference or mention it, and passes axe', async ({
+  test('Behaviour says what the closes and refs pills mean, and passes axe', async ({
     page,
   }) => {
     await page.goto('/settings.html#behaviour');
     const note = page.locator('#pill-style-hint');
     await expect(note).toBeVisible();
     await expect(note).toHaveText(
-      "Pull request pills on an issue show how it is linked. Upright means the pull request closes the issue, italic means it only references or mentions it and does not close it. The pop-up's Related band says which in the row's label.",
+      "Pull request pills on an issue say how it is linked. A pill that starts with closes means the pull request closes the issue when it merges. One that starts with refs only references the issue and does not close it. The pop-up's Related band says which in the row's label.",
     );
     await expect(note).not.toContainText('line of its own');
     const results = await new AxeBuilder({ page })
