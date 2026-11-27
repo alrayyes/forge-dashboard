@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.13](https://github.com/alrayyes/forge-dashboard/compare/v9.140.12...v9.140.13) (2026-11-27)
+
+
+### Bug Fixes
+
+* list commit statuses beside check runs ([#5154](https://github.com/alrayyes/forge-dashboard/issues/5154)) ([6478f6d](https://github.com/alrayyes/forge-dashboard/commit/6478f6d790bfb093bc5ea8ccd13da43df4bc6652))
+
 ## [9.140.12](https://github.com/alrayyes/forge-dashboard/compare/v9.140.11...v9.140.12) (2026-11-27)
 
 
