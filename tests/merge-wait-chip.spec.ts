@@ -168,11 +168,14 @@ async function open(
       }
     };
   });
+  // One read, stamped when the page opens: a poll answered later must not look
+  // newer than a push, or the page drops the push as stale (#5062).
+  const read = JSON.stringify(snapshot(pullRequests));
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(pullRequests)),
+      body: read,
     }),
   );
   await page.goto(path);
@@ -197,8 +200,17 @@ const row = (page: Page, title: string) =>
 const mergeButton = (r: Locator) =>
   r.getByRole('button', { name: 'Merge', exact: true });
 
+// Finds and measures in one step. A locator finds the row first and measures
+// it in a second call, and a redraw between the two leaves a detached element,
+// which is 0px tall (#5062).
 const heightOf = (page: Page, title: string) =>
-  row(page, title).evaluate((r) => r.getBoundingClientRect().height);
+  page.evaluate((wanted) => {
+    const found = [...document.querySelectorAll('#pr-rows > .row')].find((r) =>
+      r.querySelector('.title-cell > .title')?.textContent?.includes(wanted),
+    );
+    if (!found) throw new Error(`no row titled ${wanted}`);
+    return found.getBoundingClientRect().height;
+  }, title);
 
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
