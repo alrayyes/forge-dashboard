@@ -211,7 +211,7 @@ with its error shown and its controls off, until a read succeeds. Queued
 actions are held meanwhile, for up to an hour after they first came due. None of
 this counts against the forge, however often you press Refresh.
 
-Rows kept from an earlier read never decide a queued action. While its forge is
+Rows kept while a forge is slow never decide a queued action. While its forge is
 slow the action stays queued and is tried again, for up to an hour after it
 first came due. The buttons on those rows still work for you: you can see how
 old they are, and nobody is looking when a queued action runs.

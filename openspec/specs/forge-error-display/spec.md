@@ -200,7 +200,7 @@ its actions stay off.
 - **THEN** the read is cancelled and counts as a missed pass, shown as any other
   miss is
 
-### Requirement: A queued action is not decided from held rows
+### Requirement: A queued action is not decided from a slow forge's held rows
 
 A queued action that is due on a forge whose cause is `slow` SHALL NOT be run,
 skipped or failed from the rows the forge is holding. It SHALL stay queued and
