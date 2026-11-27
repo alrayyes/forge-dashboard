@@ -30,11 +30,13 @@ import {
   type BrowserContext,
   chromium,
   type Page,
+  type Request,
 } from '@playwright/test';
 import { logoAnswer } from './storybook-logo-route';
 import {
   inParallel,
   type Measure,
+  openRequests,
   planShot,
   type ShotJob,
   type Stall,
@@ -173,6 +175,7 @@ const WATCH = `
     }
     const phase = window.__STORYBOOK_PREVIEW__?.currentRender?.phase;
     if (phase && state.phases.at(-1)?.[0] !== phase) state.phases.push([phase, Math.round(performance.now())]);
+    if (state.phases.length > 20) state.phases.shift();
     if (phase === 'finished' || phase === 'errored' || phase === 'aborted') state.done = true;
   }, 5);
 })();
@@ -255,19 +258,19 @@ type Outcome = { saved: boolean; blank: boolean; failures: string[] };
 // Keeps what a stalled page would be asked about afterwards: the requests it
 // still has open and its last console messages.
 function listen(page: Page) {
-  const pending = new Set<string>();
+  const requests = openRequests<Request>();
   const messages: string[] = [];
   const say = (message: string) => {
     messages.push(message);
     if (messages.length > 10) messages.shift();
   };
-  page.on('request', (r) => pending.add(r.url()));
-  page.on('requestfinished', (r) => pending.delete(r.url()));
-  page.on('requestfailed', (r) => pending.delete(r.url()));
+  page.on('request', requests.opened);
+  page.on('requestfinished', requests.ended);
+  page.on('requestfailed', requests.ended);
   page.on('console', (m) => say(`${m.type()}: ${m.text()}`));
   page.on('pageerror', (e) => say(`page error: ${e.message}`));
   page.on('crash', () => say('the page crashed'));
-  return () => ({ pending: [...pending], messages: [...messages] });
+  return () => ({ pending: requests.pending(), messages: [...messages] });
 }
 
 // Asks a stalled page where it stopped. A stuck page answers nothing, so the
@@ -282,7 +285,10 @@ function askStalled(page: Page): Promise<Stall['page']> {
     });
     return { phases, error, frame };
   });
-  return Promise.race([answer, sleep(5000, null)]).catch(() => null);
+  return Promise.race([
+    answer,
+    sleep(5000, { unanswered: 'no answer in 5s' }),
+  ]).catch((err) => ({ unanswered: String(err) }));
 }
 
 // Waits for the story to finish, and says where it stopped if it never does.

@@ -91,30 +91,43 @@ export async function inParallel<T, R>(
   return results;
 }
 
-// What is known about a story that never finished (#5051). `page` is null when
-// the page didn't answer the question either.
+// The requests a page has open. Kept by request, not by URL: a URL asked for
+// twice stays open until both have ended.
+export function openRequests<R extends { url: () => string }>() {
+  const open = new Set<R>();
+  return {
+    opened: (request: R) => void open.add(request),
+    ended: (request: R) => void open.delete(request),
+    pending: () => [...open].map((request) => request.url()),
+  };
+}
+
+// What is known about a story that never finished (#5051). A page that couldn't
+// be asked says why instead.
 export type Stall = {
-  page: {
-    // Each render phase and the page's clock when it was first seen.
-    phases: [string, number][];
-    error: string | null;
-    // Whether an animation frame still came.
-    frame: boolean;
-  } | null;
+  page:
+    | {
+        // Each render phase and the page's clock when it was first seen.
+        phases: [string, number][];
+        error: string | null;
+        // Whether an animation frame still came.
+        frame: boolean;
+      }
+    | { unanswered: string };
   pending: string[];
   messages: string[];
 };
 
 // The lines printed under a story's timeout, indented like the axe targets.
 export function stallReport({ page, pending, messages }: Stall): string {
-  const seen = page?.phases.map(([phase, at]) => `${phase} at ${at}ms`);
-  const state = page
-    ? [
-        `render phases: ${seen?.join(', ') || 'none seen'}`,
-        `story error: ${page.error ?? 'none'}`,
-        `animation frames: ${page.frame ? 'running' : 'stopped'}`,
-      ]
-    : ['the page did not answer'];
+  const state =
+    'unanswered' in page
+      ? [`the page did not answer: ${page.unanswered}`]
+      : [
+          `render phases: ${page.phases.map(([phase, at]) => `${phase} at ${at}ms`).join(', ') || 'none seen'}`,
+          `story error: ${page.error ?? 'none'}`,
+          `animation frames: ${page.frame ? 'running' : 'stopped'}`,
+        ];
   return [
     ...state,
     `requests still open: ${pending.join(', ') || 'none'}`,

@@ -2,6 +2,7 @@ import { expect, test } from 'bun:test';
 import {
   inParallel,
   MARGIN,
+  openRequests,
   planShot,
   shotJobs,
   shotName,
@@ -151,10 +152,26 @@ test('says where a story that never finished stopped', () => {
   ]);
 });
 
-test('says so when the page itself stopped answering', () => {
-  const report = stallReport({ page: null, pending: [], messages: [] });
+test('keeps a URL asked for twice open until both have ended', () => {
+  const requests = openRequests<{ url: () => string }>();
+  const first = { url: () => '/assets/preview.js' };
+  const second = { url: () => '/assets/preview.js' };
+  requests.opened(first);
+  requests.opened(second);
+  requests.ended(second);
+  expect(requests.pending()).toEqual(['/assets/preview.js']);
+  requests.ended(first);
+  expect(requests.pending()).toEqual([]);
+});
+
+test('says so, and why, when the page could not be asked', () => {
+  const report = stallReport({
+    page: { unanswered: 'no answer in 5s' },
+    pending: [],
+    messages: [],
+  });
   expect(report.split('\n')).toEqual([
-    '    the page did not answer',
+    '    the page did not answer: no answer in 5s',
     '    requests still open: none',
     '    console: nothing',
   ]);
