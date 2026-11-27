@@ -617,6 +617,19 @@ test.describe('a status that stays unknown', () => {
     await axeClean(page);
   });
 
+  test('turns to Still waiting by itself when nothing about the row changes', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Unknown')]);
+    const label = row(page, 'Unknown').locator('.wait-chip-label');
+    await expect(label).toHaveText('Status unknown');
+
+    await page.clock.fastForward(130_000);
+
+    await expect(label).toHaveText('Still waiting');
+  });
+
   test('a pull request that leaves the snapshot and comes back starts the clock again', async ({
     page,
   }) => {

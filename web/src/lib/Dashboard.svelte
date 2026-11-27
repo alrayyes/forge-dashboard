@@ -4291,10 +4291,27 @@
     // forge that keeps saying so changes the chip after STILL_WAITING_MS.
     const statusUnknownSince = new Map<string, number>();
 
+    // A row nothing has changed on isn't redrawn by a snapshot, so the wait
+    // redraws it itself when it runs long (#5062).
+    function redrawWhenLate(key: string, since: number) {
+      setTimeout(
+        () => {
+          if (destroyed || statusUnknownSince.get(key) !== since) return;
+          keepFocusAcross(renderPRBoard);
+          refreshDialogChrome();
+        },
+        since + STILL_WAITING_MS - Date.now() + 100,
+      );
+    }
+
     function statusUnknownWait(item: PullRequestItem): MergeWait {
       const key = prKey(item);
-      const since = statusUnknownSince.get(key) ?? Date.now();
-      statusUnknownSince.set(key, since);
+      let since = statusUnknownSince.get(key);
+      if (since === undefined) {
+        since = Date.now();
+        statusUnknownSince.set(key, since);
+        redrawWhenLate(key, since);
+      }
       return Date.now() - since >= STILL_WAITING_MS
         ? "status-unknown-late"
         : "status-unknown";
