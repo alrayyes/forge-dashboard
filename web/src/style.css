@@ -967,8 +967,9 @@ section.board {
      for this account's own repo names ("alrayyes/backup-git-repos",
      "alrayyes/forge-dashboard") without one. Every .row shares this
      exact list, which is what keeps columns aligned down the board
-     with no shared grid/subgrid — widen it here, and in the issue-row
-     overrides below that repeat the repo column, never in a single row.
+     (a wide pull request list shares one grid instead, see #5006) —
+     widen it here, and in the issue-row overrides below that repeat the
+     repo column, never in a single row.
      #1899: the fixed columns alone sum to 842px; with gaps (6 x 12px)
      and padding (2 x 18px) the grid needs ~950px before the 1fr title
      column gets any space at all, and ~1100px before it gets as much as
@@ -1170,37 +1171,72 @@ section.board {
 }
 
 /* #4502: from 1191px of list width (a 1280px window) a pull request row is
-   one centred line. The status track holds three fixed slots: the CI pill, the
+   one centred line. The status area holds three slots: the CI pill, the
    merge-state and comment pills (a Conflicting pill takes the same slot as the
-   comment pill, and both stack there when a row has both), and the action. A
-   pill is at the same x on every row and at the row's own centre, with the
-   labels, the attribute chips and the note under the title. The chips and the
-   note are moved into the title cell by placeNotes in Dashboard.svelte, which
-   measures the same width, so nothing here needs a second line except the
-   rare extras (a close cue, a queued note, the waiting chip), which take a
-   full line of the cell. The rem in the query keeps it off at large root font
-   sizes, where the slots would outgrow the list. Narrower lists keep the
-   wrapping status cell above, with the chips and the note in it. */
+   comment pill, and both stack there when a row has both), and the action,
+   with the labels, the attribute chips and the note under the title. The chips
+   and the note are moved into the title cell by placeNotes in
+   Dashboard.svelte, which measures the same width, so nothing here needs a
+   second line except the rare extras (a close cue, a queued note) and a
+   waiting chip that has no free slot. The rem in the query keeps it off at
+   large root font sizes, where the slots would outgrow the list. Narrower
+   lists keep the wrapping status cell above, with the chips and the note
+   in it.
+
+   #5006: from that width the list is one grid and every row, stack and status
+   cell a subgrid of it, so each column is sized once for all rows and starts
+   at the same x whatever a row holds. The query for the list's own columns
+   needs a container above the list, since a grid cannot query itself. */
+.list-region > div:has(> #pr-rows) {
+  container-type: inline-size;
+}
 @media (width > 760px) {
   @container (min-width: max(1191px, 74.5rem)) {
-    .row:not(.issue-row) {
-      /* #4596: the repo track is 168px, 16px narrower than the 184px it was,
-         and the title takes the 16px (204px to 220px at 1280px). A repo name
-         shortens with an ellipsis, as it already does, and has its full name
-         in its hover text. #470: from there it grows with the list
-         (--repo-grow), without taking from a title under 440px. */
-      /* #4541: the status track is 27.5rem for a row whose CI pill fits its
-         slot, and grows to the slot's pill when it does not (min-content is
-         the three slots with the CI one as wide as its pill, since a pill
-         does not wrap), so a Failed pill with three or more counts is never
-         drawn under the comment pill. Only that row's title gives up the
-         difference. */
+    #pr-rows {
+      --dt: max(82px, 3.1rem);
+      display: grid;
+      /* The outer tracks include the row's 18px padding: a 168px repo column
+         (#4596), which grows with the list (--repo-grow, #470), and the
+         22px arrow. The three status tracks are the 10.25rem,
+         7.5rem and 9.25rem slots less their share of the 12px gap, which the
+         status cell narrows to 4px. Each grows only for content that does not
+         fit it: the CI track to a long pill, as far as the title can keep
+         200px (#4541, #4795), after which the pill wraps. The action track is
+         as wide as its row's buttons on one line, and where that would take
+         the title under 200px the buttons wrap instead of spilling over the
+         arrow. The title's floor is the list less 1008px, so on lists of
+         1191px to 1207px it is 183px to 199px. */
       grid-template-columns:
-        max(168px, var(--repo-grow)) minmax(0, 1fr) 96px var(--dt) var(--dt)
-        minmax(27.5rem, min-content) 22px;
+        max(186px, var(--repo-grow) + 18px)
+        minmax(min(200px, calc(100% - 1008px)), 1fr)
+        96px
+        var(--dt)
+        var(--dt)
+        minmax(calc(10.25rem - 4px), max-content)
+        minmax(calc(7.5rem - 8px), min-content)
+        fit-content(13.5rem)
+        40px;
+      column-gap: 12px;
+    }
+    #pr-rows > * {
+      grid-column: 1 / -1;
+    }
+    /* A stacked row's indent comes out of the repo track, so its other
+       columns stay in line with the rest of the list. */
+    #pr-rows > .row,
+    #pr-rows > .stack-group,
+    #pr-rows .stack-member,
+    #pr-rows .stack-member > .row {
+      display: grid;
+      grid-column: 1 / -1;
+      grid-template-columns: subgrid;
+    }
+    #pr-rows .row > .row-meta > .status-cell,
+    #pr-rows .row > .row-meta > .empty-cell {
+      grid-column: 6 / 9;
     }
     /* #470: an issue row's repo column starts at 280px and grows by the same
-       rule. */
+       rule as a pull request's. */
     .row.issue-row {
       grid-template-columns:
         max(280px, var(--repo-grow)) minmax(0, 1fr) 96px var(--dt) var(--dt)
@@ -1208,11 +1244,10 @@ section.board {
     }
     .row:not(.issue-row) .status-cell {
       display: grid;
-      grid-template-columns: min-content 7.5rem 9.25rem;
+      grid-template-columns: subgrid;
       column-gap: 4px;
       row-gap: 4px;
       align-items: center;
-      justify-content: end;
     }
     .row:not(.issue-row) .status-cell > * {
       grid-column: 1 / -1;
@@ -1220,7 +1255,7 @@ section.board {
     .row:not(.issue-row) .status-cell > .state-group {
       grid-column: 1;
       grid-row: 1;
-      min-width: 10.25rem;
+      min-width: 0;
     }
     .row:not(.issue-row) .status-cell > .status-flags {
       grid-column: 2;
@@ -1231,12 +1266,40 @@ section.board {
       grid-row: 1;
       display: flex;
       flex-direction: row;
+      flex-wrap: wrap;
       justify-content: flex-start;
       align-items: center;
       gap: 4px;
     }
     .row:not(.issue-row) .status-cell > .row-action-bar .row-action {
       padding-inline: 5px;
+    }
+    .row:not(.issue-row) .status-cell > .row-action-bar .split-button-toggle {
+      min-width: 24px;
+      padding-inline: 4px;
+    }
+    /* The action column's floor, on every row, so it holds when no row has a
+       button: fit-content() takes no fixed minimum of its own. The status
+       cell's narrower gap takes 4px off, which leaves a 144px track. */
+    .row:not(.issue-row) .status-cell::after {
+      content: "";
+      grid-column: 3;
+      grid-row: 1;
+      width: 9.25rem;
+    }
+    /* A long CI pill wraps its counts when the title has no room to give. */
+    .row:not(.issue-row) .status-cell .ci-slot:has(.ci-pill.segmented) {
+      max-width: 100%;
+    }
+    .row:not(.issue-row) .status-cell .segmented.ci-pill {
+      flex-wrap: wrap;
+      max-width: 100%;
+      border-radius: 12px;
+    }
+    /* Sentences wrap inside the three tracks and never widen them. */
+    .row:not(.issue-row) .status-cell > .auto-merge-status,
+    .row:not(.issue-row) .status-cell > .row-lock-cue {
+      contain: inline-size;
     }
     /* #4602: the pills and the action sit at the left of their slots, so the
        notes do too: a locked Merge and its note start at the slot's edge, and
@@ -1252,7 +1315,8 @@ section.board {
       text-align: left;
     }
     .row:not(.issue-row) .status-cell > .row-lock-cue {
-      justify-self: start;
+      justify-self: stretch;
+      text-align: left;
     }
     /* The flags slot is 120px, so the pills in it fit it instead of the other
        way round: a merge-state label wraps to a second line (the row is
@@ -1273,139 +1337,38 @@ section.board {
     .row:not(.issue-row) .status-cell > .wait-slot:empty {
       display: none;
     }
-    /* #4596: the chip is as wide as its content, up to the room there is.
-       With no action and no flags pill in the cell the cell is two tracks,
-       the CI pill and the rest of the cell, and the chip sits in the second,
-       on the pill's own line, so an armed row is as tall as a chipless one.
-       The detail shows whole there; it gives way (an ellipsis, with the
-       tooltip) only when the cell is too narrow for it. Otherwise the chip
-       keeps a line of its own, at the cell's right edge. */
+    /* #4596, #5006: the chip is wider than any one slot, and a slot never
+       moves for it. With no action and no flags pill it sits after the CI pill,
+       on the same line, so the row is as tall as a chipless one. Otherwise it
+       takes a line of its own under them (#4945), and so does a waiting chip
+       with a reason to read (Rate limited), which is as wide as its words. A
+       Still waiting chip stays put: its detail is short, and a row must not
+       jump when a wait runs long. The detail gives way (an ellipsis, with the
+       tooltip) when there is not room for it. */
     .row:not(.issue-row) .status-cell > .wait-slot {
-      justify-self: end;
+      contain: inline-size;
+      justify-content: flex-start;
     }
     .row:not(.issue-row)
-      .status-cell:not(:has(> .row-action-bar, > .status-flags)) {
-      grid-template-columns: min-content max-content;
-      /* The CI pill keeps one x whether or not a chip sits beside it (#1563,
-         #4663): packed to the start, the chip grows the cell to the right
-         instead of pushing the pill left. It is also the x the pill has in
-         a row with actions. */
-      justify-content: start;
-    }
-    .row:not(.issue-row)
-      .status-cell:not(:has(> .row-action-bar, > .status-flags))
-      > .state-group {
-      min-width: 0;
-    }
-    .row:not(.issue-row)
-      .status-cell:not(:has(> .row-action-bar, > .status-flags))
+      .status-cell:not(
+        :has(
+          > .row-action-bar,
+          > .status-flags,
+          > .wait-slot
+            .wait-chip[data-state="waiting"]
+            .wait-chip-detail:not(:empty)
+        )
+      )
       > .wait-slot {
-      grid-column: 2;
+      grid-column: 2 / -1;
       grid-row: 1;
-      justify-self: start;
-    }
-    /* #4663: a waiting chip and an action (Update branch) share the cell's one
-       line: the CI pill, the chip, the action. The status track grows to the
-       chip's width the way it does for a wide pill (#4541), so the row is no
-       taller than one with a Merge button. */
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .row-action-bar):not(:has(> .status-flags)) {
-      grid-template-columns: min-content max-content max-content;
     }
     .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .row-action-bar):not(:has(> .status-flags))
-      > .wait-slot {
-      grid-column: 2;
-      grid-row: 1;
-      justify-self: start;
+      .status-cell
+      > .wait-slot
+      > .wait-chip[data-state="waiting"]:has(.wait-chip-detail:not(:empty)) {
+      width: fit-content;
     }
-    /* With a comment or merge-state pill too, the chip takes a track between
-       the CI pill and the pills, so the line is the CI pill, the chip, the
-       pills, the action, and the row is no taller than one without the
-       chip. */
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags) {
-      grid-template-columns: min-content max-content 7.5rem max-content;
-    }
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags)
-      > .wait-slot {
-      grid-column: 2;
-      grid-row: 1;
-      justify-self: start;
-    }
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags)
-      > .status-flags {
-      grid-column: 3;
-    }
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags)
-      > .row-action-bar {
-      grid-column: 4;
-    }
-    /* #4945: the two layouts above hold the chip beside the pills and the
-       action, which is up to 660px of status cell at 1280px. A chip stacked
-       under the pills left the row two lines tall with the pills above the
-       chip, so the CI pill gives up its 10.25rem slot (a Running pill is
-       104px) and the pill, the chip, the pills and one action fit the 27.5rem
-       track on one line, with the title above 200px (#4795). Two cases would
-       leave the title under it, so they keep the chip on a line of its own,
-       one line taller: pills with a chip beside two actions (a bot's rebase
-       and Cancel) or beside Update branch (about 100px), and labels with an
-       action but no pills (the title was 194px at 1280px). The
-       rule holds below 94rem only: from there the title keeps well over 200px
-       with the chip beside everything (#4784). The rem term keeps the stack
-       at a large text size, where the tracks are as wide as they are at
-       1280px. */
-    @container not (min-width: 94rem) {
-      .row:not(.issue-row):has(> .title-cell > .label-chip)
-        .status-cell:has(> .wait-slot:not(:empty)):not(
-          :has(> .wait-slot .wait-chip-detail:not(:empty))
-        ):has(> .row-action-bar):not(:has(> .status-flags)),
-      .row:not(.issue-row)
-        .status-cell:has(> .wait-slot:not(:empty)):not(
-          :has(> .wait-slot .wait-chip-detail:not(:empty))
-        ):has(
-          > .row-action-bar > :nth-child(2),
-          > .row-action-bar button ~ button,
-          > .row-action-bar .row-action-update,
-          > .wait-slot .wait-chip-swap
-        ):has(> .status-flags) {
-        grid-template-columns: min-content 7.5rem 9.25rem;
-        > .wait-slot {
-          grid-column: 1 / -1;
-          grid-row: auto;
-          justify-self: end;
-        }
-        > .status-flags {
-          grid-column: 2;
-        }
-        > .row-action-bar {
-          grid-column: 3;
-        }
-      }
-    }
-    .row:not(.issue-row)
-      .status-cell:has(> .wait-slot:not(:empty)):not(
-        :has(> .wait-slot .wait-chip-detail:not(:empty))
-      ):has(> .status-flags, > .row-action-bar)
-      > .state-group {
-      min-width: 0;
-    }
-
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
       display: none;

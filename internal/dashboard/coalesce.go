@@ -35,6 +35,10 @@ type coalescer struct {
 	completedEpoch int64
 	// parked is how many callers are blocked waiting on a trailing run.
 	parked int
+	// next is what the trailing run calls, when a parked caller of doRanked
+	// brought one, and nextRank is that caller's rank.
+	next     func()
+	nextRank int
 }
 
 func newCoalescer() *coalescer {
@@ -57,9 +61,19 @@ func (c *coalescer) waiting() int {
 // do runs fn, or waits for a run guaranteed to have started after do was
 // called. See the type's own doc comment for the guarantee this provides.
 func (c *coalescer) do(fn func()) {
+	c.doRanked(0, fn)
+}
+
+// doRanked is do for callers whose runs differ. The trailing run calls the fn
+// of the highest-ranked caller waiting for it, the latest of equals, not the fn
+// already running. A caller of rank zero leaves that choice alone.
+func (c *coalescer) doRanked(rank int, fn func()) {
 	c.mu.Lock()
 	if c.running {
 		c.pending = true
+		if rank > 0 && rank >= c.nextRank {
+			c.next, c.nextRank = fn, rank
+		}
 		arrivedAfter := c.startedEpoch
 		c.parked++
 		for c.completedEpoch <= arrivedAfter {
@@ -87,6 +101,9 @@ func (c *coalescer) do(fn func()) {
 			return
 		}
 		c.pending = false
+		if c.next != nil {
+			fn, c.next, c.nextRank = c.next, nil, 0
+		}
 		c.startedEpoch++
 		c.mu.Unlock()
 	}
@@ -104,7 +121,7 @@ func newKeyedCoalescer() *keyedCoalescer {
 	return &keyedCoalescer{byKey: make(map[string]*coalescer)}
 }
 
-func (k *keyedCoalescer) do(key string, fn func()) {
+func (k *keyedCoalescer) doRanked(key string, rank int, fn func()) {
 	k.mu.Lock()
 	c, ok := k.byKey[key]
 	if !ok {
@@ -113,5 +130,5 @@ func (k *keyedCoalescer) do(key string, fn func()) {
 	}
 	k.mu.Unlock()
 
-	c.do(fn)
+	c.doRanked(rank, fn)
 }

@@ -443,6 +443,224 @@ test.describe('the pull request dialog', () => {
     await expect(issueDialog(page)).toBeHidden();
   });
 
+  // #5089: a closed or merged item of a tracked repository is not on the
+  // board. A tap or a click opens its dialog at once, without waiting for a
+  // read that nothing started yet.
+  // The board lists it, so it is known to be an open issue before any read,
+  // on every page and not only the Issues one.
+  test('a listed issue keeps its status and actions while the read is held and after it fails', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [{ ...pullRequest(1, []), closesIssues: [mention(5)] }],
+      issues: [issue(5, [])],
+    });
+    let fail: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    await page.route('**/api/v1/issues/details*', async (route: Route) => {
+      await held;
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not found' }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    const offered = async () => {
+      await expect(
+        issueDialog(page).getByRole('group', { name: 'Status' }),
+      ).toHaveText('Open');
+      await expect(
+        issueDialog(page).getByRole('button', { name: 'Close issue' }),
+      ).toBeVisible();
+      await expect(
+        issueDialog(page).getByRole('button', {
+          name: 'Close with a comment',
+        }),
+      ).toBeVisible();
+    };
+
+    await prDialog(page)
+      .getByRole('link', { name: /^Closes: #5/ })
+      .click();
+
+    await expect(issueDialog(page).getByRole('status')).toContainText([
+      'Loading details',
+    ]);
+    await offered();
+    fail();
+    await expect(issueDialog(page).getByRole('alert')).toContainText(
+      'Could not load the details: not found',
+    );
+    await offered();
+  });
+
+  test.describe('an unlisted item of a tracked repository', () => {
+    const gone = () =>
+      mention(4, {
+        url: `https://example.com/${REPO}/issues/4`,
+        tracked: false,
+      });
+    const gonePill = (page: Page) => prDialog(page).locator('.mention-pill');
+    const statusChip = (page: Page) =>
+      issueDialog(page).getByRole('group', { name: 'Status' });
+    // Until a read answers, the item may be closed or a pull request.
+    async function expectNothingToActOn(page: Page) {
+      await expect(statusChip(page)).toHaveCount(0);
+      await expect(
+        issueDialog(page).getByRole('button', {
+          name: /^(Close issue|Close with a comment|Reopen issue)$/,
+        }),
+      ).toHaveCount(0);
+    }
+
+    async function openWithGoneMention(page: Page) {
+      await page.goto('/pull-requests.html');
+      await openPullRequest(page);
+    }
+
+    test.describe('on a phone', () => {
+      test.use({
+        hasTouch: true,
+        isMobile: true,
+        viewport: { width: 390, height: 844 },
+      });
+
+      test('one tap opens the dialog while it loads, reads once and opens no tab', async ({
+        page,
+      }) => {
+        await mockBoard(page, { pullRequests: [pullRequest(1, [gone()])] });
+        let answer: () => void = () => {};
+        const held = new Promise<void>((resolve) => {
+          answer = resolve;
+        });
+        let asked = 0;
+        await page.route('**/api/v1/issues/details*', async (route: Route) => {
+          asked++;
+          await held;
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...details,
+              description: { ...details.description, text: 'Closed text.' },
+              state: 'closed',
+            }),
+          });
+        });
+        await openWithGoneMention(page);
+        await expect(gonePill(page)).toHaveAccessibleName(
+          'Mentions: #4, opens its details',
+        );
+
+        await gonePill(page).tap();
+
+        await expect(issueDialog(page)).toBeVisible();
+        await expect(issueDialog(page).getByRole('status')).toContainText([
+          'Loading details',
+        ]);
+        await expect(prDialog(page)).toBeHidden();
+        await expectNothingToActOn(page);
+        answer();
+        await expect(issueDialog(page)).toContainText('Closed text.');
+        await expect(statusChip(page)).toHaveText('Closed');
+        await expect(
+          issueDialog(page).getByRole('button', { name: 'Reopen issue' }),
+        ).toBeVisible();
+        expect(asked).toBe(1);
+        expect(page.context().pages()).toHaveLength(1);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+
+      test('a failed read says so in the dialog and links to the forge', async ({
+        page,
+      }) => {
+        await mockBoard(page, { pullRequests: [pullRequest(1, [gone()])] });
+        await page.route('**/api/v1/issues/details*', (route: Route) =>
+          route.fulfill({
+            status: 404,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'not found' }),
+          }),
+        );
+        await openWithGoneMention(page);
+
+        await gonePill(page).tap();
+
+        await expect(issueDialog(page).getByRole('alert')).toContainText(
+          'Could not load the details: not found',
+        );
+        await expect(
+          issueDialog(page).getByRole('link', { name: /^Open on GitHub/ }),
+        ).toHaveAttribute('href', gone().url);
+        await expectNothingToActOn(page);
+        expect(page.context().pages()).toHaveLength(1);
+      });
+
+      // The pills the board closes and references, and a #N in the text, open
+      // the same dialog.
+      test('a Closes pill, a Refs pill and a #N reference offer nothing until read', async ({
+        page,
+      }) => {
+        await mockBoard(page, {
+          pullRequests: [
+            {
+              ...pullRequest(1, []),
+              // A #N in its text is resolved against this address.
+              url: `https://example.com/${REPO}/pull/1`,
+              closesIssues: [mention(5)],
+              refsIssues: [mention(6, { relation: 'refs' })],
+            },
+          ],
+        });
+        await page.route('**/api/v1/pull-requests/details*', (route: Route) =>
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...details,
+              description: { ...details.description, text: 'See #8.' },
+            }),
+          }),
+        );
+        let answer: () => void = () => {};
+        await page.route('**/api/v1/issues/details*', async (route: Route) => {
+          await new Promise<void>((resolve) => {
+            answer = resolve;
+          });
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(details),
+          });
+        });
+        await page.goto('/pull-requests.html');
+
+        for (const name of [/^Closes: #5/, /^Refs: #6/, /^#8$/]) {
+          await openPullRequest(page);
+          await prDialog(page).getByRole('link', { name }).tap();
+          await expect(issueDialog(page).getByRole('status')).toContainText([
+            'Loading details',
+          ]);
+          await expectNothingToActOn(page);
+          answer();
+          await expect(statusChip(page)).toHaveText('Open');
+          await expect(
+            issueDialog(page).getByRole('button', { name: 'Close issue' }),
+          ).toBeVisible();
+          await page.keyboard.press('Escape');
+          await expect(issueDialog(page)).toBeHidden();
+        }
+      });
+    });
+  });
+
   test('folds mentions past the sixth behind one toggle that opens them and folds them again', async ({
     page,
   }) => {

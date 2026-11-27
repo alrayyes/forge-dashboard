@@ -1,5 +1,33 @@
 # Changelog
 
+## [9.140.4](https://github.com/alrayyes/forge-dashboard/compare/v9.140.3...v9.140.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** use the shared Clear filters button in Settings, Repositories ([#5114](https://github.com/alrayyes/forge-dashboard/issues/5114)) ([bf6ff4d](https://github.com/alrayyes/forge-dashboard/commit/bf6ff4deca43cf9158a04a5c0bee4c7b4e1057d8)), closes [#5066](https://github.com/alrayyes/forge-dashboard/issues/5066)
+
+## [9.140.3](https://github.com/alrayyes/forge-dashboard/compare/v9.140.2...v9.140.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** line up the pull request list columns across rows ([#5043](https://github.com/alrayyes/forge-dashboard/issues/5043)) ([5322c36](https://github.com/alrayyes/forge-dashboard/commit/5322c36e13e56e4dcf7825c9ff44d9c3f9ff5d08)), closes [#5006](https://github.com/alrayyes/forge-dashboard/issues/5006)
+
+## [9.140.2](https://github.com/alrayyes/forge-dashboard/compare/v9.140.1...v9.140.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** bound what one repo's webhooks may spend of the budget ([#5107](https://github.com/alrayyes/forge-dashboard/issues/5107)) ([1d1adbd](https://github.com/alrayyes/forge-dashboard/commit/1d1adbdc70ce0eac18576d25cfa604fde671e6b8))
+
+## [9.140.1](https://github.com/alrayyes/forge-dashboard/compare/v9.140.0...v9.140.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** open the dialog when an unlisted mention is tapped ([#5105](https://github.com/alrayyes/forge-dashboard/issues/5105)) ([a306ff7](https://github.com/alrayyes/forge-dashboard/commit/a306ff703b4d99128346318d8615b6ceb1b9b976)), closes [#5089](https://github.com/alrayyes/forge-dashboard/issues/5089)
+
 ## [9.140.0](https://github.com/alrayyes/forge-dashboard/compare/v9.139.6...v9.140.0) (2026-11-27)
 
 

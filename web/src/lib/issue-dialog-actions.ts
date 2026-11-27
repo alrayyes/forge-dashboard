@@ -16,11 +16,14 @@ import { rowClaim } from './row-claim';
 
 // readOnly: the board does not track the repository, so the dialog only shows
 // the issue and offers nothing that writes to the forge.
+// unread: the board does not list the item, so it may be closed or a pull
+// request. Nothing that writes is offered until a read says (#5089).
 export type IssueTarget = {
   forge: string;
   repo: string;
   number: number;
   readOnly?: boolean;
+  unread?: boolean;
 };
 
 export type IssueActionsHost = {
@@ -184,7 +187,7 @@ export function createIssueActions(host: IssueActionsHost) {
   }
 
   function chrome(): DetailsChrome {
-    if (target?.readOnly)
+    if (target?.readOnly || target?.unread)
       return { status: null, feedback: null, option: null, actions: [] };
     const status =
       phase === 'closed' || phase === 'reopening'
@@ -462,6 +465,8 @@ export function createIssueActions(host: IssueActionsHost) {
     // should follow it: an "open" right after our own close is not believed.
     forgeState(closed: boolean): boolean {
       if (!target) return true;
+      const first = target.unread === true;
+      if (first) target = { ...target, unread: false };
       if (closed) {
         if (
           phase === 'idle' ||
@@ -480,7 +485,7 @@ export function createIssueActions(host: IssueActionsHost) {
         if (Date.now() - closedAt < SETTLE_MS) return false;
         phase = 'idle';
         draw();
-      }
+      } else if (first) draw();
       return true;
     },
   };

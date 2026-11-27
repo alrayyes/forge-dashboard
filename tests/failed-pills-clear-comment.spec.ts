@@ -144,21 +144,20 @@ for (const width of [1440, 1280, 1186, 1124, 1000, 800]) {
   });
 }
 
-test('a row whose pill fits keeps the status track it had at 1280px', async ({
+test('pills that fit leave the status area at 27.5rem at 1280px', async ({
   page,
 }) => {
-  await open(page, 1280, Object.values(ROWS));
+  await open(page, 1280, [ROWS['Failed with two counts and a comment pill']]);
   const widths = await page
     .locator('#pr-rows > .row .status-cell')
     .evaluateAll((cells) => cells.map((c) => c.getBoundingClientRect().width));
-  // 27.5rem at a 16px root; the two counts row is the one that fits.
-  expect(widths[2]).toBe(440);
+  // 27.5rem at a 16px root.
+  expect(widths[0]).toBe(440);
 });
 
-// The trade: a wide pill widens its own row's status column, so that row's
-// title is narrower and its Created column sits further left than a row that
-// fits. #4540 is the follow-up that gives the title width back.
-test('a wide pill costs its own row title width and column alignment', async ({
+// One grid for the list (#5006): a wide pill widens its column for every row,
+// as far as the title keeps 200px, so no row's columns move away from the rest.
+test('a wide pill moves no row out of line with the others', async ({
   page,
 }) => {
   await open(page, 1280, Object.values(ROWS));
@@ -168,11 +167,9 @@ test('a wide pill costs its own row title width and column alignment', async ({
       created: r.querySelector('.created')?.getBoundingClientRect().left ?? 0,
     })),
   );
-  const [four, five, fits] = rows;
-  expect(four.title).toBeLessThan(fits.title);
-  expect(five.title).toBeLessThan(four.title);
-  expect(four.created).toBeLessThan(fits.created);
-  expect(four.title).toBeGreaterThan(100);
+  expect(new Set(rows.map((r) => r.created)).size).toBe(1);
+  expect(new Set(rows.map((r) => r.title)).size).toBe(1);
+  expect(rows[0].title).toBeGreaterThanOrEqual(200);
 });
 
 for (const scheme of ['light', 'dark'] as const) {

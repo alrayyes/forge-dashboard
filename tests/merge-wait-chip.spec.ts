@@ -361,12 +361,13 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(
           r.getByRole('button', { name: /^Update branch/ }),
         ).toBeVisible();
-        // One line from a 1280px window up; a narrower list stacks its cell.
+        // The list shares its columns (#5006), so the chip cannot widen this
+        // row's status area: beside a button it takes a line of its own.
         if (width >= 1280)
           expect(await heightOf(page, 'Behind')).toBeLessThanOrEqual(
-            (await heightOf(page, 'Ready')) + 1,
+            (await heightOf(page, 'Ready')) + 36,
           );
-        // With no pills and no labels the one line leaves the title 200px.
+        // The title keeps its floor whatever the row holds.
         if (width >= 1280)
           expect(
             await r.locator('.title-cell').evaluate((e) => e.clientWidth),
@@ -540,9 +541,11 @@ test.describe('the unlock is announced only to the row the person is on', () => 
 });
 
 // A dependency bot's row gets its rebase button where a person's gets Update
-// branch, and the same chip beside it, no taller than a bot row without one.
+// branch, and the same chip, on a line under it: the columns are shared by
+// every row (#5006), so a chip cannot widen one row's status area. Below
+// 1191px of list width the row keeps one height.
 for (const width of [1280, 1024]) {
-  test(`a bot row with a rebase button and the chip is no taller than one without, ${width}px`, async ({
+  test(`a bot row with a rebase button and the chip grows by one line at most, ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -589,17 +592,12 @@ for (const width of [1280, 1024]) {
     ).toBeVisible();
     await expect(r.locator('.row-action-bar')).toContainText(/Rebase/);
     expect(await heightOf(page, 'Waiting bump')).toBeLessThanOrEqual(
-      (await heightOf(page, 'Plain bump')) + 1,
+      (await heightOf(page, 'Plain bump')) + (width >= 1280 ? 36 : 1),
     );
-    // No pills, and an unarmed chip with its own button: the one line leaves
-    // the title 145px at 1280px. The rule is a 200px title floor except bot
-    // rows (#4795, owner decision 2026-11-26): a bot row has no room to give
-    // and stacking it would make every bot row two lines. This 140px floor
-    // pins the exception so it cannot shrink.
     if (width >= 1280)
       expect(
         await r.locator('.title-cell').evaluate((e) => e.clientWidth),
-      ).toBeGreaterThanOrEqual(140);
+      ).toBeGreaterThanOrEqual(200);
   });
 }
 

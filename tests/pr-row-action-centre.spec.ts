@@ -165,11 +165,17 @@ for (const width of [1280, 390]) {
       // A phone card stacks the action under a divider and keeps its own
       // tiers, so only its pills share a line.
       const phone = width < 600;
+      // On the one-line layout a chip beside pills has a line of its own,
+      // because every row shares the columns (#5006). The author and dates
+      // then centre on both lines.
       await expect
         .poll(async () =>
           (await measure(page)).flatMap((m) => {
             const pill = m.centres['.ci-pill'];
+            const stacked = m.centres['.wait-chip'] - pill > TOLERANCE;
+            const beside = ['.review-pill', '.row-action-bar'];
             return Object.entries(m.centres)
+              .filter(([n]) => !stacked || beside.includes(n))
               .filter(([n]) => !phone || ['.review-pill'].includes(n))
               .filter(
                 ([n, c]) => n !== '.ci-pill' && Math.abs(c - pill) > TOLERANCE,
@@ -180,16 +186,16 @@ for (const width of [1280, 390]) {
         .toEqual([]);
     });
 
-    test('the row is as tall with the chip as with Merge', async ({ page }) => {
+    test('a chip beside pills adds one line at most', async ({ page }) => {
       test.skip(width < 600, 'a phone card has its own tiers');
       await expect
         .poll(async () => {
           const m = await measure(page);
           const h = (t: string) => m.find((x) => x.title.endsWith(t))!.height;
           return [
-            Math.abs(h('Waiting chip') - h('Merge')),
-            Math.abs(h('Labels under the title') - h('Labels with Merge')),
-          ].every((d) => d <= TOLERANCE);
+            h('Waiting chip') - h('Merge'),
+            h('Labels under the title') - h('Labels with Merge'),
+          ].every((d) => d <= 36);
         })
         .toBe(true);
     });
