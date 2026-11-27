@@ -169,9 +169,10 @@ and the cost are in
   `GET /api/v1/main-branches` (default-branch CI status and open dependency
   advisories, no forge budget), and
   `get_pull_request_details`, which mirrors `GET /api/v1/pull-requests/details`
-  (a pull request's description, comments and reactions). That one reads the
+  (a pull request's description, comments and reactions, and how many review
+  comments on lines of code it has, counted but not listed). That one reads the
   forge on demand and spends budget: one GraphQL query on GitHub, up to 53
-  requests on Forgejo. Another is
+  requests plus one per page of reviews on Forgejo. Another is
   `get_pull_request_checks`, which reads a pull request's individual CI
   checks. It has no HTTP endpoint: the jobs travel on the dashboard stream,
   and the WebMCP tool reads them there. It spends budget too: 4 REST

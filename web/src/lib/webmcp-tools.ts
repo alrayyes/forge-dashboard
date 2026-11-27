@@ -392,7 +392,7 @@ export function createWebMCPTools(deps: WebMCPToolDeps): WebMCPToolDef[] {
       name: 'get_pull_request_details',
       operationId: 'getPullRequestDetails',
       description:
-        "Read one pull request's description, its comments in order, the thumbs up and thumbs down reactions on each with who gave them, and, for a release pull request, the release notes. Fetched live from the forge. Text is Markdown as the forge stores it, cut at 20,000 characters, and the conversation keeps its first 50 comments. Take forge, fullName and number from get_dashboard. Read-only. " +
+        "Read one pull request's description, its comments in order, the thumbs up and thumbs down reactions on each with who gave them, how many review comments on lines of code there are (counted, not listed), and, for a release pull request, the release notes. Fetched live from the forge. Text is Markdown as the forge stores it, cut at 20,000 characters, and the conversation keeps its first 50 comments. Take forge, fullName and number from get_dashboard. Read-only. " +
         INJECTION_CAVEAT,
       inputSchema: pullRequestSchema,
       execute: async (input) =>

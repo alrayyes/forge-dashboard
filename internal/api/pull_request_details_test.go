@@ -70,7 +70,9 @@ func sampleDetails() dashboard.PullRequestDetails {
 			CreatedAt: "2026-10-01T10:00:00Z", Text: "Looks good.", Format: dashboard.FormatMarkdown,
 			Reactions: dashboard.Reactions{ThumbsUp: none, ThumbsDown: none},
 		}},
-		CommentCount: 1,
+		CommentCount:            1,
+		ReviewCommentCount:      3,
+		ReviewCommentsTruncated: true,
 	}
 }
 
@@ -98,6 +100,8 @@ func TestPullRequestDetails_ReturnsTheDescriptionAndTheConversation(t *testing.T
 	require.Len(t, comments, 1)
 	assert.EqualValues(t, 1, body["commentCount"])
 	assert.Equal(t, false, body["commentsTruncated"])
+	assert.EqualValues(t, 3, body["reviewCommentCount"])
+	assert.Equal(t, true, body["reviewCommentsTruncated"])
 	assert.Contains(t, body, "releaseNotes", "always present")
 	assert.Nil(t, body["releaseNotes"], "a pull request that isn't a release has no release notes")
 }

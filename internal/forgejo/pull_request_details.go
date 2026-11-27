@@ -29,8 +29,11 @@ const maxReactionsRead = 50
 // owner/name#number (#1506).
 //
 // The cost is 1 call for the pull request, 1 for its reactions, 1 for the first
-// comments page and 1 per comment for its reactions: at most 53. Forgejo has no
-// batch read. The reaction reads run up to detailsReactionConcurrency at a time
+// comments page, 1 per comment for its reactions and 1 per page of reviews:
+// 54 for a full thread with one page of reviews. Forgejo has no batch read.
+// The reviews carry their line comment counts, which are added up (#5011);
+// the dialog doesn't use the board's cached sum, which is 0 for a draft.
+// The reaction reads run up to detailsReactionConcurrency at a time
 // and stop at the first failure, a rate limit above all, which comes back as
 // the error with its code. A half-loaded thread never comes back.
 //
@@ -48,11 +51,17 @@ func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, 
 		return dashboard.PullRequestDetails{}, err
 	}
 
+	reviews, err := c.listReviews(ctx, owner, name, int64(number))
+	if err != nil {
+		return dashboard.PullRequestDetails{}, err
+	}
+
 	return dashboard.PullRequestDetails{
-		Description:       thread.Description,
-		Comments:          thread.Comments,
-		CommentCount:      thread.CommentCount,
-		CommentsTruncated: thread.CommentsTruncated,
+		Description:        thread.Description,
+		Comments:           thread.Comments,
+		CommentCount:       thread.CommentCount,
+		CommentsTruncated:  thread.CommentsTruncated,
+		ReviewCommentCount: codeComments(reviews),
 	}, nil
 }
 

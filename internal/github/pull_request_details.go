@@ -31,6 +31,10 @@ query($owner: String!, $name: String!, $number: Int!) {
           reactionGroups { content users(first: 10) { totalCount nodes { login } } }
         }
       }
+      reviewThreads(first: 100) {
+        totalCount
+        nodes { comments { totalCount } }
+      }
     }
   }
 }`
@@ -71,27 +75,50 @@ type graphqlDetailsThread struct {
 	} `json:"comments"`
 }
 
+// graphqlDetailsPullRequest adds to the shared thread what only a pull
+// request has: its review threads, of which only the comment counts are read.
+type graphqlDetailsPullRequest struct {
+	graphqlDetailsThread
+
+	ReviewThreads struct {
+		TotalCount int `json:"totalCount"`
+		Nodes      []struct {
+			Comments struct {
+				TotalCount int `json:"totalCount"`
+			} `json:"comments"`
+		} `json:"nodes"`
+	} `json:"reviewThreads"`
+}
+
 type pullRequestDetailsResponse struct {
 	Repository struct {
-		PullRequest graphqlDetailsThread `json:"pullRequest"`
+		PullRequest graphqlDetailsPullRequest `json:"pullRequest"`
 	} `json:"repository"`
 }
 
 // GetPullRequestDetails implements dashboard.PullRequestDetailer: one GraphQL
-// query for owner/name#number's description, comments and thumbs reactions.
+// query for owner/name#number's description, comments, thumbs reactions and
+// the number of review comments on lines of code.
 func (c *Client) GetPullRequestDetails(ctx context.Context, owner, name string, number int) (dashboard.PullRequestDetails, error) {
 	var resp pullRequestDetailsResponse
 	vars := map[string]any{"owner": owner, "name": name, "number": number}
 	if err := c.graphqlDo(ctx, pullRequestDetailsQuery, vars, &resp); err != nil {
 		return dashboard.PullRequestDetails{}, asClientError(err)
 	}
-	thread := threadDetails(resp.Repository.PullRequest)
+	pr := resp.Repository.PullRequest
+	thread := threadDetails(pr.graphqlDetailsThread)
+	var reviewComments int
+	for _, t := range pr.ReviewThreads.Nodes {
+		reviewComments += t.Comments.TotalCount
+	}
 
 	return dashboard.PullRequestDetails{
-		Description:       thread.Description,
-		Comments:          thread.Comments,
-		CommentCount:      thread.CommentCount,
-		CommentsTruncated: thread.CommentsTruncated,
+		Description:             thread.Description,
+		Comments:                thread.Comments,
+		CommentCount:            thread.CommentCount,
+		CommentsTruncated:       thread.CommentsTruncated,
+		ReviewCommentCount:      reviewComments,
+		ReviewCommentsTruncated: pr.ReviewThreads.TotalCount > len(pr.ReviewThreads.Nodes),
 	}, nil
 }
 

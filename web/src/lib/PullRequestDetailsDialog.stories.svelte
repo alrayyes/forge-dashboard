@@ -170,6 +170,28 @@
   {@render opener(PULL_REQUEST)}
 </Story>
 
+<!-- Review comments on lines of code are counted and linked, not listed. -->
+<Story
+  asChild
+  name="Line comments"
+  beforeEach={() =>
+    mockFetch([
+      {
+        match: ROUTE,
+        body: {
+          ...DETAILS,
+          comments: [],
+          commentCount: 0,
+          reviewCommentCount: 3,
+          reviewCommentsTruncated: false,
+        },
+      },
+    ])}
+  play={async ({ canvasElement }) => loaded(canvasElement)}
+>
+  {@render opener(PULL_REQUEST)}
+</Story>
+
 <!-- A long description and conversation are cut, and the dialog says so. -->
 <Story
   asChild
