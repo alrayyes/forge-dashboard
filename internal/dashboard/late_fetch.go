@@ -221,18 +221,19 @@ func rowsWhere(snap Snapshot, keep func(Forge) bool) Result {
 
 // heldWhileReading is forge's part of a refresh that did not ask it or stopped
 // waiting for it, because a read left behind is still running: the rows it had,
-// shown as slow. It counts as no miss. behind is false when that read's outcome
-// reached the board in the meantime, which then stands.
+// shown as slow, even if the forge was unreachable before this read began. It
+// counts as no miss. behind is false when that read's outcome reached the board
+// in the meantime, which then stands. A starting forge stays starting.
 func heldWhileReading(behind bool, earlier Snapshot, goodAt map[Forge]time.Time, forge Forge) Result {
 	held := rowsWhere(earlier, func(other Forge) bool { return other == forge })
 	prev, ok := healthOf(earlier, forge)
 	switch {
 	case !ok:
 		held.Health = ForgeHealth{Forge: forge, Reachable: true, Cause: ForgeCauseSlow}
-	case !behind || prev.Starting || !prev.Reachable:
+	case !behind || prev.Starting:
 		held.Health = prev
 	default:
-		held.Health = notSlow(prev)
+		held.Health = answering(notSlow(prev))
 		held.Health.Cause = ForgeCauseSlow
 		if at, good := goodAt[forge]; good {
 			held.Health.RowsReadAt = &at
@@ -240,6 +241,16 @@ func heldWhileReading(behind bool, earlier Snapshot, goodAt map[Forge]time.Time,
 	}
 
 	return held
+}
+
+// answering is h without what an earlier failure put on it, for a forge that
+// has not failed the read it is on.
+func answering(h ForgeHealth) ForgeHealth {
+	h.Reachable = true
+	h.Error, h.ErrorKind, h.UpstreamStatus = "", "", 0
+	h.StaleSince, h.ProviderStatus = nil, nil
+
+	return h
 }
 
 // readingBehind reports whether the pull request key belongs to a forge with a

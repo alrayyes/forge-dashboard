@@ -283,6 +283,28 @@ func TestAggregator_ALateFailureIsShown(t *testing.T) {
 	assert.Equal(t, []int{10}, numbers(f.agg.Get()))
 }
 
+// A forge already shown as unreachable reads as slow while a new read of it
+// runs, since it has not failed to answer that one.
+func TestAggregator_AnUnreachableForgeBeingReadAgainReadsAsSlow(t *testing.T) {
+	t.Parallel()
+	f := newLateFixture(t)
+	failed := dashboard.Result{Health: dashboard.ForgeHealth{Forge: dashboard.ForgeForgejo, ErrorKind: dashboard.ForgeErrorUnauthorized}}
+	f.giveUp(t, func() { f.agg.Refresh(t.Context()) })
+	f.src.answer <- failed
+	f.shows(t, func(s dashboard.Snapshot) bool { return !health(s, dashboard.ForgeForgejo).Reachable })
+	f.agg.WaitSourcesIdleForTest()
+
+	f.giveUp(t, func() { f.agg.Refresh(t.Context()) })
+
+	assertSlow(t, f.agg.Get())
+	assert.Empty(t, health(f.agg.Get(), dashboard.ForgeForgejo).Error)
+	assert.Equal(t, []int{10}, numbers(f.agg.Get()))
+
+	f.src.answer <- failed
+
+	f.shows(t, func(s dashboard.Snapshot) bool { return !health(s, dashboard.ForgeForgejo).Reachable })
+}
+
 // The late read was taken before the merge, so it still lists the pull request.
 func TestAggregator_ALateReadDoesNotBringBackAMergedPullRequest(t *testing.T) {
 	t.Parallel()

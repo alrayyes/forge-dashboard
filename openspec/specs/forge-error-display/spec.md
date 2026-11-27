@@ -162,12 +162,18 @@ neither the field nor the line.
 A refresh a person asked for, including the catch-up when the board is opened
 after an idle spell, SHALL stop waiting for a forge at the user deadline and
 SHALL NOT cancel its read before the scheduled deadline. While that read runs,
-the forge SHALL be reachable with cause `slow` (a `starting` forge stays
-`starting`), keep the rows it had, not be asked again, and have no pass counted
-as missed. The outcome SHALL be applied when it arrives. A forge never read
-before has no rows and no `rowsReadAt` meanwhile, and its missing rows SHALL
-NOT be treated as closed or gone: no saved choice is forgotten, no queued
-action is skipped and its actions stay off.
+the forge SHALL be reachable with cause `slow`, even if it was unreachable
+before the read began (a `starting` forge stays `starting`), keep the rows it
+had, not be asked again, and have no pass counted as missed. The outcome SHALL
+be applied when it arrives. A forge never read before has no rows and no
+`rowsReadAt` meanwhile, and its missing rows SHALL NOT be treated as closed or
+gone: no saved choice is forgotten, no queued action is skipped and its actions
+stay off.
+
+#### Scenario: An unreachable forge is read again
+
+- **WHEN** an unreachable forge's next read is still running at the user deadline
+- **THEN** its error goes, its cause is `slow` and it keeps its rows
 
 #### Scenario: A queued action while the first read is slow
 

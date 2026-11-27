@@ -196,13 +196,14 @@ the Refresh button, a sign-in, and the catch-up when you open the board after
 nobody has been looking. After that minute you get the board back, but the read
 keeps going for the rest of the three. Its rows appear when it answers, with no
 second refresh. Until then the forge reads "Slow to answer" and keeps the rows
-it had, and it isn't asked again. A forge never read before shows no rows yet,
-and that isn't read as "nothing open": your saved auto-update choices are kept,
-queued actions wait, and its controls stay off until it answers. With no pull
-requests from anywhere else, the pages keep their loading placeholders instead
-of saying there are none.
-One still starting up after a restart stays "Starting up". None of this counts
-against the forge, however often you press Refresh.
+it had, and it isn't asked again. That includes a forge that was unreachable
+before this read: it hasn't failed this one. A forge never read before shows no
+rows yet, and that isn't read as "nothing open": your saved auto-update choices
+are kept, queued actions wait, and its controls stay off until it answers. With
+no pull requests from anywhere else, the pages keep their loading placeholders
+instead of saying there are none. One still starting up after a restart stays
+"Starting up". None of this counts against the forge, however often you press
+Refresh.
 
 ## Troubleshooting a false unreachable banner
 
