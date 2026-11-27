@@ -1295,22 +1295,25 @@ ruleset requires hasn't finished. GitHub's combined status only counts checks
 that exist, and can read as passed for a moment after a push while the rest of
 the pipeline is still queued, so a pull request with one of five required
 checks reported would read as passed. A required check that is queued or
-running counts as not finished. The server looks the required checks up only
-when the combined status says success and GitHub still blocks the pull request.
+running counts as not finished. The same goes for the moment before GitHub has
+created any check at all, which is common on a pull request that was just opened
+or pushed: it reads pending and Merge says it waits for the checks. The server
+looks the required checks up only when GitHub blocks the pull request and its
+combined status says success or it has no check.
 
-Reading which checks are required needs admin on the repository for classic
-branch protection. Without it, the server can't tell a required check that
-hasn't started from one that passed, so it falls back to what GitHub reports on
-the pull request itself. A pull request whose combined status is success and
-whose merge state is `BLOCKED`, that isn't a draft and has no review
-outstanding (`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), reads pending: a
-required check is the only thing left that can block it. This needs no extra
-request. Where the required checks can be read, they decide and the fallback
-isn't used. The limit: GitHub also reports `BLOCKED` for a merge queue, code
-owners whose review shows no decision, and unresolved conversations. Such a
-pull request reads pending, not passed, until GitHub stops blocking it. The
-next refresh asks again, so the pill follows GitHub as soon as the merge state
-changes.
+For classic branch protection the server reads the protection settings, which
+needs admin on the repository. Without admin, it reads the branch instead, which
+names the same required checks to anyone who can read the repository. Only when
+neither can be read does the server fall back to what GitHub reports on the pull
+request itself. A pull request whose combined status is success and whose merge
+state is `BLOCKED`, that isn't a draft and has no review outstanding
+(`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), then reads pending: a required check
+is the only thing left that can block it. The limit: GitHub also reports
+`BLOCKED` for a merge queue, code owners whose review shows no decision, and
+unresolved conversations. Such a pull request reads pending, not passed, until
+GitHub stops blocking it. The next refresh asks again, so the pill follows
+GitHub as soon as the merge state changes. A pull request with no check at all
+is never guessed at, since a repository may have no CI.
 
 Just after a push, a response from GitHub can briefly show the new head beside
 the finished checks of the previous commit. The server reads the id of the

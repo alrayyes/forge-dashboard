@@ -4663,7 +4663,8 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 // Two places can require a check on GitHub, and a classic branch
 // protection rule isn't visible through the rules API (nor the reverse),
 // so both are read: required_status_checks under branch protection
-// (needs admin; 404 "Branch not protected" is a real "none") and the
+// (needs admin; 404 "Branch not protected" is a real "none"; refused, the
+// branch's own summary is read instead) and the
 // active rulesets' required_status_checks rule (readable with read
 // access). A listed check is required. An unlisted one is advisory only
 // when both lookups answered; otherwise it stays unknown (nil), because
@@ -4728,6 +4729,10 @@ func (c *Client) protectionContexts(ctx context.Context, owner, name, base strin
 	// insufficient token gets a plain 403/404 instead.
 	case errors.Is(err, ghsdk.ErrBranchNotProtected):
 		return true
+	// A credential without admin rights is refused here, but may read the
+	// branch, which names the same contexts (#5108).
+	case !throttled(err) && refused(err):
+		return c.branchSummaryContexts(ctx, owner, name, base, required)
 	default:
 		slog.Debug("github branch protection unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base, "error", err)
 

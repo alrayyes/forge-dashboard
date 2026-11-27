@@ -109,8 +109,8 @@ type requiredContexts struct {
 	fetched  time.Time
 }
 
-// missingRequiredCheck is one pull request whose rollup says SUCCESS while
-// GitHub still blocks it, so a required check may not have started.
+// missingRequiredCheck is one pull request GitHub blocks while its rollup says
+// SUCCESS, or it has no check at all, so a required check may not have started.
 type missingRequiredCheck struct {
 	prIndex int
 	owner   string
@@ -118,17 +118,20 @@ type missingRequiredCheck struct {
 	base    string
 	headOid string
 	// onlyChecksCanBlock is true when nothing GitHub reports on the pull request
-	// explains BLOCKED but a required check: not a draft, no review outstanding.
-	// It is the fallback for a repo whose required contexts can't be read.
+	// explains BLOCKED but a required check: it has passing checks, isn't a
+	// draft and no review is outstanding. It is the fallback for a repo whose
+	// required contexts can't be read. With no check at all it stays false,
+	// since a repo may have no CI, and would then read pending for good.
 	onlyChecksCanBlock bool
 }
 
 // requiredCheckCandidate reports whether a pull request needs the lookup:
 // GitHub's rollup counts only contexts that exist, so SUCCESS beside BLOCKED
-// can mean a required check that hasn't started (#1311). CLEAN means every
+// can mean a required check that hasn't started (#1311). Just after a push
+// there may be no check yet, and so no rollup (#5108). CLEAN means every
 // required check passed already.
 func requiredCheckCandidate(ci dashboard.CIStatus, mergeState string) bool {
-	return ci == dashboard.CISuccess && mergeState == "BLOCKED"
+	return (ci == dashboard.CISuccess || ci == dashboard.CINone) && mergeState == "BLOCKED"
 }
 
 // appendUnreported adds the last pull request in prs to candidates when it
@@ -146,7 +149,7 @@ func appendUnreported(candidates []missingRequiredCheck, prs []dashboard.PullReq
 		base:    p.BaseRefName,
 		headOid: p.HeadRefOid,
 
-		onlyChecksCanBlock: onlyChecksCanBlock(p),
+		onlyChecksCanBlock: prs[idx].CI == dashboard.CISuccess && onlyChecksCanBlock(p),
 	})
 }
 
@@ -269,6 +272,34 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 	}
 
 	return verdictUnreadable, nil
+}
+
+// branchSummaryContexts adds the classic protection's required contexts as the
+// branch itself lists them, which needs only read access to the repo, and
+// reports whether it answered. The protection endpoint needs admin.
+func (c *Client) branchSummaryContexts(ctx context.Context, owner, name, base string, required map[string]bool) bool {
+	path := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, base)
+	slog.Debug("github request", "method", http.MethodGet, "url", path)
+	branch, resp, err := c.restClient.Repositories.GetBranch(ctx, owner, name, base, 1)
+	if err != nil {
+		slog.Debug("github branch unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base,
+			"error", c.restError(ctx, http.MethodGet, path, err))
+
+		return false
+	}
+	c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
+	protection := branch.GetProtection()
+	if protection == nil {
+		return false
+	}
+	// With the rule off, GitHub lists no context here.
+	if checks := protection.RequiredStatusChecks; checks != nil && checks.Contexts != nil {
+		for _, contextName := range *checks.Contexts {
+			required[contextName] = true
+		}
+	}
+
+	return true
 }
 
 // reportedContexts is every context the head commit has reported a result for:
