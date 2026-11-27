@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { pushChecks, serveChecks } from './checks-feed-helper';
+import { closeStream } from './fake-stream-helper';
 import { forgeHealth } from './forge-health-helper';
 import { navCountsFor } from './nav-counts-helper';
 import { test } from './server-fixture';
@@ -52,7 +53,10 @@ function pr(number: number, over: Record<string, unknown> = {}) {
 
 // The snapshot never changes here, so anything that moves a number is the live
 // list.
-async function serve(page: Page, state: { pullRequests: unknown[] }) {
+async function serve(
+  page: Page,
+  state: { pullRequests: unknown[]; issues?: unknown[] },
+) {
   await page.route('**/api/v1/dashboard', (route: Route) =>
     route.fulfill({
       status: 200,
@@ -61,7 +65,7 @@ async function serve(page: Page, state: { pullRequests: unknown[] }) {
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
         pullRequests: state.pullRequests,
-        issues: [],
+        issues: state.issues ?? [],
         navCounts: navCountsFor(state.pullRequests, 0),
       }),
     }),
@@ -79,10 +83,13 @@ async function expectNoViolations(page: Page) {
 }
 
 test.describe('menu pills follow live CI (#5123)', () => {
-  test('a watched row moves the pill before any snapshot, and back', async ({
+  test('a watched row moves the pill until the row lets go of it', async ({
     page,
   }) => {
-    const feed = await serveChecks(page, () => PASSED);
+    let first = PASSED;
+    const feed = await serveChecks(page, (subject) =>
+      subject.number === 1 ? first : PASSED,
+    );
     await serve(page, { pullRequests: [pr(1), pr(2)] });
     await page.goto('/pull-requests.html');
     const pulls = link(page, '/pull-requests.html');
@@ -98,8 +105,64 @@ test.describe('menu pills follow live CI (#5123)', () => {
     await expect(pulls.locator('.nav-running')).toHaveText('1');
     await expectNoViolations(page);
 
-    await pushChecks(page, subjectOf(1), PASSED);
+    // A filtered-out row is no longer watched, so the snapshot counts again.
+    first = RUNNING;
+    await page.locator('#title-filter').fill('Change 2');
     await expect(pulls).toHaveAccessibleName('2, Pull requests, 2 passing');
+    await page.locator('#title-filter').fill('');
+    await expect(pulls.locator('.nav-running')).toHaveText('1');
+
+    // So it does while the stream can't vouch for the list.
+    await closeStream(page);
+    feed.forget();
+    await expect(pulls).toHaveAccessibleName('2, Pull requests, 2 passing');
+  });
+
+  // The Issues page watches the pull requests its rows link, and the number
+  // they are counted in is the Pull requests one.
+  test('a linked pill on Issues moves the Pull requests pill', async ({
+    page,
+  }) => {
+    const feed = await serveChecks(page, () => PASSED);
+    await serve(page, {
+      pullRequests: [pr(1)],
+      issues: [
+        {
+          forge: 'github',
+          repo: REPO,
+          number: 9,
+          title: 'Ticket',
+          url: 'https://example.com/issues/9',
+          author: 'claude',
+          labels: [],
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          linkedPullRequests: [
+            {
+              forge: 'github',
+              repo: REPO,
+              number: 1,
+              draft: false,
+              pageUrl: `/pull-requests.html?pr=github/${REPO}/1`,
+              ci: 'success',
+              checks: { passed: 1, running: 0, waiting: 0, failed: 0 },
+              awaitingWorkflowApproval: false,
+            },
+          ],
+        },
+      ],
+    });
+    await page.goto('/issues.html');
+    const pulls = link(page, '/pull-requests.html');
+    await expect(pulls).toHaveAccessibleName('1, Pull requests, 1 passing');
+    await feed.idle();
+
+    await pushChecks(page, subjectOf(1), RUNNING);
+
+    await expect(page.locator('#issue-rows .linked-pr')).toContainText(
+      'Running',
+    );
+    await expect(pulls).toHaveAccessibleName('1, Pull requests, 1 running');
   });
 
   // The releases and bots pages watch no rows: the dialog is their live list.

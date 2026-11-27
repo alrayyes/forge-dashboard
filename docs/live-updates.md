@@ -78,11 +78,13 @@ filters and the auto-merge status still read the refresh.
 The menu pills count a row's live reading too. A pull request whose live jobs,
 from a watched row or the open pipeline panel, say something else about CI than
 the last snapshot did moves from one number to the other at once, on the menu
-pill and in the link's name. The page works that out from the server's numbers
-each time, so a snapshot that catches up counts it once, and a row that is let
-go of, or a page you leave, goes back to the snapshot's numbers. A draft or a
-hidden pull request is in no number, so it moves none. The pills don't wait for
-a paused or held board to redraw its rows, as they don't for a snapshot.
+pill and in the link's name. A linked pull request pill that changes on the
+Issues page moves the Pull requests menu pill the same way. The page works that
+out from the server's numbers each time, so a snapshot that catches up counts
+it once, and a row that is let go of, or a page you leave, goes back to the
+snapshot's numbers. A draft or a hidden pull request is in no number, so it
+moves none. The pills don't wait for a paused or held board to redraw its rows,
+as they don't for a snapshot.
 
 The pipeline panel is one dialog on the pull request, bot, and Main branches
 pages, so what follows holds on all three. It follows its row. While it is open,
