@@ -466,6 +466,14 @@ type PendingCheckRefresher interface {
 	RefreshPending(ctx context.Context, refs []PullRequestRef) (PendingResult, error)
 }
 
+// SettledCheckProber is implemented by a Source (or the ForgeClient behind a
+// GenericSource) whose forge sends no webhook when a finished check is rerun.
+// It answers the highest id among a commit's statuses far more cheaply than a
+// refresh, so the CI poll can tell whether a failed pull request is worth one.
+type SettledCheckProber interface {
+	LatestStatusID(ctx context.Context, owner, name, sha string) (int64, error)
+}
+
 // WebhookEventsReporter is implemented by a Source that knows which events the
 // app's own hook on a repo subscribes to. confirmed is false when no check has
 // found such a hook.

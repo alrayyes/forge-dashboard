@@ -118,7 +118,9 @@ exception. It posts nothing until a job ends, so **Action Run Failure**
 and **Action Run Success** are what refresh a branch's pill when a run
 finishes. Forgejo sends them on the final state only, so the pill can
 show the old result until then. A Forgejo that drops these names falls
-back to the next poll.
+back to the next poll. A pull request has no such delivery until its
+rerun ends, so the CI poll looks for one itself (see
+[Rate limits](rate-limits.md#how-the-ci-poll-spends-the-budget)).
 
 Forgejo's **Push** doesn't feed anything the dashboard displays on its
 own — there's no commit feed here — but it's cheap to include: a push to

@@ -175,7 +175,7 @@ func newTestServerWithService(t *testing.T, source dashboard.Source, after dashb
 
 // newTestServerWithDrain is newTestServerWithService with the Drain under the
 // test's control, for a test that ends open streams the way shutdown does.
-func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboard.AfterFunc, drain *api.Drain) (srv string, sessionCookie *http.Cookie, service *dashboard.Service) {
+func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboard.AfterFunc, drain *api.Drain, configure ...func(*dashboard.Service)) (srv string, sessionCookie *http.Cookie, service *dashboard.Service) {
 	t.Helper()
 	buildSources := func(c settingspkg.Credentials) []dashboard.Source {
 		if c.GitHubToken == "" {
@@ -207,6 +207,9 @@ func newTestServerWithDrain(t *testing.T, source dashboard.Source, after dashboa
 
 	service = dashboard.NewService(time.Hour)
 	service.SetWebhookDebounceTimer(after)
+	for _, c := range configure {
+		c(service)
+	}
 	t.Cleanup(service.Stop)
 
 	appCtx, cancel := context.WithCancel(context.Background())

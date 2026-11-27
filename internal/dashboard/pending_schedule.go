@@ -18,6 +18,11 @@ const pendingPollCap = 15 * time.Minute
 // for another.
 const overdueMultiple = 3
 
+// settledProbeCap is pendingPollCap for a failed pull request's probe. It is
+// shorter because a probe is one request, and until it sees a rerun the row
+// says failed while the jobs are running.
+const settledProbeCap = 5 * time.Minute
+
 // pendingSchedule decides which pending pull requests a CI poll tick asks
 // about. A pull request that reads the same after a poll waits twice as long
 // before the next one, up to pendingPollCap; any change puts it back to the
@@ -76,6 +81,11 @@ func (s *pendingSchedule) due(key string, now time.Time, base time.Duration) boo
 // polled records a poll of key at now, and whether the pull request changed
 // since the poll before it.
 func (s *pendingSchedule) polled(key string, now time.Time, base time.Duration, changed bool) {
+	s.polledUpTo(key, now, base, pendingPollCap, changed)
+}
+
+// polledUpTo is polled with its own longest wait.
+func (s *pendingSchedule) polledUpTo(key string, now time.Time, base, longest time.Duration, changed bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -89,7 +99,7 @@ func (s *pendingSchedule) polled(key string, now time.Time, base time.Duration, 
 		s.entries[key] = e
 	}
 	e.next = now.Add(e.interval)
-	e.interval = min(e.interval*2, max(pendingPollCap, base))
+	e.interval = min(e.interval*2, max(longest, base))
 }
 
 // keepOnly drops every entry whose key is not in live, so a pull request that

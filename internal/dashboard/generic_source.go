@@ -458,6 +458,22 @@ func (s *GenericSource) ListChecks(ctx context.Context, owner, name string, numb
 	return checks, nil
 }
 
+// LatestStatusID implements SettledCheckProber by delegating to the
+// underlying client. A client that can't answer reports no status, which never
+// reads as a new one.
+func (s *GenericSource) LatestStatusID(ctx context.Context, owner, name, sha string) (int64, error) {
+	prober, ok := s.client.(SettledCheckProber)
+	if !ok {
+		return 0, nil
+	}
+	latest, err := prober.LatestStatusID(ctx, owner, name, sha)
+	if err != nil {
+		return 0, fmt.Errorf("dashboard: latest status: %w", err)
+	}
+
+	return latest, nil
+}
+
 // ListDefaultBranchChecks implements DefaultBranchChecker at the Source level by
 // delegating to the underlying client, for the same reason ListChecks does: the
 // Source BuildSources registers for Forgejo must expose what its client can do.

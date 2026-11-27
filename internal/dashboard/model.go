@@ -399,6 +399,10 @@ type PullRequest struct {
 	// request is still reported behind, or wasn't behind to begin with.
 	// Empty when the forge didn't say.
 	HeadSHA string `json:"headSha"`
+	// LatestStatusID is the highest id among the head commit's statuses when the
+	// row was read, so a newer one shows a finished check was rerun. Set by
+	// Forgejo only (SettledCheckProber), 0 elsewhere. Server-side only.
+	LatestStatusID int64 `json:"-"`
 	// RenovateRebaseRequested is true when Renovate's rebase checkbox in the
 	// description is ticked (#1349): a rebase is already waiting for Renovate.
 	// Read from the description the list carries, so it costs no call. Not

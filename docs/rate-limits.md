@@ -96,7 +96,7 @@ refresh tries again.
   - Webhook deliveries, which refresh the repository they name.
   - Refresh now.
   - The CI poll, for pull requests with checks still running or GitHub's
-    auto-merge armed.
+    auto-merge armed (the look for reruns of failed ones stops).
   - The scheduled refresh itself, while something is waiting on it: a pull
     request armed for auto-merge, or a behind pull request with auto-update on
     (for its repository or for that pull request), or a behind Dependabot or
@@ -242,6 +242,18 @@ ones with GitHub's auto-merge armed. It asks less than it used to in three ways.
   due and held, not at its last read, so the gap between two reads is the
   back-off gap plus the hold-off: about 30 minutes at the 15-minute cap. The
   cost is a check colour up to that much late, never a missed merge.
+
+The poll also watches failed and cancelled pull requests on Forgejo. Rerunning
+their jobs adds a pending status and sends no webhook until the run ends, so
+without this the row, and its open checks list, would say failed all the way
+through. The poll reads the combined status of the head commit, one request for
+each such pull request (one more for every further 50 statuses). If there is a
+newer status than the row was read with, that repository is refreshed. The
+probes go out at `CI_POLL_INTERVAL`, then double, up to 5 minutes (or
+`CI_POLL_INTERVAL` if that is longer), so about 12 an hour for each failed pull
+request at the defaults. None are sent while nobody is using the dashboard, for
+a pull request that passed, or to GitHub, whose webhook reports reruns.
+`CI_POLL_INTERVAL=0s` turns them off with the rest of the poll.
 
 For a rough sense of the saving, take 30 pull requests with a running check, on
 12 repos, polled every minute, where nothing changes for ten minutes and there is
@@ -417,7 +429,7 @@ The kind says why the request was made:
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `full`             | A refresh of the whole account.                                                                                                                                                                                                                              |
 | `scoped_webhook`   | A refresh of one repo after a webhook delivery.                                                                                                                                                                                                              |
-| `ci_poll`          | A poll of pull requests with a check still running.                                                                                                                                                                                                          |
+| `ci_poll`          | A poll of pull requests with a check still running, or a look for a rerun of a failed one.                                                                                                                                                                   |
 | `auto_merge_poll`  | A poll of pull requests with an armed auto-merge, none of them waiting on a check.                                                                                                                                                                           |
 | `details`          | A pull request, issue, or check list you opened.                                                                                                                                                                                                             |
 | `hook_maintenance` | Checking, adding, or upgrading webhooks.                                                                                                                                                                                                                     |
