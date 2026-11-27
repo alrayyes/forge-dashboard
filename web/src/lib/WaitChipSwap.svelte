@@ -8,8 +8,9 @@
   //
   // The swap shows on mouse hover, on keyboard focus and on a first touch tap.
   // Enter, Space and a screen reader's click run Update branch at once, since
-  // they have no hover to wait for (#4531). Cancel auto-merge is its own
-  // button beside the words, in every state, so it is one Tab or one tap away.
+  // they have no hover to wait for (#4531). Cancel is no part of the chip: it is
+  // the row's action, in a column of its own (#4971), drawn here beside the slot
+  // so the order of Tab shows.
   let {
     phase = "idle",
     lockReason = "Approve the waiting runs first, then it can run.",
@@ -184,8 +185,13 @@
     </span>
   </div>
 
-  <button type="button" class="cancel" onclick={() => oncancel?.()}>
-    Cancel auto-merge
+  <button
+    type="button"
+    class="cancel"
+    aria-label="Cancel auto-merge"
+    onclick={() => oncancel?.()}
+  >
+    Cancel
   </button>
 
   <span class="visually-hidden" role="status">{announcement}</span>
