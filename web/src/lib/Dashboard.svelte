@@ -146,7 +146,7 @@
     forgeHoldsArmed,
   } from "#lib/auto-merge-adapter.js";
   import { pipelineTarget } from "#lib/pipeline-target.js";
-  import { setNavCounts } from "#lib/nav-counts.svelte.js";
+  import { setLiveFolds, setNavCounts } from "#lib/nav-counts.svelte.js";
   import type { MainBranch } from "#lib/main-branches.js";
   import { type Check, rerunnableCounts } from "#lib/pipeline-checks.js";
   import { foldPullRequest, type PullRequestFold } from "#lib/pr-fold.js";
@@ -8317,22 +8317,32 @@
         } else {
           rowFolds.set(key, fold);
         }
+        countLiveFolds();
         redrawRowFolds();
       },
       onDrop(key) {
         // The board redraws on its own next render; a row let go of reads the
         // refresh again then.
-        rowFolds.delete(key);
+        if (rowFolds.delete(key)) countLiveFolds();
       },
       onError(key) {
         // The stream dropped, so the live fold is stale. The row stays watched
         // and reads the refresh until a list comes again, and the board is
         // redrawn for it since nothing else will.
         if (rowFolds.delete(key)) {
+          countLiveFolds();
           redrawRowFolds();
         }
       },
     });
+    // The menu pills count what the rows read, in ciModel's order of
+    // preference. They follow at once, also while a held board waits to redraw,
+    // as they follow a snapshot.
+    function countLiveFolds() {
+      const folds = new Map(rowFolds);
+      if (pipelineLive) folds.set(pipelineLive.key, pipelineLive.fold);
+      setLiveFolds(folds);
+    }
     function prItemFor(key: string): PullRequestItem | undefined {
       return prBoard.find(key) as PullRequestItem | undefined;
     }
@@ -8575,6 +8585,7 @@
       const next = fold ? { key: prKey(item), fold } : null;
       if (JSON.stringify(next) === JSON.stringify(pipelineLive)) return;
       pipelineLive = next;
+      countLiveFolds();
       renderPRBoard();
     }
 
@@ -8615,6 +8626,7 @@
           pipelineDialogRowKey = null;
           pipelineItem = null;
           pipelineLive = null;
+          countLiveFolds();
           pipelineRerunLock.reset();
           renderPRBoard();
           if (rowKey) {
@@ -11368,6 +11380,8 @@
         data.navCounts,
         data.firstRefreshDone,
         data.mainBranchPage?.branches,
+        false,
+        data.pullRequests ?? [],
       );
       // The snapshot carries the viewer's two flags (#1630), so no second
       // request decides which fields to draw.
@@ -11686,6 +11700,8 @@
       eventSource?.close();
       rowObserver?.disconnect();
       rowWatcher.stop();
+      // The next page reads none of these jobs.
+      setLiveFolds(new Map());
     };
   }
 </script>
