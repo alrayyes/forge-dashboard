@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.0](https://github.com/alrayyes/forge-dashboard/compare/v9.138.0...v9.139.0) (2026-11-27)
+
+
+### Features
+
+* count line comments in the pull request dialog ([#5061](https://github.com/alrayyes/forge-dashboard/issues/5061)) ([4e2c411](https://github.com/alrayyes/forge-dashboard/commit/4e2c4111a132a0e3efff1f6e7284f6f784c47736))
+
 ## [9.138.0](https://github.com/alrayyes/forge-dashboard/compare/v9.137.0...v9.138.0) (2026-11-26)
 
 

@@ -80,7 +80,13 @@ type PullRequestDetails struct {
 	Comments          []DetailsComment `json:"comments"`
 	CommentCount      int              `json:"commentCount"`
 	CommentsTruncated bool             `json:"commentsTruncated"`
-	ReleaseNotes      *DetailsBody     `json:"releaseNotes"`
+	// ReviewCommentCount counts the review comments on lines of code, which
+	// Comments doesn't list.
+	ReviewCommentCount int `json:"reviewCommentCount"`
+	// ReviewCommentsTruncated says the forge has more review threads than were
+	// counted, so ReviewCommentCount is a lower bound.
+	ReviewCommentsTruncated bool         `json:"reviewCommentsTruncated"`
+	ReleaseNotes            *DetailsBody `json:"releaseNotes"`
 }
 
 // PullRequestDetailer is implemented by a Source that can read one of its own
