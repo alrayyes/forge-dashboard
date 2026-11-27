@@ -566,6 +566,23 @@ func TestQueuedActions_ForgeUnreachableAtTheReset(t *testing.T) {
 		assert.Equal(t, dashboard.QueuedFailed, rig.only(t).Status)
 	})
 
+	t.Run("a later reset does not start the hour again", func(t *testing.T) {
+		t.Parallel()
+		rig := newQueueRig(t, behindPR(5, "alice"))
+		rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
+		rig.clock.advance(33 * time.Minute)
+		rig.src.setHealth(spentHealth(rig.clock.now().Add(50 * time.Minute)))
+		rig.agg.ProcessQueuedActions(t.Context())
+
+		rig.clock.advance(50 * time.Minute)
+		rig.src.setHealth(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false})
+		rig.retryFor(t, 10*time.Minute)
+		require.Equal(t, dashboard.QueuedWaiting, rig.only(t).Status, "given up too soon")
+		rig.retryFor(t, 5*time.Minute)
+
+		assert.Equal(t, dashboard.QueuedFailed, rig.only(t).Status)
+	})
+
 	t.Run("still runs when the forge answers within the hour", func(t *testing.T) {
 		t.Parallel()
 		rig := newUnreachableQueueRig(t)
