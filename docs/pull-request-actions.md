@@ -438,13 +438,16 @@ the aggregator asks) are not row claims and read the health directly.
 A pull request row whose status the server sends as `forge_unreachable` (on
 Pull requests, Releases and Bots) doesn't print that sentence. It carries the
 marker **Earlier data** beside its other chips, and the page says the sentence
-once above the list, naming the forges of the marked rows and the age of the
-oldest data when known. Where the unreachable banner already covers them, it
-takes the line instead of a second notice. The marker keeps the server's
-sentence for a screen reader and as a tooltip, and it describes the row's title
-button and any locked Merge or Dependabot button. The notice and the markers go
-when the forge answers, without moving focus. The pull request's dialog still
-prints the sentence, and a row waiting on something of its own keeps its words.
+once above the list, naming the forges and the age of the oldest data when
+known. It counts every loaded pull request, so filtering or paging doesn't change
+it. Where the unreachable banner already names a forge, the banner takes the line
+instead, and any other forge gets a short notice of its own after it. The marker
+keeps the server's sentence for a screen reader and as a tooltip, and it
+describes the row's title button and any locked Merge or Dependabot button. The
+page stops naming a forge as soon as it answers, without moving focus, even while
+the list is held (updates paused, an action running, a dialog open); held rows
+keep their markers until they're redrawn. The pull request's dialog still prints
+the sentence, and a row waiting on something of its own keeps its words.
 
 Four limits to know:
 

@@ -59,7 +59,12 @@ const elsewhere = pr(3, { forge: 'forgejo', mergeStatus: 'mergeable' });
 
 type State = { forges: unknown[]; prs: unknown[] };
 
-async function open(page: Page, state: State, path = '/pull-requests.html') {
+async function open(
+  page: Page,
+  state: State,
+  path = '/pull-requests.html',
+  drawn = state.prs.length,
+) {
   await page.route(
     /\/api\/v1\/dashboard(\/refresh|\/stream)?(\?.*)?$/,
     (route: Route) => {
@@ -79,7 +84,7 @@ async function open(page: Page, state: State, path = '/pull-requests.html') {
     },
   );
   await page.goto(path);
-  await expect(page.locator('#pr-rows .row')).toHaveCount(state.prs.length);
+  await expect(page.locator('#pr-rows .row')).toHaveCount(drawn);
 }
 
 const row = (page: Page, n: number) =>
@@ -173,10 +178,140 @@ for (const width of [390, 1280]) {
     await expect(
       row(page, 1).getByRole('button', { name: /Dependabot: Rebase/ }),
     ).toHaveAccessibleDescription(WHY);
-    await expect(page.locator('#earlier-data-notice')).toHaveCount(1);
+    // Current health says GitHub answers, so nothing above the list says
+    // otherwise.
+    await expect(page.locator('#earlier-data-notice')).toHaveCount(0);
     await expectAxeClean(page);
   });
 }
+
+// Opens the page with a stream the test pushes snapshots into, so one can
+// arrive that nobody asked for, which is what a paused board holds.
+async function openStreamed(page: Page, state: State) {
+  await page.addInitScript(() => {
+    const stub = window as unknown as {
+      EventSource: unknown;
+      __es?: unknown;
+    };
+    stub.EventSource = class {
+      onmessage: ((e: { data: string }) => void) | null = null;
+      constructor() {
+        stub.__es = this;
+      }
+      close() {}
+      addEventListener() {}
+    };
+  });
+  await open(page, state);
+  await page.waitForFunction(
+    () =>
+      (window as unknown as { __es?: { onmessage: unknown } }).__es
+        ?.onmessage != null,
+  );
+}
+
+const push = (page: Page, state: State) =>
+  page.evaluate(
+    (data) => {
+      (
+        window as unknown as {
+          __es: { onmessage: (e: { data: string }) => void };
+        }
+      ).__es.onmessage({ data });
+    },
+    JSON.stringify({
+      generatedAt: new Date().toISOString(),
+      forges: state.forges,
+      pullRequests: state.prs,
+      issues: [],
+    }),
+  );
+
+for (const [name, down] of [
+  ['starting', starting],
+  ['unreachable', outage],
+] as const) {
+  test(`a ${name} forge that recovers while updates are paused is not said to be down`, async ({
+    page,
+  }) => {
+    await openStreamed(page, { forges: [down()], prs: [stale(1), stale(2)] });
+    await page.getByRole('button', { name: 'Pause live updates' }).click();
+
+    await push(page, { forges: [up()], prs: [pr(1), pr(2)] });
+
+    await expect(page.locator('#unreachable-banner')).toHaveCount(0);
+    await expect(page.locator('#earlier-data-notice')).toHaveCount(0);
+    // The rows themselves are held, as paused rows are.
+    await expect(page.locator('#pr-rows .earlier-data')).toHaveCount(2);
+  });
+}
+
+const markedThenNot = [
+  ...Array.from({ length: 25 }, (_, i) => stale(i + 1)),
+  pr(26),
+];
+
+for (const [name, down, said] of [
+  ['starting', starting, '#earlier-data-notice'],
+  ['unreachable', outage, '.unreachable-banner-earlier'],
+] as const) {
+  test(`filtering and paging leave the sentence of a ${name} forge where it is`, async ({
+    page,
+  }) => {
+    await open(
+      page,
+      { forges: [down()], prs: markedThenNot },
+      '/pull-requests.html',
+      25,
+    );
+    const sentence = page.locator(said);
+    await sentence.evaluate((el) => {
+      el.dataset.seen = 'yes';
+    });
+    const filter = page.locator('#title-filter');
+    const top = (await filter.boundingBox())?.y;
+    const unmoved = async () => {
+      await expect(sentence).toHaveAttribute('data-seen', 'yes');
+      // The filter box itself settles by half a pixel once typed into.
+      const now = (await filter.boundingBox())?.y ?? 0;
+      expect(Math.abs(now - (top ?? 0))).toBeLessThan(2);
+    };
+
+    await filter.fill('Pull request 26');
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(page.locator('#pr-rows .earlier-data')).toHaveCount(0);
+    await unmoved();
+
+    await filter.fill('');
+    await expect(page.locator('#pr-rows .row')).toHaveCount(25);
+    await unmoved();
+
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await expect(page.locator('#pr-rows .row')).toHaveCount(1);
+    await expect(sentence).toHaveAttribute('data-seen', 'yes');
+  });
+}
+
+test('a starting forge beside an unreachable one names each once', async ({
+  page,
+}) => {
+  await open(page, {
+    forges: [
+      outage(),
+      forgeHealth('forgejo', {
+        reachable: false,
+        starting: true,
+        staleSince: ago(),
+      }),
+    ],
+    prs: [stale(1), stale(3, { forge: 'forgejo' })],
+  });
+
+  await expect(page.locator('.unreachable-banner-earlier')).toHaveCount(1);
+  await expect(page.locator('#earlier-data-notice')).toHaveText(
+    "Forgejo isn't answering yet either, and its rows are from 10m ago.",
+  );
+});
 
 test('a row-specific status stays on its row, unmarked', async ({ page }) => {
   await open(page, {

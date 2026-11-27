@@ -290,6 +290,7 @@
     EARLIER_DATA_BANNER_LINE,
     EARLIER_DATA_LABEL,
     earlierDataNotice,
+    earlierForges,
     isEarlierData,
   } from "#lib/earlier-data.js";
   import { chromeIsCurrent } from "#lib/dialog-chrome.js";
@@ -10582,21 +10583,17 @@
     // Says once, above the list, what the marked rows are (#5127). The
     // unreachable banner already names a forge that is down, so it takes one
     // line more; a forge it doesn't cover, such as one still starting up, gets
-    // a notice of its own. Both follow the rows on screen, and neither holds
-    // anything focusable, so removing them moves no focus.
+    // a notice of its own. Both follow the loaded pull requests and the
+    // current health, not the rows drawn, and neither holds anything
+    // focusable, so removing them moves no focus.
     function renderEarlierData() {
-      const kinds = [
-        ...new Set(
-          Array.from(
-            document.querySelectorAll<HTMLElement>("#pr-rows .earlier-data"),
-            (chip) => chip.dataset.forge ?? "",
-          ),
-        ),
-      ].sort();
+      // The issues page loads pull requests too, and lists none of them.
+      if (!document.getElementById("pr-rows")) return;
+      const kinds = earlierForges(prShown.items, lastForges);
       const banner = document.getElementById("unreachable-banner");
       const inBanner = banner?.dataset.forges?.split(" ") ?? [];
-      const covered =
-        kinds.length > 0 && kinds.every((kind) => inBanner.includes(kind));
+      const covered = kinds.some((kind) => inBanner.includes(kind));
+      const others = kinds.filter((kind) => !inBanner.includes(kind));
 
       const line = banner?.querySelector(".unreachable-banner-earlier");
       if (!covered) line?.remove();
@@ -10609,11 +10606,11 @@
           );
 
       const existing = document.getElementById("earlier-data-notice");
-      if (kinds.length === 0 || covered) {
+      if (others.length === 0) {
         existing?.remove();
         return;
       }
-      const forges = kinds.map((kind) => ({
+      const forges = others.map((kind) => ({
         label: forgeLabelOf(kind),
         staleSince: lastForges
           .filter((f) => f.forge === kind)
@@ -10622,13 +10619,13 @@
       }));
       // Redrawn only when it would say something else, so a screen reader
       // hears it once.
-      const signature = JSON.stringify(forges);
+      const signature = JSON.stringify([forges, covered]);
       if (existing?.dataset.signature === signature) return;
       const notice = el("div", "earlier-data-notice");
       notice.id = "earlier-data-notice";
       notice.dataset.signature = signature;
       notice.setAttribute("role", "status");
-      const copy = earlierDataNotice(forges, relativeTime);
+      const copy = earlierDataNotice(forges, relativeTime, covered);
       notice.append(copy.before);
       if (copy.age) {
         const age = el("span", "unreachable-banner-age", copy.age.text);
@@ -10653,8 +10650,6 @@
       );
       if (down.length === 0) {
         existing?.remove();
-        // The marked rows may now need the notice of their own.
-        if (existing) renderEarlierData();
         return;
       }
       // The zone is part of it: a changed zone redraws the times.
@@ -10737,13 +10732,11 @@
       banner.appendChild(row);
       // Above the filter bar, the first thing on the page after the
       // connection line (#1325: the stat tiles used to be the anchor).
-      document
-        .querySelector(".filter-bar")
-        ?.parentElement?.insertBefore(
-          banner,
-          document.querySelector(".filter-bar"),
-        );
-      renderEarlierData();
+      // A notice for another forge reads after the banner.
+      (
+        document.getElementById("earlier-data-notice") ??
+        document.querySelector(".filter-bar")
+      )?.before(banner);
     }
 
     // Same rounding/format as Insights' own countdown (#361) — kept as a
@@ -10768,6 +10761,9 @@
     // static, spoken version of the same fact (#732).
     function renderRateLimitBanner() {
       renderUnreachableBanner();
+      // After it, whatever it did: a held board draws no rows, and a forge
+      // that answers again must stop being named all the same.
+      renderEarlierData();
       const existing = document.getElementById("rate-limit-banner");
       if (rateLimitAlerts.length === 0) {
         existing?.remove();
