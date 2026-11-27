@@ -233,12 +233,13 @@ export function runPageUrl(checks: Check[]): RunLink | undefined {
   return { url: newestFirst[0].url, kind: 'latest-run' };
 }
 
+const failedOf = (checks: Check[]) =>
+  checks.filter((c) => ['failure', 'timed_out'].includes(checkState(c)));
+
 // The page of a failed check that names no run, when no run has a failed check:
 // a commit status or another service's check, which no run page shows (#5101).
 function failedCheckWithoutRun(checks: Check[]): RunLink | undefined {
-  const failed = checks.filter((c) =>
-    ['failure', 'timed_out'].includes(checkState(c)),
-  );
+  const failed = failedOf(checks);
   if (failed.some((c) => RUN_PAGE.test(c.url))) return undefined;
   const check = failed.find((c) => c.url);
 
@@ -259,7 +260,11 @@ export function footerRunLink(
 ): RunLink | undefined {
   const named = runPageUrl(checks);
   if (failureUrl && named?.kind !== 'failed-run') {
-    return { url: failureUrl, kind: 'run' };
+    // The address may be a listed status's own page, which is no run (#5101).
+    const checkPage =
+      !RUN_PAGE.test(failureUrl) &&
+      failedOf(checks).some((c) => c.url === failureUrl);
+    return { url: failureUrl, kind: checkPage ? 'failed-check' : 'run' };
   }
   if (named?.kind !== 'failed-run') {
     const failed = failedCheckWithoutRun(checks);

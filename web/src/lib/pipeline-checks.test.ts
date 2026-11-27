@@ -444,6 +444,21 @@ describe('footerRunLink', () => {
     });
   });
 
+  test('a failed branch address that is a listed status is not a run', () => {
+    expect(footerRunLink(status.url, [job(5), status], status.url)).toEqual({
+      url: status.url,
+      kind: 'failed-check',
+    });
+  });
+
+  test('a failed branch address that is a run page stays a run', () => {
+    const run = job(5, { conclusion: 'failure' });
+    expect(footerRunLink(run.url, [run], run.url)).toEqual({
+      url: run.url,
+      kind: 'run',
+    });
+  });
+
   test('a failed run a failed branch lists still wins', () => {
     const checks = [job(5, { conclusion: 'failure' }), job(9)];
     expect(footerRunLink(board, checks, failure)).toEqual({

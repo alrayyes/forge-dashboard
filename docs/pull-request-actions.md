@@ -269,8 +269,9 @@ the address the server gives the branch. A failed branch also keeps that button
 and address while its checks show nothing failed in any run, because the panel
 may not list the failure. Otherwise, when a listed check failed that belongs to
 no run (a commit status, another service's check) and no run has a failed
-check, the button is "Open failed check page" and opens that check's page. A
-held workflow reads "Approve on" followed by the forge's name.
+check, the button is "Open failed check page" and opens that check's page. It
+reads the same where a failed branch's address is a listed failed status's own
+page. A held workflow reads "Approve on" followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
