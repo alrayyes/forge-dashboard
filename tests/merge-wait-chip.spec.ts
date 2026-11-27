@@ -642,6 +642,59 @@ test.describe('a status that stays unknown', () => {
     await expect(label).toHaveText('Still waiting');
   });
 
+  test('redraws the list once when two waits run long together', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [
+      unknownStatus(1, 'First wait'),
+      unknownStatus(2, 'Second wait'),
+    ]);
+    await page.locator('#pr-rows').evaluate((list) => {
+      const w = window as unknown as { __redraws: number };
+      w.__redraws = 0;
+      new MutationObserver((records) => {
+        for (const node of records.flatMap((r) => [...r.addedNodes]))
+          if (
+            node instanceof Element &&
+            node.matches('.row') &&
+            node.textContent?.includes('First wait')
+          )
+            w.__redraws++;
+      }).observe(list, { childList: true, subtree: true });
+    });
+
+    await page.clock.fastForward(130_000);
+
+    await expect(
+      row(page, 'Second wait').locator('.wait-chip-label'),
+    ).toHaveText('Still waiting');
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __redraws: number }).__redraws,
+      ),
+    ).toBe(1);
+  });
+
+  test('a wait that starts later turns to Still waiting in its own time', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Early'), ready(2, 'Late')]);
+    const early = row(page, 'Early').locator('.wait-chip-label');
+    const late = row(page, 'Late').locator('.wait-chip-label');
+    await page.clock.fastForward(60_000);
+    await push(page, [unknownStatus(1, 'Early'), unknownStatus(2, 'Late')]);
+    await expect(late).toHaveText('Status unknown');
+
+    await page.clock.fastForward(70_000);
+    await expect(early).toHaveText('Still waiting');
+    await expect(late).toHaveText('Status unknown');
+
+    await page.clock.fastForward(60_000);
+    await expect(late).toHaveText('Still waiting');
+  });
+
   test('a pull request that leaves the snapshot and comes back starts the clock again', async ({
     page,
   }) => {

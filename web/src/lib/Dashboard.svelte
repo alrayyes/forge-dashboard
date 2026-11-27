@@ -4291,16 +4291,36 @@
     // forge that keeps saying so changes the chip after STILL_WAITING_MS.
     const statusUnknownSince = new Map<string, number>();
 
-    // A row nothing has changed on isn't redrawn by a snapshot, so the wait
-    // redraws it itself when it runs long (#5062).
-    function redrawWhenLate(key: string, since: number) {
-      setTimeout(
+    // A row nothing has changed on isn't redrawn by a snapshot, so a wait
+    // redraws the list itself when it runs long (#5062). One timer serves
+    // every wait: it is set for the earliest one still to run long, and a
+    // wait that starts later can only run long after that.
+    let lateTimer: number | undefined;
+    function scheduleLateRedraw(after = Date.now()) {
+      if (lateTimer !== undefined) return;
+      const next = Math.min(
+        ...[...statusUnknownSince.values()]
+          .map((since) => since + STILL_WAITING_MS)
+          .filter((late) => late > after),
+      );
+      if (next === Infinity) return;
+      lateTimer = window.setTimeout(
         () => {
-          if (destroyed || statusUnknownSince.get(key) !== since) return;
-          keepFocusAcross(renderPRBoard);
-          refreshDialogChrome();
+          lateTimer = undefined;
+          if (destroyed) return;
+          const now = Date.now();
+          // The wait this timer was set for may have ended since.
+          const ranLong = [...statusUnknownSince.values()].some((since) => {
+            const late = since + STILL_WAITING_MS;
+            return late >= next && late <= now;
+          });
+          if (ranLong) {
+            keepFocusAcross(renderPRBoard);
+            refreshDialogChrome();
+          }
+          scheduleLateRedraw(now);
         },
-        since + STILL_WAITING_MS - Date.now() + 100,
+        next - Date.now() + 100,
       );
     }
 
@@ -4310,7 +4330,7 @@
       if (since === undefined) {
         since = Date.now();
         statusUnknownSince.set(key, since);
-        redrawWhenLate(key, since);
+        scheduleLateRedraw();
       }
       return Date.now() - since >= STILL_WAITING_MS
         ? "status-unknown-late"
@@ -11626,6 +11646,7 @@
       clearTimeout(touchTimer);
       clearTimeout(pollTimer);
       clearTimeout(streamTimer);
+      window.clearTimeout(lateTimer);
       clearInterval(tickTimer);
       window.clearTimeout(rateLimitResetTimer);
       eventSource?.close();
