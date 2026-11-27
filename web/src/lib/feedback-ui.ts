@@ -534,6 +534,12 @@ export function mountFeedbackUI(
     const held =
       document.activeElement instanceof HTMLElement &&
       slot.contains(document.activeElement);
+    // A chip standing in for the row's Cancel auto-merge hands that on, so a
+    // refused cancel can give the button its focus back (#4971).
+    const cancelling =
+      held &&
+      (document.activeElement as HTMLElement).dataset.focusSlot ===
+        'cancel-auto-merge';
     slot
       .querySelectorAll(':scope > .wait-chip[data-source="feedback"]')
       .forEach((chip) => {
@@ -572,11 +578,14 @@ export function mountFeedbackUI(
         return;
       }
     }
-    if (held && !slot.contains(document.activeElement))
-      (
-        slot.querySelector<HTMLElement>('.wait-chip button') ??
-        slot.querySelector<HTMLElement>('.wait-chip')
-      )?.focus({ preventScroll: true });
+    if (!held || slot.contains(document.activeElement)) return;
+    const next =
+      (cancelling
+        ? null
+        : slot.querySelector<HTMLElement>('.wait-chip button')) ??
+      slot.querySelector<HTMLElement>('.wait-chip');
+    if (cancelling && next) next.dataset.focusSlot = 'cancel-auto-merge';
+    next?.focus({ preventScroll: true });
   }
 
   function syncRows() {

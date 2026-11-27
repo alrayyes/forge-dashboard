@@ -6,7 +6,7 @@ import { test } from './server-fixture';
 // #4601: a stopped auto-merge reads in the waiting chip's design language, an
 // icon and a bordered shape, as wide as its words and on the status pill's
 // line, instead of a plain text line that took the cell's full width. The
-// words stay ("Auto-merge stopped"), and the server's whole sentence is the
+// chip reads "Stopped" (#4971), and the server's whole sentence is the
 // chip's tooltip, open on hover and on keyboard focus, and its accessible
 // description. The phone card keeps its text line.
 
@@ -112,9 +112,7 @@ for (const width of WIDTHS) {
       await open(page, width, stopped());
       const chip = row(page).locator('.wait-chip');
       await expect(chip).toBeVisible();
-      await expect(chip.locator('.wait-chip-label')).toHaveText(
-        'Auto-merge stopped',
-      );
+      await expect(chip.locator('.wait-chip-label')).toHaveText('Stopped');
       await expect(chip.locator('svg').first()).toBeVisible();
       await expect(row(page).locator('.auto-merge-status')).toBeHidden();
       const cell = await box(row(page).locator('.status-cell'));
@@ -208,10 +206,11 @@ const queuedItem = () => ({
   createdAt: new Date().toISOString(),
 });
 
-// The chip must not shadow another chip with a control: a queued Update
-// branch keeps its Cancel, and the stopped sentence stays on the row as text.
+// The chip must not shadow another chip: a queued Update branch keeps its
+// own, and the stopped sentence stays on the row as text. The row is armed, so
+// it has one Cancel, for auto-merge; the queued one is in the pop-up (#4971).
 for (const width of [390, 1280]) {
-  test(`a stopped row with a queued action keeps the queued chip and its Cancel at ${width}px`, async ({
+  test(`a stopped row with a queued action keeps the queued chip, its Cancel in the pop-up, at ${width}px`, async ({
     page,
   }) => {
     await open(
@@ -223,8 +222,14 @@ for (const width of [390, 1280]) {
     const chip = row(page).locator('.wait-chip');
     await expect(chip).toHaveCount(1);
     await expect(chip).toContainText('Queued');
-    await expect(chip.getByRole('button', { name: /Cancel/ })).toBeVisible();
+    await expect(chip.getByRole('button')).toHaveCount(0);
     await expect(row(page).locator('.auto-merge-status')).toBeVisible();
+    await row(page).locator("button[id^='details-trigger-']").click();
+    await expect(
+      page
+        .getByRole('dialog')
+        .getByRole('button', { name: /^Cancel queued update for/ }),
+    ).toBeVisible();
   });
 }
 

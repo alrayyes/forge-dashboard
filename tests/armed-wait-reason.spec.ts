@@ -48,8 +48,14 @@ async function open(page: Page, pr: MockPR) {
 const chipOf = (page: Page) =>
   page.locator('#pr-rows > .row').first().locator('.wait-chip');
 
+const cancelOf = (page: Page) =>
+  page
+    .locator('#pr-rows > .row')
+    .first()
+    .getByRole('button', { name: 'Cancel auto-merge' });
+
 test.describe('an armed green pull request says what it waits for (#4434)', () => {
-  test('a required review is named, and Disarm stays', async ({ page }) => {
+  test('a required review is named, and Cancel stays', async ({ page }) => {
     await open(
       page,
       armedGreen({
@@ -61,34 +67,30 @@ test.describe('an armed green pull request says what it waits for (#4434)', () =
       }),
     );
     const chip = chipOf(page);
-    await expect(chip.locator('.wait-chip-label')).toHaveText(
-      'Waiting for review',
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip.locator('.wait-chip-tip')).toContainText(
+      'Waiting for review: A review is required.',
     );
-    await expect(chip.locator('.wait-chip-detail')).toHaveText(
-      'A review is required',
-    );
-    await expect(chip.getByRole('button')).toBeVisible();
+    await expect(cancelOf(page)).toBeVisible();
   });
 
   test('a check nothing has reported is named', async ({ page }) => {
     await open(page, armedGreen({ pendingChecks: ['lint'] }));
     const chip = chipOf(page);
-    await expect(chip.locator('.wait-chip-label')).toHaveText(
-      'Waiting for check',
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip.locator('.wait-chip-tip')).toContainText(
+      'Waiting for check: lint.',
     );
-    await expect(chip.locator('.wait-chip-detail')).toHaveText('lint');
   });
 
-  test('no reason is said plainly and Disarm is offered', async ({ page }) => {
+  test('no reason is said plainly and Cancel is offered', async ({ page }) => {
     await open(page, armedGreen());
     const chip = chipOf(page);
-    await expect(chip.locator('.wait-chip-label')).toHaveText(
-      'Waiting for forge',
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip.locator('.wait-chip-tip')).toContainText(
+      'Waiting for forge: The forge gave no reason.',
     );
-    await expect(chip.locator('.wait-chip-detail')).toHaveText(
-      'The forge gave no reason',
-    );
-    await expect(chip.getByRole('button')).toBeVisible();
+    await expect(cancelOf(page)).toBeVisible();
   });
 
   test('the hint opens from the keyboard, and the chip has no axe violations in light and dark on a phone and a desktop', async ({

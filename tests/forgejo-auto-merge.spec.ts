@@ -133,14 +133,16 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     // The wait chip is the one place the row says it is armed (#4686).
     await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
     // The waiting chip says it in a word, the server's sentence is its hint,
-    // and Cancel auto-merge is inside it (#1229).
+    // and Cancel auto-merge is the row's action beside it (#4971).
     const chip = row.locator('.wait-chip');
-    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
-      'Waiting for checks to finish.',
+      'Waiting for CI. Waiting for checks to finish.',
     );
     await expect(
-      chip.getByRole('button', { name: 'Cancel auto-merge' }),
+      row
+        .locator('.row-action-bar')
+        .getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
   });
 
@@ -162,11 +164,9 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     const row = page.locator('#pr-rows .row').first();
     // On a desktop the words are a chip, its sentence the tooltip (#4601).
     const chip = row.locator('.wait-chip');
-    await expect(chip.locator('.wait-chip-label')).toHaveText(
-      'Auto-merge stopped',
-    );
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Stopped');
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
-      'A check failed. Fix it and auto-merge carries on.',
+      'Auto-merge stopped. A check failed. Fix it and auto-merge carries on.',
     );
     await expect(row.locator('.auto-merge-status')).toContainText('Stopped');
   });
@@ -263,16 +263,14 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
       );
       await page.goto('/pull-requests.html');
       const row = page.locator('#pr-rows .row').first();
-      // The holder is told by the wait chip's detail below, not by an
+      // The holder is told by the wait chip's tooltip below, not by an
       // attribute chip that would make the row taller (#4686).
       await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
-      await expect(row.locator('.wait-chip-label')).toHaveText(
-        holder === 'forge' ? 'Merging' : 'Merging next',
-      );
-      await expect(row.locator('.wait-chip-detail')).toHaveText(
+      await expect(row.locator('.wait-chip-label')).toHaveText('Merging');
+      await expect(row.locator('.wait-chip-tip')).toContainText(
         holder === 'forge'
-          ? 'Forgejo merges it when checks pass'
-          : 'On the next refresh',
+          ? 'Merging: Forgejo merges it when checks pass.'
+          : 'Merging next: On the next refresh.',
       );
     });
   }
@@ -287,7 +285,8 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
     await expect(row.locator('.attr-chip.auto-merge')).toHaveCount(0);
-    await expect(row.locator('.wait-chip-label')).toHaveText('Merging next');
+    await expect(row.locator('.wait-chip-label')).toHaveText('Merging');
+    await expect(row.locator('.wait-chip-tip')).toContainText('Merging next');
   });
 
   test('Cancel on a forge-held auto-merge says it cancels the scheduled merge', async ({
@@ -312,13 +311,14 @@ test.describe('Forgejo auto-merge on a pull request row', () => {
     );
     await page.goto('/pull-requests.html');
     const row = page.locator('#pr-rows .row').first();
-    // The visible word is the same everywhere; the name adds where the merge
-    // is scheduled, and the hover text says what cancelling does.
+    // The visible word is short, since the chip beside it says what is on. The
+    // accessible name adds where the merge is scheduled, and the hover text
+    // says what cancelling does.
     const cancel = row.getByRole('button', {
       name: 'Cancel auto-merge scheduled on Forgejo',
       exact: true,
     });
-    await expect(cancel).toHaveText('Cancel auto-merge');
+    await expect(cancel).toHaveText('Cancel');
     await expect(cancel).toHaveAttribute(
       'title',
       'Cancels the merge scheduled on Forgejo.',

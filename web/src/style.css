@@ -1149,7 +1149,11 @@ section.board {
     }
     .row:not(.issue-row):has(.status-cell > .wait-slot:not(:empty)):not(
         :has(.status-cell > .wait-slot .wait-chip-detail:not(:empty))
-      ):has(.status-cell > .row-action-bar) {
+      ):has(.status-cell > .row-action-bar):not(
+        :has(.status-cell > .row-action-bar > .row-action-secondary)
+      ) {
+      /* An armed row's Cancel takes the line under the chip instead, so its
+         title is as wide as a Merge row's (#4971). */
       grid-template-columns: 240px minmax(0, 1fr) var(--wide-status) 22px;
     }
     /* #4601: a stopped auto-merge chip (162px) shares the line with the CI
@@ -1353,6 +1357,44 @@ section.board {
       > .wait-slot
       > .wait-chip[data-state="waiting"]:has(.wait-chip-detail:not(:empty)) {
       width: fit-content;
+    }
+
+    /* #4971: an armed row's one action is Cancel. Beside a short CI pill
+       and no flags pill its chip stays on the pill's line, as it did with
+       Cancel inside it: it spans the CI and flags tracks and ends against
+       Cancel. A flags pill, or a CI pill too wide to share those tracks (two
+       counts or more, workflow approval, counting), sends the chip to the second line
+       like any chip beside a button (#5006). Cancel joins it there, so the eye
+       and Tab meet them in the same order. */
+    .row:not(.issue-row) .status-cell-armed:has(> .wait-slot:not(:empty)) {
+      > .wait-slot {
+        grid-column: 1 / 3;
+        grid-row: 1;
+        justify-content: flex-end;
+        /* The slot lies over the CI pill's track: only what it holds takes
+           the pointer, so the pill still opens the pipeline. */
+        pointer-events: none;
+
+        > * {
+          pointer-events: auto;
+        }
+      }
+    }
+    .row:not(.issue-row)
+      .status-cell-armed:has(
+        > .status-flags,
+        .ci-seg ~ .ci-seg ~ .ci-seg,
+        .ci-pill.awaiting,
+        .ci-pill.counting
+      ):has(> .wait-slot:not(:empty)) {
+      > .wait-slot,
+      > .row-action-bar {
+        grid-row: 2;
+      }
+    }
+    /* Cancel's 44px target takes the 30px of a Merge button (#4945). */
+    .row:not(.issue-row) .row-action-bar > .row-action.row-action-secondary {
+      margin-block: -7px;
     }
     /* Under the title an empty cluster would still take a gap. */
     .row:not(.issue-row) .attr-cluster:empty {
@@ -3806,6 +3848,34 @@ a.ci-pill:hover {
   color: var(--ink-2);
 }
 
+/* #4971: the armed row's Cancel auto-merge is the row's action, in the
+   column Merge sits in, but a secondary button: the teal is for the action
+   that moves the pull request on. A 44px target (WCAG 2.5.5). */
+.row-action.row-action-secondary {
+  min-height: 44px;
+  background: var(--surface);
+  color: var(--ink);
+  border-color: var(--border-strong);
+}
+/* Cancel is a 44px target and Merge's button is 30px. On a table row the
+   target reaches into the row's padding, so an armed row is as tall as one
+   with Merge (#4945). In a stacked cell it reaches 5px up, 1px short of the
+   line above so a 23px pill there keeps its target space, and the rest down.
+   A chip with a detail line sits 4px under the button, so there it reaches no
+   further down than that. The one-line list has its own rule above. */
+@media (width > 760px) {
+  @container not (min-width: max(1191px, 74.5rem)) {
+    .row:not(.issue-row) .row-action-bar > .row-action.row-action-secondary {
+      margin-block: -5px -9px;
+    }
+    .row:not(.issue-row)
+      .status-cell:has(> .wait-slot .wait-chip-detail:not(:empty))
+      > .row-action-bar
+      > .row-action.row-action-secondary {
+      margin-bottom: -4px;
+    }
+  }
+}
 /* Secondary, so it doesn't read as the row's main action. */
 .wait-chip-action {
   flex: none;
@@ -4146,6 +4216,18 @@ a.ci-pill:hover {
   padding-bottom: 8px;
   font-size: 0.8125rem;
   color: var(--critical);
+}
+/* What an armed auto-merge has to say: the row's chip has one word (#4971). */
+.details-auto-merge {
+  display: flex;
+  flex-wrap: wrap;
+  column-gap: 6px;
+  margin-block-end: 6px;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+.details-auto-merge strong {
+  color: var(--ink);
 }
 /* The status block and failure lines in the dialog are full width. */
 .details-status-block .status-area {

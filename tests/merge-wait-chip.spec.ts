@@ -291,13 +291,17 @@ for (const scheme of ['light', 'dark'] as const) {
         const chip = row(page, 'Armed').locator('.wait-chip');
         await expect(chip).toHaveCount(1);
         await expect(chip.locator('.wait-chip-label')).toHaveText(
-          'Waiting for CI',
+          'Auto-merge on',
         );
+        // Cancel auto-merge is the row's action beside the chip (#4971).
+        await expect(chip.getByRole('button')).toHaveCount(0);
         await expect(
-          chip.getByRole('button', { name: 'Cancel auto-merge' }),
-        ).toHaveText('Cancel auto-merge');
+          row(page, 'Armed')
+            .locator('.row-action-bar')
+            .getByRole('button', { name: 'Cancel auto-merge' }),
+        ).toHaveText('Cancel');
         await expect(
-          chip.getByRole('button', { name: 'Enable auto-merge' }),
+          row(page, 'Armed').getByRole('button', { name: 'Enable auto-merge' }),
         ).toHaveCount(0);
         await axeClean(page);
       });
@@ -330,8 +334,11 @@ for (const scheme of ['light', 'dark'] as const) {
         const normal = await heightOf(page, 'Ready');
         expect(await heightOf(page, 'Pending')).toBeLessThanOrEqual(normal + 1);
         // The armed row says it once, in the wait chip: no attribute chip
-        // under the title, so the whole row keeps a normal row's height.
-        expect(await heightOf(page, 'Armed')).toBeLessThanOrEqual(normal + 1);
+        // under the title. Its CI pill carries two counts, so the chip and
+        // Cancel take a second line from 1280px (#4971, #5006).
+        expect(await heightOf(page, 'Armed')).toBeLessThanOrEqual(
+          normal + (width >= 1280 ? 36 : 1),
+        );
         await expect(
           row(page, 'Armed').locator('.attr-chip.auto-merge'),
         ).toHaveCount(0);

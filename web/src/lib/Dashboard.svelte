@@ -254,6 +254,9 @@
     STILL_WAITING_MS,
     type MergeWait,
     mergeWaitChip,
+    armedDetails,
+    armedRowChip,
+    type Chip,
     joinNames,
     autoMergeWording,
     buildWaitChip,
@@ -1637,7 +1640,11 @@
     // to the stopped state, in the chip's detail line or the phone's text line,
     // and draws no Merge button of its own (#4944).
     function stoppedBlockedReason(pr: PullRequestItem): string | null {
-      if (pr.autoMerge?.state !== "stopped" || idScope !== "") return null;
+      return idScope === "" ? stoppedCiReason(pr) : null;
+    }
+
+    function stoppedCiReason(pr: PullRequestItem): string | null {
+      if (pr.autoMerge?.state !== "stopped") return null;
       const blocked = findAction(pr, "merge")?.blocked;
       return blocked?.code === "checks_failing" ? blocked.message : null;
     }
@@ -1709,16 +1716,15 @@
       return `${idScope}wait-chip-tip-${domSafeId(prKey(pr))}`;
     }
 
-    // The chip for an armed auto-merge that is waiting, with the button that
-    // turns it off inside it. null when there is nothing to wait for, or the
-    // row is settled.
-    function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
+    // What an armed auto-merge has to say, in full. null when there is
+    // nothing to say.
+    function armedChipOf(pr: PullRequestItem): Chip | null {
       if (!pr.autoMerge) return null;
       // A wait on CI the pill has already seen finish is a short refresh: the
       // same chip, saying so, with the same Cancel auto-merge (#4663).
       const stale =
         pr.autoMerge.state === "waiting" && autoMergeCiWaitIsStale(pr);
-      const chip = stale
+      return stale
         ? mergeWaitChip("refresh", true, true, pr.pendingChecks)
         : autoMergeChip({
             state: pr.autoMerge.state,
@@ -1732,31 +1738,41 @@
               pendingChecks: pr.pendingChecks,
             },
           });
-      if (!chip) return null;
+    }
+
+    // The chip for an armed auto-merge: one short word, so the pills beside it
+    // never shrink; the details dialog has the rest. The button that turns it
+    // off is not in it (#4971). null when there is nothing to say, or the row
+    // is settled.
+    function autoMergeWaitChip(pr: PullRequestItem): HTMLElement | null {
+      const chip = armedChipOf(pr);
+      if (!pr.autoMerge || !chip) return null;
       const blockedReason = stoppedBlockedReason(pr);
       if (blockedReason && chip.state === "stopped")
         chip.detail = blockedReason;
-      const disarm =
-        isSettled(pr) || chip.action !== "disarm"
-          ? null
-          : cancelAutoMergeCell(pr, true);
-      return buildWaitChip(chip, {
+      // Cancel auto-merge is the row's action, drawn by buildRow (#4971).
+      const disarms =
+        !isSettled(pr) &&
+        chip.action === "disarm" &&
+        !!findAction(pr, "cancel_auto_merge");
+      return buildWaitChip(armedRowChip(chip), {
         source: "auto-merge",
         subject: `${pr.repo}#${pr.number}`,
-        button: disarm ?? undefined,
         tipId: waitChipTipId(pr),
         swap:
-          disarm && chipFitsSwap({ code: pr.autoMerge.code, label: chip.label })
+          disarms &&
+          chipFitsSwap({ code: pr.autoMerge.code, label: chip.label })
             ? waitSwapOf(pr)
             : undefined,
       });
     }
 
-    // #4942: where the row would draw Update branch beside an armed chip, the
-    // chip's label is that button instead, so the two share one slot. The
-    // real button stays the one place its rules live (locked, pending,
-    // retry); it is never put in the page, the swap only clicks it and reads
-    // how it stands. The dialog's footer has no chip and keeps its button.
+    // #4942: on an armed pull request behind its base, the chip's label is the
+    // Update branch control. The row draws no Update branch button of its own
+    // (#4971). One is still built, because it is the one place the rules live
+    // (locked, pending, retry): it is never put in the page, the swap only
+    // clicks it and reads how it stands. The dialog's footer has no chip and
+    // keeps its button.
     function waitSwapOf(pr: PullRequestItem): SwapDrawing | undefined {
       if (idScope !== "" || isSettled(pr)) return undefined;
       const cell = updateBranchBesidePrimary(pr);
@@ -1788,6 +1804,34 @@
           real.click();
         },
       };
+    }
+
+    // The armed chip's whole wording, in the details dialog (#4971). The Merge
+    // block's reason is left out when the status under it already says it.
+    function autoMergeDetails(
+      item: PullRequestItem,
+      status: HTMLElement | null,
+    ): HTMLElement | null {
+      const chip = armedChipOf(item);
+      if (!chip) return null;
+      const reason = stoppedCiReason(item);
+      if (reason && !status?.textContent?.includes(reason))
+        chip.detail = reason;
+      const [title, ...rest] = armedDetails(chip);
+      const block = el("div", "details-auto-merge");
+      block.appendChild(el("strong", "", title));
+      for (const words of rest) block.appendChild(el("span", "", words));
+      return block;
+    }
+
+    function dialogStatus(item: PullRequestItem): HTMLElement | null {
+      if (isSettled(item)) return null;
+      const status = statusArea(item, false);
+      const armed = autoMergeDetails(item, status);
+      if (!armed || !status) return armed ?? status;
+      const both = el("div");
+      both.append(armed, status);
+      return both;
     }
 
     // What an unarmed row waits on, when the row draws it as a chip: CI
@@ -2268,6 +2312,16 @@
       const extras: HTMLElement[] = [];
       const queueCell = queueActionCell(item);
       if (queueCell) extras.push(queueCell);
+      // An armed row's chip holds no Cancel for a queued action (#4971), so
+      // the footer does.
+      if (item.queued && findAction(item, "cancel_auto_merge"))
+        extras.push(
+          queuedCancelButton(
+            item,
+            item.queued,
+            `Cancel queued ${QUEUE_VERBS[item.queued.action]}`,
+          ),
+        );
       extras.push(...hideActionCells(item));
       const close = closeActionCell(item);
       if (close) {
@@ -2459,7 +2513,7 @@
         for (const line of own) feedbackNode.appendChild(line);
       }
       return {
-        status: isSettled(item) ? null : statusArea(item, false),
+        status: dialogStatus(item),
         feedback: feedbackNode,
         option: autoUpdateOption(item),
         actions: footerActionCells(item),
@@ -3645,23 +3699,32 @@
         // The row draws one control: the action the server marked primary,
         // or, while Merge is locked, the greyed Merge with its reason. Every
         // other action is in the details pop-up's footer, built by the same
-        // functions (#943).
+        // functions (#943). With auto-merge armed that one control is Cancel
+        // auto-merge, whatever the primary action is (#4971).
+        const armed = !settledRow && !!findAction(pr, "cancel_auto_merge");
+        // The style sheet lays an armed cell out by this and not by the Cancel
+        // button, which the "Cancelling" chip replaces while the request runs.
+        if (armed) statusCell.classList.add("status-cell-armed");
         const rowAction =
-          !settledRow && conflictWarnsAlone(pr)
+          armed || (!settledRow && conflictWarnsAlone(pr))
             ? null
             : rowActionCell(pr, settledRow, mergeAction);
         // In a bar of its own: on a phone it is the card's last tier, after a
         // divider; on a wider screen the bar adds no box of its own.
         const rebase =
           rowAction && rowAction === mergeAction ? rebaseBesideMerge(pr) : null;
-        // The armed chip carries Update branch itself when it can (#4942).
         const update =
-          settledRow || rowWait?.querySelector(".wait-chip-swap")
-            ? null
-            : updateBranchBesidePrimary(pr);
-        if (rowAction || update) {
+          settledRow || armed ? null : updateBranchBesidePrimary(pr);
+        // While the cancel runs the "Cancelling" chip stands in for the
+        // button, and takes its focus.
+        const rowCancel =
+          armed && cancelAutoMergeState[prKey(pr)]?.phase !== "requesting"
+            ? cancelAutoMergeCell(pr, true)
+            : null;
+        if (rowAction || update || rowCancel) {
           const bar = el("div", "row-action-bar");
           if (rowAction) bar.appendChild(rowAction);
+          if (rowCancel) bar.appendChild(rowCancel);
           if (rebase) bar.appendChild(rebase);
           if (update) bar.appendChild(update);
           statusCell.appendChild(bar);
@@ -3670,7 +3733,8 @@
         // says so in words, or nobody would find it without opening it.
         const closeCue = settledRow ? null : closeLockCue(pr);
         if (closeCue) statusCell.appendChild(closeCue);
-        const queueCell = queueActionCell(pr);
+        // An armed row shows one action (#4971): queueing is in the pop-up.
+        const queueCell = armed ? null : queueActionCell(pr);
         if (queueCell) statusCell.appendChild(queueCell);
         dedupeRetryButtons(statusCell);
         meta.appendChild(statusCell);
@@ -3694,11 +3758,16 @@
     // the label so it is read without opening anything. It leaves when the
     // lock does (the line that explains it is dismissed, or the next snapshot
     // clears a stale lock), and is skipped while Close is the row's own
-    // action, whose locked button already says why.
+    // action, whose locked button already says why. An armed row never draws
+    // Close, so it keeps the cue.
     function closeLockCue(item: PullRequestItem): HTMLElement | null {
       const entry = closeState[prKey(item)];
       if (!entry || entry.phase !== "locked") return null;
-      if (primaryAction(item)?.action === "close") return null;
+      if (
+        primaryAction(item)?.action === "close" &&
+        !findAction(item, "cancel_auto_merge")
+      )
+        return null;
       const cue = el("span", "row-lock-cue row-action-note");
       cue.appendChild(el("span", "row-action-note-reason", "Close locked"));
       if (entry.reason)
@@ -4441,7 +4510,13 @@
       // server names it; the row leaves its own copy out. The slot keeps the
       // button's height while the server names an action, so the block keeps
       // its size when the button goes (queued, hidden).
-      if (withFix && item.status?.action) {
+      // An armed row's one button is Cancel auto-merge, so its warning is
+      // words only (#4971).
+      if (
+        withFix &&
+        item.status?.action &&
+        !findAction(item, "cancel_auto_merge")
+      ) {
         const slot = el("span", "status-area-fix");
         const fix = statusFixCell(item);
         if (fix) slot.appendChild(fix);
@@ -4555,7 +4630,13 @@
         )
           return null;
         const wait = mergeWaitOf(item);
-        if (wait) return el("span", "merge-wait", mergeWaitChip(wait).label);
+        if (wait) {
+          const words = mergeWaitChip(wait).label;
+          // The dialog's auto-merge block already says it, and once is
+          // enough (#4663).
+          if (idScope !== "" && armedChipOf(item)?.label === words) return null;
+          return el("span", "merge-wait", words);
+        }
         // The status block on the row already says why, and describes the
         // button; without one (it is always sent for a blocked Merge) the
         // reason is printed beside it as before.
@@ -4942,26 +5023,26 @@
 
     function cancelAutoMergeCell(
       item: PullRequestItem,
-      inChip = false,
+      secondary = false,
     ): HTMLElement | null {
       if (!findAction(item, "cancel_auto_merge")) return null;
 
       const requesting =
         cancelAutoMergeState[prKey(item)]?.phase === "requesting";
-      // One word for it everywhere: Cancel auto-merge, in the chip too (#4663).
+      // One word for it everywhere: Cancel auto-merge (#4663). On an armed
+      // row it is the row's action, beside the chip (#4971).
       const button = buttonEl(
-        inChip ? "row-action wait-chip-action" : "row-action",
-        requesting ? "Cancelling…" : "Cancel auto-merge",
+        secondary ? "row-action row-action-secondary" : "row-action",
+        requesting ? "Cancelling…" : secondary ? "Cancel" : "Cancel auto-merge",
       );
-      if (inChip)
-        button.setAttribute(
-          "aria-label",
-          requesting
-            ? "Cancelling auto-merge"
-            : forgeHolds(item)
-              ? scheduledOnCopy(item.forge).cancelLabel
-              : "Cancel auto-merge",
-        );
+      button.setAttribute(
+        "aria-label",
+        requesting
+          ? "Cancelling auto-merge"
+          : forgeHolds(item)
+            ? scheduledOnCopy(item.forge).cancelLabel
+            : "Cancel auto-merge",
+      );
       if (forgeHolds(item))
         button.title = scheduledOnCopy(item.forge).cancelTitle;
       button.type = "button";
@@ -6840,8 +6921,12 @@
           : "";
       // A wait chip holds focus too: it takes it from a button it hides while
       // that button's request runs (#3279).
+      // The row's Cancel auto-merge gives way to that chip too while its
+      // request runs (#4971).
       const inChip =
-        active instanceof HTMLElement && !!active.closest(".wait-chip");
+        active instanceof HTMLElement &&
+        (!!active.closest(".wait-chip") ||
+          active.dataset.focusSlot === "cancel-auto-merge");
       // A row's links have no id either, so one is found by where it goes.
       const href =
         active instanceof HTMLAnchorElement
@@ -6887,7 +6972,7 @@
                 a.getAttribute("href") === href &&
                 !a.closest("[hidden]"),
             );
-      (
+      const target =
         sameLink ??
         buttons.find(
           (b) => b.className === className && b.textContent === label,
@@ -6902,8 +6987,12 @@
         (inChip
           ? row?.querySelector<HTMLElement>(".wait-chip:not([hidden])")
           : undefined) ??
-        row?.querySelector<HTMLElement>("button[id^='details-trigger-']")
-      )?.focus({ preventScroll: true });
+        row?.querySelector<HTMLElement>("button[id^='details-trigger-']");
+      // A chip standing in for a button keeps its slot, so a request that
+      // fails gives the focus back to that button.
+      if (target && slot && !target.dataset.focusSlot)
+        target.dataset.focusSlot = slot;
+      target?.focus({ preventScroll: true });
     }
 
     // Every row is rebuilt on a render, so the browser's own scroll
@@ -8106,7 +8195,8 @@
     }
 
     // The waiting chip for an action queued for the reset, with Cancel
-    // inside it (#1229). The offer to queue is queueActionCell's.
+    // inside it (#1229), except on an armed pull request, whose one action is
+    // Cancel auto-merge (#4971). The offer to queue is queueActionCell's.
     function queuedWaitChip(item: PullRequestItem): HTMLElement | null {
       const queued = item.queued;
       if (!queued) return null;
@@ -8115,14 +8205,10 @@
         at: formatTime(queued.runAt),
         verb: QUEUE_VERBS[queued.action],
       });
-      const cancel = buttonEl("row-action wait-chip-action", "Cancel");
-      cancel.type = "button";
-      cancel.dataset.focusSlot = "queued-action";
-      cancel.setAttribute(
-        "aria-label",
-        `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
-      );
-      cancel.addEventListener("click", () => cancelQueued(queued));
+      const cancel = findAction(item, "cancel_auto_merge")
+        ? undefined
+        : queuedCancelButton(item, queued, "Cancel");
+      cancel?.classList.add("wait-chip-action");
       const resets = el("span", "queued-resets", resetsInText(queued.runAt));
       resets.setAttribute("aria-hidden", "true");
       resets.dataset.runAt = queued.runAt;
@@ -8132,6 +8218,22 @@
         button: cancel,
         resets,
       });
+    }
+
+    function queuedCancelButton(
+      item: PullRequestItem,
+      queued: QueuedActionItem,
+      text: string,
+    ): HTMLButtonElement {
+      const cancel = buttonEl("row-action", text);
+      cancel.type = "button";
+      cancel.dataset.focusSlot = "queued-action";
+      cancel.setAttribute(
+        "aria-label",
+        `Cancel queued ${QUEUE_VERBS[queued.action]} for ${item.repo}#${item.number}`,
+      );
+      cancel.addEventListener("click", () => cancelQueued(queued));
+      return cancel;
     }
 
     function resetsInText(runAt: string): string {

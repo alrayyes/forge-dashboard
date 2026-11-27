@@ -25,8 +25,9 @@ A reason is one of two kinds.
 - **Someone has to act.** The branch is behind its base, the pull request is a
   draft, a check failed, there is a merge conflict, or workflow runs are
   waiting for approval. The reason names the fix:
-  - Behind the base branch: use Update branch, beside Merge. A Dependabot or
-    Renovate pull request offers that bot's rebase instead.
+  - Behind the base branch: use Update branch. A Dependabot or Renovate pull
+    request offers that bot's rebase instead. On a row with auto-merge armed,
+    both are in the details pop-up.
   - Draft: mark it ready for review on the forge.
   - A failing check: fix it. The CI pill and the list of checks show which.
   - A merge conflict: resolve it on the forge. "Conflict not confirmed" means
@@ -46,9 +47,11 @@ row says only that.
 ## Armed pull requests
 
 Auto-merge asks the forge to merge a pull request once it can. An armed row
-shows a wait chip where a locked Merge would be, with a Cancel auto-merge
-button. The server reports one of two states, `waiting` or `stopped`, and a
-message that says why.
+shows a wait chip for its state, and a Cancel auto-merge button where a Merge
+button would be. That is the only button in its action column: Merge, Update
+branch and the rest are in the details pop-up. A waiting chip on a branch behind
+its base can itself be the Update branch button. The server reports one of two
+states, `waiting` or `stopped`, and a message that says why.
 
 - **Waiting.** Something short of the forge's go-ahead is missing: checks are
   running, no check has reported yet, the only run was cancelled, the branch

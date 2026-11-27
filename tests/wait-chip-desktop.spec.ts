@@ -147,9 +147,8 @@ for (const width of WIDTHS) {
       if (width >= 1280) expect(c.width).toBeLessThan(cell.width - 40);
       // The chip's own parts are on one line.
       const label = await box(chip.locator('.wait-chip-label'));
-      const button = await box(chip.getByRole('button'));
       expect(
-        Math.abs(label.y + label.height / 2 - (button.y + 15)),
+        Math.abs(label.y + label.height / 2 - (c.y + c.height / 2)),
       ).toBeLessThan(8);
     });
   });
@@ -172,8 +171,8 @@ test.describe('the other chip states', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   const states: [string, () => MockPR, MockPR, string][] = [
-    ['waiting', () => armed(), {}, 'Waiting for CI'],
-    ['rate limited', () => armed('rate_limited'), {}, 'Rate limited'],
+    ['waiting', () => armed(), {}, 'Auto-merge on'],
+    ['rate limited', () => armed('rate_limited'), {}, 'Auto-merge on'],
     [
       'queued',
       () =>

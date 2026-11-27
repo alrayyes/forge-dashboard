@@ -165,7 +165,7 @@ for (const scheme of ['light', 'dark'] as const) {
           await expect(waitingWords(r)).toHaveCount(0);
           await expect(r.locator('.status-area')).toHaveCount(0);
           await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
-            'Waiting for the forge',
+            title === 'Armed' ? 'Auto-merge on' : 'Waiting for the forge',
           );
         }
       });
@@ -264,11 +264,11 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(r.locator('.ci-pill')).toContainText('Passed');
         await expect(waitingWords(r)).toHaveCount(0);
         await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
-          'Waiting for the forge',
+          'Auto-merge on',
         );
       });
 
-      test('a stale armed row keeps Cancel auto-merge in the chip, which says why', async ({
+      test('a stale armed row keeps Cancel auto-merge beside the chip, which says why', async ({
         page,
       }) => {
         await open(page, [ARMED_PR], 'success');
@@ -276,7 +276,9 @@ for (const scheme of ['light', 'dark'] as const) {
         const chip = r.locator('.wait-chip');
         await expect(chip).toHaveCount(1);
         await expect(
-          chip.getByRole('button', { name: 'Cancel auto-merge' }),
+          r
+            .locator('.row-action-bar')
+            .getByRole('button', { name: 'Cancel auto-merge' }),
         ).toBeVisible();
         await expect(chip).toHaveAccessibleDescription(
           /updating from the latest ci results/i,
@@ -375,15 +377,18 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
       await expect(r.locator('.ci-pill')).toContainText('Passed');
 
       const chip = r.locator('.wait-chip');
-      await expect(chip.locator('.wait-chip-label')).toHaveText(label);
-      // The chip carries the one Cancel auto-merge; a stale rule would add one beside it.
+      await expect(chip.locator('.wait-chip-label')).toHaveText(
+        'Auto-merge on',
+      );
+      await expect(chip).toContainText(label);
+      // The action column carries the one Cancel auto-merge; a stale rule would add another.
       const disarm = r.getByRole('button', {
         name: /disarm|cancel auto-merge/i,
       });
       await expect(disarm).toHaveCount(1);
       await expect(
         chip.getByRole('button', { name: /disarm|cancel auto-merge/i }),
-      ).toHaveCount(1);
+      ).toHaveCount(0);
     });
   }
 
@@ -397,9 +402,9 @@ test.describe('the stale-CI rule hides only a pending CI wait', () => {
     );
     const r = row(page, 'Ended');
     await expect(r.locator('.ci-pill')).toContainText('Passed');
-    await expect(r.locator('.wait-chip .wait-chip-label')).toHaveText(
-      'Waiting for CI',
-    );
+    const chip = r.locator('.wait-chip');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip).toContainText('Waiting for CI');
   });
 });
 

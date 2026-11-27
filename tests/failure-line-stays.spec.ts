@@ -23,7 +23,6 @@ function pr(number: number, over: Record<string, unknown> = {}) {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     behind: true,
-    autoMergeEnabled: true,
     ...over,
   };
 }
@@ -142,6 +141,43 @@ test.describe('a failure line stays until dismissed (#918)', () => {
 
     await line.getByRole('button', { name: /^Dismiss/ }).click();
     await expect(line).toHaveCount(0);
+  });
+
+  test('the line of an armed row survives snapshots too (#4971)', async ({
+    page,
+  }) => {
+    // Armed, behind, checks running: Update branch is the chip's label, and
+    // the action column holds only Cancel.
+    const armed = pr(613, {
+      ci: 'pending',
+      mergeStatus: 'mergeable',
+      autoMergeEnabled: true,
+      autoMerge: {
+        state: 'waiting',
+        code: 'checks_pending',
+        message: 'Auto-merge is waiting for the checks to finish.',
+      },
+      allowedActions: [
+        { action: 'close' },
+        { action: 'update_branch' },
+        { action: 'cancel_auto_merge' },
+      ],
+    });
+    await open(page, [armed]);
+
+    await rowFor(page, 613)
+      .getByRole('button', { name: 'Auto-merge on, update branch' })
+      .click();
+    const line = rowFor(page, 613).locator('.row-feedback-line');
+    await expect(line).toContainText('Missing permission');
+    await dismissToasts(page);
+
+    for (const title of ['Renamed', 'Renamed again']) {
+      await push(page, [{ ...armed, title }]);
+      await page.clock.runFor(250);
+      await expect(line).toBeVisible();
+      await expect(line).toContainText('Missing permission');
+    }
   });
 
   test('the line survives a snapshot that leaves the pull request out for a moment', async ({

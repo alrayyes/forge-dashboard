@@ -70,19 +70,20 @@ for (const width of [390, 1280]) {
     page,
   }) => {
     await open(page, width);
-    await expect(row(page).getByRole('button', { name: 'Merge' })).toHaveCount(
+    // Anchored: "Cancel auto-merge" has the word in it.
+    await expect(row(page).getByRole('button', { name: /^Merge/ })).toHaveCount(
       0,
     );
     await expect(row(page).locator('.row-action-locked')).toHaveCount(0);
     await expect(row(page).locator('.row-action-note')).toHaveCount(0);
-    // Said once, readable without hovering, and inside the status cell where
-    // the stopped state is.
-    const reason = row(page)
-      .locator('.status-cell')
-      .locator('.auto-merge-blocked, .wait-chip-detail')
-      .filter({ hasText: REASON })
-      .filter({ visible: true });
-    await expect(reason).toHaveCount(1);
+    // Said once, inside the status cell where the stopped state is: printed on
+    // the phone card, and in the chip's tooltip on a wider one (#4971).
+    const cell = row(page).locator('.status-cell');
+    const said = cell
+      .locator(width === 390 ? '.auto-merge-blocked' : '.wait-chip-tip')
+      .filter({ hasText: REASON });
+    await expect(said).toHaveCount(1);
+    if (width === 390) await expect(said).toBeVisible();
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -90,13 +91,11 @@ for (const width of [390, 1280]) {
   });
 }
 
-test('at 1280px the reason is in the stopped chip, next to its words', async ({
+test('at 1280px the stopped chip says "Stopped" and describes why', async ({
   page,
 }) => {
   await open(page, 1280);
   const chip = row(page).locator('.wait-chip');
-  await expect(chip.locator('.wait-chip-label')).toHaveText(
-    'Auto-merge stopped',
-  );
-  await expect(chip.locator('.wait-chip-detail')).toHaveText(REASON);
+  await expect(chip.locator('.wait-chip-label')).toHaveText('Stopped');
+  await expect(chip).toHaveAccessibleDescription(new RegExp(REASON));
 });
