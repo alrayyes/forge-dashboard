@@ -515,13 +515,7 @@ for (const width of [1280, 390]) {
       await issueDialog(page).locator('.linked-pr', { hasText: '#2' }).click();
       await expect(prDialog(page)).toContainText('Pull request 2');
 
-      // The pill follows in the dialog only once the forge has answered for
-      // it, which focus asks for.
-      const pill = prDialog(page).locator('.mention-pill');
-      const answered = page.waitForResponse('**/api/v1/issues/details*');
-      await pill.focus();
-      await answered;
-      await pill.click();
+      await prDialog(page).locator('.mention-pill').click();
       await expect(prDialog(page)).toContainText('Pull request 3');
 
       await closeAndSettle(page);

@@ -337,25 +337,30 @@ same.
 
 Each entry says whether the dashboard `tracked` it as an open issue it shows.
 Where it does, `pageUrl` opens that issue's pop-up; where it doesn't (a closed
-issue, another repo, a pull request), a client links to `url` on the forge.
+issue, a repo not tracked, a pull request), `url` is its address on the forge.
 
 The pull request's pop-up shows each one among the attributes, after the issues
 it closes, as a "Mentions" link drawn like the "Closes" ones. A tracked ticket
 opens on the [Issues page](issues.md#opening-an-issue-from-its-address) in a new
 tab on a middle or modified click, and its pop-up in place of this one on a
-plain click. One the dashboard doesn't hold is a link to its forge in a new tab,
-and screen readers hear "opens on the forge" instead of "opens the issue". It
-works like a `#12` in the description for a repository the dashboard doesn't
-track: the forge is asked while the pointer rests on the pill or focus or a
-press is on it, and a plain click then opens the item's read-only pop-up in
-place, with focus returning to the pull request's title on close. A click before
-the answer, an item the forge can't read, and a middle or modified click all
-follow the link to the forge. The "Closes" and "Refs" pills always name a ticket
-the dashboard tracks, so they have no such case. The first two show, and the
-rest sit behind a "more" button that opens them in place, as with the closing
-ones. With nothing mentioned, the pop-up shows no label and no empty space. The
-rows show no mentions. A ticket the pull request references with a keyword is a
-"Refs" pill instead, not a mention.
+plain click. One the dashboard doesn't hold (a closed issue, a pull request)
+keeps a link to its forge, which a middle or modified click follows in a new
+tab. What a plain click or tap does depends on its repository. In a tracked one
+it always opens the item's pop-up in place, at once, with a loading state, and
+screen readers hear "opens its details". If the forge can't show the item, the
+pop-up says why and its "Open on" button leads to the forge. A resting pointer
+or keyboard focus reads the item ahead, so the pop-up can open already filled; a
+tap asks only once, from the pop-up. In a repository the dashboard doesn't
+track, the pill works like a `#12` in the description: screen readers hear
+"opens on the forge", the forge is asked while the pointer rests on the pill or
+focus or a press is on it, and a plain click opens the read-only pop-up only
+once it has answered. A click before that, or on an item the forge can't read,
+follows the link. Closing either pop-up puts focus back on the pull request's
+title. The "Closes" and "Refs" pills are described above. The first two show,
+and the rest sit behind a "more" button that opens them in place, as with the
+closing ones. With nothing mentioned, the pop-up shows no label and no empty
+space. The rows show no mentions. A ticket the pull request references with a
+keyword is a "Refs" pill instead, not a mention.
 
 ## Author on a row
 

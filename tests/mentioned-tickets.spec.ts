@@ -443,6 +443,99 @@ test.describe('the pull request dialog', () => {
     await expect(issueDialog(page)).toBeHidden();
   });
 
+  // #5089: a closed or merged item of a tracked repository is not on the
+  // board. A tap or a click opens its dialog at once, without waiting for a
+  // read that nothing started yet.
+  test.describe('an unlisted item of a tracked repository', () => {
+    const gone = () =>
+      mention(4, {
+        url: `https://example.com/${REPO}/issues/4`,
+        tracked: false,
+      });
+    const gonePill = (page: Page) => prDialog(page).locator('.mention-pill');
+
+    async function openWithGoneMention(page: Page) {
+      await page.goto('/pull-requests.html');
+      await openPullRequest(page);
+    }
+
+    test.describe('on a phone', () => {
+      test.use({
+        hasTouch: true,
+        isMobile: true,
+        viewport: { width: 390, height: 844 },
+      });
+
+      test('one tap opens the dialog while it loads, reads once and opens no tab', async ({
+        page,
+      }) => {
+        await mockBoard(page, { pullRequests: [pullRequest(1, [gone()])] });
+        let answer: () => void = () => {};
+        const held = new Promise<void>((resolve) => {
+          answer = resolve;
+        });
+        let asked = 0;
+        await page.route('**/api/v1/issues/details*', async (route: Route) => {
+          asked++;
+          await held;
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({
+              ...details,
+              description: { ...details.description, text: 'Closed text.' },
+              state: 'closed',
+            }),
+          });
+        });
+        await openWithGoneMention(page);
+        await expect(gonePill(page)).toHaveAccessibleName(
+          'Mentions: #4, opens its details',
+        );
+
+        await gonePill(page).tap();
+
+        await expect(issueDialog(page)).toBeVisible();
+        await expect(issueDialog(page).getByRole('status')).toContainText([
+          'Loading details',
+        ]);
+        await expect(prDialog(page)).toBeHidden();
+        answer();
+        await expect(issueDialog(page)).toContainText('Closed text.');
+        expect(asked).toBe(1);
+        expect(page.context().pages()).toHaveLength(1);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+
+      test('a failed read says so in the dialog and links to the forge', async ({
+        page,
+      }) => {
+        await mockBoard(page, { pullRequests: [pullRequest(1, [gone()])] });
+        await page.route('**/api/v1/issues/details*', (route: Route) =>
+          route.fulfill({
+            status: 404,
+            contentType: 'application/json',
+            body: JSON.stringify({ error: 'not found' }),
+          }),
+        );
+        await openWithGoneMention(page);
+
+        await gonePill(page).tap();
+
+        await expect(issueDialog(page).getByRole('alert')).toContainText(
+          'Could not load the details: not found',
+        );
+        await expect(
+          issueDialog(page).getByRole('link', { name: /^Open on GitHub/ }),
+        ).toHaveAttribute('href', gone().url);
+        expect(page.context().pages()).toHaveLength(1);
+      });
+    });
+  });
+
   test('folds mentions past the sixth behind one toggle that opens them and folds them again', async ({
     page,
   }) => {

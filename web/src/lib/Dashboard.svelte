@@ -2001,6 +2001,7 @@
             (issue) => followIssueFromDialog(item, issue),
             true,
             {
+              repoTracked: (repo) => trackedRepo(item.forge, repo),
               warm: (issue) =>
                 referenceWarmed({
                   forge: item.forge,
@@ -2014,7 +2015,9 @@
                     repo: issue.repo,
                     number: issue.number,
                     url: issue.url,
-                    untracked: true,
+                    // A tracked repository's dialog opens at once and does
+                    // its own read (#5089).
+                    untracked: !trackedRepo(item.forge, issue.repo),
                   },
                   addressFocus(item),
                 ),
