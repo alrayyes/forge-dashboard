@@ -1264,14 +1264,16 @@ func (a *Aggregator) refreshOnce(ctx context.Context) {
 		delete(reachable, forge)
 	}
 	a.checkDependabotAcks(ctx)
-	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
-	AnnotateStacks(snap.PullRequests)
-	sortByRecency(snap.PullRequests, snap.Issues)
 
 	a.mu.Lock()
 	previous := a.snap
+	// Under mu, so a MarkSettled is either seen here or runs on the new board.
+	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
+	a.applyBotRequests(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] })
+	AnnotateStacks(snap.PullRequests)
+	sortByRecency(snap.PullRequests, snap.Issues)
 	snap = a.keepNewerScopedRepos(snap, previous, seq)
-	// See mergeRepo: a request recorded since applyBotRequests ran (#976).
+	// Rows keepNewerScopedRepos brought back get their requests here (#976).
 	// The box overrides are settled here too, under the lock every tick and
 	// cancel takes, so none can land between the settling and the swap.
 	a.annotateUnderLock(snap.PullRequests, seq, func(f Forge, _ string) bool { return reachable[f] }, read)
@@ -1312,7 +1314,6 @@ func (a *Aggregator) assemble(ctx context.Context, results []sourceResult, earli
 		noteProviderStatus(ctx, &r.Health, a.sources[i])
 		snap.add(r)
 	}
-	snap.PullRequests = a.withoutSettled(snap.PullRequests, "", "")
 
 	return snap, notRead
 }

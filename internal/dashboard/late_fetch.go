@@ -166,13 +166,14 @@ func (a *Aggregator) foldLate(ctx context.Context, f *flight, sr sourceResult) (
 	r := settleOrHold(sr.Result, sr.asked, sr.missed, earlier, goodAt, streaks, now, readForges, unread, forge)
 	noteBlockedActions(&r.Health, src)
 	noteProviderStatus(ctx, &r.Health, src)
-	r.PullRequests = a.withoutSettled(r.PullRequests, forge, "")
 	covers := func(other Forge, _ string) bool { return other == forge && r.Health.Reachable }
 	a.checkDependabotAcks(ctx)
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	previous = a.snap
+	// Under mu, so a MarkSettled is either seen here or runs on the new board.
+	r.PullRequests = a.withoutSettled(r.PullRequests, forge, "")
 	snap = replaceForge(previous, forge, r)
 	snap.GeneratedAt = now
 	a.applyBotRequests(snap.PullRequests, f.seq, covers)
