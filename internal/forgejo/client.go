@@ -1092,10 +1092,7 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	}
 
 	approvals, changes := countLatestReviews(reviews)
-	var comments int
-	for _, r := range reviews {
-		comments += r.CodeCommentsCount
-	}
+	comments := codeComments(reviews)
 	requested := len(p.RequestedReviewers) + len(p.RequestedReviewersTeams)
 	state := &dashboard.ReviewState{
 		Decision:           dashboard.DeriveReviewDecision(approvals, changes, requested),
@@ -1108,6 +1105,16 @@ func (c *Client) reviewState(ctx context.Context, owner, name string, p *gitea.P
 	c.reviewsMu.Unlock()
 
 	return state, comments
+}
+
+// codeComments adds up the review comments on lines of code across reviews.
+func codeComments(reviews []*gitea.PullReview) int {
+	var comments int
+	for _, r := range reviews {
+		comments += r.CodeCommentsCount
+	}
+
+	return comments
 }
 
 // countLatestReviews counts approvals and change requests, taking each

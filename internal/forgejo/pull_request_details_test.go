@@ -40,6 +40,9 @@ func TestGetPullRequestDetails_ReadsDescriptionCommentsAndReactions(t *testing.T
 			},
 		})
 	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/reviews", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/comments/11/reactions", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, []any{reactionJSON("demo-b", "-1")})
 	})
@@ -116,4 +119,70 @@ func TestGetPullRequestDetails_StopsAtTheFirstRateLimit(t *testing.T) {
 	assert.Empty(t, got.Comments, "nothing partial comes back with the error")
 	assert.Equal(t, dashboard.PullRequestDetails{}, got)
 	assert.Less(t, int(commentReactionCalls.Load()), comments/2, "the first refusal stops the rest of the reads")
+}
+
+// detailsMux answers everything the dialog reads for a pull request with no
+// description reactions and no conversation, and `reviews` for the reviews.
+func detailsMux(t *testing.T, reviews http.HandlerFunc) *http.ServeMux {
+	t.Helper()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, map[string]any{"number": 5, "body": "x"})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/reactions", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues/5/comments", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(t, w, []any{})
+	})
+	mux.HandleFunc("/api/v1/repos/alrayyes/a/pulls/5/reviews", reviews)
+
+	return mux
+}
+
+// Review comments on lines of code are counted, not listed (#5011): every
+// review's comment count added up, across the pages of reviews.
+func TestGetPullRequestDetails_CountsTheReviewCommentsOnLinesOfCode(t *testing.T) {
+	t.Parallel()
+
+	var srv *httptest.Server
+	srv = httptest.NewServer(detailsMux(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Query().Get("page") == "2" {
+			writeJSON(t, w, []any{map[string]any{"id": 3, "state": "COMMENT", "comments_count": 4}})
+
+			return
+		}
+		w.Header().Set("Link", `<`+srv.URL+`/api/v1/repos/alrayyes/a/pulls/5/reviews?page=2>; rel="next"`)
+		writeJSON(t, w, []any{
+			map[string]any{"id": 1, "state": "COMMENT", "comments_count": 2},
+			map[string]any{"id": 2, "state": "APPROVED", "comments_count": 0},
+		})
+	}))
+	defer srv.Close()
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
+
+	require.NoError(t, err)
+	assert.Equal(t, 6, got.ReviewCommentCount)
+	assert.False(t, got.ReviewCommentsTruncated, "every page of reviews is read")
+	assert.Empty(t, got.Comments, "counted, not listed")
+}
+
+// A count that can't be read is an error, never "no line comments".
+func TestGetPullRequestDetails_FailsWhenTheReviewsCannotBeRead(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(detailsMux(t, func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Retry-After", "30")
+		w.WriteHeader(http.StatusTooManyRequests)
+	}))
+	defer srv.Close()
+
+	got, err := forgejo.NewClient(srv.URL, "test-token", "").GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
+
+	var clientErr *dashboard.ClientError
+	require.ErrorAs(t, err, &clientErr)
+	assert.Equal(t, dashboard.ForgeErrorRateLimited, clientErr.Kind)
+	assert.Equal(t, dashboard.PullRequestDetails{}, got)
 }

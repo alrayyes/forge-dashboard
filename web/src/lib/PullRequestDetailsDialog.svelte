@@ -96,6 +96,7 @@
   } from "#lib/details-cache.js";
   import { titleSegments } from "#lib/title-code.js";
   import { repoUrlOf } from "#lib/repo-url.js";
+  import { lineCommentsNote } from "#lib/line-comments-note.js";
 
   // Puts a node the row's builders made into the header. A node already in
   // place stays put: moving it would drop keyboard focus from inside it
@@ -129,6 +130,10 @@
     comments: Comment[];
     commentCount: number;
     commentsTruncated: boolean;
+    // Only a pull request's details say these: review comments on lines of
+    // code, counted and not listed, and whether the count is a lower bound.
+    reviewCommentCount?: number;
+    reviewCommentsTruncated?: boolean;
     releaseNotes?: Body | null;
     // Only an issue's details say it: open or closed in the forge right now.
     state?: "open" | "closed";
@@ -230,6 +235,12 @@
   const forgeId = $derived(target?.forge ?? "");
   const forgeLabel = $derived(target ? forgeLabelOf(target.forge) : "");
   const releaseNotes = $derived(details?.releaseNotes ?? null);
+  const lineNote = $derived(
+    lineCommentsNote(
+      details?.reviewCommentCount,
+      details?.reviewCommentsTruncated,
+    ),
+  );
   const releaseTarget = $derived(
     target && isReleaseTarget(target) ? target : null,
   );
@@ -1320,7 +1331,9 @@
           <section class="details-section">
             <h3>Comments ({details.commentCount})</h3>
             {#if details.comments.length === 0}
-              <p class="details-note">No comments.</p>
+              {#if !lineNote}
+                <p class="details-note">No comments.</p>
+              {/if}
             {:else}
               <ol class="details-comments">
                 {#each details.comments as c (c.id)}
@@ -1408,6 +1421,16 @@
                   </a>
                 </p>
               {/if}
+            {/if}
+            {#if lineNote}
+              <p class="details-note">
+                {lineNote.text}
+                <a href={target.url} target="_blank" rel="noopener noreferrer">
+                  {lineNote.link} on {forgeLabel}<span class="visually-hidden">
+                    (opens in a new tab)
+                  </span>
+                </a>
+              </p>
             {/if}
           </section>
         {/if}

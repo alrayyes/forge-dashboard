@@ -191,20 +191,20 @@ address: it goes in the header only.
 
 The endpoint offers these tools:
 
-| Tool                           | What it returns or does                                         |
-| ------------------------------ | --------------------------------------------------------------- |
-| `get_dashboard`                | Your pull requests, as `GET /api/v1/dashboard`.                 |
-| `get_main_branches`            | Default-branch CI status and open dependency advisories.        |
-| `get_pull_request_details`     | A pull request's description, its comments, and its reactions.  |
-| `get_pull_request_checks`      | A pull request's individual CI checks.                          |
-| `get_main_branch_checks`       | The jobs of a default branch's newest pipeline.                 |
-| `get_repository_advisories`    | A GitHub repository's open dependency advisories in full.       |
-| `get_check_log`                | One CI job's output, the last 256 KiB at most.                  |
-| `list_queued_actions`          | Actions waiting on a rate-limited forge, and the recently done. |
-| `get_version`                  | The running server's release tag.                               |
-| `get_forge_api_stats`          | The forge request counters and budgets.                         |
-| `get_settings`                 | Your settings. The webhook token and secret stay out.           |
-| `set_pull_request_auto_update` | Turns automatic branch update on or off for one pull request.   |
+| Tool                           | What it returns or does                                                    |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| `get_dashboard`                | Your pull requests, as `GET /api/v1/dashboard`.                            |
+| `get_main_branches`            | Default-branch CI status and open dependency advisories.                   |
+| `get_pull_request_details`     | A pull request's description, comments, reactions, and line comment count. |
+| `get_pull_request_checks`      | A pull request's individual CI checks.                                     |
+| `get_main_branch_checks`       | The jobs of a default branch's newest pipeline.                            |
+| `get_repository_advisories`    | A GitHub repository's open dependency advisories in full.                  |
+| `get_check_log`                | One CI job's output, the last 256 KiB at most.                             |
+| `list_queued_actions`          | Actions waiting on a rate-limited forge, and the recently done.            |
+| `get_version`                  | The running server's release tag.                                          |
+| `get_forge_api_stats`          | The forge request counters and budgets.                                    |
+| `get_settings`                 | Your settings. The webhook token and secret stay out.                      |
+| `set_pull_request_auto_update` | Turns automatic branch update on or off for one pull request.              |
 
 `set_pull_request_auto_update` is the only one that writes, and it changes
 only this app's own setting. Several of the reads spend forge request budget;
