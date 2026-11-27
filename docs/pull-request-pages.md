@@ -144,11 +144,13 @@ those: under **Comments** it says how many there are and links to the pull
 request on the forge, such as "2 review comments on lines of code aren't shown
 here. Read them on GitHub". The number in the Comments heading counts only the
 conversation. With no conversation comment, that sentence stands in place of
-"No comments." Without line comments the pop-up says nothing about them. The
-count is read when the pop-up loads, so it can be newer than the pill's. On
-GitHub, it covers the first 100 review threads and reads "At least" past that. A
-pop-up opened from a `#12` reference to a pull request the board doesn't list
-never mentions line comments.
+"No comments." Without line comments the pop-up says nothing about them. On
+GitHub, the pop-up counts the first 100 review threads and reads "At least" past
+that. The pill counts only the first 30, so it can show fewer than the pop-up
+even when nothing is new. On Forgejo, a draft's pill counts no line comments,
+but its pop-up does. The count is also read when the pop-up loads, so it can be
+newer than the pill's. A pop-up opened from a `#12` reference to a pull request
+the board doesn't list never mentions line comments.
 
 ## Finding a pull request by its number
 

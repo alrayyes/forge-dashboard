@@ -6129,8 +6129,11 @@ components:
             of code, replies included. Only the number: the comments
             themselves are not in `comments`, and `commentCount` leaves them
             out too. A client says how many there are and links to the forge.
-            It counts what the row's `reviewComments` counts, but is read
-            live, so the two can differ.
+            It counts what the row's `reviewComments` counts, but the two can
+            differ. On GitHub the row reads the first 30 review threads and
+            this reads the first 100, so the row can report fewer with nothing
+            new written. A Forgejo draft's row reports 0. This is also read
+            live, so it can be newer than the row.
         reviewCommentsTruncated:
           type: boolean
           description: |
