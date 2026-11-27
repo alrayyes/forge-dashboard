@@ -236,11 +236,20 @@ test.describe('on a touch screen', () => {
       '.ci-seg-failed',
     ]) {
       const p = pill(page, 'Mixed run');
+      const opener = await p.elementHandle();
+      if (!opener) throw new Error('no CI pill');
       await p.locator(part).first().tap({ force: true });
       await expect(dialog).toBeVisible();
       await expect(tip(page)).toBeHidden();
       await page.keyboard.press('Escape');
       await expect(dialog).toBeHidden();
+      // Closing redraws the row, from the dialog's close event. That runs
+      // after the dialog is already hidden and the browser has put focus back,
+      // so wait for the old pill to go: a tap started before then lands on a
+      // pill that is about to be replaced (#5062).
+      await expect
+        .poll(() => opener.evaluate((el) => el.isConnected))
+        .toBe(false);
       // Focus comes back to the pill (#3313).
       await expect(p).toBeFocused();
     }

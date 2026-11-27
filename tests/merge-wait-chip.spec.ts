@@ -168,11 +168,14 @@ async function open(
       }
     };
   });
+  // One read, stamped when the page opens: a poll answered later must not look
+  // newer than a push, or the page drops the push as stale (#5062).
+  const read = JSON.stringify(snapshot(pullRequests));
   await page.route('**/api/v1/dashboard*', (route: Route) =>
     route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshot(pullRequests)),
+      body: read,
     }),
   );
   await page.goto(path);
@@ -197,8 +200,17 @@ const row = (page: Page, title: string) =>
 const mergeButton = (r: Locator) =>
   r.getByRole('button', { name: 'Merge', exact: true });
 
+// Finds and measures in one step. A locator finds the row first and measures
+// it in a second call, and a redraw between the two leaves a detached element,
+// which is 0px tall (#5062).
 const heightOf = (page: Page, title: string) =>
-  row(page, title).evaluate((r) => r.getBoundingClientRect().height);
+  page.evaluate((wanted) => {
+    const found = [...document.querySelectorAll('#pr-rows > .row')].find((r) =>
+      r.querySelector('.title-cell > .title')?.textContent?.includes(wanted),
+    );
+    if (!found) throw new Error(`no row titled ${wanted}`);
+    return found.getBoundingClientRect().height;
+  }, title);
 
 async function axeClean(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze();
@@ -604,8 +616,9 @@ test.describe('a status that stays unknown', () => {
     const chip = row(page, 'Unknown').locator('.wait-chip');
     await expect(chip.locator('.wait-chip-label')).toHaveText('Status unknown');
 
+    // Nothing about the row changes and nothing is pushed: the page has to
+    // redraw it by itself (#5062).
     await page.clock.fastForward(130_000);
-    await push(page, [unknownStatus(1, 'Unknown')]);
 
     await expect(chip.locator('.wait-chip-label')).toHaveText('Still waiting');
     await expect(chip).toHaveAccessibleDescription(
@@ -615,6 +628,80 @@ test.describe('a status that stays unknown', () => {
       chip.getByRole('button', { name: 'Enable auto-merge' }),
     ).toBeVisible();
     await axeClean(page);
+  });
+
+  test('redraws the list once when two waits run long together', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [
+      unknownStatus(1, 'First wait'),
+      unknownStatus(2, 'Second wait'),
+    ]);
+    await page.locator('#pr-rows').evaluate((list) => {
+      const w = window as unknown as { __redraws: number };
+      w.__redraws = 0;
+      new MutationObserver((records) => {
+        for (const node of records.flatMap((r) => [...r.addedNodes]))
+          if (
+            node instanceof Element &&
+            node.matches('.row') &&
+            node.textContent?.includes('First wait')
+          )
+            w.__redraws++;
+      }).observe(list, { childList: true, subtree: true });
+    });
+
+    await page.clock.fastForward(130_000);
+
+    await expect(
+      row(page, 'Second wait').locator('.wait-chip-label'),
+    ).toHaveText('Still waiting');
+    expect(
+      await page.evaluate(
+        () => (window as unknown as { __redraws: number }).__redraws,
+      ),
+    ).toBe(1);
+  });
+
+  test('a wait that starts later turns to Still waiting in its own time', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [unknownStatus(1, 'Early'), ready(2, 'Late')]);
+    const early = row(page, 'Early').locator('.wait-chip-label');
+    const late = row(page, 'Late').locator('.wait-chip-label');
+    await page.clock.fastForward(60_000);
+    await push(page, [unknownStatus(1, 'Early'), unknownStatus(2, 'Late')]);
+    await expect(late).toHaveText('Status unknown');
+
+    await page.clock.fastForward(70_000);
+    await expect(early).toHaveText('Still waiting');
+    await expect(late).toHaveText('Status unknown');
+
+    await page.clock.fastForward(60_000);
+    await expect(late).toHaveText('Still waiting');
+  });
+
+  test('keeps focus on a row link when the wait redraws the row', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [
+      {
+        ...unknownStatus(1, 'Unknown'),
+        authorUrl: 'https://github.com/claude',
+      },
+    ]);
+    const link = row(page, 'Unknown').locator('a.author-link');
+    await link.focus();
+
+    await page.clock.fastForward(130_000);
+
+    await expect(row(page, 'Unknown').locator('.wait-chip-label')).toHaveText(
+      'Still waiting',
+    );
+    await expect(link).toBeFocused();
   });
 
   test('a pull request that leaves the snapshot and comes back starts the clock again', async ({
