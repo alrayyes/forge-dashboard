@@ -183,7 +183,8 @@ type branchContext struct {
 			RunNumber  int64  `json:"runNumber"`
 			Event      string `json:"event"`
 			Workflow   struct {
-				Name string `json:"name"`
+				DatabaseID int64  `json:"databaseId"`
+				Name       string `json:"name"`
 			} `json:"workflow"`
 		} `json:"workflowRun"`
 	} `json:"checkSuite"`
@@ -316,6 +317,7 @@ func (c branchContext) asCheck() dashboard.Check {
 	run := c.CheckSuite.WorkflowRun
 	check.RunID, check.RunAttempt = run.DatabaseID, run.RunAttempt
 	check.RunNumber, check.RunName = run.RunNumber, run.Workflow.Name
+	check.WorkflowID, check.Event = run.Workflow.DatabaseID, run.Event
 	suite := c.CheckSuite
 	facts := &dashboard.RunFacts{}
 	facts.Status, facts.Conclusion = dashboard.StatusFacts(

@@ -1,5 +1,45 @@
 package dashboard
 
+import "slices"
+
+// WithoutReplacedCancelled is checks without the cancelled ones a later run
+// replaced, in order. It is for the head of a pull request, and narrower than
+// SupersededRuns: only a cancelled check is dropped, and only when its own job
+// ran again. The later check has the same name, workflow and starting event, a
+// higher run number or a later attempt, and passed, failed or is still going.
+// A skipped or neutral one tested nothing, so it replaces nothing. A check
+// whose workflow or run number is unknown is kept.
+func WithoutReplacedCancelled(checks []Check) []Check {
+	out := make([]Check, 0, len(checks))
+	for _, c := range checks {
+		replaced := c.State == CheckCancelled && c.WorkflowID != 0 && c.RunNumber != 0 &&
+			slices.ContainsFunc(checks, func(later Check) bool {
+				return canReplaceCancelled(later) && later.WorkflowID == c.WorkflowID &&
+					later.Event == c.Event && later.Name == c.Name &&
+					olderThan(c.RunNumber, c.RunAttempt, later.RunNumber, later.RunAttempt)
+			})
+		if !replaced {
+			out = append(out, c)
+		}
+	}
+
+	return out
+}
+
+// canReplaceCancelled reports whether a check says something about the code, or
+// is on its way to: it passed, failed, or has not finished.
+func canReplaceCancelled(c Check) bool {
+	switch c.State {
+	case CheckSuccess:
+		// A neutral conclusion reads as a pass but tested nothing.
+		return c.ReportedConclusion != "neutral"
+	case CheckFailure, CheckTimedOut, CheckRunning, CheckQueued:
+		return true
+	default:
+		return false
+	}
+}
+
 // SupersededRuns marks, for each check, whether a newer run of its workflow
 // replaces it: a run of the same workflow with a higher number, or a later
 // attempt of the same run. The commit a default branch reads can carry many runs

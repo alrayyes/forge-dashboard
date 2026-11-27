@@ -216,6 +216,11 @@ type Check struct {
 	// run the forge's lists omit. The stream sends it once on the run's event,
 	// not on each job, so it is not on the check's own JSON.
 	Run *RunFacts `json:"-"`
+	// WorkflowID and Event are the workflow of that run and what started it,
+	// which tell two workflows of one name apart (#5116). 0 and "" where the
+	// forge didn't say. Neither is on the wire.
+	WorkflowID int64  `json:"-"`
+	Event      string `json:"-"`
 	// FailedStep names the step of a failed job that broke, and Excerpt is
 	// the tail of its log as plain text, capped in length (#697). Both are
 	// empty when the forge can't provide them (permission, expired logs, a
