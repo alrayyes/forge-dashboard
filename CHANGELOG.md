@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.16](https://github.com/alrayyes/forge-dashboard/compare/v9.140.15...v9.140.16) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** say once that a forge isn't answering ([#5164](https://github.com/alrayyes/forge-dashboard/issues/5164)) ([05590a7](https://github.com/alrayyes/forge-dashboard/commit/05590a735ef8ff9ee98e3b4e0170a867300649c9)), closes [#5127](https://github.com/alrayyes/forge-dashboard/issues/5127)
+
 ## [9.140.15](https://github.com/alrayyes/forge-dashboard/compare/v9.140.14...v9.140.15) (2026-11-27)
 
 
