@@ -35,7 +35,13 @@ type fakeGitHubHost struct {
 	challenge string
 	grants    int
 	grantCode int
+	down      atomic.Bool // set by hangUp
 }
+
+// hangUp makes the fake drop every request unanswered, as an unreachable GitHub
+// would. It keeps the port: a closed server's port can be taken by a parallel
+// test's server, which would then answer (#5129).
+func (f *fakeGitHubHost) hangUp() { f.down.Store(true) }
 
 func newFakeGitHubHost(t *testing.T) *fakeGitHubHost {
 	t.Helper()
@@ -99,7 +105,12 @@ func newFakeGitHubHost(t *testing.T) *fakeGitHubHost {
 			},
 		})
 	})
-	f.server = httptest.NewServer(mux)
+	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if f.down.Load() {
+			panic(http.ErrAbortHandler)
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(f.server.Close)
 
 	return f
