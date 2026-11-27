@@ -230,6 +230,10 @@ refresh straight away. If the dashboard shuts down during the wait, or your acco
 connection is replaced (you save new credentials) or removed, the pending
 refresh is dropped, and the next scheduled refresh picks the change up.
 
+On GitHub a repository whose refreshes are costly waits longer still, even with
+`WEBHOOK_MIN_INTERVAL=0s`, so that they stay within their
+[share of the budget](rate-limits.md#a-reserve-for-your-own-actions).
+
 On GitHub a delivery's refresh also waits while the budget is at its
 [reserve](rate-limits.md#a-reserve-for-your-own-actions), until 30 seconds
 after the reset. The deliveries that arrive meanwhile still cost one refresh per

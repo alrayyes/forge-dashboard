@@ -3,6 +3,7 @@ package dashboard
 import (
 	"context"
 	"log/slog"
+	"maps"
 	"sync"
 	"time"
 )
@@ -47,7 +48,8 @@ func realAfterFunc(d time.Duration, f func()) func() bool {
 
 // debouncer turns a burst of calls for one key into a single call of the
 // latest fn, quiet after the newest and at most maxHold after the first,
-// unless the call is put off with deferUntil. It
+// unless the call is put off with deferUntil or the key is held with
+// charge. It
 // holds an entry only while a call is pending, so memory is bounded by the
 // number of repos with events in flight. It also remembers when each key last
 // ran, until the interval is over and a later fire prunes it, so an idle
@@ -67,6 +69,8 @@ type debouncer struct {
 	// lastFired is when each key last ran, kept only while it still holds the
 	// next call back. Guarded by mu.
 	lastFired map[string]time.Time
+	// notBefore is the earliest a key held by charge may run. Guarded by mu.
+	notBefore map[string]time.Time
 	// closed is set when the owner's context ends; nothing is accepted after.
 	closed bool
 	owner  context.Context
@@ -91,7 +95,8 @@ type debounceEntry struct {
 func newDebouncer(owner context.Context, now func() time.Time, after AfterFunc, quiet, maxHold, minInterval time.Duration) *debouncer {
 	d := &debouncer{
 		now: now, after: after, quiet: quiet, maxHold: maxHold, minInterval: minInterval,
-		entries: make(map[string]*debounceEntry), lastFired: make(map[string]time.Time), owner: owner,
+		entries: make(map[string]*debounceEntry), lastFired: make(map[string]time.Time),
+		notBefore: make(map[string]time.Time), owner: owner,
 	}
 	if owner != nil {
 		context.AfterFunc(owner, d.close)
@@ -112,6 +117,7 @@ func (d *debouncer) close() {
 		delete(d.entries, key)
 	}
 	clear(d.lastFired)
+	clear(d.notBefore)
 }
 
 // Submit records an event for key. fn runs once, after the burst, with the
@@ -169,6 +175,36 @@ func (d *debouncer) deferUntil(ctx context.Context, key string, at time.Time, fn
 	d.arm(ctx, key, e, max(at.Sub(now), 0))
 }
 
+// charge holds key for pause more, counted from from or from the end of the
+// hold it is already under, whichever is later, so no run's pause replaces
+// another's. A call due sooner waits, one already pending included.
+func (d *debouncer) charge(key string, from time.Time, pause time.Duration) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.closed || pause <= 0 {
+		return
+	}
+	now := d.now()
+	maps.DeleteFunc(d.notBefore, func(_ string, t time.Time) bool { return !t.After(now) })
+	if held, ok := d.notBefore[key]; ok && held.After(from) {
+		from = held
+	}
+	if until := from.Add(pause); until.After(now) {
+		d.notBefore[key] = until
+	}
+}
+
+// heldUntil is when key's hold ends, and whether it is still on.
+func (d *debouncer) heldUntil(key string) (time.Time, bool) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	until := d.notBefore[key]
+
+	return until, until.After(d.now())
+}
+
 // arm starts e's timer. The caller holds mu.
 func (d *debouncer) arm(ctx context.Context, key string, e *debounceEntry, wait time.Duration) {
 	gen := e.gen
@@ -180,6 +216,12 @@ func (d *debouncer) fire(key string, gen uint64) {
 	d.mu.Lock()
 	e, ok := d.entries[key]
 	if !ok || e.gen != gen {
+		d.mu.Unlock()
+
+		return
+	}
+	if wait := d.notBefore[key].Sub(d.now()); wait > 0 {
+		e.stop = d.after(wait, func() { d.fire(key, gen) })
 		d.mu.Unlock()
 
 		return
@@ -246,7 +288,8 @@ func WithDebounceOwner(ctx context.Context) AggregatorOption {
 // It reports false at once, arming nothing, when no Source can do a scoped
 // fetch for forge, so the caller falls back to a full refresh without waiting.
 // A true answer means the refresh was accepted and will run after the window,
-// not that it has run. One that comes due with a budget at its reserve waits
+// not that it has run. A repo whose refreshes are costly also waits until its
+// share of the budget has paid for the last one (webhookPause). One that comes due with a budget at its reserve waits
 // for the reset, and the events that arrive meanwhile still cost one refresh. Each Aggregator has its own debouncer, so one user's
 // event never absorbs another's. A refresh already running for the repo is not
 // interrupted: an event that arrives during it starts a new window, and the
@@ -266,7 +309,7 @@ func (a *Aggregator) RefreshRepoDebounced(ctx context.Context, forge Forge, owne
 
 			return
 		}
-		a.fetchRepo(ctx, refresher, forge, owner, name, fullName, attrs...)
+		a.fetchRepo(ctx, refresher, forge, owner, name, fullName, refresh, attrs...)
 	}
 
 	return a.debounce.Submit(ctx, key, refresh)
