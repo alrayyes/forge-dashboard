@@ -66,13 +66,13 @@ func setPullRequestAutoUpdateFor(ctx context.Context, deps Deps, req pullRequest
 	}
 
 	if _, found := deps.Service.FindPullRequest(dashboard.Forge(req.Forge), req.FullName, req.Number); !found {
-		return "", &statusError{http.StatusNotFound, "pull request not found"}
+		return "", &statusError{status: http.StatusNotFound, message: "pull request not found"}
 	}
 
 	if err := saveAutoUpdateChoice(ctx, deps.SettingsStore, req); err != nil {
 		slog.Warn("could not save pull request auto-update choice", "error", err)
 
-		return "", &statusError{http.StatusInternalServerError, "could not save"}
+		return "", &statusError{status: http.StatusInternalServerError, message: "could not save"}
 	}
 
 	return "", nil
@@ -110,16 +110,16 @@ func wrapAutoUpdate(err error) error {
 // field it is about, "" when it is the whole name.
 func pullRequestTargetProblem(forge, fullName string, number int) (string, *statusError) {
 	if utf8.RuneCountInString(fullName) > maxRepoFullNameLen {
-		return "fullName", &statusError{http.StatusBadRequest, "fullName is too long"}
+		return "fullName", &statusError{status: http.StatusBadRequest, message: "fullName is too long"}
 	}
 	if _, _, ok := splitFullName(fullName); !ok {
-		return "", &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+		return "", &statusError{status: http.StatusBadRequest, message: `fullName must be "owner/repo"`}
 	}
 	if serr := forgeProblem(forge); serr != nil {
 		return "forge", serr
 	}
 	if number < 1 || number > maxPullRequestNumber {
-		return "number", &statusError{http.StatusBadRequest, "number must be a pull request number"}
+		return "number", &statusError{status: http.StatusBadRequest, message: "number must be a pull request number"}
 	}
 
 	return "", nil
@@ -136,7 +136,7 @@ func forgeProblem(forge string) *statusError {
 		names = append(names, string(f))
 	}
 
-	return &statusError{http.StatusBadRequest, "forge must be " + strings.Join(names, " or ")}
+	return &statusError{status: http.StatusBadRequest, message: "forge must be " + strings.Join(names, " or ")}
 }
 
 // refuseUnknownForge answers 400 for an unknown forge and reports whether it did.

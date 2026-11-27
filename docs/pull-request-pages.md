@@ -88,7 +88,8 @@ the forge. A deleted author reads "ghost" and isn't a link. Hovering or
 focusing a reaction lists who gave it, up to ten names and then "and N more";
 Escape hides that list first and a second press closes the pop-up. Reactions
 are display only. When the details can't load, it says so in plain words with
-**Try again**.
+**Try again**. If the forge's request budget is spent, it also says when that
+resets. A limit with no known reset time shows the forge's own message instead.
 
 The text is Markdown and the server doesn't sanitise it, so the page renders
 it with [markdown-it](https://github.com/markdown-it/markdown-it) with raw HTML

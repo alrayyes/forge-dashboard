@@ -99,6 +99,17 @@ export function rateLimitReasonText(
   return `${head} Actions resume at ${formatTime(resetsAt)} (in ${minutesUntil(resetsAt, now)} min).`;
 }
 
+// What a read that failed on the limit says. Null without a reset time, so the
+// caller keeps the server's own reason.
+export function rateLimitResetText(
+  forgeLabel: string,
+  resetsAt: string | undefined,
+  now: number = Date.now(),
+): string | null {
+  if (!resetsAt || !Number.isFinite(Date.parse(resetsAt))) return null;
+  return `${forgeLabel} API rate limit reached. It resets at ${formatTime(resetsAt)} (in ${minutesUntil(resetsAt, now)} min).`;
+}
+
 // The header's budget text, e.g. "GH REST: 0/5,000 reqs, resets 14:32". The
 // label says which budget it is, since GitHub keeps two (#1433). A count
 // above its limit means the limit isn't this budget's, so it says what is

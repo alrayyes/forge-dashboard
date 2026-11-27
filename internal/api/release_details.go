@@ -42,7 +42,7 @@ func handleReleaseDetails(deps Deps) http.HandlerFunc {
 		details, err := detailer.GetReleaseDetails(r.Context(), owner, name, tag)
 		if err != nil {
 			slog.Warn("release details fetch failed", "forge", forge, "repo", fullName, "tag", tag, "error", err)
-			(&statusError{clientErrorStatus(err), err.Error()}).write(w)
+			forgeReadError(err).write(w)
 
 			return
 		}

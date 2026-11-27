@@ -98,6 +98,7 @@
   import { titleSegments } from "#lib/title-code.js";
   import { repoUrlOf } from "#lib/repo-url.js";
   import { lineCommentsNote } from "#lib/line-comments-note.js";
+  import { rateLimitResetText } from "#lib/rate-limit.js";
 
   // Puts a node the row's builders made into the header. A node already in
   // place stays put: moving it would drop keyboard focus from inside it
@@ -108,7 +109,15 @@
   };
 
   // An error the server explained, as opposed to a network or chunk failure.
-  class ServerReason extends Error {}
+  class ServerReason extends Error {
+    // When a rate limit comes back, where the server knows.
+    resetsAt: string | undefined;
+
+    constructor(message: string, resetsAt?: string) {
+      super(message);
+      this.resetsAt = resetsAt;
+    }
+  }
 
   // Matches components.schemas.PullRequestDetails and IssueDetails in
   // api/openapi.yaml (an issue has no releaseNotes).
@@ -705,6 +714,7 @@
       if (!res.ok) {
         throw new ServerReason(
           data?.error || `the server answered ${res.status}`,
+          data?.resetsAt,
         );
       }
       // A release answers with its title and notes: shown through the
@@ -788,8 +798,13 @@
       if (mine !== token) return true;
       await seeded;
       if (mine !== token) return true;
+      // Said in the dashboard's words, with the time, in place of the forge's.
+      const limited =
+        err instanceof ServerReason
+          ? rateLimitResetText(forgeLabelOf(current.forge), err.resetsAt)
+          : null;
       if (quiet || phase === "ready") {
-        older = OLDER_NOTE;
+        older = limited ? `${OLDER_NOTE} ${limited}` : OLDER_NOTE;
         // What is on show is all this open gets: land on it, then stop.
         landOnNewest(true);
 
@@ -799,7 +814,7 @@
       // carries a URL and a browser message, which stay out of the UI.
       errorMessage =
         err instanceof ServerReason
-          ? `Could not load the details: ${err.message}`
+          ? `Could not load the details: ${limited ?? err.message}`
           : "Could not load the details. Check your connection and try again.";
       phase = "error";
       // Nothing to land on, and a later live read must not jump there.

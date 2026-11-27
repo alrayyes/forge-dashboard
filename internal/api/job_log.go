@@ -51,15 +51,15 @@ func jobLogFailure(err error) *statusError {
 	status := clientErrorStatus(err)
 	switch status {
 	case http.StatusForbidden:
-		return &statusError{status, "the forge refused to show this job's log"}
+		return &statusError{status: status, message: "the forge refused to show this job's log"}
 	case http.StatusNotFound:
-		return &statusError{status, "the forge has no log for this job"}
+		return &statusError{status: status, message: "the forge has no log for this job"}
 	case http.StatusTooManyRequests:
-		return &statusError{status, "the forge is limiting requests; try again shortly"}
+		return &statusError{status: status, message: "the forge is limiting requests; try again shortly"}
 	default:
 		// Anything else, a Conflict kind included, is the forge failing: the
 		// route has no 409 to give.
-		return &statusError{http.StatusBadGateway, "the job's log could not be read"}
+		return &statusError{status: http.StatusBadGateway, message: "the job's log could not be read"}
 	}
 }
 
@@ -78,10 +78,10 @@ func repoTracked(snap dashboard.Snapshot, forge, fullName string) bool {
 func resolveJobSource(ctx context.Context, deps Deps, forge, fullName string, jobID int64) (src dashboard.Source, owner, name string, serr *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok || !validRepoSegment(owner) || !validRepoSegment(name) {
-		return nil, "", "", &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+		return nil, "", "", &statusError{status: http.StatusBadRequest, message: `fullName must be "owner/repo"`}
 	}
 	if jobID <= 0 {
-		return nil, "", "", &statusError{http.StatusBadRequest, "jobId must be a positive integer"}
+		return nil, "", "", &statusError{status: http.StatusBadRequest, message: "jobId must be a positive integer"}
 	}
 
 	src, _, serr = lookupForgeSource(ctx, deps, forge)
@@ -102,10 +102,10 @@ func checkJobTracked(ctx context.Context, deps Deps, forge, fullName string) *st
 	if len(snap.Repos) == 0 {
 		// A cold start, an outage or a slow first refresh also looks like this,
 		// so it can't be told apart from "not tracked": ask the caller to retry.
-		return &statusError{http.StatusServiceUnavailable, "your repositories aren't loaded yet, retry shortly"}
+		return &statusError{status: http.StatusServiceUnavailable, message: "your repositories aren't loaded yet, retry shortly"}
 	}
 	if !repoTracked(snap, forge, fullName) {
-		return &statusError{http.StatusNotFound, "that repository isn't on your board"}
+		return &statusError{status: http.StatusNotFound, message: "that repository isn't on your board"}
 	}
 
 	return nil

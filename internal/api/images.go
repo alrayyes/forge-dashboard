@@ -42,7 +42,7 @@ func imageProxyForCapabilities(deps Deps, forge string, caps dashboard.ForgeCapa
 	inst, _ := creds.InstanceFor(forge)
 	u, err := url.Parse(inst.URL)
 	if err != nil || inst.URL == "" || u.Host == "" {
-		return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
+		return nil, &statusError{status: http.StatusBadRequest, message: "no " + forge + " credentials saved"}
 	}
 
 	return imageproxy.New(imageproxy.Config{
@@ -106,17 +106,17 @@ func avatarProxyFor(deps Deps, forgeProxy *imageproxy.Proxy, kind imageKind, raw
 func imageFailure(err error) *statusError {
 	switch {
 	case errors.Is(err, imageproxy.ErrHostNotAllowed):
-		return &statusError{http.StatusForbidden, "that image's host is not allowed"}
+		return &statusError{status: http.StatusForbidden, message: "that image's host is not allowed"}
 	case errors.Is(err, imageproxy.ErrNotFound):
-		return &statusError{http.StatusNotFound, "the forge has no such image"}
+		return &statusError{status: http.StatusNotFound, message: "the forge has no such image"}
 	case errors.Is(err, imageproxy.ErrForbidden):
-		return &statusError{http.StatusForbidden, "the saved token can't read this image"}
+		return &statusError{status: http.StatusForbidden, message: "the saved token can't read this image"}
 	case errors.Is(err, imageproxy.ErrNotImage):
-		return &statusError{http.StatusUnsupportedMediaType, "that address is not a PNG, JPEG, GIF or WebP image"}
+		return &statusError{status: http.StatusUnsupportedMediaType, message: "that address is not a PNG, JPEG, GIF or WebP image"}
 	case errors.Is(err, imageproxy.ErrTooLarge):
-		return &statusError{http.StatusRequestEntityTooLarge, "the image is too large"}
+		return &statusError{status: http.StatusRequestEntityTooLarge, message: "the image is too large"}
 	default:
-		return &statusError{http.StatusBadGateway, "the image could not be read"}
+		return &statusError{status: http.StatusBadGateway, message: "the image could not be read"}
 	}
 }
 

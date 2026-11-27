@@ -656,16 +656,22 @@ test.describe('pull request details dialog', () => {
     await expect(fold.getByText('notes').first()).toBeVisible();
   });
 
-  test('an error says why and Try again fetches again', async ({ page }) => {
+  test('a rate-limited error says when the limit resets and Try again fetches again, with no axe violations', async ({
+    page,
+  }) => {
     await mockDashboard(page, [makePR()]);
     let calls = 0;
     await page.route('**/api/v1/pull-requests/details*', (route) => {
       calls++;
-      if (calls === 1) {
+      // Limited on the first read, and again once the details have been shown.
+      if (calls !== 2) {
         return route.fulfill({
           status: 429,
           contentType: 'application/json',
-          body: JSON.stringify({ error: 'GitHub rate limit reached' }),
+          body: JSON.stringify({
+            error: 'github: graphql: rate limit exceeded',
+            resetsAt: new Date(Date.now() + 12 * 60_000).toISOString(),
+          }),
         });
       }
       return route.fulfill({
@@ -677,11 +683,33 @@ test.describe('pull request details dialog', () => {
     await page.goto('/pull-requests.html');
     await trigger(page).click();
     await expect(dialog(page).getByRole('alert')).toContainText(
-      'GitHub rate limit reached',
+      /GitHub API rate limit reached\. It resets at .+ \(in 1[12] min\)\./,
     );
+    for (const width of [390, 1280]) {
+      await test.step(`at ${width}px`, async () => {
+        await page.setViewportSize({ width, height: 800 });
+        await settle(page);
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+        const box = await dialog(page).getByRole('alert').boundingBox();
+        expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual(width);
+      });
+    }
     await dialog(page).getByRole('button', { name: 'Try again' }).click();
     await expect(dialog(page).locator('strong')).toHaveText('structured');
     expect(calls).toBe(2);
+
+    // Reopened: the remembered details stay, and the note says the same.
+    await page.keyboard.press('Escape');
+    await trigger(page).click();
+    await expect(
+      dialog(page).getByText(
+        /may be out of date.+GitHub API rate limit reached\. It resets at/,
+      ),
+    ).toBeVisible();
+    await expect(dialog(page).locator('strong')).toHaveText('structured');
   });
 
   test('a slow answer for a closed dialog never lands in the next one', async ({

@@ -37,7 +37,7 @@ func NewCheckWatch(ctx context.Context, fetch func(CheckSubject) ([]dashboard.Ch
 		fetch: func(_ context.Context, s checkSubject) ([]dashboard.Check, *statusError) {
 			checks, err := fetch(s)
 			if err != nil {
-				return nil, &statusError{http.StatusBadGateway, err.Error()}
+				return nil, &statusError{status: http.StatusBadGateway, message: err.Error()}
 			}
 
 			return checks, nil
