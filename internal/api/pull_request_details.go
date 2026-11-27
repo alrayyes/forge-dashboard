@@ -34,7 +34,7 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, forge, fullNam
 	if err != nil {
 		slog.Warn("pull request details fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
 
-		return dashboard.PullRequestDetails{}, &statusError{status: clientErrorStatus(err), message: err.Error()}
+		return dashboard.PullRequestDetails{}, forgeReadError(err)
 	}
 
 	details.ReleaseNotes = releaseNotesOf(deps, dashboard.Forge(forge), fullName, number, details.Description)
