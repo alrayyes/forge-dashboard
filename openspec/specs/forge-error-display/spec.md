@@ -165,7 +165,14 @@ SHALL NOT cancel its read before the scheduled deadline. While that read runs,
 the forge SHALL be reachable with cause `slow` (a `starting` forge stays
 `starting`), keep the rows it had, not be asked again, and have no pass counted
 as missed. The outcome SHALL be applied when it arrives. A forge never read
-before has no rows and no `rowsReadAt` meanwhile.
+before has no rows and no `rowsReadAt` meanwhile, and its missing rows SHALL
+NOT be treated as closed or gone: no saved choice is forgotten, no queued
+action is skipped and its actions stay off.
+
+#### Scenario: A queued action while the first read is slow
+
+- **WHEN** a queued action is due and its forge has never been read
+- **THEN** the action stays queued and is tried again
 
 #### Scenario: An answer between the two deadlines
 

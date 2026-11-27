@@ -6551,6 +6551,8 @@ components:
             is held until three passes in a row have missed. The last good rows
             are held and the forge is still reachable. A forge never read
             before can be "slow" with no rows while its first fetch runs on.
+            It then has no `rowsReadAt`, and a client must not read the
+            missing rows as closed or gone, or offer actions for it.
             A fetch that runs on is applied as soon as it answers. Otherwise
             any later pass that does not miss clears the cause, including one
             that holds a 5xx or does not ask

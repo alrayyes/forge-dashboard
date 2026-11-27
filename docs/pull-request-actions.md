@@ -402,10 +402,12 @@ What a row may claim while its forge can't be asked is decided in one place,
 health and never its name, so a Forgejo row and a GitHub row get the same words.
 Each claim is one of three: confirmed (the forge answered), carried over (the
 forge can't be asked, so the row is an earlier answer, with since-when and the
-reason) or unknown (the forge answered but hasn't said, which only an
-unconfirmed conflict is). The same answer says whether a control may be drawn:
-none is while the forge can't be asked, and none is while its budget is spent
-(the web only; a spent budget says nothing about how old the data is). The
+reason; a forge whose first read is still running counts the same, so a pull
+request it hasn't listed yet isn't taken as closed) or unknown (the forge
+answered but hasn't said, which only an unconfirmed conflict is). The same
+answer says whether a control may be drawn: none is while the forge can't be
+asked, and none is while its budget is spent (the web only; a spent budget says
+nothing about how old the data is). The
 Dependabot buttons, the actions in the issue dialog, the row controls, the
 queued-action offer, and the auto-merge, hidden-pull-request and queued-action
 checks on the server all ask it, so a new case lands in all of them at once.
@@ -426,8 +428,8 @@ since-time, a main branch row or a repo marked `staleSince`, asks the same
 rule: `rowClaim` takes that time, `ClaimOfRow` takes it on the server, and a row
 with one is carried over, in the same words and with the same since-time.
 Forge-level and scheduling checks of `Reachable` (the webhook upgrade, the
-reserve, the settings page, the snapshot cache, and which forges the aggregator
-asks) are not row claims and read the health directly.
+reserve, the repository list in Settings, the snapshot cache, and which forges
+the aggregator asks) are not row claims and read the health directly.
 
 Four limits to know:
 

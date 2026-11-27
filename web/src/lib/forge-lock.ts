@@ -21,6 +21,8 @@ export type ForgeHealthEntry = {
   starting?: boolean;
   // Why the rows shown for this forge are held from an earlier read.
   cause?: ForgeCause;
+  // When the held rows were read, sent only while the cause is "slow".
+  rowsReadAt?: string;
   // When the rows shown for this forge were last read, while it can't be asked.
   staleSince?: string;
   rateLimitREST?: RateLimit;
@@ -53,6 +55,12 @@ function lockOf(
     return {
       code: 'forge_starting',
       reason: 'Still loading from this forge since the app started.',
+    };
+  // Slow with nothing read before: its lack of rows says nothing yet.
+  if (health.cause === 'slow' && !health.rowsReadAt)
+    return {
+      code: 'forge_starting',
+      reason: 'Still waiting for the first answer from this forge.',
     };
   if (isUnreachable(health))
     return {

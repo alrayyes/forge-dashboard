@@ -1217,9 +1217,9 @@ func (a *Aggregator) joinPass() {
 
 // notSlow is h without ForgeCauseSlow and its RowsReadAt, which are about the latest pass only: a
 // pass that does not ask the forge must not inherit it. ForgeCauseStarting
-// stays, since nothing has answered yet.
+// stays, since nothing has answered yet, and so does a forge never read.
 func notSlow(h ForgeHealth) ForgeHealth {
-	if h.Cause == ForgeCauseSlow {
+	if h.Cause == ForgeCauseSlow && !h.NeverRead() {
 		h.Cause = ""
 		h.RowsReadAt = nil
 	}

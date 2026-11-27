@@ -521,14 +521,14 @@ func ignoredTitleCounts(ctx context.Context, deps Deps, patterns []string, snap 
 // snapshotKnown reports whether snap says anything about the viewer's issues.
 // A zero GeneratedAt is no snapshot at all. A stamped one can still be empty
 // because every forge failed its first fetch, which tells us nothing: it
-// counts only when some forge answered (Reachable) or has older data on show
+// counts only when some forge answered (Reachable, and read) or has older data on show
 // (StaleSince).
 func snapshotKnown(snap dashboard.Snapshot) bool {
 	if snap.GeneratedAt.IsZero() {
 		return false
 	}
 	for _, f := range snap.Forges {
-		if f.Reachable || f.StaleSince != nil {
+		if (f.Reachable && !f.NeverRead()) || f.StaleSince != nil {
 			return true
 		}
 	}

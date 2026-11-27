@@ -47,13 +47,13 @@ type RowClaim struct {
 }
 
 // ClaimOf is the one place the server decides what a row may claim while its
-// forge is unreachable, so no caller reads Reachable, Starting or StaleSince
-// for that itself (#3968). It reads the forge's health and never its name, so
-// a row from any forge gets the same answer. answered is false when the forge
+// forge is unreachable or has never been read, so no caller reads Reachable,
+// Starting or StaleSince for that itself (#3968). It reads the forge's health
+// and never its name, so a row from any forge gets the same answer. answered is false when the forge
 // has not said, which only a conflict can be. The web's rowClaim
 // (web/src/lib/row-claim.ts) is the same rule.
 func ClaimOf(kind ClaimKind, h ForgeHealth, answered bool) RowClaim {
-	if !h.Reachable || h.Starting {
+	if !h.Reachable || h.Starting || h.NeverRead() {
 		return carriedOver(h.StaleSince)
 	}
 	if kind == ClaimConflict && !answered {

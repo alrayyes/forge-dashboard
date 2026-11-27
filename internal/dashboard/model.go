@@ -615,6 +615,12 @@ type ForgeHealth struct {
 	Capabilities ForgeCapabilities `json:"capabilities"`
 }
 
+// NeverRead reports a forge whose first read is still to be answered: it is
+// not down, and its lack of rows says nothing about what it holds.
+func (h ForgeHealth) NeverRead() bool {
+	return h.Cause == ForgeCauseSlow && h.RowsReadAt == nil
+}
+
 // FailedInstallation matches components.schemas.FailedInstallation.
 type FailedInstallation struct {
 	InstallationID int64          `json:"installationId"`
