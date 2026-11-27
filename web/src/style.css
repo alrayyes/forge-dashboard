@@ -3948,7 +3948,8 @@ a.ci-pill:hover {
 /* #4596: on a desktop the chip is a compact status, not a banner. It is as
    wide as its icon, label, detail and button, one line (the button's 30px)
    tall, and the slot takes no room while it is empty at any width. The detail
-   gives way first (an ellipsis; the tooltip has the full sentence). The phone
+   gives way first (an ellipsis; the tooltip has the full sentence), except on
+   a stopped chip (#5088, below). The phone
    card, 760px and narrower, keeps the full-width 59px slot above (#4590). */
 @media (width > 760px) {
   .wait-slot {
@@ -3985,6 +3986,20 @@ a.ci-pill:hover {
      Still over the 24px floor of WCAG 2.5.8. */
   .wait-chip-action {
     min-height: 28px;
+  }
+  /* #5088: a stopped chip is the row's only copy of why Merge is blocked, so
+     it never cuts it. The reason takes a second line, then wraps, when the
+     column is narrow or the text is enlarged. */
+  .wait-chip[data-state="stopped"] .wait-chip-text {
+    flex-wrap: wrap;
+    row-gap: 0;
+  }
+  .wait-chip[data-state="stopped"] .wait-chip-label,
+  .wait-chip[data-state="stopped"] .wait-chip-detail {
+    flex: 0 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
   }
 }
 
