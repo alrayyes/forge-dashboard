@@ -137,12 +137,12 @@ Merge unlocks by itself. A queued action (Update branch waiting for a rate limit
 to reset) keeps its own chip and Cancel in place of the waiting chip.
 A merge status the forge hasn't reported reads "Status unknown", with the code
 `status_unknown` behind it. If the forge still says unknown after two minutes on
-this page, the chip changes at the next refresh to "Still waiting", "Over 2 min",
-and its tooltip says to open the pull request on the forge, since a forge that
-never reports (a pull request with no checks, say) shouldn't look as if it is
-about to. The count starts again if the forge reports a status or the pull
-request leaves this page's list. Auto-merge stays in the chip throughout. A
-draft keeps its locked Merge.
+this page, the chip changes to "Still waiting", "Over 2 min", as soon as the two
+minutes have passed, and its tooltip says to open the pull request on the forge,
+since a forge that never reports (a pull request with no checks, say) shouldn't
+look as if it is about to. The count starts again if the forge reports a status
+or the pull request leaves this page's list. Auto-merge stays in the chip
+throughout. A draft keeps its locked Merge.
 The words follow the CI pill: while the pill reads the live jobs and says they
 have finished, the row keeps the chip but says "Waiting for the forge", with
 "Updating from the latest CI results" in its tooltip, and the Merge button stays
