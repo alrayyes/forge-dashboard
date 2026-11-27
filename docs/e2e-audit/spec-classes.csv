@@ -300,6 +300,7 @@ settings-ignore-issues.spec.ts,7.876,19,6,C,,5.4
 settings-ignore-regex-colour.spec.ts,3.077,3,3,A,,0.0
 settings-mcp-help.spec.ts,5.183,3,2,A,,1.7
 settings-repositories-auto-update-message.spec.ts,17.766,10,2,C,,14.2
+settings-repositories-clear-filters.spec.ts,,3,3,A,,0.0
 settings-repositories-failing.spec.ts,5.452,4,1,C,,4.1
 settings-repositories-ignore.spec.ts,26.281,5,2,C,,15.8
 settings-repositories-offered-filters.spec.ts,,14,11,A,,0.0

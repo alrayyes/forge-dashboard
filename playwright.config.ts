@@ -99,6 +99,7 @@ const singleUserSpecs = [
   '**/settings-repositories-ignore.spec.ts',
   '**/settings-repositories-toggle-filters.spec.ts',
   '**/settings-repositories-offered-filters.spec.ts',
+  '**/settings-repositories-clear-filters.spec.ts',
   '**/auto-merge-filter.spec.ts',
   '**/conflicts-filter.spec.ts',
   '**/filter-choices-pills.spec.ts',
