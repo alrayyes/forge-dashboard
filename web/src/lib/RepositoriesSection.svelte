@@ -185,12 +185,12 @@
   // A choice, group or box that stops mattering leaves the bar. Focus held on
   // it moves to another control, never to the page body.
   let filterBar = $state<HTMLDivElement>();
-  function focusAfterRemoval() {
+  function focusAfterRemoval(typing = true) {
     const next =
       filterBar?.querySelector<HTMLElement>(
         '.filter-pill[aria-pressed="true"]',
       ) ??
-      document.getElementById("repositories-search") ??
+      (typing ? document.getElementById("repositories-search") : null) ??
       document.querySelector<HTMLElement>(
         "#repositories-rows a, #repositories-rows button",
       );
@@ -209,7 +209,7 @@
     ];
     const held = document.activeElement;
     if (!held || !untrack(() => filterBar)?.contains(held)) return;
-    // clearFilters places its own focus, and leaves a pointer click alone.
+    // clearFilters places its own focus.
     if (held.classList.contains("clear-filters")) return;
     tick().then(() => {
       if (!held.isConnected && document.activeElement === document.body)
@@ -306,8 +306,8 @@
     filter.forge = forge;
     changeFilter();
   }
-  // Clearing hides the button, so a keyboard user would lose focus: put it
-  // back on the search, the bar's first text control.
+  // Clearing removes the button, so focus goes elsewhere: the search for a
+  // keyboard, and for a pointer a control that raises no on-screen keyboard.
   async function clearFilters(event: MouseEvent) {
     const byKeyboard = event.detail === 0;
     filter = { ...NO_FILTER };
@@ -315,12 +315,13 @@
     sortDir = "asc";
     changeFilter();
     setStatus("Filters cleared.");
-    if (!byKeyboard) return;
     // The search box may only just be coming back.
     await tick();
-    const search = document.getElementById("repositories-search");
+    const search = byKeyboard
+      ? document.getElementById("repositories-search")
+      : null;
     if (search) search.focus();
-    else focusAfterRemoval();
+    else focusAfterRemoval(byKeyboard);
   }
 
   const sortChoice = $derived(`${sortKey}:${sortDir}`);
@@ -819,29 +820,18 @@
             </FilterGroup>
           </div>
         {/if}
-        {#if offerSearch || !filtersClear}
-          <div class="search-field" class:no-search={!offerSearch}>
-            {#if offerSearch}
-              <input
-                class="col-filter"
-                type="search"
-                id="repositories-search"
-                placeholder="Search repos"
-                aria-label="Filter by repo name"
-                autocomplete="off"
-                bind:value={filter.search}
-                oninput={() => changeFilter()}
-              />
-            {/if}
-            {#if !filtersClear}
-              <button
-                type="button"
-                class="clear-filters"
-                onclick={clearFilters}
-              >
-                Clear filters
-              </button>
-            {/if}
+        {#if offerSearch}
+          <div class="search-field">
+            <input
+              class="col-filter"
+              type="search"
+              id="repositories-search"
+              placeholder="Search repos"
+              aria-label="Filter by repo name"
+              autocomplete="off"
+              bind:value={filter.search}
+              oninput={() => changeFilter()}
+            />
           </div>
         {/if}
         <select
@@ -856,6 +846,11 @@
           <option value="forge:asc">Sort: Forge, A to Z</option>
           <option value="forge:desc">Sort: Forge, Z to A</option>
         </select>
+        {#if !filtersClear}
+          <button type="button" class="clear-filters" onclick={clearFilters}>
+            Clear filters
+          </button>
+        {/if}
       </div>
     {/if}
 
@@ -1260,7 +1255,6 @@
     color: var(--ink-2);
   }
   .search-field {
-    position: relative;
     flex: 1 1 180px;
     min-width: 140px;
     display: flex;
@@ -1268,25 +1262,11 @@
   }
   .search-field .col-filter {
     width: 100%;
-    padding-right: 6.5rem;
   }
-  /* A quiet text button inside the field: shown only while a filter is set. */
-  .search-field .clear-filters {
-    position: absolute;
-    right: 4px;
-    min-height: 28px;
-    padding: 0 8px;
-    border: 0;
-    background: none;
-    color: var(--accent);
-    font: inherit;
-    font-size: 0.78125rem;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-  /* No box to sit in once one row is left (see searchShown). */
-  .search-field.no-search .clear-filters {
-    position: static;
+  /* Last in the bar and at its end, as on the other pages. The look is the
+     shared one in style.css. */
+  .filter-bar .clear-filters {
+    margin-inline-start: auto;
   }
   .repositories-sort {
     display: none;
