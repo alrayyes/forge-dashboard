@@ -1559,9 +1559,12 @@ the panel groups them: a `Required` group first, with a failing required
 check flagged `Blocking`, then `Advisory`. GitHub's classic required
 status checks and its rulesets are both read, and Forgejo's
 `status_check_contexts` patterns. Reading branch protection needs more
-permission than listing checks (admin on GitHub's classic rules and on
-Forgejo), so with a token that can't, or for a check the dashboard can't
-match to a protection entry, the check lands under `Not known if required`,
+permission than listing checks. On GitHub, a token without admin gets the
+classic required checks from the branch itself, which read access is enough
+for. Forgejo has no such fallback and needs admin. When the branch can't be
+read either, on Forgejo with a token that isn't an admin's, or for a check the
+dashboard can't match to a protection entry, the check lands under
+`Not known if required`,
 with a one-line hint that the forge didn't say whether it blocks the merge,
 rather than being guessed advisory (the pill has its own fallback, described
 earlier). A

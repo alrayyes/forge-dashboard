@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"slices"
 	"sync"
 	"time"
@@ -280,7 +281,15 @@ func (c *Client) hasUnreportedRequired(ctx context.Context, cand missingRequired
 func (c *Client) branchSummaryContexts(ctx context.Context, owner, name, base string, required map[string]bool) bool {
 	path := fmt.Sprintf("/repos/%s/%s/branches/%s", owner, name, base)
 	slog.Debug("github request", "method", http.MethodGet, "url", path)
-	branch, resp, err := c.restClient.Repositories.GetBranch(ctx, owner, name, base, 1)
+	// Built by hand: go-github's GetBranch skips its own error handling and the
+	// client's timeout, so a refusal would read as an unreachable forge.
+	var branch ghsdk.Branch
+	var resp *ghsdk.Response
+	req, err := c.restClient.NewRequest(http.MethodGet,
+		fmt.Sprintf("repos/%s/%s/branches/%s", owner, name, url.PathEscape(base)), nil)
+	if err == nil {
+		resp, err = c.restClient.Do(ctx, req, &branch)
+	}
 	if err != nil {
 		slog.Debug("github branch unreadable, required stays unknown", "repo", owner+"/"+name, "branch", base,
 			"error", c.restError(ctx, http.MethodGet, path, err))

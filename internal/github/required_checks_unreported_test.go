@@ -9,6 +9,7 @@ import (
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
+	"github.com/alrayyes/forge-dashboard/internal/requestlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +25,12 @@ type justPushed struct {
 	// adminRefused answers the protection endpoint as it does for a credential
 	// without admin rights, which can still read the branch itself.
 	adminRefused bool
-	// branchRefused fails the branch read too, so the names can't be known.
-	branchRefused  bool
+	// branchRefusal fails the branch read too, so the names can't be known.
+	branchRefusal int
+	// branchRemaining is the request budget the refused branch read reports.
+	branchRemaining string
+	// branchRenamed redirects the branch read, as GitHub does after a rename.
+	branchRenamed  bool
 	reviewDecision string
 
 	branchReads atomic.Int32
@@ -96,7 +101,15 @@ func (j *justPushed) start(t *testing.T) *httptest.Server {
 		}
 		writeJSON(t, w, map[string]any{"strict": false, "contexts": j.required})
 	})
-	mux.HandleFunc("/repos/alrayyes/a/branches/main", j.branch(t))
+	mux.HandleFunc("/repos/alrayyes/a/branches/main", func(w http.ResponseWriter, r *http.Request) {
+		if j.branchRenamed {
+			http.Redirect(w, r, "/repos/alrayyes/a/branches/trunk", http.StatusMovedPermanently)
+
+			return
+		}
+		j.branch(t)(w, r)
+	})
+	mux.HandleFunc("/repos/alrayyes/a/branches/trunk", j.branch(t))
 	mux.HandleFunc("/repos/alrayyes/a/rules/branches/main", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(t, w, []map[string]any{})
 	})
@@ -125,8 +138,13 @@ func (j *justPushed) branch(t *testing.T) http.HandlerFunc {
 
 	return func(w http.ResponseWriter, _ *http.Request) {
 		j.branchReads.Add(1)
-		if j.branchRefused {
-			http.Error(w, `{"message":"Not Found"}`, http.StatusNotFound)
+		if j.branchRefusal != 0 {
+			if j.branchRemaining != "" {
+				w.Header().Set("X-RateLimit-Limit", "5000")
+				w.Header().Set("X-RateLimit-Remaining", j.branchRemaining)
+				w.Header().Set("X-RateLimit-Reset", "1789000000")
+			}
+			http.Error(w, `{"message":"refused"}`, j.branchRefusal)
 
 			return
 		}
@@ -205,7 +223,7 @@ func TestFetch_BlockedWithNoCheckAndNoKnownRequiredCheck_IsBlockedByTheForge(t *
 	cases := map[string]*justPushed{
 		"nothing required":      {},
 		"nothing required here": {adminRefused: true},
-		"names can't be read":   {required: []string{"ci"}, adminRefused: true, branchRefused: true},
+		"names can't be read":   {required: []string{"ci"}, adminRefused: true, branchRefusal: http.StatusNotFound},
 	}
 	for name, j := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -232,6 +250,53 @@ func TestListChecks_WithoutAdminRights_ListsTheRequiredCheckAsNotReported(t *tes
 		}
 	}
 	assert.Equal(t, []string{"ci"}, notReported)
+}
+
+// The request log has to say what the forge answered, or a refused or throttled
+// branch read looks like an unreachable forge.
+func TestFetch_RefusedBranchRead_IsRecordedWithItsStatus(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]struct {
+		status    int
+		remaining string
+		outcome   dashboard.ForgeErrorKind
+	}{
+		"not found":    {status: http.StatusNotFound, outcome: dashboard.ForgeErrorNotFound},
+		"rate limited": {status: http.StatusForbidden, remaining: "0", outcome: dashboard.ForgeErrorRateLimited},
+		"bad gateway":  {status: http.StatusBadGateway, outcome: dashboard.ForgeErrorUpstream},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			j := &justPushed{required: []string{"ci"}, adminRefused: true, branchRefusal: tc.status, branchRemaining: tc.remaining}
+			rec := &fakeRecorder{}
+			github.NewClient("test-token", "", j.start(t).URL, rec).Fetch(t.Context())
+
+			var branch []requestlog.Entry
+			for _, e := range rec.all() {
+				if e.Endpoint == "/repos/alrayyes/a/branches/main" {
+					branch = append(branch, e)
+				}
+			}
+			require.Len(t, branch, 1)
+			assert.Equal(t, tc.status, branch[0].StatusCode)
+			assert.Equal(t, string(tc.outcome), branch[0].Outcome)
+			if tc.remaining != "" {
+				require.NotNil(t, branch[0].RateLimitRemaining)
+				assert.Zero(t, *branch[0].RateLimitRemaining)
+			}
+		})
+	}
+}
+
+func TestFetch_RenamedBaseBranch_FollowsTheRedirect(t *testing.T) {
+	t.Parallel()
+
+	j := &justPushed{required: []string{"ci"}, adminRefused: true, branchRenamed: true}
+	pr := j.fetch(t)
+
+	assert.Equal(t, []string{"ci"}, pr.PendingChecks)
 }
 
 func TestFetch_ReadableProtection_DoesNotReadTheBranchToo(t *testing.T) {
