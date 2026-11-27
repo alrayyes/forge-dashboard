@@ -117,18 +117,22 @@
   // row, so the page moves with it. Where the page can't scroll, blank room
   // goes in until the next filter change.
   let room = $state<Room>({ above: 0, below: 0 });
+  // A scroll lands on whole pixels, so each hold can leave part of one over.
+  // The next hold of the same control takes it back, or they add up.
+  const leftOver = new WeakMap<HTMLElement, number>();
   async function holdInPlace(
     control: HTMLElement | undefined,
     write: () => void,
   ) {
     if (!control) return write();
-    const before = control.getBoundingClientRect().top;
+    const target =
+      control.getBoundingClientRect().top - (leftOver.get(control) ?? 0);
     write();
     await tick();
     if (!control.isConnected) return;
     const root = document.documentElement;
     const { scrollTo, above, below } = planHold(
-      control.getBoundingClientRect().top - before,
+      control.getBoundingClientRect().top - target,
       {
         ...room,
         scrollY: window.scrollY,
@@ -140,6 +144,9 @@
     room = { above, below };
     await tick();
     window.scrollTo({ top: scrollTo, behavior: "instant" });
+    const off = control.getBoundingClientRect().top - target;
+    // More than a pixel is not rounding, and must not be made up later.
+    leftOver.set(control, Math.abs(off) <= 1 ? off : 0);
   }
   let sortKey = $state<RepoSortKey>("fullName");
   let sortDir = $state<"asc" | "desc">("asc");
@@ -152,6 +159,15 @@
   function setStatus(message: string, kind: "" | "error" = "") {
     statusMessage = message;
     statusKind = kind;
+  }
+  // The status line is above every row, so what a row's control says about its
+  // own write has to hold the control still too, before the answer and after.
+  function sayAt(
+    control: HTMLElement | undefined,
+    message: string,
+    kind: "" | "error" = "",
+  ) {
+    return holdInPlace(control, () => setStatus(message, kind));
   }
 
   const sortedRepos = $derived(
@@ -403,7 +419,8 @@
     const key = busyKey("auto", repo);
     busy[key] = true;
     if (!quiet)
-      setStatus(
+      await sayAt(
+        control,
         `Turning auto-update ${enabled ? "on" : "off"} for ${repo.fullName}…`,
       );
     const failed = await post(
@@ -413,7 +430,8 @@
     delete busy[key];
     if (failed) {
       if (!quiet)
-        setStatus(
+        await sayAt(
+          control,
           `Couldn't turn auto-update ${enabled ? "on" : "off"} for ${repo.fullName}: ${failed}`,
           "error",
         );
@@ -439,7 +457,8 @@
     const key = busyKey("rebase", repo);
     busy[key] = true;
     if (!quiet)
-      setStatus(
+      await sayAt(
+        control,
         `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
       );
     const failed = await post(
@@ -449,7 +468,8 @@
     delete busy[key];
     if (failed) {
       if (!quiet)
-        setStatus(
+        await sayAt(
+          control,
           `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${failed}`,
           "error",
         );
@@ -475,7 +495,7 @@
   ) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
-    setStatus(`Ignoring ${repo.fullName}…`);
+    await sayAt(control, `Ignoring ${repo.fullName}…`);
     const failed = await post("/api/v1/repos/ignore", {
       forge: repo.forge,
       fullName: repo.fullName,
@@ -484,7 +504,11 @@
     });
     delete busy[key];
     if (failed) {
-      setStatus(`Couldn't ignore ${repo.fullName}: ${failed}`, "error");
+      await sayAt(
+        control,
+        `Couldn't ignore ${repo.fullName}: ${failed}`,
+        "error",
+      );
       return;
     }
     await holdInPlace(control, () => {
@@ -502,14 +526,18 @@
   async function unignoreRepo(repo: Repo, control?: HTMLElement) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
-    setStatus(`Un-ignoring ${repo.fullName}…`);
+    await sayAt(control, `Un-ignoring ${repo.fullName}…`);
     const failed = await post("/api/v1/repos/unignore", {
       forge: repo.forge,
       fullName: repo.fullName,
     });
     delete busy[key];
     if (failed) {
-      setStatus(`Couldn't un-ignore ${repo.fullName}: ${failed}`, "error");
+      await sayAt(
+        control,
+        `Couldn't un-ignore ${repo.fullName}: ${failed}`,
+        "error",
+      );
       return;
     }
     await holdInPlace(control, () => {

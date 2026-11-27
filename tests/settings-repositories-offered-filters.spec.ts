@@ -215,17 +215,77 @@ for (const scheme of ['light', 'dark'] as const) {
         await expect(page.getByTestId('held-room')).toHaveCount(0);
       });
 
-      test('the Ignore menu stays where it is as its group appears', async ({
+      test('the Ignore menu stays where it is, ignored and undone', async ({
         page,
       }) => {
         await open(page, width, scheme, four());
         const menu = page.getByRole('combobox', { name: /owner\/b/ });
+        const status = page.locator('#repositories-status');
         await menu.scrollIntoViewIfNeeded();
         const before = await top(menu);
 
-        await menu.selectOption('prs');
-        await expect(group(page, 'Ignored')).toBeVisible();
-        await expectUnmoved(menu, before);
+        // Twice over, so a part of a pixel left behind each time would show.
+        for (const _round of [1, 2]) {
+          await menu.selectOption('both');
+          await expect(status).toContainText('is now ignored');
+          await expect(group(page, 'Ignored')).toBeVisible();
+          await expectUnmoved(menu, before);
+
+          await menu.selectOption('');
+          await expect(status).toContainText('no longer ignored');
+          await expectUnmoved(menu, before);
+          await expect(page.getByTestId('held-room')).toHaveCount(0);
+        }
+      });
+
+      // The status line sits above every row, so saying what is happening, or
+      // that it failed, moves a row as much as the write does.
+      test('a row stays put while its write is pending and when it fails', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, four());
+        await page
+          .getByRole('combobox', { name: /owner\/b/ })
+          .selectOption('both');
+        const status = page.locator('#repositories-status');
+        await expect(status).toContainText('is now ignored');
+
+        let release = () => {};
+        await page.route('**/api/v1/repos/**', async (route: Route) => {
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+          await route.fulfill({ status: 500 });
+        });
+
+        for (const [control, act, pending] of [
+          [
+            page.getByRole('combobox', { name: /owner\/c/ }),
+            (c: Locator) => c.selectOption('both'),
+            'Ignoring owner/c',
+          ],
+          [
+            page.getByRole('button', { name: 'Auto-update on owner/d' }),
+            (c: Locator) => c.click(),
+            'Turning auto-update on',
+          ],
+          [
+            page.getByRole('button', { name: 'Rebase bots on owner/d' }),
+            (c: Locator) => c.click(),
+            'Turning on rebase bots',
+          ],
+        ] as const) {
+          await control.scrollIntoViewIfNeeded();
+          const before = await top(control);
+
+          await act(control);
+          await expect(status).toContainText(pending);
+          await expectUnmoved(control, before);
+
+          release();
+          await expect(status).toContainText('Couldn');
+          await expectUnmoved(control, before);
+        }
       });
 
       test('the search box stays while a toggled row is still listed', async ({
