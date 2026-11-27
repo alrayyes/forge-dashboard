@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.8](https://github.com/alrayyes/forge-dashboard/compare/v9.140.7...v9.140.8) (2026-11-27)
+
+
+### Bug Fixes
+
+* **actions:** give up a queued action an hour after it first came due ([#5139](https://github.com/alrayyes/forge-dashboard/issues/5139)) ([34ae7dc](https://github.com/alrayyes/forge-dashboard/commit/34ae7dc307e914bdaa653a47202117530c55bf86)), closes [#5083](https://github.com/alrayyes/forge-dashboard/issues/5083)
+
 ## [9.140.7](https://github.com/alrayyes/forge-dashboard/compare/v9.140.6...v9.140.7) (2026-11-27)
 
 
