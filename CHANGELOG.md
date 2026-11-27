@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.3](https://github.com/alrayyes/forge-dashboard/compare/v9.140.2...v9.140.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** line up the pull request list columns across rows ([#5043](https://github.com/alrayyes/forge-dashboard/issues/5043)) ([5322c36](https://github.com/alrayyes/forge-dashboard/commit/5322c36e13e56e4dcf7825c9ff44d9c3f9ff5d08)), closes [#5006](https://github.com/alrayyes/forge-dashboard/issues/5006)
+
 ## [9.140.2](https://github.com/alrayyes/forge-dashboard/compare/v9.140.1...v9.140.2) (2026-11-27)
 
 
