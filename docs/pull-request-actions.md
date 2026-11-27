@@ -678,9 +678,10 @@ the board fresh and looks at the pull request again before it does anything. It
 runs the action only if it still applies. Otherwise it records why it did
 nothing: the pull request was merged or closed, caught up, picked up a conflict,
 or already has the request. A forge that is still limited moves the item to the
-new reset. One that doesn't answer is tried again every five minutes, and the
-item is recorded as failed once an hour has passed since it first came due.
-Retries, a later reset and a server restart don't start that hour again. A
+new reset. One that doesn't answer, or is slow and still shows the rows from an
+earlier read, is tried again every five minutes, and the item is recorded as
+failed once an hour has passed since it first came due. Retries, a later reset
+and a server restart don't start that hour again. A
 refusal is recorded with the same `code` and `message` the button would have
 shown. It runs with your own saved credentials for that forge and no one else's,
 and does nothing if you have removed them.

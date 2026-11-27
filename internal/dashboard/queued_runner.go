@@ -142,7 +142,9 @@ func (a *Aggregator) ProcessQueuedActions(ctx context.Context) {
 		return
 	}
 
-	a.Refresh(ctx)
+	// Nobody is waiting on this read, so it is given as long as a scheduled
+	// one: a forge slower than a person would wait for can still be decided on.
+	a.Refresh(context.WithValue(ctx, unattendedKey{}, true))
 	// Read the queue again: a cancel during the refresh must win.
 	items, err = cfg.store.QueuedActions(ctx)
 	if err != nil {
@@ -193,7 +195,7 @@ type queuedRun struct {
 }
 
 // runQueued decides one due action and records the result. The order is the
-// safety argument: a forge still limited or down is waited out, a pull
+// safety argument: a forge still limited, down or slow is waited out, a pull
 // request that is gone or changed is skipped with the reason, and only a
 // pull request that still needs the action gets it.
 func (a *Aggregator) runQueued(ctx context.Context, run queuedRun, q QueuedAction) {
@@ -209,7 +211,10 @@ func (a *Aggregator) runQueued(ctx context.Context, run queuedRun, q QueuedActio
 
 		return
 	}
-	if !ClaimOf(ClaimAction, health, true).ActionsOpen {
+	// A slow forge's rows are held from an earlier read. Its actions stay open
+	// to a person, who can see their age; this runs with nobody looking, and a
+	// skip is final.
+	if !ClaimOf(ClaimAction, health, true).ActionsOpen || health.Cause == ForgeCauseSlow {
 		a.retryUnreachableQueued(ctx, q)
 
 		return

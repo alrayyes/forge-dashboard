@@ -180,6 +180,10 @@ type Aggregator struct {
 	// on. A coalesced run executes its leader's closure, so whether a run may
 	// be held at the reserve is decided per call from this, not per closure.
 	userRefreshes atomic.Int32
+	// waitingPeople counts those of them that somebody is looking at, which is
+	// all but the queued runner's. A pass with one of these ends at the user
+	// deadline.
+	waitingPeople atomic.Int32
 	// pendingSched spaces out the polls of pull requests that keep reading the same.
 	pendingSched pendingSchedule
 }
@@ -528,12 +532,28 @@ func (a *Aggregator) Get() Snapshot {
 func (a *Aggregator) Refresh(ctx context.Context) {
 	if !background(ctx) {
 		// Counted before it queues, so a run already in flight that this call
-		// ends up waiting on still treats it as the person's refresh.
+		// ends up waiting on still treats it as the person's refresh. The queued
+		// runner's counts for that too, but nobody waits on it, so it shortens
+		// no pass.
 		a.userRefreshes.Add(1)
 		defer a.userRefreshes.Add(-1)
-		a.joinPass()
+		if !unattended(ctx) {
+			a.waitingPeople.Add(1)
+			defer a.waitingPeople.Add(-1)
+			a.joinPass()
+		}
 	}
 	a.refresh.do(func() { a.refreshOnce(apistats.WithKind(ctx, apistats.KindFull)) })
+}
+
+// unattendedKey marks a refresh a user action needs but nobody is watching, so
+// it may use the reserve and still wait as long as the schedule does.
+type unattendedKey struct{}
+
+func unattended(ctx context.Context) bool {
+	v, _ := ctx.Value(unattendedKey{}).(bool)
+
+	return v
 }
 
 // backgroundKey marks a context whose refresh nobody asked for, so it leaves the
@@ -1042,7 +1062,7 @@ func (a *Aggregator) beginPass(ctx context.Context) (*fetchPass, time.Duration, 
 	// Read after the pass is visible to joinPass, so a click is either seen
 	// here or finds the pass there.
 	deadline := a.userFetchDeadline
-	if background(ctx) && a.userRefreshes.Load() == 0 {
+	if (background(ctx) || unattended(ctx)) && a.waitingPeople.Load() == 0 {
 		deadline = a.fetchDeadline
 	}
 	// Armed before any fetch, so a deadline cannot pass unseen.
