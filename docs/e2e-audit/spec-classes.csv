@@ -34,7 +34,7 @@ bottom-nav-focus-padding.spec.ts,0.983,1,1,A,,0.0
 bottom-nav-labels.spec.ts,1.783,1,1,A,,0.0
 bottom-nav-text-size.spec.ts,6.103,7,5,A,,1.7
 branch-pill-dialog-agree.spec.ts,2.554,3,2,A,,0.9
-branch-pipeline-panel-live.spec.ts,4.816,12,7,A,,2.0
+branch-pipeline-panel-live.spec.ts,4.816,13,7,A,,2.2
 branch-rerun-checks.spec.ts,7.126,23,8,C,,4.6
 branches-load-failure.spec.ts,1.323,3,1,C,,0.9
 branches-skeleton-contrast.spec.ts,2.279,1,1,A,,0.0

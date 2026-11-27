@@ -268,8 +268,10 @@ the newest run with a queued check or one waiting for approval; otherwise
 "Open latest run on GitHub" for the newest run. The choice follows the checks
 as they change. A branch's panel on Main branches follows the same rule. While
 its checks name one run or none, its button is "Open run on GitHub" and opens
-the address the server gives the branch. A held workflow reads "Approve on"
-followed by the forge's name.
+the address the server gives the branch. A failed branch also keeps that button
+and address while its checks show nothing failed in any run, because the panel
+may not list the failure: an external status is one example. A held workflow
+reads "Approve on" followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one

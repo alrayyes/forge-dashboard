@@ -395,6 +395,33 @@ describe('footerRunLink', () => {
     });
     expect(footerRunLink(undefined, [])).toBeUndefined();
   });
+
+  // A failed branch's address may be the only link to the failure: GitHub lists
+  // no external status beside check runs.
+  const failure = 'https://ci.example.com/build/1';
+
+  test('a failed branch keeps its address when no listed run failed', () => {
+    expect(footerRunLink(board, [job(5), job(9)], failure)).toEqual({
+      url: failure,
+      kind: 'run',
+    });
+    const app = check({
+      url: 'https://app.example/check/1',
+      conclusion: 'failure',
+    });
+    expect(footerRunLink(board, [job(5), app], failure)).toEqual({
+      url: failure,
+      kind: 'run',
+    });
+  });
+
+  test('a failed run a failed branch lists still wins', () => {
+    const checks = [job(5, { conclusion: 'failure' }), job(9)];
+    expect(footerRunLink(board, checks, failure)).toEqual({
+      url: 'https://f.example/o/r/actions/runs/5',
+      kind: 'failed-run',
+    });
+  });
 });
 
 describe('runLinkNoun', () => {

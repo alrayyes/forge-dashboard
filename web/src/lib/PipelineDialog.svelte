@@ -17,6 +17,9 @@
     errorText: string;
     // Where the run is on the forge, when the forge named one.
     runUrl?: string;
+    // A failed branch's address for its failure, read as the row stands; see
+    // footerRunLink.
+    failureUrl?: () => string | undefined;
     forgeName?: string;
     // Live updates are paused: a new list waits until they are back.
     paused?: () => boolean;
@@ -591,7 +594,9 @@
   // The board's own run address or the run the checks name (the failed one,
   // else the one still going, when there are several), so a pull request links
   // to a run as a branch does. None, no link.
-  const runLink = $derived(footerRunLink(target?.runUrl, checks));
+  const runLink = $derived(
+    footerRunLink(target?.runUrl, checks, target?.failureUrl?.()),
+  );
   const runLinkText = $derived(
     target && runLink
       ? `Open ${runLinkNoun(runLink.kind)} on ${forgeLabel(target)}`

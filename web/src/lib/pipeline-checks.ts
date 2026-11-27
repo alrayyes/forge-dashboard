@@ -235,12 +235,18 @@ export function runPageUrl(checks: Check[]): RunLink | undefined {
 // The dialog's footer link. A board's own run address (a branch's) stands
 // while the checks name one run or none. Once they name several, that address
 // may be a finished run while another is going, so the checks choose, as they
-// do for a pull request.
+// do for a pull request. The exception is a failed branch's address
+// (failureUrl) when no run the checks name has a failed check: the failure may
+// be one the list leaves out, and this link the only way to it.
 export function footerRunLink(
   boardUrl: string | undefined,
   checks: Check[],
+  failureUrl?: string,
 ): RunLink | undefined {
   const named = runPageUrl(checks);
+  if (failureUrl && named?.kind !== 'failed-run') {
+    return { url: failureUrl, kind: 'run' };
+  }
   if (named && named.kind !== 'run') return named;
 
   return boardUrl ? { url: boardUrl, kind: 'run' } : named;

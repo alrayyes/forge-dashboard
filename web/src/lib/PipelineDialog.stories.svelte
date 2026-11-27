@@ -265,6 +265,41 @@
   })}
 </Story>
 
+<!-- A failed branch whose failure the list leaves out (an external status
+     beside check runs): the footer keeps the board's address for it. -->
+<Story
+  asChild
+  name="Main branch failed outside the listed runs"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({ name: "build", url: `${RUN}/job/1` }),
+          check({
+            name: "lint",
+            url: "https://github.com/alrayyes/forge-dashboard/actions/runs/9920/job/2",
+          }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    const link = within(dialogEl()).getByRole("link", {
+      name: "Open run on GitHub (opens in a new tab)",
+    });
+    await expect(link).toHaveAttribute(
+      "href",
+      "https://ci.example.com/build/1",
+    );
+  }}
+>
+  {@render opener({
+    ...BRANCH,
+    runUrl: "https://ci.example.com/build/1",
+    failureUrl: () => "https://ci.example.com/build/1",
+  })}
+</Story>
+
 <!-- The forge listed no checks. -->
 <Story
   asChild
