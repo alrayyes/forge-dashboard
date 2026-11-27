@@ -297,28 +297,32 @@ forge no request. The
 issue's pop-up lists them under "Mentioned by" in its Related band, drawn like
 the closing pull requests, and a plain click swaps the pop-up for that pull
 request's. The row is absent when no pull request mentions the issue. The rows
-don't show them. Pull requests that reference the issue are on the rows and in
-the Related band under "Referenced by", drawn with a dotted outline and italic
-text,
-after the closing pills; a row shows two of several and a count that opens the
-rest, and the band shows six and a "+N more" toggle that folds back. Upright
-means the pull request closes the issue, italic means it only references it.
+don't show them. Pull requests that reference the issue are on the rows, after
+the closing pills, and in the Related band under "Referenced by". A row shows
+two of several and a count that opens the rest, and the band shows six and a
+"+N more" toggle that folds back. A pill on a row starts with a bold word that
+says how the pull request is linked: `closes #12` closes the issue when it
+merges, and `refs #12` only references it. The two are drawn alike, and a draft
+of either has a dashed border.
+A long repository name is cut short, and a pipeline that still doesn't fit moves
+to a second line inside the pill.
 In the pop-up's Related band every pull request pill says its state in words,
 "PR #N · Open", "· Merged" or "· Closed" ("· Draft" for an open draft), so a
 pill under "Closed by" doesn't read as if it closes something itself. The word
 "Merged" is drawn in the Merged purple; the text is unchanged. The
 accessible name says the same words. A closed issue's band reads each pull
 request from the issue's own details; a listed issue's reads the board's open
-ones. The pills on the row keep the shorter number.
+ones. The pills on the row keep the shorter number after their word, and the
+band's pills have no such word, because the row's label already says it.
 A pill says so in its tooltip ("References this issue, does not close it") and
 in its accessible name. When the pull request's title is known, the tooltip
 leads with it and the sentence follows on a second line. The same text shows
 under the pill when it has keyboard focus, since a tooltip needs hover; Escape
 hides it and the pill keeps focus. The pop-up's rows have no line of their own
 for it: the row's label and the pill's accessible name carry it. Settings
-repeats it under Behaviour, in the Issues card: upright means the pull request
-closes the issue, italic means it only references or mentions it and does not
-close it. How a mention is read is in [Tickets a pull request
+repeats it under Behaviour, in the Issues card: a `closes` pill's pull request
+closes the issue when it merges, and a `refs` pill's does not close it. How a
+mention is read is in [Tickets a pull request
 mentions](pull-request-pages.md#tickets-a-pull-request-mentions).
 
 ## Opening an issue from its address

@@ -2235,10 +2235,11 @@
               changes.
             </p>
             <p class="field-hint" id="pill-style-hint">
-              Pull request pills on an issue show how it is linked. Upright
-              means the pull request closes the issue, italic means it only
-              references or mentions it and does not close it. The pop-up's
-              Related band says which in the row's label.
+              Pull request pills on an issue say how it is linked. A pill that
+              starts with closes means the pull request closes the issue when it
+              merges. One that starts with refs only references the issue and
+              does not close it. The pop-up's Related band says which in the
+              row's label.
             </p>
             <label class="check-row">
               <input

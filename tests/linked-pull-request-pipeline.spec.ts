@@ -75,9 +75,9 @@ test.describe('the pipeline on an issue row pill', () => {
     ]);
     await page.goto('/issues.html');
 
-    await expect(pill(page, 1)).toHaveText('#12 Running 3 2 1');
+    await expect(pill(page, 1)).toHaveText('closes #12 Running 3 2 1');
     await expect(pill(page, 1)).toHaveAccessibleName(
-      'Pull request #12 Running 3 2 1: 3 passed, 2 running, 1 failed, closes this issue',
+      'closes #12 Running 3 2 1: 3 passed, 2 running, 1 failed, pull request, closes this issue',
     );
   });
 
@@ -97,9 +97,9 @@ test.describe('the pipeline on an issue row pill', () => {
     ]);
     await page.goto('/issues.html');
 
-    await expect(pill(page, 1)).toHaveText('#12 Counting checks… 1 1 2');
+    await expect(pill(page, 1)).toHaveText('closes #12 Counting checks… 1 1 2');
     await expect(pill(page, 1)).toHaveAccessibleName(
-      /^Pull request #12 Counting checks… 1 1 2: 1 passed, 1 running, 2 waiting\. The list of checks is not complete yet\., closes this issue$/,
+      /^closes #12 Counting checks… 1 1 2: 1 passed, 1 running, 2 waiting\. The list of checks is not complete yet\., pull request, closes this issue$/,
     );
   });
 
@@ -122,8 +122,8 @@ test.describe('the pipeline on an issue row pill', () => {
     ]);
     await page.goto('/issues.html');
 
-    await expect(pill(page, 1)).toHaveText('#12 Passed 4');
-    await expect(pill(page, 2)).toHaveText('#13 Failed 1 2');
+    await expect(pill(page, 1)).toHaveText('closes #12 Passed 4');
+    await expect(pill(page, 2)).toHaveText('closes #13 Failed 1 2');
   });
 
   test('says a run held for approval in the pull request row’s words', async ({
@@ -134,7 +134,9 @@ test.describe('the pipeline on an issue row pill', () => {
     ]);
     await page.goto('/issues.html');
 
-    await expect(pill(page, 1)).toHaveText('#12 Waiting for workflow approval');
+    await expect(pill(page, 1)).toHaveText(
+      'closes #12 Waiting for workflow approval',
+    );
   });
 
   test('keeps the plain pill when the pull request has no checks', async ({
@@ -145,11 +147,11 @@ test.describe('the pipeline on an issue row pill', () => {
     ]);
     await page.goto('/issues.html');
 
-    await expect(pill(page, 1).first()).toHaveText('#12');
+    await expect(pill(page, 1).first()).toHaveText('closes #12');
     await expect(pill(page, 1).first()).toHaveAccessibleName(
-      'Pull request #12, closes this issue',
+      'closes #12, pull request, closes this issue',
     );
-    await expect(pill(page, 1).nth(1)).toHaveText('#13');
+    await expect(pill(page, 1).nth(1)).toHaveText('closes #13');
     await expect(page.locator('.linked-pr .ci-pill')).toHaveCount(0);
   });
 
@@ -171,7 +173,7 @@ test.describe('the pipeline on an issue row pill', () => {
 
     await page.getByRole('button', { name: /^1 more/ }).click();
 
-    await expect(pill(page, 1).nth(2)).toHaveText('#12 Failed 1 2');
+    await expect(pill(page, 1).nth(2)).toHaveText('closes #12 Failed 1 2');
   });
 
   test('cuts a long cross-repo name short instead of scrolling sideways at 390 px', async ({
@@ -203,7 +205,7 @@ test.describe('the pipeline on an issue row pill', () => {
       // The visible text and the name still carry the whole repo.
       await expect(first).toContainText(`${longRepo}#123 Running 3 2 1 1`);
       await expect(first).toHaveAccessibleName(
-        new RegExp(`^Pull request ${longRepo}#123 Running`),
+        new RegExp(`^closes ${longRepo}#123 Running`),
       );
       // Only the repo is cut: the number, state and pipeline sit inside the pill.
       const pillBox = await first.boundingBox();
@@ -219,6 +221,11 @@ test.describe('the pipeline on an issue row pill', () => {
         ).toBeLessThanOrEqual((pillBox?.x ?? 0) + (pillBox?.width ?? 0) + 1);
       }
       await expect(first.locator('.linked-pr-number')).toHaveText('#123');
+      // The box fitting is not enough: a squeezed pipeline clips its own counts.
+      const clipped = await first
+        .locator('.ci-pill')
+        .evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(clipped, scheme).toBeLessThanOrEqual(0);
       const box = await first.boundingBox();
       expect(box?.x ?? 0, scheme).toBeGreaterThanOrEqual(0);
       expect((box?.x ?? 0) + (box?.width ?? 0), scheme).toBeLessThanOrEqual(

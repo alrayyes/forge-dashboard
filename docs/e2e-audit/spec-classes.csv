@@ -261,7 +261,7 @@ reference-links-open-dialog.spec.ts,11.348,12,10,A,web/src/lib/reference-links.t
 reference-to-pull-request.spec.ts,13.303,16,7,C,,7.5
 refresh-interval.spec.ts,1.097,3,1,C,,0.7
 refresh-queue-focus.spec.ts,3.671,2,2,A,,0.0
-refs-issues-filter.spec.ts,19.917,21,13,A,,7.6
+refs-issues-filter.spec.ts,19.917,22,13,A,,8.1
 refs-pills.spec.ts,3.193,8,6,A,,0.8
 related-band.spec.ts,15.838,22,9,C,web/src/lib/related-band.test.ts;RelatedBand.stories.svelte (proven),9.4
 release-pr-behind.spec.ts,1.011,1,1,A,,0.0
