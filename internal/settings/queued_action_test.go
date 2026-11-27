@@ -132,3 +132,48 @@ func TestStore_HasWaitingQueuedActions(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, done)
 }
+
+// Retries move RunAt, so the first due time is kept apart from it (#5083).
+func TestStore_QueuedActions_KeepWhenTheyFirstCameDue(t *testing.T) {
+	t.Parallel()
+	store := newTestStore(t)
+	due := time.Date(2026, 10, 11, 14, 32, 0, 0, time.UTC)
+	saved, _, err := store.EnqueueQueuedAction(t.Context(), queuedUpdate(due))
+	require.NoError(t, err)
+	assert.True(t, due.Equal(saved.FirstDueAt), "enqueued %s", saved.FirstDueAt)
+
+	saved.RunAt, saved.FirstDueAt = due.Add(5*time.Minute), due.Add(5*time.Minute)
+	_, err = store.UpdateQueuedAction(t.Context(), saved)
+	require.NoError(t, err)
+
+	got, err := store.QueuedActions(t.Context())
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.True(t, due.Equal(got[0].FirstDueAt), "after a reschedule %s", got[0].FirstDueAt)
+}
+
+// A database from before the column keeps its waiting actions, and their hour
+// starts at the time they are waiting for.
+func TestStore_Init_AddsTheFirstDueTimeToAnOlderQueue(t *testing.T) {
+	t.Parallel()
+	db, err := sql.Open("sqlite", dbdsn.For(filepath.Join(t.TempDir(), "settings.db")))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	cipher, err := settings.NewCipher(randomKey(t))
+	require.NoError(t, err)
+	store := settings.NewStore(db, cipher)
+	require.NoError(t, store.Init(t.Context()))
+	due := time.Date(2026, 10, 11, 14, 32, 0, 0, time.UTC)
+	_, _, err = store.EnqueueQueuedAction(t.Context(), queuedUpdate(due))
+	require.NoError(t, err)
+	_, err = db.ExecContext(t.Context(), `ALTER TABLE queued_actions DROP COLUMN first_due_at`)
+	require.NoError(t, err)
+
+	require.NoError(t, store.Init(t.Context()))
+	require.NoError(t, store.Init(t.Context()), "every start runs it again")
+
+	got, err := store.QueuedActions(t.Context())
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.True(t, due.Equal(got[0].FirstDueAt), "backfilled %s", got[0].FirstDueAt)
+}

@@ -538,6 +538,68 @@ func TestQueuedActions_ForgeUnreachableAtTheReset(t *testing.T) {
 
 		assert.Equal(t, dashboard.QueuedFailed, rig.only(t).Status)
 	})
+
+	// Every retry moves RunAt, so the hour is counted from when the action
+	// first came due (#5083).
+	t.Run("fails an hour after it first came due, however often it was retried", func(t *testing.T) {
+		t.Parallel()
+		rig := newUnreachableQueueRig(t)
+		rig.retryFor(t, 55*time.Minute)
+		require.Equal(t, dashboard.QueuedWaiting, rig.only(t).Status, "given up too soon")
+
+		rig.retryFor(t, 10*time.Minute)
+
+		got := rig.only(t)
+		assert.Equal(t, dashboard.QueuedFailed, got.Status)
+		assert.Equal(t, "The forge didn't answer. Try again in a moment.", got.Message)
+		assert.Empty(t, rig.src.writes())
+	})
+
+	t.Run("a restart between retries does not start the hour again", func(t *testing.T) {
+		t.Parallel()
+		rig := newUnreachableQueueRig(t)
+		rig.retryFor(t, 40*time.Minute)
+
+		rig.agg = rig.newAggregator(t)
+		rig.retryFor(t, 25*time.Minute)
+
+		assert.Equal(t, dashboard.QueuedFailed, rig.only(t).Status)
+	})
+
+	t.Run("still runs when the forge answers within the hour", func(t *testing.T) {
+		t.Parallel()
+		rig := newUnreachableQueueRig(t)
+		rig.retryFor(t, 40*time.Minute)
+
+		rig.src.setHealth(healthyHealth())
+		rig.retryFor(t, 5*time.Minute)
+
+		assert.Equal(t, []string{"update o/r#5"}, rig.src.writes())
+		assert.Equal(t, dashboard.QueuedDone, rig.only(t).Status)
+	})
+}
+
+// newUnreachableQueueRig has an update queued whose reset has just passed and
+// whose forge does not answer.
+func newUnreachableQueueRig(t *testing.T) *queueRig {
+	t.Helper()
+
+	rig := newQueueRig(t, behindPR(5, "alice"))
+	rig.enqueue(t, dashboard.ActionUpdateBranch, 5)
+	rig.resetPasses()
+	rig.src.setHealth(dashboard.ForgeHealth{Forge: dashboard.ForgeGitHub, Reachable: false})
+
+	return rig
+}
+
+// retryFor runs the queue as the scheduler would, once every five minutes for d.
+func (r *queueRig) retryFor(t *testing.T, d time.Duration) {
+	t.Helper()
+
+	for passed := time.Duration(0); passed < d; passed += 5 * time.Minute {
+		r.agg.ProcessQueuedActions(t.Context())
+		r.clock.advance(5 * time.Minute)
+	}
 }
 
 func TestQueuedActions_TheUserLostTheirCredentials_NothingRunsWithoutThem(t *testing.T) {

@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -24,13 +25,28 @@ const queuedActionsSchema = `
 		created_at TIMESTAMP NOT NULL,
 		finished_at TIMESTAMP,
 		code TEXT NOT NULL DEFAULT '',
-		message TEXT NOT NULL DEFAULT ''
+		message TEXT NOT NULL DEFAULT '',
+		first_due_at TIMESTAMP
 	);
 `
 
 // queuedActionColumns is the column list every queued-action read selects, in
 // the order scanQueuedAction reads them.
-const queuedActionColumns = `id, action, forge, repo_full_name, number, status, run_at, created_at, finished_at, code, message`
+const queuedActionColumns = `id, action, forge, repo_full_name, number, status, run_at, created_at, finished_at, code, message, first_due_at`
+
+// addQueuedFirstDue gives a queue made before first_due_at the column, and
+// starts the hour of each action already in it at the time it waits for.
+func (s *Store) addQueuedFirstDue(ctx context.Context) error {
+	_, err := s.db.ExecContext(ctx, `ALTER TABLE queued_actions ADD COLUMN first_due_at TIMESTAMP`)
+	if err != nil && !strings.Contains(err.Error(), "duplicate column name") {
+		return fmt.Errorf("settings: add the queued actions first due time: %w", err)
+	}
+	if _, err := s.db.ExecContext(ctx, `UPDATE queued_actions SET first_due_at = run_at WHERE first_due_at IS NULL`); err != nil {
+		return fmt.Errorf("settings: fill the queued actions first due time: %w", err)
+	}
+
+	return nil
+}
 
 // EnqueueQueuedAction stores a safe action to run once a forge's
 // rate limit resets (#756) and returns it with its new ID and true. Idempotent: a
@@ -57,10 +73,11 @@ func (s *Store) EnqueueQueuedAction(ctx context.Context, q dashboard.QueuedActio
 	}
 	q.ID = id
 	q.Status = dashboard.QueuedWaiting
+	q.FirstDueAt = q.RunAt.UTC()
 	_, err = s.db.ExecContext(ctx,
-		`INSERT INTO queued_actions (id, action, forge, repo_full_name, number, status, run_at, created_at, code, message)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '')`,
-		q.ID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(q.Status), q.RunAt.UTC(), q.CreatedAt.UTC(),
+		`INSERT INTO queued_actions (id, action, forge, repo_full_name, number, status, run_at, created_at, code, message, first_due_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', '', ?)`,
+		q.ID, string(q.Action), string(q.Forge), q.Repo, q.Number, string(q.Status), q.RunAt.UTC(), q.CreatedAt.UTC(), q.FirstDueAt,
 	)
 	if err != nil {
 		return dashboard.QueuedAction{}, false, fmt.Errorf("settings: enqueue queued action: %w", err)
@@ -117,13 +134,14 @@ func scanQueuedAction(row rowScanner) (dashboard.QueuedAction, error) {
 	var (
 		q                           dashboard.QueuedAction
 		action, forge, status, code string
-		finishedAt                  sql.NullTime
+		finishedAt, firstDueAt      sql.NullTime
 	)
-	if err := row.Scan(&q.ID, &action, &forge, &q.Repo, &q.Number, &status, &q.RunAt, &q.CreatedAt, &finishedAt, &code, &q.Message); err != nil {
+	if err := row.Scan(&q.ID, &action, &forge, &q.Repo, &q.Number, &status, &q.RunAt, &q.CreatedAt, &finishedAt, &code, &q.Message, &firstDueAt); err != nil {
 		return dashboard.QueuedAction{}, err //nolint:wrapcheck // callers add the operation
 	}
 	q.Action, q.Forge, q.Status, q.Code = dashboard.ActionName(action), dashboard.Forge(forge), dashboard.QueuedStatus(status), dashboard.ActionCode(code)
 	q.RunAt, q.CreatedAt = q.RunAt.UTC(), q.CreatedAt.UTC()
+	q.FirstDueAt = firstDueAt.Time.UTC()
 	if finishedAt.Valid {
 		at := finishedAt.Time.UTC()
 		q.FinishedAt = &at

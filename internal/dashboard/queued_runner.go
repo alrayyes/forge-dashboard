@@ -35,7 +35,8 @@ const (
 	queuedFinishedKeep = 24 * time.Hour
 	// queuedUnreachableRetry is how long a forge that doesn't answer at the
 	// reset is left before the next try, and queuedUnreachableGiveUp how long
-	// after the reset the server keeps trying before it records a failure.
+	// after the action first came due the server keeps trying before it records
+	// a failure.
 	queuedUnreachableRetry  = 5 * time.Minute
 	queuedUnreachableGiveUp = time.Hour
 	// queuedMinWait keeps the scheduler from spinning when the store can't
@@ -353,10 +354,10 @@ func (a *Aggregator) refusedQueued(ctx context.Context, q QueuedAction, action P
 }
 
 // retryUnreachableQueued waits a few minutes for a forge that didn't answer at
-// the reset, and gives up an hour after it.
+// the reset, and gives up an hour after the action first came due.
 func (a *Aggregator) retryUnreachableQueued(ctx context.Context, q QueuedAction) {
 	now := a.now()
-	if now.Sub(q.RunAt) >= queuedUnreachableGiveUp {
+	if now.Sub(q.FirstDueAt) >= queuedUnreachableGiveUp {
 		a.finishQueued(ctx, q, QueuedFailed, ActionUnknown, "The forge didn't answer. Try again in a moment.")
 
 		return
