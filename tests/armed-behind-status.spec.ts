@@ -57,13 +57,10 @@ test.describe('an armed pull request that is behind (#3428)', () => {
     await open(page, armedBehind());
     const chip = row(page).locator('.wait-chip');
 
-    await expect(chip.locator('.wait-chip-label')).toHaveText(
-      'Waiting for update',
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip.locator('.wait-chip-tip')).toHaveText(
+      `Waiting for update: The branch must be up to date. ${strictMessage}`,
     );
-    await expect(chip.locator('.wait-chip-detail')).toHaveText(
-      'The branch must be up to date',
-    );
-    await expect(chip.locator('.wait-chip-tip')).toHaveText(strictMessage);
     await expect(row(page)).not.toContainText('Waiting for CI');
     await expect(row(page).locator('.auto-merge-status')).toHaveCount(0);
 
@@ -79,8 +76,10 @@ test.describe('an armed pull request that is behind (#3428)', () => {
     await open(page, armedBehind(fixture.pullRequests.notStrict));
     const chip = row(page).locator('.wait-chip');
 
-    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
-    await expect(chip.locator('.wait-chip-tip')).toHaveText(cancelledMessage);
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
+    await expect(chip.locator('.wait-chip-tip')).toHaveText(
+      `Waiting for CI. ${cancelledMessage}`,
+    );
     await expect(row(page)).not.toContainText('Waiting for update');
     await expect(row(page)).not.toContainText('up to date');
   });

@@ -577,19 +577,23 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed pull request reads Waiting for CI, with Cancel auto-merge in the chip and the reason in the tooltip', async ({
+  test('an armed pull request reads Auto-merge on, with Cancel auto-merge in the action column and the reason in the tooltip', async ({
     page,
   }) => {
     await open(page, armed());
     const chip = chipOf(page);
-    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
     // One line: the second sentence repeated the label (#4663).
     await expect(chip.locator('.wait-chip-detail')).toBeHidden();
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
-      'Auto-merge is waiting for checks to finish.',
+      'Waiting for CI. Auto-merge is waiting for checks to finish.',
     );
+    // Cancel auto-merge is the row's action, not part of the chip (#4971).
+    await expect(chip.getByRole('button')).toHaveCount(0);
     await expect(
-      chip.getByRole('button', { name: 'Cancel auto-merge' }),
+      firstRow(page)
+        .locator('.row-action-bar')
+        .getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
     await expect(firstRow(page)).not.toContainText('Waiting:');
@@ -630,7 +634,8 @@ test.describe('the waiting chip on Forgejo auto-merge', () => {
       }),
     );
     await open(page, armed());
-    await chipOf(page)
+    await firstRow(page)
+      .locator('.row-action-bar')
       .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect
@@ -773,17 +778,21 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
     await page.goto('/pull-requests.html');
   }
 
-  test('an armed GitHub pull request reads Waiting for CI, with Cancel auto-merge in the chip', async ({
+  test('an armed GitHub pull request reads Auto-merge on, with Cancel auto-merge in the action column', async ({
     page,
   }) => {
     await open(page, armed());
     const chip = chipOf(page);
-    await expect(chip.locator('.wait-chip-label')).toHaveText('Waiting for CI');
+    await expect(chip.locator('.wait-chip-label')).toHaveText('Auto-merge on');
     await expect(chip.locator('.wait-chip-tip')).toHaveText(
-      'Auto-merge is on. GitHub merges it when the checks pass.',
+      'Waiting for CI. Auto-merge is on. GitHub merges it when the checks pass.',
     );
+    // Cancel auto-merge is the row's action, not part of the chip (#4971).
+    await expect(chip.getByRole('button')).toHaveCount(0);
     await expect(
-      chip.getByRole('button', { name: 'Cancel auto-merge' }),
+      firstRow(page)
+        .locator('.row-action-bar')
+        .getByRole('button', { name: 'Cancel auto-merge' }),
     ).toBeVisible();
     await expect(firstRow(page).locator('.auto-merge-status')).toHaveCount(0);
   });
@@ -811,7 +820,8 @@ test.describe('the waiting chip on GitHub auto-merge', () => {
       }),
     );
     await open(page, armed());
-    await chipOf(page)
+    await firstRow(page)
+      .locator('.row-action-bar')
       .getByRole('button', { name: 'Cancel auto-merge' })
       .click();
     await expect

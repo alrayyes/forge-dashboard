@@ -86,7 +86,8 @@ const scenarios: Scenario[] = [
     before: ARMED,
     after: IDLE,
     endpoint: '/api/v1/pull-requests/auto-merge/cancel',
-    label: /^Cancel auto-merge$/,
+    // The row's button says Cancel; its name is the full one (#4971).
+    label: /^Cancel$/,
     pending: /^Cancelling…$/,
     inDialog: false,
   },
@@ -197,8 +198,18 @@ for (const sc of scenarios) {
       await expect.poll(() => posted.length).toBe(1);
       const f1 = await sample(page);
       expect(f1.tag, JSON.stringify({ f0, f1 })).not.toBe('BODY');
-      // A second Enter while the first runs sends nothing. On the row it goes
-      // to the chip that stands in for Cancel auto-merge, which has no action of its own.
+      // A second Enter while the first runs sends nothing. On the row the
+      // "Cancelling" chip stands in for the button, so only one of the two
+      // is there and focus is on it (#4971).
+      if (sc.name === 'row Cancel auto-merge') {
+        await expect(row.locator('.wait-chip')).toContainText('Cancelling');
+        await expect(row.locator('.row-action-bar button')).toHaveCount(0);
+        expect(
+          await page.evaluate(
+            () => !!document.activeElement?.closest('.wait-chip'),
+          ),
+        ).toBe(true);
+      }
       await page.keyboard.press('Enter');
 
       // From the reply on, every focus change is written down, so a control
@@ -242,8 +253,8 @@ for (const sc of scenarios) {
 
       expect(f0.text, trace).toMatch(sc.label);
       for (const s of [f0, f1, f2, f3]) expect(s.tag, trace).not.toBe('BODY');
-      // The row's Cancel auto-merge sits in a chip the row hides while the request runs
-      // (a chip saying "Cancelling" stands in), so focus is on that chip.
+      // The pressed control is gone or says it is running; either way focus
+      // sits on something that says so.
       expect(f1.text, trace).toMatch(/Cancelling|Enabling…/);
       expect(posted).toHaveLength(1);
       if (status === 204 && !sc.inDialog) {
@@ -257,8 +268,7 @@ for (const sc of scenarios) {
         ).toEqual([]);
       }
       if (status === 429) {
-        // A rate limit locks the button (aria-disabled, with its reason), but
-        // it stays in place and focused.
+        // A rate limit refusal gives the button back, with focus on it.
         expect(f3.text, trace).toMatch(sc.label);
       } else if (sc.inDialog) {
         expect(f3.inDialog, trace).toBe(true);
@@ -354,8 +364,8 @@ for (const kind of ['merge', 'close'] as const) {
 }
 
 // #4735: an earlier finished action on the row must not make a later failed
-// Cancel read as a success. Focus goes back to the restored chip's button.
-test('a failed Cancel after an earlier finished one returns focus to the chip', async ({
+// Cancel read as a success. Focus goes back to the restored button.
+test('a failed Cancel after an earlier finished one returns focus to its button', async ({
   page,
 }) => {
   const current = makePR(ARMED);
@@ -414,9 +424,12 @@ test('a failed Cancel after an earlier finished one returns focus to the chip', 
   await confirm.click();
   await expect.poll(() => closed).toBe(true);
   await page.keyboard.press('Escape');
+  // The closing dialog hands focus back to its trigger, which has to be over
+  // before the test focuses the row's button.
+  await expect(page.getByRole('dialog')).toBeHidden();
   await expect(cancel).toBeVisible();
 
-  // Second Cancel fails: focus belongs on the restored chip's button.
+  // Second Cancel fails: focus belongs on the restored button.
   await cancel.focus();
   await page.keyboard.press('Enter');
   await expect.poll(() => replies.length).toBe(0);

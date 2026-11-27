@@ -40,9 +40,9 @@ describe('tapOutcome', () => {
 });
 
 describe('swapLabel', () => {
-  test('shows the wait until the swap is revealed', () => {
+  test('shows that auto-merge is on until the swap is revealed', () => {
     expect(swapLabel({ revealed: false, inFlight: false })).toBe(
-      'Waiting for CI',
+      'Auto-merge on',
     );
     expect(swapLabel({ revealed: true, inFlight: false })).toBe(
       'Update branch',
@@ -98,9 +98,9 @@ describe('swapDetail', () => {
 
 describe('swapName', () => {
   test('one name for every state but in flight', () => {
-    expect(swapName('idle')).toBe('Waiting for CI, update branch');
-    expect(swapName('locked')).toBe('Waiting for CI, update branch');
-    expect(swapName('inflight')).toBe('Waiting for CI, updating branch');
+    expect(swapName('idle')).toBe('Auto-merge on, update branch');
+    expect(swapName('locked')).toBe('Auto-merge on, update branch');
+    expect(swapName('inflight')).toBe('Auto-merge on, updating branch');
   });
 });
 

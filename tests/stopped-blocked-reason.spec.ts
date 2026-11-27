@@ -3,10 +3,10 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
-// #4944: a failing-CI row whose auto-merge stopped draws no Merge button. The
-// reason Merge is blocked joins the stopped state in the right-hand action
-// area (the chip's detail line, or the phone card's text line), and the left
-// shows the title and labels only.
+// #4944: a failing-CI row whose auto-merge stopped draws no Merge button, and
+// still says why Merge is blocked without hover: in the stopped text line on a
+// phone card, and in the row's status block from 761px, where the chip is one
+// word (#4971).
 
 const REASON = 'Blocked, CI is failing';
 
@@ -66,23 +66,24 @@ async function open(page: Page, width: number, mock: object = pr) {
 const row = (page: Page) => page.locator('#pr-rows > .row').first();
 
 for (const width of [390, 1280]) {
-  test(`at ${width}px the row has no Merge button and says the reason once, in the action area`, async ({
+  test(`at ${width}px the row has no Merge button and keeps the reason in its action area`, async ({
     page,
   }) => {
     await open(page, width);
-    await expect(row(page).getByRole('button', { name: 'Merge' })).toHaveCount(
+    // Anchored: "Cancel auto-merge" has the word in it.
+    await expect(row(page).getByRole('button', { name: /^Merge/ })).toHaveCount(
       0,
     );
     await expect(row(page).locator('.row-action-locked')).toHaveCount(0);
     await expect(row(page).locator('.row-action-note')).toHaveCount(0);
-    // Said once, readable without hovering, and inside the status cell where
-    // the stopped state is.
-    const reason = row(page)
-      .locator('.status-cell')
-      .locator('.auto-merge-blocked, .wait-chip-detail')
-      .filter({ hasText: REASON })
-      .filter({ visible: true });
-    await expect(reason).toHaveCount(1);
+    // Said once, inside the status cell where the stopped state is: printed on
+    // the phone card, and in the chip's tooltip on a wider one (#4971).
+    const cell = row(page).locator('.status-cell');
+    const said = cell
+      .locator(width === 390 ? '.auto-merge-blocked' : '.wait-chip-tip')
+      .filter({ hasText: REASON });
+    await expect(said).toHaveCount(1);
+    if (width === 390) await expect(said).toBeVisible();
     const results = await new AxeBuilder({ page })
       .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
       .analyze();
@@ -90,19 +91,17 @@ for (const width of [390, 1280]) {
   });
 }
 
-test('at 1280px the reason is in the stopped chip, next to its words', async ({
+test('at 1280px the stopped chip says "Stopped" and describes why', async ({
   page,
 }) => {
   await open(page, 1280);
   const chip = row(page).locator('.wait-chip');
-  await expect(chip.locator('.wait-chip-label')).toHaveText(
-    'Auto-merge stopped',
-  );
-  await expect(chip.locator('.wait-chip-detail')).toHaveText(REASON);
+  await expect(chip.locator('.wait-chip-label')).toHaveText('Stopped');
+  await expect(chip).toHaveAccessibleDescription(new RegExp(REASON));
 });
 
-// #5088: the server's status block says the same words as the stopped state, so
-// the row draws only one of them. Counted across the whole row, with the
+// #5088: the server's status block says the same words as the stopped line, so
+// the row shows only one of them. Counted across the whole row, with the
 // `status` the server sends for a blocked Merge.
 const status = { code: 'checks_failing', message: REASON, next: '' };
 const stopped = { ...pr, status };
@@ -162,37 +161,49 @@ for (const width of [390, 761, 860, 1280]) {
   }
 }
 
-// The chip is the only copy on a wide row, so it wraps instead of cutting the
-// reason off, at the narrowest desktop width and with the text enlarged.
+// From 761px the chip is one word, so the block is the copy a person reads, at
+// any width and text size and without hover.
 for (const [width, fontSize] of [
   [761, 16],
-  [761, 24],
   [761, 32],
+  [1191, 16],
   [1280, 32],
+  [1440, 16],
 ] as const) {
-  test(`at ${width}px with a ${fontSize}px root font the stopped chip shows the whole reason`, async ({
+  test(`at ${width}px with a ${fontSize}px root font a stopped row says why without hover`, async ({
     page,
   }) => {
     await open(page, width, stopped);
     await page.addStyleTag({
       content: `html { font-size: ${fontSize}px !important; }`,
     });
-    const detail = row(page).locator('.wait-chip-detail');
-    await expect
-      .poll(() =>
-        detail.evaluate(
-          (el) => el.clientWidth > 0 && el.scrollWidth <= el.clientWidth,
-        ),
-      )
-      .toBe(true);
+    await expect(row(page).locator('.status-area-message')).toBeVisible();
     await expect.poll(() => readableCopies(page)).toBe(1);
-    // And the words beside it stay inside the chip.
-    await expect
-      .poll(() =>
-        row(page)
-          .locator('.wait-chip')
-          .evaluate((el) => el.scrollWidth <= el.clientWidth),
-      )
-      .toBe(true);
   });
 }
+
+test('the dialog of a stopped row says the reason once', async ({ page }) => {
+  await open(page, 1280, stopped);
+  await row(page).locator("button[id^='details-trigger-']").click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByText(REASON)).toHaveCount(1);
+});
+
+test('a stopped row with a queued action says the reason once', async ({
+  page,
+}) => {
+  await open(page, 1280, {
+    ...stopped,
+    queued: {
+      id: 'q1',
+      action: 'update_branch',
+      forge: 'github',
+      fullName: pr.repo,
+      number: pr.number,
+      status: 'queued',
+      runAt: new Date(Date.now() + 8 * 60_000).toISOString(),
+      createdAt: new Date().toISOString(),
+    },
+  });
+  await expect.poll(() => readableCopies(page)).toBe(1);
+});

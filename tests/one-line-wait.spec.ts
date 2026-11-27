@@ -156,7 +156,7 @@ for (const width of [1280, 390]) {
           }),
         );
         await expect(row.locator('.wait-chip-label')).toHaveText(
-          'Waiting for CI',
+          'Auto-merge on',
         );
         await expect(
           row.getByRole('button', { name: 'Merge', exact: true }),

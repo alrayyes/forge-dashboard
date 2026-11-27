@@ -2,6 +2,9 @@
 // wait-chip.ts. The slot is one button: it shows the wait, and shows
 // Update branch while "revealed" (mouse hover, keyboard focus or a first tap).
 
+// What an armed row's chip reads while it waits (#4971).
+export const ARMED_WORD = 'Auto-merge on';
+
 export type TapOutcome = 'run' | 'reveal' | 'explain';
 
 // What activating the button does. `detail` is the click event's count: 0 for
@@ -26,12 +29,12 @@ export function swapLabel(input: {
   inFlight: boolean;
 }): string {
   if (input.inFlight) return 'Updating branch…';
-  return input.revealed ? 'Update branch' : 'Waiting for CI';
+  return input.revealed ? 'Update branch' : ARMED_WORD;
 }
 
-// The swap says "Waiting for CI", so only the chip that is that wait may take
-// it. Any other armed chip (review, a parent, a draft, the rate limit, a
-// merge under way) keeps its own words and the plain Update branch button.
+// Only a wait on CI offers the swap. Any other armed chip (review, a parent, a
+// draft, the rate limit, a merge under way) keeps its own words and leaves
+// Update branch to the details dialog.
 export function chipFitsSwap(chip: {
   code: string | undefined;
   label: string;
@@ -100,6 +103,6 @@ export function swapPhaseOf(input: {
 // flight it says updating, which is the visible word then.
 export function swapName(phase: SwapPhase): string {
   return phase === 'inflight'
-    ? 'Waiting for CI, updating branch'
-    : 'Waiting for CI, update branch';
+    ? `${ARMED_WORD}, updating branch`
+    : `${ARMED_WORD}, update branch`;
 }
