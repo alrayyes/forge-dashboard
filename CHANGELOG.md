@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.3](https://github.com/alrayyes/forge-dashboard/compare/v9.139.2...v9.139.3) (2026-11-27)
+
+
+### Bug Fixes
+
+* **forgejo:** notice a rerun of a failed pull request's job ([#5079](https://github.com/alrayyes/forge-dashboard/issues/5079)) ([e98bd1a](https://github.com/alrayyes/forge-dashboard/commit/e98bd1a8ab139cc9cd9275843ae398d215da9530))
+
 ## [9.139.2](https://github.com/alrayyes/forge-dashboard/compare/v9.139.1...v9.139.2) (2026-11-27)
 
 
