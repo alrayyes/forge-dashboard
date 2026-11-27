@@ -330,6 +330,12 @@ mocked dashboard carries those.
 until `UPDATE_FIXTURES=1 go test ./internal/api -run TestNavCountsFixture`
 regenerates it.
 
+The page also moves a pull request between those numbers from its live jobs, in
+`web/src/lib/nav-counts-live.ts`. `tests/generated/live-nav-counts.json` keeps
+it sorting as the server does: `go test ./internal/api` fails when it goes stale,
+until `UPDATE_FIXTURES=1 go test ./internal/api -run TestLiveNavCountsFixture`
+regenerates it.
+
 A mocked dashboard answer builds each `forges` entry with `forgeHealth()` from
 `tests/forge-health-helper.ts`, which fills `capabilities` from
 `tests/generated/forge-capabilities.json`. `go test ./internal/dashboard` fails
