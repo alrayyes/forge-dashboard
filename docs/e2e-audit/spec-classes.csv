@@ -170,7 +170,7 @@ main-branches-page.spec.ts,27.529,41,19,C,,14.8
 main-branches-refetch-on-flag.spec.ts,6.421,4,0,C,,6.4
 main-branches-server-copy.spec.ts,4.18,7,0,B,,4.2
 main-branches-stream.spec.ts,0.663,3,0,C,,0.7
-mentioned-tickets.spec.ts,11.687,16,10,A,,4.4
+mentioned-tickets.spec.ts,11.687,20,13,A,,4.1
 merge-wait-chip.spec.ts,39.506,27,14,A,,19.0
 merged-pr-pill.spec.ts,11.236,12,7,A,,4.7
 mobile-filters.spec.ts,15.232,13,9,A,,4.7

@@ -366,17 +366,18 @@ test.describe('pills inside the pull request dialog', () => {
     expect(new URL(page.url()).pathname).toBe('/pull-requests.html');
   });
 
-  test('a mentions pill for a ticket the dashboard does not hold still links to the forge', async ({
+  test('a mentions pill for a ticket of an untracked repository still links to the forge', async ({
     page,
   }) => {
+    const elsewhere = { ...mention(99, false), repo: 'alrayyes/elsewhere' };
     await mockBoard(page, {
-      shown: [pullRequest(1, [], { mentionsIssues: [mention(99, false)] })],
+      shown: [pullRequest(1, [], { mentionsIssues: [elsewhere] })],
     });
     await page.goto('/pull-requests.html');
     await openPullDialog(page, 1).click();
 
     const pill = pullDialog(page).locator('.mention-pill');
-    await expect(pill).toHaveAttribute('href', closing(99).url);
+    await expect(pill).toHaveAttribute('href', elsewhere.url);
     await expect(pill).toHaveAttribute('target', '_blank');
     await pill.click();
     await expect(pullDialog(page)).toBeVisible();

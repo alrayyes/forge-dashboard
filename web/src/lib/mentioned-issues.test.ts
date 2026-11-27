@@ -45,6 +45,18 @@ describe('mentionPillName', () => {
       'Mentions #12, opens on the forge',
     );
   });
+
+  // #5089: not on the board, but its repository is tracked, so the pill opens
+  // the dialog and says so.
+  test('says an unlisted ticket of a tracked repository opens its details', () => {
+    const unlisted = mention({ tracked: false });
+    expect(mentionPillName(unlisted, 'alrayyes/app', true)).toBe(
+      'Mentions #12, opens its details',
+    );
+    expect(mentionDialogName(unlisted, 'alrayyes/app', true)).toBe(
+      'Mentions: #12, opens its details',
+    );
+  });
 });
 
 describe('mentionDialogName', () => {

@@ -27,13 +27,15 @@ const expanded = new Set<string>();
 export type MentionedIssue = ClosingIssue & { tracked: boolean };
 
 /**
- * How a pill for an item the dashboard does not track reaches the details
- * dialog (#4321), the way a mention in the description does (#4269). `warm`
- * asks the forge while the pointer or focus rests on the pill. `open` swaps the
- * dialog for the item's once the forge has answered, and returns false when it
- * has not, so the click follows the link to the forge.
+ * How a pill for an item the dashboard does not hold reaches the details
+ * dialog. In a repository the dashboard tracks (`repoTracked`), `open` always
+ * swaps the dialog, which does its own read (#5089), and `warm` only reads
+ * ahead. Elsewhere (#4321, like a mention in the description, #4269) `open`
+ * swaps the dialog only once `warm` has had the forge's answer. It returns
+ * false when it has not, so the click follows the link to the forge.
  */
 export type UntrackedMention = {
+  repoTracked: (repo: string) => boolean;
   warm: (issue: MentionedIssue) => void;
   open: (issue: MentionedIssue) => boolean;
 };
@@ -49,25 +51,40 @@ export const mentionPillTitle = (issue: MentionedIssue) =>
     ? pillHoverText(issue.title, 'Mentioned here, does not close it')
     : undefined;
 
+// Where a click goes. An unlisted item of a tracked repository may be a closed
+// issue or a pull request, so its name says neither.
+function destination(issue: MentionedIssue, repoTracked: boolean) {
+  if (issue.tracked) return 'opens the issue';
+  return repoTracked ? 'opens its details' : 'opens on the forge';
+}
+
 /** The pill's accessible name. It contains the visible text (WCAG 2.5.3). */
-export function mentionPillName(issue: MentionedIssue, prRepo: string) {
-  const where = issue.tracked ? 'opens the issue' : 'opens on the forge';
-  return `${mentionPillText(issue, prRepo)}, ${where}`;
+export function mentionPillName(
+  issue: MentionedIssue,
+  prRepo: string,
+  repoTracked = false,
+) {
+  return `${mentionPillText(issue, prRepo)}, ${destination(issue, repoTracked)}`;
 }
 
 /** The pill's accessible name in the Related band: the relation first, then the number it contains and where the pill goes. */
-export function mentionDialogName(issue: MentionedIssue, prRepo: string) {
-  const where = issue.tracked ? 'opens the issue' : 'opens on the forge';
-  return `Mentions: ${issueNumber(issue, prRepo)}, ${where}`;
+export function mentionDialogName(
+  issue: MentionedIssue,
+  prRepo: string,
+  repoTracked = false,
+) {
+  return `Mentions: ${issueNumber(issue, prRepo)}, ${destination(issue, repoTracked)}`;
 }
 
 /**
  * The pills for one pull request, drawn like the closing ones: the first two,
  * then a count that opens the rest in place. Null when it mentions nothing, so
- * no empty section is left behind. A ticket the dashboard does not track opens
- * on the forge in a new tab. With onFollow, a plain click on a tracked one hands
- * it over so the dialog can be swapped for the issue's. With untracked, a plain
- * click on an untracked one opens it in the dialog when the forge can show it.
+ * no empty section is left behind. A ticket the dashboard does not hold is a
+ * link to the forge in a new tab. With onFollow, a plain click on a held one
+ * hands it over so the dialog can be swapped for the issue's. With untracked, a
+ * plain click on one it does not hold opens it in the dialog: always when the
+ * repository is tracked, else once the forge has shown it. A middle or modified
+ * click follows the link either way.
  */
 export function mentionPills(
   prKey: string,
@@ -81,6 +98,8 @@ export function mentionPills(
   const wrap = document.createElement('span');
   wrap.className = 'linked-prs';
   const pill = (issue: MentionedIssue) => {
+    const repoTracked =
+      !issue.tracked && untracked?.repoTracked(issue.repo) === true;
     const link = document.createElement('a');
     link.className = 'linked-pr mention-pill';
     link.href = issue.tracked ? issue.pageUrl : issue.url;
@@ -93,7 +112,13 @@ export function mentionPills(
     if (!issue.tracked) {
       link.target = '_blank';
       link.rel = 'noopener noreferrer';
-      if (untracked) followUntracked(link, issue, untracked);
+      if (untracked) {
+        warmUntracked(link, issue, untracked, repoTracked);
+        link.addEventListener('click', (event) => {
+          if (!isPlainClick(event)) return;
+          if (untracked.open(issue)) event.preventDefault();
+        });
+      }
     }
     if (inDialog) {
       const number = issueNumber(issue, prRepo);
@@ -101,10 +126,16 @@ export function mentionPills(
         !appendRepoRef(link, issue.repo, issue.number, number.startsWith('#'))
       )
         link.textContent = number;
-      link.setAttribute('aria-label', mentionDialogName(issue, prRepo));
+      link.setAttribute(
+        'aria-label',
+        mentionDialogName(issue, prRepo, repoTracked),
+      );
     } else {
       link.textContent = mentionPillText(issue, prRepo);
-      link.setAttribute('aria-label', mentionPillName(issue, prRepo));
+      link.setAttribute(
+        'aria-label',
+        mentionPillName(issue, prRepo, repoTracked),
+      );
     }
     const hover = mentionPillTitle(issue);
     if (hover === undefined) return link;
@@ -142,11 +173,17 @@ export function mentionPills(
   return wrap;
 }
 
-/** Warms the forge's answer on rest, focus and press, and opens the dialog on a plain click once it is in. */
-function followUntracked(
+/**
+ * Reads ahead of a click. An untracked repository's pill needs the answer to
+ * open the dialog at all, so a press and any focus ask too. A tracked one's
+ * dialog opens at once and reads for itself (#5089), so only a resting pointer
+ * or keyboard focus asks, which lets it open already filled (#4411).
+ */
+function warmUntracked(
   link: HTMLAnchorElement,
   issue: MentionedIssue,
   untracked: UntrackedMention,
+  repoTracked: boolean,
 ) {
   const dwell = createDwell(() => untracked.warm(issue));
   // The prefetcher keeps one lookup per item, so a dwell that fires after this
@@ -154,10 +191,8 @@ function followUntracked(
   const warmNow = () => untracked.warm(issue);
   link.addEventListener('pointerover', () => dwell.rest(link, undefined));
   link.addEventListener('pointerout', () => dwell.cancel());
-  link.addEventListener('pointerdown', warmNow);
-  link.addEventListener('focus', warmNow);
-  link.addEventListener('click', (event) => {
-    if (!isPlainClick(event)) return;
-    if (untracked.open(issue)) event.preventDefault();
+  if (!repoTracked) link.addEventListener('pointerdown', warmNow);
+  link.addEventListener('focus', () => {
+    if (!repoTracked || link.matches(':focus-visible')) warmNow();
   });
 }
