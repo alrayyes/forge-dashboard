@@ -240,6 +240,10 @@ for (const scheme of ['light', 'dark'] as const) {
         await page
           .getByRole('button', { name: 'Auto-update on owner/a' })
           .click();
+        // Everything below is already true until the write has been applied.
+        await expect(page.locator('#repositories-status')).toContainText(
+          'Auto-update turned on',
+        );
         await expect(page.locator('#repositories-count')).toContainText('2');
         await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
         await expect(page.getByRole('searchbox')).toBeVisible();
