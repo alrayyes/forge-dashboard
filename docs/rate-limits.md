@@ -301,13 +301,27 @@ A GitHub checks list (a pull request's, or a default branch's) reads the commit
 statuses beside the check runs. The row's rollup already says whether a commit
 has any, and when it counted none the read is skipped, so that list costs
 nothing extra. When it counted some, each read of the list costs one request,
-and one more for every further 100 statuses. The list is read when you open it,
-and again while it stays open when the row changes or you refresh it.
+and one more for every further 100 statuses.
+
+A list is read far more often than a panel is opened:
+
+- when you open the panel, and again while it stays open when the row changes or
+  you refresh it
+- with no panel open, for the rows the pull request, Main branches and issue
+  pages watch (up to seven), once when watched and again each time one changes
+- when you point at or focus a pipeline pill on Main branches, which reads the
+  list early
+- when an agent calls a checks tool over MCP or WebMCP, or you rerun a default
+  branch's checks
 
 The read is also made when the server has no rollup for the commit: before the
-first poll after a restart, for an older commit a default branch's list reaches
-back to, and without a token. A commit with no check run reads its statuses as
-it always did. The request goes through the conditional cache.
+first poll after a restart, when the list picks another commit than the row did,
+and without a token. A commit with no check run reads its statuses as it always
+did. The request goes through the conditional cache.
+
+The skip trusts the last rollup the server saw. A status posted on a commit that
+had none is left out of its list until a poll or a webhook refresh has counted
+it.
 
 ## Conditional requests
 
