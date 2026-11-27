@@ -446,6 +446,58 @@ test.describe('the pull request dialog', () => {
   // #5089: a closed or merged item of a tracked repository is not on the
   // board. A tap or a click opens its dialog at once, without waiting for a
   // read that nothing started yet.
+  // The board lists it, so it is known to be an open issue before any read,
+  // on every page and not only the Issues one.
+  test('a listed issue keeps its status and actions while the read is held and after it fails', async ({
+    page,
+  }) => {
+    await mockBoard(page, {
+      pullRequests: [{ ...pullRequest(1, []), closesIssues: [mention(5)] }],
+      issues: [issue(5, [])],
+    });
+    let fail: () => void = () => {};
+    const held = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    await page.route('**/api/v1/issues/details*', async (route: Route) => {
+      await held;
+      await route.fulfill({
+        status: 404,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'not found' }),
+      });
+    });
+    await page.goto('/pull-requests.html');
+    await openPullRequest(page);
+    const offered = async () => {
+      await expect(
+        issueDialog(page).getByRole('group', { name: 'Status' }),
+      ).toHaveText('Open');
+      await expect(
+        issueDialog(page).getByRole('button', { name: 'Close issue' }),
+      ).toBeVisible();
+      await expect(
+        issueDialog(page).getByRole('button', {
+          name: 'Close with a comment',
+        }),
+      ).toBeVisible();
+    };
+
+    await prDialog(page)
+      .getByRole('link', { name: /^Closes: #5/ })
+      .click();
+
+    await expect(issueDialog(page).getByRole('status')).toContainText([
+      'Loading details',
+    ]);
+    await offered();
+    fail();
+    await expect(issueDialog(page).getByRole('alert')).toContainText(
+      'Could not load the details: not found',
+    );
+    await offered();
+  });
+
   test.describe('an unlisted item of a tracked repository', () => {
     const gone = () =>
       mention(4, {

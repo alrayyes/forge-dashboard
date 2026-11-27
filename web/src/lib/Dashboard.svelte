@@ -2637,11 +2637,13 @@
       mentions: [],
     });
 
+    // From allIssues, which every page fills: the dialog opens on all of
+    // them, and rawIssues holds the Issues page's list only.
     function listedIssue(
       forge: string,
       repo: string,
       number: number,
-      issues: IssueItem[] = rawIssues,
+      issues: IssueItem[] = allIssues,
     ): IssueItem | undefined {
       return issues.find(
         (i) => i.forge === forge && i.repo === repo && i.number === number,
