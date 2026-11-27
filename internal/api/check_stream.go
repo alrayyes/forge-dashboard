@@ -282,13 +282,15 @@ func (held *watchedSubject) events(s checkSubject, checks []dashboard.Check) []r
 }
 
 // rowSignature says what about a subject's row in snap means its job list may
-// have changed. found is false when the snapshot has no such row.
+// have changed. A pull request's newest status id is part of it, since a rerun
+// that fails again leaves the state and counts as they were. found is false when
+// the snapshot has no such row.
 func rowSignature(snap dashboard.Snapshot, s checkSubject) (sig string, found bool) {
 	switch s.Kind {
 	case subjectPullRequest:
 		for _, pr := range snap.PullRequests {
 			if string(pr.Forge) == s.Forge && pr.Repo == s.FullName && pr.Number == s.Number {
-				return fmt.Sprintf("%s|%+v|%v|%v", pr.CI, pr.Checks, pr.ChecksIncomplete, pr.PendingChecks), true
+				return fmt.Sprintf("%s|%+v|%v|%v|%d", pr.CI, pr.Checks, pr.ChecksIncomplete, pr.PendingChecks, pr.LatestStatusID), true
 			}
 		}
 	case subjectMainBranch:

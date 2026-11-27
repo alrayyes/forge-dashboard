@@ -3419,8 +3419,9 @@ paths:
         Replaces the set of pull requests and default branches whose job
         lists the stream named by `streamId` sends as `run` events.
         The server lists a subject when it is newly watched, when its row
-        in a new snapshot changed (CI state, check counts, or a branch's
-        run), and when `refresh` is true. Nothing else costs a forge
+        in a new snapshot changed (CI state, check counts, a branch's run,
+        or a Forgejo pull request's head commit getting a newer status),
+        and when `refresh` is true. Nothing else costs a forge
         request. A failed listing is sent as an event with `error` set,
         and every snapshot after it tries again, changed or not, until a
         listing works.
@@ -4164,7 +4165,8 @@ paths:
 
         `kind` says why the request was made: `full` (a whole-account
         refresh), `scoped_webhook` (one repository, after a webhook),
-        `ci_poll` (one repository, waiting on a running check),
+        `ci_poll` (one repository, waiting on a running check or looking
+        for a rerun of a failed one),
         `auto_merge_poll` (one repository, waiting on an armed auto-merge),
         `details` (a dialog or check list opened), `hook_maintenance`
         (checking, adding or upgrading webhooks), `advisories` (reading a

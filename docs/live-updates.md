@@ -82,7 +82,9 @@ when the live stream says that pull request's or branch's CI changed. The
 panel tells the stream which row it shows, and the server sends that row's job
 list when the panel opens and again for each such change, and none while
 nothing changes, so a finished pipeline is not read again, and a rerun
-that starts sends it again once. The panel never polls the forge, and the list
+that starts sends it again once. A Forgejo pull request's list is also sent
+again when its head commit gets a newer status, even if the row reads the same,
+as when a rerun fails again. The panel never polls the forge, and the list
 arrives as named `run` events that the plain snapshot readers don't see. There
 is one event for each workflow run attempt, and one for each check that
 belongs to no run. A rerun is a new attempt, so it sends a new event, and a
