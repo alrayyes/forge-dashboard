@@ -10,8 +10,8 @@ export type PipelineSubject = {
   // A pull request has a number, a branch a name.
   number?: number;
   branch?: string;
-  // Where the run is on the forge, when the board knows it. The dialog falls
-  // back to the newest run its checks name.
+  // Where the run is on the forge, when the board knows it. It stands while the
+  // dialog's checks name one run or none; see footerRunLink.
   runUrl?: string;
 };
 

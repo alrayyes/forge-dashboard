@@ -227,6 +227,44 @@
   {@render opener(BRANCH)}
 </Story>
 
+<!-- Two workflows on a branch, one still going: the footer opens that one, not
+     the newer finished run or the board's own address (#5077). -->
+<Story
+  asChild
+  name="Main branch with a run still going"
+  beforeEach={() =>
+    mockFeed(
+      answer({
+        checks: [
+          check({
+            name: "build",
+            status: "in_progress",
+            conclusion: undefined,
+            completedAt: undefined,
+            url: `${RUN}/job/1`,
+          }),
+          check({
+            name: "lint",
+            url: "https://github.com/alrayyes/forge-dashboard/actions/runs/9920/job/2",
+          }),
+        ],
+      }),
+    )}
+  play={async ({ canvasElement }) => {
+    await listed(canvasElement);
+    const link = within(dialogEl()).getByRole("link", {
+      name: "Open latest running run on GitHub (opens in a new tab)",
+    });
+    await expect(link).toHaveTextContent(/^Open latest running run on GitHub$/);
+    await expect(link).toHaveAttribute("href", RUN);
+  }}
+>
+  {@render opener({
+    ...BRANCH,
+    runUrl: "https://github.com/alrayyes/forge-dashboard/actions/runs/9920",
+  })}
+</Story>
+
 <!-- The forge listed no checks. -->
 <Story
   asChild
@@ -434,7 +472,7 @@
           }),
           check({
             name: "lint",
-            url: "https://github.com/alrayyes/forge-dashboard/actions/runs/9/job/1",
+            url: "https://ci.example.com/lint/1",
           }),
         ],
       }),

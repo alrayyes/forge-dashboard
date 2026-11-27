@@ -102,8 +102,8 @@
     formatCheckDuration,
     groupChecks,
     isBlocking,
+    footerRunLink,
     runLinkNoun,
-    runPageUrl,
     type Check,
   } from "#lib/pipeline-checks.js";
   import {
@@ -588,14 +588,10 @@
     new Map(checkKeys(checks).map((key, i) => [checks[i], key])),
   );
   const groups = $derived(groupChecks(checks));
-  // The board's own run address, else the run the checks name (the failed
-  // one when there are several), so a pull request links to a run as a branch
-  // does. None, no link.
-  const runLink = $derived(
-    target?.runUrl
-      ? { url: target.runUrl, kind: "run" as const }
-      : runPageUrl(checks),
-  );
+  // The board's own run address or the run the checks name (the failed one,
+  // else the one still going, when there are several), so a pull request links
+  // to a run as a branch does. None, no link.
+  const runLink = $derived(footerRunLink(target?.runUrl, checks));
   const runLinkText = $derived(
     target && runLink
       ? `Open ${runLinkNoun(runLink.kind)} on ${forgeLabel(target)}`

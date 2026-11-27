@@ -60,7 +60,9 @@ job of the branch's newest pipeline with its state and how long it took, a link
 to each job, and for a failed job the step that broke and the tail of its log.
 On Forgejo the list reads no log: the tail of a failed job's log appears a moment
 after the panel opens, for the newest five failed jobs.
-The panel also links to the run on the forge, in a new tab. Escape, the close
+The panel also links to the run on the forge, in a new tab; when the jobs
+belong to several runs, [the same rule as a pull request's
+panel](pull-request-actions.md) picks one. Escape, the close
 button or a click outside closes it and focus goes back to the pill, and a
 screen reader hears the pill as, for example, "Failed. Open pipeline". The jobs
 are read from the forge when the panel opens, not from the page's snapshot, so
