@@ -165,7 +165,8 @@ SHALL NOT cancel its read before the scheduled deadline. While that read runs,
 the forge SHALL keep the rows it had, not be asked again, and have no pass
 counted as missed, and SHALL be reachable with cause `slow`. A forge that was
 unreachable or `starting` before the read began is the exception: it SHALL stay
-as it was, with its actions off and queued actions held, until a read succeeds.
+as it was, with its actions off, until a read succeeds. A queued action on it
+SHALL be held meanwhile, for up to an hour after it first came due.
 The outcome SHALL be applied when it arrives. A forge never read before has no
 rows and no `rowsReadAt` meanwhile, and its missing rows SHALL NOT be treated as
 closed or gone: no saved choice is forgotten, no queued action is skipped and
@@ -175,6 +176,7 @@ its actions stay off.
 
 - **WHEN** an unreachable forge's next read is still running at the user deadline
 - **THEN** it stays unreachable with its error, and a queued action stays queued
+  for up to an hour after it first came due
 
 #### Scenario: An unreachable forge's next read fails too
 
@@ -184,7 +186,8 @@ its actions stay off.
 #### Scenario: A queued action while the first read is slow
 
 - **WHEN** a queued action is due and its forge has never been read
-- **THEN** the action stays queued and is tried again
+- **THEN** the action stays queued and is tried again, for up to an hour after
+  it first came due
 
 #### Scenario: An answer between the two deadlines
 
