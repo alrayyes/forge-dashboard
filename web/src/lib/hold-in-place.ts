@@ -26,5 +26,7 @@ export function planHold(moved: number, at: Page): Room & { scrollTo: number } {
   const content = at.height - at.above - at.below;
   const below =
     scrollTo > 0 ? Math.max(0, scrollTo + at.viewport - content - above) : 0;
-  return { scrollTo, above, below };
+  // Under a pixel is nothing to see, and would leave an empty block behind.
+  const kept = (px: number) => (px < 1 ? 0 : px);
+  return { scrollTo, above: kept(above), below: kept(below) };
 }

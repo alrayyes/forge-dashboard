@@ -56,6 +56,15 @@ describe('holding a control in place', () => {
     });
   });
 
+  test('keeps no room thinner than a pixel', () => {
+    expect(planHold(0, { ...page, scrollY: 10, height: 809.6 })).toEqual({
+      scrollTo: 10,
+      above: 0,
+      below: 0,
+    });
+    expect(planHold(29.6, { ...page, above: 30 }).above).toBe(0);
+  });
+
   test('counts the room given back above when sizing the room below', () => {
     // Without the 30px above there are 770px of content, and 800px of window.
     const short = { ...page, scrollY: 0, height: 800, above: 30 };
