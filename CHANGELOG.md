@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.11](https://github.com/alrayyes/forge-dashboard/compare/v9.140.10...v9.140.11) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** don't decide a queued action from a slow forge's held rows ([#5145](https://github.com/alrayyes/forge-dashboard/issues/5145)) ([fbbd9bd](https://github.com/alrayyes/forge-dashboard/commit/fbbd9bdc767ef230b28a85eab886a65a3b19fcca)), closes [#5082](https://github.com/alrayyes/forge-dashboard/issues/5082)
+
 ## [9.140.10](https://github.com/alrayyes/forge-dashboard/compare/v9.140.9...v9.140.10) (2026-11-27)
 
 
