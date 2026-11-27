@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.4](https://github.com/alrayyes/forge-dashboard/compare/v9.139.3...v9.139.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** show Still waiting on unchanged rows and settle e2e races ([#5078](https://github.com/alrayyes/forge-dashboard/issues/5078)) ([f0b26e1](https://github.com/alrayyes/forge-dashboard/commit/f0b26e1136c730876c5bdbc2b60203096162a475)), closes [#5062](https://github.com/alrayyes/forge-dashboard/issues/5062)
+
 ## [9.139.3](https://github.com/alrayyes/forge-dashboard/compare/v9.139.2...v9.139.3) (2026-11-27)
 
 
