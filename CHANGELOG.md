@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.7](https://github.com/alrayyes/forge-dashboard/compare/v9.140.6...v9.140.7) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** keep the initial when an avatar can't load ([#5132](https://github.com/alrayyes/forge-dashboard/issues/5132)) ([0d708ae](https://github.com/alrayyes/forge-dashboard/commit/0d708ae9aba7390cafaf500e17d14989cbdf8196)), closes [#5124](https://github.com/alrayyes/forge-dashboard/issues/5124)
+
 ## [9.140.6](https://github.com/alrayyes/forge-dashboard/compare/v9.140.5...v9.140.6) (2026-11-27)
 
 
