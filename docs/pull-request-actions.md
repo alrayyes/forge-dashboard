@@ -118,13 +118,10 @@ plain Update branch button beside it. Cancel auto-merge stays its own button.
 The longer
 explanation is the chip's tooltip, which opens on hover and on keyboard focus
 and is the chip's accessible description, so a keyboard, a touch screen and a
-screen reader all get it. At 1280 and 1024 pixels a waiting row with the
-Auto-merge button is no taller than a normal one, with a comment pill, Update
-branch or a bot's rebase beside the chip too: the status column widens for
-those. A comment pill with the shared Update branch slot keeps the chip on a
-line of its own below 94rem, as it does beside the button. A chip with a detail
-line, such as an armed chip or a bot rebase's, is wider than the title can
-spare, so with an action beside it the row keeps the stacked, taller cell.
+screen reader all get it. A waiting row whose chip is its only extra, with no
+button and no merge-state or comment pill, is no taller than a normal one. On a
+list 1191px wide or more, a row with a button or such a pill beside the chip
+puts the chip on a line of its own, because every row shares the same columns.
 An armed row's "Auto-merge" label under the title also still adds a line to the
 row. The Pull requests, Releases and Bots pages share
 the row, so they share the chip. When the forge allows the merge, Merge takes
@@ -350,51 +347,47 @@ for the page to word it. The remembered refusal is kept in memory by repo,
 number, head and base, so a new head or a base push drops it, and so does a
 restart. GitHub reports conflicts itself and is unchanged.
 On a list 1191px wide or more (74.5rem, so a large root font size turns it
-off) a pull request row is one vertically centred line. The status column
-holds three fixed slots: the CI pill, the merge-state and comment pills (a
-Conflicting pill takes the same slot as the comment pill, and both stack there
-when a row has both), and the action. A pill is at the same x on every row and
-at the row's centre, unless a CI pill with so many counts that it outgrows its
-slot (a Failed pill with four, say) makes its own row's status column that much
-wider, taking the room from that row's title, so it never runs under the
-comment pill. The attribute chips and the status note ("Behind the base
-branch", say) sit under the title, so a row that has one is taller and its pills
-stay centred on the title and the note together. Rarer lines (a close cue, a
-queued note) take a line of their own under the slots. The waiting chip is as
-wide as its content, up to the room there is, and one line tall. On a row with no
-action and no merge-state or comment pill it sits after the CI pill on the
-pill's own line, in the rest of the cell (the cell is the CI pill and that
-remainder, so the pill's slot gives up its minimum width), and the row is no
-taller than one without a chip. With a comment or merge-state pill and one
-action, with or without labels, the chip shares the line too: the CI pill gives
-up its minimum width (a Running pill is 104px), so the pill, the chip, the
-other pills and the action fit the status track, the title keeps at least 200px
-at 1280px, and the row is as tall as one with a Merge button. The one
-exception is a bot row (a rebase button plus an unarmed chip, no pills or
-labels): it keeps one line with a 145px title, because it has no room to give
-and stacking it would make every bot row two lines. Every cell (the
-pills, the chip, the action, the author and the dates) shares the row's middle.
-Two cases keep the chip on a line of its own below 94rem of list width, one
-36px line taller, because on one line the title would fall under 200px: pills
-with a chip beside two actions (a bot's rebase and Cancel) or beside Update
-branch, and labels with an action but no pills (194px at 1280px). In both the
-pills and the action share the first line, the chip sits under them, and the
-author and dates centre on the two lines. Its room is only there while a chip
-is. A narrower list keeps the wrapping status
-cell, with the chips and the note in it, which is a
-stack of lines at 280px wide. The repo, the title and the arrow start at the top
-of the row, so the CI pill and the title's first line share a centre whatever is
-under them. Only the one-line row keeps the other pills and the action on that
-line. A row with
-both Merge and Update branch puts the two buttons side by side in the action
-slot, so it is as tall as a row with one. The slot is wide enough for the pair
-at 1191px. The slot before it is 7.5rem, so a long merge-state label such as
-"Conflict not confirmed" wraps to a second line there and the comment pill keeps
-its count inside it. Tab follows the layout: when the note
-under the title has a fix button in it, such as Update branch on a behind pull
-request, Tab reaches that button before the CI and comment pills. On a phone
-and on a narrower list the note stays in the status cell, and Tab visits the
-pills first and the button last.
+off) a pull request row is one vertically centred line, and the whole list is
+one grid. The author, the dates, the CI pill, the merge-state and comment pills
+and the action each start at the same x on every row, stacked and grouped rows
+included, and a live update to one row leaves the others where they are. The
+Releases and Bots pages draw the same list, so their columns line up the same
+way. The status area has three columns: the CI pill, the merge-state and comment
+pills (a Conflicting pill takes the same column as the comment pill, and both
+stack there when a row has both), and the action. Each has a minimum width and
+grows for every row at once when one row needs more. The action column grows
+until the buttons of a row sit side by side, and the reason printed under a
+locked Merge can widen it too, up to 13.5rem. Where that would take the title
+under 200px, as with Merge beside a bot's rebase in a 1280px window, the second
+button wraps under the first and that row is taller. A CI pill with many counts
+(a Failed pill with four, say) takes room from the title of every row, as far as
+the title can keep 200px, and past that the pill wraps its counts onto a second
+line. On the narrowest of these lists, 1191px to 1207px wide, the title can go
+down to about 183px. The
+attribute chips and the status note ("Behind the base branch", say) sit under
+the title, so a row that has one is taller and its pills stay centred on the
+title and the note together. Rarer lines (a close cue, a queued note) take a
+line of their own under the columns. The waiting chip never moves a column. On
+a row with no button and no merge-state or comment pill it sits after the CI
+pill, and the row is no taller than one without a chip. Otherwise it takes a
+line of its own under them, starting where the CI pill starts, and the author
+and dates centre on the two lines. A waiting chip that gives a reason, such as
+Rate limited, takes that line too, so you can read all of it. Its detail is cut
+short with an ellipsis, with the whole text in the tooltip, when there isn't
+room for it.
+A narrower list keeps the wrapping status cell, with the chips and the note in
+it, which is a stack of lines at 280px wide. The repo, the title and the arrow
+start at the top of the row, so the CI pill and the title's first line share a
+centre whatever is under them. Only the one-line row keeps the other pills and
+the action on that line. A row with both Merge and Update branch puts the two
+buttons side by side in the action column, so it is as tall as a row with one.
+The column is wide enough for the pair at 1191px. The column before it is about
+7.5rem, so a long merge-state label such as "Conflict not confirmed" wraps to a
+second line there and the comment pill keeps its count inside it. Tab follows
+the layout: when the note under the title has a fix button in it, such as Update
+branch on a behind pull request, Tab reaches that button before the CI and
+comment pills. On a phone and on a narrower list the note stays in the status
+cell, and Tab visits the pills first and the button last.
 On a phone (760px and narrower) the card is the title with its labels, chips
 and note, the author and times, one line of pills (the CI pill, then the
 merge-state and comment pills), a divider, and the action across the full width
@@ -741,26 +734,29 @@ once its checks have passed and Forgejo says it can merge, with the repo's own
 merge method, the same as Merge. A pull request you didn't arm is never merged.
 Checks that fail, conflicts, a draft, a stack parent that hasn't merged yet or
 no checks at all keep it waiting, and it merges once that clears. The row says
-which, in words: the chip reads `Waiting for CI`, `Waiting for parent`, `Rate
-limited` and so on. One that has stopped (a failed check, a conflict, or a
+which, in words: the chip reads `Waiting for CI`, `Waiting for parent`,
+`Rate limited` and so on. One that has stopped (a failed check, a conflict, or a
 refused merge, including a token without merge permission) is the same kind of
-chip, `Auto-merge stopped`, with an alert icon and no button, on the status
-pill's line from 761px up. On a phone it stays the text line it was, and so does
-a stopped row that has a queued action (an Update branch waiting for a
-rate-limit reset): that row keeps its queued chip and its Cancel, with the
-sentence as text beside it. The chip is as wide as its words, so a long refusal
-never cuts it: the server's whole sentence is the chip's tooltip, which opens on
-hover and on keyboard focus and is the chip's accessible description. You can
-move the pointer onto the tooltip without it closing, and Escape closes it until
-the pointer and focus have left the chip. On a list narrower than 1191px, from
-861px, the status column widens to make room for it, as it does for a chip with
-a button. When the server merges one it tells the page, which shows "Auto-merged
-owner/repo#N after checks passed" for the next few minutes. If Forgejo refuses
-the merge, the server doesn't ask again until the pull request changes (a rate
-limit or an unreachable forge is retried after five minutes), and the log
-records each attempt by repo and number. Closing or merging the pull request
-elsewhere removes the intent, once Forgejo confirms it. A token that can push
-but not merge only finds out at the merge itself.
+chip, `Auto-merge stopped`, with an alert icon and no button. From 761px of
+window width it sits on the status pill's line. On the wide list (1191px of list
+width or more) it does so only on a row with no button and no merge-state or
+comment pill, and otherwise takes a line of its own under them. On a phone it
+stays the text line it was, and so does a stopped row that has a queued action
+(an Update branch waiting for a rate-limit reset): that row keeps its queued
+chip and its Cancel, with the sentence as text beside it. The chip is as wide as
+its words, so a long refusal never cuts it: the server's whole sentence is the
+chip's tooltip, which opens on hover and on keyboard focus and is the chip's
+accessible description. You can move the pointer onto the tooltip without it
+closing, and Escape closes it until the pointer and focus have left the chip. On
+a list narrower than 1191px, from 861px, the status column widens to make room
+for it, as it does for a chip with a button. When the server merges one it tells
+the page, which shows "Auto-merged owner/repo#N after checks passed" for the
+next few minutes. If Forgejo refuses the merge, the server doesn't ask again
+until the pull request changes (a rate limit or an unreachable forge is retried
+after five minutes), and the log records each attempt by repo and number.
+Closing or merging the pull request elsewhere removes the intent, once Forgejo
+confirms it. A token that can push but not merge only finds out at the merge
+itself.
 
 A pull request whose CI is failing never offers Merge, whether auto-merge was
 armed or not and whatever else holds it back: a draft, a conflict or a branch
@@ -882,16 +878,17 @@ Forgejo itself holds the merge (it merges when checks pass), and GitHub's reads
 says it cancels the merge scheduled on Forgejo. On GitHub, Cancel auto-merge
 turns GitHub's own auto-merge off with `disablePullRequestAutoMerge`.
 
-On a desktop the chip is a compact status, not a banner. It is as wide as
-its icon, its bold label, its lighter line and its button, 30px tall, up to the
-room in the status cell. The lighter line shows whole in the common case (about
-310px of the 440px cell at the default font size) and shortens with an ellipsis
-only when the cell cannot hold it, on a line with an action or a pill beside it,
-at a large root font size or at 200% zoom; the hint always has the whole
-sentence. The slot is not drawn while it is empty, at any
-width. On a list narrower than the one-line row (761px to 1190px of list width)
-the status cell stacks, so the chip takes a line of its own at the cell's right
-edge, 30px tall.
+On a desktop the chip is a compact status, not a banner. It is as wide as its
+icon, its bold label, its lighter line and its button, 30px tall, up to the room
+it has. On the wide list that room is the whole status area (about 440px at the
+default font size) when the chip has a line of its own, and the last two columns
+(about 270px) when it shares the CI pill's line. The lighter line shows whole
+when there's room for it and is cut short with an ellipsis when there isn't,
+which happens sooner on the shared line, at a large root font size or at 200%
+zoom. The hint always has the whole sentence. The slot is not drawn while it is
+empty, at any width. On a list narrower than the one-line row (761px to 1190px
+of list width) the status cell stacks, so a waiting chip takes a line of its own
+at the cell's right edge, 30px tall.
 
 On a phone card the slot reserves nothing. With no chip the slot is not drawn,
 so the card is no taller than its content and the divider sits within 16px of
