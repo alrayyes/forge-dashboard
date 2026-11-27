@@ -221,7 +221,7 @@ pr-auto-update.spec.ts,10.205,12,4,C,,6.8
 pr-details-cache.spec.ts,24.574,13,12,A,,1.9
 pr-details-dependabot-description.spec.ts,4.134,2,2,A,,0.0
 pr-details-description-scroll.spec.ts,10.913,5,5,A,,0.0
-pr-details-dialog.spec.ts,21.276,39,22,A,,9.3
+pr-details-dialog.spec.ts,21.276,41,25,A,,8.3
 pr-details-images.spec.ts,22.164,10,10,A,,0.0
 pr-details-short-viewport.spec.ts,3.621,5,5,A,,0.0
 pr-details-task-lists.spec.ts,3.392,3,3,A,,0.0

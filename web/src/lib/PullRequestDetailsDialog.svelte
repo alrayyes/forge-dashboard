@@ -235,8 +235,15 @@
   let html = $state<Record<string, string>>({});
   // Avatars that failed to load, by comment id: they fall back to an initial.
   let brokenAvatars = $state<Record<string, boolean>>({});
-  // Those that have loaded, so their initial can give way.
-  let loadedAvatars = $state<Record<string, boolean>>({});
+  // The address that has loaded for each, so its initial can give way. Kept
+  // while the <img> is: one that survives a close never fires `load` again.
+  let loadedAvatars = $state<Record<string, string>>({});
+  // A stable function, so it only runs as the <img> comes and goes.
+  function forgetOnRemoval(img: HTMLImageElement) {
+    return () => {
+      delete loadedAvatars[img.dataset.comment ?? ""];
+    };
+  }
   // The same for the avatar of whoever filed the issue, in the header.
   let brokenFilerAvatar = $state(false);
 
@@ -523,7 +530,6 @@
     returnFocusId = triggerId;
     returnFocusFallbackId = fallbackFocusId;
     brokenAvatars = {};
-    loadedAvatars = {};
     brokenFilerAvatar = false;
     older = null;
     referencedKey = null;
@@ -793,7 +799,6 @@
       if (!quiet) {
         shownReaction = null;
         brokenAvatars = {};
-        loadedAvatars = {};
       }
       landOnNewest(true);
 
@@ -1381,7 +1386,8 @@
                         (#5124). -->
                         <span
                           class="avatar"
-                          class:has-picture={loadedAvatars[c.id]}
+                          class:has-picture={src !== null &&
+                            loadedAvatars[c.id] === src}
                           aria-hidden="true"
                         >
                           {c.author ? login.charAt(0).toUpperCase() : "?"}
@@ -1394,7 +1400,9 @@
                               height="32"
                               loading="lazy"
                               referrerpolicy="no-referrer"
-                              onload={() => (loadedAvatars[c.id] = true)}
+                              data-comment={c.id}
+                              {@attach forgetOnRemoval}
+                              onload={() => (loadedAvatars[c.id] = src)}
                               onerror={() => {
                                 noteImageFailed(src);
                                 brokenAvatars[c.id] = true;
@@ -2076,6 +2084,9 @@
     box-sizing: border-box;
     border: 1px solid var(--control-border);
     position: relative;
+    /* The initial isn't part of a copied comment, as on the rows (#5124). */
+    -webkit-user-select: none;
+    user-select: none;
   }
   /* Over the edge too, and with no fill of its own, so the initial shows
      until the picture has painted (#5124). */
