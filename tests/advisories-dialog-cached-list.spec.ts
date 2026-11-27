@@ -11,6 +11,12 @@ import { test } from './server-fixture';
 const REPO = 'acme/critical';
 const READ_AT = new Date(Date.now() - 4 * 60_000).toISOString();
 
+// READ_AT is fixed when the worker loads this file, so the age a line words
+// would grow with every test run before it. This puts the page's clock four
+// minutes after the read (#5062).
+const fourMinutesAfterRead = (page: Page) =>
+  page.clock.setFixedTime(Date.parse(READ_AT) + 4 * 60_000);
+
 function branch(warm: boolean) {
   return {
     forge: 'github',
@@ -267,9 +273,7 @@ for (const viewport of VIEWPORTS) {
     test('a failed refresh keeps the list and says it is older', async ({
       page,
     }) => {
-      // READ_AT is fixed when the worker loads this file, so the age the line
-      // words would grow with every test run before this one (#5062).
-      await page.clock.setFixedTime(Date.parse(READ_AT) + 4 * 60_000);
+      await fourMinutesAfterRead(page);
       await openDialog(page, {
         warm: true,
         answer: json(list()),
@@ -311,6 +315,7 @@ for (const viewport of VIEWPORTS) {
     test('an aged-out list that could not be read is shown as older on open', async ({
       page,
     }) => {
+      await fourMinutesAfterRead(page);
       const h = hold();
       await openDialog(page, {
         warm: true,
