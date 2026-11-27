@@ -452,3 +452,79 @@ test('a healthy forge counts the rows that draw Update branch', async ({
     page.getByRole('button', { name: 'Update all (2)' }),
   ).toBeVisible();
 });
+
+// Holds the update-branch request open until release() is called, so a case can
+// look at the page before the forge has answered (#5122).
+async function holdUpdates(page: Page, refuse = false) {
+  let release = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(
+    '**/api/v1/pull-requests/update-branch',
+    async (route: Route) => {
+      await gate;
+      if (!refuse) return route.fallback();
+      return route.fulfill({
+        status: 409,
+        contentType: 'application/json',
+        body: JSON.stringify({ code: 'unknown', message: 'Try again.' }),
+      });
+    },
+  );
+  return () => release();
+}
+
+const rowUpdate = (page: Page, number: number) =>
+  page
+    .locator('#pr-rows .row', { hasText: `Change number ${number}` })
+    .getByRole('button', { name: 'Update branch' });
+
+test("a row's own update leaves the count before the forge answers", async ({
+  page,
+}) => {
+  await open(page, [pr(1), pr(2)]);
+  const release = await holdUpdates(page);
+  const all = page.locator('#update-all-button');
+  await expect(all).toHaveText('Update all (2)');
+
+  // Updates paused, so the board is held: the count still follows the row,
+  // and the rows keep their places.
+  await page.getByRole('button', { name: 'Pause live updates' }).click();
+  const rows = page.locator('#pr-rows .row');
+  await rowUpdate(page, 1).click();
+  await expect(all).toHaveText('Update all (1)');
+  await expect(rows).toContainText(['Change number 1', 'Change number 2']);
+  release();
+});
+
+test('a refused update is counted again', async ({ page }) => {
+  await open(page, [pr(1), pr(2)]);
+  const release = await holdUpdates(page, true);
+  const all = page.locator('#update-all-button');
+  await expect(all).toHaveText('Update all (2)');
+
+  await rowUpdate(page, 1).click();
+  await expect(all).toHaveText('Update all (1)');
+  release();
+  await expect(page.locator('#pr-rows')).toContainText('Try again.');
+  await expect(all).toHaveText('Update all (2)');
+});
+
+test('taking the last counted row removes the button and keeps focus', async ({
+  page,
+}) => {
+  await open(page, [pr(1)]);
+  const release = await holdUpdates(page);
+  const all = page.locator('#update-all-button');
+  await all.focus();
+
+  // Pressed from script, so focus is still on the bulk button as it goes.
+  await rowUpdate(page, 1).evaluate((el) => {
+    (el as HTMLElement).click();
+  });
+  await expect(all).toBeHidden();
+  await expect(page.locator('body')).not.toBeFocused();
+  await expectNoAxeViolations(page);
+  release();
+});
