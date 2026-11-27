@@ -70,7 +70,10 @@ CI still runs everything the hook skips, and the CI-only list at the top of
 
 `bun run storybook:screenshots` takes its shots in one browser per core, up to
 four, in the hook and in CI alike. A story mustn't count on running after
-another one.
+another one. A story that hasn't finished after 15 seconds fails the run, and
+the failure lists its render phases, whether animation frames still came, the
+requests still open and its last console messages. Keep that block when you
+report one.
 
 CI runs a job only when a file it reads changed. The first job, `changes`,
 maps the pull request's diff to areas with `scripts/changed-areas.sh`, and

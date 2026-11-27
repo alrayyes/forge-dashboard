@@ -5,6 +5,7 @@ import {
   planShot,
   shotJobs,
   shotName,
+  stallReport,
   VARIANTS,
   workerCount,
 } from './storybook-shots';
@@ -122,4 +123,50 @@ test('fails when one of them throws', async () => {
     return n;
   });
   await expect(run).rejects.toThrow('no browser');
+});
+
+// https://github.com/alrayyes/forge-dashboard/issues/5051
+//
+// A story timed out once and the failure said only that 15s had passed, so
+// there was nothing to find the cause with.
+test('says where a story that never finished stopped', () => {
+  const report = stallReport({
+    page: {
+      phases: [
+        ['preparing', 40],
+        ['playing', 120],
+      ],
+      error: null,
+      frame: true,
+    },
+    pending: ['/assets/preview.js'],
+    messages: ['error: boom'],
+  });
+  expect(report.split('\n')).toEqual([
+    '    render phases: preparing at 40ms, playing at 120ms',
+    '    story error: none',
+    '    animation frames: running',
+    '    requests still open: /assets/preview.js',
+    '    console: error: boom',
+  ]);
+});
+
+test('says so when the page itself stopped answering', () => {
+  const report = stallReport({ page: null, pending: [], messages: [] });
+  expect(report.split('\n')).toEqual([
+    '    the page did not answer',
+    '    requests still open: none',
+    '    console: nothing',
+  ]);
+});
+
+test('says so when no phase was seen and no frame came', () => {
+  const report = stallReport({
+    page: { phases: [], error: 'boom', frame: false },
+    pending: [],
+    messages: [],
+  });
+  expect(report).toContain('render phases: none seen');
+  expect(report).toContain('story error: boom');
+  expect(report).toContain('animation frames: stopped');
 });

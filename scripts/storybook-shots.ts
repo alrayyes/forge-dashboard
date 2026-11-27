@@ -90,3 +90,36 @@ export async function inParallel<T, R>(
   );
   return results;
 }
+
+// What is known about a story that never finished (#5051). `page` is null when
+// the page didn't answer the question either.
+export type Stall = {
+  page: {
+    // Each render phase and the page's clock when it was first seen.
+    phases: [string, number][];
+    error: string | null;
+    // Whether an animation frame still came.
+    frame: boolean;
+  } | null;
+  pending: string[];
+  messages: string[];
+};
+
+// The lines printed under a story's timeout, indented like the axe targets.
+export function stallReport({ page, pending, messages }: Stall): string {
+  const seen = page?.phases.map(([phase, at]) => `${phase} at ${at}ms`);
+  const state = page
+    ? [
+        `render phases: ${seen?.join(', ') || 'none seen'}`,
+        `story error: ${page.error ?? 'none'}`,
+        `animation frames: ${page.frame ? 'running' : 'stopped'}`,
+      ]
+    : ['the page did not answer'];
+  return [
+    ...state,
+    `requests still open: ${pending.join(', ') || 'none'}`,
+    `console: ${messages.join('\n      ') || 'nothing'}`,
+  ]
+    .map((line) => `    ${line}`)
+    .join('\n');
+}

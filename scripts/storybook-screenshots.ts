@@ -25,15 +25,22 @@ import { availableParallelism, tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { AxeBuilder } from '@axe-core/playwright';
-import { type Browser, type BrowserContext, chromium } from '@playwright/test';
+import {
+  type Browser,
+  type BrowserContext,
+  chromium,
+  type Page,
+} from '@playwright/test';
 import { logoAnswer } from './storybook-logo-route';
 import {
   inParallel,
   type Measure,
   planShot,
   type ShotJob,
+  type Stall,
   shotJobs,
   shotName,
+  stallReport,
   VARIANTS,
   workerCount,
 } from './storybook-shots';
@@ -148,7 +155,7 @@ async function waitForIndex(base: string): Promise<IndexEntry[]> {
 // the preview exists.
 const WATCH = `
 (() => {
-  const state = (window.__storyState = { done: false, error: null });
+  const state = (window.__storyState = { done: false, error: null, phases: [] });
   const failing = ['playFunctionThrewException', 'storyThrewException', 'storyErrored', 'storyMissing'];
   let wrapped = false;
   setInterval(() => {
@@ -165,6 +172,7 @@ const WATCH = `
       };
     }
     const phase = window.__STORYBOOK_PREVIEW__?.currentRender?.phase;
+    if (phase && state.phases.at(-1)?.[0] !== phase) state.phases.push([phase, Math.round(performance.now())]);
     if (phase === 'finished' || phase === 'errored' || phase === 'aborted') state.done = true;
   }, 5);
 })();
@@ -244,6 +252,56 @@ async function openContexts(browser: Browser) {
 
 type Outcome = { saved: boolean; blank: boolean; failures: string[] };
 
+// Keeps what a stalled page would be asked about afterwards: the requests it
+// still has open and its last console messages.
+function listen(page: Page) {
+  const pending = new Set<string>();
+  const messages: string[] = [];
+  const say = (message: string) => {
+    messages.push(message);
+    if (messages.length > 10) messages.shift();
+  };
+  page.on('request', (r) => pending.add(r.url()));
+  page.on('requestfinished', (r) => pending.delete(r.url()));
+  page.on('requestfailed', (r) => pending.delete(r.url()));
+  page.on('console', (m) => say(`${m.type()}: ${m.text()}`));
+  page.on('pageerror', (e) => say(`page error: ${e.message}`));
+  page.on('crash', () => say('the page crashed'));
+  return () => ({ pending: [...pending], messages: [...messages] });
+}
+
+// Asks a stalled page where it stopped. A stuck page answers nothing, so the
+// question has its own time limit.
+function askStalled(page: Page): Promise<Stall['page']> {
+  const answer = page.evaluate(async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: runs in the page
+    const { phases, error } = (window as any).__storyState;
+    const frame = await new Promise<boolean>((resolve) => {
+      requestAnimationFrame(() => resolve(true));
+      setTimeout(() => resolve(false), 2000);
+    });
+    return { phases, error, frame };
+  });
+  return Promise.race([answer, sleep(5000, null)]).catch(() => null);
+}
+
+// Waits for the story to finish, and says where it stopped if it never does.
+async function waitForStory(page: Page, heard: ReturnType<typeof listen>) {
+  try {
+    await page.waitForFunction(
+      // biome-ignore lint/suspicious/noExplicitAny: runs in the page
+      () => (window as any).__storyState?.done === true,
+      undefined,
+      { timeout: STORY_TIMEOUT_MS },
+    );
+  } catch (err) {
+    // What had been heard when time ran out, before asking adds to it.
+    const before = heard();
+    const report = stallReport({ page: await askStalled(page), ...before });
+    throw new Error(`${err instanceof Error ? err.message : err}\n${report}`);
+  }
+}
+
 // Shoots and scans one story at one size.
 async function shootStory(
   context: BrowserContext,
@@ -253,18 +311,14 @@ async function shootStory(
   const outcome: Outcome = { saved: false, blank: false, failures: [] };
   console.log(`- ${id}${variant.suffix}`);
   const page = await context.newPage();
+  const heard = listen(page);
   try {
     await page.goto(`${base}/iframe.html?id=${id}&viewMode=story`);
     await page.waitForSelector('#storybook-root', {
       state: 'attached',
       timeout: STORY_TIMEOUT_MS,
     });
-    await page.waitForFunction(
-      // biome-ignore lint/suspicious/noExplicitAny: runs in the page
-      () => (window as any).__storyState?.done === true,
-      undefined,
-      { timeout: STORY_TIMEOUT_MS },
-    );
+    await waitForStory(page, heard);
     const error = await page.evaluate(
       // biome-ignore lint/suspicious/noExplicitAny: runs in the page
       () => (window as any).__storyState.error as string | null,
