@@ -359,6 +359,68 @@ for (const scheme of ['light', 'dark'] as const) {
   }
 }
 
+// The Releases page draws the same rows, with the version under the title. The
+// shape that gave it away: one release running with a waiting chip beside
+// Auto-merge, the next with more counts and Cancel auto-merge, so each row sized
+// its own status area and the author and dates sat at different x on each.
+const release = {
+  author: 'release-please[bot]',
+  kind: 'release',
+  labels: [{ name: 'autorelease: pending', color: 'ededed' }],
+};
+const RELEASE_ROWS = [
+  pr(40, 'chore(main): release 9.140.0', { ...release, ...offered }),
+  pr(41, 'chore(main): release 2.3.1', {
+    ...release,
+    ...armed,
+    repo: 'example-org/web',
+    checks: { passed: 21, running: 9, waiting: 4, failed: 0, skipped: 3 },
+  }),
+];
+
+for (const scheme of ['light', 'dark'] as const) {
+  for (const width of [1280, 1720, 1920]) {
+    test(`releases line up with differing status areas, ${scheme}, ${width}px`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await open(page, width, RELEASE_ROWS, '/releases.html');
+      // Both halves of the shape are drawn, or equal columns prove nothing.
+      const rows = page.locator('#pr-rows > .row');
+      await expect(rows.locator('.wait-chip')).toHaveCount(2);
+      await expect(
+        rows.getByRole('button', { name: 'Enable auto-merge' }),
+      ).toBeVisible();
+      await expect(
+        rows.getByRole('button', { name: 'Cancel auto-merge' }),
+      ).toBeVisible();
+
+      await expect
+        .poll(async () => misaligned(await measure(page)))
+        .toEqual([]);
+      for (const name of ['author', 'created', 'updated', 'check pill'])
+        expect(
+          (await measure(page)).filter((r) => name in r.lefts).length,
+          name,
+        ).toBe(2);
+      expect(overlaps(await measure(page))).toEqual([]);
+      for (const selector of ['html', '#pr-rows'])
+        expect(
+          await page
+            .locator(selector)
+            .evaluate((e) => e.scrollWidth - e.clientWidth),
+          selector,
+        ).toBeLessThanOrEqual(0);
+      for (const r of await measure(page))
+        expect(r.titleWidth, r.title).toBeGreaterThanOrEqual(200);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+}
+
 for (const width of [1280, 1503, 1920]) {
   test(`a live update to one row's counts leaves the others where they were, ${width}px`, async ({
     page,
