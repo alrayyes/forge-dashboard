@@ -347,3 +347,40 @@ func TestBuildGitHubSource_EveryInstallationFailingToBuild_FallsBackToTheToken(t
 
 	assert.Contains(t, *lastAuthHeader, "pat-value")
 }
+
+// Not parallel: it points the package's GitHub API address at a local server.
+func TestBuildSources_AChecksListSkipsTheStatusReadAnEarlierPollRuledOut(t *testing.T) {
+	var statusReads atomic.Int32
+	mux := http.NewServeMux()
+	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"data":{"repository":{"url":"u","defaultBranchRef":{"target":{"oid":"cafef00d","statusCheckRollup":{"state":"SUCCESS","contexts":{"checkRunCountsByState":[{"state":"SUCCESS","count":1}],"statusContextCountsByState":[],"nodes":[]}}}}}}}`))
+	})
+	mux.HandleFunc("/repos/octo/repo/commits", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`[{"sha":"cafef00d"}]`))
+	})
+	mux.HandleFunc("/repos/octo/repo/commits/cafef00d/check-runs", func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write([]byte(`{"check_runs":[{"name":"build","status":"completed","conclusion":"success"}]}`))
+	})
+	mux.HandleFunc("/repos/octo/repo/commits/cafef00d/status", func(w http.ResponseWriter, _ *http.Request) {
+		statusReads.Add(1)
+		_, _ = w.Write([]byte(`{"statuses":[]}`))
+	})
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+	githubAPIBaseURL = srv.URL
+	t.Cleanup(func() { githubAPIBaseURL = "" })
+	build := buildSources(newTestAuthStore(t), nil, 0, nil, nil, nil, nil)
+	creds := settings.Credentials{GitHubToken: "pat-value"}
+
+	poll, ok := build(creds)[0].(dashboard.MainBranchRefresher)
+	require.True(t, ok)
+	_, err := poll.FetchMainBranch(t.Context(), "octo", "repo", "octo/repo")
+	require.NoError(t, err)
+	dialog, ok := build(creds)[0].(dashboard.DefaultBranchChecker)
+	require.True(t, ok)
+	checks, err := dialog.ListDefaultBranchChecks(t.Context(), "octo", "repo")
+	require.NoError(t, err)
+
+	assert.Len(t, checks, 1)
+	assert.Zero(t, statusReads.Load())
+}

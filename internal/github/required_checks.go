@@ -317,8 +317,8 @@ func (c *Client) branchSummaryContexts(ctx context.Context, owner, name, base st
 // for a moment after a push while the required jobs are still waiting (#1311).
 // The list returns the latest run of each name, so a rerun is judged by its own
 // state. A required context can be either (an Actions job,
-// or codecov/patch beside it), and listChecksForSHA reads statuses only when
-// there are no check runs at all, which is right for a list of jobs but would
+// or codecov/patch beside it). listChecksForSHA isn't used: it may skip the
+// status read, or keep only the check runs when that read fails, which would
 // call a reported status missing here.
 func (c *Client) reportedContexts(ctx context.Context, owner, name, sha string) (map[string]bool, error) {
 	reported := map[string]bool{}
