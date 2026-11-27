@@ -18,7 +18,7 @@ import (
 func resolveAdvisoryListFor(ctx context.Context, deps Deps, forge, fullName string) (dashboard.AdvisoryList, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
-		return dashboard.AdvisoryList{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+		return dashboard.AdvisoryList{}, &statusError{status: http.StatusBadRequest, message: `fullName must be "owner/repo"`}
 	}
 
 	src, _, serr := lookupForgeSource(ctx, deps, forge)
@@ -34,7 +34,7 @@ func resolveAdvisoryListFor(ctx context.Context, deps Deps, forge, fullName stri
 	if err != nil {
 		slog.Warn("advisory list fetch failed", "forge", forge, "repo", fullName, "error", err)
 
-		return dashboard.AdvisoryList{}, &statusError{clientErrorStatus(err), err.Error()}
+		return dashboard.AdvisoryList{}, &statusError{status: clientErrorStatus(err), message: err.Error()}
 	}
 
 	return list, nil
@@ -50,7 +50,7 @@ func handleAdvisoryList(deps Deps) http.HandlerFunc {
 		if s := r.URL.Query().Get("refresh"); s != "" {
 			fresh, err := strconv.ParseBool(s)
 			if err != nil {
-				(&statusError{http.StatusBadRequest, "refresh must be true or false"}).write(w)
+				(&statusError{status: http.StatusBadRequest, message: "refresh must be true or false"}).write(w)
 
 				return
 			}

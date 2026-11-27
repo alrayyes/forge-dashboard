@@ -21,7 +21,7 @@ type pullRequestChecksResponse struct {
 func resolvePullRequestChecksFor(ctx context.Context, deps Deps, forge, fullName string, number int) ([]dashboard.Check, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
-		return nil, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+		return nil, &statusError{status: http.StatusBadRequest, message: `fullName must be "owner/repo"`}
 	}
 
 	src, _, serr := lookupForgeSource(ctx, deps, forge)
@@ -37,7 +37,7 @@ func resolvePullRequestChecksFor(ctx context.Context, deps Deps, forge, fullName
 	if err != nil {
 		slog.Warn("pull request checks fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
 
-		return nil, &statusError{clientErrorStatus(err), err.Error()}
+		return nil, &statusError{status: clientErrorStatus(err), message: err.Error()}
 	}
 
 	return dashboard.WithFacts(checks), nil

@@ -88,7 +88,7 @@ func (e *statusError) write(w http.ResponseWriter) {
 func lookupForgeSource(ctx context.Context, deps Deps, forge string) (dashboard.Source, settings.Credentials, *statusError) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
-		return nil, settings.Credentials{}, &statusError{http.StatusInternalServerError, "could not load settings"}
+		return nil, settings.Credentials{}, &statusError{status: http.StatusInternalServerError, message: "could not load settings"}
 	}
 
 	src, serr := pickForgeSource(deps, creds, forge)
@@ -105,7 +105,7 @@ func pickForgeSource(deps Deps, creds settings.Credentials, forge string) (dashb
 		}
 	}
 
-	return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
+	return nil, &statusError{status: http.StatusBadRequest, message: "no " + forge + " credentials saved"}
 }
 
 // forgeSource finds the signed-in user's source for forge, with the settings it
@@ -128,7 +128,7 @@ func capabilityFor[T any](src dashboard.Source, forge, unsupported string) (T, *
 	if !ok {
 		var none T
 
-		return none, &statusError{http.StatusBadRequest, forge + " " + unsupported}
+		return none, &statusError{status: http.StatusBadRequest, message: forge + " " + unsupported}
 	}
 
 	return capability, nil
