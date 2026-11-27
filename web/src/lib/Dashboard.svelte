@@ -281,7 +281,17 @@
     rateLimitWhy,
   } from "#lib/rate-limit.js";
   import type { LockInfo } from "#lib/lock-info.js";
-  import { type RowClaim, rowClaim } from "#lib/row-claim.js";
+  import {
+    type RowClaim,
+    rowClaim,
+    UNCONFIRMED_CONFLICT_WHY,
+  } from "#lib/row-claim.js";
+  import {
+    EARLIER_DATA_BANNER_LINE,
+    EARLIER_DATA_LABEL,
+    earlierDataNotice,
+    isEarlierData,
+  } from "#lib/earlier-data.js";
   import { chromeIsCurrent } from "#lib/dialog-chrome.js";
   import { footerOrder } from "#lib/footer-order.js";
   import { createIssueActions } from "#lib/issue-dialog-actions.js";
@@ -1282,12 +1292,15 @@
       };
       if (unconfirmedConflict(item)) {
         facts.reasonId = conflictReasonId(item);
-        facts.reason = rowClaim({
-          kind: "conflict",
-          lock: proactiveActionLockReason(item.forge),
-          answered: false,
-          updateOffered: liveUpdateBranch(item),
-        }).reason;
+        facts.reason =
+          idScope === "" && isEarlierData(item.status)
+            ? UNCONFIRMED_CONFLICT_WHY
+            : rowClaim({
+                kind: "conflict",
+                lock: proactiveActionLockReason(item.forge),
+                answered: false,
+                updateOffered: liveUpdateBranch(item),
+              }).reason;
       }
       return facts;
     }
@@ -1309,6 +1322,25 @@
       return unconfirmedConflict(item)
         ? conflictReasonId(item)
         : statusAreaId(item);
+    }
+
+    function earlierWhyId(item: PullRequestItem): string {
+      return `earlier-why-${domSafeId(prKey(item))}`;
+    }
+
+    // A row's marker for earlier data (#5127): two words on the row, the
+    // server's sentence for a screen reader. The notice above the list says
+    // it to everyone else.
+    function earlierDataMarker(item: PullRequestItem): HTMLElement | null {
+      if (!isEarlierData(item.status)) return null;
+      // Not attrChip: there is no icon for it, and an empty one leaves a gap.
+      const chip = el("span", "attr-chip earlier-data", EARLIER_DATA_LABEL);
+      chip.dataset.forge = item.forge;
+      chip.title = item.status?.message ?? "";
+      const why = el("span", "sr-only", item.status?.message ?? "");
+      why.id = earlierWhyId(item);
+      chip.append(" ", why);
+      return chip;
     }
 
     function conflictReasonId(item: PullRequestItem): string {
@@ -1621,6 +1653,7 @@
       // the state is announced once and the row keeps a normal row's height
       // (#4686). The dialog has no wait chip and keeps it.
       const chips = [
+        onRow ? earlierDataMarker(pr) : null,
         onRow && pr.autoMerge ? null : autoMergePill(pr),
         pr.draft ? attrChip("draft", "Draft") : null,
         showBot && pr.kind === "dependency" ? attrChip("bot", "Bot") : null,
@@ -3444,6 +3477,14 @@
         },
       );
       row.appendChild(titleCellEl);
+      // The row's main keyboard target says why a marked row is earlier data.
+      if (isPR && isEarlierData((item as PullRequestItem).status))
+        titleCellEl
+          .querySelector("button.title")
+          ?.setAttribute(
+            "aria-describedby",
+            earlierWhyId(item as PullRequestItem),
+          );
       if (isPR) {
         const closing = closingPills(
           prKey(item),
@@ -4380,6 +4421,8 @@
     ): HTMLElement | null {
       const status = item.status;
       if (!status) return null;
+      // The row's marker and the notice above the list say it (#5127).
+      if (withFix && isEarlierData(status)) return null;
       if (ciWaitIsStale(item)) return null;
       // A stopped auto-merge's chip or text line already says it (#5088).
       if (stoppedBlockedReason(item)) return null;
@@ -4578,7 +4621,9 @@
               ? undefined
               : unconfirmedConflict(item) && item.status.code === "conflict"
                 ? conflictReasonId(item)
-                : statusAreaId(item);
+                : idScope === "" && isEarlierData(item.status)
+                  ? earlierWhyId(item)
+                  : statusAreaId(item);
         return lockedActionButton(
           "Merge",
           merge.blocked.message,
@@ -5788,7 +5833,9 @@
           item.status &&
           !item.status.next &&
           item.status.message === reason
-            ? statusAreaId(item)
+            ? isEarlierData(item.status)
+              ? earlierWhyId(item)
+              : statusAreaId(item)
             : undefined;
         return lockedActionButton(
           DEPENDABOT_ACTION_LABELS[action],
@@ -9415,6 +9462,7 @@
         }
 
         if (unlockWatch) announceIfUnlocked(container, unlockWatch);
+        if (isPR) renderEarlierData();
 
         const emptyEl = document.getElementById(emptyId);
         if (emptyEl) emptyEl.hidden = state.items.length !== 0;
@@ -10522,12 +10570,75 @@
     // forge. A forge held back by its rate limit has that banner instead.
     // Keeps the banner's relative age counting between redraws (#3745).
     function tickUnreachableBannerAge() {
-      const age = document.querySelector<HTMLElement>(
-        "#unreachable-banner .unreachable-banner-age",
-      );
-      if (!age?.dataset.since) return;
-      const next = relativeTime(age.dataset.since);
-      if (age.textContent !== next) age.textContent = next;
+      for (const age of document.querySelectorAll<HTMLElement>(
+        ".unreachable-banner-age",
+      )) {
+        if (!age.dataset.since) continue;
+        const next = relativeTime(age.dataset.since);
+        if (age.textContent !== next) age.textContent = next;
+      }
+    }
+
+    // Says once, above the list, what the marked rows are (#5127). The
+    // unreachable banner already names a forge that is down, so it takes one
+    // line more; a forge it doesn't cover, such as one still starting up, gets
+    // a notice of its own. Both follow the rows on screen, and neither holds
+    // anything focusable, so removing them moves no focus.
+    function renderEarlierData() {
+      const kinds = [
+        ...new Set(
+          Array.from(
+            document.querySelectorAll<HTMLElement>("#pr-rows .earlier-data"),
+            (chip) => chip.dataset.forge ?? "",
+          ),
+        ),
+      ].sort();
+      const banner = document.getElementById("unreachable-banner");
+      const inBanner = banner?.dataset.forges?.split(" ") ?? [];
+      const covered =
+        kinds.length > 0 && kinds.every((kind) => inBanner.includes(kind));
+
+      const line = banner?.querySelector(".unreachable-banner-earlier");
+      if (!covered) line?.remove();
+      else if (!line)
+        banner
+          ?.querySelector(".unreachable-banner-text")
+          ?.append(
+            " ",
+            el("span", "unreachable-banner-earlier", EARLIER_DATA_BANNER_LINE),
+          );
+
+      const existing = document.getElementById("earlier-data-notice");
+      if (kinds.length === 0 || covered) {
+        existing?.remove();
+        return;
+      }
+      const forges = kinds.map((kind) => ({
+        label: forgeLabelOf(kind),
+        staleSince: lastForges
+          .filter((f) => f.forge === kind)
+          .flatMap((f) => (f.staleSince ? [f.staleSince] : []))
+          .sort((a, b) => Date.parse(a) - Date.parse(b))[0],
+      }));
+      // Redrawn only when it would say something else, so a screen reader
+      // hears it once.
+      const signature = JSON.stringify(forges);
+      if (existing?.dataset.signature === signature) return;
+      const notice = el("div", "earlier-data-notice");
+      notice.id = "earlier-data-notice";
+      notice.dataset.signature = signature;
+      notice.setAttribute("role", "status");
+      const copy = earlierDataNotice(forges, relativeTime);
+      notice.append(copy.before);
+      if (copy.age) {
+        const age = el("span", "unreachable-banner-age", copy.age.text);
+        age.setAttribute("aria-live", "off");
+        age.dataset.since = copy.age.since;
+        notice.append(age);
+      }
+      notice.append(copy.after);
+      if (existing) existing.replaceWith(notice);
+      else document.querySelector(".filter-bar")?.before(notice);
     }
 
     function renderUnreachableBanner() {
@@ -10542,6 +10653,8 @@
       );
       if (down.length === 0) {
         existing?.remove();
+        // The marked rows may now need the notice of their own.
+        if (existing) renderEarlierData();
         return;
       }
       // The zone is part of it: a changed zone redraws the times.
@@ -10557,6 +10670,7 @@
       const banner = el("div", "unreachable-banner");
       banner.id = "unreachable-banner";
       banner.dataset.signature = signature;
+      banner.dataset.forges = down.map((f) => f.forge).join(" ");
       banner.setAttribute("role", "status");
       const copy = bannerCopy(
         down.map((f) => ({
@@ -10629,6 +10743,7 @@
           banner,
           document.querySelector(".filter-bar"),
         );
+      renderEarlierData();
     }
 
     // Same rounding/format as Insights' own countdown (#361) — kept as a
