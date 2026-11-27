@@ -18,7 +18,7 @@ import (
 func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, forge, fullName string, number int) (dashboard.PullRequestDetails, *statusError) {
 	owner, name, ok := splitFullName(fullName)
 	if !ok {
-		return dashboard.PullRequestDetails{}, &statusError{http.StatusBadRequest, `fullName must be "owner/repo"`}
+		return dashboard.PullRequestDetails{}, &statusError{status: http.StatusBadRequest, message: `fullName must be "owner/repo"`}
 	}
 
 	src, _, serr := lookupForgeSource(ctx, deps, forge)
@@ -34,7 +34,7 @@ func resolvePullRequestDetailsFor(ctx context.Context, deps Deps, forge, fullNam
 	if err != nil {
 		slog.Warn("pull request details fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
 
-		return dashboard.PullRequestDetails{}, &statusError{clientErrorStatus(err), err.Error()}
+		return dashboard.PullRequestDetails{}, forgeReadError(err)
 	}
 
 	details.ReleaseNotes = releaseNotesOf(deps, dashboard.Forge(forge), fullName, number, details.Description)

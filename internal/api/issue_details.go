@@ -44,7 +44,7 @@ func handleIssueDetails(deps Deps) http.HandlerFunc {
 		details, err := detailer.GetIssueDetails(r.Context(), owner, name, number)
 		if err != nil {
 			slog.Warn("issue details fetch failed", "forge", forge, "repo", fullName, "number", number, "error", err)
-			(&statusError{clientErrorStatus(err), err.Error()}).write(w)
+			forgeReadError(err).write(w)
 
 			return
 		}

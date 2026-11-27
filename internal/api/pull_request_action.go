@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/settings"
@@ -74,13 +75,29 @@ func validateActionTarget(w http.ResponseWriter, req pullRequestActionRequest) (
 type statusError struct {
 	status  int
 	message string
+	// resetsAt is when a rate-limited read's budget comes back, and nil
+	// where that isn't known.
+	resetsAt *time.Time
 }
 
 func (e *statusError) Error() string { return e.message }
 
 // write answers w with the refusal.
 func (e *statusError) write(w http.ResponseWriter) {
-	writeJSON(w, e.status, errorBody(e.message))
+	if e.resetsAt == nil {
+		writeJSON(w, e.status, errorBody(e.message))
+
+		return
+	}
+
+	writeJSON(w, e.status, rateLimitedBody{Error: e.message, ResetsAt: *e.resetsAt})
+}
+
+// rateLimitedBody is components.schemas.RateLimitedError in api/openapi.yaml
+// with its reset time known.
+type rateLimitedBody struct {
+	Error    string    `json:"error"`
+	ResetsAt time.Time `json:"resetsAt"`
 }
 
 // lookupForgeSource finds the user's source for forge, with the settings it was
@@ -88,7 +105,7 @@ func (e *statusError) write(w http.ResponseWriter) {
 func lookupForgeSource(ctx context.Context, deps Deps, forge string) (dashboard.Source, settings.Credentials, *statusError) {
 	creds, err := deps.SettingsStore.Get(ctx)
 	if err != nil {
-		return nil, settings.Credentials{}, &statusError{http.StatusInternalServerError, "could not load settings"}
+		return nil, settings.Credentials{}, &statusError{status: http.StatusInternalServerError, message: "could not load settings"}
 	}
 
 	src, serr := pickForgeSource(deps, creds, forge)
@@ -105,7 +122,7 @@ func pickForgeSource(deps Deps, creds settings.Credentials, forge string) (dashb
 		}
 	}
 
-	return nil, &statusError{http.StatusBadRequest, "no " + forge + " credentials saved"}
+	return nil, &statusError{status: http.StatusBadRequest, message: "no " + forge + " credentials saved"}
 }
 
 // forgeSource finds the signed-in user's source for forge, with the settings it
@@ -128,7 +145,7 @@ func capabilityFor[T any](src dashboard.Source, forge, unsupported string) (T, *
 	if !ok {
 		var none T
 
-		return none, &statusError{http.StatusBadRequest, forge + " " + unsupported}
+		return none, &statusError{status: http.StatusBadRequest, message: forge + " " + unsupported}
 	}
 
 	return capability, nil

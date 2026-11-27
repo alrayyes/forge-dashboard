@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 	"github.com/alrayyes/forge-dashboard/internal/github"
@@ -59,4 +60,26 @@ func clientErrorStatus(err error) int {
 	default:
 		return http.StatusBadGateway
 	}
+}
+
+// forgeReadError is the refusal for a read the forge failed.
+func forgeReadError(err error) *statusError {
+	return &statusError{status: clientErrorStatus(err), message: err.Error(), resetsAt: rateLimitReset(err)}
+}
+
+// rateLimitReset is when the exhausted budget behind err comes back, and nil
+// where that isn't known. A limit hit with budget left (GitHub's secondary
+// limit) says nothing about when it lifts, so the budget's own reset time
+// would mislead.
+func rateLimitReset(err error) *time.Time {
+	clientErr, ok := errors.AsType[*dashboard.ClientError](err)
+	if !ok || clientErr.Kind != dashboard.ForgeErrorRateLimited {
+		return nil
+	}
+	budget := clientErr.RateLimit
+	if budget == nil || budget.Remaining > 0 || budget.ResetsAt.IsZero() {
+		return nil
+	}
+
+	return &budget.ResetsAt
 }
