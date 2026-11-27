@@ -174,7 +174,7 @@ func TestInstallationWebhook_Created_WhenGitHubsListFails_Is500AndStoresNothing(
 	t.Parallel()
 
 	h := newInstallationHook(t, true)
-	h.conn.gh.server.Close()
+	h.conn.gh.hangUp()
 
 	assert.Equal(t, http.StatusInternalServerError, h.post(t, "installation", hookBody("created", 200, "acme-org")))
 

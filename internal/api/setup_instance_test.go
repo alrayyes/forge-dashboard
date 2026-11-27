@@ -46,11 +46,9 @@ func TestSetupVerifyInstance_AForgejoAnswers_ReturnsItsAddress(t *testing.T) {
 func TestSetupVerifyInstance_NothingListening_NamesTheAddressField(t *testing.T) {
 	t.Parallel()
 
-	dead := httptest.NewServer(http.NotFoundHandler())
-	addr := dead.URL
-	dead.Close()
-
-	status, body := newSetupFixture(t, "").verify(t, addr)
+	// Port 1 refuses. A closed test server's port can be taken by a parallel
+	// test's server, which would then answer (#5129).
+	status, body := newSetupFixture(t, "").verify(t, "http://127.0.0.1:1")
 
 	t.Run("is a 400", func(t *testing.T) {
 		t.Parallel()

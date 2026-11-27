@@ -61,11 +61,8 @@ func TestFetch_TheFailureLogNamesTheErrorKind(t *testing.T) {
 
 	t.Run("a refused connection", func(t *testing.T) {
 		logs := captureUnreachableLogs(t)
-		srv := httptest.NewServer(http.NotFoundHandler())
-		url := srv.URL
-		srv.Close()
 
-		github.NewClient("test-token", "", url).Fetch(t.Context())
+		github.NewClient("test-token", "", refusedURL).Fetch(t.Context())
 
 		assert.Contains(t, logs.String(), "msg=\"forge unreachable\" forge=github error_kind=unreachable status=0")
 	})

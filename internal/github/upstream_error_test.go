@@ -39,14 +39,15 @@ func TestFetch_AGatewayErrorAfterTheRetriesIsAnUpstreamError(t *testing.T) {
 	}
 }
 
+// refusedURL is an address that refuses every connection. Not a closed test
+// server's: a parallel test's server can take that port and answer (#5129).
+// Port 1 is never handed to a listener that asks for any free port.
+const refusedURL = "http://127.0.0.1:1"
+
 func TestFetch_ARefusedConnectionStaysUnreachable(t *testing.T) {
 	t.Parallel()
 
-	srv := httptest.NewServer(http.NotFoundHandler())
-	url := srv.URL
-	srv.Close()
-
-	result := github.NewClient("test-token", "", url).Fetch(t.Context())
+	result := github.NewClient("test-token", "", refusedURL).Fetch(t.Context())
 
 	require.False(t, result.Health.Reachable)
 	assert.Equal(t, dashboard.ForgeErrorUnreachable, result.Health.ErrorKind)
