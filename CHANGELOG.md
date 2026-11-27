@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.10](https://github.com/alrayyes/forge-dashboard/compare/v9.140.9...v9.140.10) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** make the menu pills follow a row's live CI state ([#5140](https://github.com/alrayyes/forge-dashboard/issues/5140)) ([b43a761](https://github.com/alrayyes/forge-dashboard/commit/b43a7615cadd63f3e5e719fb648ac11eaef56bfe)), closes [#5123](https://github.com/alrayyes/forge-dashboard/issues/5123)
+
 ## [9.140.9](https://github.com/alrayyes/forge-dashboard/compare/v9.140.8...v9.140.9) (2026-11-27)
 
 
