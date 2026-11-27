@@ -270,9 +270,9 @@ Every entry in `closesIssues`, `refsIssues` and `mentionsIssues` carries a
 `relation`: `closes`, `refs` or `mentions`. A ticket is listed under one
 relation, closing first, then refs, then plain mentions.
 
-A row shows a "Refs" pill for each, after the "Closes" ones. It is drawn with a
-dotted outline and no fill, so it reads apart from a closing pill by more than
-its word. Its tooltip and accessible name say it references the ticket and
+A row shows a "Refs" pill for each, after the "Closes" ones. It is drawn like a
+closing pill, so its word is what tells them apart. Its tooltip and accessible
+name say it references the ticket and
 doesn't close it. The tooltip also shows under the pill on keyboard focus, and
 Escape hides it. It behaves like a closing pill: the first two show, a count
 opens the rest, a press opens the ticket's pop-up in place and Escape returns
