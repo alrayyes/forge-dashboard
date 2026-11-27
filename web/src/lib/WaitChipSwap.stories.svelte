@@ -5,18 +5,19 @@
   import WaitChipSwap from "./WaitChipSwap.svelte";
 
   // The armed-wait chip and the Update branch button sharing one slot, as the
-  // row draws them for a "Waiting for CI" chip (#4942). The row never reaches
+  // row draws them for an armed row that waits for CI (#4942). The row never reaches
   // In flight: it redraws to the queued chip at once. Read the stories in this
   // order: Idle, Hover preview, Keyboard focus, Pressed, Locked, In flight,
   // then the rows.
   //
-  //  - Idle shows "Waiting for CI" with Cancel auto-merge, as the chip does.
+  //  - Idle shows "Auto-merge on" in the chip, with the row's Cancel beside it.
   //  - Mouse hover previews the swap. Keyboard focus shows the same swap.
   //  - A first touch tap shows it too; a second tap runs. Enter, Space and a
   //    screen reader's click run at once. Hover is never the only way (#4531).
   //  - The slot keeps the chip's 44px height; its width is its widest label.
-  //  - Cancel auto-merge is its own button in every state.
-  //  - One accessible name, "Waiting for CI, update branch", in every state.
+  //  - Cancel (accessible name "Cancel auto-merge") is its own button in every
+  //    state, and is not part of the chip.
+  //  - One accessible name, "Auto-merge on, update branch", in every state.
   //    The reason is its description, and one status line speaks per action.
   const { Story } = defineMeta({
     title: "WaitChipSwap",
@@ -70,7 +71,7 @@
 <Story
   name="Idle"
   play={async ({ canvasElement }) => {
-    await expect(swap(canvasElement).textContent).toContain("Waiting for CI");
+    await expect(swap(canvasElement).textContent).toContain("Auto-merge on");
     await expectFootprint(canvasElement);
     await expectNoViolations(canvasElement);
   }}
@@ -98,7 +99,7 @@
 />
 
 <!-- Enter on the focused control runs Update branch at once. A second Tab
-     reaches Cancel auto-merge. -->
+     reaches Cancel. -->
 <Story
   name="Keyboard runs and cancels"
   args={{ onupdate: fn(), oncancel: fn() }}

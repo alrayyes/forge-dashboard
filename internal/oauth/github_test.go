@@ -10,6 +10,7 @@ import (
 	"net/url"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -72,6 +73,7 @@ func (m *ghTokens) current() *oauth2.Token {
 type fakeGitHub struct {
 	server *httptest.Server
 	mux    *http.ServeMux
+	down   atomic.Bool // set by hangUp
 
 	mu        sync.Mutex
 	challenge string
@@ -108,11 +110,21 @@ func newFakeGitHub(t *testing.T) *fakeGitHub {
 	mux.HandleFunc("/login/oauth/access_token", f.token)
 	mux.HandleFunc("/user", f.user)
 	mux.HandleFunc("/applications/", f.grant)
-	f.server = httptest.NewServer(mux)
+	f.server = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if f.down.Load() {
+			panic(http.ErrAbortHandler)
+		}
+		mux.ServeHTTP(w, r)
+	}))
 	t.Cleanup(f.server.Close)
 
 	return f
 }
+
+// hangUp makes the fake drop every request unanswered, as an unreachable GitHub
+// would. It keeps the port: a closed server's port can be taken by a parallel
+// test's server, which would then answer (#5129).
+func (f *fakeGitHub) hangUp() { f.down.Store(true) }
 
 func (f *fakeGitHub) grant(w http.ResponseWriter, r *http.Request) {
 	f.mu.Lock()
@@ -513,7 +525,7 @@ func TestGitHub_Disconnect_StillDeletesThePairWhenGitHubIsUnreachable(t *testing
 
 	gh := newFakeGitHub(t)
 	conn, store := linkedGitHub(t, gh, time.Now().Add(time.Hour))
-	gh.server.Close()
+	gh.hangUp()
 
 	require.ErrorIs(t, conn.Disconnect(t.Context()), oauth.ErrNotRevoked)
 	assert.Nil(t, store.current())

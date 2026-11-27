@@ -4,8 +4,9 @@ import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
 // A Dependabot row while the forge isn't answering: the Rebase split button
-// and the Recreate item share one left edge, nothing overlaps, and the stale
-// note is said once.
+// and the Recreate item share one left edge, nothing overlaps, and the row
+// prints no copy of the stale note, which is said above the list (#5127). A
+// held row says its reason once.
 // https://github.com/alrayyes/forge-dashboard/issues/4187
 
 const STALE = {
@@ -117,7 +118,7 @@ for (const scenario of ['stale', 'held'] as const)
     ['desktop', 1280],
     ['phone', 375],
   ] as const) {
-    test(`${scenario}, ${name}: Rebase and Recreate line up and the reason is said once`, async ({
+    test(`${scenario}, ${name}: Rebase and Recreate line up and the reason is not repeated`, async ({
       page,
     }, info) => {
       const row = await open(page, width, scenario);
@@ -171,8 +172,15 @@ for (const scenario of ['stale', 'held'] as const)
               .map((e) => e.getBoundingClientRect().toJSON()),
           SCENARIOS[scenario].words,
         );
-      expect(shown).toHaveLength(1);
-      for (const b of [rb, cb, rc]) expect(overlap(shown[0], b)).toBe(false);
+      if (scenario === 'stale') {
+        expect(shown).toHaveLength(0);
+        await expect(row.locator('.earlier-data')).toContainText(
+          'Earlier data',
+        );
+      } else {
+        expect(shown).toHaveLength(1);
+        for (const b of [rb, cb, rc]) expect(overlap(shown[0], b)).toBe(false);
+      }
       // Both buttons are still described by it.
       for (const b of [rebase, recreate]) {
         await expect(b).toHaveAccessibleDescription(SCENARIOS[scenario].words);

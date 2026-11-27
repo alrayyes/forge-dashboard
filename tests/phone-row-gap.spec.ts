@@ -175,13 +175,19 @@ test.describe('wider rows draw the wait slot only while it holds a chip', () => 
         await expect(row.locator('.ci-slot')).toBeVisible();
         const ci = await row.locator('.ci-slot').boundingBox();
         const slot = await row.locator('.wait-slot').boundingBox();
+        // The slot can span the pill's track too (an armed row), so where the
+        // chip is drawn is the chip's own box.
+        const chip =
+          name === 'armed'
+            ? await row.locator('.wait-chip').boundingBox()
+            : null;
         if (name === 'plain') {
           expect(slot).toBeNull();
           return;
         }
         if (width === 1280) {
           // On the pill's line, after it.
-          expect(slot?.x ?? 0).toBeGreaterThanOrEqual(
+          expect(chip?.x ?? 0).toBeGreaterThanOrEqual(
             (ci?.x ?? Number.POSITIVE_INFINITY) + (ci?.width ?? 0),
           );
           return;

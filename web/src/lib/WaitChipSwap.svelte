@@ -1,15 +1,16 @@
 <script lang="ts">
-  import { swapLabel, tapOutcome } from "#lib/wait-chip-swap.js";
+  import { ARMED_WORD, swapLabel, tapOutcome } from "#lib/wait-chip-swap.js";
 
   // MOCKUP for #4942, not drawn by any page. One slot where an armed row's
-  // "Waiting for CI" chip becomes the Update branch button. The slot keeps the
+  // "Auto-merge on" chip becomes the Update branch button. The slot keeps the
   // chip's 44px height and border, and its width is the widest of its three
   // labels, so nothing moves when the words swap and the row stays one line.
   //
   // The swap shows on mouse hover, on keyboard focus and on a first touch tap.
   // Enter, Space and a screen reader's click run Update branch at once, since
-  // they have no hover to wait for (#4531). Cancel auto-merge is its own
-  // button beside the words, in every state, so it is one Tab or one tap away.
+  // they have no hover to wait for (#4531). Cancel is no part of the chip: it is
+  // the row's action, in a column of its own (#4971), drawn here beside the slot
+  // so the order of Tab shows.
   let {
     phase = "idle",
     lockReason = "Approve the waiting runs first, then it can run.",
@@ -129,8 +130,8 @@
       class="swap"
       class:pressed={forceActive}
       aria-label={inFlight
-        ? "Waiting for CI, updating branch"
-        : "Waiting for CI, update branch"}
+        ? `${ARMED_WORD}, updating branch`
+        : `${ARMED_WORD}, update branch`}
       aria-describedby="{uid}-detail"
       aria-disabled={locked || inFlight ? "true" : undefined}
       aria-busy={inFlight ? "true" : undefined}
@@ -154,7 +155,7 @@
       <span class="words" aria-hidden="true">
         <!-- Sizers: the three labels stacked, so the slot is as wide as the
            longest and never reflows. -->
-        <span class="sizer">Waiting for CI</span>
+        <span class="sizer">{ARMED_WORD}</span>
         <span class="sizer">Update branch</span>
         <span class="sizer">Updating branch…</span>
         <span class="label">
@@ -184,8 +185,13 @@
     </span>
   </div>
 
-  <button type="button" class="cancel" onclick={() => oncancel?.()}>
-    Cancel auto-merge
+  <button
+    type="button"
+    class="cancel"
+    aria-label="Cancel auto-merge"
+    onclick={() => oncancel?.()}
+  >
+    Cancel
   </button>
 
   <span class="visually-hidden" role="status">{announcement}</span>

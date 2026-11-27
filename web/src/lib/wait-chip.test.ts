@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   type AutoMergeInput,
+  armedDetails,
+  armedRowChip,
   autoMergeChip,
   autoMergeWording,
   mergeWaitChip,
@@ -644,5 +646,86 @@ describe('mergeWaitChip', () => {
   test('an armed row offers Cancel auto-merge in the same chip', () => {
     expect(mergeWaitChip('refresh', true).action).toBe('disarm');
     expect(mergeWaitChip('refresh', true).label).toBe('Waiting for the forge');
+  });
+});
+
+// #4971: the row draws one short word, so the pills beside the chip never
+// shrink. The rest of the chip is its tooltip and the details dialog.
+describe('armedRowChip', () => {
+  const chipOf = (over: Partial<AutoMergeInput> = {}) => {
+    const chip = autoMergeChip({
+      state: 'waiting',
+      code: 'checks_pending',
+      message: 'Auto-merge is waiting for the checks to finish.',
+      draft: false,
+      forge: 'github',
+      ...over,
+    });
+    if (!chip) throw new Error('no chip');
+    return chip;
+  };
+
+  test.each([
+    ['checks_pending', 'Auto-merge on'],
+    ['stacked', 'Auto-merge on'],
+    ['behind', 'Auto-merge on'],
+    ['rate_limited', 'Auto-merge on'],
+    ['blocked_by_protection', 'Auto-merge on'],
+    ['', 'Merging'],
+  ])('a %p wait draws %p and no detail', (code, label) => {
+    const row = armedRowChip(chipOf({ code }));
+    expect(row.label).toBe(label);
+    expect(row.detail).toBe('');
+  });
+
+  test('a merge this app holds reads Merging too', () => {
+    const row = armedRowChip(chipOf({ code: '', forge: 'forgejo' }));
+    expect(row.label).toBe('Merging');
+  });
+
+  test('a stopped auto-merge reads Stopped and stays stopped', () => {
+    const row = armedRowChip(chipOf({ state: 'stopped' }));
+    expect(row.label).toBe('Stopped');
+    expect(row.state).toBe('stopped');
+    expect(row.icon).toBe('alert');
+  });
+
+  test('the tooltip keeps the label, the detail and the server sentence', () => {
+    const full = chipOf({ code: '', message: 'Checks passed.' });
+    expect(armedRowChip(full).tooltip).toBe(
+      `${full.label}: ${full.detail}. Checks passed.`,
+    );
+  });
+
+  test('a chip with no detail leads with its label alone', () => {
+    expect(armedRowChip(chipOf()).tooltip).toBe(
+      'Waiting for CI. Auto-merge is waiting for the checks to finish.',
+    );
+  });
+
+  test('a message that starts with the label is not led by it twice', () => {
+    const chip = chipOf({
+      state: 'stopped',
+      message: 'Auto-merge stopped: a check failed.',
+    });
+    expect(armedRowChip(chip).tooltip).toBe(
+      'Auto-merge stopped: a check failed.',
+    );
+    expect(
+      armedRowChip({ ...chip, detail: 'Blocked, CI is failing' }).tooltip,
+    ).toBe('Auto-merge stopped: a check failed. Blocked, CI is failing.');
+  });
+
+  test('the dialog gets the label, the detail and the message apart', () => {
+    const chip = chipOf({ code: 'stacked', message: 'Merges later.' });
+    expect(armedDetails(chip)).toEqual([
+      'Waiting for parent',
+      'Merges after its parent.',
+      'Merges later.',
+    ]);
+    expect(armedDetails(chipOf())).toEqual([
+      'Waiting for CI',
+      'Auto-merge is waiting for the checks to finish.',
+    ]);
   });
 });

@@ -14,6 +14,7 @@
 import { forgeFlag, forgeLabelOf } from './forges';
 import { tipDismiss } from './tip-dismiss';
 import {
+  ARMED_WORD,
   type SwapPhase,
   swapDetail,
   swapLabel,
@@ -420,6 +421,39 @@ function heldWords(
   );
 }
 
+// An armed row draws one short word, so the pills beside the chip never shrink
+// (#4971). The chip's whole wording is the tooltip here, and the details
+// dialog prints it.
+export function armedRowChip(chip: Chip): Chip {
+  let label: string = ARMED_WORD;
+  if (chip.state === 'stopped') label = 'Stopped';
+  else if (chip.label.startsWith('Merging')) label = 'Merging';
+  return { ...chip, label, detail: '', tooltip: armedTooltip(chip) };
+}
+
+// A stopped auto-merge's sentence opens with the label itself, so it is not
+// led by it a second time.
+function armedTooltip(chip: Chip): string {
+  const detail = chip.detail ? sentence(chip.detail) : '';
+  if (chip.tooltip.startsWith(chip.label))
+    return [chip.tooltip, detail].filter(Boolean).join(' ');
+  const lead = detail ? `${chip.label}: ${detail}` : `${chip.label}.`;
+  return `${lead} ${chip.tooltip}`;
+}
+
+// The chip's wording as the details dialog lists it: its label, its detail
+// when it has one, and the longer sentence.
+export function armedDetails(chip: Chip): string[] {
+  return [
+    chip.label,
+    ...(chip.detail ? [sentence(chip.detail)] : []),
+    chip.tooltip,
+  ];
+}
+
+const sentence = (words: string) =>
+  /[.!?…]$/.test(words) ? words : `${words}.`;
+
 // ---- the chip that stands in for Merge while a row only waits ----
 // A pull request that waits on CI running, on Forgejo checking for conflicts,
 // or on a refresh of CI results has nothing for a person to merge yet. The
@@ -616,8 +650,8 @@ function attachSwap(
   button.type = 'button';
   button.className = 'wait-chip-swap';
   // Sizers hold the widest label so the words swap without moving anything.
-  const sizers = ['Waiting for CI', 'Update branch', 'Updating branch…'].map(
-    (w) => span('wait-chip-sizer', w),
+  const sizers = [ARMED_WORD, 'Update branch', 'Updating branch…'].map((w) =>
+    span('wait-chip-sizer', w),
   );
   labelEl.replaceWith(button);
   for (const s of sizers) button.appendChild(s);
@@ -629,7 +663,11 @@ function attachSwap(
   status.setAttribute('role', 'status');
   root.appendChild(reason);
   root.appendChild(status);
-  button.setAttribute('aria-describedby', reasonId);
+  // The reason first, then the tooltip, which says what the wait is (#4971).
+  button.setAttribute(
+    'aria-describedby',
+    `${reasonId} ${root.getAttribute('aria-describedby')}`,
+  );
 
   let hovered = false;
   let focused = false;

@@ -7,7 +7,8 @@ import { test } from './server-fixture';
 // is as wide as its words and its button, 30px tall, and sits on the status
 // pill's line where it fits. A row that has one is no taller than a row that
 // has none by more than the chip's own line, and the title keeps (or gains)
-// its width. The phone card keeps its 59px slot (#4590, #4593).
+// its width. The phone card keeps its 59px slot (#4590, #4593), which the chip
+// shares with Cancel (#4971).
 
 type MockPR = Record<string, unknown>;
 
@@ -147,9 +148,8 @@ for (const width of WIDTHS) {
       if (width >= 1280) expect(c.width).toBeLessThan(cell.width - 40);
       // The chip's own parts are on one line.
       const label = await box(chip.locator('.wait-chip-label'));
-      const button = await box(chip.getByRole('button'));
       expect(
-        Math.abs(label.y + label.height / 2 - (button.y + 15)),
+        Math.abs(label.y + label.height / 2 - (c.y + c.height / 2)),
       ).toBeLessThan(8);
     });
   });
@@ -172,8 +172,8 @@ test.describe('the other chip states', () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
   const states: [string, () => MockPR, MockPR, string][] = [
-    ['waiting', () => armed(), {}, 'Waiting for CI'],
-    ['rate limited', () => armed('rate_limited'), {}, 'Rate limited'],
+    ['waiting', () => armed(), {}, 'Auto-merge on'],
+    ['rate limited', () => armed('rate_limited'), {}, 'Auto-merge on'],
     [
       'queued',
       () =>
@@ -250,12 +250,28 @@ test('an empty slot takes no room on a narrow list either', async ({
   expect(slot === null || slot.height === 0).toBe(true);
 });
 
-test('the phone card keeps its full-width chip (#4593)', async ({ page }) => {
+// The chip is no longer as wide as the card (#4593): Cancel left it for the
+// row's action column (#4971), so on a phone the two share one 59px line.
+test('the phone card has its 59px chip and Cancel on one full-width line', async ({
+  page,
+}) => {
   await open(page, 390, armed());
   const chip = await box(row(page).locator('.wait-chip'));
+  const cancel = await box(
+    row(page).getByRole('button', { name: 'Cancel auto-merge' }),
+  );
   const cell = await box(row(page).locator('.status-cell'));
   expect(chip.height).toBe(59);
-  expect(chip.width).toBeGreaterThanOrEqual(cell.width - 1);
+  expect(Math.abs(chip.x - cell.x)).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(chip.y + chip.height / 2 - (cancel.y + cancel.height / 2)),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(cancel.x - (chip.x + chip.width) - ROW_GAP),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    Math.abs(cancel.x + cancel.width - (cell.x + cell.width)),
+  ).toBeLessThanOrEqual(1);
 });
 
 // The detail gives way (an ellipsis, with the tooltip) only when the cell is

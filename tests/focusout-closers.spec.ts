@@ -204,37 +204,56 @@ for (const size of sizes) {
       await expect(list).toHaveCount(0);
     });
 
-    test('a success toast keeps waiting while a finger presses its text', async ({
-      page,
-    }) => {
-      await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
-        route.fulfill({ json: { allowBotPrUpdates: false } }),
-      );
-      await page.route(
-        '**/api/v1/pull-requests/update-branch',
-        (route: Route) => route.fulfill({ status: 202 }),
-      );
-      await open(page, [
-        pr(2, {
-          behind: true,
-          ci: 'failure',
-          mergeStatus: 'blocked',
-          autoMergeEnabled: true,
-          allowedActions: undefined,
-        }),
-      ]);
-      await page
-        .locator('#pr-rows .row')
-        .first()
-        .getByRole('button', { name: 'Update branch' })
-        .click();
-      const toast = page.locator('#feedback-toasts .feedback-toast').first();
-      await expect(toast).toContainText('Branch update requested.');
-      await toast.getByRole('button', { name: 'Show row' }).focus();
-      await touchDown(toast.getByText('Branch update requested.'));
-      // Well inside the 6s life, so only a handler that ends the toast shows.
-      await page.clock.runFor(1000);
-      await expect(toast).toBeVisible();
-    });
+    for (const armed of [false, true]) {
+      test(`a success toast keeps waiting while a finger presses its text${armed ? ', from an armed row' : ''}`, async ({
+        page,
+      }) => {
+        await page.route('**/api/v1/settings/bot-pr-updates', (route: Route) =>
+          route.fulfill({ json: { allowBotPrUpdates: false } }),
+        );
+        await page.route(
+          '**/api/v1/pull-requests/update-branch',
+          (route: Route) => route.fulfill({ status: 202 }),
+        );
+        await open(page, [
+          pr(2, {
+            behind: true,
+            ci: 'failure',
+            mergeStatus: 'blocked',
+            allowedActions: undefined,
+            // Armed, Update branch is the waiting chip's label (#4971).
+            ...(armed && {
+              ci: 'pending',
+              mergeStatus: 'mergeable',
+              autoMergeEnabled: true,
+              autoMerge: {
+                state: 'waiting',
+                code: 'checks_pending',
+                message: 'Auto-merge is waiting for the checks to finish.',
+              },
+              allowedActions: [
+                { action: 'close' },
+                { action: 'update_branch' },
+                { action: 'cancel_auto_merge' },
+              ],
+            }),
+          }),
+        ]);
+        await page
+          .locator('#pr-rows .row')
+          .first()
+          .getByRole('button', {
+            name: armed ? 'Auto-merge on, update branch' : 'Update branch',
+          })
+          .click();
+        const toast = page.locator('#feedback-toasts .feedback-toast').first();
+        await expect(toast).toContainText('Branch update requested.');
+        await toast.getByRole('button', { name: 'Show row' }).focus();
+        await touchDown(toast.getByText('Branch update requested.'));
+        // Well inside the 6s life, so only a handler that ends the toast shows.
+        await page.clock.runFor(1000);
+        await expect(toast).toBeVisible();
+      });
+    }
   });
 }

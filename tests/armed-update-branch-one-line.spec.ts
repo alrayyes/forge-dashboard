@@ -3,15 +3,15 @@ import { expect, type Page, type Route } from '@playwright/test';
 import { forgeHealth } from './forge-health-helper';
 import fixture from './generated/behind-status.json';
 import { test } from './server-fixture';
+import { dismissToasts } from './toast-helper';
 
 // A pull request with Update branch and an armed Auto-merge chip used to put
 // the chip on a second line under the button, so its row was taller than the
 // rows around it (#4784). The chip's label is now the Update branch control
 // (#4942): one chip, one slot, so the row is as tall as an armed row without
-// Update branch at every width, and the title keeps its floor (#4795). The
-// stacked cases #4951 documents are the ones with a separate Update branch
-// button beside the chip; the shared slot has none, so they no longer arise
-// here and `pr-row-action-centre.spec.ts` keeps covering them.
+// Update branch at every width, and the title keeps its floor (#4795). An
+// armed row draws no Update branch button of its own (#4971): where the chip
+// cannot offer the swap, Update branch is in the details dialog.
 
 const base = fixture.pullRequests.notStrict as Record<string, unknown>;
 
@@ -33,7 +33,7 @@ const PLAIN = {
 };
 
 // Behind, armed, and the checks still running: Update branch is offered
-// beside the "Waiting for CI" chip.
+// beside the armed chip, whose wait is CI (#4971).
 const ARMED = {
   ...base,
   labels: LABELS,
@@ -76,7 +76,7 @@ async function open(
   await expect(page.locator('#pr-rows > .row')).toHaveCount(2);
 }
 
-const SWAP = 'Waiting for CI, update branch';
+const SWAP = 'Auto-merge on, update branch';
 
 // Behind and armed, but Update branch is listed blocked, so it is locked.
 const LOCKED = {
@@ -150,14 +150,14 @@ test.describe('reaching the swap without a mouse (#4942, #4531)', () => {
     const armed = rowOf(page);
     const chip = armed.locator('.wait-chip');
     const label = armed.locator('.wait-chip-label');
-    await expect(label).toHaveText('Waiting for CI');
+    await expect(label).toHaveText('Auto-merge on');
     const before = (await chip.boundingBox())!.width;
     const at = (await armed.getByRole('button', { name: SWAP }).boundingBox())!;
     await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
     await expect(label).toHaveText('Update branch');
     expect((await chip.boundingBox())!.width).toBe(before);
     await page.mouse.move(0, 0);
-    await expect(label).toHaveText('Waiting for CI');
+    await expect(label).toHaveText('Auto-merge on');
   });
 
   test('Enter on the focused chip runs Update branch, and Cancel is the next Tab', async ({
@@ -236,11 +236,12 @@ test.describe('reaching the swap without a mouse (#4942, #4531)', () => {
     expect(updates).toBe(0);
   });
 
-  test('a retryable lock keeps the row its plain Retry button and no swap', async ({
+  test('a refused update leaves its reason on the row, and Retry in the dialog', async ({
     page,
   }) => {
-    // A refused update locks Update branch with a Retry that re-checks the
-    // row. That is a plain button, never the chip's label.
+    // A refused update locks Update branch. The lock is not the chip's label,
+    // and an armed row's action column holds only Cancel (#4971). The reason
+    // stays on the row's failure line once the toast is gone (#918).
     await page.route('**/api/v1/pull-requests/update-branch', (route) =>
       route.fulfill({
         status: 409,
@@ -256,35 +257,55 @@ test.describe('reaching the swap without a mouse (#4942, #4531)', () => {
     const armed = rowOf(page);
     await armed.getByRole('button', { name: SWAP }).focus();
     await page.keyboard.press('Enter');
-    await expect(armed.getByRole('button', { name: 'Retry' })).toBeVisible();
     await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
+    await expect(
+      armed.getByRole('button', { name: /^(Update branch|Retry)/ }),
+    ).toHaveCount(0);
+    await expect(page.locator('body')).not.toBeFocused();
+    await dismissToasts(page);
+    const line = armed.locator('.row-feedback-line');
+    await expect(line).toBeVisible();
+    await expect(line).toContainText("Can't update cleanly");
+    await expect(
+      armed.getByRole('button', { name: /^(Update branch|Retry)/ }),
+    ).toHaveCount(0);
+    await armed.locator("button[id^='details-trigger-']").click();
+    await expect(
+      page
+        .getByRole('dialog')
+        .getByRole('button', { name: /Update branch|Retry/ })
+        .first(),
+    ).toBeVisible();
   });
 });
 
-// The swap says "Waiting for CI", so it is only for that wait (#4942). Any
-// other armed chip keeps its own words and the plain Update branch button.
+// The swap is only for a wait on CI (#4942). Any other armed chip is no
+// button, its tooltip has the wait, and Update branch is in the dialog.
 for (const [code, label] of [
   ['stacked', 'Waiting for parent'],
-  ['review_required', ''],
+  ['review_required', 'Waiting for'],
   ['rate_limited', 'Rate limited'],
 ] as const) {
   test.describe(`armed row waiting on ${code}`, () => {
-    test('keeps its own label and the plain Update branch button', async ({
-      page,
-    }) => {
+    test('has no swap, with Update branch in the dialog', async ({ page }) => {
       await open(page, 1280, {
         ...ARMED,
         autoMerge: { state: 'waiting', code, message: 'Waiting.' },
       });
       const armed = rowOf(page);
       await expect(armed.locator('.wait-chip-swap')).toHaveCount(0);
-      await expect(armed.locator('.wait-chip-label')).not.toHaveText(
-        'Waiting for CI',
+      await expect(armed.locator('.wait-chip-label')).toHaveText(
+        'Auto-merge on',
       );
-      if (label)
-        await expect(armed.locator('.wait-chip-label')).toHaveText(label);
+      await expect(armed.locator('.wait-chip')).toContainText(label);
       await expect(
         armed.getByRole('button', { name: 'Update branch', exact: true }),
+      ).toHaveCount(0);
+      await armed.locator("button[id^='details-trigger-']").click();
+      await expect(
+        page
+          .getByRole('dialog')
+          .getByRole('button', { name: /^Update branch/ }),
       ).toBeVisible();
     });
   });
@@ -337,9 +358,7 @@ test.describe('touch (#4942)', () => {
     await armed.getByRole('button', { name: SWAP }).tap();
     await expect(armed.locator('.wait-chip-label')).toHaveText('Update branch');
     await page.clock.runFor(5100);
-    await expect(armed.locator('.wait-chip-label')).toHaveText(
-      'Waiting for CI',
-    );
+    await expect(armed.locator('.wait-chip-label')).toHaveText('Auto-merge on');
   });
 
   test('Cancel auto-merge takes a tap of its own', async ({ page }) => {

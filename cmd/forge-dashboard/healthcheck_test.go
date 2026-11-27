@@ -59,15 +59,10 @@ func TestRunHealthcheckFailsWhenReadyzAnswersNon200(t *testing.T) {
 }
 
 func TestRunHealthcheckFailsWhenNothingIsListening(t *testing.T) {
-	// A free port that was bound and immediately released, rather than
-	// listenOnFreePort - nothing serves it, which is the failure mode the
-	// container's own HEALTHCHECK is there to catch.
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	addr := l.Addr().String()
-	require.NoError(t, l.Close())
-
-	t.Setenv("ADDR", addr)
+	// Nothing serves port 1, which is the failure mode the container's own
+	// HEALTHCHECK is there to catch. Not a port bound and released: another
+	// test can be handed it again and answer (#5129).
+	t.Setenv("ADDR", "127.0.0.1:1")
 
 	require.Error(t, runHealthcheck())
 }

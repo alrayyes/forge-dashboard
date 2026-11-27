@@ -489,8 +489,8 @@ test.describe('phone row, wait chip to divider (#4099)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const row = await open(page, pr({ ...BEHIND, ...WAITING, ci: 'pending' }));
     await expect(row.locator('.wait-chip')).toBeVisible();
-    // No bar, so no divider under the chip.
-    await expect(row.locator('.row-action-bar')).toHaveCount(0);
+    // Cancel auto-merge is beside the chip (#4971), so nothing is under it.
+    await expect(row.locator('.row-action-bar button')).toHaveCount(1);
     const m = await row.evaluate((r) => {
       const chip = r.querySelector('.wait-chip')!.getBoundingClientRect();
       const cell = r.querySelector('.status-cell')!.getBoundingClientRect();
