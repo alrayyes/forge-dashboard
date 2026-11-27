@@ -6,6 +6,7 @@
 ### Bug Fixes
 
 * **dashboard:** don't decide a queued action from a slow forge's held rows ([#5145](https://github.com/alrayyes/forge-dashboard/issues/5145)) ([fbbd9bd](https://github.com/alrayyes/forge-dashboard/commit/fbbd9bdc767ef230b28a85eab886a65a3b19fcca)), closes [#5082](https://github.com/alrayyes/forge-dashboard/issues/5082)
+* **web:** say CI is failing once on a stopped auto-merge row ([#5144](https://github.com/alrayyes/forge-dashboard/issues/5144)) ([724e4f2](https://github.com/alrayyes/forge-dashboard/commit/724e4f2292a05f600267b0b728fe02aececca2f7)), closes [#5088](https://github.com/alrayyes/forge-dashboard/issues/5088)
 
 ## [9.140.10](https://github.com/alrayyes/forge-dashboard/compare/v9.140.9...v9.140.10) (2026-11-27)
 
