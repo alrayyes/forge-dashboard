@@ -195,6 +195,19 @@ deliveries arrived while it waited. The budget it checks is the one in GitHub's
 latest response, not the one the last full refresh saw. With the GitHub App on
 several accounts, each repository is judged by its own installation's budget.
 
+Webhook refreshes also have a share of their own: for each repository, a tenth
+of the GraphQL budget an hour, 500 points of 5000. After a refresh that read the
+repository for 20 points, the next one starts no sooner than 144 seconds after
+that one did, so over time the reads stay within the share, plus at most one
+refresh. The deliveries that arrive meanwhile cost one refresh when the wait is
+over. At the default `WEBHOOK_MIN_INTERVAL`, a refresh of up to 4 points never
+waits longer for this. The share is per repository: what many of them spend
+together is limited by the reserve.
+
+Only a delivery's own reads count towards the share. A read that a CI poll was
+also waiting for belongs to the poll, and so does nothing the dashboard does
+after reading, such as auto-merge.
+
 Forgejo reports no budget, so it has no reserve and is never held back. The
 reserve is fixed, not a setting. If background work is using too much, raise
 `REFRESH_INTERVAL` or set up webhooks rather than looking for a knob here.

@@ -582,7 +582,7 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 		// more; the next full refresh picks the change up.
 		return true
 	}
-	a.fetchRepo(ctx, refresher, forge, owner, name, fullName, attrs...)
+	a.fetchRepo(ctx, refresher, forge, owner, name, fullName, nil, attrs...)
 
 	return true
 }
@@ -597,19 +597,53 @@ func (a *Aggregator) scopedHold(ctx context.Context, forge Forge, owner, name st
 	return a.holdFor(a.Get(), forge, owner, name, apistats.KindScopedWebhook)
 }
 
-// fetchRepo reads one repo and merges it, whatever the budgets say.
-func (a *Aggregator) fetchRepo(ctx context.Context, refresher RepoRefresher, forge Forge, owner, name, fullName string, attrs ...any) {
-	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
-		ctx := scopedRefreshContext(ctx, fullName)
+// The ranks of the callers sharing one repo's fetch. One fetch serves them all,
+// so it is made for the highest: a webhook's is paced, and a poll or a person
+// waiting with it must not be held back or have its read charged to that share.
+const (
+	rankWebhook = iota + 1
+	rankOther
+)
+
+// fetchRepo reads one repo and merges it, whatever the budgets say. A webhook's
+// read that the repo's share of the budget doesn't allow yet is left to later,
+// which runs once it does. A nil later reads regardless.
+func (a *Aggregator) fetchRepo(ctx context.Context, refresher RepoRefresher, forge Forge, owner, name, fullName string, later func(), attrs ...any) {
+	key := string(forge) + "/" + fullName
+	scoped := scopedRefreshContext(ctx, fullName)
+	webhook := apistats.KindFrom(scoped) == apistats.KindScopedWebhook
+	rank := rankOther
+	if webhook {
+		rank = rankWebhook
+	}
+	a.repoRefresh.doRanked(key, rank, func() {
+		// Asked here, not only when the delivery came due: it may have waited
+		// behind a run whose cost wasn't known yet.
+		if until, held := a.debounce.heldUntil(key); held && webhook && later != nil {
+			a.debounce.deferUntil(ctx, key, until, later)
+
+			return
+		}
+		started := a.now()
+		tallied, tally := apistats.WithTally(scoped)
 		seq := a.fetchSeq.Add(1)
-		prs, issues, err := refresher.FetchRepo(ctx, owner, name, fullName)
+		var branch *MainBranch
+		var branchOK bool
+		prs, issues, err := refresher.FetchRepo(tallied, owner, name, fullName)
+		if err == nil {
+			branch, branchOK = a.fetchMainBranch(tallied, refresher, forge, owner, name, fullName)
+		}
+		// Charged for the read alone, failed or not, before the merge goes on
+		// to work that isn't this repository's.
+		if webhook {
+			a.chargeWebhook(forge, owner, name, key, started, tally.Spent().GraphQL)
+		}
 		if err != nil {
 			slog.Warn("scoped refresh failed", append([]any{"forge", forge, "repo", fullName, "error", err}, attrs...)...)
 
 			return
 		}
-		branch, branchOK := a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName)
-		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, branch, branchOK)
+		a.mergeRepo(scoped, forge, fullName, seq, prs, issues, branch, branchOK)
 	})
 }
 

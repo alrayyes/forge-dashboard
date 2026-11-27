@@ -115,7 +115,7 @@ const TRACKS_100: Record<string, Record<string, string>> = {
   '#pr-rows': {
     '320': '218px 16px',
     '390': '288px 16px',
-    '1280': '168px 220px 96px 82px 82px 440px 22px',
+    '1280': '186px 220px 96px 82px 82px 160px 112px 144px 40px',
   },
 };
 
@@ -239,13 +239,16 @@ for (const [name, path, rows] of LISTS) {
   });
 
   test(`${name}: the grid tracks are unchanged at 100%`, async ({ page }) => {
+    // The one-line pull request row is a subgrid of its list (#5006), so the
+    // list has the track widths.
     const read = () =>
-      page.evaluate(
-        (sel) =>
-          getComputedStyle(document.querySelector(`${sel} > .row`) as Element)
-            .gridTemplateColumns,
-        rows,
-      );
+      page.evaluate((sel) => {
+        const row = document.querySelector(`${sel} > .row`) as Element;
+        const own = getComputedStyle(row).gridTemplateColumns;
+        return own.startsWith('subgrid')
+          ? getComputedStyle(row.parentElement as Element).gridTemplateColumns
+          : own;
+      }, rows);
     // At 1280 every track is a fixed width, so pin them exactly. Below that the
     // last track is `auto` and holds a text arrow, so its width (and the split
     // with the 1fr track) follows the fallback font. Pin the track count, the
