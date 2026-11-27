@@ -9,6 +9,8 @@ export type MockRoute = {
   body?: unknown;
   // Never answers, for a loading state.
   hang?: boolean;
+  // Answers this much later, for a slow read.
+  delayMs?: number;
   // Called with the request body each time the route answers.
   onCall?: (body: string) => void;
 };
@@ -29,11 +31,13 @@ export function mockFetch(routes: MockRoute[]): () => void {
     route.onCall?.(typeof init?.body === 'string' ? init.body : '');
     if (route.status === 204)
       return Promise.resolve(new Response(null, { status: 204 }));
-    return Promise.resolve(
-      new Response(JSON.stringify(route.body ?? {}), {
-        status: route.status ?? 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
+    const answer = new Response(JSON.stringify(route.body ?? {}), {
+      status: route.status ?? 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!route.delayMs) return Promise.resolve(answer);
+    return new Promise<Response>((resolve) =>
+      setTimeout(() => resolve(answer), route.delayMs),
     );
   }) as typeof fetch;
   return () => {
