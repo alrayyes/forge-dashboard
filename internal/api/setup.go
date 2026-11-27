@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
@@ -134,6 +135,8 @@ func buildSetup(ctx context.Context, deps Deps) (SetupResponse, error) {
 
 	if deps.Service != nil {
 		snap, refreshed = deps.Service.Get(), deps.Service.FirstRefreshDone()
+		// A forge still on its first read has no counts to give yet.
+		refreshed = refreshed && !slices.ContainsFunc(snap.Forges, dashboard.ForgeHealth.NeverRead)
 	}
 
 	gh, err := setupGitHub(ctx, deps, snap)

@@ -198,7 +198,9 @@ keeps going for the rest of the three. Its rows appear when it answers, with no
 second refresh. Until then the forge reads "Slow to answer" and keeps the rows
 it had, and it isn't asked again. A forge never read before shows no rows yet,
 and that isn't read as "nothing open": your saved auto-update choices are kept,
-queued actions wait, and its controls stay off until it answers.
+queued actions wait, and its controls stay off until it answers. With no pull
+requests from anywhere else, the pages keep their loading placeholders instead
+of saying there are none.
 One still starting up after a restart stays "Starting up". None of this counts
 against the forge, however often you press Refresh.
 
@@ -305,7 +307,9 @@ user ends. A snapshot restored from the last run already counts as loaded, so
 snapshot tells an empty board from one that hasn't loaded: it is `false` from
 process start until the viewer's first refresh has finished, whether it
 succeeded or failed (a failed one shows in the forge health), and `true` from
-then on (including after later refreshes and settings saves). It is not stored,
+then on (including after later refreshes and settings saves). The one
+exception is a board with no pull requests while a forge's first read is still
+running: it reads `false` until that forge answers. It is not stored,
 so a restart resets it. The first refresh starts when the process does, from the
 saved credentials, so it is usually done before you sign in. An account with no
 saved settings has nothing to refresh, so it reads `true` at once. `GET

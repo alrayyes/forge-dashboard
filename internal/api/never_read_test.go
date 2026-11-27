@@ -41,10 +41,39 @@ func slowFirstReadBoard(t *testing.T, prs ...dashboard.PullRequest) (url string,
 	return srv.URL, cookie
 }
 
+func TestDashboard_FirstRefreshDone_FalseWhileANeverReadForgeLeavesTheBoardEmpty(t *testing.T) {
+	t.Parallel()
+
+	url, cookie := slowFirstReadBoard(t)
+
+	assert.Equal(t, false, firstRefreshDoneOverHTTP(t, url, cookie))
+}
+
+func TestDashboard_FirstRefreshDone_TrueWhenThereArePullRequestsToShow(t *testing.T) {
+	t.Parallel()
+
+	url, cookie := slowFirstReadBoard(t, dashboard.PullRequest{Forge: dashboard.ForgeGitHub, Repo: "o/r", Number: 1})
+
+	assert.Equal(t, true, firstRefreshDoneOverHTTP(t, url, cookie))
+}
+
 func TestSettingsGet_IgnoredTitleCounts_AreNullWhileTheOnlyForgeIsStillOnItsFirstRead(t *testing.T) {
 	t.Parallel()
 
 	url, cookie := slowFirstReadBoard(t)
 
 	assert.Equal(t, []*int{nil}, getSettings(t, url, cookie).IgnoredTitleCounts)
+}
+
+func TestSetupGet_NotRefreshedWhileAForgeIsStillOnItsFirstRead(t *testing.T) {
+	t.Parallel()
+
+	url, cookie := slowFirstReadBoard(t)
+	resp := doJSON(t, http.MethodGet, url+"/api/v1/setup", "", cookie)
+	defer func() { _ = resp.Body.Close() }()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	var body map[string]any
+	require.NoError(t, readJSON(resp, &body))
+
+	assert.Equal(t, false, body["refreshed"])
 }
