@@ -27,7 +27,7 @@
     busy?: boolean;
     disabled?: boolean;
     describedby?: string;
-    onclick: () => void;
+    onclick: (control: HTMLButtonElement) => void;
   } = $props();
 </script>
 
@@ -41,8 +41,8 @@
     aria-busy={busy ? "true" : undefined}
     aria-describedby={describedby}
     {disabled}
-    onclick={() => {
-      if (!busy) onclick();
+    onclick={(e) => {
+      if (!busy) onclick(e.currentTarget);
     }}
   >
     {#if busy}

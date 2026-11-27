@@ -18,6 +18,7 @@
   import { dependabotBlockedReason } from "./forge-lock.js";
   import { forgeClassOf, forgeLabelOf } from "./forges.js";
   import { formatTime } from "./time.svelte.js";
+  import { planHold, type Room } from "./hold-in-place.js";
   import {
     pollingFilterHolds,
     pollingOnlyCount,
@@ -29,6 +30,7 @@
     toggleTip,
     bulkTargets,
     type BulkControl,
+    barShown,
     filterRepos,
     filtersAreClear,
     forgeChoices,
@@ -44,7 +46,9 @@
     repoScope,
     type ToggleView,
     rebaseBotsName,
+    searchShown,
     sortRepos,
+    viewChoices,
   } from "./repositories.js";
 
   type Repo = {
@@ -109,6 +113,41 @@
   function keep(repo: Repo) {
     kept = new Set(kept).add(repoKey(repo));
   }
+  // A toggle can add or take away a filter group or a bulk button above its
+  // row, so the page moves with it. Where the page can't scroll, blank room
+  // goes in until the next filter change.
+  let room = $state<Room>({ above: 0, below: 0 });
+  // A scroll lands on whole pixels, so each hold can leave part of one over.
+  // The next hold of the same control takes it back, or they add up.
+  const leftOver = new WeakMap<HTMLElement, number>();
+  async function holdInPlace(
+    control: HTMLElement | undefined,
+    write: () => void,
+  ) {
+    if (!control) return write();
+    const target =
+      control.getBoundingClientRect().top - (leftOver.get(control) ?? 0);
+    write();
+    await tick();
+    if (!control.isConnected) return;
+    const root = document.documentElement;
+    const { scrollTo, above, below } = planHold(
+      control.getBoundingClientRect().top - target,
+      {
+        ...room,
+        scrollY: window.scrollY,
+        viewport: root.clientHeight,
+        // Not scrollHeight, which is never less than the window.
+        height: root.getBoundingClientRect().height,
+      },
+    );
+    room = { above, below };
+    await tick();
+    window.scrollTo({ top: scrollTo, behavior: "instant" });
+    const off = control.getBoundingClientRect().top - target;
+    // More than a pixel is not rounding, and must not be made up later.
+    leftOver.set(control, Math.abs(off) <= 1 ? off : 0);
+  }
   let sortKey = $state<RepoSortKey>("fullName");
   let sortDir = $state<"asc" | "desc">("asc");
   let page = $state(1);
@@ -121,13 +160,62 @@
     statusMessage = message;
     statusKind = kind;
   }
+  // The status line is above every row, so what a row's control says about its
+  // own write has to hold the control still too, before the answer and after.
+  function sayAt(
+    control: HTMLElement | undefined,
+    message: string,
+    kind: "" | "error" = "",
+  ) {
+    return holdInPlace(control, () => setStatus(message, kind));
+  }
 
   const sortedRepos = $derived(
     sortRepos(filterRepos(repos, filter, kept), sortKey, sortDir),
   );
   const pollingCount = $derived(pollingOnlyCount(repos));
   const offeredForges = $derived(forgeChoices(repos, filter));
+  const offeredIgnored = $derived(viewChoices(repos, filter, "ignored"));
+  const offeredAutoUpdate = $derived(viewChoices(repos, filter, "autoUpdate"));
+  const offeredRebaseBots = $derived(viewChoices(repos, filter, "rebaseBots"));
+  const offerSearch = $derived(searchShown(repos, filter, kept));
+  const offerBar = $derived(barShown(repos, filter));
   const filtersClear = $derived(filtersAreClear(filter));
+
+  // A choice, group or box that stops mattering leaves the bar. Focus held on
+  // it moves to another control, never to the page body.
+  let filterBar = $state<HTMLDivElement>();
+  function focusAfterRemoval() {
+    const next =
+      filterBar?.querySelector<HTMLElement>(
+        '.filter-pill[aria-pressed="true"]',
+      ) ??
+      document.getElementById("repositories-search") ??
+      document.querySelector<HTMLElement>(
+        "#repositories-rows a, #repositories-rows button",
+      );
+    next?.focus({ preventScroll: true });
+  }
+  $effect.pre(() => {
+    // Read what decides the bar, so this runs before it is redrawn.
+    void [
+      offeredForges,
+      offeredIgnored,
+      offeredAutoUpdate,
+      offeredRebaseBots,
+      offerSearch,
+      offerBar,
+      filtersClear,
+    ];
+    const held = document.activeElement;
+    if (!held || !untrack(() => filterBar)?.contains(held)) return;
+    // clearFilters places its own focus, and leaves a pointer click alone.
+    if (held.classList.contains("clear-filters")) return;
+    tick().then(() => {
+      if (!held.isConnected && document.activeElement === document.body)
+        focusAfterRemoval();
+    });
+  });
   const totalPages = $derived(
     Math.max(1, Math.ceil(sortedRepos.length / pageSize)),
   );
@@ -158,7 +246,10 @@
   // A person's filter change lets go of the rows kept after a toggle; the
   // automatic reset below keeps them.
   function changeFilter(releaseKept = true) {
-    if (releaseKept) kept = new Set();
+    if (releaseKept) {
+      kept = new Set();
+      room = { above: 0, below: 0 };
+    }
     page = 1;
     setStatus("");
   }
@@ -217,14 +308,19 @@
   }
   // Clearing hides the button, so a keyboard user would lose focus: put it
   // back on the search, the bar's first text control.
-  function clearFilters(event: MouseEvent) {
+  async function clearFilters(event: MouseEvent) {
     const byKeyboard = event.detail === 0;
     filter = { ...NO_FILTER };
     sortKey = "fullName";
     sortDir = "asc";
     changeFilter();
     setStatus("Filters cleared.");
-    if (byKeyboard) document.getElementById("repositories-search")?.focus();
+    if (!byKeyboard) return;
+    // The search box may only just be coming back.
+    await tick();
+    const search = document.getElementById("repositories-search");
+    if (search) search.focus();
+    else focusAfterRemoval();
   }
 
   const sortChoice = $derived(`${sortKey}:${sortDir}`);
@@ -318,11 +414,13 @@
     repo: Repo,
     enabled: boolean,
     quiet = false,
+    control?: HTMLElement,
   ): Promise<string | null> {
     const key = busyKey("auto", repo);
     busy[key] = true;
     if (!quiet)
-      setStatus(
+      await sayAt(
+        control,
         `Turning auto-update ${enabled ? "on" : "off"} for ${repo.fullName}…`,
       );
     const failed = await post(
@@ -332,18 +430,21 @@
     delete busy[key];
     if (failed) {
       if (!quiet)
-        setStatus(
+        await sayAt(
+          control,
           `Couldn't turn auto-update ${enabled ? "on" : "off"} for ${repo.fullName}: ${failed}`,
           "error",
         );
       return failed;
     }
-    keep(repo);
-    repo.autoUpdateBranch = enabled;
-    if (!quiet)
-      setStatus(
-        `Auto-update turned ${enabled ? "on" : "off"} for ${repo.fullName}.`,
-      );
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.autoUpdateBranch = enabled;
+      if (!quiet)
+        setStatus(
+          `Auto-update turned ${enabled ? "on" : "off"} for ${repo.fullName}.`,
+        );
+    });
     return null;
   }
 
@@ -351,11 +452,13 @@
     repo: Repo,
     enabled: boolean,
     quiet = false,
+    control?: HTMLElement,
   ): Promise<string | null> {
     const key = busyKey("rebase", repo);
     busy[key] = true;
     if (!quiet)
-      setStatus(
+      await sayAt(
+        control,
         `${enabled ? "Turning on" : "Turning off"} rebase bots for ${repo.fullName}…`,
       );
     const failed = await post(
@@ -365,25 +468,34 @@
     delete busy[key];
     if (failed) {
       if (!quiet)
-        setStatus(
+        await sayAt(
+          control,
           `Couldn't turn ${enabled ? "on" : "off"} rebase bots for ${repo.fullName}: ${failed}`,
           "error",
         );
       return failed;
     }
-    keep(repo);
-    repo.rebaseBots = enabled;
-    if (!quiet)
-      setStatus(`Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`);
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.rebaseBots = enabled;
+      if (!quiet)
+        setStatus(
+          `Rebase bots ${enabled ? "on" : "off"} for ${repo.fullName}.`,
+        );
+    });
     return null;
   }
 
   // Reversible and local, so no confirm step. A repeat call with another scope
   // replaces the saved one.
-  async function ignoreRepo(repo: Repo, scope: IgnoreScope) {
+  async function ignoreRepo(
+    repo: Repo,
+    scope: IgnoreScope,
+    control?: HTMLElement,
+  ) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
-    setStatus(`Ignoring ${repo.fullName}…`);
+    await sayAt(control, `Ignoring ${repo.fullName}…`);
     const failed = await post("/api/v1/repos/ignore", {
       forge: repo.forge,
       fullName: repo.fullName,
@@ -392,37 +504,49 @@
     });
     delete busy[key];
     if (failed) {
-      setStatus(`Couldn't ignore ${repo.fullName}: ${failed}`, "error");
+      await sayAt(
+        control,
+        `Couldn't ignore ${repo.fullName}: ${failed}`,
+        "error",
+      );
       return;
     }
-    keep(repo);
-    repo.ignored = true;
-    repo.ignoredPRs = scope === "prs" || scope === "both";
-    repo.ignoredIssues = scope === "issues" || scope === "both";
-    setStatus(
-      `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
-    );
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.ignored = true;
+      repo.ignoredPRs = scope === "prs" || scope === "both";
+      repo.ignoredIssues = scope === "issues" || scope === "both";
+      setStatus(
+        `${repo.fullName} is now ignored — ${IGNORE_SCOPE_DESCRIPTIONS[scope]}.`,
+      );
+    });
   }
 
   // Un-ignore clears both scopes at once.
-  async function unignoreRepo(repo: Repo) {
+  async function unignoreRepo(repo: Repo, control?: HTMLElement) {
     const key = busyKey("ignore", repo);
     busy[key] = true;
-    setStatus(`Un-ignoring ${repo.fullName}…`);
+    await sayAt(control, `Un-ignoring ${repo.fullName}…`);
     const failed = await post("/api/v1/repos/unignore", {
       forge: repo.forge,
       fullName: repo.fullName,
     });
     delete busy[key];
     if (failed) {
-      setStatus(`Couldn't un-ignore ${repo.fullName}: ${failed}`, "error");
+      await sayAt(
+        control,
+        `Couldn't un-ignore ${repo.fullName}: ${failed}`,
+        "error",
+      );
       return;
     }
-    keep(repo);
-    repo.ignored = false;
-    repo.ignoredPRs = false;
-    repo.ignoredIssues = false;
-    setStatus(`${repo.fullName} is no longer ignored.`);
+    await holdInPlace(control, () => {
+      keep(repo);
+      repo.ignored = false;
+      repo.ignoredPRs = false;
+      repo.ignoredIssues = false;
+      setStatus(`${repo.fullName} is no longer ignored.`);
+    });
   }
 
   // The bulk buttons act on the filtered list, every page of it, kept rows
@@ -616,99 +740,132 @@
       onpress={togglePolling}
     />
 
-    <div class="filter-bar" role="search" aria-label="Filter repositories">
-      <div class="forge-scroll">
-        <FilterGroup label="Forge" id="repositories-forge">
-          <FilterPill
-            pressed={filter.forge === ""}
-            onclick={() => pickForge("")}
-          >
-            All
-          </FilterPill>
-          {#each offeredForges as forge (forge)}
-            <FilterPill
-              pressed={filter.forge === forge}
-              data-forge={forge}
-              onclick={() => pickForge(forge)}
-            >
-              {forgeLabelOf(forge)}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Ignored" id="repositories-ignored-filter">
-          {#each IGNORED_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.ignored ?? "active") === view}
-              data-ignored-view={view}
-              onclick={() => pickIgnored(view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Auto-update" id="repositories-auto-update-filter">
-          {#each TOGGLE_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.autoUpdate ?? "all") === view}
-              data-view={view}
-              onclick={() => pickToggle("autoUpdate", view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Rebase bots" id="repositories-rebase-bots-filter">
-          {#each TOGGLE_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.rebaseBots ?? "all") === view}
-              data-view={view}
-              onclick={() => pickToggle("rebaseBots", view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="search-field">
-        <input
-          class="col-filter"
-          type="search"
-          id="repositories-search"
-          placeholder="Search repos"
-          aria-label="Filter by repo name"
-          autocomplete="off"
-          bind:value={filter.search}
-          oninput={() => changeFilter()}
-        />
-        {#if !filtersClear}
-          <button type="button" class="clear-filters" onclick={clearFilters}>
-            Clear filters
-          </button>
-        {/if}
-      </div>
-      <select
-        class="group-select repositories-sort"
-        id="repositories-sort-select"
-        aria-label="Sort by"
-        value={sortChoice}
-        onchange={(e) => chooseSort(e.currentTarget.value)}
+    {#if offerBar}
+      <div
+        class="filter-bar"
+        role="search"
+        aria-label="Filter repositories"
+        bind:this={filterBar}
       >
-        <option value="fullName:asc">Sort: Repo, A to Z</option>
-        <option value="fullName:desc">Sort: Repo, Z to A</option>
-        <option value="forge:asc">Sort: Forge, A to Z</option>
-        <option value="forge:desc">Sort: Forge, Z to A</option>
-      </select>
-    </div>
+        {#if offeredForges.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup label="Forge" id="repositories-forge">
+              <FilterPill
+                pressed={filter.forge === ""}
+                onclick={() => pickForge("")}
+              >
+                All
+              </FilterPill>
+              {#each offeredForges as forge (forge)}
+                <FilterPill
+                  pressed={filter.forge === forge}
+                  data-forge={forge}
+                  onclick={() => pickForge(forge)}
+                >
+                  {forgeLabelOf(forge)}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredIgnored.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup label="Ignored" id="repositories-ignored-filter">
+              {#each IGNORED_VIEWS.filter( (v) => offeredIgnored.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.ignored ?? "active") === view}
+                  data-ignored-view={view}
+                  onclick={() => pickIgnored(view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredAutoUpdate.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup
+              label="Auto-update"
+              id="repositories-auto-update-filter"
+            >
+              {#each TOGGLE_VIEWS.filter( (v) => offeredAutoUpdate.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.autoUpdate ?? "all") === view}
+                  data-view={view}
+                  onclick={() => pickToggle("autoUpdate", view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredRebaseBots.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup
+              label="Rebase bots"
+              id="repositories-rebase-bots-filter"
+            >
+              {#each TOGGLE_VIEWS.filter( (v) => offeredRebaseBots.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.rebaseBots ?? "all") === view}
+                  data-view={view}
+                  onclick={() => pickToggle("rebaseBots", view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offerSearch || !filtersClear}
+          <div class="search-field" class:no-search={!offerSearch}>
+            {#if offerSearch}
+              <input
+                class="col-filter"
+                type="search"
+                id="repositories-search"
+                placeholder="Search repos"
+                aria-label="Filter by repo name"
+                autocomplete="off"
+                bind:value={filter.search}
+                oninput={() => changeFilter()}
+              />
+            {/if}
+            {#if !filtersClear}
+              <button
+                type="button"
+                class="clear-filters"
+                onclick={clearFilters}
+              >
+                Clear filters
+              </button>
+            {/if}
+          </div>
+        {/if}
+        <select
+          class="group-select repositories-sort"
+          id="repositories-sort-select"
+          aria-label="Sort by"
+          value={sortChoice}
+          onchange={(e) => chooseSort(e.currentTarget.value)}
+        >
+          <option value="fullName:asc">Sort: Repo, A to Z</option>
+          <option value="fullName:desc">Sort: Repo, Z to A</option>
+          <option value="forge:asc">Sort: Forge, A to Z</option>
+          <option value="forge:desc">Sort: Forge, Z to A</option>
+        </select>
+      </div>
+    {/if}
 
     <p class="repo-count" id="repositories-count" aria-live="polite">
       {repoCountText(sortedRepos.length, repoScope(repos, filter, kept))}
     </p>
+
+    {#if room.above > 0}
+      <div data-testid="held-room" style:height={`${room.above}px`}></div>
+    {/if}
 
     {#if sortedRepos.length === 0}
       <p class="empty-state" id="repositories-no-results">
@@ -863,7 +1020,8 @@
                   tip={toggleTip("Auto-update", repo.autoUpdateBranch)}
                   pressed={repo.autoUpdateBranch}
                   busy={busy[busyKey("auto", repo)]}
-                  onclick={() => setAutoUpdate(repo, !repo.autoUpdateBranch)}
+                  onclick={(control) =>
+                    setAutoUpdate(repo, !repo.autoUpdateBranch, false, control)}
                 />
               </td>
               <td role="cell" class="control-cell" data-label="Rebase bots">
@@ -879,7 +1037,8 @@
                   describedby={lockedOff
                     ? `rebase-bots-lock-${rowKey(repo)}`
                     : undefined}
-                  onclick={() => setRebaseBots(repo, !repo.rebaseBots)}
+                  onclick={(control) =>
+                    setRebaseBots(repo, !repo.rebaseBots, false, control)}
                 />
                 {#if lockedOff}
                   <span
@@ -908,8 +1067,8 @@
                     onchange={async (e) => {
                       const select = e.currentTarget;
                       const next = select.value as IgnoreScope | "";
-                      if (next) await ignoreRepo(repo, next);
-                      else await unignoreRepo(repo);
+                      if (next) await ignoreRepo(repo, next, select);
+                      else await unignoreRepo(repo, select);
                       // A failed save leaves the saved scope showing.
                       select.value = ignoreScopeOf(repo);
                     }}
@@ -1008,6 +1167,10 @@
           </label>
         </div>
       {/if}
+    {/if}
+
+    {#if room.below > 0}
+      <div data-testid="held-room" style:height={`${room.below}px`}></div>
     {/if}
   {/if}
 </div>
@@ -1120,6 +1283,10 @@
     font-size: 0.78125rem;
     text-decoration: underline;
     cursor: pointer;
+  }
+  /* No box to sit in once one row is left (see searchShown). */
+  .search-field.no-search .clear-filters {
+    position: static;
   }
   .repositories-sort {
     display: none;

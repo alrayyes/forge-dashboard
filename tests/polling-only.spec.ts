@@ -135,23 +135,27 @@ test.describe('settings, repositories: polling only', () => {
   test('Show only these is ANDed with forge and search, and Clear filters undoes it', async ({
     page,
   }) => {
-    await mockDashboard(page, REPOS);
+    // Two polling repos on one forge: with one row left there is no search box.
+    await mockDashboard(page, [
+      ...REPOS,
+      repo('forgejo', 'also', { hasWebhook: false }),
+    ]);
     await page.goto('/settings.html#repositories');
     const rows = page.locator('#repositories-rows tr');
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(4);
     const pill = page.getByRole('button', { name: 'Show only these' });
     await expect(pill).toHaveAttribute('aria-pressed', 'false');
     await pill.click();
     await expect(pill).toHaveAttribute('aria-pressed', 'true');
-    await expect(rows).toHaveCount(2);
+    await expect(rows).toHaveCount(3);
     await page.getByRole('button', { name: /^Forgejo/ }).click();
-    await expect(rows).toHaveCount(1);
+    await expect(rows).toHaveCount(2);
     await page.locator('#repositories-search').fill('live');
     await expect(page.locator('#repositories-no-results')).toContainText(
       'No repos match these filters',
     );
     await page.getByRole('button', { name: 'Clear filters' }).click();
-    await expect(rows).toHaveCount(3);
+    await expect(rows).toHaveCount(4);
     await expect(pill).toHaveAttribute('aria-pressed', 'false');
   });
 

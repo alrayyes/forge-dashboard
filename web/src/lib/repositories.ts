@@ -3,6 +3,7 @@
 // called, and which repos a bulk button reaches. No DOM here, so the section
 // stays the one place that touches elements.
 
+import { filterBarOffered, offerForges, searchOffered } from './filters';
 import { forgeIds } from './forges';
 
 export type RepoRow = {
@@ -114,25 +115,77 @@ export function filterRepos<T extends RepoRow>(
   );
 }
 
-// A forge pill is offered only when a repo would survive the other filters,
-// and the picked forge stays so it can be seen and cleared.
+// The Forge pills, by the other pages' rule: the forges of the repos every
+// other filter leaves, plus the picked one so it can be cleared. Empty when
+// the group is not drawn.
 export function forgeChoices(
   repos: RepoRow[],
   filter: RepositoriesFilter,
-): Set<string> {
-  const found = new Set<string>(filter.forge ? [filter.forge] : []);
-  for (const r of repos) {
-    if (
-      matchesIgnored(r, filter) &&
-      matchesToggles(r, filter) &&
-      matchesSearch(r, filter)
-    ) {
-      found.add(r.forge);
-    }
-  }
+): string[] {
+  const present = new Set(
+    filterRepos(repos, { ...filter, forge: '' }).map((r) => r.forge),
+  );
+  const { hidden, forges } = offerForges(present, filter.forge);
+  if (hidden) return [];
   // Registry order, then any forge the registry doesn't know.
-  const known = forgeIds().filter((f) => found.has(f));
-  return new Set([...known, ...[...found].filter((f) => !known.includes(f))]);
+  const known = forgeIds().filter((f) => forges.has(f));
+  return [...known, ...[...forges].filter((f) => !known.includes(f))];
+}
+
+// Each group's choices, the default first.
+const VIEWS = {
+  ignored: ['active', 'all', 'only'],
+  autoUpdate: ['all', 'on', 'off'],
+  rebaseBots: ['all', 'on', 'off'],
+} as const;
+
+export type ViewGroup = keyof typeof VIEWS;
+
+// The choices a group draws: one only when picking it would give a different,
+// non-empty list, or it is the active one. The default comes with them, so a
+// pick can be undone. Empty when the group is not drawn. Rows kept after a
+// toggle are left out: a pick lets go of them.
+export function viewChoices(
+  repos: RepoRow[],
+  filter: RepositoriesFilter,
+  group: ViewGroup,
+): string[] {
+  const [fallback, ...others] = VIEWS[group];
+  const picked: string = filter[group] ?? fallback;
+  const list = (view: string) =>
+    filterRepos(repos, { ...filter, [group]: view });
+  const shown = new Set(list(picked));
+  const offered = others.filter((view) => {
+    if (view === picked) return true;
+    const next = list(view);
+    return (
+      next.length > 0 &&
+      (next.length !== shown.size || !next.every((r) => shown.has(r)))
+    );
+  });
+  return offered.length > 0 ? [fallback, ...offered] : [];
+}
+
+// A row kept after a toggle is still on screen, so it counts too.
+export function searchShown(
+  repos: RepoRow[],
+  filter: RepositoriesFilter,
+  keep: ReadonlySet<string> = new Set(),
+): boolean {
+  const rows = filterRepos(repos, { ...filter, search: '' }, keep).length;
+  return searchOffered(rows, filter.search);
+}
+
+// One repo has nothing to filter, unless a filter is set, or the repo is
+// ignored and the Ignored group is the way to see it.
+export function barShown(
+  repos: RepoRow[],
+  filter: RepositoriesFilter,
+): boolean {
+  return filterBarOffered(
+    repos.length,
+    filtersAreClear(filter) && !repos.some((r) => r.ignored),
+  );
 }
 
 export function sortRepos<T extends RepoRow>(
