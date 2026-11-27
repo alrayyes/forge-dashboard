@@ -221,6 +221,13 @@ a {
    the pages line up. */
 :root {
   --wrap-max: max(1220px, min(90vw, 1800px));
+  /* #470: what a list's repo column grows to once the list is wide enough to
+     spare it: nothing up to a 1438px list (a 1600px window), where a pull
+     request title has 440px, then every further pixel, until a 34 character
+     name fits beside the forge badge and the logo. 100cqi is read where the
+     value is used, so it is the width of the nearest container around the
+     columns: the list. In rem, so the threshold and the cap follow the text. */
+  --repo-grow: min(calc(100cqi - 79.375rem), 23.5rem);
   /* The toolbar's padding. The phone Activity control's offsets follow from
      these and --tap (#4591, #4619). */
   --toolbar-pad-top: 4px;
@@ -1180,7 +1187,8 @@ section.board {
       /* #4596: the repo track is 168px, 16px narrower than the 184px it was,
          and the title takes the 16px (204px to 220px at 1280px). A repo name
          shortens with an ellipsis, as it already does, and has its full name
-         in its hover text. */
+         in its hover text. #470: from there it grows with the list
+         (--repo-grow), without taking from a title under 440px. */
       /* #4541: the status track is 27.5rem for a row whose CI pill fits its
          slot, and grows to the slot's pill when it does not (min-content is
          the three slots with the CI one as wide as its pill, since a pill
@@ -1188,10 +1196,14 @@ section.board {
          drawn under the comment pill. Only that row's title gives up the
          difference. */
       grid-template-columns:
-        168px minmax(0, 1fr) 96px var(--dt) var(--dt) minmax(
-          27.5rem,
-          min-content
-        )
+        max(168px, var(--repo-grow)) minmax(0, 1fr) 96px var(--dt) var(--dt)
+        minmax(27.5rem, min-content) 22px;
+    }
+    /* #470: an issue row's repo column starts at 280px and grows by the same
+       rule. */
+    .row.issue-row {
+      grid-template-columns:
+        max(280px, var(--repo-grow)) minmax(0, 1fr) 96px var(--dt) var(--dt)
         22px;
     }
     .row:not(.issue-row) .status-cell {
