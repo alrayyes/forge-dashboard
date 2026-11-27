@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.5](https://github.com/alrayyes/forge-dashboard/compare/v9.139.4...v9.139.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** open the run that is still going ([#5097](https://github.com/alrayyes/forge-dashboard/issues/5097)) ([ad30ba1](https://github.com/alrayyes/forge-dashboard/commit/ad30ba18add6ceb544dfa46b1a45b550580abf6f)), closes [#5077](https://github.com/alrayyes/forge-dashboard/issues/5077)
+
 ## [9.139.4](https://github.com/alrayyes/forge-dashboard/compare/v9.139.3...v9.139.4) (2026-11-27)
 
 
