@@ -259,6 +259,11 @@ func TestRESTGetInventory_NoRequestBypassesTheCount(t *testing.T) {
 		"internal/github/image_link.go:readRenderedBody:NewRequest":   true, // one item's rendered body, read when the details dialog loads a private repository's image: user-driven, and kept out of the ETag cache because its answer carries a short-lived signature
 		"internal/github/image_link.go:readRenderedBody:Do":           true, // same read
 
+		// A branch, for its required checks without admin rights. Still conditional
+		// through the ETag transport; GetBranch would skip error handling and the timeout.
+		"internal/github/required_checks.go:branchSummaryContexts:NewRequest": true,
+		"internal/github/required_checks.go:branchSummaryContexts:Do":         true,
+
 		"internal/github/hook_check_persist.go:restoreHookChecks:Do": true, // sync.Once, sends nothing
 	}
 	allowedForgejo := map[string]bool{
