@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.14](https://github.com/alrayyes/forge-dashboard/compare/v9.140.13...v9.140.14) (2026-11-27)
+
+
+### Bug Fixes
+
+* **github:** drop replaced cancelled runs ([#5161](https://github.com/alrayyes/forge-dashboard/issues/5161)) ([5c813ba](https://github.com/alrayyes/forge-dashboard/commit/5c813ba57bdbdfb871b417755e035f456cb2c925))
+
 ## [9.140.13](https://github.com/alrayyes/forge-dashboard/compare/v9.140.12...v9.140.13) (2026-11-27)
 
 
