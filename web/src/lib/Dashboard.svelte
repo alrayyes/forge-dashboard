@@ -4450,6 +4450,11 @@
       const status = item.status;
       if (!status) return null;
       if (ciWaitIsStale(item)) return null;
+      // On a phone card a stopped auto-merge's text line already says it
+      // (#5088). From 761px that line is only drawn beside a queued action
+      // (#4601); otherwise the chip is one word, so the block says it (#4971).
+      const saidByStopped = stoppedBlockedReason(item) !== null;
+      if (saidByStopped && item.queued) return null;
       // Merge's slot says it in one line (#4528).
       if (
         (status.code === "checks_pending" ||
@@ -4465,6 +4470,7 @@
       // The pill already says it, and holds the reason (#3965).
       if (unconfirmedConflict(item) && status.code === "conflict") return null;
       const area = el("div", "status-area");
+      if (saidByStopped) area.classList.add("status-area-said-on-phone");
       // A stacked pull request's reason is a sentence, and the row gives it
       // the width of the row (#4775).
       if (status.code === "stacked") area.classList.add("status-area-stacked");
@@ -4600,8 +4606,8 @@
       )
         return null;
       if (merge.blocked) {
-        // Failing CI with auto-merge stopped: the stopped chip carries the
-        // reason, so no button and no printed note (#4944).
+        // Failing CI with auto-merge stopped: the status block or the
+        // stopped line carries the reason, so no button and no note (#4944).
         if (stoppedBlockedReason(item)) return null;
         // The row says it in the waiting chip, one place only (#4663).
         if (rowWaitOf(item)) return null;

@@ -2997,6 +2997,12 @@ a.ci-pill:hover {
   line-height: 1.4;
   text-align: left;
 }
+/* #5088: the phone card's stopped line already has the words. */
+@media (width <= 760px) {
+  .status-area.status-area-said-on-phone {
+    display: none;
+  }
+}
 .status-area svg {
   flex: none;
   margin-top: 2px;
