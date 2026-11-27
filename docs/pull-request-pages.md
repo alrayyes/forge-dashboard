@@ -133,12 +133,22 @@ such as a phone held sideways, a long title and several labels can push the
 comments past the bottom of the pop-up. The pill then also scrolls the whole
 pop-up, far enough to show the comment area, so the top of the header can go
 off-screen; scroll up to get it back. If you scroll or tab elsewhere while the
-comments are still loading, the pop-up stays where you put it. The pill also
-counts review comments on lines of code, which the pop-up doesn't list. When
+comments are still loading, the pop-up stays where you put it. When
 it lists no comment, or can't load them, it opens at the top, and a successful
 **Try again** then goes to the newest one. No other way into the pop-up jumps
 to a comment. Only buttons named for the forge, such as Open on GitHub, leave
 the dashboard.
+
+The pill also counts review comments on lines of code. The pop-up doesn't list
+those: under **Comments** it says how many there are and links to the pull
+request on the forge, such as "2 review comments on lines of code aren't shown
+here. Read them on GitHub". The number in the Comments heading counts only the
+conversation. With no conversation comment, that sentence stands in place of
+"No comments." Without line comments the pop-up says nothing about them. The
+count is read when the pop-up loads, so it can be newer than the pill's. On
+GitHub, it covers the first 100 review threads and reads "At least" past that. A
+pop-up opened from a `#12` reference to a pull request the board doesn't list
+never mentions line comments.
 
 ## Finding a pull request by its number
 
