@@ -35,8 +35,10 @@ function comments(n: number) {
   }));
 }
 
-function details(n: number, total = n) {
+function details(n: number, total = n, lineComments = 0) {
   return {
+    reviewCommentCount: lineComments,
+    reviewCommentsTruncated: false,
     description: body('A description.\n\n'.repeat(20)),
     comments: comments(n),
     commentCount: total,
@@ -60,7 +62,11 @@ const FIVE_LABELS = [
 async function mockDashboard(
   page: Page,
   conversationComments = 12,
-  { polls = false, crowded = false } = {},
+  {
+    polls = false,
+    crowded = false,
+    forge = 'github' as 'github' | 'forgejo',
+  } = {},
 ) {
   let updatedAt = ago(5);
   await page.route('**/api/v1/dashboard/stream*', (route) => route.abort());
@@ -69,10 +75,10 @@ async function mockDashboard(
       json: {
         generatedAt: new Date().toISOString(),
         ...(polls ? { readIntervalSeconds: 1 } : {}),
-        forges: [forgeHealth('github')],
+        forges: [forgeHealth(forge)],
         pullRequests: [
           {
-            forge: 'github',
+            forge,
             repo: 'alrayyes/forge-dashboard',
             number: 42,
             title: crowded ? LONG_TITLE : 'Add structured logging',
@@ -325,8 +331,6 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
     await expectLandedOn(page, 'Comment number 12.');
   });
 
-  // The pill counts review comments on lines of code too, which the dialog
-  // doesn't list, so a row with a pill can have an empty conversation.
   test('opens as usual when there is no comment to land on', async ({
     page,
   }) => {
@@ -341,6 +345,80 @@ test.describe('the comment pill opens the dialog at the newest comment', () => {
     await scan(page);
     await page.keyboard.press('Escape');
     await expect(pill(page)).toBeFocused();
+  });
+
+  // The pill counts review comments on lines of code too, which the dialog
+  // counts and links to rather than lists (#5011).
+  for (const [forge, label] of [
+    ['github', 'GitHub'],
+    ['forgejo', 'Forgejo'],
+  ] as const) {
+    test(`says how many line comments there are on ${label} when there is no other comment`, async ({
+      page,
+    }) => {
+      await mockDashboard(page, 0, { forge });
+      await mockDetails(page, () => ({ json: details(0, 0, 3) }));
+      for (const scheme of ['light', 'dark'] as const) {
+        for (const width of [360, 1280]) {
+          await test.step(`${scheme} ${width}px`, async () => {
+            await page.emulateMedia({ colorScheme: scheme });
+            await page.setViewportSize({ width, height: 800 });
+            await page.goto('/pull-requests.html');
+
+            await title(page).click();
+
+            const note = dialog(page).getByText(
+              "3 review comments on lines of code aren't shown here.",
+            );
+            await expect(note).toBeVisible();
+            await expect(dialog(page).getByText('No comments.')).toHaveCount(0);
+            await expect(
+              note.getByRole('link', {
+                name: `Read them on ${label} (opens in a new tab)`,
+              }),
+            ).toHaveAttribute('href', 'https://example.com/42');
+            await scan(page);
+          });
+        }
+      }
+    });
+  }
+
+  test('says the list leaves line comments out when there are both kinds', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 2);
+    await mockDetails(page, () => ({ json: details(2, 2, 1) }));
+    await page.goto('/pull-requests.html');
+
+    await title(page).click();
+
+    await expect(items(page)).toHaveCount(2);
+    const note = dialog(page).getByText(
+      "1 review comment on a line of code isn't shown here.",
+    );
+    await expect(note).toBeVisible();
+    await expect(
+      note.getByRole('link', { name: 'Read it on GitHub' }),
+    ).toBeVisible();
+    // Below the list it speaks of.
+    const last = await items(page).last().boundingBox();
+    const box = await note.boundingBox();
+    expect(box?.y).toBeGreaterThan((last?.y ?? 0) + (last?.height ?? 0));
+    await scan(page);
+  });
+
+  test('says nothing about line comments when there are none', async ({
+    page,
+  }) => {
+    await mockDashboard(page, 2);
+    await mockDetails(page, () => ({ json: details(2) }));
+    await page.goto('/pull-requests.html');
+
+    await title(page).click();
+
+    await expect(items(page)).toHaveCount(2);
+    await expect(dialog(page).getByText(/lines? of code/)).toHaveCount(0);
   });
 
   test('stays put when a live update brings a newer comment after landing', async ({

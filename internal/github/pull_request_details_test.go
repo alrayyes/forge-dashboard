@@ -208,3 +208,40 @@ func TestGetPullRequestDetails_GraphQLError_IsReturned(t *testing.T) {
 	require.ErrorAs(t, err, &clientErr)
 	assert.Equal(t, dashboard.ForgeErrorNotFound, clientErr.Kind)
 }
+
+// Review comments on lines of code are counted, not listed (#5011): each
+// thread's comment count added up, in the same one query.
+func TestGetPullRequestDetails_CountsTheReviewCommentsOnLinesOfCode(t *testing.T) {
+	t.Parallel()
+
+	thread := func(n int) map[string]any { return map[string]any{"comments": map[string]any{"totalCount": n}} }
+	for name, tc := range map[string]struct {
+		threads   map[string]any
+		count     int
+		truncated bool
+	}{
+		"none":                   {threads: map[string]any{"totalCount": 0, "nodes": []any{}}},
+		"replies count too":      {threads: map[string]any{"totalCount": 2, "nodes": []any{thread(3), thread(1)}}, count: 4},
+		"more threads than read": {threads: map[string]any{"totalCount": 2, "nodes": []any{thread(2)}}, count: 2, truncated: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var queries []graphqlRequestBody
+			srv := detailsServer(t, map[string]any{
+				"body": "x", "reactionGroups": []any{}, "comments": map[string]any{"totalCount": 0, "nodes": []any{}},
+				"reviewThreads": tc.threads,
+			}, &queries)
+			client := github.NewClient("test-token", "", srv.URL)
+
+			got, err := client.GetPullRequestDetails(t.Context(), "alrayyes", "a", 5)
+
+			require.NoError(t, err)
+			require.Len(t, queries, 1, "still one request")
+			assert.Contains(t, queries[0].Query, "reviewThreads(first: 100)")
+			assert.Equal(t, tc.count, got.ReviewCommentCount)
+			assert.Equal(t, tc.truncated, got.ReviewCommentsTruncated)
+			assert.Empty(t, got.Comments, "counted, not listed")
+		})
+	}
+}
