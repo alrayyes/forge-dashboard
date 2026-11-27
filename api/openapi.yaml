@@ -2652,7 +2652,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/RateLimitedError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
@@ -2757,7 +2757,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/RateLimitedError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
@@ -3049,7 +3049,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Error"
+                $ref: "#/components/schemas/RateLimitedError"
         "502":
           description: The forge was unreachable, or answered with something this app couldn't classify more specifically.
           content:
@@ -4442,6 +4442,22 @@ components:
             Present when the rejection is about one field of the request
             body (a settings save, for instance), named as it appears there,
             so a client can mark that input without parsing `error`.
+
+    RateLimitedError:
+      description: >-
+        A read the forge rate-limited.
+      allOf:
+        - $ref: "#/components/schemas/Error"
+        - type: object
+          properties:
+            resetsAt:
+              type: string
+              format: date-time
+              description: >-
+                When the exhausted budget comes back. Absent when the forge
+                didn't say, and when it limited the request with budget still
+                left (GitHub's secondary limit), since no reset time is known
+                then. On Forgejo it comes from the `Retry-After` header.
 
     ActionError:
       type: object
