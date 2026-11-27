@@ -180,6 +180,8 @@ The order in the footer is the primary action first, then the others, then Close
 pull request last. The status block under the pop-up's header is the same
 `status` message the row shows, and a locked Merge in the footer is described by
 it. Their ids carry a `dlg-` prefix, so the row and the pop-up never repeat one.
+The one difference: a row whose stopped auto-merge already says CI is failing
+draws no status block, and the pop-up keeps its own.
 
 A pull request stacked on another open one shows a chip with its place and what
 it waits for: `Stack 2 of 3` beside `waits for #840` (the number is the pull

@@ -4381,6 +4381,8 @@
       const status = item.status;
       if (!status) return null;
       if (ciWaitIsStale(item)) return null;
+      // A stopped auto-merge's chip or text line already says it (#5088).
+      if (stoppedBlockedReason(item)) return null;
       // Merge's slot says it in one line (#4528).
       if (
         (status.code === "checks_pending" ||

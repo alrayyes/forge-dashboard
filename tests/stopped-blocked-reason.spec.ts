@@ -40,7 +40,7 @@ const pr = {
   ],
 };
 
-async function open(page: Page, width: number) {
+async function open(page: Page, width: number, mock: object = pr) {
   await page.setViewportSize({ width, height: 900 });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
     route.abort(),
@@ -52,7 +52,7 @@ async function open(page: Page, width: number) {
       body: JSON.stringify({
         generatedAt: new Date().toISOString(),
         forges: [forgeHealth('github')],
-        pullRequests: [pr],
+        pullRequests: [mock],
         issues: [],
         repos: [],
         hiddenDrafts: 0,
@@ -100,3 +100,39 @@ test('at 1280px the reason is in the stopped chip, next to its words', async ({
   );
   await expect(chip.locator('.wait-chip-detail')).toHaveText(REASON);
 });
+
+// #5088: the server's status block says the same words as the stopped state, so
+// the row draws only one of them. Counted across the whole row, with the
+// `status` the server sends for a blocked Merge.
+const status = { code: 'checks_failing', message: REASON, next: '' };
+const stopped = { ...pr, status };
+const unarmed = {
+  ...stopped,
+  autoMergeEnabled: false,
+  autoMerge: undefined,
+  allowedActions: pr.allowedActions.filter(
+    (a) => a.action !== 'cancel_auto_merge',
+  ),
+};
+
+for (const width of [390, 1280]) {
+  for (const [name, mock] of [
+    ['stopped auto-merge', stopped],
+    ['no auto-merge', unarmed],
+  ] as const) {
+    test(`at ${width}px a failing row with ${name} says CI is failing once`, async ({
+      page,
+    }) => {
+      await open(page, width, mock);
+      await expect(
+        row(page)
+          .getByText(/CI is failing/)
+          .filter({ visible: true }),
+      ).toHaveCount(1);
+      const results = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
+        .analyze();
+      expect(results.violations).toEqual([]);
+    });
+  }
+}
