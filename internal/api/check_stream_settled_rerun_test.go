@@ -18,6 +18,12 @@ import (
 // rerun: a newer status and no webhook.
 type settledRerunSource struct {
 	rerun atomic.Bool
+	// liveRunning makes a live read of the jobs show a second run going, which
+	// the row hasn't been read to see.
+	liveRunning atomic.Bool
+	// failedAgain is that run ended failed before any probe saw it: a newer
+	// status, with the row's CI and counts as they were.
+	failedAgain atomic.Bool
 }
 
 func (s *settledRerunSource) Forge() dashboard.Forge { return dashboard.ForgeForgejo }
@@ -29,6 +35,9 @@ func (s *settledRerunSource) pullRequest() dashboard.PullRequest {
 	}
 	if s.rerun.Load() {
 		pr.CI, pr.Checks, pr.LatestStatusID = dashboard.CIPending, dashboard.CheckCounts{Waiting: 1}, 2
+	}
+	if s.failedAgain.Load() {
+		pr.LatestStatusID = 2
 	}
 
 	return pr
@@ -51,7 +60,7 @@ func (s *settledRerunSource) LatestStatusID(_ context.Context, _, _, _ string) (
 
 func (s *settledRerunSource) ListChecks(_ context.Context, _, _ string, _ int) ([]dashboard.Check, error) {
 	state := dashboard.CheckFailure
-	if s.rerun.Load() {
+	if s.rerun.Load() || s.liveRunning.Load() && !s.failedAgain.Load() {
 		state = dashboard.CheckRunning
 	}
 
@@ -70,12 +79,10 @@ func firstStatus(t *testing.T, listing []map[string]any) any {
 	return check["status"]
 }
 
-// The open checks dialog gets a new job list when its row changes, so it moves
-// once the CI poll has noticed the rerun (#5076).
-func TestCheckStream_ARerunOfAFailedJobSendsTheOpenDialogItsNewState(t *testing.T) {
-	t.Parallel()
-
-	source := &settledRerunSource{}
+// watchSettledRerun opens a checks watch on the source's pull request, with the
+// CI poll running, and returns it with its first listing.
+func watchSettledRerun(t *testing.T, source *settledRerunSource) (*checkFeed, []map[string]any) {
+	t.Helper()
 	srvURL, cookie, _ := newTestServerWithDrain(t, source, func(_ time.Duration, f func()) func() bool {
 		return time.AfterFunc(time.Millisecond, f).Stop
 	}, &api.Drain{}, func(s *dashboard.Service) { s.SetCIPollInterval(50 * time.Millisecond) })
@@ -97,9 +104,33 @@ func TestCheckStream_ARerunOfAFailedJobSendsTheOpenDialogItsNewState(t *testing.
 	feed := &checkFeed{srvURL: srvURL, cookie: cookie, events: events}
 
 	feed.watch(t, `{"streamId":"`+watchedStreamID+`","subjects":[{"kind":"pull_request","forge":"forgejo","fullName":"alrayyes/tempus-fugit","number":7}]}`)
-	require.Equal(t, "completed", firstStatus(t, feed.nextListing(t)))
+
+	return feed, feed.nextListing(t)
+}
+
+// The open checks dialog gets a new job list when its row changes, so it moves
+// once the CI poll has noticed the rerun (#5076).
+func TestCheckStream_ARerunOfAFailedJobSendsTheOpenDialogItsNewState(t *testing.T) {
+	t.Parallel()
+	source := &settledRerunSource{}
+	feed, first := watchSettledRerun(t, source)
+	require.Equal(t, "completed", firstStatus(t, first))
 
 	source.rerun.Store(true)
 
 	assert.Equal(t, "in_progress", firstStatus(t, feed.nextListing(t)))
+}
+
+// A rerun can fail again between two probes. The row reads the same, so the
+// newer status is all that says the dialog's list is out of date.
+func TestCheckStream_ARerunThatFailsAgainSendsTheOpenDialogItsResult(t *testing.T) {
+	t.Parallel()
+	source := &settledRerunSource{}
+	source.liveRunning.Store(true)
+	feed, first := watchSettledRerun(t, source)
+	require.Equal(t, "in_progress", firstStatus(t, first))
+
+	source.failedAgain.Store(true)
+
+	assert.Equal(t, "completed", firstStatus(t, feed.nextListing(t)))
 }
