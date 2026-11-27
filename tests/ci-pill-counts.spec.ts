@@ -281,7 +281,20 @@ test.describe('A long pill leaves the row arrow clear (#5118)', () => {
   } as Counts);
   const COUNTS = ['22', '11', '12', '13', '14', '15', '16', '17', '18'];
 
+  // Five counts, three digits among them: narrower, and still too wide for a
+  // 320px card or a 390px one at 200% text.
+  const FIVE = pr(1, 'Long run', 'failure', {
+    passed: 137,
+    skipped: 9,
+    running: 17,
+    waiting: 12,
+    failed: 23,
+  } as Counts);
+  const FIVE_COUNTS = ['128', '9', '17', '12', '23'];
+
   // What is wrong with the row's layout, read in one go; nothing when sound.
+  // The row clips what runs past it, so the page not scrolling sideways says
+  // nothing: the pill and every count are held inside the row and the window.
   const faults = (page: Page) =>
     page.locator('#pr-rows > .row').evaluate((row) => {
       const pill = row.querySelector('.ci-pill');
@@ -290,7 +303,13 @@ test.describe('A long pill leaves the row arrow clear (#5118)', () => {
       const p = pill.getBoundingClientRect();
       const a = arrow.getBoundingClientRect();
       if (!p.width || !a.width) return ['not laid out'];
+      const r = row.getBoundingClientRect();
+      const root = document.documentElement;
+      const left = Math.max(0, r.left) - 0.5;
+      const right = Math.min(root.clientWidth, r.right) + 0.5;
       const found: string[] = [];
+      if (p.left < left || p.right > right)
+        found.push(`pill spans ${p.left} to ${p.right}, row ends at ${right}`);
       if (
         p.right > a.left &&
         p.left < a.right &&
@@ -305,18 +324,19 @@ test.describe('A long pill leaves the row arrow clear (#5118)', () => {
           s.left < p.left - 0.5 ||
           s.right > p.right + 0.5 ||
           s.top < p.top - 0.5 ||
-          s.bottom > p.bottom + 0.5
+          s.bottom > p.bottom + 0.5 ||
+          s.left < left ||
+          s.right > right
         )
           found.push(`count ${seg.textContent} is clipped`);
       }
-      const root = document.documentElement;
       if (root.scrollWidth > root.clientWidth)
         found.push('page scrolls sideways');
       return found;
     });
 
   // 761 to 860px has the narrowest status track, 861 to 1190px the wider one.
-  for (const width of [390, 761, 820, 860, 900, 1103, 1280]) {
+  for (const width of [320, 390, 761, 820, 860, 900, 1103, 1280]) {
     test(`at ${width}px`, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 });
       await open(page, [LONG]);
@@ -326,17 +346,50 @@ test.describe('A long pill leaves the row arrow clear (#5118)', () => {
     });
   }
 
-  for (const scheme of ['light', 'dark'] as const) {
-    test(`has no axe violations at 820px, ${scheme}`, async ({ page }) => {
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.setViewportSize({ width: 820, height: 900 });
-      await open(page, [LONG]);
-      await expect(segments(page, 'Long run')).toHaveText(COUNTS);
+  for (const { name, row, counts, width, text } of [
+    {
+      name: 'five counts',
+      row: FIVE,
+      counts: FIVE_COUNTS,
+      width: 320,
+      text: 100,
+    },
+    {
+      name: 'five counts',
+      row: FIVE,
+      counts: FIVE_COUNTS,
+      width: 390,
+      text: 200,
+    },
+    { name: 'every count', row: LONG, counts: COUNTS, width: 390, text: 200 },
+  ]) {
+    test(`${name} at ${width}px, ${text}% text`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await open(page, [row]);
+      await page.addStyleTag({
+        content: `html { font-size: ${text}% !important; }`,
+      });
 
-      const results = await new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
-        .analyze();
-      expect(results.violations).toEqual([]);
+      await expect(segments(page, 'Long run')).toHaveText(counts);
+      await expect.poll(() => faults(page)).toEqual([]);
     });
+  }
+
+  for (const scheme of ['light', 'dark'] as const) {
+    for (const width of [320, 390, 820]) {
+      test(`has no axe violations at ${width}px, ${scheme}`, async ({
+        page,
+      }) => {
+        await page.emulateMedia({ colorScheme: scheme });
+        await page.setViewportSize({ width, height: 900 });
+        await open(page, [LONG]);
+        await expect(segments(page, 'Long run')).toHaveText(COUNTS);
+
+        const results = await new AxeBuilder({ page })
+          .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+      });
+    }
   }
 });

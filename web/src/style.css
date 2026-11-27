@@ -2805,9 +2805,10 @@ a.ci-pill:hover {
     border-left: 1px solid var(--border-strong);
   }
 }
-/* A long CI pill wraps its counts inside the row's status track instead of
-   running over the arrow after it, at every list width (#5118). On the
-   one-line list the track first grows as far as the title can spare. */
+/* A long CI pill wraps its counts inside the row's status track, or the
+   phone card, instead of running over the arrow or off the screen (#5118).
+   On the one-line list the track first grows as far as the title can spare.
+   The phone card's .state-group needs a max-width of its own for this. */
 .row .status-cell .ci-slot:has(.ci-pill.segmented) {
   max-width: 100%;
 }
@@ -4613,6 +4614,9 @@ footer a.mono:focus-visible {
   }
   .state-group {
     flex: 0 0 auto;
+    /* It never shrinks, so without this a long CI pill sizes it past the
+       card and the pill's own max-width resolves against that (#5118). */
+    max-width: 100%;
     justify-content: flex-start;
   }
   .wait-chip-action {
