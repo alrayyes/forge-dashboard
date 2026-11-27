@@ -216,12 +216,12 @@ pipeline-run-output.spec.ts,77.379,90,64,A,CheckRunOutput.stories.svelte (proven
 placeholder-contrast.spec.ts,1.045,2,2,A,web/src/lib/placeholder-contrast.test.ts,0.0
 polling-only.spec.ts,10.804,13,5,C,web/src/lib/polling-only.test.ts,6.6
 popup-focus-fallback-sites.spec.ts,2.739,7,0,C,,2.7
-pr-author-avatar.spec.ts,2.493,9,5,A,,1.1
+pr-author-avatar.spec.ts,2.493,13,7,A,,1.2
 pr-auto-update.spec.ts,10.205,12,4,C,,6.8
 pr-details-cache.spec.ts,24.574,13,12,A,,1.9
 pr-details-dependabot-description.spec.ts,4.134,2,2,A,,0.0
 pr-details-description-scroll.spec.ts,10.913,5,5,A,,0.0
-pr-details-dialog.spec.ts,21.276,38,21,A,,9.5
+pr-details-dialog.spec.ts,21.276,41,25,A,,8.3
 pr-details-images.spec.ts,22.164,10,10,A,,0.0
 pr-details-short-viewport.spec.ts,3.621,5,5,A,,0.0
 pr-details-task-lists.spec.ts,3.392,3,3,A,,0.0
@@ -268,7 +268,7 @@ release-pr-behind.spec.ts,1.011,1,1,A,,0.0
 releases-page.spec.ts,3.016,5,1,C,,2.4
 renovate-rebase-requested.spec.ts,9.09,18,4,C,,7.1
 repo-author-multi-select.spec.ts,15.532,24,6,C,,11.6
-repo-logo.spec.ts,8.327,9,2,C,,6.5
+repo-logo.spec.ts,8.327,10,3,C,,5.8
 repo-name-hover.spec.ts,5.885,7,5,A,,1.7
 repositories-filter-box-fit.spec.ts,19.896,2,2,A,web/src/lib/repositories.test.ts,0.0
 repositories-table-reflow.spec.ts,16.013,1,1,A,web/src/lib/repositories.test.ts,0.0

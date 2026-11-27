@@ -2360,6 +2360,30 @@ button.title {
 .logo-placeholder::before {
   content: attr(data-initial);
 }
+/* The initial is always drawn and a picture sits over it, over the border
+   too, so a slow, missing or redrawn image is never an empty box (#5124).
+   Once it has loaded, the initial, fill and edge go, so none of them shows
+   through a transparent picture. The letter turns transparent rather than
+   going, which keeps the box's baseline. The doubled class outranks the
+   margin a logo beside running text takes. */
+.avatar-placeholder,
+.logo-placeholder {
+  position: relative;
+}
+.avatar-placeholder > img,
+.logo-placeholder > img.repo-logo {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  margin: 0;
+}
+.avatar-placeholder.has-picture,
+.logo-placeholder.has-picture {
+  overflow: visible;
+  background: transparent;
+  border-color: transparent;
+  color: transparent;
+}
 .author-name {
   display: block;
   overflow: hidden;
