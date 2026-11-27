@@ -42,6 +42,19 @@ func (s *Service) ParkedRefreshesForTest() int {
 	return agg.refresh.waiting()
 }
 
+// RepoRefreshWaitingForTest is how many one-repo refreshes are queued behind
+// the one running for forge/fullName.
+func (a *Aggregator) RepoRefreshWaitingForTest(forge Forge, fullName string) int {
+	a.repoRefresh.mu.Lock()
+	c := a.repoRefresh.byKey[string(forge)+"/"+fullName]
+	a.repoRefresh.mu.Unlock()
+	if c == nil {
+		return 0
+	}
+
+	return c.waiting()
+}
+
 // EndSentenceForTest exposes endSentence.
 func EndSentenceForTest(msg string) string { return endSentence(msg) }
 
