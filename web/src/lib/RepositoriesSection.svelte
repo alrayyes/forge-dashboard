@@ -133,7 +133,7 @@
   const offeredIgnored = $derived(viewChoices(repos, filter, "ignored"));
   const offeredAutoUpdate = $derived(viewChoices(repos, filter, "autoUpdate"));
   const offeredRebaseBots = $derived(viewChoices(repos, filter, "rebaseBots"));
-  const offerSearch = $derived(searchShown(repos, filter));
+  const offerSearch = $derived(searchShown(repos, filter, kept));
   const offerBar = $derived(barShown(repos, filter));
   const filtersClear = $derived(filtersAreClear(filter));
 

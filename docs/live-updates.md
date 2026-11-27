@@ -422,11 +422,11 @@ different, non-empty list, or it is the active one, and a group with nothing to
 offer is not drawn, label and all. So Auto-update is missing while every repo
 the other filters leave has it the same way. The default (**All**, or **Hide**
 for Ignored) stays beside whatever is offered, so a pick can be undone. Forge
-needs two forges or a picked one. The search box goes while the other filters
-leave exactly one repo and it holds no text, and the whole bar goes when only
-one repo is tracked, unless that repo is ignored or a filter is set. Toggling a
-row can add or remove a group; the row stays where it is. If the control you are
-on goes, focus moves to another one.
+needs two forges or a picked one. The search box goes while at most one repo is
+listed, counting a row kept after a toggle, and it holds no text. The whole bar
+goes when only one repo is tracked, unless that repo is ignored or a filter is
+set. Toggling a row can add or remove a group; the row stays where it is. If the
+control you are on goes, focus moves to another one.
 
 ## The Label filter
 

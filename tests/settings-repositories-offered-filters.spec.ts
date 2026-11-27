@@ -124,6 +124,23 @@ for (const scheme of ['light', 'dark'] as const) {
         expect(await onBody(page)).toBe(false);
       });
 
+      test('the search box stays while a toggled row is still listed', async ({
+        page,
+      }) => {
+        await open(page, width, scheme, [
+          repo('a'),
+          repo('b'),
+          repo('c', { autoUpdateBranch: true }),
+        ]);
+        await pill(page, 'Auto-update', 'Off').click();
+        await page
+          .getByRole('button', { name: 'Auto-update on owner/a' })
+          .click();
+        await expect(page.locator('#repositories-count')).toContainText('2');
+        await expect(page.locator('#repositories-rows tr')).toHaveCount(2);
+        await expect(page.getByRole('searchbox')).toBeVisible();
+      });
+
       test('Clear filters works over one row, with no search box', async ({
         page,
       }) => {

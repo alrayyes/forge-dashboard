@@ -166,11 +166,13 @@ export function viewChoices(
   return offered.length > 0 ? [fallback, ...offered] : [];
 }
 
+// A row kept after a toggle is still on screen, so it counts too.
 export function searchShown(
   repos: RepoRow[],
   filter: RepositoriesFilter,
+  keep: ReadonlySet<string> = new Set(),
 ): boolean {
-  const rows = filterRepos(repos, { ...filter, search: '' }).length;
+  const rows = filterRepos(repos, { ...filter, search: '' }, keep).length;
   return searchOffered(rows, filter.search);
 }
 

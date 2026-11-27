@@ -17,6 +17,7 @@ import {
   type RepositoriesFilter,
   rebaseBotsName,
   repoCountText,
+  repoKey,
   repoScope,
   searchShown,
   sortRepos,
@@ -498,6 +499,16 @@ describe('the search box and the filter bar', () => {
     ];
     expect(searchShown(list, { ...none, autoUpdate: 'on' })).toBe(false);
     expect(searchShown(list, { ...none, search: 'demo/a' })).toBe(true);
+  });
+
+  test('a row kept after a toggle still counts for the search box', () => {
+    const list = [
+      repo('github', 'demo/a', { autoUpdateBranch: true }),
+      repo('github', 'demo/b'),
+    ];
+    const off = { ...none, autoUpdate: 'off' as const };
+    const kept = new Set([repoKey(list[0])]);
+    expect(searchShown(list, off, kept)).toBe(true);
   });
 
   test('the bar goes over one repo with nothing to undo', () => {
