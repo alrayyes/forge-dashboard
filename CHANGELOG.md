@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.1](https://github.com/alrayyes/forge-dashboard/compare/v9.139.0...v9.139.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** say closes or refs on issue row pills ([#5080](https://github.com/alrayyes/forge-dashboard/issues/5080)) ([d055eb3](https://github.com/alrayyes/forge-dashboard/commit/d055eb336cdb48d833d7bc4ff6ecb723c72e1e3b))
+
 ## [9.139.0](https://github.com/alrayyes/forge-dashboard/compare/v9.138.0...v9.139.0) (2026-11-27)
 
 
