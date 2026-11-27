@@ -163,10 +163,10 @@ limits](rate-limits.md).
 
 On GitHub the dashboard holds back 10% of each of the REST and GraphQL budgets
 (never less than 50 points) for the things you click (Merge, Update branch,
-the bot rebases, Close, and Enable auto-merge). Scheduled refreshes, polls, and
-webhook
-maintenance wait for the reset instead of spending it; your actions and Refresh
-now don't. The size is fixed and has no environment variable. To spend less in
+the bot rebases, Close, and Enable auto-merge). Scheduled refreshes, polls,
+webhook refreshes, and webhook maintenance wait for the reset instead of
+spending it; your actions and Refresh now don't. The size is fixed and has no
+environment variable. To spend less in
 the background, raise `REFRESH_INTERVAL` or `CI_POLL_INTERVAL`. Forgejo reports
 no budget, so nothing is held back there. See [Rate limits](rate-limits.md).
 

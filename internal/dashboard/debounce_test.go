@@ -521,3 +521,50 @@ func TestRefreshRepoDebounced_ATimerThatCouldNotBeStoppedDoesNotCutTheNewerWindo
 
 	assert.Zero(t, src.repoFetchCallCount("alrayyes/a"), "the older event's timer must not cut the newer event's window short")
 }
+
+// A webhook refresh held for the budget is not lost: it runs once the budget is
+// back, however many deliveries arrived meanwhile.
+func TestRefreshRepoDebounced_AtTheReserve_WaitsForTheResetThenRefreshesOnce(t *testing.T) {
+	t.Parallel()
+
+	clock := newFakeTimers()
+	src := newBudgetSource(graphQL, reserved)
+	src.resets = clock.Now().Add(20 * time.Minute)
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithDebounceTimer(clock.After))
+	agg.Refresh(t.Context())
+	for range 3 {
+		require.True(t, agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"))
+		clock.Advance(time.Minute)
+	}
+	require.Equal(t, 0, src.repoFetchCallCount("me/a"), "nothing is spent from the reserve")
+	require.Equal(t, 1, clock.Pending(), "one refresh waits")
+
+	clock.Advance(20 * time.Minute)
+
+	assert.Equal(t, 1, src.repoFetchCallCount("me/a"))
+}
+
+// An event for a refresh that is waiting for the budget starts a burst of its
+// own, so it still waits out the quiet window once the budget is back.
+func TestRefreshRepoDebounced_AnEventAfterTheBudgetReturns_IsDebouncedAfresh(t *testing.T) {
+	t.Parallel()
+
+	clock := newFakeTimers()
+	src := &liveBudgetSource{budgetSource: newBudgetSource(graphQL, 5000)}
+	src.resets = clock.Now().Add(20 * time.Minute)
+	src.report(&dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: src.resets})
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, dashboard.WithClock(clock.Now), dashboard.WithDebounceTimer(clock.After))
+	event := func() {
+		require.True(t, agg.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"))
+	}
+	event()
+	clock.Advance(time.Minute)
+	src.report(&dashboard.RateLimit{Limit: 5000, Remaining: 5000, ResetsAt: src.resets})
+
+	event()
+	clock.Advance(time.Second)
+	require.Zero(t, src.repoFetchCallCount("me/a"), "still inside the quiet window")
+	clock.Advance(time.Second)
+
+	assert.Equal(t, 1, src.repoFetchCallCount("me/a"))
+}

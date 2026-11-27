@@ -230,6 +230,11 @@ refresh straight away. If the dashboard shuts down during the wait, or your acco
 connection is replaced (you save new credentials) or removed, the pending
 refresh is dropped, and the next scheduled refresh picks the change up.
 
+On GitHub a delivery's refresh also waits while the budget is at its
+[reserve](rate-limits.md#a-reserve-for-your-own-actions), until 30 seconds
+after the reset. The deliveries that arrive meanwhile still cost one refresh per
+repository.
+
 A `pull_request` delivery whose action is `closed` also takes that pull
 request off the board before the refresh runs (merged or not). GitHub can go
 on listing a pull request it just merged as open for a few seconds, and a
@@ -329,8 +334,8 @@ tried again on a later refresh.
   every delivery is logged, each line naming the forge, the event type,
   and the delivery ID — `webhook accepted`, `webhook signature invalid`,
   or `webhook token unknown`, followed by `webhook refresh dispatched`
-  once the triggered refresh is queued, which is up to 5 seconds before it
-  runs (see "How a delivery is verified"). No `LOG_LEVEL` change is
+  once the triggered refresh is queued, which is before it runs (see "How a
+  delivery is verified" for how long it can wait). No `LOG_LEVEL` change is
   needed to see them; each logs at its natural level (`INFO` for a
   normal delivery, `WARN` for a rejected one) regardless of what
   `LOG_LEVEL` is set to. A refresh that fails logs `scoped refresh failed`

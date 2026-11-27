@@ -3,6 +3,7 @@ package dashboard_test
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -115,7 +116,7 @@ func TestReserve_CIPoll_AtTheReserve_WaitsAndAboveRuns(t *testing.T) {
 	}
 }
 
-func TestReserve_ScopedWebhookRefresh_RunsAtTheReserveButNotWhenSpent(t *testing.T) {
+func TestReserve_ScopedWebhookRefresh_AtTheReserve_WaitsAndAboveRuns(t *testing.T) {
 	t.Parallel()
 
 	for _, which := range []budget{graphQL, rest} {
@@ -125,16 +126,48 @@ func TestReserve_ScopedWebhookRefresh_RunsAtTheReserveButNotWhenSpent(t *testing
 			low := newBudgetSource(which, reserved)
 			lowAgg := dashboard.NewAggregator([]dashboard.Source{low})
 			lowAgg.Refresh(t.Context())
-			require.True(t, lowAgg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"))
-			assert.Equal(t, 1, low.repoFetchCallCount("me/a"), "the cheap path runs at the reserve")
+			require.True(t, lowAgg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"), "the caller must not fall back to a full refresh")
+			assert.Equal(t, 0, low.repoFetchCallCount("me/a"), "at the reserve it waits")
 
-			spent := newBudgetSource(which, 0)
-			spentAgg := dashboard.NewAggregator([]dashboard.Source{spent})
-			spentAgg.Refresh(t.Context())
-			require.True(t, spentAgg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"), "the caller must not fall back to a full refresh")
-			assert.Equal(t, 0, spent.repoFetchCallCount("me/a"), "a spent budget holds it")
+			ok := newBudgetSource(which, reserved+1)
+			okAgg := dashboard.NewAggregator([]dashboard.Source{ok})
+			okAgg.Refresh(t.Context())
+			require.True(t, okAgg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"))
+			assert.Equal(t, 1, ok.repoFetchCallCount("me/a"), "above it the refresh runs")
 		})
 	}
+}
+
+// The newest figure the forge gave is the one that counts, and the board shows
+// it for a full refresh held because of it.
+func TestReserve_ScheduledRefresh_HeldByANewerBudget_ShowsTheNewerOne(t *testing.T) {
+	t.Parallel()
+
+	src := &liveBudgetSource{budgetSource: newBudgetSource(graphQL, 5000)}
+	timer := newFakeRunTimer()
+	agg := dashboard.NewAggregator([]dashboard.Source{src}, timer.option())
+	timer.start(t, agg, time.Hour)
+	src.report(&dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: src.resets})
+
+	timer.tick(t)
+
+	require.Equal(t, 1, src.fetchCallCount(), "the scheduled refresh is held")
+	require.Len(t, agg.Get().Forges, 1)
+	require.NotNil(t, agg.Get().Forges[0].RateLimitGraphQL)
+	assert.Equal(t, reserved, agg.Get().Forges[0].RateLimitGraphQL.Remaining)
+}
+
+// liveBudgetSource also reports a budget between full refreshes.
+type liveBudgetSource struct {
+	*budgetSource
+
+	latest atomic.Pointer[dashboard.RateLimit]
+}
+
+func (s *liveBudgetSource) report(rl *dashboard.RateLimit) { s.latest.Store(rl) }
+
+func (s *liveBudgetSource) LatestBudgets(string, string) (gql, restBudget *dashboard.RateLimit) {
+	return s.latest.Load(), nil
 }
 
 func TestReserve_HookMaintenance_AtTheReserve_Waits(t *testing.T) {

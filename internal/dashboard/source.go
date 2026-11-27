@@ -466,6 +466,14 @@ type PendingCheckRefresher interface {
 	RefreshPending(ctx context.Context, refs []PullRequestRef) (PendingResult, error)
 }
 
+// BudgetReporter is implemented by a Source whose forge states its budgets on
+// every response, so it knows them between full refreshes. owner and name ask
+// for the budgets that reading that repo spends; both empty ask for the
+// tightest the Source has. A budget it has not heard of is nil.
+type BudgetReporter interface {
+	LatestBudgets(owner, name string) (graphQL, rest *RateLimit)
+}
+
 // SettledCheckProber is implemented by a Source (or the ForgeClient behind a
 // GenericSource) whose forge sends no webhook when a finished check is rerun.
 // It answers the highest id among a commit's statuses far more cheaply than a

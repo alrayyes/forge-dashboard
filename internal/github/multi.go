@@ -5,6 +5,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/alrayyes/forge-dashboard/internal/dashboard"
 )
@@ -74,6 +75,37 @@ func (m *Multi) ownerIndex(owner, name string) int {
 	i, _ := m.lookup(owner, name)
 
 	return i
+}
+
+// LatestBudgets implements dashboard.BudgetReporter. Each installation has
+// budgets of its own: a repo is judged by the one that reads it, and the whole
+// account by the tightest. A budget whose window has ended says nothing about
+// the account, so it is passed over.
+func (m *Multi) LatestBudgets(owner, name string) (graphQL, rest *dashboard.RateLimit) {
+	members := m.members
+	if owner != "" && len(members) > 0 {
+		members = []Member{m.Owner(owner, name)}
+	}
+	now := time.Now()
+	for _, member := range members {
+		r, ok := member.Source.(dashboard.BudgetReporter)
+		if !ok {
+			continue
+		}
+		g, other := r.LatestBudgets(owner, name)
+		graphQL, rest = tighter(graphQL, openWindow(g, now)), tighter(rest, openWindow(other, now))
+	}
+
+	return graphQL, rest
+}
+
+// openWindow is rl while its window is still open, else nil.
+func openWindow(rl *dashboard.RateLimit, now time.Time) *dashboard.RateLimit {
+	if rl == nil || !rl.ResetsAt.After(now) {
+		return nil
+	}
+
+	return rl
 }
 
 // lookup is the member that reported owner/name and whether any has.

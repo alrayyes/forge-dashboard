@@ -93,7 +93,8 @@ refresh tries again.
   nothing about whether anyone is looking, and neither does the page's own timed
   read of its data. A tab becoming visible again makes the one catch-up refresh.
   What still runs while it rests:
-  - Webhook deliveries, which refresh the repository they name.
+  - Webhook deliveries, which refresh the repository they name, unless the
+    budget is at its [reserve](#a-reserve-for-your-own-actions).
   - Refresh now.
   - The CI poll, for pull requests with checks still running or GitHub's
     auto-merge armed (the look for reruns of failed ones stops).
@@ -165,10 +166,11 @@ On every forge, "Refresh now" runs at most once every five seconds.
 ## A reserve for your own actions
 
 On GitHub the dashboard keeps part of each budget for you. Background work
-(the scheduled full refresh, the CI and auto-merge polls, and webhook
-maintenance) stops once a call would leave the REST or the GraphQL budget at or
-under the reserve: 10% of the budget, never less than 50 points, and never more
-than half of it. A 5000 point budget keeps 500. A low budget of either kind
+(the scheduled full refresh, the CI and auto-merge polls, webhook refreshes, and
+webhook maintenance) stops once a call would leave the REST or the GraphQL
+budget at or under the reserve: 10% of the budget, never less than 50 points,
+and never more than half of it. A 5000 point budget keeps 500. A low budget of
+either kind
 holds all of that background work, even work that only uses the other. For a
 full refresh, "a call" means what the last one spent, counted from its own
 requests, not from how far the budget fell since the one before (your own
@@ -184,9 +186,14 @@ marked stale, in the meantime.
 Your own actions are never held back by it (Merge, Update branch, the bot
 rebases, Close, Enable auto-merge, queued actions, Refresh now, and the refresh
 that opening the board after an idle spell starts). They stop only when the
-budget is spent, as described earlier. A refresh that a webhook delivery asks for
-is cheap and is how the board stays current, so it also runs inside the reserve
-and waits only when the budget is spent.
+budget is spent, as described earlier.
+
+A refresh that a webhook delivery asks for waits too. One is small, but a busy
+repository sends enough of them to spend a whole budget. It isn't dropped: it
+runs 30 seconds after the budget resets, once per repository however many
+deliveries arrived while it waited. The budget it checks is the one in GitHub's
+latest response, not the one the last full refresh saw. With the GitHub App on
+several accounts, each repository is judged by its own installation's budget.
 
 Forgejo reports no budget, so it has no reserve and is never held back. The
 reserve is fixed, not a setting. If background work is using too much, raise

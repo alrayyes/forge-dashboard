@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"context"
+	"log/slog"
 	"sync"
 	"time"
 )
@@ -45,7 +46,8 @@ func realAfterFunc(d time.Duration, f func()) func() bool {
 }
 
 // debouncer turns a burst of calls for one key into a single call of the
-// latest fn, quiet after the newest and at most maxHold after the first. It
+// latest fn, quiet after the newest and at most maxHold after the first,
+// unless the call is put off with deferUntil. It
 // holds an entry only while a call is pending, so memory is bounded by the
 // number of repos with events in flight. It also remembers when each key last
 // ran, until the interval is over and a later fire prunes it, so an idle
@@ -79,6 +81,9 @@ type debounceEntry struct {
 	gen     uint64
 	stop    func() bool
 	release func() bool
+	// deferred marks a call put off by deferUntil: the next event starts a
+	// burst of its own, not one that has already run out of maxHold.
+	deferred bool
 }
 
 // newDebouncer returns a debouncer that closes itself when owner (which may be
@@ -126,6 +131,9 @@ func (d *debouncer) Submit(ctx context.Context, key string, fn func()) bool {
 	if ok {
 		e.stop()
 		e.release()
+		if e.deferred {
+			e.first, e.deferred = now, false
+		}
 	} else {
 		e = &debounceEntry{first: now}
 		d.entries[key] = e
@@ -140,11 +148,32 @@ func (d *debouncer) Submit(ctx context.Context, key string, fn func()) bool {
 	if last, fired := d.lastFired[key]; fired {
 		wait = max(wait, last.Add(d.minInterval).Sub(now))
 	}
+	d.arm(ctx, key, e, wait)
+
+	return true
+}
+
+// deferUntil runs fn at at, for a call that came due and could not be made
+// yet. It does nothing when a newer event for key is already pending, since
+// that event's call comes due first.
+func (d *debouncer) deferUntil(ctx context.Context, key string, at time.Time, fn func()) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if _, pending := d.entries[key]; pending || d.closed {
+		return
+	}
+	now := d.now()
+	e := &debounceEntry{first: now, gen: 1, fn: fn, deferred: true}
+	d.entries[key] = e
+	d.arm(ctx, key, e, max(at.Sub(now), 0))
+}
+
+// arm starts e's timer. The caller holds mu.
+func (d *debouncer) arm(ctx context.Context, key string, e *debounceEntry, wait time.Duration) {
 	gen := e.gen
 	e.stop = d.after(wait, func() { d.fire(key, gen) })
 	e.release = context.AfterFunc(ctx, func() { d.drop(key, gen) })
-
-	return true
 }
 
 func (d *debouncer) fire(key string, gen uint64) {
@@ -217,16 +246,28 @@ func WithDebounceOwner(ctx context.Context) AggregatorOption {
 // It reports false at once, arming nothing, when no Source can do a scoped
 // fetch for forge, so the caller falls back to a full refresh without waiting.
 // A true answer means the refresh was accepted and will run after the window,
-// not that it has run. Each Aggregator has its own debouncer, so one user's
+// not that it has run. One that comes due with a budget at its reserve waits
+// for the reset, and the events that arrive meanwhile still cost one refresh. Each Aggregator has its own debouncer, so one user's
 // event never absorbs another's. A refresh already running for the repo is not
 // interrupted: an event that arrives during it starts a new window, and the
 // refresh that follows merges into the coalescer's one trailing run.
 func (a *Aggregator) RefreshRepoDebounced(ctx context.Context, forge Forge, owner, name, fullName string, attrs ...any) bool {
-	if a.repoRefresherFor(forge) == nil {
+	refresher := a.repoRefresherFor(forge)
+	if refresher == nil {
 		return false
 	}
 
-	return a.debounce.Submit(ctx, string(forge)+"/"+fullName, func() {
-		a.RefreshRepo(ctx, forge, owner, name, fullName, attrs...)
-	})
+	key := string(forge) + "/" + fullName
+	var refresh func()
+	refresh = func() {
+		if reset, held := a.scopedHold(ctx, forge, owner, name); held {
+			slog.Debug("webhook refresh waits for the budget to reset", "forge", forge, "repo", fullName, "resets_at", reset)
+			a.debounce.deferUntil(ctx, key, reset.Add(backoffBuffer), refresh)
+
+			return
+		}
+		a.fetchRepo(ctx, refresher, forge, owner, name, fullName, attrs...)
+	}
+
+	return a.debounce.Submit(ctx, key, refresh)
 }

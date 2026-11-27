@@ -576,15 +576,29 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 	if refresher == nil {
 		return false
 	}
-	if kind := apistats.KindFrom(ctx); kind == apistats.KindUnknown || kind == apistats.KindScopedWebhook {
-		if spent := a.budgetHold(a.Get(), forge, apistats.KindScopedWebhook); spent {
-			// A budget with nothing left can't answer. Reporting the refresh
-			// as run keeps the caller from falling back to a full one, which
-			// costs more; the next full refresh picks the change up.
-			return true
-		}
+	if _, held := a.scopedHold(ctx, forge, owner, name); held {
+		// What is left is for the person clicking. Reporting the refresh as
+		// run keeps the caller from falling back to a full one, which costs
+		// more; the next full refresh picks the change up.
+		return true
+	}
+	a.fetchRepo(ctx, refresher, forge, owner, name, fullName, attrs...)
+
+	return true
+}
+
+// scopedHold is holdFor for a one-repo refresh that a webhook asks for. One a
+// poll asks for has been checked by the poll already.
+func (a *Aggregator) scopedHold(ctx context.Context, forge Forge, owner, name string) (time.Time, bool) {
+	if kind := apistats.KindFrom(ctx); kind != apistats.KindUnknown && kind != apistats.KindScopedWebhook {
+		return time.Time{}, false
 	}
 
+	return a.holdFor(a.Get(), forge, owner, name, apistats.KindScopedWebhook)
+}
+
+// fetchRepo reads one repo and merges it, whatever the budgets say.
+func (a *Aggregator) fetchRepo(ctx context.Context, refresher RepoRefresher, forge Forge, owner, name, fullName string, attrs ...any) {
 	a.repoRefresh.do(string(forge)+"/"+fullName, func() {
 		ctx := scopedRefreshContext(ctx, fullName)
 		seq := a.fetchSeq.Add(1)
@@ -597,8 +611,6 @@ func (a *Aggregator) RefreshRepo(ctx context.Context, forge Forge, owner, name, 
 		branch, branchOK := a.fetchMainBranch(ctx, refresher, forge, owner, name, fullName)
 		a.mergeRepo(ctx, forge, fullName, seq, prs, issues, branch, branchOK)
 	})
-
-	return true
 }
 
 // mergedSince reports whether a scoped refresh of forge/fullName has been merged
@@ -955,10 +967,8 @@ func (a *Aggregator) fetchSources(ctx context.Context, seq uint64) []sourceResul
 			continue
 		}
 		if background(ctx) && a.userRefreshes.Load() == 0 {
-			if held := a.budgetHold(earlier, src.Forge(), apistats.KindFull); held {
-				// At the reserve: what is left is for the person clicking.
-				health, _ := healthOf(earlier, src.Forge())
-				results[i].Result = carryOver(Result{Health: notSlow(health)}, earlier, src.Forge())
+			if left, held := a.leftAtReserve(earlier, src.Forge()); held {
+				results[i].Result = left
 
 				continue
 			}
