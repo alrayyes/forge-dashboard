@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.0](https://github.com/alrayyes/forge-dashboard/compare/v9.139.6...v9.140.0) (2026-11-27)
+
+
+### Features
+
+* **web:** hide Repositories filter choices that change nothing ([#5074](https://github.com/alrayyes/forge-dashboard/issues/5074)) ([711736e](https://github.com/alrayyes/forge-dashboard/commit/711736e501b0ea0a68c1615356482303fbc69df2)), closes [#5065](https://github.com/alrayyes/forge-dashboard/issues/5065)
+
 ## [9.139.6](https://github.com/alrayyes/forge-dashboard/compare/v9.139.5...v9.139.6) (2026-11-27)
 
 
