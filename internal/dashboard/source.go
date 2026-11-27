@@ -469,7 +469,10 @@ type PendingCheckRefresher interface {
 // BudgetReporter is implemented by a Source whose forge states its budgets on
 // every response, so it knows them between full refreshes. owner and name ask
 // for the budgets that reading that repo spends; both empty ask for the
-// tightest the Source has. A budget it has not heard of is nil.
+// tightest the Source has. A budget it has not heard of is nil, and the
+// snapshot's figure stands in. A zero RateLimit also says nothing is known, but
+// lets nothing stand in: for a repo whose budget is not the one the snapshot
+// shows.
 type BudgetReporter interface {
 	LatestBudgets(owner, name string) (graphQL, rest *RateLimit)
 }

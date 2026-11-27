@@ -1,6 +1,7 @@
 package github
 
 import (
+	"cmp"
 	"context"
 	"slices"
 	"strings"
@@ -79,24 +80,35 @@ func (m *Multi) ownerIndex(owner, name string) int {
 
 // LatestBudgets implements dashboard.BudgetReporter. Each installation has
 // budgets of its own: a repo is judged by the one that reads it, and the whole
-// account by the tightest. A budget whose window has ended says nothing about
-// the account, so it is passed over.
+// account by the tightest.
 func (m *Multi) LatestBudgets(owner, name string) (graphQL, rest *dashboard.RateLimit) {
-	members := m.members
-	if owner != "" && len(members) > 0 {
-		members = []Member{m.Owner(owner, name)}
+	if owner != "" && len(m.members) > 0 {
+		return m.memberBudgets(owner, name)
 	}
 	now := time.Now()
-	for _, member := range members {
+	for _, member := range m.members {
 		r, ok := member.Source.(dashboard.BudgetReporter)
 		if !ok {
 			continue
 		}
 		g, other := r.LatestBudgets(owner, name)
+		// A budget whose window has ended says nothing about the account.
 		graphQL, rest = tighter(graphQL, openWindow(g, now)), tighter(rest, openWindow(other, now))
 	}
 
 	return graphQL, rest
+}
+
+// memberBudgets is the budgets of the installation that reads owner/name. One
+// it knows nothing about is empty, not nil: nil would let the figures for the
+// whole account, another installation's included, stand in for it. An ended
+// window is passed on for the same reason.
+func (m *Multi) memberBudgets(owner, name string) (graphQL, rest *dashboard.RateLimit) {
+	if r, ok := m.Owner(owner, name).Source.(dashboard.BudgetReporter); ok {
+		graphQL, rest = r.LatestBudgets(owner, name)
+	}
+
+	return cmp.Or(graphQL, &dashboard.RateLimit{}), cmp.Or(rest, &dashboard.RateLimit{})
 }
 
 // openWindow is rl while its window is still open, else nil.

@@ -23,6 +23,8 @@ type budgetServer struct {
 	queries   atomic.Int64
 	// ended puts the reported window in the past.
 	ended atomic.Bool
+	// silent leaves the rate limit headers off.
+	silent atomic.Bool
 }
 
 const budgetLimit = 5000
@@ -42,15 +44,17 @@ func newBudgetServer(t *testing.T, owner string) *budgetServer {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/graphql", func(w http.ResponseWriter, _ *http.Request) {
 		s.queries.Add(1)
-		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(budgetLimit))
-		w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(s.remaining.Load(), 10))
-		reset := resets
-		if s.ended.Load() {
-			reset = resets.Add(-2 * time.Hour)
+		if !s.silent.Load() {
+			reset := resets
+			if s.ended.Load() {
+				reset = resets.Add(-2 * time.Hour)
+			}
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(budgetLimit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.FormatInt(s.remaining.Load(), 10))
+			w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
 		}
-		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(reset.Unix(), 10))
 		writeJSON(t, w, map[string]any{"data": map[string]any{
-			"rateLimit": map[string]any{"limit": budgetLimit, "cost": 1, "remaining": budgetLimit, "resetAt": resets.Format(time.RFC3339)},
+			"rateLimit": map[string]any{"limit": budgetLimit, "cost": 1, "remaining": s.remaining.Load(), "resetAt": resets.Format(time.RFC3339)},
 			"viewer": map[string]any{"repositories": map[string]any{
 				"pageInfo": map[string]any{"hasNextPage": false, "endCursor": ""},
 				"nodes":    []map[string]any{repo},
@@ -130,4 +134,34 @@ func TestMulti_LatestBudgets_PassOverAWindowThatHasEnded(t *testing.T) {
 
 	require.NotNil(t, all)
 	assert.Equal(t, 4000, all.Remaining)
+}
+
+// One installation at its reserve says nothing about another, even when the
+// other has no current figure of its own.
+func TestMultiScopedRefresh_IsNotHeldOnAnotherInstallationsBudget(t *testing.T) {
+	t.Parallel()
+
+	for name, quieten := range map[string]func(*budgetServer){
+		"its own window has ended":  func(s *budgetServer) { s.ended.Store(true) },
+		"it has reported no budget": func(s *budgetServer) { s.silent.Store(true) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			low, healthy := newBudgetServer(t, "other"), newBudgetServer(t, "alrayyes")
+			low.remaining.Store(10)
+			healthy.remaining.Store(4900)
+			quieten(healthy)
+			agg := dashboard.NewAggregator([]dashboard.Source{github.NewMulti([]github.Member{
+				{ID: 1, Account: "other", Source: github.NewClient("t1", "", low.URL)},
+				{ID: 2, Account: "alrayyes", Source: github.NewClient("t2", "", healthy.URL)},
+			})})
+			agg.Refresh(t.Context())
+			before := healthy.queries.Load()
+
+			require.True(t, agg.RefreshRepo(t.Context(), dashboard.ForgeGitHub, "alrayyes", "a", "alrayyes/a"))
+
+			assert.Greater(t, healthy.queries.Load(), before, "its repo is still read")
+		})
+	}
 }
