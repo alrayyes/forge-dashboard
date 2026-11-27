@@ -192,7 +192,8 @@ export type RunLinkKind =
   | 'failed-run'
   | 'running-run'
   | 'waiting-run'
-  | 'latest-run';
+  | 'latest-run'
+  | 'failed-check';
 
 export type RunLink = { url: string; kind: RunLinkKind };
 
@@ -232,12 +233,26 @@ export function runPageUrl(checks: Check[]): RunLink | undefined {
   return { url: newestFirst[0].url, kind: 'latest-run' };
 }
 
+const failedOf = (checks: Check[]) =>
+  checks.filter((c) => ['failure', 'timed_out'].includes(checkState(c)));
+
+// The page of a failed check that names no run, when no run has a failed check:
+// a commit status or another service's check, which no run page shows (#5101).
+function failedCheckWithoutRun(checks: Check[]): RunLink | undefined {
+  const failed = failedOf(checks);
+  if (failed.some((c) => RUN_PAGE.test(c.url))) return undefined;
+  const check = failed.find((c) => c.url);
+
+  return check && { url: check.url, kind: 'failed-check' };
+}
+
 // The dialog's footer link. A board's own run address (a branch's) stands
 // while the checks name one run or none. Once they name several, that address
 // may be a finished run while another is going, so the checks choose, as they
 // do for a pull request. The exception is a failed branch's address
 // (failureUrl) when no run the checks name has a failed check: the failure may
-// be one the list leaves out, and this link the only way to it.
+// be one the list leaves out, and this link the only way to it. Otherwise a
+// failed check that names no run is linked itself.
 export function footerRunLink(
   boardUrl: string | undefined,
   checks: Check[],
@@ -245,7 +260,15 @@ export function footerRunLink(
 ): RunLink | undefined {
   const named = runPageUrl(checks);
   if (failureUrl && named?.kind !== 'failed-run') {
-    return { url: failureUrl, kind: 'run' };
+    // The address may be a listed status's own page, which is no run (#5101).
+    const checkPage =
+      !RUN_PAGE.test(failureUrl) &&
+      failedOf(checks).some((c) => c.url === failureUrl);
+    return { url: failureUrl, kind: checkPage ? 'failed-check' : 'run' };
+  }
+  if (named?.kind !== 'failed-run') {
+    const failed = failedCheckWithoutRun(checks);
+    if (failed) return failed;
   }
   if (named && named.kind !== 'run') return named;
 
@@ -259,10 +282,19 @@ const RUN_LINK_NOUNS: Record<RunLinkKind, string> = {
   'running-run': 'latest running run',
   'waiting-run': 'latest waiting run',
   'latest-run': 'latest run',
+  'failed-check': 'failed check',
 };
 
 export function runLinkNoun(kind: RunLinkKind): string {
   return RUN_LINK_NOUNS[kind];
+}
+
+// The footer button's words. A failed check's page may be another service's, so
+// it is not said to be on the forge.
+export function runLinkText(kind: RunLinkKind, forge: string): string {
+  if (kind === 'failed-check') return 'Open failed check page';
+
+  return `Open ${runLinkNoun(kind)} on ${forge}`;
 }
 
 // How many failed checks a rerun restarts and how many it leaves out. The

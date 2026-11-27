@@ -289,8 +289,11 @@ as they change. A branch's panel on Main branches follows the same rule. While
 its checks name one run or none, its button is "Open run on GitHub" and opens
 the address the server gives the branch. A failed branch also keeps that button
 and address while its checks show nothing failed in any run, because the panel
-may not list the failure: an external status is one example. A held workflow
-reads "Approve on" followed by the forge's name.
+may not list the failure. Otherwise, when a listed check failed that belongs to
+no run (a commit status, another service's check) and no run has a failed
+check, the button is "Open failed check page" and opens that check's page. It
+reads the same where a failed branch's address is a listed failed status's own
+page. A held workflow reads "Approve on" followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
@@ -1247,9 +1250,13 @@ a panel listing every individual job/check against its head commit —
 status, name, and a link to that job's own page on the forge — instead of
 only the pill's own summary. (Filtering by CI state is the quick pills' job.)
 Fetched fresh every time the panel opens, not cached, or part of the regular
-dashboard refresh. Falls back to the legacy combined commit-status
-API's own per-check entries when a repo (or an older Forgejo instance)
-reports no Actions/Workflow runs at all for that commit.
+dashboard refresh. Commit statuses are listed beside the jobs, since the
+row counts them too. On GitHub a status with the name of a check run and the
+same outcome (passed, failed or still going) is the same job reported twice and
+is listed once; where the two disagree, both are listed. A commit with no check
+run or Actions job lists its statuses alone. If GitHub's statuses can't be read
+for a commit with check runs, the panel still lists those runs, with any
+statuses it had read before the failure.
 
 While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,
@@ -1335,22 +1342,25 @@ ruleset requires hasn't finished. GitHub's combined status only counts checks
 that exist, and can read as passed for a moment after a push while the rest of
 the pipeline is still queued, so a pull request with one of five required
 checks reported would read as passed. A required check that is queued or
-running counts as not finished. The server looks the required checks up only
-when the combined status says success and GitHub still blocks the pull request.
+running counts as not finished. The same goes for the moment before GitHub has
+created any check at all, which is common on a pull request that was just opened
+or pushed: it reads pending and Merge says it waits for the checks. The server
+looks the required checks up only when GitHub blocks the pull request and its
+combined status says success or it has no check.
 
-Reading which checks are required needs admin on the repository for classic
-branch protection. Without it, the server can't tell a required check that
-hasn't started from one that passed, so it falls back to what GitHub reports on
-the pull request itself. A pull request whose combined status is success and
-whose merge state is `BLOCKED`, that isn't a draft and has no review
-outstanding (`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), reads pending: a
-required check is the only thing left that can block it. This needs no extra
-request. Where the required checks can be read, they decide and the fallback
-isn't used. The limit: GitHub also reports `BLOCKED` for a merge queue, code
-owners whose review shows no decision, and unresolved conversations. Such a
-pull request reads pending, not passed, until GitHub stops blocking it. The
-next refresh asks again, so the pill follows GitHub as soon as the merge state
-changes.
+For classic branch protection the server reads the protection settings, which
+needs admin on the repository. Without admin, it reads the branch instead, which
+names the same required checks to anyone who can read the repository. Only when
+neither can be read does the server fall back to what GitHub reports on the pull
+request itself. A pull request whose combined status is success and whose merge
+state is `BLOCKED`, that isn't a draft and has no review outstanding
+(`REVIEW_REQUIRED` or `CHANGES_REQUESTED`), then reads pending: a required check
+is the only thing left that can block it. The limit: GitHub also reports
+`BLOCKED` for a merge queue, code owners whose review shows no decision, and
+unresolved conversations. Such a pull request reads pending, not passed, until
+GitHub stops blocking it. The next refresh asks again, so the pill follows
+GitHub as soon as the merge state changes. A pull request with no check at all
+is never guessed at, since a repository may have no CI.
 
 Just after a push, a response from GitHub can briefly show the new head beside
 the finished checks of the previous commit. The server reads the id of the
@@ -1596,9 +1606,12 @@ the panel groups them: a `Required` group first, with a failing required
 check flagged `Blocking`, then `Advisory`. GitHub's classic required
 status checks and its rulesets are both read, and Forgejo's
 `status_check_contexts` patterns. Reading branch protection needs more
-permission than listing checks (admin on GitHub's classic rules and on
-Forgejo), so with a token that can't, or for a check the dashboard can't
-match to a protection entry, the check lands under `Not known if required`,
+permission than listing checks. On GitHub, a token without admin gets the
+classic required checks from the branch itself, which read access is enough
+for. Forgejo has no such fallback and needs admin. When the branch can't be
+read either, on Forgejo with a token that isn't an admin's, or for a check the
+dashboard can't match to a protection entry, the check lands under
+`Not known if required`,
 with a one-line hint that the forge didn't say whether it blocks the merge,
 rather than being guessed advisory (the pill has its own fallback, described
 earlier). A

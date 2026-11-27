@@ -69,5 +69,6 @@ func NewBearerClient(bearer func() (string, error), login, baseURL string, recor
 
 		renderedBodies: NewRenderedBodyCache(),
 		advisories:     NewAdvisoryCache(),
+		statusPresence: NewStatusPresenceCache(),
 	}
 }

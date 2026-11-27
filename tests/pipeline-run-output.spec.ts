@@ -1669,12 +1669,22 @@ test.describe('a long check output in phone landscape', () => {
     ).toBe(true);
     await expect(output).toHaveCSS('overscroll-behavior-y', 'auto');
 
+    // The footer sits below the body, so a log that starts near the fold is
+    // brought into view by scrolling the body, and then ends above the footer.
+    await output.evaluate((el) => el.scrollIntoView({ block: 'nearest' }));
+    const footerBox = await dialog
+      .locator('.pipeline-dialog-footer')
+      .boundingBox();
+    const box = await output.boundingBox();
+    expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThanOrEqual(
+      (footerBox?.y ?? 0) + 1,
+    );
+
     // Scrolled to its end, the output passes the wheel on to the body.
     await output.evaluate((el) => {
       el.scrollTop = el.scrollHeight;
     });
     const before = await body.evaluate((el) => el.scrollTop);
-    const box = await output.boundingBox();
     await page.mouse.move(
       (box?.x ?? 0) + (box?.width ?? 0) / 2,
       (box?.y ?? 0) + (box?.height ?? 0) / 2,

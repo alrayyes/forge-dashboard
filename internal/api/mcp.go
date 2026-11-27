@@ -291,7 +291,8 @@ func addPullRequestTools(server *mcp.Server, deps Deps) {
 			"Read-only: this app never writes to either forge through this tool. " +
 			"Fetched on demand from the forge, never from the snapshot, so each call " +
 			"spends forge budget: on GitHub 4 REST requests (the pull request, its " +
-			"check runs, branch protection, rulesets), 1 more when the commit has no " +
+			"check runs, branch protection, rulesets), 1 more to read the branch when " +
+			"the credential has no admin rights, 1 more when the commit has no " +
 			"check runs, and 2 more per failed job for up to 5 failed jobs; on Forgejo " +
 			"3 requests (pull request, Actions runs, branch protections) plus 1 per " +
 			"run, up to 53, and no log reads, so a failed Forgejo job has no " +
