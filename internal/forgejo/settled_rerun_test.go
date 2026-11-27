@@ -25,6 +25,8 @@ type rerunForge struct {
 	requests []string
 	// statusDown makes the combined status answer a 500.
 	statusDown bool
+	// pageSize splits the statuses into pages of this many, or 0 for one page.
+	pageSize int
 }
 
 const rerunStatusPath = "/api/v1/repos/alrayyes/a/commits/cafef00d/status"
@@ -97,7 +99,7 @@ func (f *rerunForge) aggregator(t *testing.T, opts ...dashboard.AggregatorOption
 			"head": map[string]string{"sha": "cafef00d"}, "base": map[string]string{"sha": "abc"},
 		}})
 	})
-	mux.HandleFunc(rerunStatusPath, func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(rerunStatusPath, func(w http.ResponseWriter, r *http.Request) {
 		body, total, down := f.combined()
 		if down {
 			w.WriteHeader(http.StatusInternalServerError)
@@ -105,6 +107,12 @@ func (f *rerunForge) aggregator(t *testing.T, opts ...dashboard.AggregatorOption
 			return
 		}
 		w.Header().Set("X-Total-Count", strconv.Itoa(total))
+		if f.pageSize > 0 {
+			page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+			all, _ := body["statuses"].([]map[string]any)
+			from := min((max(page, 1)-1)*f.pageSize, len(all))
+			body["statuses"] = all[from:min(from+f.pageSize, len(all))]
+		}
 		writeJSON(t, w, body)
 	})
 	mux.HandleFunc("/api/v1/repos/alrayyes/a/issues", func(w http.ResponseWriter, r *http.Request) {
@@ -203,4 +211,20 @@ func TestPollCI_FailedStatusReadThatFails_BacksOffAndKeepsTheRow(t *testing.T) {
 
 	assert.Empty(t, f.take(), "the third minute is inside the second wait")
 	assert.Equal(t, dashboard.CIFailure, agg.Get().PullRequests[0].CI)
+}
+
+// A rerun's status can sit past the first page, so the probe reads them all.
+func TestPollCI_RerunStatusOnALaterPage_IsNoticed(t *testing.T) {
+	t.Parallel()
+	f := &rerunForge{pageSize: 1}
+	f.post("ci / lint", "success")
+	f.post("ci / test", "failure")
+	agg := f.aggregator(t)
+	agg.Refresh(t.Context())
+	require.Equal(t, dashboard.CIFailure, agg.Get().PullRequests[0].CI)
+	f.post("ci / test", "pending")
+
+	agg.PollCI(t.Context())
+
+	assert.Equal(t, dashboard.CIPending, agg.Get().PullRequests[0].CI)
 }
