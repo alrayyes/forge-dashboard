@@ -99,8 +99,12 @@
 
   const loaded = async (canvasElement: HTMLElement) => {
     await opened(canvasElement);
-    await waitFor(() =>
-      expect(document.querySelector(".details-section")).not.toBeNull(),
+    // The first render also fetches the markdown chunk, which on a busy
+    // machine takes longer than waitFor's 1000 ms default. Kept under the
+    // screenshot script's 15 s, so a section that never comes fails here.
+    await waitFor(
+      () => expect(document.querySelector(".details-section")).not.toBeNull(),
+      { timeout: 10_000 },
     );
   };
 </script>
@@ -187,6 +191,17 @@
         },
       },
     ])}
+  play={async ({ canvasElement }) => loaded(canvasElement)}
+>
+  {@render opener(PULL_REQUEST)}
+</Story>
+
+<!-- Details that arrive after waitFor's 1000 ms default, as a busy machine
+     delivers them, still count as loaded. -->
+<Story
+  asChild
+  name="Slow to load"
+  beforeEach={() => mockFetch([{ match: ROUTE, body: DETAILS, delayMs: 1500 }])}
   play={async ({ canvasElement }) => loaded(canvasElement)}
 >
   {@render opener(PULL_REQUEST)}
