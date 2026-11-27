@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.139.2](https://github.com/alrayyes/forge-dashboard/compare/v9.139.1...v9.139.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** keep a slow forge's read going after a person's refresh ([#5067](https://github.com/alrayyes/forge-dashboard/issues/5067)) ([a5b1314](https://github.com/alrayyes/forge-dashboard/commit/a5b13149f8ed27036caa5dd24d192d3b24ea9aab))
+
 ## [9.139.1](https://github.com/alrayyes/forge-dashboard/compare/v9.139.0...v9.139.1) (2026-11-27)
 
 
