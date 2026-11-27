@@ -1263,11 +1263,18 @@ alone; the count is in `checks.cancelled`.
 
 On GitHub, a cancelled run that a later run replaced doesn't count at all. Two
 events a few seconds apart can start one workflow twice, and a concurrency group
-cancels the first run. When a later run of the same workflow has a check of the
-same name that wasn't cancelled, the row and the pipeline panel leave the
-cancelled one out, so the row reads whatever the later one does. A check of the
-same name from another workflow replaces nothing. The server reads this among
-the head's first 100 checks.
+cancels the first run. When a later run of the same workflow, started by the same
+event, has a check of the same name that passed, failed or is still going, the
+row and the pipeline panel leave the cancelled one out, and the row reads
+whatever the later one does. A later check that was skipped or ended neutral
+tested nothing, so the row stays Cancelled. A check of the same name from another
+workflow file, or from a run another event started, replaces nothing either.
+
+Later means a higher run number, or a later attempt of the same run, so a rerun
+of an older run that ends cancelled is left out too. The server looks at the
+head's first 100 checks. The panel can still list a cancelled job the row leaves
+out when the token can't read Actions, or while the later run is held as waiting
+or pending.
 
 A Cancelled row is not in the Failing
 pill or the Failed number of the menu pill, and it is not a pass either, so

@@ -303,8 +303,13 @@ runs, the dashboard asks for the checks of that commit in one extra GraphQL
 query, which covers up to 100 commits. It keeps the answer until the check
 counts of the commit change. Heads without that mix cost nothing more, and
 neither does the pipeline panel. A lookup that fails leaves the row as GitHub
-gave it and is tried again at the next read. Without a token, the same case
-reads the head's workflow runs instead.
+gave it and is tried again at the next read.
+
+Without a token there's no GraphQL, and the same case costs several REST requests
+for each such pull request at every refresh, none of them cached by the
+dashboard: a list of the head's finished workflow runs, and while jobs are still
+going, the lists of its queued and running runs plus one job list for each of
+those runs.
 
 ## Conditional requests
 

@@ -3,18 +3,19 @@ package dashboard
 import "slices"
 
 // WithoutReplacedCancelled is checks without the cancelled ones a later run
-// replaced, in order: a check of the same workflow and name, with a higher run
-// number or a later attempt, that was not cancelled itself. It is for the head
-// of a pull request, and narrower than SupersededRuns: only a cancelled check is
-// dropped, and only when its own job ran again, so another workflow's job of the
-// same name never replaces it. A check with no workflow name or run number is
-// kept.
+// replaced, in order. It is for the head of a pull request, and narrower than
+// SupersededRuns: only a cancelled check is dropped, and only when its own job
+// ran again. The later check has the same name, workflow and starting event, a
+// higher run number or a later attempt, and passed, failed or is still going.
+// A skipped or neutral one tested nothing, so it replaces nothing. A check
+// whose workflow or run number is unknown is kept.
 func WithoutReplacedCancelled(checks []Check) []Check {
 	out := make([]Check, 0, len(checks))
 	for _, c := range checks {
-		replaced := c.State == CheckCancelled && c.RunName != "" && c.RunNumber != 0 &&
+		replaced := c.State == CheckCancelled && c.WorkflowID != 0 && c.RunNumber != 0 &&
 			slices.ContainsFunc(checks, func(later Check) bool {
-				return later.State != CheckCancelled && later.RunName == c.RunName && later.Name == c.Name &&
+				return canReplaceCancelled(later) && later.WorkflowID == c.WorkflowID &&
+					later.Event == c.Event && later.Name == c.Name &&
 					olderThan(c.RunNumber, c.RunAttempt, later.RunNumber, later.RunAttempt)
 			})
 		if !replaced {
@@ -23,6 +24,20 @@ func WithoutReplacedCancelled(checks []Check) []Check {
 	}
 
 	return out
+}
+
+// canReplaceCancelled reports whether a check says something about the code, or
+// is on its way to: it passed, failed, or has not finished.
+func canReplaceCancelled(c Check) bool {
+	switch c.State {
+	case CheckSuccess:
+		// A neutral conclusion reads as a pass but tested nothing.
+		return c.ReportedConclusion != "neutral"
+	case CheckFailure, CheckTimedOut, CheckRunning, CheckQueued:
+		return true
+	default:
+		return false
+	}
 }
 
 // SupersededRuns marks, for each check, whether a newer run of its workflow

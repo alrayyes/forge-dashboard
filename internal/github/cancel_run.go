@@ -54,6 +54,9 @@ type runRef struct {
 	name    string
 	number  int64
 	attempt int64
+	// workflow and event are the run's workflow id and what started it.
+	workflow int64
+	event    string
 	// facts is what the run itself reported; nil for a run only the job's
 	// address names.
 	facts *dashboard.RunFacts
@@ -62,6 +65,7 @@ type runRef struct {
 func refOf(run *ghsdk.WorkflowRun) runRef {
 	return runRef{
 		id: run.GetID(), name: run.GetName(), number: int64(run.GetRunNumber()), attempt: int64(run.GetRunAttempt()),
+		workflow: run.GetWorkflowID(), event: run.GetEvent(),
 		facts: runFacts(run),
 	}
 }
@@ -187,6 +191,7 @@ func (c *Client) attachGoingRuns(ctx context.Context, owner, name, sha string, c
 
 func setRun(ch *dashboard.Check, ref runRef) {
 	ch.RunID, ch.RunName, ch.RunNumber, ch.RunAttempt = ref.id, ref.name, ref.number, ref.attempt
+	ch.WorkflowID, ch.Event = ref.workflow, ref.event
 	ch.Run = ref.facts
 }
 

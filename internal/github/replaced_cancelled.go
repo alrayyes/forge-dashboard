@@ -37,7 +37,8 @@ const headChecksQuery = `query($ids: [ID!]!) {
                   databaseId
                   runAttempt
                   runNumber
-                  workflow { name }
+                  event
+                  workflow { databaseId name }
                 }
               }
             }
@@ -208,7 +209,8 @@ func (r *statusCheckRollup) dropCancelled(n int) {
 	if !failing || r.runsInState("CANCELLED") > 0 || r.hasFailedContext(failureKinds{heldRun: true}) {
 		return
 	}
-	if left := r.rawCheckCounts(); left.Running+left.Waiting > 0 {
+	// A check nobody can grade is not a pass.
+	if left := r.rawCheckCounts(); left.Running+left.Waiting+left.Unknown > 0 {
 		r.State = "PENDING"
 	} else {
 		r.State = "SUCCESS"
@@ -227,7 +229,10 @@ func (c *Client) withoutReplacedRuns(ctx context.Context, owner, name, sha strin
 
 	checks := make([]dashboard.Check, len(runs))
 	for i, r := range runs {
-		checks[i] = dashboard.Check{Name: r.GetName(), State: checkStateFromRun(r), URL: r.GetHTMLURL(), JobID: r.GetID()}
+		checks[i] = dashboard.Check{
+			Name: r.GetName(), State: checkStateFromRun(r), URL: r.GetHTMLURL(), JobID: r.GetID(),
+			ReportedConclusion: reportedConclusion(r),
+		}
 	}
 	c.attachRuns(ctx, owner, name, sha, checks)
 
