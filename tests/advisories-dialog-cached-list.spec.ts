@@ -267,6 +267,9 @@ for (const viewport of VIEWPORTS) {
     test('a failed refresh keeps the list and says it is older', async ({
       page,
     }) => {
+      // READ_AT is fixed when the worker loads this file, so the age the line
+      // words would grow with every test run before this one (#5062).
+      await page.clock.setFixedTime(Date.parse(READ_AT) + 4 * 60_000);
       await openDialog(page, {
         warm: true,
         answer: json(list()),
