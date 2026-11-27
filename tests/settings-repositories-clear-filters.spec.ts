@@ -19,7 +19,17 @@ const repo = (name: string, autoUpdateBranch = false) => ({
   rebaseBots: false,
 });
 
-async function open(page: Page, width: number, scheme: 'light' | 'dark') {
+// One repository differs, so the Auto-update pills are offered.
+const mixed = [repo('a', true), repo('b'), repo('c')];
+// One forge and equal toggles: no pill group, only the search box.
+const alike = [repo('a'), repo('b'), repo('c')];
+
+async function open(
+  page: Page,
+  width: number,
+  scheme: 'light' | 'dark',
+  repos = mixed,
+) {
   await page.setViewportSize({ width, height: 800 });
   await page.emulateMedia({ colorScheme: scheme });
   await page.route('**/api/v1/dashboard/stream*', (route: Route) =>
@@ -34,7 +44,7 @@ async function open(page: Page, width: number, scheme: 'light' | 'dark') {
         forges: [],
         pullRequests: [],
         issues: [],
-        repos: [repo('a', true), repo('b'), repo('c')],
+        repos,
       }),
     }),
   );
@@ -125,6 +135,16 @@ for (const scheme of ['light', 'dark'] as const) {
         const apart =
           button.x >= box.x + box.width || button.y >= box.y + box.height;
         expect(apart).toBe(true);
+        // At the end of the bar, not wherever the wrap happens to leave it.
+        const barEnd = await page.locator('.filter-bar').evaluate((el) => {
+          const s = getComputedStyle(el);
+          return (
+            el.getBoundingClientRect().right -
+            Number.parseFloat(s.borderRightWidth) -
+            Number.parseFloat(s.paddingRight)
+          );
+        });
+        expect(Math.abs(button.x + button.width - barEnd)).toBeLessThan(1);
         if (width === 390) expect(button.height).toBeGreaterThanOrEqual(44);
         expect(
           await page.evaluate(
@@ -163,4 +183,20 @@ for (const scheme of ['light', 'dark'] as const) {
       });
     });
   }
+}
+
+for (const width of [390, 1280]) {
+  // With no pill to take it, focus must still pass the search box by.
+  test(`${width}px, search only: a pointer clear skips the search box`, async ({
+    page,
+  }) => {
+    await open(page, width, 'light', alike);
+    const search = page.getByRole('searchbox');
+    await search.fill('a');
+    await expect(page.locator('.filter-pill')).toHaveCount(0);
+    await clearButton(page).click();
+    await expect(clearButton(page)).toHaveCount(0);
+    await expect.poll(() => focusedOnBody(page)).toBe(false);
+    await expect(search).not.toBeFocused();
+  });
 }
