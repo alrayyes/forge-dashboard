@@ -332,6 +332,7 @@ const singleUserSpecs = [
   '**/label-multi-select.spec.ts',
   '**/label-filter-chips.spec.ts',
   '**/legal.spec.ts',
+  '**/nav-pills-live.spec.ts',
   '**/pull-request-rows-live.spec.ts',
   '**/issue-rows-live.spec.ts',
   '**/main-branch-snapshot-runs.spec.ts',

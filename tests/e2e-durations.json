@@ -178,6 +178,7 @@
   "nav-count-reads.spec.ts": 3.122,
   "nav-empty-links.spec.ts": 7.883,
   "nav-pill-single-count.spec.ts": 3.616,
+  "nav-pills-live.spec.ts": 2.5,
   "nav-pills.spec.ts": 4.858,
   "nav-public-pages.spec.ts": 2.077,
   "nav-telemetry-pills.spec.ts": 3.572,

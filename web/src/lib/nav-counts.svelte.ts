@@ -1,5 +1,7 @@
 import type { MainBranch } from './main-branches';
+import { applyLiveCi, type CountedPullRequest } from './nav-counts-live';
 import { nextNavCounts } from './nav-counts-next';
+import type { PullRequestFold } from './pr-fold';
 
 // The numbers each nav item shows (#1315): how many items its page lists and
 // how many of them are failing. The server counts all but Branches
@@ -8,7 +10,8 @@ import { nextNavCounts } from './nav-counts-next';
 // the function the Main branches page uses. This holds the latest answer. The
 // dashboard views set it from each snapshot, and the layout asks once on pages
 // that load none. null until it is known, so an item shows no number rather
-// than a misleading 0.
+// than a misleading 0. Between snapshots, a pull request whose row reads its
+// live jobs is counted the way the row shows it (#5123, nav-counts-live.ts).
 
 // running, passed and cancelled come with the pages that have CI (#1439,
 // #1458, #3958, #3967): Branches, Pull requests, Bots and Releases. A branch
@@ -51,19 +54,41 @@ export type ServerNavCounts = {
 
 export const navCounts = $state<{ value: NavCounts | null }>({ value: null });
 
+// The server's last numbers and the pull requests they were counted from, kept
+// together so a live reading is only ever compared with the snapshot that put
+// the pull request in its number.
+let counted: NavCounts | null = null;
+let countedFrom: readonly CountedPullRequest[] = [];
+// What the rows read from their live jobs, by pullRequestKey.
+let liveFolds: ReadonlyMap<string, PullRequestFold> = new Map();
+
+function publish() {
+  navCounts.value = applyLiveCi(counted, countedFrom, liveFolds);
+}
+
+// The page that reads live job lists says what they fold to, all of them each
+// time, and an empty map once it reads none.
+export function setLiveFolds(folds: ReadonlyMap<string, PullRequestFold>) {
+  liveFolds = folds;
+  publish();
+}
+
 export function setNavCounts(
   raw: ServerNavCounts | undefined | null,
   firstRefreshDone: boolean | undefined | null,
   branchRows: readonly MainBranch[] | undefined,
   keepPageBranches = false,
+  pullRequests: readonly CountedPullRequest[] = [],
 ) {
-  navCounts.value = nextNavCounts(
-    navCounts.value,
+  if (raw) countedFrom = pullRequests;
+  counted = nextNavCounts(
+    counted,
     raw,
     firstRefreshDone,
     branchRows,
     keepPageBranches ? pageBranches : null,
   );
+  publish();
 }
 
 // The Branches page reads its own list, which can be a poll newer than the
@@ -74,6 +99,8 @@ let pageBranches: NavCount | null = null;
 
 export function setBranchNavCount(branches: NavCount | null) {
   pageBranches = branches;
-  if (branches && navCounts.value)
-    navCounts.value = { ...navCounts.value, branches };
+  if (branches && counted) {
+    counted = { ...counted, branches };
+    publish();
+  }
 }

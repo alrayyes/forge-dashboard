@@ -18,6 +18,7 @@
   import { navCounts, setNavCounts } from "#lib/nav-counts.svelte.js";
   import { navLinkShown } from "#lib/nav-link-shown.js";
   import type { ServerNavCounts } from "#lib/nav-counts.svelte.js";
+  import type { CountedPullRequest } from "#lib/nav-counts-live.js";
   import type { MainBranches } from "#lib/main-branches.js";
   import { headerLabel, tabLabel } from "#lib/nav-labels.js";
   import { adviseReadIntervalMs } from "#lib/read-interval.js";
@@ -240,6 +241,7 @@
             data:
               | (DashboardReadData & {
                   navCounts?: ServerNavCounts;
+                  pullRequests?: CountedPullRequest[];
                   mainBranchPage?: MainBranches;
                   firstRefreshDone?: boolean;
                   readIntervalSeconds?: number;
@@ -263,6 +265,7 @@
               data.firstRefreshDone,
               data.mainBranchPage?.branches,
               isCurrentRoute("/"),
+              data.pullRequests,
             );
             // The server advises a short interval while the first refresh
             // runs, so the pages that draw no snapshot of their own leave the
