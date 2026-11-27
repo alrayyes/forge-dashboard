@@ -69,6 +69,7 @@ dependabot-recreate-menu.spec.ts,7.635,11,5,C,,4.2
 dependabot-stale-actions-layout.spec.ts,4.487,1,1,A,,0.0
 dialog-chain-close-focus.spec.ts,20.464,18,18,A,,0.0
 dialog-patches-in-place.spec.ts,13.866,4,1,C,,10.4
+earlier-data-once.spec.ts,,9,5,A,web/src/lib/earlier-data.test.ts,0.0
 error-pages.spec.ts,3.356,4,2,A,ErrorPage.stories.svelte (proven),1.7
 failed-pills-clear-comment.spec.ts,3.511,4,2,A,,1.8
 failure-line-stays.spec.ts,5.516,9,3,C,,3.7

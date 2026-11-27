@@ -1,5 +1,19 @@
 # Changelog
 
+## [9.140.16](https://github.com/alrayyes/forge-dashboard/compare/v9.140.15...v9.140.16) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** say once that a forge isn't answering ([#5164](https://github.com/alrayyes/forge-dashboard/issues/5164)) ([05590a7](https://github.com/alrayyes/forge-dashboard/commit/05590a735ef8ff9ee98e3b4e0170a867300649c9)), closes [#5127](https://github.com/alrayyes/forge-dashboard/issues/5127)
+
+## [9.140.15](https://github.com/alrayyes/forge-dashboard/compare/v9.140.14...v9.140.15) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** show only Cancel in an armed row's action column ([#4997](https://github.com/alrayyes/forge-dashboard/issues/4997)) ([952643d](https://github.com/alrayyes/forge-dashboard/commit/952643d02e6abebb9e4f56a8af204f231ecb3c7b)), closes [#4971](https://github.com/alrayyes/forge-dashboard/issues/4971)
+
 ## [9.140.14](https://github.com/alrayyes/forge-dashboard/compare/v9.140.13...v9.140.14) (2026-11-27)
 
 

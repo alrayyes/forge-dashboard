@@ -5,7 +5,7 @@
 
 import { isReadOnlyLock, type LockInfo } from './lock-info';
 
-const WHY =
+export const UNCONFIRMED_CONFLICT_WHY =
   "The forge says this can't merge, and says the same while it is still checking. No merge or update has been refused with a conflict yet.";
 
 // conflict: a conflict flag. state: any other fact the forge reports (behind,
@@ -68,7 +68,7 @@ export function rowClaim({
       actionsOpen,
       earlier: answer,
       reason: unconfirmed
-        ? `${WHY} ${answer}`
+        ? `${UNCONFIRMED_CONFLICT_WHY} ${answer}`
         : `Showing data${when}. ${answer}`,
     };
   }
@@ -85,7 +85,7 @@ export function rowClaim({
   return {
     state: 'unknown',
     actionsOpen,
-    reason: `${WHY} ${next}`,
+    reason: `${UNCONFIRMED_CONFLICT_WHY} ${next}`,
     earlier: '',
   };
 }
