@@ -177,6 +177,9 @@ func (s *Store) Init(ctx context.Context) error {
 	if _, err := s.db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("settings: create schema: %w", err)
 	}
+	if err := s.addQueuedFirstDue(ctx); err != nil {
+		return err
+	}
 
 	return s.initCache(ctx)
 }
