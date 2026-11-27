@@ -181,16 +181,17 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .getByRole('button', { name: 'Update branch' })
       .click();
     await dismissToasts(page);
-    // The toast's Dismiss button lies over the list, so the click leaves the
-    // pointer resting there once the toast is gone, and a resting pointer
-    // holds the board (#752). Chromium reports that on its own schedule, so
-    // move the pointer off the list before the push (#5062).
+    // With the toast gone the row's line shows again, and the list grows
+    // under the pointer the click left behind. A resting pointer holds the
+    // board (#752) and Chromium reports it on its own schedule, so move the
+    // pointer off the list before the push (#5062, #5090).
     await page.mouse.move(0, 0);
     await push(page, [pr(603)]);
     await page.clock.runFor(300);
 
-    // Nothing holds the board once the toast is gone, so the row leaves with
-    // the snapshot (#752); what matters here is that no timer throws.
+    // Nothing holds the board with the toast gone and the pointer off the
+    // list, so the row leaves with the snapshot (#752); what matters here is
+    // that no timer throws.
     expect(errors).toEqual([]);
     await expect(rowFor(page, 613)).toHaveCount(0);
   });
