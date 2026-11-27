@@ -680,6 +680,7 @@ func buildAppSource(c settings.Credentials, ids []int64, appID int64, key []byte
 type githubShared struct {
 	bodies     *github.RenderedBodyCache
 	advisories *github.AdvisoryCache
+	replaced   *github.ReplacedRunsCache
 	status     dashboard.ProviderStatusSource
 	// linked is the linked GitHub account, and visible what it can read per
 	// installation (#4576). Both are nil without a GitHub App OAuth client.
@@ -691,6 +692,9 @@ func (g githubShared) apply(client *github.Client) {
 	shareBodies(client, g.bodies)
 	if g.advisories != nil {
 		client.ShareAdvisoryCache(g.advisories)
+	}
+	if g.replaced != nil {
+		client.ShareReplacedRunsCache(g.replaced)
 	}
 	if g.status != nil {
 		client.SetStatusChecker(g.status)
@@ -726,6 +730,9 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 	// And the advisory counts and lists: a client lives for one request, so the
 	// advisories dialog would never find the list a refresh had just read.
 	githubAdvisories := github.NewAdvisoryCache()
+	// And which heads hold a replaced cancelled run, so a head is read once
+	// while its counts stand.
+	replacedRuns := github.NewReplacedRunsCache()
 	// One status page reader too, so a burst of failing clients makes one
 	// request (#3633).
 	status := githubstatus.New(githubStatusURL, nil)
@@ -740,7 +747,7 @@ func buildSources(authStore *auth.Store, requestLogWriter *requestlog.Writer, gi
 		var sources []dashboard.Source
 		recorder := requestlog.NewSQLiteRecorder(authStore, requestlog.WithWriter(requestLogWriter))
 
-		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, status: status, linked: linkedGitHub, visible: visible}); src != nil {
+		if src := buildGitHubSource(c, githubAppID, githubAppPrivateKey, githubAPIBaseURL, recorder, stats, githubShared{bodies: renderedBodies, advisories: githubAdvisories, replaced: replacedRuns, status: status, linked: linkedGitHub, visible: visible}); src != nil {
 			sources = append(sources, src)
 		}
 

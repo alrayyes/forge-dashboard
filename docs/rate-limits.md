@@ -295,6 +295,17 @@ undone. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
 
+## Replaced cancelled runs
+
+GitHub's check counts can't say whether a cancelled run was replaced by a later
+run of the same job. When a pull request's head has a cancelled run beside other
+runs, the dashboard asks for the checks of that commit in one extra GraphQL
+query, which covers up to 100 commits. It keeps the answer until the check
+counts of the commit change. Heads without that mix cost nothing more, and
+neither does the pipeline panel. A lookup that fails leaves the row as GitHub
+gave it and is tried again at the next read. Without a token, the same case
+reads the head's workflow runs instead.
+
 ## Conditional requests
 
 Every REST read the dashboard sends to GitHub goes through one cache. The first

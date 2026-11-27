@@ -119,7 +119,7 @@ func TestFetch_AsksForTheCommitIdBesideTheRollup(t *testing.T) {
 
 	require.NotEmpty(t, queries)
 	for _, q := range queries {
-		assert.Regexp(t, `commit \{\s*oid\s+statusCheckRollup`, q, "every query that reads the rollup reads the commit's id with it")
+		assert.Regexp(t, `commit \{\s*id\s+oid\s+statusCheckRollup`, q, "every query that reads the rollup reads the commit's id with it")
 	}
 }
 
@@ -151,7 +151,7 @@ func TestFetchRepo_RollupOfAnEarlierCommit_IsPendingNotPassed(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, prs, 1)
 	assert.Equal(t, dashboard.CIPending, prs[0].CI)
-	assert.Regexp(t, `commit \{\s*oid\s+statusCheckRollup`, query)
+	assert.Regexp(t, `commit \{\s*id\s+oid\s+statusCheckRollup`, query)
 }
 
 func TestFetch_RollupOfAnEarlierCommit_DoesNotFlagAwaitingApproval(t *testing.T) {

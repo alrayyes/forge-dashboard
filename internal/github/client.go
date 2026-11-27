@@ -147,6 +147,9 @@ type Client struct {
 	// upToDate remembers each base branch's up-to-date rule (#3428).
 	upToDate dashboard.UpToDateRuleCache
 
+	// replacedRuns remembers which heads hold a cancelled run a later run
+	// replaced (#5116).
+	replacedRuns *ReplacedRunsCache
 	// advisories remembers each repo's open dependency advisories for a while.
 	advisories *advisoryCache
 	// log is where the client says what it skipped; nil means slog's default.
@@ -292,6 +295,7 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 		renderedBodies: NewRenderedBodyCache(),
 		advisories:     NewAdvisoryCache(),
+		replacedRuns:   NewReplacedRunsCache(),
 	}
 }
 
@@ -381,6 +385,7 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		recorder:         rec,
 		renderedBodies:   NewRenderedBodyCache(),
 		advisories:       NewAdvisoryCache(),
+		replacedRuns:     NewReplacedRunsCache(),
 	}, nil
 }
 
@@ -1776,6 +1781,8 @@ func (k failureKinds) failedRun(state string) bool {
 
 type prCommitNode struct {
 	Commit struct {
+		// ID is what the commit's checks are looked up by (#5116).
+		ID string `json:"id"`
 		// Oid says which commit the rollup is of (#1311).
 		Oid               string             `json:"oid"`
 		StatusCheckRollup *statusCheckRollup `json:"statusCheckRollup"`
@@ -2337,6 +2344,7 @@ query($cursor: String, $since: DateTime) {
             commits(last: 1) {
               nodes {
                 commit {
+                  id
                   oid
                   statusCheckRollup {
                     state
@@ -2475,6 +2483,7 @@ const appRepoFieldsTemplate = `
         commits(last: 1) {
           nodes {
             commit {
+              id
               oid
               statusCheckRollup {
                 state
@@ -3291,6 +3300,11 @@ func (c *Client) fetchViaGraphQL(ctx context.Context) dashboard.Result {
 func (c *Client) appendFetched(ctx context.Context, res *dashboard.Result, fetched []graphqlRepo, issuesByRepo map[string][]dashboard.Issue, advisories map[string]*dashboard.Advisories) {
 	var behindChecks []behindCheck
 	var unreported []missingRequiredCheck
+	var nodes []graphqlPullRequest
+	for _, r := range fetched {
+		nodes = append(nodes, r.PullRequests.Nodes...)
+	}
+	c.dropReplacedCancelled(ctx, nodes)
 	for _, r := range fetched {
 		fullName := r.Owner.Login + "/" + r.Name
 
@@ -3913,6 +3927,7 @@ const pullRequestFields = `        number
         commits(last: 1) {
           nodes {
             commit {
+              id
               oid
               statusCheckRollup {
                 state
@@ -3962,6 +3977,11 @@ func (c *Client) mapPullRequestsAcross(ctx context.Context, entries []repoPullRe
 	prs := make([]dashboard.PullRequest, 0, len(entries))
 	var behindChecks []behindCheck
 	var unreported []missingRequiredCheck
+	nodes := make([]graphqlPullRequest, len(entries))
+	for i, e := range entries {
+		nodes[i] = e.node
+	}
+	c.dropReplacedCancelled(ctx, nodes)
 	for _, e := range entries {
 		p := e.node
 		prs = append(prs, mapPullRequest(e.fullName, p))
@@ -4349,7 +4369,7 @@ func (c *Client) ciStatusREST(ctx context.Context, owner, name, sha string) (das
 	}
 	c.recordRESTSuccess(ctx, http.MethodGet, checkRunsPath, runsResp)
 	if len(runs.CheckRuns) > 0 {
-		return statusFromCheckRuns(runs.CheckRuns), nil
+		return statusFromCheckRuns(c.withoutReplacedRuns(ctx, owner, name, sha, runs.CheckRuns)), nil
 	}
 
 	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
@@ -4420,6 +4440,9 @@ func (c *Client) ListChecks(ctx context.Context, owner, name string, number int)
 	if err != nil {
 		return nil, err
 	}
+	// The row doesn't count a cancelled job a later run replaced, so the list
+	// doesn't hold it either (#5116).
+	checks = dashboard.WithoutReplacedCancelled(checks)
 	// The head's workflow runs are read first so that a pull request with
 	// nothing but held or unstarted workflows (no check run reported) still asks
 	// which checks are required.

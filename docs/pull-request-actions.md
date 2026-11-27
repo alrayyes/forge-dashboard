@@ -1259,7 +1259,17 @@ the run got, drawn like the Failed, Passed and Running pills: the word
 passed part is left out when nothing passed). On a phone the word goes and the
 counts stay, as it does for those pills. Its accessible name reads `Cancelled
 4 9: 4 passed, 9 cancelled out of 13 checks.` The branch pill stays the word
-alone; the count is in `checks.cancelled`. A Cancelled row is not in the Failing
+alone; the count is in `checks.cancelled`.
+
+On GitHub, a cancelled run that a later run replaced doesn't count at all. Two
+events a few seconds apart can start one workflow twice, and a concurrency group
+cancels the first run. When a later run of the same workflow has a check of the
+same name that wasn't cancelled, the row and the pipeline panel leave the
+cancelled one out, so the row reads whatever the later one does. A check of the
+same name from another workflow replaces nothing. The server reads this among
+the head's first 100 checks.
+
+A Cancelled row is not in the Failing
 pill or the Failed number of the menu pill, and it is not a pass either, so
 Ready, Merge and auto-merge still wait for a run to pass. Forgejo records a
 cancelled job as a failure status, and the server leaves those out of the failed
