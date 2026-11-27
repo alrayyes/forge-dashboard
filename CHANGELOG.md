@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.4](https://github.com/alrayyes/forge-dashboard/compare/v9.140.3...v9.140.4) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** use the shared Clear filters button in Settings, Repositories ([#5114](https://github.com/alrayyes/forge-dashboard/issues/5114)) ([bf6ff4d](https://github.com/alrayyes/forge-dashboard/commit/bf6ff4deca43cf9158a04a5c0bee4c7b4e1057d8)), closes [#5066](https://github.com/alrayyes/forge-dashboard/issues/5066)
+
 ## [9.140.3](https://github.com/alrayyes/forge-dashboard/compare/v9.140.2...v9.140.3) (2026-11-27)
 
 
