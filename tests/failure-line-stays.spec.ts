@@ -181,6 +181,11 @@ test.describe('a failure line stays until dismissed (#918)', () => {
       .getByRole('button', { name: 'Update branch' })
       .click();
     await dismissToasts(page);
+    // The toast's Dismiss button lies over the list, so the click leaves the
+    // pointer resting there once the toast is gone, and a resting pointer
+    // holds the board (#752). Chromium reports that on its own schedule, so
+    // move the pointer off the list before the push (#5062).
+    await page.mouse.move(0, 0);
     await push(page, [pr(603)]);
     await page.clock.runFor(300);
 
