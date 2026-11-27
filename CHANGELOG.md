@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.1](https://github.com/alrayyes/forge-dashboard/compare/v9.140.0...v9.140.1) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** open the dialog when an unlisted mention is tapped ([#5105](https://github.com/alrayyes/forge-dashboard/issues/5105)) ([a306ff7](https://github.com/alrayyes/forge-dashboard/commit/a306ff703b4d99128346318d8615b6ceb1b9b976)), closes [#5089](https://github.com/alrayyes/forge-dashboard/issues/5089)
+
 ## [9.140.0](https://github.com/alrayyes/forge-dashboard/compare/v9.139.6...v9.140.0) (2026-11-27)
 
 
