@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.5](https://github.com/alrayyes/forge-dashboard/compare/v9.140.4...v9.140.5) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** say when the rate limit resets in the details dialog ([#5125](https://github.com/alrayyes/forge-dashboard/issues/5125)) ([4b1a38c](https://github.com/alrayyes/forge-dashboard/commit/4b1a38c7399fa3d2209abd2097577bd046d6df3d))
+
 ## [9.140.4](https://github.com/alrayyes/forge-dashboard/compare/v9.140.3...v9.140.4) (2026-11-27)
 
 
