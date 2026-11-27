@@ -267,8 +267,10 @@ as they change. A branch's panel on Main branches follows the same rule. While
 its checks name one run or none, its button is "Open run on GitHub" and opens
 the address the server gives the branch. A failed branch also keeps that button
 and address while its checks show nothing failed in any run, because the panel
-may not list the failure: an external status is one example. A held workflow
-reads "Approve on" followed by the forge's name.
+may not list the failure. Otherwise, when a listed check failed that belongs to
+no run (a commit status, another service's check) and no run has a failed
+check, the button is "Open failed check page" and opens that check's page. A
+held workflow reads "Approve on" followed by the forge's name.
 
 A pull request row draws what it shows as three tiers. A **state**
 (`Running`) and the **outcome** it leads to (`Failed` or `Passed`) share one
@@ -1207,9 +1209,12 @@ a panel listing every individual job/check against its head commit —
 status, name, and a link to that job's own page on the forge — instead of
 only the pill's own summary. (Filtering by CI state is the quick pills' job.)
 Fetched fresh every time the panel opens, not cached, or part of the regular
-dashboard refresh. Falls back to the legacy combined commit-status
-API's own per-check entries when a repo (or an older Forgejo instance)
-reports no Actions/Workflow runs at all for that commit.
+dashboard refresh. Commit statuses are listed beside the jobs, since the
+row counts them too. On GitHub a status with the name of a check run and the
+same outcome (passed, failed or still going) is the same job reported twice and
+is listed once; where the two disagree, both are listed. A commit with no check
+run or Actions job lists its statuses alone. If GitHub's statuses can't be read
+for a commit with check runs, the panel lists only those runs.
 
 While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,

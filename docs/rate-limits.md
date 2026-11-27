@@ -295,6 +295,20 @@ undone. See
 [Pull request actions](pull-request-actions.md) for what happens to a queued
 action.
 
+## What a checks list costs
+
+A GitHub checks list (a pull request's, or a default branch's) reads the commit
+statuses beside the check runs. The row's rollup already says whether a commit
+has any, and when it counted none the read is skipped, so that list costs
+nothing extra. When it counted some, each read of the list costs one request,
+and one more for every further 100 statuses. The list is read when you open it,
+and again while it stays open when the row changes or you refresh it.
+
+The read is also made when the server has no rollup for the commit: before the
+first poll after a restart, for an older commit a default branch's list reaches
+back to, and without a token. A commit with no check run reads its statuses as
+it always did. The request goes through the conditional cache.
+
 ## Conditional requests
 
 Every REST read the dashboard sends to GitHub goes through one cache. The first
@@ -376,7 +390,8 @@ a new read can't skip the question of whether it can be conditional.
 | File                                       | Calls | Reads                                                                                                                                                                                  | Conditional                       |
 | ------------------------------------------ | ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------- |
 | `internal/github/cancel_run.go`            | 3     | The queued and the running workflow runs of a commit, then the jobs of each, only while a check is running, and the completed runs, only when a finished job names a run not yet known | Yes                               |
-| `internal/github/client.go`                | 24    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists                    | Yes, all but the job log download |
+| `internal/github/client.go`                | 23    | Hooks, repository, pull requests, files, issues, commits, check runs, statuses, runs, branch protection and rules, jobs, and installation and user repository lists                    | Yes, all but the job log download |
+| `internal/github/commit_statuses.go`       | 1     | The commit statuses of a commit, for the checks list                                                                                                                                   | Yes                               |
 | `internal/github/dependabot_ack.go`        | 2     | Comments and comment reactions                                                                                                                                                         | Yes                               |
 | `internal/github/job_log.go`               | 2     | One job's log, then its download                                                                                                                                                       | No, a log is never cached         |
 | `internal/github/pull_request_body.go`     | 1     | One pull request                                                                                                                                                                       | Yes                               |

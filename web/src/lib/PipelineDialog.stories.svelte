@@ -265,8 +265,8 @@
   })}
 </Story>
 
-<!-- A failed branch whose failure the list leaves out (an external status
-     beside check runs): the footer keeps the board's address for it. -->
+<!-- A failed branch whose failure the list leaves out (a commit status that
+     couldn't be read): the footer keeps the board's address for it. -->
 <Story
   asChild
   name="Main branch failed outside the listed runs"

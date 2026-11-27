@@ -149,6 +149,8 @@ type Client struct {
 
 	// advisories remembers each repo's open dependency advisories for a while.
 	advisories *advisoryCache
+	// statusPresence remembers which commits a rollup counted no status on.
+	statusPresence *StatusPresenceCache
 	// log is where the client says what it skipped; nil means slog's default.
 	log *slog.Logger
 
@@ -292,6 +294,7 @@ func NewClient(token, username, baseURL string, recorder ...requestlog.Recorder)
 
 		renderedBodies: NewRenderedBodyCache(),
 		advisories:     NewAdvisoryCache(),
+		statusPresence: NewStatusPresenceCache(),
 	}
 }
 
@@ -381,6 +384,7 @@ func NewAppClient(appID, installationID int64, privateKeyPEM []byte, baseURL str
 		recorder:         rec,
 		renderedBodies:   NewRenderedBodyCache(),
 		advisories:       NewAdvisoryCache(),
+		statusPresence:   NewStatusPresenceCache(),
 	}, nil
 }
 
@@ -1693,6 +1697,10 @@ type statusCheckRollup struct {
 	// could read, so the counts rebuilt from the nodes don't hide it. Not part
 	// of the response.
 	jobsCut bool
+	// statusesCounted is set by keepNewestRuns when GitHub counted a commit
+	// status, so rebuilding the counts from the listed checks can't hide it.
+	// Not part of the response.
+	statusesCounted bool
 }
 
 // settleFailedRollup applies #722's rule to a FAILURE/ERROR rollup. GitHub
@@ -3295,6 +3303,7 @@ func (c *Client) appendFetched(ctx context.Context, res *dashboard.Result, fetch
 		fullName := r.Owner.Login + "/" + r.Name
 
 		for _, p := range r.PullRequests.Nodes {
+			c.notePullRequestStatuses(fullName, p)
 			res.PullRequests = append(res.PullRequests, mapPullRequest(fullName, p))
 			unreported = appendUnreported(unreported, res.PullRequests, r.Owner.Login, r.Name, p)
 			if ambiguousMergeState(p.MergeStateStatus) {
@@ -3308,6 +3317,7 @@ func (c *Client) appendFetched(ctx context.Context, res *dashboard.Result, fetch
 			}
 		}
 		res.Issues = append(res.Issues, issuesByRepo[fullName]...)
+		c.noteBranchStatuses(fullName, r.DefaultBranchRef)
 		res.MainBranches = append(res.MainBranches, withAdvisories(mainBranchFrom(fullName, r.URL, r.LatestRelease, r.DefaultBranchRef), advisories[fullName]))
 	}
 	c.resolveAmbiguousBehind(ctx, res.PullRequests, behindChecks)
@@ -3964,6 +3974,7 @@ func (c *Client) mapPullRequestsAcross(ctx context.Context, entries []repoPullRe
 	var unreported []missingRequiredCheck
 	for _, e := range entries {
 		p := e.node
+		c.notePullRequestStatuses(e.fullName, p)
 		prs = append(prs, mapPullRequest(e.fullName, p))
 		unreported = appendUnreported(unreported, prs, e.owner, e.name, p)
 		if ambiguousMergeState(p.MergeStateStatus) {
@@ -4601,8 +4612,9 @@ func sortWorkflowRuns(runs []*ghsdk.WorkflowRun) (held, failed []dashboard.Check
 	return held, failed
 }
 
-// listChecksForSHA is ListChecks' per-commit half: the check runs, or the
-// legacy commit statuses when the commit has no check runs at all.
+// listChecksForSHA is ListChecks' per-commit half: the check runs and the
+// legacy commit statuses. Beside check runs the statuses are not read when the
+// row's rollup counted none (#5101).
 func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
 	checkRunsPath := fmt.Sprintf("/repos/%s/%s/commits/%s/check-runs", owner, name, sha)
 	slog.Debug("github request", "method", http.MethodGet, "url", checkRunsPath)
@@ -4631,32 +4643,14 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 		c.addFailureDetail(ctx, owner, name, runs.CheckRuns, checks)
 		c.attachRuns(ctx, owner, name, sha, checks)
 
-		return checks, nil
+		return c.withStatuses(ctx, owner, name, sha, checks), nil
 	}
 
-	// No check runs at all — either nothing's configured, or this repo's
-	// CI still reports through the legacy commit-status API (a
-	// third-party CI, or a repo with no Actions workflow). Its own
-	// Statuses are real per-check entries too, not a second aggregate.
-	statusPath := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
-	slog.Debug("github request", "method", http.MethodGet, "url", statusPath)
-	combined, statusResp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, nil)
-	if err != nil {
-		return nil, asClientError(c.restError(ctx, http.MethodGet, statusPath, err))
-	}
-	c.recordRESTSuccess(ctx, http.MethodGet, statusPath, statusResp)
-	checks := make([]dashboard.Check, 0, len(combined.Statuses))
-	for _, s := range combined.Statuses {
-		checks = append(checks, dashboard.Check{
-			Name:  s.GetContext(),
-			State: checkStateFromCombinedState(s.GetState()),
-			// The legacy status carries its word in the state.
-			ReportedStatus: dashboard.UnknownWord(checkStateFromCombinedState(s.GetState()), s.GetState()),
-			URL:            s.GetTargetURL(),
-		})
-	}
-
-	return checks, nil
+	// No check runs at all: either nothing's configured, or this repo's CI
+	// still reports through the legacy commit-status API (a third-party CI, or
+	// a repo with no Actions workflow). The statuses are all there is, so a
+	// failed read fails the list.
+	return c.commitStatuses(ctx, owner, name, sha)
 }
 
 // markRequired sets Check.Required from the base branch's protection.
