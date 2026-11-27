@@ -17,11 +17,15 @@ const jobs = {
 
 const fold = (
   ci: PullRequestFold['ci'],
-  over: { awaiting?: boolean; failed?: number } = {},
+  over: { awaiting?: boolean; failed?: number; cancelled?: number } = {},
 ): PullRequestFold => ({
   ci,
   awaiting: over.awaiting ?? false,
-  counts: { ...jobs, failed: over.failed ?? 0 },
+  counts: {
+    ...jobs,
+    failed: over.failed ?? 0,
+    cancelled: over.cancelled ?? 0,
+  },
 });
 
 const pr = (
@@ -121,6 +125,16 @@ describe('applyLiveCi', () => {
       nav({ pullRequests: page({ total: 1 }) }),
       [pr(1, { ci: 'failure', failingCi: false })],
       live([1, fold('failure', { awaiting: true, failed: 1 })]),
+    );
+
+    expect(after?.pullRequests).toEqual(page({ total: 1, failed: 1 }));
+  });
+
+  test('a cancelled run beside a held one counts as failed', () => {
+    const after = applyLiveCi(
+      nav({ pullRequests: page({ total: 1 }) }),
+      [pr(1, { ci: 'failure', failingCi: false })],
+      live([1, fold('failure', { awaiting: true, cancelled: 1 })]),
     );
 
     expect(after?.pullRequests).toEqual(page({ total: 1, failed: 1 }));

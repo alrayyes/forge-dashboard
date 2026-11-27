@@ -67,8 +67,12 @@ export function applyLiveCi(
     if (!fold || pr.draft || pr.hidden) continue;
 
     const from = stateOf(pr.ci, pr.failingCi === true);
-    // A held run beside a job that really failed is still a failure.
-    const to = stateOf(fold.ci, !fold.awaiting || fold.counts.failed > 0);
+    // A held run beside a job that failed or was cancelled is still a failure,
+    // as the server reads it.
+    const to = stateOf(
+      fold.ci,
+      !fold.awaiting || fold.counts.failed > 0 || fold.counts.cancelled > 0,
+    );
     if (from === to) continue;
 
     const page = pageOf(pr.kind);
