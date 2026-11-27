@@ -180,7 +180,7 @@ The order in the footer is the primary action first, then the others, then Close
 pull request last. The status block under the pop-up's header is the same
 `status` message the row shows, and a locked Merge in the footer is described by
 it. Their ids carry a `dlg-` prefix, so the row and the pop-up never repeat one.
-The one difference: a row whose stopped auto-merge already says CI is failing
+One more difference: a row whose stopped auto-merge already says CI is failing
 draws no status block, and the pop-up keeps its own.
 
 A pull request stacked on another open one shows a chip with its place and what
@@ -887,10 +887,12 @@ default font size) when the chip has a line of its own, and the last two columns
 (about 270px) when it shares the CI pill's line. The lighter line shows whole
 when there's room for it and is cut short with an ellipsis when there isn't,
 which happens sooner on the shared line, at a large root font size or at 200%
-zoom. The hint always has the whole sentence. The slot is not drawn while it is
-empty, at any width. On a list narrower than the one-line row (761px to 1190px
-of list width) the status cell stacks, so a waiting chip takes a line of its own
-at the cell's right edge, 30px tall.
+zoom. The hint always has the whole sentence. A stopped chip is the exception:
+its lighter line can be the only place the row says why Merge is blocked, so it
+is never cut. It takes a second line, or wraps, and the chip grows taller. The
+slot is not drawn while it is empty, at any width. On a list narrower than the
+one-line row (761px to 1190px of list width) the status cell stacks, so a
+waiting chip takes a line of its own at the cell's right edge, 30px tall.
 
 On a phone card the slot reserves nothing. With no chip the slot is not drawn,
 so the card is no taller than its content and the divider sits within 16px of
