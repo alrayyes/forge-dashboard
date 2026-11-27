@@ -3,6 +3,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { registerForgeCapabilities, resetForgeCapabilities } from './forges';
 import {
   autoUpdateName,
+  barShown,
   bulkTargets,
   filterRepos,
   filtersAreClear,
@@ -13,11 +14,15 @@ import {
   ignoreTip,
   lockedTip,
   type RepoRow,
+  type RepositoriesFilter,
   rebaseBotsName,
   repoCountText,
   repoScope,
+  searchShown,
   sortRepos,
   toggleTip,
+  type ViewGroup,
+  viewChoices,
 } from './repositories';
 
 function repo(
@@ -84,15 +89,27 @@ describe('filtering the repositories', () => {
 
 describe('the forge choices', () => {
   test('offer only forges that survive the search, and keep the picked one', () => {
-    registerForgeCapabilities([
-      { forge: 'github', reachable: true },
-      { forge: 'forgejo', reachable: true },
-    ] as never);
-    const found = forgeChoices(rows, { forge: '', search: 'infra' });
-    expect([...found]).toEqual(['forgejo']);
+    expect([...forgeChoices(rows, { forge: '', search: 'api' })]).toEqual([
+      'github',
+      'forgejo',
+    ]);
     expect([
       ...forgeChoices(rows, { forge: 'github', search: 'infra' }),
     ]).toEqual(['github', 'forgejo']);
+  });
+
+  test('are not drawn over fewer than two forges with none picked', () => {
+    expect(forgeChoices(rows, { forge: '', search: 'infra' })).toEqual([]);
+    expect(forgeChoices(rows, { forge: '', search: 'zzz' })).toEqual([]);
+  });
+
+  test('count only the repos the polling-only filter leaves', () => {
+    const list = [
+      repo('github', 'demo/a', { hasWebhook: false }),
+      repo('forgejo', 'demo/b', { hasWebhook: true }),
+    ];
+    const filter = { forge: '', search: '', pollingOnly: true };
+    expect(forgeChoices(list, filter)).toEqual([]);
   });
 });
 
@@ -376,23 +393,123 @@ describe('the repo count', () => {
 
 describe('the forge choices under the Auto-update and Rebase bots filters', () => {
   const list = [
-    repo('github', 'a'),
-    repo('forgejo', 'b', { autoUpdateBranch: true }),
-    repo('github', 'c', { rebaseBots: true }),
+    repo('github', 'demo/a', { autoUpdateBranch: true }),
+    repo('forgejo', 'demo/b', { rebaseBots: true }),
+    repo('forgejo', 'demo/c'),
   ];
-  const none = { forge: '', search: '' };
-
   test('offer only forges with a row the toggles keep', () => {
-    registerForgeCapabilities([
-      { forge: 'github', reachable: true },
-      { forge: 'forgejo', reachable: true },
-    ] as never);
-    expect([...forgeChoices(list, { ...none, autoUpdate: 'on' })]).toEqual([
-      'forgejo',
+    const none = { forge: '', search: '' };
+    expect(forgeChoices(list, { ...none, autoUpdate: 'on' })).toEqual([]);
+    expect(
+      forgeChoices(list, { ...none, forge: 'forgejo', autoUpdate: 'on' }),
+    ).toEqual(['github', 'forgejo']);
+  });
+});
+
+describe('the Ignored, Auto-update and Rebase bots choices', () => {
+  const none = { forge: '', search: '' };
+  const offered = (
+    list: RepoRow[],
+    group: ViewGroup,
+    filter: Partial<RepositoriesFilter> = {},
+  ) => viewChoices(list, { ...none, ...filter }, group);
+
+  test('a group every repo agrees on is not drawn', () => {
+    for (const on of [true, false]) {
+      const list = [
+        repo('github', 'demo/a', { autoUpdateBranch: on, rebaseBots: on }),
+        repo('github', 'demo/b', { autoUpdateBranch: on, rebaseBots: on }),
+      ];
+      expect(offered(list, 'autoUpdate')).toEqual([]);
+      expect(offered(list, 'rebaseBots')).toEqual([]);
+    }
+  });
+
+  test('a mixed value offers All, On and Off', () => {
+    const list = [
+      repo('github', 'demo/a', { autoUpdateBranch: true }),
+      repo('github', 'demo/b'),
+    ];
+    expect(offered(list, 'autoUpdate')).toEqual(['all', 'on', 'off']);
+    expect(offered(list, 'rebaseBots')).toEqual([]);
+  });
+
+  test('the other filters decide which repos count', () => {
+    const list = [
+      repo('github', 'demo/a', { autoUpdateBranch: true }),
+      repo('forgejo', 'demo/b'),
+      repo('github', 'demo/c', { ignored: true }),
+    ];
+    expect(offered(list, 'autoUpdate', { forge: 'github' })).toEqual([]);
+    expect(offered(list, 'autoUpdate', { search: '/b' })).toEqual([]);
+  });
+
+  test('nothing ignored draws no Ignored group', () => {
+    expect(offered(rows.slice(2), 'ignored')).toEqual([]);
+  });
+
+  test('a mix of ignored and active repos offers Hide, Show and Only', () => {
+    expect(offered(rows, 'ignored')).toEqual(['active', 'all', 'only']);
+  });
+
+  test('every repo ignored still offers a way to see them', () => {
+    const list = [repo('github', 'demo/a', { ignored: true })];
+    expect(offered(list, 'ignored')).toEqual(['active', 'all', 'only']);
+    // Only would list what Show already does.
+    expect(offered(list, 'ignored', { ignored: 'all' })).toEqual([
+      'active',
+      'all',
     ]);
-    expect([...forgeChoices(list, { ...none, rebaseBots: 'on' })]).toEqual([
-      'github',
+  });
+
+  test('a picked choice stays, with the default to undo it', () => {
+    const list = [
+      repo('github', 'demo/a', { autoUpdateBranch: true }),
+      repo('github', 'demo/b', { autoUpdateBranch: true }),
+    ];
+    expect(offered(list, 'autoUpdate', { autoUpdate: 'on' })).toEqual([
+      'all',
+      'on',
     ]);
+    // On empties the list, so the other value is a way out too.
+    expect(offered(list, 'autoUpdate', { autoUpdate: 'off' })).toEqual([
+      'all',
+      'on',
+      'off',
+    ]);
+    expect(offered(list, 'ignored', { ignored: 'only' })).toEqual([
+      'active',
+      'all',
+      'only',
+    ]);
+  });
+});
+
+describe('the search box and the filter bar', () => {
+  const none = { forge: '', search: '' };
+  const two = [repo('github', 'demo/api'), repo('github', 'demo/web')];
+
+  test('the search goes while the other filters leave exactly one row', () => {
+    expect(searchShown(two, none)).toBe(true);
+    expect(searchShown(two.slice(1), none)).toBe(false);
+    const list = [
+      repo('github', 'demo/a', { autoUpdateBranch: true }),
+      repo('github', 'demo/b'),
+    ];
+    expect(searchShown(list, { ...none, autoUpdate: 'on' })).toBe(false);
+    expect(searchShown(list, { ...none, search: 'demo/a' })).toBe(true);
+  });
+
+  test('the bar goes over one repo with nothing to undo', () => {
+    expect(barShown(two, none)).toBe(true);
+    expect(barShown(two.slice(1), none)).toBe(false);
+    expect(barShown(two.slice(1), { ...none, search: 'x' })).toBe(true);
+  });
+
+  test('one ignored repo keeps the bar, which is how to see it', () => {
+    expect(barShown([repo('github', 'demo/a', { ignored: true })], none)).toBe(
+      true,
+    );
   });
 });
 

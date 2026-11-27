@@ -29,6 +29,7 @@
     toggleTip,
     bulkTargets,
     type BulkControl,
+    barShown,
     filterRepos,
     filtersAreClear,
     forgeChoices,
@@ -44,7 +45,9 @@
     repoScope,
     type ToggleView,
     rebaseBotsName,
+    searchShown,
     sortRepos,
+    viewChoices,
   } from "./repositories.js";
 
   type Repo = {
@@ -127,7 +130,47 @@
   );
   const pollingCount = $derived(pollingOnlyCount(repos));
   const offeredForges = $derived(forgeChoices(repos, filter));
+  const offeredIgnored = $derived(viewChoices(repos, filter, "ignored"));
+  const offeredAutoUpdate = $derived(viewChoices(repos, filter, "autoUpdate"));
+  const offeredRebaseBots = $derived(viewChoices(repos, filter, "rebaseBots"));
+  const offerSearch = $derived(searchShown(repos, filter));
+  const offerBar = $derived(barShown(repos, filter));
   const filtersClear = $derived(filtersAreClear(filter));
+
+  // A choice, group or box that stops mattering leaves the bar. Focus held on
+  // it moves to another control, never to the page body.
+  let filterBar = $state<HTMLDivElement>();
+  function focusAfterRemoval() {
+    const next =
+      filterBar?.querySelector<HTMLElement>(
+        '.filter-pill[aria-pressed="true"]',
+      ) ??
+      document.getElementById("repositories-search") ??
+      document.querySelector<HTMLElement>(
+        "#repositories-rows a, #repositories-rows button",
+      );
+    next?.focus({ preventScroll: true });
+  }
+  $effect.pre(() => {
+    // Read what decides the bar, so this runs before it is redrawn.
+    void [
+      offeredForges,
+      offeredIgnored,
+      offeredAutoUpdate,
+      offeredRebaseBots,
+      offerSearch,
+      offerBar,
+      filtersClear,
+    ];
+    const held = document.activeElement;
+    if (!held || !untrack(() => filterBar)?.contains(held)) return;
+    // clearFilters places its own focus, and leaves a pointer click alone.
+    if (held.classList.contains("clear-filters")) return;
+    tick().then(() => {
+      if (!held.isConnected && document.activeElement === document.body)
+        focusAfterRemoval();
+    });
+  });
   const totalPages = $derived(
     Math.max(1, Math.ceil(sortedRepos.length / pageSize)),
   );
@@ -217,14 +260,19 @@
   }
   // Clearing hides the button, so a keyboard user would lose focus: put it
   // back on the search, the bar's first text control.
-  function clearFilters(event: MouseEvent) {
+  async function clearFilters(event: MouseEvent) {
     const byKeyboard = event.detail === 0;
     filter = { ...NO_FILTER };
     sortKey = "fullName";
     sortDir = "asc";
     changeFilter();
     setStatus("Filters cleared.");
-    if (byKeyboard) document.getElementById("repositories-search")?.focus();
+    if (!byKeyboard) return;
+    // The search box may only just be coming back.
+    await tick();
+    const search = document.getElementById("repositories-search");
+    if (search) search.focus();
+    else focusAfterRemoval();
   }
 
   const sortChoice = $derived(`${sortKey}:${sortDir}`);
@@ -616,95 +664,124 @@
       onpress={togglePolling}
     />
 
-    <div class="filter-bar" role="search" aria-label="Filter repositories">
-      <div class="forge-scroll">
-        <FilterGroup label="Forge" id="repositories-forge">
-          <FilterPill
-            pressed={filter.forge === ""}
-            onclick={() => pickForge("")}
-          >
-            All
-          </FilterPill>
-          {#each offeredForges as forge (forge)}
-            <FilterPill
-              pressed={filter.forge === forge}
-              data-forge={forge}
-              onclick={() => pickForge(forge)}
-            >
-              {forgeLabelOf(forge)}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Ignored" id="repositories-ignored-filter">
-          {#each IGNORED_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.ignored ?? "active") === view}
-              data-ignored-view={view}
-              onclick={() => pickIgnored(view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Auto-update" id="repositories-auto-update-filter">
-          {#each TOGGLE_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.autoUpdate ?? "all") === view}
-              data-view={view}
-              onclick={() => pickToggle("autoUpdate", view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="forge-scroll">
-        <FilterGroup label="Rebase bots" id="repositories-rebase-bots-filter">
-          {#each TOGGLE_VIEWS as { view, label } (view)}
-            <FilterPill
-              pressed={(filter.rebaseBots ?? "all") === view}
-              data-view={view}
-              onclick={() => pickToggle("rebaseBots", view)}
-            >
-              {label}
-            </FilterPill>
-          {/each}
-        </FilterGroup>
-      </div>
-      <div class="search-field">
-        <input
-          class="col-filter"
-          type="search"
-          id="repositories-search"
-          placeholder="Search repos"
-          aria-label="Filter by repo name"
-          autocomplete="off"
-          bind:value={filter.search}
-          oninput={() => changeFilter()}
-        />
-        {#if !filtersClear}
-          <button type="button" class="clear-filters" onclick={clearFilters}>
-            Clear filters
-          </button>
-        {/if}
-      </div>
-      <select
-        class="group-select repositories-sort"
-        id="repositories-sort-select"
-        aria-label="Sort by"
-        value={sortChoice}
-        onchange={(e) => chooseSort(e.currentTarget.value)}
+    {#if offerBar}
+      <div
+        class="filter-bar"
+        role="search"
+        aria-label="Filter repositories"
+        bind:this={filterBar}
       >
-        <option value="fullName:asc">Sort: Repo, A to Z</option>
-        <option value="fullName:desc">Sort: Repo, Z to A</option>
-        <option value="forge:asc">Sort: Forge, A to Z</option>
-        <option value="forge:desc">Sort: Forge, Z to A</option>
-      </select>
-    </div>
+        {#if offeredForges.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup label="Forge" id="repositories-forge">
+              <FilterPill
+                pressed={filter.forge === ""}
+                onclick={() => pickForge("")}
+              >
+                All
+              </FilterPill>
+              {#each offeredForges as forge (forge)}
+                <FilterPill
+                  pressed={filter.forge === forge}
+                  data-forge={forge}
+                  onclick={() => pickForge(forge)}
+                >
+                  {forgeLabelOf(forge)}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredIgnored.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup label="Ignored" id="repositories-ignored-filter">
+              {#each IGNORED_VIEWS.filter( (v) => offeredIgnored.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.ignored ?? "active") === view}
+                  data-ignored-view={view}
+                  onclick={() => pickIgnored(view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredAutoUpdate.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup
+              label="Auto-update"
+              id="repositories-auto-update-filter"
+            >
+              {#each TOGGLE_VIEWS.filter( (v) => offeredAutoUpdate.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.autoUpdate ?? "all") === view}
+                  data-view={view}
+                  onclick={() => pickToggle("autoUpdate", view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offeredRebaseBots.length > 0}
+          <div class="forge-scroll">
+            <FilterGroup
+              label="Rebase bots"
+              id="repositories-rebase-bots-filter"
+            >
+              {#each TOGGLE_VIEWS.filter( (v) => offeredRebaseBots.includes(v.view) ) as { view, label } (view)}
+                <FilterPill
+                  pressed={(filter.rebaseBots ?? "all") === view}
+                  data-view={view}
+                  onclick={() => pickToggle("rebaseBots", view)}
+                >
+                  {label}
+                </FilterPill>
+              {/each}
+            </FilterGroup>
+          </div>
+        {/if}
+        {#if offerSearch || !filtersClear}
+          <div class="search-field" class:no-search={!offerSearch}>
+            {#if offerSearch}
+              <input
+                class="col-filter"
+                type="search"
+                id="repositories-search"
+                placeholder="Search repos"
+                aria-label="Filter by repo name"
+                autocomplete="off"
+                bind:value={filter.search}
+                oninput={() => changeFilter()}
+              />
+            {/if}
+            {#if !filtersClear}
+              <button
+                type="button"
+                class="clear-filters"
+                onclick={clearFilters}
+              >
+                Clear filters
+              </button>
+            {/if}
+          </div>
+        {/if}
+        <select
+          class="group-select repositories-sort"
+          id="repositories-sort-select"
+          aria-label="Sort by"
+          value={sortChoice}
+          onchange={(e) => chooseSort(e.currentTarget.value)}
+        >
+          <option value="fullName:asc">Sort: Repo, A to Z</option>
+          <option value="fullName:desc">Sort: Repo, Z to A</option>
+          <option value="forge:asc">Sort: Forge, A to Z</option>
+          <option value="forge:desc">Sort: Forge, Z to A</option>
+        </select>
+      </div>
+    {/if}
 
     <p class="repo-count" id="repositories-count" aria-live="polite">
       {repoCountText(sortedRepos.length, repoScope(repos, filter, kept))}
@@ -1120,6 +1197,10 @@
     font-size: 0.78125rem;
     text-decoration: underline;
     cursor: pointer;
+  }
+  /* No box to sit in once one row is left (see searchShown). */
+  .search-field.no-search .clear-filters {
+    position: static;
   }
   .repositories-sort {
     display: none;

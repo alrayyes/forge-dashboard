@@ -7,7 +7,11 @@ import { test } from './server-fixture';
 // https://github.com/alrayyes/forge-dashboard/issues/4855
 // https://github.com/alrayyes/forge-dashboard/issues/4868
 
-const repo = (forge: string, name: string) => ({
+const repo = (
+  forge: string,
+  name: string,
+  extra: Record<string, unknown> = {},
+) => ({
   forge,
   fullName: `alrayyes/${name}`,
   hasWebhook: true,
@@ -17,6 +21,7 @@ const repo = (forge: string, name: string) => ({
   ignoredIssues: false,
   autoUpdateBranch: false,
   rebaseBots: false,
+  ...extra,
 });
 
 async function open(page: Page, width: number, scheme: 'light' | 'dark') {
@@ -35,11 +40,13 @@ async function open(page: Page, width: number, scheme: 'light' | 'dark') {
         pullRequests: [],
         issues: [],
         repos: [
-          repo('github', 'app'),
-          repo('forgejo', 'wiki'),
+          // The values differ, so every group has something to offer.
+          repo('github', 'app', { autoUpdateBranch: true }),
+          repo('forgejo', 'wiki', { rebaseBots: true }),
           repo('gitlab', 'tools'),
           repo('gitea', 'docs'),
           repo('gogs', 'site'),
+          repo('github', 'old', { ignored: true, ignoredPRs: true }),
         ],
       }),
     }),

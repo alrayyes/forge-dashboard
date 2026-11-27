@@ -114,7 +114,8 @@ test.describe('repositories: status line', () => {
     await enable(page).click();
     await expect(page.locator('#repositories-status')).toHaveText(ENABLED);
 
-    await page.locator('#repositories-search').fill('infra');
+    // Both rows stay, so the Forge group does too.
+    await page.locator('#repositories-search').fill('acme');
     await expect.poll(() => text(page)).toBe('');
 
     await disable(page).click();

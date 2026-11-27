@@ -416,6 +416,18 @@ something and not when it matches the whole pool, and the one that is active
 stays so it can be cleared. The count on each pill is worked out from the same
 pool, so it moves with every filter that changes what the pill would show.
 
+Settings, Repositories follows the same rule. A choice in the Forge, Ignored,
+Auto-update or `Rebase bots` group is offered only if picking it would give a
+different, non-empty list, or it is the active one, and a group with nothing to
+offer is not drawn, label and all. So Auto-update is missing while every repo
+the other filters leave has it the same way. The default (**All**, or **Hide**
+for Ignored) stays beside whatever is offered, so a pick can be undone. Forge
+needs two forges or a picked one. The search box goes while the other filters
+leave exactly one repo and it holds no text, and the whole bar goes when only
+one repo is tracked, unless that repo is ignored or a filter is set. Toggling a
+row can add or remove a group; the row stays where it is. If the control you are
+on goes, focus moves to another one.
+
 ## The Label filter
 
 The Label filter takes several labels at once and shows the pull requests or
