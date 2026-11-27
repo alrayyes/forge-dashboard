@@ -166,6 +166,18 @@ const refPills = (page: Page, title: string) =>
 const closePills = (page: Page, title: string) =>
   rowOf(page, title).locator('.linked-pr:not(.refs-pill)');
 
+// What a pill is drawn with, retried by the caller until it is styled.
+const lookOf = (locator: ReturnType<typeof refPills>) => () =>
+  locator.first().evaluate((el) => {
+    const s = getComputedStyle(el);
+    return {
+      background: s.backgroundColor,
+      border: `${s.borderTopWidth} ${s.borderTopStyle} ${s.borderTopColor}`,
+      fontStyle: s.fontStyle,
+      color: s.color,
+    };
+  });
+
 const bar = (page: Page) => page.locator('.filter-bar > .refs-group');
 const choice = (page: Page, value: 'any' | 'yes' | 'no') =>
   bar(page).locator(`[data-ref="${value}"]`);
@@ -174,60 +186,99 @@ const issueTitles = (page: Page) =>
   page.locator('#issue-rows > .row .title-text');
 
 test.describe('the refs pill on an issue row', () => {
-  test('sits beside the closing pill, is named for a screen reader and is drawn apart', async ({
+  test('sits beside the closing pill, each says its relation and is named for a screen reader', async ({
     page,
   }) => {
     await open(page, '/issues.html');
 
-    await expect(closePills(page, 'Fixed and referenced')).toHaveText(/^#1/);
+    await expect(closePills(page, 'Fixed and referenced')).toHaveText(
+      /^closes #1/,
+    );
     await expect(refPills(page, 'Fixed and referenced')).toHaveText([
-      /^#2/,
-      /^#3/,
+      /^refs #2/,
+      /^refs #3/,
     ]);
     await expect(
       refPills(page, 'Fixed and referenced').first(),
     ).toHaveAccessibleName(
-      /^Pull request #2.*, references, does not close this issue$/,
+      /^refs #2.*, pull request, references, does not close this issue$/,
     );
     await expect(closePills(page, 'Fixed and referenced')).toHaveAccessibleName(
-      /^Pull request #1.*, closes this issue$/,
+      /^closes #1.*, pull request, closes this issue$/,
     );
     await expect(refPills(page, 'Nobody on it')).toHaveCount(0);
     await expect(refPills(page, 'Has a fix coming')).toHaveCount(0);
-    const border = (locator: ReturnType<typeof refPills>) =>
-      locator.first().evaluate((el) => getComputedStyle(el).borderTopStyle);
-    // Retries until both pills are styled; an unstyled pill reads as ''.
+    // Drawn like the closing pill: the word carries the difference.
+    const look = lookOf(refPills(page, 'Only mentioned by work'));
     await expect
-      .poll(async () => {
-        const a = await border(refPills(page, 'Only mentioned by work'));
-        const b = await border(closePills(page, 'Has a fix coming'));
-        return a !== '' && b !== '' && a !== b;
-      })
-      .toBe(true);
+      .poll(look)
+      .toEqual(await lookOf(closePills(page, 'Has a fix coming'))());
   });
 
-  test('is not drawn like a draft pill', async ({ page }) => {
-    await open(page, '/issues.html');
-    const outline = (locator: ReturnType<typeof refPills>) =>
-      locator.first().evaluate((el) => {
-        const style = getComputedStyle(el);
-        return `${style.borderTopStyle} ${style.fontStyle}`;
+  test('a draft reference keeps the dashed draft border', async ({ page }) => {
+    await open(page, '/issues.html', [
+      issue(31, 'Draft reference', [prLink(1)], [prLink(5, true)]),
+    ]);
+    const draft = refPills(page, 'Draft reference');
+
+    await expect(draft).toHaveText(/^refs #5 draft/);
+    for (const [pills, word] of [
+      [draft, 'refs'],
+      [closePills(page, 'Draft reference'), 'closes'],
+    ] as const) {
+      const relation = pills.first().locator('.linked-pr-relation');
+      await expect(relation).toHaveText(word);
+      await expect(relation).toHaveCSS('font-weight', '700');
+    }
+    await expect(draft).toHaveCSS('border-top-style', 'dashed');
+    await expect(closePills(page, 'Draft reference')).toHaveCSS(
+      'border-top-style',
+      'solid',
+    );
+  });
+
+  for (const width of [1280, 390])
+    for (const scheme of ['light', 'dark'] as const)
+      test(`stays inside its row and readable at ${width}px in ${scheme}`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 800 });
+        await page.emulateMedia({ colorScheme: scheme });
+        // The longest a pill gets: another repository, a draft, and a
+        // pipeline with a count in every state.
+        const far = (number: number) => ({
+          ...prLink(number, true),
+          repo: 'acme/a-very-long-repository-name-that-cannot-fit-a-phone-row',
+          ci: 'pending',
+          checks: { passed: 128, running: 64, waiting: 32, failed: 16 },
+        });
+        await open(page, '/issues.html', [
+          issue(32, 'Long reference', [far(4243)], [far(4242), prLink(2)]),
+        ]);
+        const row = rowOf(page, 'Long reference');
+        await expect(row.locator('.refs-pill')).toHaveCount(2);
+        await expect(row.locator('.linked-pr')).toHaveText([
+          /^closes .*#4243 draft/,
+          /^refs .*#4242 draft/,
+          /^refs #2/,
+        ]);
+
+        const edges = await row.evaluate((el) => {
+          const box = el.getBoundingClientRect();
+          return [...el.querySelectorAll('.linked-pr')].map((pill) => {
+            const own = pill.getBoundingClientRect();
+            return own.left >= box.left && own.right <= box.right;
+          });
+        });
+        expect(edges).toEqual([true, true, true]);
+        // axe's color-contrast rule is WCAG 1.4.3's 4.5:1 for text this size.
+        const results = await new AxeBuilder({ page })
+          .include('#issue-rows .linked-pr')
+          .withRules(['color-contrast', 'label-content-name-mismatch'])
+          .analyze();
+        expect(results.violations).toEqual([]);
+        expect(results.incomplete).toEqual([]);
       });
-
-    const draft = page
-      .locator('#issue-rows .row', { hasText: 'Draft fix and a reference' })
-      .locator('.linked-pr.draft');
-    await expect(draft).toHaveCount(1);
-
-    // Retries until both pills are styled.
-    await expect
-      .poll(async () => {
-        const a = await outline(refPills(page, 'Draft fix and a reference'));
-        const b = await outline(draft);
-        return !a.startsWith(' ') && !b.startsWith(' ') && a !== b;
-      })
-      .toBe(true);
-  });
 
   test('keeps the pills behind a count, worded for references', async ({
     page,
