@@ -4613,6 +4613,31 @@ footer a.mono:focus-visible {
   .status-cell > .wait-slot:empty {
     display: none;
   }
+  /* An armed card's chip and its Cancel share a line, so the card is no
+     taller than one with Merge (#4971). The slot's basis leaves just the
+     button's width, so both wrap under the pills together. A stopped
+     auto-merge draws no chip here, so its Cancel keeps its own tier. */
+  .row:not(.issue-row)
+    .status-cell-armed:has(
+      > .wait-slot > .wait-chip:not([data-state="stopped"], [hidden])
+    ) {
+    > .wait-slot {
+      flex: 1 0 calc(100% - 5.5rem - 6px);
+    }
+    > .row-action-bar {
+      flex: 0 0 5.5rem;
+      align-self: flex-start;
+      margin-top: 7px;
+      padding-top: 0;
+      border-top: 0;
+
+      > .row-action.row-action-secondary {
+        flex: 1 1 auto;
+        min-width: 0;
+        padding-inline: 8px;
+      }
+    }
+  }
   /* One line of pills: the CI pill, then the merge-state and comment pills
      (#4502). The attribute chips are in the title cell, under the labels. */
   /* A row with no attribute to show still builds the cluster. Empty, it is a

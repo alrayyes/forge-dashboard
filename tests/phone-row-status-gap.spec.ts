@@ -489,15 +489,13 @@ test.describe('phone row, wait chip to divider (#4099)', () => {
     await page.setViewportSize({ width: 390, height: 844 });
     const row = await open(page, pr({ ...BEHIND, ...WAITING, ci: 'pending' }));
     await expect(row.locator('.wait-chip')).toBeVisible();
-    // The bar under it holds Cancel auto-merge (#4971).
+    // Cancel auto-merge is beside the chip (#4971), so nothing is under it.
     await expect(row.locator('.row-action-bar button')).toHaveCount(1);
     const m = await row.evaluate((r) => {
       const chip = r.querySelector('.wait-chip')!.getBoundingClientRect();
-      const bar = r.querySelector('.row-action-bar')!.getBoundingClientRect();
-      return { chipToDivider: bar.top - chip.bottom };
+      const cell = r.querySelector('.status-cell')!.getBoundingClientRect();
+      return { below: cell.bottom - chip.bottom };
     });
-    expect(m.chipToDivider, JSON.stringify(m)).toBeLessThanOrEqual(
-      MAX_CHIP_TO_DIVIDER,
-    );
+    expect(m.below, JSON.stringify(m)).toBeLessThanOrEqual(MAX_CHIP_TO_DIVIDER);
   });
 });

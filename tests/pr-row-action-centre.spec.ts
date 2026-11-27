@@ -939,3 +939,66 @@ for (const width of [390, 1024, 1191, 1280, 1440]) {
     );
   });
 }
+
+// On a phone card the chip and Cancel share one line, so an armed card is no
+// taller for it.
+for (const width of [320, 360, 390, 760]) {
+  test(`a phone card has Cancel beside the armed chip at ${width}px`, async ({
+    page,
+  }) => {
+    const shapes = [
+      ...PULLS.map((v) => ({ title: v.name, ...v.pr })),
+      ...SAYS.map((s) => ({ title: s.name, ...s.pr })),
+    ];
+    await open(page, width, [
+      pr(1, { title: 'Merge' }),
+      ...shapes.map((shape, i) => pr(i + 2, shape)),
+    ]);
+    await expect(page.locator('.row-action-secondary')).toHaveCount(
+      shapes.length,
+    );
+    const rows = await page.locator('#pr-rows > .row').evaluateAll((all) =>
+      all.map((r) => {
+        const box = (s: string) => r.querySelector(s)?.getBoundingClientRect();
+        const chip = box('.wait-chip');
+        const cancel = box('.row-action-secondary');
+        const label = r.querySelector('.wait-chip-label, .swap .words');
+        return {
+          title: r.querySelector('.title-text')?.textContent ?? '',
+          overflow: r.scrollWidth - r.clientWidth,
+          cut: label ? label.scrollWidth - label.clientWidth : 0,
+          ciBottom: box('.ci-pill')!.bottom,
+          cellBottom: box('.status-cell')!.bottom,
+          chip: chip && {
+            top: chip.top,
+            bottom: chip.bottom,
+            right: chip.right,
+            centre: chip.top + chip.height / 2,
+          },
+          cancel: cancel && {
+            left: cancel.left,
+            height: cancel.height,
+            centre: cancel.top + cancel.height / 2,
+          },
+        };
+      }),
+    );
+    const armed = rows.slice(1);
+    for (const r of armed) {
+      const at = `${r.title}: ${JSON.stringify(r)}`;
+      expect(r.overflow, at).toBeLessThanOrEqual(0);
+      // A stopped auto-merge is a text line on a phone, with no chip.
+      if (r.chip!.bottom === 0) continue;
+      expect(r.cut, at).toBeLessThanOrEqual(0);
+      expect(r.cancel!.height, at).toBeGreaterThanOrEqual(44);
+      expect(r.chip!.top, at).toBeGreaterThanOrEqual(r.ciBottom);
+      expect(
+        Math.abs(r.chip!.centre - r.cancel!.centre),
+        at,
+      ).toBeLessThanOrEqual(TOLERANCE);
+      expect(r.cancel!.left - r.chip!.right, at).toBeGreaterThanOrEqual(0);
+      // Nothing takes a line under them.
+      expect(r.cellBottom - r.chip!.bottom, at).toBeLessThanOrEqual(16);
+    }
+  });
+}

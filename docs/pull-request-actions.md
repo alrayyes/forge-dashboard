@@ -37,8 +37,11 @@ auto-merge, whatever the server marks primary. The one other control is inside
 the chip: on a pull request behind its base, the chip's label can be the Update
 branch button (below). Merge, Update branch, the Renovate and Dependabot
 rebases, Recreate and Close stay in the pop-up's footer, and a "Behind the base
-branch" block keeps its words without its button. The rest of this section is
-about rows that aren't armed.
+branch" block keeps its words without its button. On a phone the chip and
+Cancel share one line under the pills, with no divider, so the chip adds no line
+for the button. A stopped auto-merge draws no chip there, and its Cancel takes
+the line after the divider. The rest of this section is about rows that aren't
+armed.
 
 The row draws one button: the primary action, or, while Merge is locked, the
 greyed Merge with its reason. A pull request with neither draws none, so a
@@ -928,7 +931,8 @@ On a phone card the slot reserves nothing. With no chip the slot is not drawn,
 so the card is no taller than its content and the divider sits within 16px of
 the pill line, with no band under the action either. A chip takes its own room,
 59px plus the 6px flex gap, and the divider then sits 10px under it (the flex
-gap and the bar's top margin). The trade-off: when your own tap makes a chip
+gap and the bar's top margin). An armed row has no divider under its chip,
+because Cancel is beside it. The trade-off: when your own tap makes a chip
 appear, the card grows once, downwards, by about that much. Nothing above the
 chip in the card moves and the page keeps its scroll position, the change is
 announced once by the live region, and with reduced motion on there is no
