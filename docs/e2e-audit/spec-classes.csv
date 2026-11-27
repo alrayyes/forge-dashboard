@@ -229,7 +229,7 @@ pr-details-title-code.spec.ts,4.75,5,3,A,,1.9
 pr-dialog-actions.spec.ts,18.079,29,14,C,web/src/lib/footer-order.test.ts (proven),9.4
 pr-filter-pill.spec.ts,10.696,12,7,A,,4.5
 pr-list-columns.spec.ts,,7,4,A,,0.0
-pr-repo-column-width.spec.ts,,7,1,C,,0.0
+pr-repo-column-width.spec.ts,,8,1,C,,0.0
 pr-row-action-centre.spec.ts,3.086,7,2,C,,2.2
 pr-row-centering.spec.ts,11.247,21,8,C,,7.0
 pr-title-root-font-size-band.spec.ts,15.883,6,2,C,,10.6

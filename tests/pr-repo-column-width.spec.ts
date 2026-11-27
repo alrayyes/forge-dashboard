@@ -217,6 +217,27 @@ for (const [view, options, narrow] of VIEWS) {
   });
 }
 
+// The column starts to grow at a list width set in rem, with a floor in px so
+// that a small text size doesn't start it while the title has no room to spare.
+for (const [size, percent] of [
+  ['12px', 75],
+  ['13px', 81.25],
+] as const) {
+  test(`at 1280px and a ${size} root font the title is no narrower than 220px`, async ({
+    page,
+  }) => {
+    await open(page, 1280);
+    await page.addStyleTag({
+      content: `html { font-size: ${percent}% !important; }`,
+    });
+    const rows = await measure(page);
+    expect(rows.find((r) => r.name === NAME_34)?.title).toBeGreaterThanOrEqual(
+      220,
+    );
+    expect(Math.round(rows[0].repo)).toBe(168);
+  });
+}
+
 test('at 1280px the title column is no narrower than 220px', async ({
   page,
 }) => {

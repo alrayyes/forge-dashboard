@@ -226,8 +226,10 @@ a {
      request title has 440px, then every further pixel, until a 34 character
      name fits beside the forge badge and the logo. 100cqi is read where the
      value is used, so it is the width of the nearest container around the
-     columns: the list. In rem, so the threshold and the cap follow the text. */
-  --repo-grow: min(calc(100cqi - 79.375rem), 23.5rem);
+     columns: the list. In rem, so the threshold and the cap follow the text,
+     with the threshold held at 1270px for small text, which would otherwise
+     start it while the title has nothing to spare. */
+  --repo-grow: min(calc(100cqi - max(1270px, 79.375rem)), 23.5rem);
   /* The toolbar's padding. The phone Activity control's offsets follow from
      these and --tap (#4591, #4619). */
   --toolbar-pad-top: 4px;
