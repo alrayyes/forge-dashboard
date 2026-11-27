@@ -231,7 +231,7 @@ pr-dialog-actions.spec.ts,18.079,29,14,C,web/src/lib/footer-order.test.ts (prove
 pr-filter-pill.spec.ts,10.696,12,7,A,,4.5
 pr-list-columns.spec.ts,,7,4,A,,0.0
 pr-repo-column-width.spec.ts,,9,1,C,,0.0
-pr-row-action-centre.spec.ts,3.086,17,11,A,,1.1
+pr-row-action-centre.spec.ts,3.086,18,12,A,,1.0
 pr-row-centering.spec.ts,11.247,21,8,C,,7.0
 pr-title-root-font-size-band.spec.ts,15.883,6,2,C,,10.6
 presence-hidden-tab.spec.ts,0.158,1,0,C,web/src/lib/presence.test.ts,0.2

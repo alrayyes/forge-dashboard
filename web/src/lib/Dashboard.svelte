@@ -67,7 +67,7 @@
     showsBehindPill,
     showsBehindStatus,
   } from "#lib/behind-signals.js";
-  import { watchArmedChips } from "#lib/armed-chip-fit.js";
+  import { fitArmedChips, watchArmedChips } from "#lib/armed-chip-fit.js";
   import { dropsFailingMerge } from "#lib/failing-merge.js";
   import {
     detailsCache,
@@ -9521,6 +9521,11 @@
           appendEntries(container, pages[state.page - 1] ?? []);
           renderPagination(totalPages);
         }
+
+        // Before anything reads the new rows' places: keepFocusAcross puts
+        // the reader back as soon as this returns, and a wrap found a frame
+        // later would move the rows under them (#4971).
+        if (isPR) fitArmedChips(container);
 
         if (unlockWatch) announceIfUnlocked(container, unlockWatch);
 

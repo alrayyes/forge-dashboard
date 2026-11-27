@@ -1029,3 +1029,80 @@ for (const width of [1280, 1440, 1920]) {
     expect(Math.abs(heights[0] - heights[1])).toBeLessThanOrEqual(1);
   });
 }
+
+// A redraw rebuilds every row, so each one has to know its line before the
+// page puts the reader back: a wrap found a frame later makes the rows above
+// taller and moves the reading row.
+for (const anchoring of ['without', 'with']) {
+  test(`a pushed change keeps the reading row still ${anchoring} native scroll anchoring`, async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as {
+        EventSource: unknown;
+        __es?: { onmessage: ((e: { data: string }) => void) | null };
+      };
+      w.EventSource = class {
+        onmessage = null;
+        constructor() {
+          w.__es = this;
+        }
+        close() {}
+        addEventListener() {}
+      };
+    });
+    const prs = Array.from({ length: 40 }, (_, i) =>
+      pr(i + 1, { ...ARMED, ...COMMENTS }),
+    );
+    await open(page, 1280, prs.slice(0, 25));
+    const push = (pullRequests: unknown[]) =>
+      page.evaluate(
+        (data) => {
+          (
+            window as unknown as {
+              __es: { onmessage: (e: { data: string }) => void };
+            }
+          ).__es.onmessage({ data });
+        },
+        JSON.stringify({
+          generatedAt: new Date().toISOString(),
+          forges: [forgeHealth('github')],
+          pullRequests,
+          issues: [],
+          openIssueCount: 0,
+          repos: [],
+          hiddenDrafts: 0,
+        }),
+      );
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __es?: { onmessage: unknown } }).__es
+          ?.onmessage != null,
+    );
+    // The pager, and its page size, show once there's a second page.
+    await push(prs);
+    await page.locator('#pr-page-size').selectOption('50');
+    const rows = page.locator('#pr-rows > .row');
+    await expect(rows).toHaveCount(40);
+    await expect(page.locator('.status-cell-armed-wrap')).toHaveCount(40);
+    if (anchoring === 'without')
+      await page.addStyleTag({
+        content: '* { overflow-anchor: none !important }',
+      });
+    const reading = rows.nth(20);
+    await reading.evaluate((r) => r.scrollIntoView({ block: 'start' }));
+    const top = () => reading.evaluate((r) => r.getBoundingClientRect().top);
+    const before = await top();
+
+    await push(prs.map((p, i) => (i === 39 ? { ...p, title: 'Changed' } : p)));
+    await expect(rows.nth(39).locator('.title-text')).toContainText('Changed');
+    // Two frames, so a fit left to the next one has run.
+    await page.evaluate(
+      () =>
+        new Promise((done) =>
+          requestAnimationFrame(() => requestAnimationFrame(done)),
+        ),
+    );
+    expect(Math.abs((await top()) - before)).toBeLessThanOrEqual(2);
+  });
+}

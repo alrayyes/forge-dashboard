@@ -31,8 +31,9 @@ function wraps(cell: HTMLElement): boolean {
   });
 }
 
-// Fits the chips again whenever the rows change (a render, a live CI pill) or
-// the list does (the window, the text size), once per frame.
+// A render fits its own rows before it returns. This fits them again whenever
+// they change in place (a live CI pill) or the list does (the window, the text
+// size), once per frame.
 export function watchArmedChips(list: HTMLElement): void {
   let frame = 0;
   const later = () => {
