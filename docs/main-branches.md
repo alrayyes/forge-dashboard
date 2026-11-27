@@ -449,7 +449,8 @@ pipeline on its newest commit, an empty repo, or a Forgejo instance without
 Actions shows `none`. The snapshot updates on each full refresh, and a webhook
 delivery for a repo (a finished check, say) re-reads that repo's default branch
 at once, so a rerun that passed turns its row green without the next poll. If
-that read fails, the row keeps its earlier state.
+that read fails, the row keeps its earlier state. A row the webhook did read
+stays when a slower full refresh that began before it finishes.
 
 Forgejo sends no webhook when a finished run is rerun or when its jobs move.
 So the CI poll reads a Forgejo row again while a job on it is running or

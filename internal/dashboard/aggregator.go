@@ -34,6 +34,10 @@ type Aggregator struct {
 	// into the snapshot. A full refresh that started before it holds older data
 	// for that repo and must not replace the newer (#966). Guarded by mu.
 	scopedSeq map[repoKey]uint64
+	// branchSeq is scopedSeq for the default branch row alone. A scoped refresh
+	// whose branch read failed wrote no row, so it leaves this one behind and a
+	// full read newer than the row on show can still replace it. Guarded by mu.
+	branchSeq map[repoKey]uint64
 
 	// fullSeq is, per forge, the fetchSeq of the newest full refresh that read
 	// it. A scoped refresh that began before it read the forge before that
@@ -294,6 +298,7 @@ func NewAggregator(sources []Source, opts ...AggregatorOption) *Aggregator {
 		refresh:           newCoalescer(),
 		repoRefresh:       newKeyedCoalescer(),
 		scopedSeq:         make(map[repoKey]uint64),
+		branchSeq:         make(map[repoKey]uint64),
 		fullSeq:           make(map[Forge]uint64),
 		unread:            make(map[repoKey]bool),
 		settled:           make(map[string]time.Time),
@@ -928,6 +933,9 @@ func (a *Aggregator) mergedRepo(current Snapshot, forge Forge, fullName string, 
 	// holds leaves no gap between the two (#976).
 	a.annotateBotRequests(merged.PullRequests)
 	a.scopedSeq[repoKey{forge, fullName}] = seq
+	if branch != nil {
+		a.branchSeq[repoKey{forge, fullName}] = seq
+	}
 
 	return merged
 }
@@ -1933,7 +1941,9 @@ type repoKey struct {
 // meanwhile is already gone from the snapshot, while the full refresh, which
 // read the forge before the merge, still lists it. For every repo a scoped
 // refresh merged after this full one started (a larger seq), the snapshot's
-// current entries win, the repo's own row included. Every other repo takes the full refresh's data.
+// current entries win, the repo's own row included, and so does a default
+// branch row such a refresh wrote (#5071). Every other repo takes the full
+// refresh's data.
 func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Snapshot {
 	newer := make(map[repoKey]bool)
 	for key, scopedSeq := range a.scopedSeq {
@@ -1965,6 +1975,11 @@ func (a *Aggregator) keepNewerScopedRepos(snap, current Snapshot, seq uint64) Sn
 	repos := keepRows(snap.Repos, current.Repos, newer)
 
 	snap.PullRequests, snap.Issues, snap.Repos = prs, issues, repos
+	for _, b := range current.MainBranches {
+		if a.branchSeq[repoKey{b.Forge, b.FullName}] > seq {
+			snap.MainBranches = withMainBranch(snap.MainBranches, b.Forge, b.FullName, &b)
+		}
+	}
 	// The full refresh's forge row carries the failure mark. When scoped
 	// refreshes have made every repo current, the mark is over (#4108).
 	for key := range newer {
