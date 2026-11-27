@@ -135,10 +135,12 @@ screen reader all get it. A waiting row whose chip is its only extra, with no
 button and no merge-state or comment pill, is no taller than a normal one. On a
 list 1191px wide or more, a row with a button or such a pill beside the chip
 puts the chip on a line of its own, because every row shares the same columns.
-An armed row is the exception: its one-word chip stays on the CI pill's line,
-beside Cancel, when the row has no merge-state or comment pill and the CI pill
-carries at most one count. Otherwise the chip and Cancel make a second line, and
-the row is taller than one with Merge (about 28px more at 1280px). The Pull requests,
+An armed row is the exception: its chip stays on the CI pill's line, beside
+Cancel, wherever it fits there without lying over a pill, which the page
+measures in the browser. Where it doesn't fit, the chip and Cancel make a second
+line, and the row is taller than one with Merge (about 28px more at 1280px). At
+the default text size, from 1280px of window width, that happens beside a
+comment pill, and beside a CI pill with several long counts. The Pull requests,
 Releases and Bots pages share the row, so they share the chip. When the forge
 allows the merge, Merge takes the slot back, and a screen reader hears "Merge is
 available." only if focus is in that row. The pop-up's footer has no chip, so it
@@ -766,8 +768,8 @@ the same kind of chip, `Stopped`, with an alert icon and no button of its own.
 From 761px of window width it sits on the status pill's line, and a row stopped
 by failing CI also prints "Blocked, CI is failing" in its status block, so the
 reason is read without hovering. On the wide list (1191px of list width or more)
-the chip follows the armed row's rule above, so beside a
-flags pill or two CI counts it takes a line of its own with Cancel. On a
+the chip follows the armed row's rule above, so where it doesn't fit beside the
+pills it takes a line of its own with Cancel. On a
 phone it stays the text line it was, and so does a stopped row that has a
 queued action (an Update branch waiting for a rate-limit reset): that row keeps
 its queued chip, with the sentence as text beside it and the queued action's

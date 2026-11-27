@@ -67,6 +67,7 @@
     showsBehindPill,
     showsBehindStatus,
   } from "#lib/behind-signals.js";
+  import { watchArmedChips } from "#lib/armed-chip-fit.js";
   import { dropsFailingMerge } from "#lib/failing-merge.js";
   import {
     detailsCache,
@@ -5265,6 +5266,7 @@
     // checked against the DOM afterwards: a pull request that left the board
     // (a filter, a page change) takes its armed state with it.
     const prRowsEl = document.getElementById("pr-rows");
+    if (prRowsEl) watchArmedChips(prRowsEl);
     if (prRowsEl && typeof ResizeObserver !== "undefined") {
       let was = "";
       new ResizeObserver(() => {

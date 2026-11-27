@@ -432,11 +432,11 @@ for (const width of [1000, 1280, 1503]) {
           expect(r.titleWidth, `${r.title}: ${trace}`).toBeGreaterThanOrEqual(
             200,
           );
-        // From 1280px a row with a flags pill or a wide CI pill takes a second
-        // line, since every row shares the list's columns (#5006). A narrower list
-        // wraps the cell, where Cancel's line costs a few pixels. A row with a
-        // reason line (under the title, or in a wrapped cell) is taller by
-        // that line.
+        // From 1280px a row whose chip does not fit beside its pills takes a
+        // second line, since every row shares the list's columns (#5006). A
+        // narrower list wraps the cell, where Cancel's line costs a few pixels.
+        // A row with a reason line (under the title, or in a wrapped cell) is
+        // taller by that line.
         if (!r.under)
           expect(
             r.height - merge.height,
@@ -447,9 +447,9 @@ for (const width of [1000, 1280, 1503]) {
   }
 }
 
-// #4971, whatever an armed row waits for: with a short CI pill and no flags
-// pill its chip and Cancel stay on the pill's line, and otherwise they make one
-// line under the pills, since the list's columns are shared (#5006). Either way
+// #4971, whatever an armed row waits for: where its chip fits beside the pills
+// it and Cancel stay on the CI pill's line, and otherwise they make one line
+// under the pills, since the list's columns are shared (#5006). Either way
 // the CI pill and Cancel start where a Merge row's CI pill and Merge button do,
 // and the order on screen is the order Tab takes: the CI pill, the pills, the
 // chip, Cancel. `label` is the wait in full, which the chip's tooltip has.
@@ -534,11 +534,9 @@ for (const width of [1280, 1503, 1920]) {
             cell: box('.status-cell')!.height,
             titleWidth: r.querySelector('.title-cell')!.clientWidth,
             overflow: r.scrollWidth - r.clientWidth,
-            // A flags pill, or a CI pill with two counts or more, leaves no
-            // room beside it.
-            second:
-              (flags?.width ?? 0) > 0 ||
-              r.querySelectorAll('.ci-pill .ci-seg').length >= 3,
+            // The CI pill here is short, so only a flags pill leaves the chip
+            // no room.
+            second: (flags?.width ?? 0) > 0,
             ciRight: ci.right,
             ciCentre: ci.top + ci.height / 2,
             ciLeft: ci.left,
@@ -858,6 +856,7 @@ const SAYS = [
         code: 'checks_failing',
         message: 'Auto-merge stopped: a check failed.',
       },
+      status: { code: 'checks_failing', message: 'Blocked, CI is failing' },
       allowedActions: [
         {
           action: 'merge',
@@ -1000,5 +999,33 @@ for (const width of [320, 360, 390, 760]) {
       // Nothing takes a line under them.
       expect(r.cellBottom - r.chip!.bottom, at).toBeLessThanOrEqual(16);
     }
+  });
+}
+
+// #4971 asks for no stacking: a chip that fits beside its CI pill stays there,
+// however many counts the pill has.
+for (const width of [1280, 1440, 1920]) {
+  test(`a waiting armed row with two CI counts is one line at ${width}px`, async ({
+    page,
+  }) => {
+    await open(page, width, [
+      pr(1, { title: 'Merge' }),
+      pr(2, { title: 'Armed', ...ARMED }),
+    ]);
+    const rows = page.locator('#pr-rows > .row');
+    const armed = rows.filter({ has: page.locator('.wait-chip') });
+    const centre = async (selector: string) => {
+      const b = (await armed.locator(selector).boundingBox())!;
+      return b.y + b.height / 2;
+    };
+    await expect
+      .poll(async () =>
+        Math.abs((await centre('.wait-chip')) - (await centre('.ci-pill'))),
+      )
+      .toBeLessThanOrEqual(TOLERANCE);
+    const heights = await rows.evaluateAll((all) =>
+      all.map((r) => r.getBoundingClientRect().height),
+    );
+    expect(Math.abs(heights[0] - heights[1])).toBeLessThanOrEqual(1);
   });
 }
