@@ -56,6 +56,7 @@ const singleUserSpecs = [
   '**/branch-pill-dialog-agree.spec.ts',
   '**/cancelled-only-row.spec.ts',
   '**/repo-name-hover.spec.ts',
+  '**/pr-repo-column-width.spec.ts',
   '**/filter-persistence.spec.ts',
   '**/first-refresh-first-paint.spec.ts',
   '**/first-refresh-loading.spec.ts',

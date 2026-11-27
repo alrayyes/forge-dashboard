@@ -29,6 +29,10 @@ type QueuedAction struct {
 	// looks at the pull request again and decides.
 	RunAt     time.Time `json:"runAt"`
 	CreatedAt time.Time `json:"createdAt"`
+	// FirstDueAt is the RunAt the action was queued with. Retries move RunAt,
+	// so the hour a silent forge is given is counted from here. The store sets
+	// it, and it is not part of the API.
+	FirstDueAt time.Time `json:"-"`
 	// FinishedAt, Code and Message are set once the status is final. Code is
 	// from the ActionCode set (already_merged, conflict, rate_limited...), and
 	// Message is plain words safe to show a person.

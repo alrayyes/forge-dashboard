@@ -183,7 +183,7 @@
     primaryAction,
   } from "#lib/allowed-actions.js";
   import { readAmbiguousOutcome } from "#lib/ambiguous-outcome.js";
-  import { avatarSrc } from "#lib/avatar.js";
+  import { avatarSrc, drawOverInitial, noteImageFailed } from "#lib/avatar.js";
   import { profileHref } from "#lib/profile-link.js";
   import * as Stacks from "#lib/stacks.js";
   import { createTitleHover } from "#lib/title-hover.js";
@@ -918,7 +918,8 @@
       // The repository's own logo, only when the forge has one; a repository
       // without one draws nothing, so the row doesn't shift. Decorative: the
       // name beside it already says which repository. A failed load drops
-      // the image and leaves the name alone.
+      // the image and leaves the name alone, and a redraw shortly after
+      // doesn't ask again (#5124).
       const logo = avatarSrc(
         item.forge,
         reposByKey.get(Filters.repoKey(item.forge, item.repo))?.logoUrl,
@@ -931,7 +932,10 @@
         img.height = 16;
         img.loading = "lazy";
         img.referrerPolicy = "no-referrer";
-        img.addEventListener("error", () => img.remove());
+        img.addEventListener("error", () => {
+          noteImageFailed(logo);
+          img.remove();
+        });
         wrap.appendChild(img);
       }
       const repoName = el("span", "repo-name", item.repo);
@@ -3574,23 +3578,12 @@
       if (item.author) {
         // Decorative: the name beside it already says who. The box is 20px
         // whether it holds the image or the initial, so every name starts at
-        // the same x (#3868). A failed load swaps the image for the initial
-        // in place.
-        const placeholder = el("span", "author-avatar avatar-placeholder");
-        placeholder.setAttribute("aria-hidden", "true");
-        placeholder.dataset.initial = initialOf(item.author);
-        let box: HTMLElement = placeholder;
-        if (avatar) {
-          const img = el("img", "author-avatar") as HTMLImageElement;
-          img.src = avatar;
-          img.alt = "";
-          img.width = 20;
-          img.height = 20;
-          img.loading = "lazy";
-          img.referrerPolicy = "no-referrer";
-          img.addEventListener("error", () => img.replaceWith(placeholder));
-          box = img;
-        }
+        // the same x (#3868). The initial is always drawn and the image sits
+        // over it, so a redrawn row is never an empty box (#5124).
+        const box = el("span", "author-avatar avatar-placeholder");
+        box.setAttribute("aria-hidden", "true");
+        box.dataset.initial = initialOf(item.author);
+        if (avatar) drawOverInitial(box, avatar, "author-avatar", 20);
         authorCell.classList.add("has-avatar");
         authorCell.replaceChildren(box, nameSpan);
       }

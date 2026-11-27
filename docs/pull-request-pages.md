@@ -404,6 +404,17 @@ unauthenticated username-only listing carries no images, so it shows none.
 
 ## Long repository names
 
+On a one-line list the repository column grows with the list. It's 168px on
+pull request, Releases and Bots rows and 280px on issue rows while the list is
+narrow. On pull request, Releases and Bots rows the extra width goes to that
+column once the list is wider than 1438px (a 1600px window). Issue rows start
+wider, so theirs only grows past a list of about 1550px (a 1720px window). Both
+stop at 376px (23.5rem). That fits a repository name of 34 characters, owner
+included, beside the forge badge and the logo, so a 1920px window shows it
+whole. The column is the same width on every row. A list with stacked pull
+requests lets it grow 54px further, because a stacked row's indent comes out of
+that column.
+
 A repository name that is too long for its column is cut with an ellipsis. Hover
 it and the whole `owner/name` shows as hover text, the same as a cut pull
 request title. A name that fits has no hover text, since it would only repeat
