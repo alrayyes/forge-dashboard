@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.2](https://github.com/alrayyes/forge-dashboard/compare/v9.140.1...v9.140.2) (2026-11-27)
+
+
+### Bug Fixes
+
+* **dashboard:** bound what one repo's webhooks may spend of the budget ([#5107](https://github.com/alrayyes/forge-dashboard/issues/5107)) ([1d1adbd](https://github.com/alrayyes/forge-dashboard/commit/1d1adbdc70ce0eac18576d25cfa604fde671e6b8))
+
 ## [9.140.1](https://github.com/alrayyes/forge-dashboard/compare/v9.140.0...v9.140.1) (2026-11-27)
 
 
