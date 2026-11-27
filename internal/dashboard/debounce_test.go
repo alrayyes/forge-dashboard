@@ -568,3 +568,27 @@ func TestRefreshRepoDebounced_AnEventAfterTheBudgetReturns_IsDebouncedAfresh(t *
 
 	assert.Equal(t, 1, src.repoFetchCallCount("me/a"))
 }
+
+// A refresh waiting for the budget belongs to its Aggregator, and goes with it.
+func TestService_EnsureRebuildDropsADeferredRefreshOfTheOldAggregator(t *testing.T) {
+	t.Parallel()
+
+	clock := newFakeTimers()
+	src := &liveBudgetSource{budgetSource: newBudgetSource(graphQL, 5000)}
+	src.report(&dashboard.RateLimit{Limit: 5000, Remaining: reserved, ResetsAt: time.Now().Add(time.Hour)})
+	m := dashboard.NewService(time.Hour)
+	m.SetWebhookDebounceTimer(clock.After)
+	t.Cleanup(m.Stop)
+	m.Ensure(t.Context(), []dashboard.Source{src})
+	require.True(t, m.RefreshRepoDebounced(t.Context(), dashboard.ForgeGitHub, "me", "a", "me/a"))
+	clock.Advance(2 * time.Second)
+	require.Zero(t, src.repoFetchCallCount("me/a"), "held at the reserve")
+	require.Equal(t, 1, clock.pending(), "and waiting")
+
+	m.Ensure(t.Context(), []dashboard.Source{src})
+
+	require.Eventually(t, func() bool { return clock.pending() == 0 }, 5*time.Second, time.Millisecond, "the replaced Aggregator's timer is stopped")
+	src.report(&dashboard.RateLimit{Limit: 5000, Remaining: 5000, ResetsAt: time.Now().Add(time.Hour)})
+	clock.Advance(2 * time.Hour)
+	assert.Zero(t, src.repoFetchCallCount("me/a"))
+}

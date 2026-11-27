@@ -261,7 +261,7 @@ func (a *Aggregator) RefreshRepoDebounced(ctx context.Context, forge Forge, owne
 	var refresh func()
 	refresh = func() {
 		if reset, held := a.scopedHold(ctx, forge, owner, name); held {
-			slog.Debug("webhook refresh waits for the budget to reset", "forge", forge, "repo", fullName, "resets_at", reset)
+			slog.Info("webhook refresh waits for the budget to reset", "forge", forge, "repo", fullName, "resets_at", reset)
 			a.debounce.deferUntil(ctx, key, reset.Add(backoffBuffer), refresh)
 
 			return
