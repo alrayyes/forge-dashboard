@@ -16,6 +16,59 @@ type Counts = {
 
 const none: Counts = { passed: 0, running: 0, waiting: 0, failed: 0 };
 
+// A row can be removed and drawn again after it first shows, so an element that
+// was there a moment ago may have no box now (#5081). Every layout measurement
+// goes through here: `read` takes it in one evaluate and answers null while
+// something is missing, and the poll waits for two reads that match.
+async function settled<T>(read: () => Promise<T | null>): Promise<T> {
+  let last: string | undefined;
+  let value: T | undefined;
+  await expect
+    .poll(
+      async () => {
+        const now = await read();
+        const key = now === null ? undefined : JSON.stringify(now);
+        const stable = key !== undefined && key === last;
+        last = key;
+        value = now ?? undefined;
+        return stable;
+      },
+      { message: 'the measurement holds still' },
+    )
+    .toBe(true);
+  return value as T;
+}
+
+type Rect = { x: number; y: number; width: number; height: number };
+
+// The rects of `selectors` inside the first main branch row whose text includes
+// `hasText`. An element with no box counts as missing, as it does for
+// boundingBox, so a hidden name can't pass a height limit with a height of 0.
+function settledRects<K extends string>(
+  page: Page,
+  selectors: Record<K, string>,
+  hasText = '',
+): Promise<Record<K, Rect>> {
+  return settled(() =>
+    page.evaluate(
+      ([sels, text]) => {
+        const row = [
+          ...document.querySelectorAll('[data-testid="main-branch-row"]'),
+        ].find((e) => e.textContent?.includes(text));
+        const out: Record<string, Rect> = {};
+        for (const [key, sel] of sels) {
+          const el = row?.querySelector(sel);
+          if (!el?.getClientRects().length) return null;
+          const { x, y, width, height } = el.getBoundingClientRect();
+          out[key] = { x, y, width, height };
+        }
+        return out as Record<K, Rect>;
+      },
+      [Object.entries<string>(selectors), hasText] as const,
+    ),
+  );
+}
+
 function row(fullName: string, status: Status, checks: Counts | undefined) {
   return {
     forge: 'github',
@@ -171,8 +224,15 @@ test.describe('Main branches pill counts (#2074)', () => {
 
     await expect(pill(page, 'acme/red').locator('.ci-word')).toBeHidden();
     await expect(segments(page, 'acme/red')).toHaveText(['8', '1', '2', '3']);
-    const overflow = await page.evaluate(
-      () => document.documentElement.scrollWidth - window.innerWidth,
+    const { overflow } = await settled(() =>
+      page.evaluate(() =>
+        document.querySelector('[data-testid="main-branch-row"] .ci-pill')
+          ? {
+              overflow:
+                document.documentElement.scrollWidth - window.innerWidth,
+            }
+          : null,
+      ),
     );
     expect(overflow).toBeLessThanOrEqual(0);
   });
@@ -203,10 +263,6 @@ test.describe('Main branches pill counts (#2074)', () => {
       'sandbox/dotfiles',
       'alrayyes/forge-dashboard',
     ];
-    const repo = (page: Page, name: string) =>
-      page
-        .locator('[data-testid="main-branch-row"]', { hasText: name })
-        .locator('.mb-repo');
 
     test('on a phone a name that fits stays on one line', async ({ page }) => {
       await page.setViewportSize({ width: 390, height: 844 });
@@ -215,8 +271,8 @@ test.describe('Main branches pill counts (#2074)', () => {
         NAMES.map((n) => row(n, 'failed', capsule)),
       );
       for (const name of NAMES) {
-        const box = await repo(page, name).boundingBox();
-        expect(box?.height, name).toBeLessThan(24);
+        const { repo } = await settledRects(page, { repo: '.mb-repo' }, name);
+        expect(repo.height, name).toBeLessThan(24);
       }
     });
 
@@ -225,13 +281,12 @@ test.describe('Main branches pill counts (#2074)', () => {
     }) => {
       await page.setViewportSize({ width: 390, height: 844 });
       await open(page, [row(NAMES[1], 'failed', capsule)]);
-      const r = page.locator('[data-testid="main-branch-row"]');
-      const pill = await r.locator('.ci-pill').boundingBox();
-      const name = await r.locator('.mb-repo').boundingBox();
-      expect((pill?.y ?? 0) + (pill?.height ?? 0)).toBeLessThanOrEqual(
-        name?.y ?? 0,
-      );
-      expect(pill?.height).toBeGreaterThanOrEqual(44);
+      const { pill, name } = await settledRects(page, {
+        pill: '.ci-pill',
+        name: '.mb-repo',
+      });
+      expect(pill.y + pill.height).toBeLessThanOrEqual(name.y);
+      expect(pill.height).toBeGreaterThanOrEqual(44);
     });
 
     test('a name longer than the row wraps at a hyphen, not inside a word', async ({
@@ -245,28 +300,30 @@ test.describe('Main branches pill counts (#2074)', () => {
           capsule,
         ),
       ]);
-      const lines = await page.evaluate(() => {
-        const el = document.querySelector('.mb-repo');
-        if (!el) throw new Error('no repo name');
-        const range = document.createRange();
-        const text = el.firstChild as Text;
-        const out: string[] = [];
-        let top = -1;
-        let line = '';
-        for (let i = 0; i < text.length; i++) {
-          range.setStart(text, i);
-          range.setEnd(text, i + 1);
-          const y = Math.round(range.getBoundingClientRect().top);
-          if (top !== -1 && y !== top) {
-            out.push(line);
-            line = '';
+      const lines = await settled(() =>
+        page.evaluate(() => {
+          const el = document.querySelector('.mb-repo');
+          if (!el?.getClientRects().length) return null;
+          const range = document.createRange();
+          const text = el.firstChild as Text;
+          const out: string[] = [];
+          let top = -1;
+          let line = '';
+          for (let i = 0; i < text.length; i++) {
+            range.setStart(text, i);
+            range.setEnd(text, i + 1);
+            const y = Math.round(range.getBoundingClientRect().top);
+            if (top !== -1 && y !== top) {
+              out.push(line);
+              line = '';
+            }
+            top = y;
+            line += text.data[i];
           }
-          top = y;
-          line += text.data[i];
-        }
-        out.push(line);
-        return out;
-      });
+          out.push(line);
+          return out;
+        }),
+      );
       expect(lines.length).toBeGreaterThan(1);
       for (const l of lines.slice(0, -1)) expect(l).toMatch(/[-/]$/);
     });
@@ -276,10 +333,11 @@ test.describe('Main branches pill counts (#2074)', () => {
     }) => {
       await page.setViewportSize({ width: 820, height: 800 });
       await open(page, [row(NAMES[1], 'failed', capsule)]);
-      const r = page.locator('[data-testid="main-branch-row"]');
-      const pill = await r.locator('.ci-pill').boundingBox();
-      const name = await r.locator('.mb-repo').boundingBox();
-      expect(pill?.x ?? 0).toBeGreaterThan((name?.x ?? 0) + (name?.width ?? 0));
+      const { pill, name } = await settledRects(page, {
+        pill: '.ci-pill',
+        name: '.mb-repo',
+      });
+      expect(pill.x).toBeGreaterThan(name.x + name.width);
     });
   });
 });
