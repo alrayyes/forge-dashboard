@@ -6827,9 +6827,14 @@
       // that button's request runs (#3279).
       const inChip =
         active instanceof HTMLElement && !!active.closest(".wait-chip");
+      // A row's links have no id either, so one is found by where it goes.
+      const href =
+        active instanceof HTMLAnchorElement
+          ? active.getAttribute("href")
+          : null;
       const key =
-        active instanceof HTMLButtonElement || inChip
-          ? active.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
+        active instanceof HTMLButtonElement || inChip || href !== null
+          ? active?.closest<HTMLElement>("#pr-rows .row")?.dataset.prKey
           : undefined;
       const label = active?.textContent;
       const className = active?.className;
@@ -6858,7 +6863,17 @@
       // fills, and the one now in that slot takes the focus. Failing that, the
       // chip that stands in for it, and last the row's title button, so focus
       // never drops to the page (#3279).
+      const sameLink =
+        href === null
+          ? undefined
+          : Array.from(row?.querySelectorAll("a") ?? []).find(
+              (a) =>
+                a.className === className &&
+                a.getAttribute("href") === href &&
+                !a.closest("[hidden]"),
+            );
       (
+        sameLink ??
         buttons.find(
           (b) => b.className === className && b.textContent === label,
         ) ??

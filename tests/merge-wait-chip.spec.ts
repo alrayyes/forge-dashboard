@@ -695,6 +695,27 @@ test.describe('a status that stays unknown', () => {
     await expect(late).toHaveText('Still waiting');
   });
 
+  test('keeps focus on a row link when the wait redraws the row', async ({
+    page,
+  }) => {
+    await page.clock.install({ time: new Date() });
+    await open(page, [
+      {
+        ...unknownStatus(1, 'Unknown'),
+        authorUrl: 'https://github.com/claude',
+      },
+    ]);
+    const link = row(page, 'Unknown').locator('a.author-link');
+    await link.focus();
+
+    await page.clock.fastForward(130_000);
+
+    await expect(row(page, 'Unknown').locator('.wait-chip-label')).toHaveText(
+      'Still waiting',
+    );
+    await expect(link).toBeFocused();
+  });
+
   test('a pull request that leaves the snapshot and comes back starts the clock again', async ({
     page,
   }) => {
