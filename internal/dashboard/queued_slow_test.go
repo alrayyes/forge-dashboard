@@ -175,3 +175,67 @@ func TestAggregator_AClickJoiningTheQueuedRunnersPassStopsAtTheUserDeadline(t *t
 	q.src.answer <- q.behindNow()
 	<-clicked
 }
+
+// A pass that starts with a person already waiting for it is theirs, whoever's
+// closure it runs.
+func TestAggregator_APassBegunWithAPersonWaitingStopsAtTheUserDeadline(t *testing.T) {
+	t.Parallel()
+
+	leaders := map[string]func(context.Context, slowQueue){
+		"queued behind a scheduled pass": func(ctx context.Context, q slowQueue) {
+			q.agg.Refresh(dashboard.BackgroundForTest(ctx))
+		},
+		"queued behind the queued runner's pass": func(ctx context.Context, q slowQueue) {
+			q.agg.ProcessQueuedActions(ctx)
+		},
+	}
+	for name, leader := range leaders {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			q := newSlowQueue(t)
+			q.enqueue(t, time.Minute)
+			first := q.start(t, func() { leader(t.Context(), q) })
+			clicked := make(chan struct{})
+			go func() {
+				defer close(clicked)
+				q.agg.Refresh(t.Context())
+			}()
+			require.Eventually(t, func() bool { return q.agg.ParkedRefreshesForTest() == 1 }, 10*time.Second, time.Millisecond)
+
+			q.src.answer <- q.src.rows(10)
+			<-q.src.entered // the pass the click waits for
+			q.timers.Advance(lateUserDeadline)
+
+			select {
+			case <-clicked:
+			case <-time.After(10 * time.Second):
+				assert.Fail(t, "the click waited past the user deadline")
+			}
+			q.src.answer <- q.src.rows(10)
+			<-clicked
+			<-first
+		})
+	}
+}
+
+// The runner joins nothing: a scheduled pass already reading keeps its time.
+func TestAggregator_TheQueuedRunnerDoesNotShortenAScheduledPassInFlight(t *testing.T) {
+	t.Parallel()
+	q := newSlowQueue(t)
+	q.enqueue(t, time.Minute)
+	scheduled := q.start(t, func() { q.agg.Refresh(dashboard.BackgroundForTest(t.Context())) })
+	runner := make(chan struct{})
+	go func() {
+		defer close(runner)
+		q.agg.ProcessQueuedActions(t.Context())
+	}()
+	require.Eventually(t, func() bool { return q.agg.ParkedRefreshesForTest() == 1 }, 10*time.Second, time.Millisecond)
+
+	assert.Equal(t, lateScheduledDeadline, q.timers.NextIn(), "how long the scheduled pass has")
+
+	q.src.answer <- q.behindNow()
+	<-q.src.entered // the pass the runner waits for
+	q.src.answer <- q.behindNow()
+	<-runner
+	<-scheduled
+}
