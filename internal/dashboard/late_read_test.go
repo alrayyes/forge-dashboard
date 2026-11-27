@@ -323,4 +323,6 @@ func TestAggregator_ALateReadEndsWithTheContextThatAskedForIt(t *testing.T) {
 	cancel()
 
 	<-f.src.cancelled
+	// The cancelled read's failure says nothing about the forge.
+	assert.Never(t, func() bool { return !health(f.agg.Get(), dashboard.ForgeForgejo).Reachable }, 200*time.Millisecond, time.Millisecond)
 }
