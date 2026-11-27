@@ -12,7 +12,7 @@ import (
 )
 
 // commitStatuses lists a commit's statuses as checks, one request for each
-// perPage of them.
+// perPage of them. With an error it returns the pages read before it.
 func (c *Client) commitStatuses(ctx context.Context, owner, name, sha string) ([]dashboard.Check, error) {
 	path := fmt.Sprintf("/repos/%s/%s/commits/%s/status", owner, name, sha)
 	checks := []dashboard.Check{}
@@ -21,7 +21,7 @@ func (c *Client) commitStatuses(ctx context.Context, owner, name, sha string) ([
 		slog.Debug("github request", "method", http.MethodGet, "url", path)
 		combined, resp, err := c.restClient.Repositories.GetCombinedStatus(ctx, owner, name, sha, opts)
 		if err != nil {
-			return nil, asClientError(c.restError(ctx, http.MethodGet, path, err))
+			return checks, asClientError(c.restError(ctx, http.MethodGet, path, err))
 		}
 		c.recordRESTSuccess(ctx, http.MethodGet, path, resp)
 		for _, s := range combined.Statuses {
@@ -42,7 +42,8 @@ func (c *Client) commitStatuses(ctx context.Context, owner, name, sha string) ([
 
 // withStatuses adds the commit's statuses to its check runs (#5101): the row
 // counts both. A status that says what a check run of the same name says is the
-// same job reported twice, so it is left out. A failed read keeps the runs.
+// same job reported twice, so it is left out. A failed read keeps the runs and
+// the pages of statuses read before it.
 func (c *Client) withStatuses(ctx context.Context, owner, name, sha string, runs []dashboard.Check) []dashboard.Check {
 	if c.statusPresence.none(owner+"/"+name, sha) {
 		return runs
@@ -50,8 +51,6 @@ func (c *Client) withStatuses(ctx context.Context, owner, name, sha string, runs
 	statuses, err := c.commitStatuses(ctx, owner, name, sha)
 	if err != nil {
 		slog.Warn("github commit status lookup failed", "forge", dashboard.ForgeGitHub, "error", err)
-
-		return runs
 	}
 	fresh := slices.DeleteFunc(statuses, func(s dashboard.Check) bool {
 		return slices.ContainsFunc(runs, func(r dashboard.Check) bool { return sameJob(r, s) })

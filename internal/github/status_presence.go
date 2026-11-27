@@ -11,7 +11,9 @@ const statusPresenceMax = 10000
 
 // StatusPresenceCache remembers, per commit, whether a row's GraphQL rollup
 // counted any commit status, so a checks list can skip the status read when it
-// did not (#5101). A commit it knows nothing about is read.
+// did not (#5101). A commit it knows nothing about is read. Every credential
+// shares it: it holds one yes or no for each commit, and a yes from any of
+// them outlasts a no.
 type StatusPresenceCache struct {
 	mu   sync.Mutex
 	seen map[string]bool

@@ -4650,7 +4650,12 @@ func (c *Client) listChecksForSHA(ctx context.Context, owner, name, sha string) 
 	// still reports through the legacy commit-status API (a third-party CI, or
 	// a repo with no Actions workflow). The statuses are all there is, so a
 	// failed read fails the list.
-	return c.commitStatuses(ctx, owner, name, sha)
+	statuses, err := c.commitStatuses(ctx, owner, name, sha)
+	if err != nil {
+		return nil, err
+	}
+
+	return statuses, nil
 }
 
 // markRequired sets Check.Required from the base branch's protection.

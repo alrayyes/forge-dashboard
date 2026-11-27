@@ -1214,7 +1214,8 @@ row counts them too. On GitHub a status with the name of a check run and the
 same outcome (passed, failed or still going) is the same job reported twice and
 is listed once; where the two disagree, both are listed. A commit with no check
 run or Actions job lists its statuses alone. If GitHub's statuses can't be read
-for a commit with check runs, the panel lists only those runs.
+for a commit with check runs, the panel still lists those runs, with any
+statuses it had read before the failure.
 
 While a pipeline is running, the pill also says how far it is: the word
 Running, then a count for each state that has any, in the order passed, running,

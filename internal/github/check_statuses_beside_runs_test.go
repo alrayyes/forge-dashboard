@@ -21,6 +21,7 @@ type besideRuns struct {
 	runs           []map[string]any
 	statusPages    [][]map[string]any
 	statusCode     int
+	failPage       int
 	rollupStatuses []map[string]any
 
 	statusReads atomic.Int32
@@ -58,6 +59,11 @@ func (f *besideRuns) serve(t *testing.T) *httptest.Server {
 		}
 		page, _ := strconv.Atoi(r.URL.Query().Get("page"))
 		page = max(page, 1)
+		if page == f.failPage {
+			w.WriteHeader(http.StatusBadGateway)
+
+			return
+		}
 		if page < len(f.statusPages) {
 			w.Header().Set("Link", "<http://"+r.Host+r.URL.Path+"?page="+strconv.Itoa(page+1)+`>; rel="next"`)
 		}
@@ -229,6 +235,40 @@ func TestListChecks_AFailedStatusReadKeepsTheCheckRuns(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []string{"build success"}, namesAndStates(checks))
+}
+
+func TestListChecks_AFailedLaterStatusPageKeepsThePagesRead(t *testing.T) {
+	t.Parallel()
+
+	pages := [][]map[string]any{
+		{commitStatus("deploy", "failure")},
+		{commitStatus("docs", "success")},
+	}
+	t.Run("beside check runs", func(t *testing.T) {
+		t.Parallel()
+
+		forge := &besideRuns{
+			runs: []map[string]any{restRun("build", "completed", "success")}, statusPages: pages, failPage: 2,
+		}
+		client := github.NewClient("test-token", "", forge.serve(t).URL)
+
+		checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"build success", "deploy failure"}, namesAndStates(checks))
+	})
+	// With no check run the statuses are the list, so part of them is no list.
+	t.Run("without any", func(t *testing.T) {
+		t.Parallel()
+
+		forge := &besideRuns{runs: []map[string]any{}, statusPages: pages, failPage: 2}
+		client := github.NewClient("test-token", "", forge.serve(t).URL)
+
+		checks, err := client.ListChecks(t.Context(), "alrayyes", "a", 5)
+
+		require.Error(t, err)
+		assert.Empty(t, checks)
+	})
 }
 
 // readRow is one of the two reads that give a row its rollup.
