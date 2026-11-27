@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.9](https://github.com/alrayyes/forge-dashboard/compare/v9.140.8...v9.140.9) (2026-11-27)
+
+
+### Bug Fixes
+
+* **web:** widen the repository column on wide lists ([#5112](https://github.com/alrayyes/forge-dashboard/issues/5112)) ([e6a9376](https://github.com/alrayyes/forge-dashboard/commit/e6a9376386de01a3e9b86e1fe8fc6f43f7417729)), closes [#470](https://github.com/alrayyes/forge-dashboard/issues/470)
+
 ## [9.140.8](https://github.com/alrayyes/forge-dashboard/compare/v9.140.7...v9.140.8) (2026-11-27)
 
 
