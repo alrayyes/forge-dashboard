@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.12](https://github.com/alrayyes/forge-dashboard/compare/v9.140.11...v9.140.12) (2026-11-27)
+
+
+### Bug Fixes
+
+* **github:** wait for required checks that haven't started ([#5155](https://github.com/alrayyes/forge-dashboard/issues/5155)) ([4eeecea](https://github.com/alrayyes/forge-dashboard/commit/4eeeceafc6c9d73b255bc3b1259c54a42e15b3a4)), closes [#5108](https://github.com/alrayyes/forge-dashboard/issues/5108)
+
 ## [9.140.11](https://github.com/alrayyes/forge-dashboard/compare/v9.140.10...v9.140.11) (2026-11-27)
 
 
