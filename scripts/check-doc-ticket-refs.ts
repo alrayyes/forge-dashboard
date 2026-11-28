@@ -1,5 +1,5 @@
-// Public docs carry no ticket references. A README, anything under docs/ and
-// CONTRIBUTING.md get read away from the forge that holds the tracker (npm, a
+// Public docs carry no ticket references. A README, CLAUDE.md, anything under
+// docs/ and CONTRIBUTING.md get read away from the forge that holds the tracker (npm, a
 // mirror, a search snippet), where a bare `#123` is plain text or links to the
 // wrong repository, and where the forge itself is unreachable. The sentence
 // that justified the ticket belongs there instead.
@@ -70,9 +70,10 @@ export function findTicketRefs(markdown: string): Finding[] {
   return findings.sort((a, b) => a.line - b.line);
 }
 
-function docFiles(root: string): string[] {
+export function docFiles(root: string): string[] {
   const out = [
     'README.md',
+    'CLAUDE.md',
     'CONTRIBUTING.md',
     'SECURITY.md',
     'ARCHITECTURE.md',

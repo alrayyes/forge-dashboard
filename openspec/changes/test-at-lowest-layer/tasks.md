@@ -2,8 +2,8 @@
 
 ## 1. Make the rule hard to miss
 
-- [ ] 1.1 Add a short `CLAUDE.md` pointing at the tier rule in `CONTRIBUTING.md`, and have `scripts/check-doc-links.ts` read it; verify a broken link in `CLAUDE.md` fails the check
-- [ ] 1.2 Add the "why not a lower tier" line to the pull request template, and say in `CONTRIBUTING.md` that review asks for it, including on a pull request opened with its own body; verify both files say so
+- [x] 1.1 Add a short `CLAUDE.md` pointing at the tier rule in `CONTRIBUTING.md`, and have `scripts/check-doc-links.ts` read it; verify a broken link in `CLAUDE.md` fails the check
+- [x] 1.2 Add the "why not a lower tier" line to the pull request template, and say in `CONTRIBUTING.md` that review asks for it, including on a pull request opened with its own body; verify both files say so
 
 ## 2. Plain component tests
 
