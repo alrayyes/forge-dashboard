@@ -185,7 +185,7 @@ See [Main branches](docs/main-branches.md#forgejo-advisories).
   show.
 - [Component catalogue](docs/storybook.md): the Storybook stories, and the
   screenshots and accessibility scan that run over them, and the component tests
-  (`bun run test:components`) that run their `play` functions. `bun run
+  (`bun run test:components`). `bun run
 storybook:screenshots` writes a desktop, a phone and a dark PNG per story to `docs/storybook/`.
 - [Reports](docs/reports.md): the test, coverage, and Lighthouse reports published
   after every green push to `main`.

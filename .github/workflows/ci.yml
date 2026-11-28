@@ -733,8 +733,8 @@ jobs:
           grep -q '<coverage ' coverage.xml
 
   # Builds the Storybook catalog, screenshots every story and scans each with
-  # axe (rules/storybook.md, rules/a11y.md), then runs the stories' play
-  # functions as component tests (#3626). The same scripts the pre-push hook
+  # axe (rules/storybook.md, rules/a11y.md), then runs the component
+  # tests: stories and *.component.ts (#3626). The same scripts the pre-push hook
   # runs. It needs only the browser, so it takes the e2e jobs' image but no Go.
   storybook:
     needs: changes
@@ -754,7 +754,7 @@ jobs:
       - run: bun install --frozen-lockfile
       - name: build the catalog, screenshot every story and scan it with axe
         run: bun run storybook:screenshots
-      - name: run the stories' play functions as component tests
+      - name: run the component tests
         run: bun run test:components
       - name: upload the screenshots
         if: ${{ !cancelled() }}

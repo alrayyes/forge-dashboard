@@ -4,4 +4,6 @@
 anything. In particular:
 
 - [Which tier a test goes in](CONTRIBUTING.md#which-tier-a-test-goes-in): pick
-  the lowest tier that can see the behaviour.
+  the lowest tier that can see the behaviour. The tiers are unit (`bun test`),
+  component (Storybook `play` functions and `*.component.ts`) and end to end
+  (Playwright).

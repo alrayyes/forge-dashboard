@@ -41,6 +41,7 @@
     "typescript": "6.0.3",
     "vite": "8.3.8",
     "vitest": "5.1.1",
+    "vitest-browser-svelte": "3.1.0",
     "webmcp-types": "0.2.0"
   }
 }

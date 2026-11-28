@@ -334,7 +334,7 @@ pre-push:
               - "lefthook.yml"
             run: bun run storybook:screenshots
 
-          # Runs the stories' play functions as component tests in Chromium (#3626).
+          # Runs the component tests in Chromium: stories and *.component.ts (#3626).
           # The same script CI's storybook job runs after the screenshots.
           - name: component-tests
             glob:
