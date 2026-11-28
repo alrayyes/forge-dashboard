@@ -55,7 +55,8 @@ The web app's API types come from `api/openapi.yaml`. `bun run check:web`
 writes them to `web/src/lib/data/api-schema.d.ts` before it type-checks, and so
 does `bun install`. The file isn't committed. After editing the contract, run
 `bun run --filter web types` so your editor sees the change. Use it as
-`import type { components } from "#lib/data/api-schema.js"`.
+`Schema<"Version">` from `#lib/data/api.js`, and don't write a copy of a schema
+by hand.
 
 Every one of these is what a hook or CI runs — see `lefthook.yml` and
 `.github/workflows/*.yml` for exactly which.

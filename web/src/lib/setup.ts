@@ -4,38 +4,12 @@
 // step is current, which state a row is in, whether Continue is enabled, and
 // what a failure says. The facts are never turned into a verdict on the
 // server, so a client that wants other wording has everything it needs.
+import type { Schema } from './data/api.js';
 
-export type SetupInstallation = {
-  id: number;
-  accountLogin: string;
-  saved: boolean;
-};
-
-export type SetupGitHub = {
-  configured: boolean;
-  installUrl: string;
-  authorized: boolean;
-  account: string;
-  installations: SetupInstallation[];
-  installationsUnavailable: boolean;
-  repositoryCount: number;
-};
-
-export type SetupForgejo = {
-  redirectUri: string;
-  scopes: string[];
-  instanceUrl: string;
-  linked: boolean;
-  account: string;
-  repositoryCount: number;
-  reachable: boolean;
-};
-
-export type SetupFacts = {
-  github: SetupGitHub;
-  forgejo: SetupForgejo;
-  refreshed: boolean;
-};
+export type SetupInstallation = Schema<'SetupInstallation'>;
+export type SetupGitHub = Schema<'SetupGitHub'>;
+export type SetupForgejo = Schema<'SetupForgejo'>;
+export type SetupFacts = Schema<'SetupResponse'>;
 
 // The server's error codes are an extensible enum, so a code this table has
 // never heard of still earns a plain sentence. Nothing here echoes the forge's
