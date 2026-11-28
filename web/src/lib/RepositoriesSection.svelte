@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Schema } from "#lib/data/api.js";
   import { onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "./dashboard-read.svelte.js";
   import FilterGroup from "./FilterGroup.svelte";
@@ -51,29 +52,8 @@
     viewChoices,
   } from "./repositories.js";
 
-  type Repo = {
-    forge: string;
-    fullName: string;
-    url?: string;
-    logoUrl?: string;
-    ignored: boolean;
-    ignoredPRs: boolean;
-    ignoredIssues: boolean;
-    autoUpdateBranch: boolean;
-    rebaseBots: boolean;
-    hasWebhook: boolean;
-    canManageWebhooks?: boolean;
-    webhookReason?: string;
-    webhookReasonDetail?: string;
-    webhookNextAttemptAt?: string;
-    failingSince?: string;
-    failingForGood?: boolean;
-  };
-  type ForgeHealthEntry = {
-    forge: string;
-    reachable: boolean;
-    dependabotCommandsBlocked?: string;
-  };
+  type Repo = Schema<"RepoStatus">;
+  type ForgeHealthEntry = Schema<"ForgeHealth">;
 
   // The three scopes POST /api/v1/repos/ignore takes.
   type IgnoreScope = "prs" | "issues" | "both";

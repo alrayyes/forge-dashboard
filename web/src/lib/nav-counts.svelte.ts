@@ -1,3 +1,4 @@
+import type { Schema } from './data/api.js';
 import type { MainBranch } from './main-branches';
 import { applyLiveCi, type CountedPullRequest } from './nav-counts-live';
 import { nextNavCounts } from './nav-counts-next';
@@ -45,12 +46,7 @@ export type NavCounts = {
 
 // components.schemas.NavCounts: Issues has a total only, and Branches is not
 // here: the page counts the main branch rows the snapshot carries.
-export type ServerNavCounts = {
-  pullRequests: NavCount;
-  issues: { total: number };
-  releases: NavCount;
-  bots: NavCount;
-};
+export type ServerNavCounts = Schema<'NavCounts'>;
 
 export const navCounts = $state<{ value: NavCounts | null }>({ value: null });
 

@@ -4,16 +4,13 @@
 // (#732). Pure helpers, no DOM, so the dashboard page stays the only place
 // that touches elements.
 
+import type { Schema } from './data/api.js';
 import { rateLimitDocsUrlOf, rateLimitModelOf } from './forges';
 import { formatTime } from './time.svelte';
 
 // The budget as the server reports it: the numbers only. How worried to be
 // about them is graded by rateLimitSeverity below (#2929).
-export type RateLimit = {
-  limit: number;
-  remaining: number;
-  resetsAt: string;
-};
+export type RateLimit = Schema<'RateLimit'>;
 
 export type RateLimitSeverity = 'ok' | 'warning' | 'low' | 'exceeded';
 

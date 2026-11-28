@@ -3,39 +3,11 @@
 // that needs just these (webhooks, Main branches) doesn't pull in the filter
 // module with them (#1366).
 
+import type { Schema } from './data/api.js';
+
 // What a forge says it can do, as the API sends it in each forge's health
-// (components.schemas.ForgeCapabilities). Only the part a page reads here.
-export type ForgeCapabilities = {
-  label: string;
-  // The forge's public status page, empty when it has none.
-  statusPageUrl: string;
-  advisorySource: string;
-  advisoryUnknownNeedsReason: boolean;
-  // A job's log can be read while it runs.
-  servesRunningLog: boolean;
-  // The failed-job excerpt is read from the log endpoint, not the check list.
-  serverLogExcerpts: boolean;
-  // A run can be held until a person approves it.
-  approvalGatedRuns: boolean;
-  // This app, not the forge, holds an armed auto-merge and performs the merge.
-  autoMergeHeldByApp: boolean;
-  // The forge sends the user's permissions with each repo it lists, so a repo
-  // without them is the forge's omission, not the user's role.
-  reportsRepoPermissions: boolean;
-  // How the forge budgets requests: 'graphql_and_rest' (two allowances the
-  // forge counts itself) or 'rest'. Open-ended.
-  rateLimitModel: string;
-  // The forge's published rules for its request budget, empty when it has none.
-  rateLimitDocsUrl: string;
-  // The path segment before a pull request's number in the forge's web
-  // addresses: 'pull' on GitHub, 'pulls' on Forgejo.
-  pullRequestPathSegment: string;
-  // The fixed hosts an image in the forge's text may come from; empty means
-  // the item's own instance. And the prefix of an attachment link the server
-  // must look up signed, empty when there is none (#4156).
-  imageHosts: string[];
-  signedAttachmentPrefix: string;
-};
+// (components.schemas.ForgeCapabilities, which describes each field).
+export type ForgeCapabilities = Schema<'ForgeCapabilities'>;
 
 export type ForgeFlag =
   | 'servesRunningLog'

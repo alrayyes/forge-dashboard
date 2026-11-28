@@ -9,11 +9,22 @@ import { nextNavCounts } from './nav-counts-next';
 // server's first refresh running (null) makes them unknown again.
 // https://github.com/alrayyes/forge-dashboard/issues/4318
 
+// One part of the server's counts, as the contract has it.
+const count = (total: number, failed = 0) => ({
+  total,
+  failed,
+  running: 0,
+  passed: 0,
+  cancelled: 0,
+  noChecks: 0,
+  behind: 0,
+});
+
 const raw: ServerNavCounts = {
-  pullRequests: { total: 3, failed: 1 },
+  pullRequests: count(3, 1),
   issues: { total: 5 },
-  releases: { total: 1, failed: 0 },
-  bots: { total: 2, failed: 0 },
+  releases: count(1),
+  bots: count(2),
 };
 
 const known: NavCounts = {
@@ -37,7 +48,7 @@ describe('nextNavCounts', () => {
       pullRequests: { total: 9, failed: 9 },
     };
     const next = nextNavCounts(older, raw, true, [], null);
-    expect(next?.pullRequests).toEqual({ total: 3, failed: 1 });
+    expect(next?.pullRequests).toEqual(count(3, 1));
     expect(next?.issues).toEqual({ total: 5, failed: 0 });
   });
 
@@ -62,7 +73,7 @@ describe('nextNavCounts', () => {
   test('a count that went to zero is known as zero, not kept', () => {
     const next = nextNavCounts(
       known,
-      { ...raw, bots: { total: 0, failed: 0 } },
+      { ...raw, bots: count(0) },
       true,
       [],
       null,
@@ -84,18 +95,18 @@ describe('nextNavCounts', () => {
       bots: { total: 44, failed: 8 },
     };
     const incoming: ServerNavCounts = {
-      pullRequests: { total: 1, failed: 0 },
+      pullRequests: count(1),
       issues: { total: 2 },
-      releases: { total: 3, failed: 0 },
-      bots: { total: 4, failed: 0 },
+      releases: count(3),
+      bots: count(4),
     };
     const next = nextNavCounts(older, incoming, true, [failedRow], null);
     expect(next?.branches.total).toBe(1);
     expect(next?.branches.failed).toBe(1);
-    expect(next?.pullRequests).toEqual({ total: 1, failed: 0 });
+    expect(next?.pullRequests).toEqual(count(1));
     expect(next?.issues).toEqual({ total: 2, failed: 0 });
-    expect(next?.releases).toEqual({ total: 3, failed: 0 });
-    expect(next?.bots).toEqual({ total: 4, failed: 0 });
+    expect(next?.releases).toEqual(count(3));
+    expect(next?.bots).toEqual(count(4));
     const page = { total: 45, failed: 9 };
     expect(
       nextNavCounts(older, incoming, true, [failedRow], page)?.branches,
