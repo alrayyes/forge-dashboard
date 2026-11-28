@@ -362,6 +362,51 @@ test, then Playwright.
 A pull request that adds an end-to-end test says why no lower tier would catch
 the fault. The pull request template asks, and review asks for it too,
 including on a pull request opened with its own body.
+Naming a [listed journey](#journeys-that-stay-end-to-end) that the test newly
+covers is such a reason.
+
+Needing a browser doesn't make a test end to end. It stays end to end when it
+needs the server, sign-in, the live stream, navigation between pages, or the
+assembled page, such as keeping your place while rows update.
+
+### Journeys that stay end to end
+
+These whole journeys keep at least one Playwright test. The files named are
+where to look. Listing a file doesn't keep every test in it: a check there that
+needs only one component still moves down.
+
+| Journey                                         | Spec files in `tests/`                                                  |
+| ----------------------------------------------- | ----------------------------------------------------------------------- |
+| Signing in and out with a passkey               | `auth.spec.ts`, `auth-single-user.spec.ts`                              |
+| First run: setup, then the first answer         | `first-login-setup.spec.ts`, `startup-state.spec.ts`                    |
+| Live updates, by stream or polling              | `stream-after-first-poll.spec.ts`, `pull-request-rows-live.spec.ts`     |
+| Keeping your place while rows update            | `stable-rows.spec.ts`, `dialog-patches-in-place.spec.ts`                |
+| Opening a row, reading its checks, closing      | `row-opens-dialog.spec.ts`, `pull-request-checks.spec.ts`               |
+| Merging, closing and reopening a pull request   | `pull-request-merge.spec.ts`, `pull-request-reopen.spec.ts`             |
+| Auto-merge and updating a branch                | `pull-request-auto-merge.spec.ts`, `pull-request-update-branch.spec.ts` |
+| Queueing an action for a rate-limit reset       | `queued-for-reset.spec.ts`                                              |
+| Moving between pages                            | `nav.spec.ts`, `stale-dashboard-instance.spec.ts`                       |
+| Filters kept across pages and reloads           | `filter-persistence.spec.ts`                                            |
+| A saved setting changing what a page shows      | `issue-settings-effect.spec.ts`, `settings-counts-after-save.spec.ts`   |
+| What the server itself sends: errors and policy | `error-pages.spec.ts`, `csp-img-src.spec.ts`, `legal.spec.ts`           |
+
+Add a row when a new journey needs the whole app, in the same pull request as
+its test.
+
+### When a component is split out
+
+Its tests move to the lowest tier that can see their behaviour. That's the
+default, not something to argue for each time. Listed journeys stay.
+
+It takes two pull requests, in this order:
+
+1. Move the code, and leave the old tests unchanged. They prove the move changed
+   nothing.
+2. Add the lower tests, then delete the browser tests they replace.
+
+Prove each replacement before deleting the original: break the behaviour on
+purpose and see the new test fail. The second pull request names the replacement
+for every test it moves or drops, and records the failure seen.
 
 ## Unit tests
 
