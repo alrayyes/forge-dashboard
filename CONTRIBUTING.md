@@ -98,7 +98,8 @@ when you add a rule.
 
 A script under `scripts/` skips `image` and `e2e` unless the image build or a
 browser job runs it. `changed-areas.sh` lists those, and its test fails when the
-list misses one.
+list misses one or names a file that is gone. The Go programs there and the
+report builder set `go` instead of `web`.
 
 ```sh
 go build ./...

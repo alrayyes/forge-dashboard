@@ -77,6 +77,12 @@ used=$(
   failed=1
 }
 for script in $used; do
+  # A rename shows up as the new path only, so a caller left naming the old
+  # one would otherwise skip the very jobs that break on it.
+  [ -f "$script" ] || {
+    echo "FAIL: $script is named by the build or a browser job but doesn't exist"
+    failed=1
+  }
   check "web image e2e" "$script"
 done
 
