@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.17](https://github.com/alrayyes/forge-dashboard/compare/v9.140.16...v9.140.17) (2026-11-28)
+
+
+### Bug Fixes
+
+* keep a newer main branch row over a slower full read ([#5174](https://github.com/alrayyes/forge-dashboard/issues/5174)) ([c77f1b1](https://github.com/alrayyes/forge-dashboard/commit/c77f1b1209d6dd49677d678cf1f93056d2ac4220)), closes [#5071](https://github.com/alrayyes/forge-dashboard/issues/5071)
+
 ## [9.140.16](https://github.com/alrayyes/forge-dashboard/compare/v9.140.15...v9.140.16) (2026-11-27)
 
 
