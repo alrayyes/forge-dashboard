@@ -1,3 +1,5 @@
+import type { Schema } from './data/api.js';
+
 // A restart shows the last run's rows before any forge has been asked. Those
 // forges are "starting", which is not an outage: this module keeps the
 // wording for each state in one place so the page never reads a start-up gap
@@ -5,7 +7,7 @@
 
 // Why the server holds a forge's rows from an earlier read, absent when it
 // doesn't.
-export type ForgeCause = 'starting' | 'slow';
+export type ForgeCause = NonNullable<Schema<'ForgeHealth'>['cause']>;
 
 export type StartingHealth = {
   forge: string;

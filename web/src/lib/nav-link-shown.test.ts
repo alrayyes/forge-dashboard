@@ -8,6 +8,17 @@ import { navLinkShown } from './nav-link-shown';
 // is not known yet is not drawn either (#4276), and the page you are on keeps
 // its own link (#1415).
 
+// One part of the server's counts, as the contract has it.
+const count = (total: number, failed = 0) => ({
+  total,
+  failed,
+  running: 0,
+  passed: 0,
+  cancelled: 0,
+  noChecks: 0,
+  behind: 0,
+});
+
 describe('navLinkShown', () => {
   test('a count that is not known yet is not drawn', () => {
     expect(navLinkShown(null, false)).toBe(false);
@@ -32,10 +43,10 @@ describe('navLinkShown', () => {
 // about the counts (#4276, #4318).
 describe('a snapshot with no navCounts', () => {
   const raw: ServerNavCounts = {
-    pullRequests: { total: 3, failed: 0 },
+    pullRequests: count(3),
     issues: { total: 0 },
-    releases: { total: 0, failed: 0 },
-    bots: { total: 2, failed: 0 },
+    releases: count(0),
+    bots: count(2),
   };
   const drawn = (counts: NavCounts | null) => ({
     pulls: navLinkShown(counts?.pullRequests ?? null, false),

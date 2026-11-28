@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Schema } from "#lib/data/api.js";
   import { wireClearBox } from "#lib/clear-box.js";
   import { onDestroy, onMount, tick, untrack } from "svelte";
   import { dashboardRead } from "#lib/dashboard-read.svelte.js";
@@ -21,23 +22,9 @@
   import { AGE_BUCKETS, bucketAges, rankByRepo } from "#lib/insights.js";
   import { rateLimitSeverity } from "#lib/rate-limit.js";
 
-  type RateLimit = {
-    limit: number;
-    remaining: number;
-    resetsAt: string;
-    cost?: number;
-  };
-  type Forge = {
-    forge: string;
-    reachable: boolean;
-    repoCount: number;
-    // GitHub tracks REST and GraphQL as two independent 5000/hour
-    // budgets (#361) — this client spends both (the main repo/PR/issue
-    // query is GraphQL; checkWebhooks and every write action are REST),
-    // so one gauge was always only ever showing half the picture.
-    rateLimitGraphQL?: RateLimit;
-    rateLimitREST?: RateLimit;
-  };
+  type RateLimit = Schema<"RateLimit">;
+  // GitHub tracks REST and GraphQL as two independent budgets (#361).
+  type Forge = Schema<"ForgeHealth">;
 
   // ---- shared filter state — the same cookie/object app.js reads and
   // writes (via the shared #lib/filters module), not a separate

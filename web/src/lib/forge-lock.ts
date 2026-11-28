@@ -3,9 +3,9 @@
 // branches page lock a control on this, with the same wording, instead of
 // letting a click fail.
 
-import type { ForgeCause } from './forge-starting';
+import type { Schema } from './data/api.js';
 import { isUnreachable } from './forge-starting';
-import { type ForgeCapabilities, forgeLabelOf } from './forges';
+import { forgeLabelOf } from './forges';
 import {
   isRateLimited,
   type RateLimit,
@@ -14,26 +14,21 @@ import {
 
 // The part of a forge's health this reads; the dashboard's and the Main
 // branches responses both carry entries of this shape.
-export type ForgeHealthEntry = {
-  forge: string;
-  reachable: boolean;
-  // Rows are the saved ones and no fetch has answered since the app started.
-  starting?: boolean;
-  // Why the rows shown for this forge are held from an earlier read.
-  cause?: ForgeCause;
-  // When the held rows were read, sent only while the cause is "slow".
-  rowsReadAt?: string;
-  // When the rows shown for this forge were last read, while it can't be asked.
-  staleSince?: string;
-  rateLimitREST?: RateLimit;
-  rateLimitGraphQL?: RateLimit;
-  // Why Dependabot would refuse a command through this credential.
-  dependabotCommandsBlocked?: string;
-  // Why this forge can't rerun checks: an old Forgejo has no route for it.
-  rerunChecksBlocked?: string;
-  // What the forge can do; the label is where the pages read its name.
-  capabilities?: ForgeCapabilities;
-};
+export type ForgeHealthEntry = Pick<Schema<'ForgeHealth'>, 'reachable'> &
+  Partial<
+    Pick<
+      Schema<'ForgeHealth'>,
+      | 'starting'
+      | 'cause'
+      | 'rowsReadAt'
+      | 'staleSince'
+      | 'rateLimitREST'
+      | 'rateLimitGraphQL'
+      | 'dependabotCommandsBlocked'
+      | 'rerunChecksBlocked'
+      | 'capabilities'
+    >
+  > & { forge: string };
 
 export type ForgeLock = {
   code:
