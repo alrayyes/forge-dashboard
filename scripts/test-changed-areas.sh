@@ -41,8 +41,8 @@ check "go image e2e" "go.mod"
 check "go image e2e prose" ".golangci.yml"
 check "go image e2e prose" "internal/forgejo/README.md"
 check "go api image e2e prose" "api/openapi.yaml"
-check "go image e2e" "scripts/build-reports.sh"
-check "go image e2e" "scripts/test-build-reports.sh"
+check "go" "scripts/build-reports.sh"
+check "go" "scripts/test-build-reports.sh"
 
 # Web only.
 check "web image e2e" "web/src/lib/filters.ts"
@@ -53,12 +53,39 @@ check "web image e2e" "tests/dashboard.spec.ts"
 check "go web image e2e" "tests/generated/allowed-actions.json"
 check "web image e2e" "biome.json"
 check "web image e2e prose" ".semgrep/svelte.yml"
+# A script neither the build nor a browser job runs keeps its own tests, lint
+# and type check, and skips the image and the end-to-end run (#5188).
+check "web" "scripts/e2e-audit-csv.test.ts"
+check "web" "scripts/check-release-type.sh"
+check "web" "scripts/e2e-fixture/build.sh"
+check "go" "scripts/memory-bench/seed.go"
+
+# Every script the build or a browser job names must still run them, so the
+# list in changed-areas.sh can't fall behind.
+used=$(
+  {
+    cat Dockerfile playwright.config.ts lighthouserc.json web/package.json
+    grep -E '"build(:web)?":' package.json
+    git grep -h '\.\./scripts/' -- tests
+    awk '/^  [a-z0-9-]+:$/ { job = $1 } job ~ /^(docker|e2e-shard|e2e|lighthouse):$/' .github/workflows/ci.yml
+  } | grep -vE '^[[:space:]]*(#|//)' |
+    grep -oE 'scripts/[a-z0-9-]+(\.(sh|ts|js))?' |
+    sed -E '/\.(sh|ts|js)$/!s/$/.ts/' | sort -u
+)
+[ -n "$used" ] || {
+  echo "FAIL: found no scripts used by the build or the browser jobs"
+  failed=1
+}
+for script in $used; do
+  check "web image e2e" "$script"
+done
+
 # The prose jobs run these scripts, so editing one runs them (#884).
-check "web image e2e prose" "scripts/lint-prose.sh"
-check "web image e2e prose" "scripts/lint-mechanics.sh"
-check "web image e2e prose" "scripts/vale.sh"
-check "web image e2e prose" "scripts/check-doc-ticket-refs.ts"
-check "web image e2e prose" "scripts/check-doc-links.ts"
+check "web prose" "scripts/lint-prose.sh"
+check "web prose" "scripts/lint-mechanics.sh"
+check "web prose" "scripts/vale.sh"
+check "web prose" "scripts/check-doc-ticket-refs.ts"
+check "web prose" "scripts/check-doc-links.ts"
 check "web api image e2e prose" "package.json"
 check "api prose" ".spectral.yaml"
 check "web api image e2e prose" "bun.lock"

@@ -84,7 +84,7 @@ each job runs when its area is set:
 | Area       | Changes that set it                                                            | Jobs                                                                     |
 | ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
 | `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/`                         | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
-| `web`      | `web/`, `tests/`, `.semgrep/`, `package.json`, `biome.json`                    | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
+| `web`      | `web/`, `tests/`, `scripts/`, `.semgrep/`, `package.json`, `biome.json`        | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
 | `image`    | Go, web, or Docker changes                                                     | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`, `prose-tiers` (style and mechanics)                             |
@@ -95,6 +95,10 @@ A path the script doesn't know runs everything, and so does every push to
 `main` and any change to `ci.yml`. Skipped jobs report as skipped, which
 satisfies a required check. Add a case to `scripts/test-changed-areas.sh`
 when you add a rule.
+
+A script under `scripts/` skips `image` and `e2e` unless the image build or a
+browser job runs it. `changed-areas.sh` lists those, and its test fails when the
+list misses one.
 
 ```sh
 go build ./...
