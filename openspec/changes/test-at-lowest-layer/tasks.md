@@ -7,8 +7,8 @@
 
 ## 2. Plain component tests
 
-- [ ] 2.1 Add a pinned `vitest-browser-svelte`, a second Vitest project for `*.component.ts` and its setup file; verify a first test passes including an assertion on a style from the global stylesheet, a broken assertion fails `bun run test:components`, and `bun run test:unit` still passes
-- [ ] 2.2 Document when to write a story and when a plain component test in `CONTRIBUTING.md` and `docs/storybook.md`; verify both say the same
+- [x] 2.1 Add a pinned `vitest-browser-svelte`, a second Vitest project for `*.component.ts` and its setup file; verify a first test passes including an assertion on a style from the global stylesheet, a broken assertion fails `bun run test:components`, and `bun run test:unit` still passes
+- [x] 2.2 Document when to write a story and when a plain component test in `CONTRIBUTING.md` and `docs/storybook.md`; verify both say the same
 
 ## 3. What stays and how tests move
 

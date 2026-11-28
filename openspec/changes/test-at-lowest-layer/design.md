@@ -23,8 +23,8 @@ restructure, and a sweep through areas that are not being changed.
 2. **Plain component tests are named `*.component.ts`.** `bun test web/src`
    would pick up `*.test.ts` and `*.spec.ts` and cannot render Svelte.
 3. **They look like the app.** Their setup file loads the same global stylesheet
-   and fonts as `web/.storybook/preview.ts`, and stands in for the `$app/*`
-   modules a component imports.
+   and fonts as `web/.storybook/preview.ts`, through one shared file. A stand-in
+   for an `$app/*` module is added with the first component test that needs it.
 4. **Needing a browser does not make a test end to end.** Layout, focus and
    styles of one component can be asserted in a component test. A test stays end
    to end when it needs the server, sign-in, the stream, navigation or the

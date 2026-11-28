@@ -351,8 +351,8 @@ the generated fixture.
 
 ## Which tier a test goes in
 
-Pick the lowest tier that can see the behaviour: `bun test`, then a story,
-then Playwright.
+Pick the lowest tier that can see the behaviour: `bun test`, then a component
+test, then Playwright.
 
 A pull request that adds an end-to-end test says why no lower tier would catch
 the fault. The pull request template asks, and review asks for it too,
@@ -381,10 +381,22 @@ CSS, the font `<link rel="preload">` tags and `@font-face` files being
 served, no external loads, a distinct description on every page, and
 `noindex`.
 
-A component's markup, wording, focus or layout, with its API mocked, is
-asserted in the `play` function of its Storybook story and run by
-`bun run test:components` (Vitest in Chromium, no Go binary; see
-[the catalogue](docs/storybook.md)).
+## Component tests
+
+One component's markup, wording, focus, layout or styles, with its API mocked,
+is a component test. Needing a browser doesn't make it an end-to-end test.
+`bun run test:components` runs both kinds in Chromium with Vitest, with no Go
+binary:
+
+- A state worth looking at gets a story, with the checks in its `play` function
+  (see [the catalogue](docs/storybook.md)).
+- An edge case or a regression goes in a plain component test,
+  `web/src/lib/<Component>.component.ts`, so the catalogue doesn't fill with
+  them.
+
+A plain component test renders with `vitest-browser-svelte` and has the app's
+stylesheet and fonts loaded. `ReadFailureAlert.component.ts` is the worked
+example. The `.component.ts` suffix keeps `bun test` from picking it up.
 
 Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
 helpers the e2e specs import), not `tests/`, because Playwright picks up any

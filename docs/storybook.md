@@ -47,17 +47,26 @@ Vitest and `@storybook/addon-vitest` open each story in Chromium and run its
 `play` function. An assertion that throws fails the run. It needs
 no Go binary, database or WebAuthn setup, only Playwright's Chromium, and it
 takes a few seconds. `web/vitest.config.ts` holds the setup. A story with no
-`play` function still counts: it fails if it throws on render.
+`play` function still counts: it fails if it throws on render. The same command
+runs the plain component tests (`web/src/lib/*.component.ts`), which render a
+component without adding it to the catalogue.
 
 Where a new check goes:
 
 - A pure function or a rune-free module: `bun test` (`web/src/lib/*.test.ts`).
-- Markup, wording, focus or layout of one component, with its API mocked: a
-  `play` function on that component's story.
+- Markup, wording, focus, layout or styles of one component, with its API
+  mocked: a component test. Needing a browser doesn't make it an end-to-end
+  test.
+  - A state worth looking at gets a story, with the checks in its `play`
+    function.
+  - An edge case or a regression goes in a plain component test,
+    `web/src/lib/<Component>.component.ts`, so the catalogue doesn't fill with
+    them.
 - A page that needs the Go server, auth, the live stream or a navigation:
   Playwright (`tests/*.spec.ts`).
 
-`NavPills.stories.svelte` is the worked example. Make a test fail on purpose
+`NavPills.stories.svelte` is the worked example of a story with checks, and
+`ReadFailureAlert.component.ts` of a plain component test. Make a test fail on purpose
 (remove an attribute from the component) to see the story go red before you
 trust it.
 
