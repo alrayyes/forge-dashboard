@@ -40,6 +40,8 @@ CHANGELOG.md
 # the build lands in web/build rather than internal/api/static directly.
 /web/.svelte-kit/
 /web/build/
+# Types generated from api/openapi.yaml (`bun run --filter web types`).
+/web/src/lib/data/api-schema.d.ts
 
 # The merged output of a migrated Svelte page — scripts/sync-web-build.sh
 # writes these paths into internal/api/static, which //go:embed reads at

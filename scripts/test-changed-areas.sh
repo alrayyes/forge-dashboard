@@ -40,7 +40,8 @@ check "go image e2e" "go.mod"
 # Prettier checks every yml, so a config in yml is prose as well.
 check "go image e2e prose" ".golangci.yml"
 check "go image e2e prose" "internal/forgejo/README.md"
-check "go api image e2e prose" "api/openapi.yaml"
+# The web type check reads types generated from the contract (#5182).
+check "go web api image e2e prose" "api/openapi.yaml"
 check "go" "scripts/build-reports.sh"
 check "go" "scripts/test-build-reports.sh"
 

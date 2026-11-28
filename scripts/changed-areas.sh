@@ -49,8 +49,10 @@ while IFS= read -r path; do
     *.go | go.mod | go.sum | .golangci.yml | integration/* | internal/* | cmd/*)
       go=true
       ;;
+    # svelte-check type-checks the web app against types generated from the
+    # contract; the image and browser runs already follow go (#5182).
     api/*)
-      api=true go=true
+      api=true go=true web_checks=true
       ;;
     redocly.yaml | .spectral.yaml)
       api=true

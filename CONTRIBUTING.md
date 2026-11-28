@@ -51,6 +51,12 @@ embedded static files include the built `style.css`. Run the same
 `web/build` behind; `svelte-check` skips it, so there's nothing to delete
 before a push.
 
+The web app's API types come from `api/openapi.yaml`. `bun run check:web`
+writes them to `web/src/lib/data/api-schema.d.ts` before it type-checks, and so
+does `bun install`. The file isn't committed. After editing the contract, run
+`bun run --filter web types` so your editor sees the change. Use it as
+`import type { components } from "#lib/data/api-schema.js"`.
+
 Every one of these is what a hook or CI runs — see `lefthook.yml` and
 `.github/workflows/*.yml` for exactly which.
 
@@ -81,15 +87,15 @@ CI runs a job only when a file it reads changed. The first job, `changes`,
 maps the pull request's diff to areas with `scripts/changed-areas.sh`, and
 each job runs when its area is set:
 
-| Area       | Changes that set it                                                            | Jobs                                                                     |
-| ---------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/`                         | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
-| `web`      | `web/`, `tests/`, `scripts/`, `.semgrep/`, `package.json`, `biome.json`        | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
-| `image`    | Go, web, or Docker changes                                                     | `docker`, `e2e`                                                          |
-| `hadolint` | `Dockerfile*`, `.dockerignore`                                                 | `dockerfile`                                                             |
-| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh` | `prose`, `prose-tiers` (style and mechanics)                             |
-| `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                       | `api`, `api-security`                                                    |
-| `release`  | `.goreleaser.yml`                                                              | `goreleaser`                                                             |
+| Area       | Changes that set it                                                             | Jobs                                                                     |
+| ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/`                          | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
+| `web`      | `web/`, `tests/`, `scripts/`, `api/`, `.semgrep/`, `package.json`, `biome.json` | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`, `storybook`     |
+| `image`    | Go, web, or Docker changes                                                      | `docker`, `e2e`                                                          |
+| `hadolint` | `Dockerfile*`, `.dockerignore`                                                  | `dockerfile`                                                             |
+| `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh`  | `prose`, `prose-tiers` (style and mechanics)                             |
+| `api`      | `api/`, `redocly.yaml`, `.spectral.yaml`, `package.json`                        | `api`, `api-security`                                                    |
+| `release`  | `.goreleaser.yml`                                                               | `goreleaser`                                                             |
 
 A path the script doesn't know runs everything, and so does every push to
 `main` and any change to `ci.yml`. Skipped jobs report as skipped, which
