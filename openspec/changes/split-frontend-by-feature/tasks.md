@@ -1,5 +1,10 @@
-Each task is one pull request unless it says otherwise. Each updates the docs it
-makes false.
+Each task is one pull request unless it says otherwise; 2.1 and 4.1 are lists on
+#5182, not pull requests. Each updates the docs it makes false.
+
+Tasks 3.1, 3.2, 5.3 and 5.4 are extractions. Each moves the code and its styles
+and adds the import rule for what it creates, with the old tests passing
+unchanged. A following pull request then moves its tests down, as #5180 sets
+out.
 
 ## 1. Types
 
@@ -14,8 +19,10 @@ makes false.
 
 ## 3. Components
 
-- [ ] 3.1 Extract keyed row components with their styles; verify focus stays on a row across an update and page screenshots match
-- [ ] 3.2 For each further area on the list, move code and styles and add its import rule, then move its tests in a second pull request; verify per #5180
+- [ ] 3.1 Extract keyed row components, in as many pull requests as keeps each
+      reviewable; verify focus stays on a row across an update and page screenshots match
+- [ ] 3.2 Extract each further area on the list; verify its tests pass unchanged and
+      page screenshots match
 - [ ] 3.3 Remove `initDashboard`; verify the name no longer appears
 - [ ] 3.4 Delete unused classes from the global stylesheet; verify no source names them and page screenshots match
 
@@ -27,7 +34,8 @@ makes false.
 
 ## 5. Other large files
 
-- [ ] 5.1 Delete the old-format filter migrations and drop old keys on read; verify a saved filter in an old format loads defaults and is not saved back
+- [ ] 5.1 Delete the old-format filter migrations and drop old keys on read; verify a saved filter in an old format, a bare author login included, loads
+      defaults and is not saved back
 - [ ] 5.2 Split `filters.ts` by job; verify its tests pass unchanged
 - [ ] 5.3 Split the details dialog into header, description, comments and image viewer, one pull request each; verify its tests pass unchanged
 - [ ] 5.4 After #5069, split Settings into one component per section, one pull request per section; verify its tests pass unchanged

@@ -87,8 +87,8 @@ and shown as unknown, never as "no". The tables in `forges.ts` move to API data.
 No generic form described by the backend.
 
 Prose that names the products stays: the privacy and disclaimer pages, the
-project link in the footer and the tool descriptions for agents. The check looks
-for forge identifiers in code and lists these exceptions and the connection and
+project link in the footer and the tool descriptions for agents. The check looks for forge identifiers and product names in code, strings and
+markup, and lists these exceptions and the connection and
 setup folders.
 
 ### Filters
@@ -96,8 +96,9 @@ setup folders.
 Delete `migratePill`, `migrateCiStatus`, `migrateQuickPill` and
 `migrateBareAuthors`, with `takeAuthorOverflow`, `takeMigratedStatus` and
 `takeMigratedAuthor`. Keep guards against bad data, including
-`dropUnknownClosing`. Old keys are currently carried along when read, so
-reading must drop them rather than save them back. This is a behaviour change
+`dropUnknownClosing`. Old keys are currently carried along when read, so reading must drop them rather than save them back. The same goes for an old
+bare author login under the current `author` key, which is otherwise held aside
+and saved again. This is a behaviour change
 and gets its own pull request, separate from splitting the file.
 
 ### Moves

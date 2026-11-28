@@ -29,8 +29,9 @@ which SHALL keep the latest data apart from the data shown and from row actions.
 
 ### Requirement: Imports go downward
 
-Code that has moved into a feature, data or UI folder SHALL import only from
-layers below it and from its own feature, and the build SHALL check it. A
+Code that has moved into a feature, data or UI folder SHALL import only from layers below it and from its own feature, and the build
+SHALL check it. Two things are also allowed: importing a file that has not moved
+yet, and the UI layer importing types, not values, from the data layer. A
 relaxation SHALL state its reason where the rule is configured.
 
 #### Scenario: A feature reaches into another
@@ -58,12 +59,12 @@ styles of areas not yet moved.
 ### Requirement: The frontend is forge-agnostic outside setup
 
 Outside connection settings, setup and listed prose, the web app SHALL decide
-behaviour and wording from forge data the API sends, not from a forge's name,
-and the build SHALL check it.
+behaviour and wording from forge data the API sends, not from a forge's name, and the build SHALL check for forge identifiers and
+product names.
 
 #### Scenario: A forge name creeps back
 
-- **WHEN** code outside the exceptions refers to a forge by its identifier
+- **WHEN** code outside the exceptions refers to a forge by its identifier or product name
 - **THEN** CI fails
 
 ### Requirement: Unknown is not no
