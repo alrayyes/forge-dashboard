@@ -1,5 +1,6 @@
 import { expect, test } from 'bun:test';
-import { findTicketRefs } from './check-doc-ticket-refs';
+import path from 'node:path';
+import { docFiles, findTicketRefs } from './check-doc-ticket-refs';
 
 const found = (md: string) => findTicketRefs(md).map((f) => f.match);
 
@@ -65,4 +66,8 @@ test('does not flag what only looks like a ticket number', () => {
 test('still flags a number after a plain parenthesis or owner/repo', () => {
   expect(found('(#12)')).toEqual(['#12']);
   expect(found('o/r#12')).toEqual(['o/r#12']);
+});
+
+test('reads CLAUDE.md as a public page', () => {
+  expect(docFiles(path.join(import.meta.dir, '..'))).toContain('CLAUDE.md');
 });
