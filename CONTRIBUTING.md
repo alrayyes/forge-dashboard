@@ -90,7 +90,7 @@ each job runs when its area is set:
 | Area       | Changes that set it                                                             | Jobs                                                                     |
 | ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `go`       | Go files, `go.mod`, `api/openapi.yaml`, `integration/`                          | `lint`, `test`, `build`, `container-integration`, `govulncheck`, `gomod` |
-| `web`      | `web/`, `tests/`, `scripts/`, `api/`, `.semgrep/`, `package.json`, `biome.json` | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`                  |
+| `web`      | `web/`, `tests/`, `scripts/`, `api/`, `.semgrep/`, `package.json`, `biome.json` | `js`, `svelte-check`, `tests-types`, `audit`, `semgrep`, `storybook`     |
 | `image`    | Go, web, or Docker changes                                                      | `docker`, `e2e`                                                          |
 | `hadolint` | `Dockerfile*`, `.dockerignore`                                                  | `dockerfile`                                                             |
 | `prose`    | Markdown, `.yml`, `.svelte`, `styles/`, `scripts/lint-*.sh`, `scripts/vale.sh`  | `prose`, `prose-tiers` (style and mechanics)                             |

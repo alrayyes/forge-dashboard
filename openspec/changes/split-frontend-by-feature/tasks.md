@@ -8,7 +8,7 @@ out.
 
 ## 1. Types
 
-- [x] 1.1 Generate types from `api/openapi.yaml` in the build, uncommitted, and make an `api/` change run the web type check; verify `scripts/test-changed-areas.sh` covers it and a renamed field fails CI
+- [x] 1.1 Generate types from `api/openapi.yaml` in the type check, uncommitted, and make an `api/` change run the web type check; verify `scripts/test-changed-areas.sh` covers it and a renamed field fails CI
 - [ ] 1.2 Replace the hand-written API types, one pull request per group of consumers; verify no hand copy of a schema is left
 
 ## 2. Data store

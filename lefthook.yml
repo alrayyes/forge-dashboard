@@ -127,8 +127,8 @@ commit-msg:
 
 # pre-push never rewrites tracked files. A hook rewriting them under a push
 # leaves the pushed commit and the working tree disagreeing about what was
-# reviewed. The one write is the test job's web build, which lands in
-# gitignored output (web/build, internal/api/static) and never in the commit.
+# reviewed. Its writes are the test job's web build and svelte-check's generated
+# API types, which land in gitignored paths and never in the commit.
 #
 # Two groups, in order. The quick jobs run in parallel: none edits a file
 # another one reads, and the build's output is excluded from svelte-check
@@ -248,7 +248,8 @@ pre-push:
           # A spec naming an unversioned /api/ route stops matching its mock and
           # times out the e2e shards; the script's header has the rules. Its own
           # test runs in the unit job below.
-          # The glob is the CI gate's: scripts/changed-areas.sh's web area.
+          # The glob is the part of scripts/changed-areas.sh's web area that can
+          # change a spec's mocks.
           - name: spec api routes
             glob:
               - "tests/**"
