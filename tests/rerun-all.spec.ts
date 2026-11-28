@@ -1,6 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, type Page, type Route } from '@playwright/test';
 import { viaActionsDialog } from './actions-dialog-helper';
+import { serveChecks } from './checks-feed-helper';
 import { forgeHealth } from './forge-health-helper';
 import { test } from './server-fixture';
 
@@ -583,4 +584,103 @@ test("a row's own rerun leaves the count until it is refused", async ({
   await expect(all).toHaveText('Rerun failed checks (1)');
   release();
   await expect(all).toHaveText('Rerun failed checks (2)');
+});
+
+// Holds each rerun request open until the spec lets it go, by number.
+async function holdReruns(page: Page) {
+  const sent: number[] = [];
+  const gates = new Map<number, { open: () => void; done: Promise<void> }>();
+  const gate = (n: number) => {
+    let found = gates.get(n);
+    if (!found) {
+      let open = () => {};
+      const done = new Promise<void>((resolve) => {
+        open = resolve;
+      });
+      found = { open, done };
+      gates.set(n, found);
+    }
+    return found;
+  };
+  await page.route('**/api/v1/pull-requests/rerun-checks', async (route) => {
+    const { number } = route.request().postDataJSON();
+    sent.push(number);
+    await gate(number).done;
+    await route.fulfill({ status: 204 });
+  });
+  return { sent, release: (n: number) => gate(n).open() };
+}
+
+async function startRerunAll(page: Page, count: number) {
+  await page
+    .getByRole('button', { name: `Rerun failed checks (${count})` })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: `Rerun ${count} pull requests` })
+    .click();
+}
+
+const rowOf = (page: Page, n: number) =>
+  page.locator('#pr-rows .row', { hasText: `Change number ${n}` });
+
+// While the run asks for one row, that row's dialog can't ask again, and a row
+// asked by hand mid-run is not sent a second time (#5134).
+test('a row is sent once, by the run or by hand', async ({ page }) => {
+  await open(page, '/pull-requests.html', [pr(1), pr(2), pr(4)], {});
+  const { sent, release } = await holdReruns(page);
+  await startRerunAll(page, 3);
+  await expect.poll(() => sent).toEqual([1]);
+
+  await viaActionsDialog(rowOf(page, 1), async (footer) => {
+    await expect(
+      footer.getByRole('button', { name: 'Queuing the rerun…' }),
+    ).toHaveAttribute('aria-disabled', 'true');
+  });
+  await viaActionsDialog(rowOf(page, 2), (footer) =>
+    footer.getByRole('button', { name: 'Rerun failed checks' }).click(),
+  );
+  await expect.poll(() => sent).toEqual([1, 2]);
+  release(2);
+  release(1);
+  release(4);
+
+  await expect(page.locator('#rerun-all-status')).toHaveText(
+    'Rerun queued for 2.',
+  );
+  expect(sent).toEqual([1, 2, 4]);
+});
+
+// The pipeline dialog does not redraw with the board, so the run has to tell
+// its rerun control (#5134).
+test('an open pipeline dialog follows the run asking for its row', async ({
+  page,
+}) => {
+  await open(page, '/pull-requests.html', [pr(1), pr(2)], {});
+  await serveChecks(page, () => [
+    {
+      name: 'build',
+      status: 'completed',
+      conclusion: 'failure',
+      url: '',
+      runId: 1,
+    },
+  ]);
+  await page.reload();
+  const { sent, release } = await holdReruns(page);
+  await startRerunAll(page, 2);
+  await expect.poll(() => sent).toEqual([1]);
+  await rowOf(page, 2).getByRole('button', { name: 'Open pipeline' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Pipeline checks' });
+  const button = dialog.locator('.pipeline-rerun button');
+  await expect(button).toHaveText('Rerun failed checks (1)');
+
+  release(1);
+  await expect.poll(() => sent).toEqual([1, 2]);
+  await expect(button).toHaveAttribute('aria-disabled', 'true');
+  await expect(dialog.locator('.pipeline-rerun-status')).toHaveText(
+    'Queuing the rerun…',
+  );
+  release(2);
+  await expect(button).toHaveText('Rerun queued');
 });

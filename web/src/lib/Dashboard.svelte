@@ -2186,27 +2186,27 @@
     // A change to a pull request's automatic update that the server refused.
     const autoUpdateFailure: Record<string, string> = {};
 
-    // The one rerun flow: the details dialog's button and the pipeline
-    // panel's both call it. `onChange` lets the panel redraw its own control
-    // in place after each state change.
-    function doRerunChecks(item: PullRequestItem, onChange?: () => void) {
-      rerunState[prKey(item)] = { phase: "requesting" };
-      onChange?.();
-      renderPRBoard();
-      void sendRerun(item, true).finally(() => {
-        onChange?.();
-        renderPRBoard();
-      });
-    }
+    // The open pipeline dialog's rerun control. A board render doesn't redraw
+    // it, so a request for its pull request tells it.
+    let pipelineRerun: { key: string; sync: () => void } | null = null;
 
-    // Asks for one rerun and records the outcome on the row's state. Resolves
-    // with the refusal's message, or null once the forge queued it. Rerun
-    // failed checks (all) passes announce=false and speaks once at the end.
+    // The one rerun flow, behind the details dialog's button, the pipeline
+    // panel's and Rerun failed checks (all). It marks the row as requesting
+    // before it asks, so no control offers it again meanwhile. Resolves with
+    // the refusal's message, or null once the forge queued it. The bulk run
+    // passes announce=false and speaks once at the end.
     function sendRerun(
       item: PullRequestItem,
       announce: boolean,
     ): Promise<string | null> {
       const key = prKey(item);
+      rerunAllRun?.sent.add(key);
+      rerunState[key] = { phase: "requesting" };
+      const redraw = () => {
+        if (pipelineRerun?.key === key) pipelineRerun.sync();
+        keepFocusAcross(renderPRBoard);
+      };
+      redraw();
       return postRerunChecks(item)
         .then(() => {
           rerunState[key] = {
@@ -2234,7 +2234,8 @@
             }),
           };
           return err.message;
-        });
+        })
+        .finally(redraw);
     }
 
     // Offered where the server lists rerun_checks and something failed.
@@ -2263,7 +2264,7 @@
       markPending(button, phase === "requesting" || phase === "queued");
       button.addEventListener("click", () => {
         if (isPending(button)) return;
-        doRerunChecks(item);
+        void sendRerun(item, true);
       });
       return button;
     }
@@ -5560,6 +5561,7 @@
       { refresh = true }: { refresh?: boolean } = {},
     ): Promise<boolean> {
       const key = prKey(item);
+      updateAllRun?.sent.add(key);
       updateBranchState[key] = {
         phase: "queued",
         queued: queuedRequestInfo(item),
@@ -5765,6 +5767,8 @@
       focusWasOnConfirm = false,
     ): Promise<boolean> {
       const key = dependabotActionKey(prKey(item), action);
+      // Either command takes the row from a Rebase all still on its way.
+      rebaseAllRun?.sent.add(prKey(item));
       dependabotActionState[key] = {
         phase: "queued",
         queued: queuedRequestInfo(item),
@@ -7272,6 +7276,7 @@
       button: HTMLButtonElement,
     ): Promise<boolean> {
       const key = prKey(item);
+      rebaseAllRun?.sent.add(key);
       renovateRebaseState[key] = {
         phase: "queued",
         queued: queuedRequestInfo(item),
@@ -7357,7 +7362,10 @@
     // for nothing the rows don't already offer: each one goes through its own
     // Rebase action, so a failure shows on its row with that row's retry.
     let visibleBotRows: PullRequestItem[] = [];
-    let rebaseAllRun: { done: number; total: number } | null = null;
+    // A bulk run's progress, and the rows asked for since it began, by the
+    // run or by hand, so the run asks for none of them again (#5134).
+    type BulkRun = { done: number; total: number; sent: Set<string> };
+    let rebaseAllRun: BulkRun | null = null;
 
     // A fix the row already asked for, so its own chip says it: a bot rebase
     // or an Update branch. The behind message and the fix button leave the
@@ -7562,19 +7570,25 @@
       const { eligible } = currentRebasePlan();
       if (eligible.length === 0) return;
       const status = document.getElementById("rebase-all-status");
-      rebaseAllRun = { done: 0, total: eligible.length };
+      rebaseAllRun = { done: 0, total: eligible.length, sent: new Set() };
       let failed = 0;
+      let skipped = 0;
       updateRebaseAll();
       for (const { item, bot } of eligible) {
-        const asked =
-          bot === "dependabot"
-            ? doDependabotAction(item, "rebase", buttonEl("row-action"))
-            : doRenovateRebase(item, buttonEl("row-action"));
-        if (!(await asked)) failed++;
+        if (rebaseAllRun.sent.has(prKey(item))) skipped++;
+        else {
+          const asked =
+            bot === "dependabot"
+              ? doDependabotAction(item, "rebase", buttonEl("row-action"))
+              : doRenovateRebase(item, buttonEl("row-action"));
+          // The row and its dialog say it is being asked for.
+          keepFocusAcross(renderPRBoard);
+          if (!(await asked)) failed++;
+        }
         rebaseAllRun.done++;
         updateRebaseAll();
       }
-      const total = rebaseAllRun.total;
+      const total = rebaseAllRun.total - skipped;
       rebaseAllRun = null;
       updateRebaseAll();
       if (status)
@@ -7605,7 +7619,7 @@
     // branch a row has, so the server's own refusal shows on that row of the
     // board. Nothing shows while no listed row can be updated.
     let visiblePullRows: PullRequestItem[] = [];
-    let updateAllRun: { done: number; total: number } | null = null;
+    let updateAllRun: BulkRun | null = null;
     let updateAllShown: {
       item: PullRequestItem;
       box: HTMLInputElement;
@@ -7704,18 +7718,24 @@
       // doUpdateBranch puts it. Closing hands focus back to the button.
       updateAllDialog()?.close();
       const status = document.getElementById("update-all-status");
-      updateAllRun = { done: 0, total: chosen.length };
+      updateAllRun = { done: 0, total: chosen.length, sent: new Set() };
       let failed = 0;
+      let skipped = 0;
       updateUpdateAll();
       for (const item of chosen) {
-        const requested = await doUpdateBranch(item, buttonEl("row-action"), {
-          refresh: false,
-        });
-        if (!requested) failed++;
+        if (updateAllRun.sent.has(prKey(item))) skipped++;
+        else {
+          const requested = doUpdateBranch(item, buttonEl("row-action"), {
+            refresh: false,
+          });
+          // The row and its dialog say it is being asked for.
+          keepFocusAcross(renderPRBoard);
+          if (!(await requested)) failed++;
+        }
         updateAllRun.done++;
         updateUpdateAll();
       }
-      const total = updateAllRun.total;
+      const total = updateAllRun.total - skipped;
       updateAllRun = null;
       updateUpdateAll();
       // One catch-up for the whole run. The run is over, so nothing waits on it.
@@ -7749,7 +7769,7 @@
     // a time, and remembers an answer until the row's updatedAt moves. Each
     // chosen row then goes through the same request as the row's own Rerun
     // failed checks.
-    let rerunAllRun: { done: number; total: number } | null = null;
+    let rerunAllRun: BulkRun | null = null;
     // Bumped each time the dialog closes, so a probe pass stops with it.
     let rerunDialogRound = 0;
     const rerunProbes = new Map<string, RerunProbe>();
@@ -7967,17 +7987,21 @@
       const status = document.getElementById("rerun-all-status");
       const result = document.getElementById("rerun-all-result");
       result?.replaceChildren();
-      rerunAllRun = { done: 0, total: eligible.length };
+      rerunAllRun = { done: 0, total: eligible.length, sent: new Set() };
+      let skipped = 0;
       const refused: string[] = [];
       updateRerunAll();
       for (const item of eligible) {
-        const message = await sendRerun(item, false);
-        if (message !== null)
-          refused.push(`${item.repo} #${item.number}: ${message}`);
+        if (rerunAllRun.sent.has(prKey(item))) skipped++;
+        else {
+          const message = await sendRerun(item, false);
+          if (message !== null)
+            refused.push(`${item.repo} #${item.number}: ${message}`);
+        }
         rerunAllRun.done++;
         updateRerunAll();
       }
-      const total = rerunAllRun.total;
+      const total = rerunAllRun.total - skipped;
       rerunAllRun = null;
       renderPRBoard();
       const queued = total - refused.length;
@@ -8722,9 +8746,10 @@
         }
       };
       sync();
+      pipelineRerun = { key, sync };
       button.addEventListener("click", () => {
         if (isPending(button)) return;
-        doRerunChecks(item, sync);
+        void sendRerun(item, true);
       });
       wrap.append(count, button, status, failureBox);
       return wrap;

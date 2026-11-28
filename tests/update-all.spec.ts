@@ -528,3 +528,47 @@ test('taking the last counted row removes the button and keeps focus', async ({
   await expectNoAxeViolations(page);
   release();
 });
+
+// While the run asks for one row, that row can't be asked again, and a row
+// asked by hand mid-run is not sent a second time (#5134).
+test('a row is sent once, by the run or by hand', async ({ page }) => {
+  await open(page, [pr(1), pr(2), pr(4)]);
+  const sent: number[] = [];
+  let answer = () => {};
+  const held = new Promise<void>((resolve) => {
+    answer = resolve;
+  });
+  // Registered last, so it wins over the open() route.
+  await page.route('**/api/v1/pull-requests/update-branch', async (route) => {
+    const { number } = route.request().postDataJSON();
+    sent.push(number);
+    if (number === 1) await held;
+    await route.fulfill({ status: 204 });
+  });
+  const row = (n: number) =>
+    page.locator('#pr-rows .row', { hasText: `Change number ${n}` });
+  await page.getByRole('button', { name: 'Update all (3)' }).click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Update', exact: true })
+    .click();
+  await expect.poll(() => sent).toEqual([1]);
+
+  await expect(
+    row(1).getByRole('button', { name: 'Update branch' }),
+  ).toHaveCount(0);
+  await viaActionsDialog(row(1), async (footer) => {
+    await expect(
+      footer.getByRole('button', { name: /Queued|Update branch/ }),
+    ).toHaveAttribute('aria-disabled', 'true');
+  });
+  await viaActionsDialog(row(2), (footer) =>
+    footer.getByRole('button', { name: 'Update branch' }).click(),
+  );
+  answer();
+
+  await expect(page.locator('#update-all-status')).toHaveText(
+    'Update requested for 2.',
+  );
+  expect(sent).toEqual([1, 2, 4]);
+});

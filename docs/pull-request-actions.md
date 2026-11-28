@@ -1703,6 +1703,11 @@ pushed by the dashboard. The button reads `Rebasing 3 of 6` as it goes. A
 request the forge refuses shows its reason on its own row, with that row's
 retry, and the others carry on.
 
+A row you ask by hand while the run is going, before the run reaches it, is
+skipped, even if your request failed. `Dependabot: Rebase`, `Dependabot:
+Recreate` and `Renovate: Rebase` all count. The message at the end counts only
+what the run itself asked for.
+
 An empty pull request isn't counted as out of date. One that is out of date but
 can't be asked is counted in the headline and left out of the button: a rebase
 already requested, a Dependabot pull request on a GitHub App with no saved
@@ -1749,6 +1754,11 @@ refresh. The board refreshes once, when the last one has been sent. An update
 the forge refuses shows its reason on its own row and the others carry on. A
 screen reader hears `Update requested for 4.` when the run ends, or `Update
 requested for 3 of 4. 1 failed.`
+
+A row you update by hand while the run is going, before the run reaches it, is
+skipped, even if your update failed. The end message counts only what the run
+itself sent, so four ticked rows with one updated by hand end with `Update
+requested for 3.`
 
 Escape, or `Close`, before `Update` updates nothing.
 
@@ -1805,6 +1815,10 @@ rerun is listed in the same dialog, reopened when the run ends, as
 on. Showing it there leaves the list where it was. A screen reader hears
 `Rerun queued for 3.` or `Rerun queued for 2 of 3. 1 refused.` when the run
 ends.
+
+A row you rerun by hand while the run is going, before the run reaches it, is
+skipped. It is left out of the end message and the run's refused list, so a
+refusal of your own rerun shows only where any single rerun's does.
 
 The button is there only while a failing pull request could still be rerun:
 one the server said yes to, one it couldn't answer for, or one it hasn't been
