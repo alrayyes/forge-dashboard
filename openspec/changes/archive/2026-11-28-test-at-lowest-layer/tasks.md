@@ -12,8 +12,8 @@
 
 ## 3. What stays and how tests move
 
-- [ ] 3.1 Write the list of journeys that stay end to end in `CONTRIBUTING.md`; verify each entry names its spec files
-- [ ] 3.2 Write down the move-down default, the failure proof and the two-pull-request order in `CONTRIBUTING.md`; verify all three are there
+- [x] 3.1 Write the list of journeys that stay end to end in `CONTRIBUTING.md`; verify each entry names its spec files
+- [x] 3.2 Write down the move-down default, the failure proof and the two-pull-request order in `CONTRIBUTING.md`; verify all three are there
 
 ## Workflow follow-up
 
