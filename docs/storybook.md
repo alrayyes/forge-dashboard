@@ -37,7 +37,7 @@ To browse the catalogue instead, run `bunx storybook dev` in `web/`.
 `bun run test:storybook` is the smoke test: the build succeeds and lists at
 least one story.
 
-## Stories as component tests
+## Component tests
 
 ```sh
 bun run test:components
@@ -61,7 +61,7 @@ Where a new check goes:
     function.
   - An edge case or a regression goes in a plain component test,
     `web/src/lib/<Component>.component.ts`, so the catalogue doesn't fill with
-    them.
+    them. Only that exact suffix under `web/src` runs.
 - A page that needs the Go server, auth, the live stream or a navigation:
   Playwright (`tests/*.spec.ts`).
 

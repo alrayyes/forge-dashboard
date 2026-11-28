@@ -33,6 +33,8 @@ export default mergeConfig(
       // One file at a time: a busy machine starved parallel iframes of CPU
       // until they missed Vitest's 60 s ready timeout.
       fileParallelism: false,
+      // Vitest allows .only unless CI is set, so the hook would pass what CI fails.
+      allowOnly: false,
       projects: [
         {
           extends: true,

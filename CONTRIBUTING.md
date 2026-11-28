@@ -381,6 +381,15 @@ CSS, the font `<link rel="preload">` tags and `@font-face` files being
 served, no external loads, a distinct description on every page, and
 `noindex`.
 
+Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
+helpers the e2e specs import), not `tests/`, because Playwright picks up any
+`tests/*.test.ts` and a bare `bun test` fails on Playwright specs. And
+`bun test` has no Svelte compiler, so it can't load a `.svelte.ts` rune module
+(`$state is not defined`) or render a component; Vitest in the component tier
+does. `bun test` was picked
+for plain modules because it runs in about 0.01 s with nothing new to install,
+where Vitest takes 0.4 s or more and a dependency.
+
 ## Component tests
 
 One component's markup, wording, focus, layout or styles, with its API mocked,
@@ -397,15 +406,8 @@ binary:
 A plain component test renders with `vitest-browser-svelte` and has the app's
 stylesheet and fonts loaded. `ReadFailureAlert.component.ts` is the worked
 example. The `.component.ts` suffix keeps `bun test` from picking it up.
-
-Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
-helpers the e2e specs import), not `tests/`, because Playwright picks up any
-`tests/*.test.ts` and a bare `bun test` fails on Playwright specs. And
-`bun test` has no Svelte compiler, so it can't load a `.svelte.ts` rune module
-(`$state is not defined`) or render a component; Vitest in the story tier
-does. `bun test` was picked
-for plain modules because it runs in about 0.01 s with nothing new to install,
-where Vitest takes 0.4 s or more and a dependency.
+Only that exact suffix under `web/src` runs. A file named any other way is
+skipped without a word.
 
 ## How it fits together
 
