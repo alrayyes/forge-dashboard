@@ -31,12 +31,12 @@ forges already report capabilities as data (#3969, #3972, #4073).
 
 ### Types
 
-`openapi-typescript` generates from `api/openapi.yaml` during the build. The
-output is not committed. The published SDK is not used: it lags the server by a
-release. Version 7.13.0 declares a peer of TypeScript 5 while the repo pins
-6.0.3, so the first task proves it works there or picks another generator and
-records why. A change to `api/` must run the web type check, which the CI change
-filter does not do today.
+`openapi-typescript` generates from `api/openapi.yaml`. The output is not
+committed. The published SDK is not used: it lags the server by a release.
+Version 7.13.0 declares a peer of TypeScript 5 while the repo pins 6.0.3. Tried
+on 6.0.3, it generates from this contract and the output type-checks, so it
+stays. The type check generates the file; the build does not need it, because
+type imports are erased. A change to `api/` runs the web checks.
 
 ### Data store
 
