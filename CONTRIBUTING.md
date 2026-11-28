@@ -349,6 +349,15 @@ each forge's flags. The shipped forges are seeded there so a page that asks
 early behaves as it will later, and `forges.test.ts` keeps the seed equal to
 the generated fixture.
 
+## Which tier a test goes in
+
+Pick the lowest tier that can see the behaviour: `bun test`, then a story,
+then Playwright.
+
+A pull request that adds an end-to-end test says why no lower tier would catch
+the fault. The pull request template asks, and review asks for it too,
+including on a pull request opened with its own body.
+
 ## Unit tests
 
 A rule that needs no browser is tested without one. `web/src/lib/*.test.ts`
@@ -375,8 +384,7 @@ served, no external loads, a distinct description on every page, and
 A component's markup, wording, focus or layout, with its API mocked, is
 asserted in the `play` function of its Storybook story and run by
 `bun run test:components` (Vitest in Chromium, no Go binary; see
-[the catalogue](docs/storybook.md)). Pick the lowest tier that can see the
-behaviour: `bun test`, then a story, then Playwright.
+[the catalogue](docs/storybook.md)).
 
 Two things to know. Unit tests live under `web/src` (or `scripts/`, for the
 helpers the e2e specs import), not `tests/`, because Playwright picks up any

@@ -287,3 +287,9 @@ test('the CLI exits 0 on clean docs', () => {
   expect(r.status).toBe(0);
   expect(r.stderr).toBe('');
 });
+
+test('CLAUDE.md is read, so its pointers cannot rot', () => {
+  expect(run({ 'CLAUDE.md': '[bad](docs/missing.md)\n' })).toEqual([
+    'CLAUDE.md:1: docs/missing.md',
+  ]);
+});

@@ -1,6 +1,6 @@
 // A README or docs move must not leave a dead link behind. This reads the
-// Markdown people read (README.md, CONTRIBUTING.md, ARCHITECTURE.md,
-// SECURITY.md and everything under docs/) and fails on:
+// Markdown people and agents read (README.md, CLAUDE.md, CONTRIBUTING.md,
+// ARCHITECTURE.md, SECURITY.md and everything under docs/) and fails on:
 //   - a relative or /root-relative link or image whose file is missing
 //     (matched case-sensitively, as GitHub serves it), and
 //   - a `file.md#heading` or `#heading` whose heading does not exist, using
@@ -23,6 +23,7 @@ export interface Finding {
 
 const ROOT_PAGES = [
   'README.md',
+  'CLAUDE.md',
   'CONTRIBUTING.md',
   'ARCHITECTURE.md',
   'SECURITY.md',
