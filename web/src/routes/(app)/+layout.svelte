@@ -38,9 +38,7 @@
 
   let { children } = $props();
 
-  // Matches GET /api/v1/auth/session's JSON body — see nav.js's own comment
-  // (now retired for every page under this layout) for the shape this
-  // was always fetching.
+  // The part of GET /api/v1/auth/session's body this layout reads.
   type Session = Pick<Schema<"SessionUser">, "displayName">;
 
   let displayName = $state("");

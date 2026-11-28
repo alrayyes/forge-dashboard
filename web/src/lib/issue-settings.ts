@@ -3,6 +3,8 @@
 // issues out of the snapshot and the counts, so nothing here filters. This
 // only shapes what Settings sends and what the Issues and Insights pages read.
 
+import type { Unchecked } from './data/api.js';
+
 export const MAX_IGNORED_TITLES = 20;
 export const MAX_PATTERN_LENGTH = 200;
 
@@ -36,10 +38,9 @@ export function normaliseIgnoredTitles(raw: unknown): string[] {
 
 // Missing fields (a server that does not send them yet) mean off and empty.
 export function issueSettingsFrom(raw: unknown): IssueSettings {
-  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<
-    string,
-    unknown
-  >;
+  const data = (
+    raw && typeof raw === 'object' ? raw : {}
+  ) as Unchecked<'SettingsResponse'>;
   return {
     hideDependencyDashboard: data.hideDependencyDashboard === true,
     ignoredTitles: normaliseIgnoredTitles(data.ignoredTitles),
@@ -78,10 +79,9 @@ export function addIgnoredTitle(
 export function ignoredCountsFrom(
   raw: unknown,
 ): Map<string, number | null> | null {
-  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<
-    string,
-    unknown
-  >;
+  const data = (
+    raw && typeof raw === 'object' ? raw : {}
+  ) as Unchecked<'SettingsResponse'>;
   const titles = data.ignoredTitles;
   const counts = data.ignoredTitleCounts;
   if (!Array.isArray(titles) || !Array.isArray(counts)) return null;

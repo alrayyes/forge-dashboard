@@ -1,3 +1,5 @@
+import type { Unchecked } from './data/api.js';
+
 /** An error from the auth API that keeps the HTTP status it came with. */
 export class ApiError extends Error {
   readonly status: number;
@@ -69,7 +71,7 @@ export async function checkRegistrationOpen(
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return false;
-    const data = (await res.json()) as { open?: boolean };
+    const data = (await res.json()) as Unchecked<'RegistrationStatus'>;
     return data.open === true;
   } catch {
     return false;

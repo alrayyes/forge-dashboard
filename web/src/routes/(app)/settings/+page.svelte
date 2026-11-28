@@ -452,10 +452,10 @@
         return res.json().then((data) => {
           if (!res.ok) {
             // `field` names the input the server refused.
-            const refused = new Error(data.error || "save failed") as Error & {
-              field?: string;
-            };
-            refused.field = data.field;
+            const failure = data as Schema<"Error">;
+            const refused = new Error(failure.error || "save failed") as Error &
+              Pick<Schema<"Error">, "field">;
+            refused.field = failure.field;
             throw refused;
           }
           return data as SettingsResponse;
@@ -859,7 +859,7 @@
         const data = await res.json();
         throw new Error(data.error || "could not generate token");
       }
-      const created = await res.json();
+      const created: Schema<"APITokenCreateResponse"> = await res.json();
       tokenLabel = "";
       tokenRevealValue = created.token;
       tokenRevealVisible = true;

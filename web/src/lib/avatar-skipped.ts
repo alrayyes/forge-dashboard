@@ -1,13 +1,14 @@
 // The Forgejo avatar hosts the server skipped (#3683). The server only says
 // which hosts; this decides whether to show a note and how to word it.
 
+import type { Unchecked } from './data/api.js';
+
 // The list as the server sends it: strings only, trimmed, no blanks, no
 // repeats. A server that doesn't send it yet means nothing is skipped.
 export function skippedAvatarHosts(raw: unknown): string[] {
-  const data = (raw && typeof raw === 'object' ? raw : {}) as Record<
-    string,
-    unknown
-  >;
+  const data = (
+    raw && typeof raw === 'object' ? raw : {}
+  ) as Unchecked<'SettingsResponse'>;
   const list = data.forgejoSkippedAvatarHosts;
   if (!Array.isArray(list)) return [];
   const seen = new Set<string>();
