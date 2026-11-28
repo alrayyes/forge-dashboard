@@ -1,3 +1,4 @@
+import type { Unchecked } from './data/api.js';
 import { isLinked, readSetupFacts } from './setup';
 
 type Fetcher = (input: string, init?: RequestInit) => Promise<Response>;
@@ -27,7 +28,7 @@ export async function boardNeedsSetup(fetcher: Fetcher): Promise<boolean> {
       headers: { Accept: 'application/json' },
     });
     if (!settings.ok) return false;
-    const s = (await settings.json()) as Record<string, unknown>;
+    const s = (await settings.json()) as Unchecked<'SettingsResponse'>;
     return !(
       s.githubTokenSet === true ||
       s.forgejoTokenSet === true ||

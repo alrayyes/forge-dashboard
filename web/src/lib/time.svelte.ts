@@ -1,3 +1,5 @@
+import type { Schema } from './data/api.js';
+
 // One place that turns an instant into text, so every page names the same
 // zone (#996). Some browsers (Firefox with privacy.resistFingerprinting, Tor
 // Browser) report UTC to every page, so reading the browser's zone alone
@@ -40,7 +42,7 @@ export function loadTimezone(): Promise<void> {
         headers: { Accept: 'application/json' },
       });
       if (!res.ok) return;
-      const data: { timezone?: string } = await res.json();
+      const data = (await res.json()) as Partial<Schema<'TimezoneResponse'>>;
       setTimezoneSetting(data.timezone ?? '');
     } catch {
       /* offline, signed out, etc.: the browser's zone stands */

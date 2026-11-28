@@ -1,3 +1,5 @@
+import type { Schema } from './data/api.js';
+
 // Shared by every page's root layout (theme sync on load) and the
 // Settings page (the only place a user can actually change it, #352).
 //
@@ -99,7 +101,7 @@ export async function syncThemeFromServer(): Promise<void> {
       headers: { Accept: 'application/json' },
     });
     if (!res.ok) return;
-    const data: { theme?: string } = await res.json();
+    const data = (await res.json()) as Partial<Schema<'ThemeResponse'>>;
     const serverTheme = normalize(data.theme);
     const cookieTheme = getThemeCookie();
     if (serverTheme === cookieTheme) return;
