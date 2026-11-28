@@ -9,7 +9,7 @@ tier in #3626.
 
 The end-to-end tier is still the largest and keeps growing: from 2026-11-14 to
 `3d9d756b` it went from 265 spec files and about 2,300 tests to 356 and 3,150.
-The unit tier grew faster in the same period (about 1,400 tests to 2,400), so
+The unit tier grew faster in the same period (about 1,400 tests to 2,500), so
 this is not a claim that the rule is ignored. It is that browser tests are the
 hardest to follow, and some behaviour can only be reached through them because
 it exists only inside page-sized components.
@@ -49,8 +49,9 @@ None.
 ## Prior work
 
 - #3494 audited the suite for duplicated tests.
-- `docs/e2e-audit.md` (from #3593) classes the specs. It is a dated snapshot and
-  this change does not refresh it.
+- `docs/e2e-audit.md` (from #3593) classes the specs. Its CSV is
+  regenerated and checked by a test, so a change to a spec updates it. The prose
+  totals are stale and this change does not refresh them.
 - #3626 chose stories run by Vitest as the component tier and kept
   `vitest-browser-svelte` for a component with no story.
 - #3749 to #3752 trimmed specs that repeated lower tests.

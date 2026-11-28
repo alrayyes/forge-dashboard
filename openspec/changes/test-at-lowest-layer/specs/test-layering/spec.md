@@ -32,14 +32,14 @@ end to end.
 - **WHEN** a contributor wants to know whether a journey is tested end to end
 - **THEN** the list names it and its spec files
 
-### Requirement: An unlisted end-to-end test states why
+### Requirement: A new end-to-end test states why
 
-A pull request that adds an end-to-end test for something not on the list MUST
-say why no lower tier would catch the fault.
+A pull request that adds an end-to-end test MUST say why no lower tier would
+catch the fault. Naming a listed journey it newly covers is such a reason.
 
 #### Scenario: Review of a new browser test
 
-- **WHEN** a pull request adds such a test without that reason
+- **WHEN** a pull request adds an end-to-end test without that reason
 - **THEN** review asks for the reason or for a lower-tier test
 
 ### Requirement: A moved test has a proven replacement
