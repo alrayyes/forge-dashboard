@@ -14,6 +14,8 @@
 set -euo pipefail
 
 go=false web=false image=false hadolint=false prose=false api=false release=false
+# A script only some Go or web job runs: those jobs, but no image or e2e.
+go_checks=false web_checks=false
 
 all() { go=true web=true image=true hadolint=true prose=true api=true release=true; }
 
@@ -30,8 +32,19 @@ while IFS= read -r path; do
       .gitignore | .prettierignore | openspec/*)
       ;;
     # The test job runs these, and needs go for them.
-    scripts/build-reports.sh | scripts/test-build-reports.sh)
-      go=true
+    scripts/build-reports.sh | scripts/test-build-reports.sh | scripts/*.go)
+      go_checks=true
+      ;;
+    # The scripts the image build and the browser jobs run (#5188).
+    # test-changed-areas.sh fails when one of them is missing here.
+    scripts/changelog-json.ts | scripts/check-image-bun.sh | scripts/e2e-shard-cancelled.sh | \
+      scripts/e2e-shards.ts | scripts/lighthouse-session.js | scripts/save-admin-session.ts | \
+      scripts/stale-e2e-binary.ts | scripts/sync-web-build.sh | scripts/unlisted-e2e-specs.ts)
+      web=true
+      ;;
+    # Every other script keeps its tests, lint and type check.
+    scripts/*)
+      web_checks=true
       ;;
     *.go | go.mod | go.sum | .golangci.yml | integration/* | internal/* | cmd/*)
       go=true
@@ -55,7 +68,7 @@ while IFS= read -r path; do
     tests/generated/*)
       go=true web=true
       ;;
-    web/* | tests/* | scripts/* | .semgrep/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
+    web/* | tests/* | .semgrep/* | playwright.config.ts | biome.json | tsconfig.json | lighthouserc.json)
       web=true
       ;;
     .goreleaser.yml)
@@ -90,6 +103,10 @@ fi
 # The Playwright suite runs against the built binary, so it follows the
 # image: Go, web or Docker changes all can break it.
 e2e=$image
+
+# Added after the line above, so these never pull in the image or e2e.
+if [ "$go_checks" = true ]; then go=true; fi
+if [ "$web_checks" = true ]; then web=true; fi
 
 printf 'go=%s\nweb=%s\nimage=%s\ne2e=%s\nhadolint=%s\nprose=%s\napi=%s\nrelease=%s\n' \
   "$go" "$web" "$image" "$e2e" "$hadolint" "$prose" "$api" "$release"
