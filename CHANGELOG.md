@@ -1,5 +1,12 @@
 # Changelog
 
+## [9.140.18](https://github.com/alrayyes/forge-dashboard/compare/v9.140.17...v9.140.18) (2026-11-28)
+
+
+### Bug Fixes
+
+* **web:** send each row once in a bulk run ([#5172](https://github.com/alrayyes/forge-dashboard/issues/5172)) ([cfa4d79](https://github.com/alrayyes/forge-dashboard/commit/cfa4d799ef95850a83335688b577155f4697a313))
+
 ## [9.140.17](https://github.com/alrayyes/forge-dashboard/compare/v9.140.16...v9.140.17) (2026-11-28)
 
 
