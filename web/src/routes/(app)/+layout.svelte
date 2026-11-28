@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Schema } from "#lib/data/api.js";
   import { onMount } from "svelte";
   import { page } from "$app/state";
   import { syncThemeFromServer } from "#lib/theme.js";
@@ -40,7 +41,7 @@
   // Matches GET /api/v1/auth/session's JSON body — see nav.js's own comment
   // (now retired for every page under this layout) for the shape this
   // was always fetching.
-  type Session = { displayName: string };
+  type Session = Pick<Schema<"SessionUser">, "displayName">;
 
   let displayName = $state("");
 

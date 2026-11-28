@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { page } from "$app/state";
-  import type { components } from "#lib/data/api-schema.js";
+  import type { Schema } from "#lib/data/api.js";
   import { currentFooterLink, FOOTER_PAGES } from "#lib/footer-links.js";
 
   // The footer every page shares. The version fetch has three outcomes: it
@@ -25,7 +25,7 @@
   onMount(() => {
     fetch("/api/version", { headers: { Accept: "application/json" } })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: components["schemas"]["Version"] | null) => {
+      .then((data: Schema<"Version"> | null) => {
         if (!data?.version) return;
         versionState =
           data.version === "dev"

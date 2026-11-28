@@ -27,6 +27,7 @@
     MAX_IGNORED_TITLES,
     MAX_PATTERN_LENGTH,
   } from "#lib/issue-settings.js";
+  import type { Schema } from "#lib/data/api.js";
   import { tokenizeRegex } from "#lib/regex-tokens.js";
   import {
     skippedAvatarHosts,
@@ -51,39 +52,9 @@
     zoneNames,
   } from "#lib/time.svelte.js";
 
-  type SettingsResponse = {
-    githubUsername: string;
-    githubTokenSet: boolean;
-    githubAppInstallationId: number;
-    githubAppConfigured: boolean;
-    forgejoUrl: string;
-    forgejoUsername: string;
-    forgejoTokenSet: boolean;
-    renovateRebaseLabel: string;
-    theme: ThemePreference;
-    // Optional until the server sends them (#1630): missing reads as off and
-    // empty.
-    hideDependencyDashboard?: boolean;
-    ignoredTitles?: string[];
-    // Optional until the server sends it (#1676): per ignored title, in the
-    // same order, how many open issues it hides; null is unknown.
-    ignoredTitleCounts?: (number | null)[];
-    // Optional until the server sends it (#3683): the other hosts a Forgejo
-    // avatar was skipped for. Missing reads as none.
-    forgejoSkippedAvatarHosts?: string[];
-  };
-  type ApiToken = {
-    id: string;
-    label: string;
-    createdAt: string;
-    expiresAt: string;
-    lastUsedAt?: string;
-  };
-  type Passkey = {
-    id: string;
-    label: string;
-    createdAt: string;
-  };
+  type SettingsResponse = Schema<"SettingsResponse">;
+  type ApiToken = Schema<"APIToken">;
+  type Passkey = Schema<"Credential">;
 
   function escapeHTML(s: string): string {
     return s;
